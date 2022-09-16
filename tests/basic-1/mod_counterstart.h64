@@ -28,7 +28,7 @@
 import main
 
 func main.MyObject.init {
-    self.counter += 1
+    self.counter = 1
     print("This code modified the counter start value to 1.")
 }
 

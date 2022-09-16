@@ -33,7 +33,7 @@ type MyObject {
 }
 func MyObject.increase_counter {
     self.counter += 1
-    print("Count: " + self.counter)
+    print("Count: " + self.counter.as_str())
 }
 
 func main {

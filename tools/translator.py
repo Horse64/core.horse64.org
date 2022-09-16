@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 
+VERSION="2022-09-16"
+
 import os
 import platform
 import shutil
@@ -9,6 +11,10 @@ import tempfile
 
 
 translated_files = {}
+
+DEBUG_ENABLE = False
+DEBUG_ENABLE_CONTENTS = False
+DEBUG_ENABLE_TYPES = False
 
 
 class RegisteredType:
@@ -34,8 +40,9 @@ def register_type(type_name, module_path, library_name):
     known_types[module_path + "." + type_name + library_name_part] = (
         RegisteredType(type_name, module_path, library_name)
     )
-    print("tools/translator.py: debug: registered type " +
-        module_path + "." + type_name + library_name_part)
+    if DEBUG_ENABLE and DEBUG_ENABLE_TYPES:
+        print("tools/translator.py: debug: registered type " +
+            module_path + "." + type_name + library_name_part)
 
 
 def get_type(type_name, module_path, library_name):
@@ -193,8 +200,10 @@ def untokenize(tokens):
     for token in tokens:
         assert(type(token) == str)
         if prevtoken != "" and \
-                prevtoken not in {".", "(", "[", "{", "}", "]", ")"} and \
-                token not in {".", "(", "[", "{", "}", "]", ")"} and \
+                prevtoken not in {".", "(", "[", "{",
+                    "}", "]", ")", ","} and \
+                token not in {".", ",", "(", "[", "{",
+                    "}", "]", ")"} and \
                 not is_whitespace_token(token) and \
                 not is_whitespace_token(prevtoken):
             result += " "
@@ -205,19 +214,58 @@ def untokenize(tokens):
 
 def translate_expression_tokens(s, module_name, library_name,
         parent_statement=None, known_imports=None):
+    # Remove "new" since Python just omits that:
     i = 0
     while i < len(s):
         if s[i] == "new":
             s = s[:i] + s[i + 1:]
             continue
         i += 1
+    # Translate XYZ.as_str() to str(XYZ)
+    replaced_one = True
+    while replaced_one:
+        replaced_one = False
+        i = 0
+        while i + 2 < len(s):
+            if (i > 0 and s[i - 1] == "." and
+                    s[i] == "as_str" and s[i + 1] == "(" and
+                    s[i + 2] == ")"):
+                def is_keyword_or_idf(s):
+                    if len(s) == 0:
+                        return False
+                    if (s[0] == "_" or(ord(s[0]) >= ord("A") and
+                            ord(s[0]) <= ord("Z")) or
+                            (ord(s[0]) >= ord("a") and
+                            ord(s[0]) <= ord("z"))):
+                        return True
+                    return False
+                replaced_one = True
+                s = s[:i - 1] + s[i + 2:]
+                inserted_left_end = False
+                bdepth = 0
+                i -= 2
+                while i > 0:
+                    if s[i] in {")", "]", "}"}:
+                        bdepth += 1
+                    elif s[i] in {"(", "[", "{"}:
+                        bdepth -= 1
+                    if (s[i] != "." and
+                            not is_keyword_or_idf(s[i]) and
+                            bdepth <= 0):
+                        s = s[:i + 1] + ["str", "("] + s[i + 1:]
+                        inserted_left_end = True
+                        break
+                    i -= 1
+                assert(inserted_left_end)
+                break
+            i += 1
     return s
 
 
 def translate(s, module_name, library_name, parent_statement=None,
         extra_indent="", folder_path="",
         known_imports=None, translate_file_queue=None):
-    if parent_statement is None:
+    if parent_statement is None and DEBUG_ENABLE:
         print("tools/translator.py: debug: translating " +
             "module \"" + modname + "\" in folder: " + folder_path)
     if known_imports is None:
@@ -392,9 +440,24 @@ def translate(s, module_name, library_name, parent_statement=None,
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    if len(args) == 0:
+    target_file = None
+    i = 0
+    while i < len(args):
+        if args[i].startswith("-"):
+            if args[i] == "--help":
+                print("Usage: translator.py ...path-to-h64-file...")
+            elif (args[i] == "--version" or args[i] == "-v" or
+                    args[i] == "-V"):
+                print("tools/translator.py version " + VERSION)
+            elif args[i] == "--debug":
+                DEBUG_ENABLE = True
+                DEBUG_ENABLE_TYPES = True
+                DEBUG_ENABLE_CONTENTS = True
+        elif target_file is None:
+            target_file = args[i]
+        i += 1
+    if target_file is None:
         raise RuntimeError("please provide target file argument")
-    target_file = args[0]
     modname = (os.path.basename(target_file).
         rpartition(".h64")[0].strip())
     modfolder = os.path.abspath(os.path.dirname(target_file))
@@ -428,8 +491,10 @@ if __name__ == "__main__":
             raise RuntimeError("failed to detect repository folder")
         repo_folder = os.path.normpath(os.path.abspath(
             os.path.join(repo_folder, "..")))
-    print("tools/translator.py: debug: detected repository folder: " +
-        repo_folder)
+    if DEBUG_ENABLE:
+        print("tools/translator.py: debug: " +
+            "detected repository folder: " +
+            repo_folder)
     translate_file_queue = [
         (os.path.normpath(os.path.abspath(target_file)),
         modname, modfolder, None)]
@@ -453,8 +518,6 @@ if __name__ == "__main__":
                 rpartition(".h64")[0])
             translate_file_queue.append((otherfilepath,
                 new_modname, modfolder, library_name))
-        #print("tools/translator.py: debug: " +
-        #    "translating file: " + target_file)
         contents = None
         with open(target_file, "r", encoding="utf-8") as f:
             contents = f.read()
@@ -485,17 +548,29 @@ if __name__ == "__main__":
             contents_result += "\n"
             contents_result += "class " + regtype.name + ":\n"
             if "init" in regtype.funcs:
+                assert(regtype.funcs["init"]["arguments"][0] == "(")
+                regtype.funcs["init"]["arguments"] = (
+                    regtype.funcs["init"]["arguments"][:1] +
+                    ["self", ",", " "] +
+                    regtype.funcs["init"]["arguments"][1:]
+                )
                 contents_result += ("    def __init__" +
                     untokenize(regtype.funcs["init"]["arguments"]) + ":\n")
                 if regtype.init_code != None:
                     contents_result += regtype.init_code + "\n"
                 contents_result += regtype.funcs["init"]["code"] + "\n"
             elif regtype.init_code != None:
-                contents_result += ("    def __init__():\n")
+                contents_result += ("    def __init__(self):\n")
                 contents_result += regtype.init_code + "\n"
             for funcname in regtype.funcs:
                 if funcname == "init":
                     continue
+                assert(regtype.funcs[funcname]["arguments"][0] == "(")
+                regtype.funcs[funcname]["arguments"] = (
+                    regtype.funcs[funcname]["arguments"][:1] +
+                    ["self", ",", " "] +
+                    regtype.funcs[funcname]["arguments"][1:]
+                )
                 contents_result += ("    def " + funcname +
                     untokenize(regtype.funcs[funcname]["arguments"]) + ":\n")
                 contents_result += regtype.funcs[funcname]["code"] + "\n"
@@ -504,16 +579,20 @@ if __name__ == "__main__":
                 mainfilepath):
             contents_result += "\nif __name__ == '__main__':\n    main()\n"
 
-        #print("tools/translator.py: debug: have output of " +
-        #    str(len(contents_result.splitlines())) + " lines for: " +
-        #    translated_file)
+        if DEBUG_ENABLE and DEBUG_ENABLE_CONTENTS:
+            print("tools/translator.py: debug: have output of " +
+                str(len(contents_result.splitlines())) + " lines for: " +
+                translated_file)
+            print(contents_result)
         translated_files[translated_file]["output"] = contents_result
         #print(tokenize(b" \n\r test".decode("utf-8")))
     output_folder = tempfile.mkdtemp(prefix="h64-tools-translator-")
     assert(os.path.isabs(output_folder) and "h64-tools" in output_folder)
+    returncode = 0
     try:
-        print("tools/translator.py: debug: writing result to: " +
-            output_folder)
+        if DEBUG_ENABLE:
+            print("tools/translator.py: debug: writing result to: " +
+                output_folder)
         run_py_path = None
         for translated_file in translated_files:
             name = os.path.basename(
@@ -534,6 +613,8 @@ if __name__ == "__main__":
         result = subprocess.run([
             sys.executable, run_py_path
         ])
+        returncode = result.returncode
     finally:
         shutil.rmtree(output_folder)
+    sys.exit(returncode)
 
