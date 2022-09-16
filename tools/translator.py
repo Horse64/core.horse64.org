@@ -263,7 +263,7 @@ def translate_expression_tokens(s, module_name, library_name,
 
 
 def translate(s, module_name, library_name, parent_statement=None,
-        extra_indent="", folder_path="",
+        extra_indent="", folder_path="", repo_folder="",
         known_imports=None, translate_file_queue=None):
     if parent_statement is None and DEBUG_ENABLE:
         print("tools/translator.py: debug: translating " +
@@ -289,9 +289,9 @@ def translate(s, module_name, library_name, parent_statement=None,
             while is_whitespace_token(statement[0]):
                 statement = statement[1:]
             i = 1
-            while i < len(s) and statement[i] != "=":
+            while i < len(statement) and statement[i] != "=":
                 i += 1
-            if i < len(s) and statement[i] == "=":
+            if i < len(statement) and statement[i] == "=":
                 statement = statement[:i + 1] + translate_expression_tokens(
                     statement[i + 1:], module_name, library_name,
                     parent_statement=statement_cpy,
@@ -317,27 +317,56 @@ def translate(s, module_name, library_name, parent_statement=None,
             ])
             import_library = None
             i += 1
+            while i < len(statement) and statement[i].strip() == "":
+                i += 1
             if i < len(statement) and statement[i] == "from":
                 i += 1
+                while i < len(statement) and statement[i].strip() == "":
+                    i += 1
                 import_library = statement[i]
                 while i + 2 < len(statement) and statement[i + 1] == ".":
                     import_library += "." + statement[i + 2]
                     i += 2
-            known_imports[import_module] = {
-                "library": import_library,
-                "module": import_module
-            }
+            target_path = import_module.replace(".", "/") + ".h64"
             python_module = import_module
             if import_library != None:
                 python_module = "horse_modules." + (
                     import_library.replace(".", "_")
                 ) + "." + python_module
+                target_path = ("horse_modules/" +
+                    import_library
+                ) + "/" + target_path
+            target_path = os.path.normpath(
+                os.path.join(os.path.abspath(
+                repo_folder), target_path))
             known_imports[import_module] = {
                 "library": import_library,
                 "module": import_module,
                 "python-module": python_module,
+                "path": target_path,
             }
             result += "import " + python_module + "\n"
+            translate_file_queue.append(
+                (target_path,
+                import_module, os.path.dirname(target_path),
+                import_library)
+            )
+            for otherfile in os.listdir(os.path.dirname(target_path)):
+                otherfilepath = os.path.normpath(os.path.join(
+                    os.path.dirname(target_path), otherfile
+                ))
+                if (not otherfilepath.endswith(".h64") or
+                        os.path.isdir(otherfilepath)):
+                    continue
+                otherfile_module = ".".join(
+                    import_module.split(".")[:-1] +
+                    [otherfile.rpartition(".h64")[0].strip()]
+                )
+                translate_file_queue.append(
+                    (otherfilepath,
+                    otherfile_module, os.path.dirname(target_path),
+                    import_library)
+                )
             continue
         elif statement[0] == "func":
             statement_cpy = list(statement)
@@ -395,6 +424,7 @@ def translate(s, module_name, library_name, parent_statement=None,
                 extra_indent=(indent + ("    "
                     if type_name is not None else "")),
                 folder_path=folder_path,
+                repo_folder=repo_folder,
                 known_imports=known_imports,
                 translate_file_queue=translate_file_queue
             )
@@ -427,6 +457,7 @@ def translate(s, module_name, library_name, parent_statement=None,
                 parent_statement=statement_cpy,
                 extra_indent=(indent + "    "),
                 folder_path=folder_path,
+                repo_folder=repo_folder,
                 known_imports=known_imports,
                 translate_file_queue=translate_file_queue
             )
@@ -523,7 +554,7 @@ if __name__ == "__main__":
             contents = f.read()
         contents_result = (
             translate(contents, modname, library_name,
-                folder_path=modfolder,
+                folder_path=modfolder, repo_folder=repo_folder,
                 translate_file_queue=translate_file_queue))
         translated_files[target_file] = {
             "module-name": modname,

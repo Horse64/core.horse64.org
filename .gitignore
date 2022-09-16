@@ -1,3 +1,5 @@
 *~
 *.o
 *.bin
+/tests/basic-1/horse_modules/core.horse64.org/
+/tests/args/horse_modules/core.horse64.org/
