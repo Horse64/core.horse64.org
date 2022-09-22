@@ -34,6 +34,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 
 
 translated_files = {}
@@ -41,9 +42,9 @@ translated_files = {}
 DEBUG_ENABLE = False
 DEBUG_ENABLE_CONTENTS = False
 DEBUG_ENABLE_TYPES = False
-DEBUG_ENABLE_REMAPPED_FUNCS = False
+DEBUG_ENABLE_REMAPPED_USES = False
 
-remapped_functions = {
+remapped_uses = {
     "path@core.horse64.org": {
         "path.basename" : "__remapped_os.basename",
     },
@@ -340,7 +341,7 @@ def translate(s, module_name, library_name, parent_statement=None,
             statement = statement[1:]
             while is_whitespace_token(statement[0]):
                 statement = statement[1:]
-        if statement[0] == "var":
+        if statement[0] == "var" or statement[0] == "const":
             statement_cpy = list(statement)
             statement = statement[1:]
             while is_whitespace_token(statement[0]):
@@ -357,13 +358,14 @@ def translate(s, module_name, library_name, parent_statement=None,
                     parent_statement[0] == "type":
                 type_name = parent_statement[2]
                 get_type(type_name, module_name, library_name).\
-                    init_code += indent +\
+                    init_code += "\n" + indent +\
                     ("\n" + indent).join((
                         "self." +
                         untokenize(statement) + "\n"
                     ).splitlines())
                 continue
         elif statement[0] == "import":
+            assert(parent_statement is None)
             assert(len(statement) >= 2 and statement[1].strip() == "")
             i = 2
             while i + 2 < len(statement) and statement[i + 1] == ".":
@@ -396,6 +398,78 @@ def translate(s, module_name, library_name, parent_statement=None,
             target_path = os.path.normpath(
                 os.path.join(os.path.abspath(
                 repo_folder), target_path))
+
+            # Check if this module is only used for remapped uses:
+            found_nonremapped_use = False
+            found_remapped_use = False
+            if DEBUG_ENABLE_REMAPPED_USES:
+                print("tools/translator.py: debug: scanning \"" +
+                    "import " + import_module +
+                    (" from " + import_library
+                    if import_library != None else "") + "\" for " +
+                    "remapped uses...")
+            import_module_elements = import_module.split(".")
+            assert(len(import_module_elements) >= 1)
+            i = 0
+            while i < len(tokens):
+                if (i > 1 and tokens[i - 1].strip(" \t\r\n") == "" and
+                        tokens[i - 2] == "import"):
+                    i += 1
+                    continue
+                match = True
+                k = 0
+                while k < len(import_module_elements):
+                    if (k * 2 + i >= len(tokens) or
+                            tokens[i + k * 2] !=
+                            import_module_elements[k] or
+                            (k + 1 < len(import_module_elements) and
+                            (k * 2 + 1 + i >= len(tokens) or
+                            tokens[i + k * 2 + 1] != "."))):
+                        match = False
+                        break
+                    k += 2
+                if not match:
+                    i += 1
+                    continue
+                remapped_uses_key = import_module
+                if import_library != None:
+                    remapped_uses_key += "@" + import_library
+                if remapped_uses_key not in remapped_uses:
+                    if DEBUG_ENABLE_REMAPPED_USES:
+                        print("tools/translator.py: debug: found " +
+                            "non-remapped use: " + str(
+                            tokens[i:i + len(import_module_elements) + 10]))
+                    found_nonremapped_use = True
+                    break
+                remapped_uses_list = list(
+                    remapped_uses[remapped_uses_key].keys())
+                matched_remap = False
+                for remapped_use_entry in remapped_uses_list:
+                    remapped_use_parts = (
+                        remapped_use_entry.split("."))
+                    if ("".join(tokens[i:
+                            i + len(remapped_use_parts) * 2 - 1]) ==
+                            remapped_use_entry):
+                        matched_remap = True
+                        break
+                if not matched_remap:
+                    found_nonremapped_use = True
+                    if DEBUG_ENABLE_REMAPPED_USES:
+                        print("tools/translator.py: debug: found " +
+                            "non-remapped use: " + str(
+                            tokens[i:i + len(import_module_elements) + 10]))
+                else:
+                    found_remapped_use = True
+                i += 1
+
+            # Skip import if it only has remapped uses:
+            if not found_nonremapped_use and found_remapped_use:
+                if DEBUG_ENABLE_REMAPPED_USES:
+                    print("tools/translator.py: debug: skipping " +
+                        "import since all uses are remapped")
+                continue
+
+            # Add import:
             known_imports[import_module] = {
                 "library": import_library,
                 "module": import_module,
@@ -552,7 +626,7 @@ if __name__ == "__main__":
                 DEBUG_ENABLE = True
                 DEBUG_ENABLE_TYPES = True
                 DEBUG_ENABLE_CONTENTS = True
-                DEBUG_ENABLE_REMAPPED_FUNCS = True
+                DEBUG_ENABLE_REMAPPED_USES = True
         elif target_file is None:
             target_file = args[i]
         i += 1
