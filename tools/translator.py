@@ -1,5 +1,31 @@
 #!/usr/bin/python3
 
+# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
 VERSION="2022-09-16"
 
 import os
@@ -15,6 +41,19 @@ translated_files = {}
 DEBUG_ENABLE = False
 DEBUG_ENABLE_CONTENTS = False
 DEBUG_ENABLE_TYPES = False
+DEBUG_ENABLE_REMAPPED_FUNCS = False
+
+remapped_functions = {
+    "path@core.horse64.org": {
+        "path.basename" : "__remapped_os.basename",
+    },
+    "system@core.horse64.org": {
+        "system.self_exec_path" : "__file__",
+    },
+    "process@core.horse64.org": {
+        "process.args": "(sys.argv[1:])",
+    }
+}
 
 
 class RegisteredType:
@@ -66,10 +105,15 @@ def get_next_token(s):
         return ""
     len_s = len(s)
 
-    if s[0] == "'" or s[0] == '"':
+    if (s[0] == "'" or s[0] == '"' or
+            (s[0] == 'b' and len_s > 1 and (
+            s[1] == "'" or s[1] == '"'))):
         end_marker = s[0]
-        next_escaped = False
         i = 1
+        if end_marker == "b":
+            end_marker = s[1]
+            i = 2
+        next_escaped = False
         while i < len_s:
             if s[i] == '\\':
                 if next_escaped:
@@ -80,8 +124,10 @@ def get_next_token(s):
                 i += 1
                 continue
             if s[i] == end_marker and not next_escaped:
+                next_escaped = False
                 i += 1
                 break
+            next_escaped = False
             i += 1
         return s[:i]
     if s[0] == "#":
@@ -166,9 +212,10 @@ def get_next_statement(s):
             bracket_nesting += 1
         if t in [")", "]", "}"]:
             bracket_nesting -= 1
-        if bracket_nesting == 0 and \
-                (t.endswith("\n") or t.endswith("\r")):
+        if (bracket_nesting == 0 and
+                (t.endswith("\n") or t.endswith("\r"))):
            return s[:token_count]
+        assert(bracket_nesting >= 0)
     return s
 
 
@@ -259,6 +306,16 @@ def translate_expression_tokens(s, module_name, library_name,
                 assert(inserted_left_end)
                 break
             i += 1
+    # Translate some keywords:
+    i = 0
+    while i < len(s):
+        if s[i] == "yes":
+            s[i] = "True"
+        elif s[i] == "no":
+            s[i] == "False"
+        elif s[i] == "none":
+            s[i] = "None"
+        i += 1
     return s
 
 
@@ -375,6 +432,17 @@ def translate(s, module_name, library_name, parent_statement=None,
             while statement[i] != "{":
                 i += 1
             i += 1
+
+            if statement[-1] != "}":
+                print("tools/translator.py: error: " +
+                    "got invalid func statement " +
+                    "without closing bracket:", file=sys.stderr)
+                print(untokenize(statement_cpy), file=sys.stderr)
+                print("tools/translator.py: info: " +
+                    "(statement repeated now as tokens list)",
+                    file=sys.stderr)
+                print(str(statement_cpy), file=sys.stderr)
+                sys.stderr.flush()
             assert(statement[-1] == "}")
             contents = (
                 statement[i:-1]
@@ -484,6 +552,7 @@ if __name__ == "__main__":
                 DEBUG_ENABLE = True
                 DEBUG_ENABLE_TYPES = True
                 DEBUG_ENABLE_CONTENTS = True
+                DEBUG_ENABLE_REMAPPED_FUNCS = True
         elif target_file is None:
             target_file = args[i]
         i += 1
@@ -569,7 +638,9 @@ if __name__ == "__main__":
             "output": contents_result
         }
     for translated_file in translated_files:
-        contents_result = translated_files[translated_file]["output"]
+        contents_result = textwrap.dedent("""\
+        import os as __remapped_os; import sys as __remapped_sys;
+        """) + translated_files[translated_file]["output"]
         for regtype in known_types.values():
             if (regtype.module != translated_files
                     [translated_file]["module-name"] or
