@@ -293,6 +293,16 @@ def translate_expression_tokens(s, module_name, library_name,
                 s[i + 1].strip(" \t\r\n") == "" and
                 s[i + 1].strip(" \t") != ""):
             s = s[:i + 1] + ["\\"] + s[i + 1:]
+        if ((s[i].endswith("\"") or s[i].endswith("'")) and
+                i + 2 < len(s) and
+                s[i + 1].strip(" \t\r\n") == "" and
+                s[i + 1].strip(" \t") != ""):
+            z = i + 2
+            while z < len(s) and s[z].strip(" \t\r\n") == "":
+                z += 1
+            if (z < len(s) and (
+                    s[z].endswith("\"") or s[z].endswith("'"))):
+                s = s[:i + 1] + ["+", "\\"] + s[i + 1:]
         i += 1
     # Remove "new" since Python just omits that:
     i = 0
