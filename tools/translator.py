@@ -222,7 +222,17 @@ def get_next_statement(s):
                     "and", "or", "not", "+", "-", "*", "/",
                     ">", "<", "->",
                 } and not last_nonwhitespace_token.endswith("=")):
-           return s[:token_count]
+            is_string_continuation = False
+            if (last_nonwhitespace_token.endswith("\"") or
+                    last_nonwhitespace_token.endswith("'")):
+                z = token_count
+                while z < len(s) and s[z].strip(" \t\r\n") == "":
+                    z += 1
+                if z < len(s) and (
+                        s[z].endswith("\"") or s[z].endswith("'")):
+                    is_string_continuation = True
+            if not is_string_continuation:
+                return s[:token_count]
         assert(bracket_nesting >= 0)
         if t.strip(" \t\r\n") != "":
             last_nonwhitespace_token = t
@@ -260,7 +270,7 @@ def untokenize(tokens):
                 prevtoken not in {".", "(", "[", "{",
                     "}", "]", ")", ","} and \
                 token not in {".", ",", "(", "[", "{",
-                    "}", "]", ")"} and \
+                    "}", "]", ")", "\\"} and \
                 not is_whitespace_token(token) and \
                 not is_whitespace_token(prevtoken):
             result += " "
@@ -292,22 +302,24 @@ def translate_expression_tokens(s, module_name, library_name,
                 s[i].endswith("=") or s[i] == "->") and (
                 s[i + 1].strip(" \t\r\n") == "" and
                 s[i + 1].strip(" \t") != ""):
-            s = s[:i + 1] + ["\\"] + s[i + 1:]
+            s = (s[:i + 1] + ["\\"] + [s[i + 1].lstrip(" \t")] +
+                s[i + 2:])
         if ((s[i].endswith("\"") or s[i].endswith("'")) and
                 i + 2 < len(s) and
                 s[i + 1].strip(" \t\r\n") == "" and
                 s[i + 1].strip(" \t") != ""):
             z = i + 2
-            while z < len(s) and s[z].strip(" \t\r\n") == "":
+            while z < len(s) and s[z].strip(" \t") == "":
                 z += 1
             if (z < len(s) and (
                     s[z].endswith("\"") or s[z].endswith("'"))):
-                s = s[:i + 1] + ["+", "\\"] + s[i + 1:]
+                s = (s[:i + 1] + ["+", "\\"] + [s[i + 1].lstrip(" \t")] +
+                    s[i + 2:])
         i += 1
-    # Remove "new" since Python just omits that:
+    # Remove "new" and "protect" since Python doesn't have these:
     i = 0
     while i < len(s):
-        if s[i] == "new":
+        if s[i] == "new" or s[i] == "protect":
             s = s[:i] + s[i + 1:]
             continue
         i += 1
@@ -498,6 +510,8 @@ def translate(s, module_name, library_name, parent_statements=[],
                 statement = statement[1:]
             i = 1
             while i < len(statement) and statement[i] != "=":
+                if statement[i] == "protect":
+                    statement[i] = ""  # Python doesn't have that.
                 i += 1
             if i < len(statement) and statement[i] == "=":
                 statement = (statement[:i + 1] + ["("] +
@@ -813,7 +827,7 @@ def translate(s, module_name, library_name, parent_statements=[],
                     "arguments": argument_tokens,
                     "name": name,
                     "code":
-                    "    \n".join(translated_contents.splitlines()) + "\n"
+                    "\n".join(translated_contents.splitlines()) + "\n"
                 }
             continue
         elif statement[0] == "type":
