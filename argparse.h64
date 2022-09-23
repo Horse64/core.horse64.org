@@ -181,7 +181,7 @@ func get_usage_text(options) {
             continue
         }
         output += " [" + arg.name + (
-            given arg.optional then ("<optional>" else "")
+            if arg.optional ("<optional>") else ("")
         ) + "]"
     }
     output += "\n"

@@ -106,6 +106,8 @@ def get_next_token(s):
         return ""
     len_s = len(s)
 
+    if s[:2] == "->":
+        return "->"
     if (s[0] == "'" or s[0] == '"' or
             (s[0] == 'b' and len_s > 1 and (
             s[1] == "'" or s[1] == '"'))):
@@ -205,6 +207,7 @@ def tokenize(s):
 def get_next_statement(s):
     if len(s) == 0:
         return []
+    last_nonwhitespace_token = ""
     token_count = 0
     bracket_nesting = 0
     for t in s:
@@ -214,9 +217,15 @@ def get_next_statement(s):
         if t in [")", "]", "}"]:
             bracket_nesting -= 1
         if (bracket_nesting == 0 and
-                (t.endswith("\n") or t.endswith("\r"))):
+                (t.endswith("\n") or t.endswith("\r")) and
+                last_nonwhitespace_token not in {
+                    "and", "or", "not", "+", "-", "*", "/",
+                    ">", "<", "->",
+                } and not last_nonwhitespace_token.endswith("=")):
            return s[:token_count]
         assert(bracket_nesting >= 0)
+        if t.strip(" \t\r\n") != "":
+            last_nonwhitespace_token = t
     return s
 
 
@@ -261,7 +270,30 @@ def untokenize(tokens):
 
 
 def translate_expression_tokens(s, module_name, library_name,
-        parent_statement=None, known_imports=None):
+        parent_statements=[], known_imports=None,
+        add_indent=""):
+    s = list(s)
+
+    # Fix indent first:
+    i = 0
+    while i < len(s):
+        t = s[i]
+        if t.strip("\r\n ") == "" and (
+                t.startswith("\r\n") or
+                t.startswith("\n")):
+            t += add_indent
+            s[i] = t
+        i += 1
+    # Add line continuation things:
+    i = 0
+    while i < len(s):
+        if (s[i] in {">", "=", "<", "!", "+", "-", "/", "*",
+                "%", "|", "^", "&", "~"} or
+                s[i].endswith("=") or s[i] == "->") and (
+                s[i + 1].strip(" \t\r\n") == "" and
+                s[i + 1].strip(" \t") != ""):
+            s = s[:i + 1] + ["\\"] + s[i + 1:]
+        i += 1
     # Remove "new" since Python just omits that:
     i = 0
     while i < len(s):
@@ -269,15 +301,116 @@ def translate_expression_tokens(s, module_name, library_name,
             s = s[:i] + s[i + 1:]
             continue
         i += 1
-    # Translate XYZ.as_str() to str(XYZ)
+    # Translate {->} dict constructor:
+    i = 0
+    while i < len(s):
+        if s[i] != "{":
+            i += 1
+            continue
+        start_idx = i
+        i += 1
+        while i < len(s) and s[i].strip(" \t\r\n") == "":
+            i += 1
+            continue
+        if s[i] != "->":
+            i += 1
+            continue
+        i += 1
+        while i < len(s) and s[i].strip(" \t\r\n") == "":
+            i += 1
+            continue
+        if s[i] != "}":
+            i += 1
+            continue
+        s = (s[:start_idx] +
+            ["(", "dict", "(", ")", ")"] +
+            s[i + 1:])
+        i += 1
+    # Translate inline "if":
+    i = 0
+    while i < len(s):
+        if s[i] != "if":
+            i += 1
+            continue
+        had_nonwhitespace_token = False
+        z = i + 1
+        condition_start_idx = z
+        condition_end_idx = -1
+        value_1_start_idx = -1
+        value_1_end_idx = -1
+        value_2_start_idx = -1
+        value_2_end_idx = -1
+        bracket_depth = 0
+        while z < len(s):
+            if (had_nonwhitespace_token and s[z] in {"(", "{"} and
+                    bracket_depth == 0):
+                condition_end_idx = z - 1
+                break
+            if s[z] in {"[", "(", "{"}:
+                braclet_depth += 1
+            if s[z] in {"]", ")", "}"}:
+                bracket_depth -= 1
+            if s[z].strip(" \t\r\n") == "":
+                had_nonwhitespace_token = True
+            z += 1
+        if z >= len(s) and s[z] != "(":
+            # Not an inline if.
+            i += 1
+            continue
+        value_1_start_idx = z
+        while z < len(s):
+            if (z > value_1_start_idx and
+                    bracket_depth == 0 and
+                    s[z] == "else"):
+                value_1_end_idx = z - 1
+                break
+            if s[z] in {"[", "(", "{"}:
+                bracket_depth += 1
+            if s[z] in {"]", ")", "}"}:
+                bracket_depth -= 1
+            z += 1
+        assert(s[z] == "else")
+        value_2_start_idx = z + 1
+        while z < len(s):
+            if (z > value_2_start_idx and
+                    bracket_depth <= 1 and
+                    s[z] == ")"):
+                value_2_end_idx = z
+                bracket_depth = 0
+                break
+            if s[z] in {"[", "(", "{"}:
+                bracket_depth += 1
+            if s[z] in {"]", ")", "}"}:
+                bracket_depth -= 1
+            z += 1
+        #print("IF INLINE: " + str((
+        #    s[condition_start_idx:condition_end_idx + 1],
+        #    s[value_1_start_idx:value_1_end_idx + 1],
+        #    s[value_2_start_idx:value_2_end_idx + 1])))
+        transformed_tokens = (["("] + (["("] +
+            s[value_1_start_idx:value_1_end_idx + 1] +
+            [")"] + ["if"] +
+            s[condition_start_idx:condition_end_idx + 1] +
+            ["else"] +
+            s[value_2_start_idx:value_2_end_idx + 1]
+        ) + [")"])
+        s = s[:i] + transformed_tokens + s[value_2_end_idx + 1:]
+        i = i + len(transformed_tokens) + 1
+    # Translate XYZ.as_str()/XYZ.len to str(XYZ)/len(XYZ)
     replaced_one = True
     while replaced_one:
         replaced_one = False
         i = 0
         while i + 2 < len(s):
-            if (i > 0 and s[i - 1] == "." and
-                    s[i] == "as_str" and s[i + 1] == "(" and
-                    s[i + 2] == ")"):
+            if (i > 0 and s[i - 1] == "." and (
+                    s[i] in ("len") or (
+                    s[i] in ("as_str", "to_num") and s[i + 1] == "(" and
+                    s[i + 2] == ")"))):
+                insert_call = "str"
+                if s[i] == "len":
+                    insert_call = "len"
+                elif s[i] == "to_num":
+                    insert_call = "float"
                 def is_keyword_or_idf(s):
                     if len(s) == 0:
                         return False
@@ -288,7 +421,10 @@ def translate_expression_tokens(s, module_name, library_name,
                         return True
                     return False
                 replaced_one = True
-                s = s[:i - 1] + s[i + 2:]
+                old_s = s
+                s = s[:i - 1] + ([")"] if s[i] in ("len") else []) + (
+                    s[(i + 2 if
+                    s[i] not in ("len") else i + 1):])
                 inserted_left_end = False
                 bdepth = 0
                 i -= 2
@@ -300,11 +436,15 @@ def translate_expression_tokens(s, module_name, library_name,
                     if (s[i] != "." and
                             not is_keyword_or_idf(s[i]) and
                             bdepth <= 0):
-                        s = s[:i + 1] + ["str", "("] + s[i + 1:]
+                        s = s[:i + 1] + [insert_call, "("] + s[i + 1:]
                         inserted_left_end = True
                         break
                     i -= 1
                 assert(inserted_left_end)
+                #print("BEFORE REPLACEMENT: " +
+                #    str(old_s[max(0, i - 10):i + 40]) +
+                #    " AFTER: " +
+                #    str(s[max(0, i - 10):i + 40]))
                 break
             i += 1
     # Translate some keywords:
@@ -320,10 +460,10 @@ def translate_expression_tokens(s, module_name, library_name,
     return s
 
 
-def translate(s, module_name, library_name, parent_statement=None,
+def translate(s, module_name, library_name, parent_statements=[],
         extra_indent="", folder_path="", repo_folder="",
         known_imports=None, translate_file_queue=None):
-    if parent_statement is None and DEBUG_ENABLE:
+    if len(parent_statements) == 0 and DEBUG_ENABLE:
         print("tools/translator.py: debug: translating " +
             "module \"" + modname + "\" in folder: " + folder_path)
     if known_imports is None:
@@ -350,13 +490,15 @@ def translate(s, module_name, library_name, parent_statement=None,
             while i < len(statement) and statement[i] != "=":
                 i += 1
             if i < len(statement) and statement[i] == "=":
-                statement = statement[:i + 1] + translate_expression_tokens(
+                statement = (statement[:i + 1] + ["("] +
+                    translate_expression_tokens(
                     statement[i + 1:], module_name, library_name,
-                    parent_statement=statement_cpy,
-                    known_imports=known_imports)
-            if parent_statement != None and \
-                    parent_statement[0] == "type":
-                type_name = parent_statement[2]
+                    parent_statements=(
+                        parent_statements + [statement_cpy]),
+                    known_imports=known_imports) + [")"])
+            if len(parent_statements) > 0 and \
+                    "".join(parent_statements[0][:1]) == "type":
+                type_name = parent_statements[0][2]
                 get_type(type_name, module_name, library_name).\
                     init_code += "\n" + indent +\
                     ("\n" + indent).join((
@@ -364,8 +506,88 @@ def translate(s, module_name, library_name, parent_statement=None,
                         untokenize(statement) + "\n"
                     ).splitlines())
                 continue
+        elif (statement[0] == "if" or statement[0] == "while" or
+                statement[0] == "for"):
+            statement_cpy = list(statement)
+            j = 0
+            while j < len(statement):
+                if statement[j].strip(" \t\r\n") == "":
+                    j += 1
+                    continue
+                assert(statement[j] in ("if", "while", "elseif",
+                    "else", "for"))
+                bracket_depth = 0
+                i = j + 1
+                while i < len(statement) and (
+                        statement[i] != "{" or bracket_depth > 0):
+                    if statement[i] in {"{", "(", "["}:
+                        bracket_depth += 1
+                    elif statement[i] in {"}", ")", "]"}:
+                        bracket_depth -= 1
+                    i += 1
+                assert(i < len(statement) and statement[i] == "{")
+                statement[i] = ":"
+                begin_content_idx = i + 1
+                condition = (
+                    translate_expression_tokens(statement[j + 1:i],
+                        module_name, library_name,
+                        parent_statements=parent_statements,
+                        known_imports=known_imports,
+                        add_indent=extra_indent))
+                bracket_depth = 0
+                while statement[i] != "}" or bracket_depth > 0:
+                    if statement[i] in {"{", "(", "["}:
+                        bracket_depth += 1
+                    elif statement[i] in {"}", ")", "]"}:
+                        bracket_depth -= 1
+                    i += 1
+                assert(statement[i] == "}")
+                content = statement[
+                    begin_content_idx:i
+                ]
+                content_code = translate(
+                    untokenize(content), module_name, library_name,
+                    parent_statements=(
+                        parent_statements + [statement_cpy]),
+                    extra_indent=extra_indent,
+                    folder_path=folder_path,
+                    repo_folder=repo_folder,
+                    known_imports=known_imports,
+                    translate_file_queue=translate_file_queue
+                )
+                if statement[j] == "elseif":
+                    statement[j] = "elif"
+                if statement[j] != "for":
+                    condition = ["("] + condition + [")"]
+                else:
+                    in_idx = -1
+                    bracket_depth = 0
+                    z = 0
+                    while z < len(condition):
+                        if condition[z] in {"{", "(", "["}:
+                            bracket_depth += 1
+                        elif condition[z] in {"}", ")", "]"}:
+                            bracket_depth -= 1
+                        if (condition[z] == "in" and
+                                bracket_depth == 0):
+                            in_idx = z
+                            break
+                        z += 1
+                    assert(in_idx > 0)
+                    condition = (["("] +
+                        condition[:in_idx] + [")", " ", "in", " ", "("] +
+                        condition[in_idx + 1:] + [")"])
+                result += (indent + statement[j] + (
+                    " " + untokenize(condition).strip(" ")
+                    if statement[j] != "else" else "") +
+                    ":\n" + content_code + (
+                        "\n" if content_code.rstrip("\r\n") ==
+                        content_code else ""))
+                assert(statement[i] == "}")
+                j = i + 1
+            continue
         elif statement[0] == "import":
-            assert(parent_statement is None)
+            assert(len(parent_statements) == 0)
             assert(len(statement) >= 2 and statement[1].strip() == "")
             i = 2
             while i + 2 < len(statement) and statement[i + 1] == ".":
@@ -562,8 +784,9 @@ def translate(s, module_name, library_name, parent_statement=None,
                 argument_tokens = statement[istart:i + 1]
             translated_contents = translate(
                 untokenize(contents), module_name, library_name,
-                parent_statement=statement_cpy,
-                extra_indent=(indent + ("    "
+                parent_statements=(
+                    parent_statements + [statement_cpy]),
+                extra_indent=(extra_indent + ("    "
                     if type_name is not None else "")),
                 folder_path=folder_path,
                 repo_folder=repo_folder,
@@ -596,8 +819,9 @@ def translate(s, module_name, library_name, parent_statement=None,
             register_type(statement[2], module_name, library_name)
             translated_contents = translate(
                 untokenize(contents), module_name, library_name,
-                parent_statement=statement_cpy,
-                extra_indent=(indent + "    "),
+                parent_statements=(
+                    parent_statements + [statement_cpy]),
+                extra_indent=(extra_indent + "    "),
                 folder_path=folder_path,
                 repo_folder=repo_folder,
                 known_imports=known_imports,
@@ -606,8 +830,9 @@ def translate(s, module_name, library_name, parent_statement=None,
             continue
         result += indent + untokenize(translate_expression_tokens(
             statement, module_name, library_name,
-            parent_statement=parent_statement,
-            known_imports=known_imports)) + "\n"
+            parent_statements=parent_statements,
+            known_imports=known_imports,
+            add_indent=extra_indent)) + "\n"
     return result
 
 
