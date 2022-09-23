@@ -633,6 +633,7 @@ def translate(s, module_name, library_name, parent_statements=[],
                     import_library += "." + statement[i + 2]
                     i += 2
             target_path = import_module.replace(".", "/") + ".h64"
+            append_code = ""
             python_module = import_module
             if import_library != None:
                 python_module = "horse_modules." + (
@@ -641,6 +642,15 @@ def translate(s, module_name, library_name, parent_statements=[],
                 target_path = ("horse_modules/" +
                     import_library
                 ) + "/" + target_path
+                for module_part in import_module.split(".")[:-1]:
+                    append_code += ("; (" + module_part +
+                        " := dict() if \"" +
+                        module_part + "\" not in locals and \"" +
+                        module_part + "\" not in globals)")
+                append_code += ("; " +
+                    import_module + " = horse_modules." +
+                    import_library.replace(".", "_") +
+                    "." + import_module)
             target_path = os.path.normpath(
                 os.path.join(os.path.abspath(
                 repo_folder), target_path))
@@ -722,7 +732,7 @@ def translate(s, module_name, library_name, parent_statements=[],
                 "python-module": python_module,
                 "path": target_path,
             }
-            result += "import " + python_module + "\n"
+            result += "import " + python_module + append_code + "\n"
             translate_file_queue.append(
                 (target_path,
                 import_module, os.path.dirname(target_path),
@@ -863,19 +873,33 @@ def translate(s, module_name, library_name, parent_statements=[],
 if __name__ == "__main__":
     args = sys.argv[1:]
     target_file = None
+    keep_files = False
     i = 0
     while i < len(args):
         if args[i].startswith("-"):
             if args[i] == "--help":
-                print("Usage: translator.py ...path-to-h64-file...")
+                print("Usage: translator.py [(optional) options...] "
+                      "path-to/h64-file.h64")
+                print("Options:")
+                print("    --help        Show this help text")
+                print("    --keep-files  Keep translated files and ")
+                print("                  print out path to them.")
+                print("    --version     Print out program version")
+                sys.exit(0)
             elif (args[i] == "--version" or args[i] == "-v" or
                     args[i] == "-V"):
                 print("tools/translator.py version " + VERSION)
+                sys.exit(0)
             elif args[i] == "--debug":
                 DEBUG_ENABLE = True
                 DEBUG_ENABLE_TYPES = True
                 DEBUG_ENABLE_CONTENTS = True
                 DEBUG_ENABLE_REMAPPED_USES = True
+            elif args[i] == "--keep-files":
+                keep_files = True
+            else:
+                print("tools/translator.py: warning: unknown " +
+                    "option: " + args[i], file=sys.stderr)
         elif target_file is None:
             target_file = args[i]
         i += 1
@@ -1015,7 +1039,11 @@ if __name__ == "__main__":
     assert(os.path.isabs(output_folder) and "h64-tools" in output_folder)
     returncode = 0
     try:
-        if DEBUG_ENABLE:
+        if keep_files:
+            print("tools/translator.py: info: writing " +
+                "translated files to: " +
+                output_folder)
+        elif DEBUG_ENABLE:
             print("tools/translator.py: debug: writing result to: " +
                 output_folder)
         run_py_path = None
@@ -1040,6 +1068,9 @@ if __name__ == "__main__":
         ])
         returncode = result.returncode
     finally:
-        shutil.rmtree(output_folder)
+        if not keep_files:
+            shutil.rmtree(output_folder)
+        else:
+            print("Translated files left available in: " + output_folder)
     sys.exit(returncode)
 
