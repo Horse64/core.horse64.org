@@ -758,8 +758,13 @@ def translate(s, module_name, library_name, parent_statements=[],
         elif statement[0] == "func":
             statement_cpy = list(statement)
             statement[0] = "def"
+            bracket_depth = 0
             i = 1
-            while statement[i] != "{":
+            while statement[i] != "{" or bracket_depth > 0:
+                if statement[i] in {"(", "[", "{"}:
+                    bracket_depth += 1
+                elif statement[i] in {")", "]", "}"}:
+                    bracket_depth -= 1
                 i += 1
             i += 1
 
@@ -782,18 +787,19 @@ def translate(s, module_name, library_name, parent_statements=[],
             type_name = None
             type_library = None
             type_python_module = None
-            i = 2
+            start_arguments_idx = 3
             name = statement[2]
             if statement[3] == ".":
                 type_name = ""
                 name = ""
-                i = 2
-                while i + 2 < len(statement) and statement[i + 1] == ".":
+                i2 = 2
+                while i2 + 2 < len(statement) and statement[i2 + 1] == ".":
                     if len(type_name) > 0:
                         type_name += "."
-                    type_name += statement[i]
-                    name = statement[i + 2]
-                    i += 2
+                    type_name += statement[i2]
+                    name = statement[i2 + 2]
+                    i2 += 2
+                start_arguments_idx = i2 + 1
                 for import_mod_name in known_imports:
                     if type_name.startswith(import_mod_name + "."):
                         type_module = import_mod_name
@@ -801,21 +807,30 @@ def translate(s, module_name, library_name, parent_statements=[],
                         type_library = known_imports[type_module]["library"]
                         type_python_module = known_imports[
                             type_module]["python-module"]
+            while (start_arguments_idx < len(statement) and
+                    statement[start_arguments_idx].
+                        strip(" \t\r\n") == ""):
+                start_arguments_idx += 1
             if type_module is None:
                 type_module = module_name
                 type_library = library_name
             argument_tokens = ["(", ")"]
-            if statement[i] == "(":
-                istart = i
+            if statement[start_arguments_idx] == "(":
                 bdepth = 1
-                i += 1
-                while statement[i] != ")" or bdepth > 1:
-                    if statement[i] == "(":
+                k = start_arguments_idx + 1
+                while statement[k] != ")" or bdepth > 1:
+                    if statement[k] == "(":
                         bdepth += 1
-                    elif statement[i] == ")":
+                    elif statement[k] == ")":
                         bdepth -= 1
-                assert(statement[i] == ")")
-                argument_tokens = statement[istart:i + 1]
+                    k += 1
+                assert(statement[k] == ")")
+                argument_tokens = translate_expression_tokens(
+                    statement[start_arguments_idx:k + 1],
+                    module_name, library_name,
+                    parent_statements=parent_statements,
+                    known_imports=known_imports,
+                    add_indent=extra_indent)
             translated_contents = translate(
                 untokenize(contents), module_name, library_name,
                 parent_statements=(
