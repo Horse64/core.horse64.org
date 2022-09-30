@@ -46,10 +46,10 @@ DEBUG_ENABLE_REMAPPED_USES = False
 
 remapped_uses = {
     "path@core.horse64.org": {
-        "path.basename" : "__remapped_os.basename",
+        "path.basename" : "_remapped_os.path.basename",
     },
     "system@core.horse64.org": {
-        "system.self_exec_path" : "__file__",
+        "system.self_exec_path" : "(lambda: __file__)",
     },
     "process@core.horse64.org": {
         "process.args": "(sys.argv[1:])",
@@ -316,6 +316,115 @@ def translate_expression_tokens(s, module_name, library_name,
                 s = (s[:i + 1] + ["+", "\\"] + [s[i + 1].lstrip(" \t")] +
                     s[i + 2:])
         i += 1
+    # Translate remapped use to the proper remapped thing:
+    i = 0
+    while i < len(s):
+        if (i > 1 and s[i - 1].strip(" \t\r\n") == "" and
+                s[i - 2] == "import"):
+            i += 1
+            continue
+        if len(s[i]) == 0 or (
+                s[i][0] != "_" and
+                (ord(s[i][0]) < ord("a") or
+                    ord(s[i][0]) > ord("z")) and
+                (ord(s[i][0]) < ord("A") or
+                    ord(s[i][0]) > ord("Z"))):
+            i += 1
+            continue
+        if len(known_imports) == 0:
+            i += 1
+            continue
+        #print("s[i] " + str(s[i]))
+        match = False
+        match_library = None
+        match_import_module = None
+        match_item = None
+        match_tokens = -1
+        for known_import in known_imports:
+            import_module_elements = (
+                known_imports[known_import]
+                    ["module"].split(".")
+            )
+            maybe_match = True
+            k = 0
+            while k < len(import_module_elements):
+                if (k * 2 + i >= len(s) or
+                        s[i + k * 2] !=
+                        import_module_elements[k] or
+                        (k + 1 < len(import_module_elements) and
+                        (k * 2 + 1 + i >= len(s) or
+                        s[i + k * 2 + 1] != "."))):
+                    if k > 0:
+                        print("s[i + k * 2]=" + str(
+                            s[i + k * 2:i + k * 2 + 1]))
+                        print("MATCH ABORT ON k=" + str(k))
+                    maybe_match = False
+                    break
+                k += 1
+            def could_be_identifier(x):
+                if (len(x) == 0 or (x[0] != "_" and
+                        (ord(x[0]) < ord("a") or ord(x[0]) > ord("z")) and
+                        (ord(x[0]) < ord("A") or ord(x[0]) > ord("Z")))):
+                    return False
+                if x in {"if", "func", "import", "else",
+                        "var", "const", "elseif", "while",
+                        "for", "in", "not", "and", "or"}:
+                    return False
+                return True
+            maybe_match_tokens = -1
+            maybe_match_item = None
+            if (k * 2 + i < len(s) and
+                    could_be_identifier(s[k * 2 + i])):
+                maybe_match_item = s[k * 2 + i]
+                maybe_match_tokens = k * 2 + i + 1 - i
+            if maybe_match:
+                print((s[i], k, maybe_match_item, maybe_match,
+                    known_imports[known_import]
+                            ["module"],
+                    import_module_elements,
+                    maybe_match_tokens))
+            if (maybe_match and (not match or
+                    len(import_module_elements) >
+                    len(match_import_module.split("."))) and
+                    maybe_match_item != None):
+                match = True
+                match_import_module = (
+                    known_imports[known_import]
+                        ["module"]
+                )
+                match_library = (
+                    known_imports[known_import]
+                        ["library"]
+                )
+                match_tokens = maybe_match_tokens
+                match_item = maybe_match_item
+        if not match:
+            i += 1
+            continue
+        remap_module_key = match_import_module + (
+            "" if match_library is None else
+            "@" + match_library)
+        if remap_module_key in remapped_uses:
+            remap_original_use = (
+                match_import_module + "." + match_item
+            )
+            if DEBUG_ENABLE_REMAPPED_USES:
+                print("tools/translator.py: debug: checking if " +
+                    "use needs translation to remap: " +
+                    remap_original_use + " in " + remap_module_key)
+            for remapped_use in remapped_uses[remap_module_key]:
+                if remapped_use == remap_original_use:
+                    if DEBUG_ENABLE_REMAPPED_USES:
+                        print("tools/translator.py: debug: remapping " +
+                            "use to the overridden expression: " +
+                            remap_original_use + " in " + remap_module_key)
+                    insert_tokens = tokenize(remapped_uses
+                        [remap_module_key][remapped_use])
+                    s = s[:i] + insert_tokens + s[i + match_tokens:]
+                    i += len(insert_tokens)
+                    continue
+        i += 1
+
     # Remove "new" and "protect" since Python doesn't have these:
     i = 0
     while i < len(s):
@@ -683,7 +792,7 @@ def translate(s, module_name, library_name, parent_statements=[],
                             tokens[i + k * 2 + 1] != "."))):
                         match = False
                         break
-                    k += 2
+                    k += 1
                 if not match:
                     i += 1
                     continue
@@ -718,13 +827,6 @@ def translate(s, module_name, library_name, parent_statements=[],
                     found_remapped_use = True
                 i += 1
 
-            # Skip import if it only has remapped uses:
-            if not found_nonremapped_use and found_remapped_use:
-                if DEBUG_ENABLE_REMAPPED_USES:
-                    print("tools/translator.py: debug: skipping " +
-                        "import since all uses are remapped")
-                continue
-
             # Add import:
             known_imports[import_module] = {
                 "library": import_library,
@@ -732,6 +834,21 @@ def translate(s, module_name, library_name, parent_statements=[],
                 "python-module": python_module,
                 "path": target_path,
             }
+
+            # Skip import code if it only has remapped uses:
+            if not found_nonremapped_use and found_remapped_use:
+                if DEBUG_ENABLE_REMAPPED_USES:
+                    print("tools/translator.py: debug: hiding " +
+                        "import since all uses are remapped: " +
+                        str(import_module) + ("" if
+                        import_library is None else
+                        "@" + import_library))
+                known_imports[import_module]["python-module"] = (
+                    None  # since it wasn't actually imported
+                )
+                continue
+
+            # Add translated import code:
             result += "import " + python_module + append_code + "\n"
             translate_file_queue.append(
                 (target_path,
@@ -1001,7 +1118,7 @@ if __name__ == "__main__":
         }
     for translated_file in translated_files:
         contents_result = textwrap.dedent("""\
-        import os as __remapped_os; import sys as __remapped_sys;
+        import os as _remapped_os; import sys as _remapped_sys;
         """) + translated_files[translated_file]["output"]
         for regtype in known_types.values():
             if (regtype.module != translated_files
@@ -1056,10 +1173,11 @@ if __name__ == "__main__":
     try:
         if keep_files:
             print("tools/translator.py: info: writing " +
-                "translated files to: " +
+                "translated files to (will be kept): " +
                 output_folder)
         elif DEBUG_ENABLE:
-            print("tools/translator.py: debug: writing result to: " +
+            print("tools/translator.py: debug: writing temporary " +
+                "result to (will be deleted): " +
                 output_folder)
         run_py_path = None
         for translated_file in translated_files:
@@ -1078,6 +1196,8 @@ if __name__ == "__main__":
             if translated_files[translated_file]["path"] == mainfilepath:
                 run_py_path = os.path.join(output_folder, subfolder,
                     name + ".py")
+        if DEBUG_ENABLE:
+            print("tools/translator.py: debug: launching program...")
         result = subprocess.run([
             sys.executable, run_py_path
         ])
