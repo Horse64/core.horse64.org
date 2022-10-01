@@ -959,17 +959,22 @@ def translate(s, module_name, library_name, parent_statements=[],
                 known_imports=known_imports,
                 translate_file_queue=translate_file_queue
             )
+            (cleaned_argument_tokens,
+                extra_init_code) = separate_func_keyword_arg_code(
+                    argument_tokens, indent=(indent + "    " +
+                    ("    " if type_name is not None else "")))
             if type_name is None:
                 result += (indent + "def " + name +
-                    untokenize(argument_tokens) + ":\n")
-                result += translated_contents + "\n"
+                    untokenize(cleaned_argument_tokens) + ":\n")
+                result += (extra_init_code + "\n" +
+                    translated_contents + "\n")
             else:
                 regtype = get_type(type_name, type_module, type_library)
                 regtype.funcs[name] = {
-                    "arguments": argument_tokens,
+                    "arguments": cleaned_argument_tokens,
                     "name": name,
-                    "code":
-                    "\n".join(translated_contents.splitlines()) + "\n"
+                    "code": (extra_init_code + "\n" +
+                    "\n".join(translated_contents.splitlines()) + "\n")
                 }
             continue
         elif statement[0] == "type":
@@ -999,6 +1004,87 @@ def translate(s, module_name, library_name, parent_statements=[],
             parent_statements=parent_statements,
             known_imports=known_imports,
             add_indent=extra_indent)) + "\n"
+    return result
+
+
+def separate_func_keyword_arg_code(
+        func_argument_tokens, indent=""
+        ):
+    changed = True
+    while changed:
+        changed = False
+        while (len(func_argument_tokens) > 0 and
+                func_argument_tokens[0].strip(" \r\n\t") == ""):
+            changed = True
+            func_argument_tokens = func_argument_tokens[1:]
+        while (len(func_argument_tokens) > 0 and
+                func_argument_tokens[-1].strip(" \r\n\t") == ""):
+            changed = True
+            func_argument_tokens = func_argument_tokens[:-1]
+        if (len(func_argument_tokens) > 1 and
+                func_argument_tokens[0] == "(" and
+                func_argument_tokens[-1] == ")"):
+            func_argument_tokens = (
+                func_argument_tokens[1:-1]
+            )
+            changed = True
+    args_separated = []
+    i = 0
+    arg_start = 0
+    bracket_depth = 0
+    while i < len(func_argument_tokens):
+        t = func_argument_tokens[i]
+        if t in {"{", "[", "("}:
+            bracket_depth += 1
+        elif t in {"}", "]", ")"}:
+            bracket_depth -= 1
+        if t == "," and bracket_depth == 0:
+            args_separated.append(
+                func_argument_tokens[arg_start:i])
+            arg_start = i + 1
+            i += 1
+            continue
+        i += 1
+    if arg_start < len(func_argument_tokens):
+        args_separated.append(
+            func_argument_tokens[arg_start:i])
+    kw_arg_init_code = ""
+    new_args_separated_flat = []
+    for func_arg in args_separated:
+        eq_index = -1
+        try:
+            eq_index = func_arg.index("=")
+        except ValueError:
+            pass
+        if (eq_index > 0 and
+                len(set(func_arg[:eq_index]).intersection(
+                    {"(", "[", "{"})) > 0):
+            eq_index = -1
+        if eq_index > 0:
+            if len(new_args_separated_flat) > 0:
+                new_args_separated_flat.append(",")
+            new_args_separated_flat += (
+                func_arg[:eq_index+1] +
+                ["(", "_translator_kw_arg_default_value",
+                ")"])
+            k = 0
+            while k < len(func_arg):
+                if func_arg[k].strip(" \t\r\n") == "":
+                    k += 1
+                    continue
+                # FIXME: skip argument attribute keywords here
+                break
+            assert(k < eq_index)
+            kw_arg_init_code += ("\n" + indent +
+                func_arg[k] + " = (" +
+                untokenize(func_arg[eq_index+1:]) + ")")
+        else:
+            new_args_separated_flat += func_arg
+    result = (
+        ["("] + (new_args_separated_flat) + [")"],
+        kw_arg_init_code
+    )
+    print(str(result))
     return result
 
 
@@ -1117,9 +1203,10 @@ if __name__ == "__main__":
             "output": contents_result
         }
     for translated_file in translated_files:
-        contents_result = textwrap.dedent("""\
-        import os as _remapped_os; import sys as _remapped_sys;
-        """) + translated_files[translated_file]["output"]
+        contents_result = (
+        "import os as _remapped_os;import sys as _remapped_sys;" +
+        "_translator_kw_arg_default_value = object();"
+        ) + translated_files[translated_file]["output"]
         for regtype in known_types.values():
             if (regtype.module != translated_files
                     [translated_file]["module-name"] or
