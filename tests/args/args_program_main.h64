@@ -25,13 +25,9 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-import compiler from core.horse64.org
-import path from core.horse64.org
+import argparse from core.horse64.org
 
 
 func main {
-    var output = compiler.run_file(
-        "args_program_main.h64", args=["--help"],
-        run_in_dir=path.dirname(compiler.current_file_path())
-    )
+    var defs = new argparse.ArgumentDefs()
 }
