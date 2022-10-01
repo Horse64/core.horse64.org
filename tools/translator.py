@@ -37,6 +37,10 @@ import tempfile
 import textwrap
 
 
+translator_py_script_dir = (
+    os.path.abspath(os.path.dirname(__file__))
+)
+translator_py_script_path = os.path.abspath(__file__)
 translated_files = {}
 
 DEBUG_ENABLE = False
@@ -45,15 +49,28 @@ DEBUG_ENABLE_TYPES = False
 DEBUG_ENABLE_REMAPPED_USES = False
 
 remapped_uses = {
+    "compiler@core.horse64.org": {
+        "compiler.run_file":
+            "_translator_runtime_helpers._compiler_run_file",
+        "compiler.current_file_path":
+            "(lambda: _translated_program_main_script_file)",
+    },
+    "files@core.horse64.org": {
+        "files.get_working_dir" : "_remapped_os.getcwd",
+    },
     "path@core.horse64.org": {
         "path.basename" : "_remapped_os.path.basename",
-    },
-    "system@core.horse64.org": {
-        "system.self_exec_path" : "(lambda: __file__)",
+        "path.dirname": "_remapped_os.path.dirname",
     },
     "process@core.horse64.org": {
         "process.args": "(sys.argv[1:])",
-    }
+        "process.run":
+            "_translator_runtime_helpers._process_run",
+    },
+    "system@core.horse64.org": {
+        "system.exit" : "_remapped_sys.exit",
+        "system.self_exec_path" : "(lambda: __file__)",
+    },
 }
 
 
@@ -99,6 +116,20 @@ def is_whitespace_token(s):
         if char not in [" ", "\t", "\n", "\r"]:
             return False
     return True
+
+
+def as_escaped_code_string(s):
+    insert_value = "(b\""
+    bytes_path = s.encode(
+        "utf-8", "replace"
+    )
+    for byteval in bytes_path:
+        assert(byteval >= 0 and byteval <= 255)
+        insert_value += "\\" + (
+            "x%0.2X" % byteval
+        )
+    insert_value += "\").decode(\"utf-8\", \"replace\")"
+    return insert_value
 
 
 def get_next_token(s):
@@ -283,6 +314,7 @@ def translate_expression_tokens(s, module_name, library_name,
         parent_statements=[], known_imports=None,
         add_indent=""):
     s = list(s)
+    assert("_remapped_os" not in s)
 
     # Fix indent first:
     i = 0
@@ -354,10 +386,6 @@ def translate_expression_tokens(s, module_name, library_name,
                         (k + 1 < len(import_module_elements) and
                         (k * 2 + 1 + i >= len(s) or
                         s[i + k * 2 + 1] != "."))):
-                    if k > 0:
-                        print("s[i + k * 2]=" + str(
-                            s[i + k * 2:i + k * 2 + 1]))
-                        print("MATCH ABORT ON k=" + str(k))
                     maybe_match = False
                     break
                 k += 1
@@ -378,11 +406,12 @@ def translate_expression_tokens(s, module_name, library_name,
                 maybe_match_item = s[k * 2 + i]
                 maybe_match_tokens = k * 2 + i + 1 - i
             if maybe_match:
-                print((s[i], k, maybe_match_item, maybe_match,
-                    known_imports[known_import]
-                            ["module"],
-                    import_module_elements,
-                    maybe_match_tokens))
+                #print((s[i], k, maybe_match_item, maybe_match,
+                #    known_imports[known_import]
+                #            ["module"],
+                #    import_module_elements,
+                #    maybe_match_tokens))
+                pass
             if (maybe_match and (not match or
                     len(import_module_elements) >
                     len(match_import_module.split("."))) and
@@ -604,6 +633,7 @@ def translate(s, module_name, library_name, parent_statements=[],
     tokens = tokenize(s)
     statements = split_toplevel_statements(tokens)
     for statement in statements:
+        assert("_remapped_os" not in statement)
         while is_whitespace_token(statement[-1]):
             statement = statement[:-1]
         indent = extra_indent
@@ -639,6 +669,9 @@ def translate(s, module_name, library_name, parent_statements=[],
                         untokenize(statement) + "\n"
                     ).splitlines())
                 continue
+            result += indent + untokenize(statement) + "\n"
+            # (we already did translate_expression_tokens above.)
+            continue
         elif (statement[0] == "if" or statement[0] == "while" or
                 statement[0] == "for"):
             statement_cpy = list(statement)
@@ -778,7 +811,8 @@ def translate(s, module_name, library_name, parent_statements=[],
             i = 0
             while i < len(tokens):
                 if (i > 1 and tokens[i - 1].strip(" \t\r\n") == "" and
-                        tokens[i - 2] == "import"):
+                        (tokens[i - 2] == "import" or
+                        tokens[i - 2] == "from")):
                     i += 1
                     continue
                 match = True
@@ -802,7 +836,8 @@ def translate(s, module_name, library_name, parent_statements=[],
                 if remapped_uses_key not in remapped_uses:
                     if DEBUG_ENABLE_REMAPPED_USES:
                         print("tools/translator.py: debug: found " +
-                            "non-remapped use: " + str(
+                            "non-remapped use (no remaps for " +
+                            "module " + str(remapped_uses_key) + "): " + str(
                             tokens[i:i + len(import_module_elements) + 10]))
                     found_nonremapped_use = True
                     break
@@ -948,6 +983,7 @@ def translate(s, module_name, library_name, parent_statements=[],
                     parent_statements=parent_statements,
                     known_imports=known_imports,
                     add_indent=extra_indent)
+            assert("_remapped_os" not in contents)
             translated_contents = translate(
                 untokenize(contents), module_name, library_name,
                 parent_statements=(
@@ -1084,17 +1120,20 @@ def separate_func_keyword_arg_code(
         ["("] + (new_args_separated_flat) + [")"],
         kw_arg_init_code
     )
-    print(str(result))
     return result
 
 
 if __name__ == "__main__":
     args = sys.argv[1:]
     target_file = None
+    target_file_args = []
     keep_files = False
     i = 0
     while i < len(args):
-        if args[i].startswith("-"):
+        if args[i] == "--":
+            target_file_args = args[i+1:]
+            break
+        elif args[i].startswith("-"):
             if args[i] == "--help":
                 print("Usage: translator.py [(optional) options...] "
                       "path-to/h64-file.h64")
@@ -1204,9 +1243,12 @@ if __name__ == "__main__":
         }
     for translated_file in translated_files:
         contents_result = (
-        "import os as _remapped_os;import sys as _remapped_sys;" +
-        "_translator_kw_arg_default_value = object();"
-        ) + translated_files[translated_file]["output"]
+            "import os as _remapped_os;import sys as _remapped_sys;" +
+            "_translator_kw_arg_default_value = object();" +
+            "_translated_program_main_script_file = " +
+            as_escaped_code_string(mainfilepath) + ";" +
+            "import _translator_runtime_helpers;\n"
+            ) + translated_files[translated_file]["output"]
         for regtype in known_types.values():
             if (regtype.module != translated_files
                     [translated_file]["module-name"] or
@@ -1277,6 +1319,19 @@ if __name__ == "__main__":
             subfolder_abs = os.path.join(output_folder, subfolder)
             if not os.path.exists(subfolder_abs):
                 os.makedirs(subfolder_abs)
+            if not os.path.exists(os.path.join(subfolder_abs,
+                    "_translator_runtime_helpers.py")):
+                t = None
+                with open(os.path.join(translator_py_script_dir,
+                        "translator_runtime_helpers.py"), "r",
+                        encoding="utf-8") as f:
+                    t = f.read()
+                    t = t.replace("__translator_py_path__",
+                        as_escaped_code_string(translator_py_script_path))
+                with open(os.path.join(subfolder_abs,
+                        "_translator_runtime_helpers.py"), "w",
+                        encoding="utf-8") as f:
+                    f.write(t)
             with open(os.path.join(output_folder, subfolder,
                     name + ".py"), "w", encoding="utf-8") as f:
                 f.write(contents)

@@ -1,4 +1,3 @@
-
 # Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -25,13 +24,49 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-import compiler from core.horse64.org
-import path from core.horse64.org
+
+import subprocess
+import sys
+import threading
+import time
 
 
-func main {
-    var output = compiler.run_file(
-        "args_program_main.h64", args=["--help"],
-        run_in_dir=path.dirname(compiler.current_file_path())
-    )
-}
+def _process_run(cmd, args=[], run_in_dir=None):
+    assert(type(cmd) == str)
+    cmdlist = [cmd] + args
+    process = subprocess.Popen(cmdlist,
+        stdout=subprocess.PIPE, cwd=run_in_dir)
+    output = [b""]
+    def output_thread_func(output, process):
+        while process.poll() == None:
+            try:
+                char = process.stdout.read(1)
+            except (IOError, BrokenPipeError, ValueError):
+                return
+            output[0] += char
+            sys.stdout.buffer.write(char)
+    output_thread = threading.Thread(
+        target=output_thread_func,
+        args=(output, process))
+    output_thread.daemon = True
+    output_thread.start()
+    process.wait()
+    try:
+        process.stdout.close()
+    except (IOError, BrokenPipeError):
+        pass
+    output_thread.join()
+    return_code = process.wait()
+    if return_code:
+        raise subprocess.CalledProcessError(return_code, cmd)
+    output = output[0].decode("utf-8", "replace")
+    return output
+
+
+def _compiler_run_file(cmd, args=[], run_in_dir=None):
+    assert(type(cmd) == str)
+    run_cmd = sys.executable
+    run_args = [__translator_py_path__,
+        cmd, "--"] + args
+    return _process_run(run_cmd, args=run_args, run_in_dir=run_in_dir)
+
