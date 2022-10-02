@@ -30,10 +30,6 @@ import process from core.horse64.org
 import system from core.horse64.org
 
 
-
-const TAKES_STR_DEFAULT = -999
-
-
 type ArgumentInfo {
     var name = ""
     var takes_str = no
@@ -43,13 +39,13 @@ type ArgumentInfo {
 }
 
 
-func ArgumentInfo.init(name, aliases=[], takes_str=TAKES_STR_DEFAULT) {
+func ArgumentInfo.init(name, aliases=[], takes_str="default") {
     self.name = name + ""
     for alias in aliases {
         self.aliases.add(alias + "")
     }
     self.positional = (not self.name.starts("-"))
-    if takes_str == TAKES_STR_DEFAULT {
+    if takes_str == "default" {
         if self.positional {
             self.takes_str = yes
         } else {
@@ -57,17 +53,17 @@ func ArgumentInfo.init(name, aliases=[], takes_str=TAKES_STR_DEFAULT) {
         }
     } elseif takes_str == "optional" {
         if not self.positional {
-            raise new ValueError("only positional arguments "
+            throw new ValueError("only positional arguments "
                 "may take a string parameter optionally")
         }
         self.optional = yes
     } else {
         if type(takes_str) != "boolean" {
-            raise new ValueError("unsupported value for "
+            throw new ValueError("unsupported value for "
                 "takes_str")
         }
         if not takes_str and self.positional {
-            raise new ValueError(
+            throw new ValueError(
                 "positonal arguments must take a "
                 "string parameter, at least optionally"
             )
@@ -101,9 +97,8 @@ type ArgumentDefs {
 
 func ArgumentDefs.init(program_name=none) {
     # Sanitize and guess the program name for this arguments set:
-    if program_name != none {
-        # Make sure this can be used as a string:
-        program_name = program_name + ""
+    if program_name != none and typename(program_name) != "str" {
+        throw TypeError("program_name must be none or string")
     }
     if program_name == none {
         program_name = path.basename(system.self_exec_path())
@@ -143,11 +138,11 @@ func ArgumentDefs.get_namedarg(name) {
 
 
 func ArgumentDefs.add_arg(name, aliases=[],
-        takes_str=TAKES_STR_DEFAULT) {
+        takes_str="default") {
     for arg in self.args {
         if arg.names_intersect([name]) or
                 arg.names_intersect(aliases) {
-            raise new ValueError(
+            throw new ValueError(
                 "name conflict with existing options"
             )
         }
@@ -166,8 +161,7 @@ func ArgumentDefs.add_arg(name, aliases=[],
 
 type ParseResult {
     var output = ""
-    var output_exit_code = 0
-    var success = no
+    var exit_code = none
     var args
 }
 
@@ -205,7 +199,7 @@ func get_usage_text(options) {
 
 func parse(argument_defs, args=none) {
     if not has_attr(argument_defs, "max_positional_args") {
-        raise new TypeError(
+        throw new TypeError(
             "argument_defs must have the "
             "argparse.ArgumentDefs attributes"
         )
@@ -256,7 +250,7 @@ func parse(argument_defs, args=none) {
                     "Use " + argument_defs.program_name +
                     " --help to show usage.\n"
                 )
-                result.output_exit_code = -1
+                result.exit_code = -1
                 return result
             }
             # If this named arg takes a parameter, check that it's
@@ -270,7 +264,7 @@ func parse(argument_defs, args=none) {
                         "Use " + argument_defs.program_name +
                         " --help to show usage.\n"
                     )
-                    result.output_exit_code = -1
+                    result.exit_code = -1
                     return result
                 }
                 result_args[target_arg.name] = args[i + 1]
@@ -292,6 +286,5 @@ func parse(argument_defs, args=none) {
         }
     }
     result.args = result_args
-    result.success = yes
     return result
 }

@@ -67,6 +67,25 @@ def _compiler_run_file(cmd, args=[], run_in_dir=None):
     assert(type(cmd) == str)
     run_cmd = sys.executable
     run_args = [__translator_py_path__,
-        cmd, "--"] + args
+        "--", cmd] + args
     return _process_run(run_cmd, args=run_args, run_in_dir=run_in_dir)
+
+
+def h64_type(v):
+    result = type(v)
+    if result == str:
+        return "str"
+    elif result == bytes:
+        return "bytes"
+    elif result in {int, float}:
+        return "num"
+    elif result == list:
+        return "list"
+    elif result == dict:
+        return "map"
+    elif result == bool:
+        return "bool"
+    elif v == None:
+        return "none"
+    return str(result)
 

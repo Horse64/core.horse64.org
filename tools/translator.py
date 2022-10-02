@@ -52,8 +52,6 @@ remapped_uses = {
     "compiler@core.horse64.org": {
         "compiler.run_file":
             "_translator_runtime_helpers._compiler_run_file",
-        "compiler.current_file_path":
-            "(lambda: _translated_program_main_script_file)",
     },
     "files@core.horse64.org": {
         "files.get_working_dir" : "_remapped_os.getcwd",
@@ -63,13 +61,14 @@ remapped_uses = {
         "path.dirname": "_remapped_os.path.dirname",
     },
     "process@core.horse64.org": {
-        "process.args": "(sys.argv[1:])",
+        "process.args": "(_remapped_sys.argv[1:])",
         "process.run":
             "_translator_runtime_helpers._process_run",
     },
     "system@core.horse64.org": {
         "system.exit" : "_remapped_sys.exit",
-        "system.self_exec_path" : "(lambda: __file__)",
+        "system.self_exec_path" :
+            "(lambda: _translated_program_main_script_file)",
     },
 }
 
@@ -109,6 +108,24 @@ def get_type(type_name, module_path, library_name):
         library_name]
 
 
+def sublist_index(full_list, sub_list):
+    if len(sub_list) > len(full_list) or len(sub_list) == 0:
+        return -1
+    i = 0
+    while i < len(full_list) - (len(sub_list) - 1):
+        match = True
+        k = 0
+        while k < len(sub_list):
+            if full_list[i + k] != sub_list[k]:
+                match = False
+                break
+            k += 1
+        if match:
+            return i
+        i += 1
+    return -1
+
+
 def is_whitespace_token(s):
     if len(s) == 0:
         return False
@@ -125,6 +142,13 @@ def as_escaped_code_string(s):
     )
     for byteval in bytes_path:
         assert(byteval >= 0 and byteval <= 255)
+        if ((byteval >= ord("a") and byteval <= ord("z")) or
+                (byteval >= ord("A") and byteval <= ord("Z")) or
+                (byteval >= ord("0") and byteval <= ord("9")) or
+                chr(byteval) in {"/", ".", " ", "-", "!", "?",
+                    ":"}):
+            insert_value += chr(byteval)
+            continue
         insert_value += "\\" + (
             "x%0.2X" % byteval
         )
@@ -326,6 +350,28 @@ def translate_expression_tokens(s, module_name, library_name,
             t += add_indent
             s[i] = t
         i += 1
+    # Translate typename()/"throw"/"has_attr"/...:
+    previous_token = None
+    i = 0
+    while i < len(s):
+        if (s[i] == "typename" and
+                previous_token != "."):
+            s = s[:i] + ["_translator_runtime_helpers",
+                ".", "h64_type"] + s[i + 1:]
+        elif s[i] == "starts" and previous_token == ".":
+            s[i] = "startswith"
+        elif s[i] == "ends" and previous_token == ".":
+            s[i] = "endswith"
+        elif s[i] == "contains" and previous_token == ".":
+            s[i] = "__contains__"
+        elif s[i] == "throw" and previous_token != ".":
+            s[i] = "raise"
+        elif s[i] == "has_attr" and previous_token != ".":
+            s[i] = "hasattr"
+        if s[i].strip("\r\n\t ") != "":
+            previous_token = s[i]
+        i += 1
+
     # Add line continuation things:
     i = 0
     while i < len(s):
@@ -561,9 +607,10 @@ def translate_expression_tokens(s, module_name, library_name,
     while replaced_one:
         replaced_one = False
         i = 0
-        while i + 2 < len(s):
+        while i < len(s):
             if (i > 0 and s[i - 1] == "." and (
                     s[i] in ("len") or (
+                    i + 2 < len(s) and
                     s[i] in ("as_str", "to_num") and s[i + 1] == "(" and
                     s[i + 2] == ")"))):
                 insert_call = "str"
@@ -613,7 +660,7 @@ def translate_expression_tokens(s, module_name, library_name,
         if s[i] == "yes":
             s[i] = "True"
         elif s[i] == "no":
-            s[i] == "False"
+            s[i] = "False"
         elif s[i] == "none":
             s[i] = "None"
         i += 1
@@ -652,6 +699,9 @@ def translate(s, module_name, library_name, parent_statements=[],
                 if statement[i] == "protect":
                     statement[i] = ""  # Python doesn't have that.
                 i += 1
+            while (i < len(statement) and
+                    is_whitespace_token(statement[i])):
+                i += 1
             if i < len(statement) and statement[i] == "=":
                 statement = (statement[:i + 1] + ["("] +
                     translate_expression_tokens(
@@ -659,6 +709,9 @@ def translate(s, module_name, library_name, parent_statements=[],
                     parent_statements=(
                         parent_statements + [statement_cpy]),
                     known_imports=known_imports) + [")"])
+                assert("no" not in statement)
+            else:
+                statement += ["=", "None"]
             if len(parent_statements) > 0 and \
                     "".join(parent_statements[0][:1]) == "type":
                 type_name = parent_statements[0][2]
@@ -700,6 +753,8 @@ def translate(s, module_name, library_name, parent_statements=[],
                         parent_statements=parent_statements,
                         known_imports=known_imports,
                         add_indent=extra_indent))
+                assert("as_str" not in condition)
+                assert(sublist_index(condition, [".", "len"]) < 0)
                 bracket_depth = 0
                 while statement[i] != "}" or bracket_depth > 0:
                     if statement[i] in {"{", "(", "["}:
@@ -1131,7 +1186,11 @@ if __name__ == "__main__":
     i = 0
     while i < len(args):
         if args[i] == "--":
-            target_file_args = args[i+1:]
+            if target_file is None and i + 1 < len(args):
+                target_file = args[i + 1]
+                target_file_args = args[i + 2:]
+            else:
+                target_file_args = args[i+1:]
             break
         elif args[i].startswith("-"):
             if args[i] == "--help":
@@ -1159,6 +1218,8 @@ if __name__ == "__main__":
                     "option: " + args[i], file=sys.stderr)
         elif target_file is None:
             target_file = args[i]
+            target_file_args = args[i + 1:]
+            break
         i += 1
     if target_file is None:
         raise RuntimeError("please provide target file argument")
@@ -1172,7 +1233,7 @@ if __name__ == "__main__":
             "." in modname):
         raise IOError("missing target file, " +
             "or target file not a .h64 file with proper " +
-            "module name")
+            "module name: " + str(target_file))
     repo_folder = modfolder
     while True:
         repo_folder_files = os.listdir(repo_folder)
@@ -1338,11 +1399,13 @@ if __name__ == "__main__":
             if translated_files[translated_file]["path"] == mainfilepath:
                 run_py_path = os.path.join(output_folder, subfolder,
                     name + ".py")
-        if DEBUG_ENABLE:
-            print("tools/translator.py: debug: launching program...")
-        result = subprocess.run([
+        launch_cmd = [
             sys.executable, run_py_path
-        ])
+        ] + target_file_args
+        if DEBUG_ENABLE:
+            print("tools/translator.py: debug: launching program: " +
+                str(launch_cmd))
+        result = subprocess.run(launch_cmd)
         returncode = result.returncode
     finally:
         if not keep_files:

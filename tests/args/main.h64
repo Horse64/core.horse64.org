@@ -27,11 +27,12 @@
 
 import compiler from core.horse64.org
 import path from core.horse64.org
+import system from core.horse64.org
 
 
 func main {
     var output = compiler.run_file(
         "args_program_main.h64", args=["--help"],
-        run_in_dir=path.dirname(compiler.current_file_path())
+        run_in_dir=path.dirname(system.self_exec_path())
     )
 }
