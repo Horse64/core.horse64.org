@@ -1,4 +1,5 @@
 
+# @module argparse
 # Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -32,43 +33,50 @@ import system from core.horse64.org
 
 type ArgumentInfo {
     var name = ""
-    var takes_str = no
+    var takes_arg = no
     var aliases = []
     var optional = no
     var positional = no
 }
 
 
-func ArgumentInfo.init(name, aliases=[], takes_str="default") {
+func ArgumentInfo.init(
+        name, aliases=[],
+        is_switch=no, takes_arg="default"
+        ) {
     self.name = name + ""
     for alias in aliases {
         self.aliases.add(alias + "")
     }
-    self.positional = (not self.name.starts("-"))
-    if takes_str == "default" {
+    self.positional = not self.name.starts("-")
+    if not is_switch != (not self.positional) {
+        throw ValueError("is_switch must be yes if "
+            "argument begins with dash, otherwise no")
+    }
+    if takes_arg == "default" {
         if self.positional {
-            self.takes_str = yes
+            self.takes_arg = yes
         } else {
-            self.takes_str = no
+            self.takes_arg = no
         }
-    } elseif takes_str == "optional" {
+    } elseif takes_arg == "optional" {
         if not self.positional {
             throw new ValueError("only positional arguments "
-                "may take a string parameter optionally")
+                "may take an argument value optionally")
         }
         self.optional = yes
     } else {
-        if type(takes_str) != "boolean" {
+        if typename(takes_arg) != "bool" {
             throw new ValueError("unsupported value for "
-                "takes_str")
+                "takes_arg")
         }
-        if not takes_str and self.positional {
+        if not takes_arg and self.positional {
             throw new ValueError(
-                "positonal arguments must take a "
-                "string parameter, at least optionally"
+                "positonal arguments must take an "
+                "argument value at least optionally"
             )
         }
-        self.takes_str = takes_str
+        self.takes_arg = takes_arg
         self.optional = no
     }
 }
@@ -137,8 +145,32 @@ func ArgumentDefs.get_namedarg(name) {
 }
 
 
-func ArgumentDefs.add_arg(name, aliases=[],
-        takes_str="default") {
+## @func ArgumentDefs.add_arg
+##
+## Add a positional argument that must be passed in by the user.
+## This might e.g. be a target file, or similar.
+##
+## After @{parsing|ArgumentDefs.parse}, the map of all parsed values
+## will contain an entry with the name set to the passed argument as
+## @{str}.
+##
+## Example:
+## ```horse64
+## var defs = argparse.ArgumentDefs()
+## defs.add_arg("target_file")
+## var parsed_values = argparse.parse(defs, ["some_file.txt"])
+## print(parsed_values["target_file"])  # will print out "some_file.txt"!
+## ```
+##
+## @param is_optional specifies that the positional argument can
+##   be silently omitted, in which case the final map of all parsed
+##   values will have the corresponding entry set to @{none} instead.
+func ArgumentDefs.add_arg(name, aliases=[], is_optional=no) {
+    if name.starts("-") {
+        throw new ValueError(
+            "positional arguments can't have a name "
+            "starting with a dash")
+    }
     for arg in self.args {
         if arg.names_intersect([name]) or
                 arg.names_intersect(aliases) {
@@ -148,7 +180,62 @@ func ArgumentDefs.add_arg(name, aliases=[],
         }
     }
     self.args.add(new ArgumentInfo(
-        name, aliases=aliases, takes_str=takes_str
+        name, aliases=aliases, is_switch=no,
+        takes_arg=(if is_optional {"optional"} else {no})
+    ))
+    if self.args[self.args.len].positional {
+        self.max_positional_args += 1
+        if not self.args[self.args.len].optional {
+            self.min_positional_args += 1
+        }
+    }
+}
+
+
+## @func ArgumentDefs.add_switch
+##
+## Add an option switch that begins with a dash that the user may or
+## may not use. This usually enables optional behavior of your program.
+##
+## After @{parsing|ArgumentDefs.parse}, the map of all parsed values
+## will contain an entry with the switch name set to @{yes} if the
+## switch was specified, or otherwise @{no}.
+##
+## Example:
+## ```horse64
+## var defs = argparse.ArgumentDefs()
+## defs.add_switch("--switch-1")
+## defs.add_switch("--switch-2")
+## var parsed_values = argparse.parse(defs, ["--switch-2"])
+## print(parsed_values["switch-1"])  # will print out "no"!
+## print(parsed_values["switch-2"])  # will print out "yes"!
+## ```
+##
+## @param takes_arg specify that this switch takes its own argument
+##   specified right after, e.g. `--target-file path-to-file`. If set
+##   to yes, the map of all parsed values will instead contain either
+##   @{none} if the switch wasn't specified, or the user-given @{str}
+##   of that argument.
+func ArgumentDefs.add_switch(
+        name, aliases=[], takes_arg=no
+        ) {
+    if not name.starts("-") {
+        throw new ValueError("switch names must start with dash")
+    }
+    if takes_arg != yes and takes_arg != no {
+        throw new ValueError("takes_arg must be yes or no")
+    }
+    for arg in self.args {
+        if arg.names_intersect([name]) or
+                arg.names_intersect(aliases) {
+            throw new ValueError(
+                "name conflict with existing options"
+            )
+        }
+    }
+    self.args.add(new ArgumentInfo(
+        name, aliases=aliases, is_switch=yes,
+        takes_arg=takes_arg
     ))
     if self.args[self.args.len].positional {
         self.max_positional_args += 1
@@ -168,18 +255,22 @@ type ParseResult {
 
 func get_usage_text(options) {
     var output = ""
+
+    # Output main usage line with positional args:
     output += "Usage: " +
-        options.program_name + " [..Options..]"
+        options.program_name + " [..options..]"
     for arg in options.args {
         if not arg.positional {
             continue
         }
-        output += " [" + arg.name + (
-            if arg.optional ("<optional>") else ("")
-        ) + "]"
+        output += " " + arg.name.replace(" ", "_") + (
+            if arg.optional ("[optional]") else ("")
+        ) + ""
     }
-    output += "\n"
-    print("Available Options:")
+    output += "\n\n"
+
+    # Output all available option switches as a nice table:
+    output += "Available Options:\n"
     var unsorted_names = []
     for arg in options.args {
         if not arg.name.starts("-") {
@@ -190,8 +281,10 @@ func get_usage_text(options) {
     if not unsorted_names.contains("--help") {
         unsorted_names.add("--help")
     }
-    var sorted_names = unsorted_names  # FIXME...
-
+    var sorted_names = unsorted_names.sort()
+    for name in sorted_names {
+        output += "   " + name + "\n"
+    }
 
     return output
 }
@@ -244,7 +337,8 @@ func parse(argument_defs, args=none) {
             # See if we can find out the arg def this matches:
             var target_arg = argument_defs.get_namedarg(argstr)
             if target_arg == none {
-                result.output += argument_defs.program_name + ": error: "
+                result.output += argument_defs.program_name +
+                    ": error: "
                     "unknown option: " + argstr + "\n"
                 result.output += (
                     "Use " + argument_defs.program_name +
@@ -253,12 +347,13 @@ func parse(argument_defs, args=none) {
                 result.exit_code = -1
                 return result
             }
-            # If this named arg takes a parameter, check that it's
-            # following:
-            if target_arg.takes_str {
+            # If this named arg takes an argument, check that it's
+            # specified after:
+            if target_arg.takes_arg == yes {
                 if i + 1 > args.len or
                         args[i + 1].starts("-") {
-                    result.output += argument_defs.program_name + ": error: "
+                    result.output += argument_defs.program_name +
+                        ": error: "
                         "option is missing argument: " + argstr + "\n"
                     result.output += (
                         "Use " + argument_defs.program_name +
@@ -278,7 +373,7 @@ func parse(argument_defs, args=none) {
     # Fill in empty spots in result dictionary:
     for arg in argument_defs.args {
         if not result.args.contains(arg) {
-            if result.args.takes_str {
+            if result.args.takes_arg {
                 result_args[arg] = none
             } else {
                 result_args[arg] = no
