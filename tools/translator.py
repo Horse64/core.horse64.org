@@ -612,12 +612,19 @@ def translate_expression_tokens(s, module_name, library_name,
                     s[i] in ("len") or (
                     i + 2 < len(s) and
                     s[i] in ("as_str", "to_num") and s[i + 1] == "(" and
-                    s[i + 2] == ")"))):
-                insert_call = "str"
-                if s[i] == "len":
-                    insert_call = "len"
-                elif s[i] == "to_num":
-                    insert_call = "float"
+                    s[i + 2] == ")") or (
+                    i + 1 < len(s) and
+                    s[i] in ("add") and s[i + 1] == "("
+                    ))):
+                cmd = s[i]
+                insert_call = ["str"]
+                if cmd == "len":
+                    insert_call = ["len"]
+                elif cmd == "to_num":
+                    insert_call = ["float"]
+                elif cmd == "add":
+                    insert_call = ["_translator_runtime_helpers",
+                        ".", "_container_add"]
                 def is_keyword_or_idf(s):
                     if len(s) == 0:
                         return False
@@ -629,13 +636,19 @@ def translate_expression_tokens(s, module_name, library_name,
                     return False
                 replaced_one = True
                 old_s = s
-                s = s[:i - 1] + ([")"] if s[i] in ("len") else []) + (
-                    s[(i + 2 if
-                    s[i] not in ("len") else i + 1):])
+                if cmd in ("len"):
+                    # Add in a ")":
+                    s = s[:i - 1] + [")"] + s[i + 1:]
+                elif cmd in ("add"):
+                    # Truncate "(", ... and turn it to ",", ...
+                    s = s[:i - 1] + [","] + s[i + 2:]
+                else:
+                    # Truncate "(", ")" to leave a ")":
+                    s = s[:i - 1] + s[i + 2:]
                 inserted_left_end = False
                 bdepth = 0
                 i -= 2
-                while i > 0:
+                while i >= 0:
                     if s[i] in {")", "]", "}"}:
                         bdepth += 1
                     elif s[i] in {"(", "[", "{"}:
@@ -643,7 +656,12 @@ def translate_expression_tokens(s, module_name, library_name,
                     if (s[i] != "." and
                             not is_keyword_or_idf(s[i]) and
                             bdepth <= 0):
-                        s = s[:i + 1] + [insert_call, "("] + s[i + 1:]
+                        s = s[:i + 1] + insert_call + ["("] + s[i + 1:]
+                        inserted_left_end = True
+                        break
+                    elif (i == 0 and is_keyword_or_idf(s[i]) and
+                            bdepth <= 0):
+                        s = insert_call + ["("] + s
                         inserted_left_end = True
                         break
                     i -= 1

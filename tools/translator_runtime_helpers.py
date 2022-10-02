@@ -89,3 +89,9 @@ def h64_type(v):
         return "none"
     return str(result)
 
+
+def _container_add(container, item):
+    if (not hasattr(container, "add") and
+            hasattr(container, "append")):
+        return container.append(item)
+    return container
