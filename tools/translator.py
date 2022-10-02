@@ -582,13 +582,13 @@ def translate_expression_tokens(s, module_name, package_name,
                 condition_end_idx = z - 1
                 break
             if s[z] in {"[", "(", "{"}:
-                braclet_depth += 1
+                bracket_depth += 1
             if s[z] in {"]", ")", "}"}:
                 bracket_depth -= 1
             if s[z].strip(" \t\r\n") == "":
                 had_nonwhitespace_token = True
             z += 1
-        if z >= len(s) and s[z] != "(":
+        if z >= len(s) or s[z] != "(":
             # Not an inline if.
             i += 1
             continue

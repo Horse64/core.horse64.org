@@ -33,6 +33,7 @@ import system from core.horse64.org
 
 type ArgumentInfo {
     var name = ""
+    var catchall = no
     var takes_arg = no
     var aliases = []
     var optional = no
@@ -49,7 +50,7 @@ func ArgumentInfo.init(
         self.aliases.add(alias + "")
     }
     self.positional = not self.name.starts("-")
-    if not is_switch != (not self.positional) {
+    if is_switch != (not self.positional) {
         throw ValueError("is_switch must be yes if "
             "argument begins with dash, otherwise no")
     }
@@ -59,16 +60,21 @@ func ArgumentInfo.init(
         } else {
             self.takes_arg = no
         }
-    } elseif takes_arg == "optional" {
+    } elseif takes_arg == "optional" or takes_arg == "catchall" {
         if not self.positional {
             throw new ValueError("only positional arguments "
-                "may take an argument value optionally")
+                "may take an argument value optionally or "
+                "as catchall")
         }
-        self.optional = yes
+        if takes_arg == "optional" {
+            self.optional = yes
+        } else {
+            self.catchall = yes
+        }
     } else {
         if typename(takes_arg) != "bool" {
             throw new ValueError("unsupported value for "
-                "takes_arg")
+                "takes_arg of type: " + typename(takes_arg))
         }
         if not takes_arg and self.positional {
             throw new ValueError(
@@ -178,10 +184,15 @@ func ArgumentDefs.add_arg(name, aliases=[], is_optional=no) {
                 "name conflict with existing options"
             )
         }
+        if arg.positional and arg.catchall {
+            throw new ValueError(
+                "cannot add positional argument after a catchall"
+            )
+        }
     }
     self.args.add(new ArgumentInfo(
         name, aliases=aliases, is_switch=no,
-        takes_arg=(if is_optional {"optional"} else {no})
+        takes_arg=(if is_optional ("optional") else (no))
     ))
     if self.args[self.args.len].positional {
         self.max_positional_args += 1
@@ -189,6 +200,52 @@ func ArgumentDefs.add_arg(name, aliases=[], is_optional=no) {
             self.min_positional_args += 1
         }
     }
+}
+
+## @func ArgumentDefs.add_catchall
+##
+## **(Advanced functionality)**
+## Add a catchall argument that will consume all arguments following
+## the last positional argument. This is only useful for special
+## cases, like if you want to pass them on to some nested program.
+## Requires that one or more regular @{positional arguments were
+## previously added|ArgumentDefs.add_arg}.
+##
+## After @{parsing|ArgumentDefs.parse}, the map of all parsed values
+## will contain an entry with the name set to the consumed arguments as
+## a @{list}.
+func ArgumentDefs.add_catchall(name, aliases=[]) {
+    if name.starts("-") {
+        throw new ValueError(
+            "positional arguments can't have a name "
+            "starting with a dash")
+    }
+    var positional_count = 0
+    for arg in self.args {
+        if arg.names_intersect([name]) or
+                arg.names_intersect(aliases) {
+            throw new ValueError(
+                "name conflict with existing options"
+            )
+        }
+        if arg.positional and not arg.catchall {
+            positional_count += 1
+        }
+        if arg.positional and arg.catchall {
+            throw new ValueError(
+                "cannot add multiple catchall arguments"
+            )
+        }
+    }
+    if positional_count == 0 {
+        throw new ValueError(
+            "cannot add catchall without any positional arguments"
+        )
+    }
+    self.args.add(new ArgumentInfo(
+        name, aliases=aliases, is_switch=no,
+        takes_arg="catchall"
+    ))
 }
 
 

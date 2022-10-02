@@ -25,17 +25,10 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-import argparse
-import system
-
 
 func main {
-    var defs = argparse.ArgumentDefs(program_name="horsec")
-    defs.add_arg("action")
-    defs.add_catchall("action params")
-    var result = argparse.parse(defs)
-    if result.output != "" {
-        print(result.output)
-        system.exit(result.exit_code)
-    }
+    # Test ternary operator:
+    var value = if 1 == 2 (yes) else (no)
+    assert(typename(value) == "bool")
+    assert(value == no)
 }
