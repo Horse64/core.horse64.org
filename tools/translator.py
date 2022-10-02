@@ -854,12 +854,21 @@ def translate(s, module_name, library_name, parent_statements=[],
             append_code = ""
             python_module = import_module
             if import_library != None:
+                assert("." in import_library)
                 python_module = "horse_modules." + (
-                    import_library.replace(".", "_")
-                ) + "." + python_module
-                target_path = ("horse_modules/" +
-                    import_library
-                ) + "/" + target_path
+                        import_library.replace(".", "_")
+                    ) + "." + python_module
+                if os.path.exists(os.path.join(repo_folder,
+                        "horse_modules/" + import_library + "/" +
+                        "src/")) and (
+                        "." in import_library):
+                    target_path = ("horse_modules/" +
+                        import_library
+                    ) + "/src/" + target_path
+                else:
+                    target_path = ("horse_modules/" +
+                        import_library
+                    ) + "/" + target_path
                 for module_part in import_module.split(".")[:-1]:
                     append_code += ("; (" + module_part +
                         " := dict() if \"" +
