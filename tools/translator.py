@@ -74,9 +74,9 @@ remapped_uses = {
 
 
 class RegisteredType:
-    def __init__(self, type_name, module_path, library_name):
+    def __init__(self, type_name, module_path, package_name):
         self.module = module_path
-        self.libname = library_name
+        self.pkgname = package_name
         self.name = type_name
         self.init_code = ""
         self.funcs = {}
@@ -85,27 +85,56 @@ class RegisteredType:
 known_types = {}
 
 
-def register_type(type_name, module_path, library_name):
+def register_type(type_name, module_path, package_name):
     global known_types
-    library_name_part = ""
-    if library_name is not None:
-        library_name_part = "@" + library_name
-    if module_path + "." + type_name + library_name_part in known_types:
+    package_name_part = ""
+    if package_name is not None:
+        package_name_part = "@" + package_name
+    if (module_path + "." + type_name +
+            package_name_part in known_types):
         raise ValueError("found duplicate type " +
             module_path + "." + type_name)
-    known_types[module_path + "." + type_name + library_name_part] = (
-        RegisteredType(type_name, module_path, library_name)
+    known_types[module_path + "." + type_name + package_name_part] = (
+        RegisteredType(type_name, module_path, package_name)
     )
     if DEBUG_ENABLE and DEBUG_ENABLE_TYPES:
         print("tools/translator.py: debug: registered type " +
-            module_path + "." + type_name + library_name_part)
+            module_path + "." + type_name + package_name_part)
 
 
-def get_type(type_name, module_path, library_name):
-    if library_name is None:
+def get_type(type_name, module_path, package_name):
+    if package_name is None:
         return known_types[module_path + "." + type_name]
     return known_types[module_path + "." + type_name + "@" +
-        library_name]
+        package_name]
+
+
+class TranslatedProjectInfo:
+    def __init__(self):
+        self.code_folder = None
+        self.repo_folder = None
+        self.package_name = None
+        self.code_relpath = None
+
+
+def horp_ini_string_get_package_name(s):
+    lines = s.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    lines = [(line.rpartition("#")[0].rstrip() if
+        "#" in line else line.rstrip()) for line in lines]
+    section = None
+    for line in lines:
+        if line.startswith("[") and line.endswith("]"):
+            section = line[1:-1].strip()
+        if (section == "package" and
+                line.startswith("name=") or line.startswith("name ")):
+            while len(line) >= 5 and line[4] == " ":
+                line = "name" + line[5:]
+            if line.startswith("name="):
+                result = line.partition("=")[2].strip()
+                if "." in result:
+                    return result
+                return None
+    return None
 
 
 def sublist_index(full_list, sub_list):
@@ -334,9 +363,9 @@ def untokenize(tokens):
     return result
 
 
-def translate_expression_tokens(s, module_name, library_name,
+def translate_expression_tokens(s, module_name, package_name,
         parent_statements=[], known_imports=None,
-        add_indent=""):
+        add_indent="", repo_package_name=None):
     s = list(s)
     assert("_remapped_os" not in s)
 
@@ -414,7 +443,7 @@ def translate_expression_tokens(s, module_name, library_name,
             continue
         #print("s[i] " + str(s[i]))
         match = False
-        match_library = None
+        match_package = None
         match_import_module = None
         match_item = None
         match_tokens = -1
@@ -467,9 +496,9 @@ def translate_expression_tokens(s, module_name, library_name,
                     known_imports[known_import]
                         ["module"]
                 )
-                match_library = (
+                match_package = (
                     known_imports[known_import]
-                        ["library"]
+                        ["package"]
                 )
                 match_tokens = maybe_match_tokens
                 match_item = maybe_match_item
@@ -477,8 +506,8 @@ def translate_expression_tokens(s, module_name, library_name,
             i += 1
             continue
         remap_module_key = match_import_module + (
-            "" if match_library is None else
-            "@" + match_library)
+            "" if match_package is None else
+            "@" + match_package)
         if remap_module_key in remapped_uses:
             remap_original_use = (
                 match_import_module + "." + match_item
@@ -688,12 +717,14 @@ def translate_expression_tokens(s, module_name, library_name,
     return s
 
 
-def translate(s, module_name, library_name, parent_statements=[],
-        extra_indent="", folder_path="", repo_folder="",
+def translate(s, module_name, package_name, parent_statements=[],
+        extra_indent="", folder_path="", project_info=None,
         known_imports=None, translate_file_queue=None):
     if len(parent_statements) == 0 and DEBUG_ENABLE:
         print("tools/translator.py: debug: translating " +
-            "module \"" + modname + "\" in folder: " + folder_path)
+            "module \"" + modname + "\" in folder: " + folder_path +
+            (" (no package)" if package_name is None else
+             " (package: " + str(package_name) + ")"))
     if known_imports is None:
         known_imports = {}
     folder_path = os.path.normpath(os.path.abspath(folder_path))
@@ -726,7 +757,7 @@ def translate(s, module_name, library_name, parent_statements=[],
             if i < len(statement) and statement[i] == "=":
                 statement = (statement[:i + 1] + ["("] +
                     translate_expression_tokens(
-                    statement[i + 1:], module_name, library_name,
+                    statement[i + 1:], module_name, package_name,
                     parent_statements=(
                         parent_statements + [statement_cpy]),
                     known_imports=known_imports) + [")"])
@@ -736,7 +767,7 @@ def translate(s, module_name, library_name, parent_statements=[],
             if len(parent_statements) > 0 and \
                     "".join(parent_statements[0][:1]) == "type":
                 type_name = parent_statements[0][2]
-                get_type(type_name, module_name, library_name).\
+                get_type(type_name, module_name, package_name).\
                     init_code += "\n" + indent +\
                     ("\n" + indent).join((
                         "self." +
@@ -770,7 +801,7 @@ def translate(s, module_name, library_name, parent_statements=[],
                 begin_content_idx = i + 1
                 condition = (
                     translate_expression_tokens(statement[j + 1:i],
-                        module_name, library_name,
+                        module_name, package_name,
                         parent_statements=parent_statements,
                         known_imports=known_imports,
                         add_indent=extra_indent))
@@ -788,12 +819,12 @@ def translate(s, module_name, library_name, parent_statements=[],
                     begin_content_idx:i
                 ]
                 content_code = translate(
-                    untokenize(content), module_name, library_name,
+                    untokenize(content), module_name, package_name,
                     parent_statements=(
                         parent_statements + [statement_cpy]),
                     extra_indent=extra_indent,
                     folder_path=folder_path,
-                    repo_folder=repo_folder,
+                    project_info=project_info,
                     known_imports=known_imports,
                     translate_file_queue=translate_file_queue
                 )
@@ -838,7 +869,7 @@ def translate(s, module_name, library_name, parent_statements=[],
                 part.strip() for part in statement[1:i + 1]
                 if part.strip() != ""
             ])
-            import_library = None
+            import_package = project_info.package_name
             i += 1
             while i < len(statement) and statement[i].strip() == "":
                 i += 1
@@ -846,28 +877,31 @@ def translate(s, module_name, library_name, parent_statements=[],
                 i += 1
                 while i < len(statement) and statement[i].strip() == "":
                     i += 1
-                import_library = statement[i]
+                import_package = statement[i]
                 while i + 2 < len(statement) and statement[i + 1] == ".":
-                    import_library += "." + statement[i + 2]
+                    import_package += "." + statement[i + 2]
                     i += 2
             target_path = import_module.replace(".", "/") + ".h64"
             append_code = ""
             python_module = import_module
-            if import_library != None:
-                assert("." in import_library)
+            if (import_package != None and
+                    import_package !=
+                    project_info.package_name):
+                assert("." in import_package)
                 python_module = "horse_modules." + (
-                        import_library.replace(".", "_")
+                        import_package.replace(".", "_")
                     ) + "." + python_module
-                if os.path.exists(os.path.join(repo_folder,
-                        "horse_modules/" + import_library + "/" +
+                if os.path.exists(os.path.join(
+                        project_info.repo_folder,
+                        "horse_modules/" + import_package + "/" +
                         "src/")) and (
-                        "." in import_library):
+                        "." in import_package):
                     target_path = ("horse_modules/" +
-                        import_library
+                        import_package
                     ) + "/src/" + target_path
                 else:
                     target_path = ("horse_modules/" +
-                        import_library
+                        import_package
                     ) + "/" + target_path
                 for module_part in import_module.split(".")[:-1]:
                     append_code += ("; (" + module_part +
@@ -876,11 +910,15 @@ def translate(s, module_name, library_name, parent_statements=[],
                         module_part + "\" not in globals)")
                 append_code += ("; " +
                     import_module + " = horse_modules." +
-                    import_library.replace(".", "_") +
+                    import_package.replace(".", "_") +
                     "." + import_module)
-            target_path = os.path.normpath(
-                os.path.join(os.path.abspath(
-                repo_folder), target_path))
+                target_path = os.path.normpath(
+                    os.path.join(os.path.abspath(
+                    project_info.repo_folder), target_path))
+            else:
+                target_path = os.path.normpath(
+                    os.path.join(os.path.abspath(
+                    project_info.code_folder), target_path))
 
             # Check if this module is only used for remapped uses:
             found_nonremapped_use = False
@@ -888,8 +926,8 @@ def translate(s, module_name, library_name, parent_statements=[],
             if DEBUG_ENABLE_REMAPPED_USES:
                 print("tools/translator.py: debug: scanning \"" +
                     "import " + import_module +
-                    (" from " + import_library
-                    if import_library != None else "") + "\" for " +
+                    (" from " + import_package
+                    if import_package != None else "") + "\" for " +
                     "remapped uses...")
             import_module_elements = import_module.split(".")
             assert(len(import_module_elements) >= 1)
@@ -916,8 +954,8 @@ def translate(s, module_name, library_name, parent_statements=[],
                     i += 1
                     continue
                 remapped_uses_key = import_module
-                if import_library != None:
-                    remapped_uses_key += "@" + import_library
+                if import_package != None:
+                    remapped_uses_key += "@" + import_package
                 if remapped_uses_key not in remapped_uses:
                     if DEBUG_ENABLE_REMAPPED_USES:
                         print("tools/translator.py: debug: found " +
@@ -949,7 +987,7 @@ def translate(s, module_name, library_name, parent_statements=[],
 
             # Add import:
             known_imports[import_module] = {
-                "library": import_library,
+                "package": import_package,
                 "module": import_module,
                 "python-module": python_module,
                 "path": target_path,
@@ -961,8 +999,8 @@ def translate(s, module_name, library_name, parent_statements=[],
                     print("tools/translator.py: debug: hiding " +
                         "import since all uses are remapped: " +
                         str(import_module) + ("" if
-                        import_library is None else
-                        "@" + import_library))
+                        import_package is None else
+                        "@" + import_package))
                 known_imports[import_module]["python-module"] = (
                     None  # since it wasn't actually imported
                 )
@@ -973,7 +1011,7 @@ def translate(s, module_name, library_name, parent_statements=[],
             translate_file_queue.append(
                 (target_path,
                 import_module, os.path.dirname(target_path),
-                import_library)
+                import_package)
             )
             for otherfile in os.listdir(os.path.dirname(target_path)):
                 otherfilepath = os.path.normpath(os.path.join(
@@ -989,7 +1027,7 @@ def translate(s, module_name, library_name, parent_statements=[],
                 translate_file_queue.append(
                     (otherfilepath,
                     otherfile_module, os.path.dirname(target_path),
-                    import_library)
+                    import_package)
                 )
             continue
         elif statement[0] == "func":
@@ -1022,7 +1060,7 @@ def translate(s, module_name, library_name, parent_statements=[],
             assert(statement[1].strip() == "")
             type_module = None
             type_name = None
-            type_library = None
+            type_package = None
             type_python_module = None
             start_arguments_idx = 3
             name = statement[2]
@@ -1041,7 +1079,8 @@ def translate(s, module_name, library_name, parent_statements=[],
                     if type_name.startswith(import_mod_name + "."):
                         type_module = import_mod_name
                         type_name = type_name[len(type_module) + 1:]
-                        type_library = known_imports[type_module]["library"]
+                        type_package = known_imports\
+                            [type_module]["package"]
                         type_python_module = known_imports[
                             type_module]["python-module"]
             while (start_arguments_idx < len(statement) and
@@ -1050,7 +1089,7 @@ def translate(s, module_name, library_name, parent_statements=[],
                 start_arguments_idx += 1
             if type_module is None:
                 type_module = module_name
-                type_library = library_name
+                type_package = package_name
             argument_tokens = ["(", ")"]
             if statement[start_arguments_idx] == "(":
                 bdepth = 1
@@ -1064,19 +1103,19 @@ def translate(s, module_name, library_name, parent_statements=[],
                 assert(statement[k] == ")")
                 argument_tokens = translate_expression_tokens(
                     statement[start_arguments_idx:k + 1],
-                    module_name, library_name,
+                    module_name, package_name,
                     parent_statements=parent_statements,
                     known_imports=known_imports,
                     add_indent=extra_indent)
             assert("_remapped_os" not in contents)
             translated_contents = translate(
-                untokenize(contents), module_name, library_name,
+                untokenize(contents), module_name, package_name,
                 parent_statements=(
                     parent_statements + [statement_cpy]),
                 extra_indent=(extra_indent + ("    "
                     if type_name is not None else "")),
                 folder_path=folder_path,
-                repo_folder=repo_folder,
+                project_info=project_info,
                 known_imports=known_imports,
                 translate_file_queue=translate_file_queue
             )
@@ -1090,7 +1129,7 @@ def translate(s, module_name, library_name, parent_statements=[],
                 result += (extra_init_code + "\n" +
                     translated_contents + "\n")
             else:
-                regtype = get_type(type_name, type_module, type_library)
+                regtype = get_type(type_name, type_module, type_package)
                 regtype.funcs[name] = {
                     "arguments": cleaned_argument_tokens,
                     "name": name,
@@ -1108,20 +1147,20 @@ def translate(s, module_name, library_name, parent_statements=[],
             contents = (
                 statement[i:-1]
             )
-            register_type(statement[2], module_name, library_name)
+            register_type(statement[2], module_name, package_name)
             translated_contents = translate(
-                untokenize(contents), module_name, library_name,
+                untokenize(contents), module_name, package_name,
                 parent_statements=(
                     parent_statements + [statement_cpy]),
                 extra_indent=(extra_indent + "    "),
                 folder_path=folder_path,
-                repo_folder=repo_folder,
+                project_info=project_info,
                 known_imports=known_imports,
                 translate_file_queue=translate_file_queue
             )
             continue
         result += indent + untokenize(translate_expression_tokens(
-            statement, module_name, library_name,
+            statement, module_name, package_name,
             parent_statements=parent_statements,
             known_imports=known_imports,
             add_indent=extra_indent)) + "\n"
@@ -1213,6 +1252,7 @@ if __name__ == "__main__":
     target_file = None
     target_file_args = []
     keep_files = False
+    overridden_package_name = None
     i = 0
     while i < len(args):
         if args[i] == "--":
@@ -1236,6 +1276,21 @@ if __name__ == "__main__":
                     args[i] == "-V"):
                 print("tools/translator.py version " + VERSION)
                 sys.exit(0)
+            elif args[i] == "--override-package-name":
+                if i + 1 >= len(args):
+                    print("tools/translator.py: error: " +
+                        "missing argument for --override-package-name")
+                    sys.exit(1)
+                if ("." not in args[i + 1] or
+                        args[i + 1].startswith("-") or
+                        args[i + 1].endswith(".h64")):
+                    print("tools/translator.py: error: " +
+                        "invalid name specified for " +
+                        "--override-package-name")
+                    sys.exit(1)
+                overridden_package_name = args[i + 1]
+                i += 2
+                continue
             elif args[i] == "--debug":
                 DEBUG_ENABLE = True
                 DEBUG_ENABLE_TYPES = True
@@ -1255,6 +1310,8 @@ if __name__ == "__main__":
         raise RuntimeError("please provide target file argument")
     modname = (os.path.basename(target_file).
         rpartition(".h64")[0].strip())
+    project_info = TranslatedProjectInfo()
+    project_info.package_name = overridden_package_name
     modfolder = os.path.abspath(os.path.dirname(target_file))
     if (not os.path.exists(target_file) or
             os.path.isdir(target_file) or
@@ -1264,39 +1321,79 @@ if __name__ == "__main__":
         raise IOError("missing target file, " +
             "or target file not a .h64 file with proper " +
             "module name: " + str(target_file))
-    repo_folder = modfolder
+    project_info.repo_folder = modfolder
     while True:
-        repo_folder_files = os.listdir(repo_folder)
+        repo_folder_files = os.listdir(project_info.repo_folder)
         if ("horse_modules" in repo_folder_files or
                 ".git" in repo_folder_files):
             break
-        repo_folder = os.path.normpath(os.path.abspath(repo_folder))
+        if ("horp.ini" in repo_folder_files and
+                not os.path.isdir(os.path.join(
+                project_info.repo_folder,
+                "horp.ini"))):
+            contents = ""
+            with open(os.path.join(project_info.repo_folder,
+                    "horp.ini"), "r", encoding='utf-8') as f:
+                contents = f.read()
+            pkg_name = horp_ini_string_get_package_name(contents)
+            if pkg_name != None:
+                if project_info.package_name is None:
+                    project_info.package_name = pkg_name
+                break
+        project_info.repo_folder = os.path.normpath(
+            os.path.abspath(project_info.repo_folder))
         if "windows" in platform.system().lower():
-            repo_folder = repo_folder.replace("\\", "/")
-        while "//" in repo_folder:
-            repo_folder = repo_folder.replace("//", "/")
-        if repo_folder.endswith("/") and (
+            project_info.repo_folder = (
+                project_info.repo_folder.replace("\\", "/"))
+        while "//" in project_info.repo_folder:
+            project_info.repo_folder = (
+                project_info.repo_folder.replace("//", "/"))
+        if project_info.repo_folder.endswith("/") and (
                 "windows" not in platform.system().lower() or
-                len(repo_folder) > 3) and repo_folder != "/":
-            repo_folder = repo_folder[:-1]
+                len(project_info.repo_folder) > 3) and \
+                project_info.repo_folder != "/":
+            project_info.repo_folder = project_info.repo_folder[:-1]
         if (("windows" in platform.system().lower() and
-                len(repo_folder) == 3) or
+                len(project_info.repo_folder) == 3) or
                 "windows" not in platform.system().lower() and
-                repo_folder == "/"):
+                project_info.repo_folder == "/"):
             raise RuntimeError("failed to detect repository folder")
-        repo_folder = os.path.normpath(os.path.abspath(
-            os.path.join(repo_folder, "..")))
+        project_info.repo_folder = os.path.normpath(
+            os.path.abspath(
+            os.path.join(project_info.repo_folder, "..")))
     if DEBUG_ENABLE:
         print("tools/translator.py: debug: " +
             "detected repository folder: " +
-            repo_folder)
+            project_info.repo_folder)
+    project_info.code_relpath = ""
+    if os.path.exists(os.path.join(project_info.repo_folder, "src")):
+        project_info.code_relpath = "src/"
+    project_info.code_folder = os.path.join(
+        project_info.repo_folder, project_info.code_relpath)
+    if (project_info.package_name is None and
+            os.path.exists(os.path.join(
+            project_info.repo_folder, "horp.ini"))):
+        with open(os.path.join(project_info.repo_folder,
+                "horp.ini"), "r", encoding='utf-8') as f:
+            contents = f.read()
+            pkg_name = horp_ini_string_get_package_name(contents)
+            if pkg_name != None:
+                project_info.package_name = pkg_name
+            else:
+                print("tools/translator.py: warning: " +
+                    "failed to get package name from horp.ini: " +
+                    str(os.path.join(repo_folder, "horp.ini")))
+    if DEBUG_ENABLE:
+        print("tools/translator.py: debug: " +
+            "detected package name: " +
+            str(project_info.package_name))
     translate_file_queue = [
         (os.path.normpath(os.path.abspath(target_file)),
-        modname, modfolder, None)]
+        modname, modfolder, project_info.package_name)]
     mainfilepath = translate_file_queue[0][0]
     while len(translate_file_queue) > 0:
         (target_file, modname, modfolder,
-         library_name) = translate_file_queue[0]
+         package_name) = translate_file_queue[0]
         translate_file_queue = translate_file_queue[1:]
         if target_file in translated_files:
             continue
@@ -1312,23 +1409,24 @@ if __name__ == "__main__":
             new_modname += (os.path.basename(otherfile).
                 rpartition(".h64")[0])
             translate_file_queue.append((otherfilepath,
-                new_modname, modfolder, library_name))
+                new_modname, modfolder, package_name))
         contents = None
         with open(target_file, "r", encoding="utf-8") as f:
             contents = f.read()
         contents_result = (
-            translate(contents, modname, library_name,
-                folder_path=modfolder, repo_folder=repo_folder,
+            translate(contents, modname, package_name,
+                folder_path=modfolder,
+                project_info=project_info,
                 translate_file_queue=translate_file_queue))
         translated_files[target_file] = {
             "module-name": modname,
-            "library-name": library_name,
+            "package-name": package_name,
             "module-folder": modfolder,
             "path": target_file,
             "disk-fake-folder": os.path.dirname(
-                ("" if library_name is None else
+                ("" if package_name is None else
                 "horse_modules/" +
-                library_name.replace(".", "_") + "/") +
+                package_name.replace(".", "_") + "/") +
                 modname.replace(".", "/")),
             "output": contents_result
         }
@@ -1343,8 +1441,8 @@ if __name__ == "__main__":
         for regtype in known_types.values():
             if (regtype.module != translated_files
                     [translated_file]["module-name"] or
-                    regtype.libname != translated_files
-                    [translated_file]["library-name"]):
+                    regtype.pkgname != translated_files
+                    [translated_file]["package-name"]):
                 continue
             contents_result += "\n"
             contents_result += "class " + regtype.name + ":\n"
