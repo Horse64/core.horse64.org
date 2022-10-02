@@ -35,4 +35,6 @@ func main {
         "args_program_main.h64", args=["--help"],
         run_in_dir=path.dirname(system.self_exec_path())
     )
+    assert(output.lower().contains("usage") and
+        output.lower().contains("available options"))
 }

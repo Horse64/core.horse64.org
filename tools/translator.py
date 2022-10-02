@@ -614,7 +614,7 @@ def translate_expression_tokens(s, module_name, library_name,
                     s[i] in ("as_str", "to_num") and s[i + 1] == "(" and
                     s[i + 2] == ")") or (
                     i + 1 < len(s) and
-                    s[i] in ("add") and s[i + 1] == "("
+                    s[i] in ("add", "sort") and s[i + 1] == "("
                     ))):
                 cmd = s[i]
                 insert_call = ["str"]
@@ -625,6 +625,9 @@ def translate_expression_tokens(s, module_name, library_name,
                 elif cmd == "add":
                     insert_call = ["_translator_runtime_helpers",
                         ".", "_container_add"]
+                elif cmd == "sort":
+                    insert_call = ["_translator_runtime_helpers",
+                        ".", "_container_sort"]
                 def is_keyword_or_idf(s):
                     if len(s) == 0:
                         return False
@@ -639,7 +642,7 @@ def translate_expression_tokens(s, module_name, library_name,
                 if cmd in ("len"):
                     # Add in a ")":
                     s = s[:i - 1] + [")"] + s[i + 1:]
-                elif cmd in ("add"):
+                elif cmd in ("add", "sort"):
                     # Truncate "(", ... and turn it to ",", ...
                     s = s[:i - 1] + [","] + s[i + 2:]
                 else:

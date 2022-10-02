@@ -31,23 +31,27 @@ import threading
 import time
 
 
-def _process_run(cmd, args=[], run_in_dir=None):
+def _process_run(cmd, args=[], run_in_dir=None,
+        print_output=False):
     assert(type(cmd) == str)
     cmdlist = [cmd] + args
     process = subprocess.Popen(cmdlist,
-        stdout=subprocess.PIPE, cwd=run_in_dir)
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        cwd=run_in_dir)
     output = [b""]
-    def output_thread_func(output, process):
+    def output_thread_func(output, process, print_output):
         while process.poll() == None:
             try:
                 char = process.stdout.read(1)
             except (IOError, BrokenPipeError, ValueError):
                 return
             output[0] += char
-            sys.stdout.buffer.write(char)
+            if print_output:
+                sys.stdout.buffer.write(char)
     output_thread = threading.Thread(
         target=output_thread_func,
-        args=(output, process))
+        args=(output, process, print_output))
     output_thread.daemon = True
     output_thread.start()
     process.wait()
@@ -63,12 +67,14 @@ def _process_run(cmd, args=[], run_in_dir=None):
     return output
 
 
-def _compiler_run_file(cmd, args=[], run_in_dir=None):
+def _compiler_run_file(cmd, args=[], run_in_dir=None,
+        print_output=False):
     assert(type(cmd) == str)
     run_cmd = sys.executable
     run_args = [__translator_py_path__,
         "--", cmd] + args
-    return _process_run(run_cmd, args=run_args, run_in_dir=run_in_dir)
+    return _process_run(run_cmd, args=run_args,
+        run_in_dir=run_in_dir, print_output=print_output)
 
 
 def h64_type(v):
@@ -95,3 +101,8 @@ def _container_add(container, item):
             hasattr(container, "append")):
         return container.append(item)
     return container
+
+
+def _container_sort(container):
+    return sorted(container)
+ 
