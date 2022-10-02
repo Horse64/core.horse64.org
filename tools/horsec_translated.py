@@ -41,8 +41,9 @@ if __name__ == "__main__":
         use_debug = True
         args = args[1:]
     process = subprocess.Popen([
-        os.path.join(my_dir, "translator.py"),
-        os.path.join("src", "compiler", "main.h64")] + args)
+        os.path.join(my_dir, "translator.py")] +
+        (["--debug"] if use_debug else []) +
+        [os.path.join("src", "compiler", "main.h64")] + args)
     exit_code = process.wait()
     sys.exit(exit_code)
 

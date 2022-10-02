@@ -87,6 +87,8 @@ def h64_type(v):
         return "num"
     elif result == list:
         return "list"
+    elif result == set:
+        return "set"
     elif result == dict:
         return "map"
     elif result == bool:
