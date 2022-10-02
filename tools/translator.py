@@ -1236,7 +1236,9 @@ def separate_func_keyword_arg_code(
                 break
             assert(k < eq_index)
             kw_arg_init_code += ("\n" + indent +
-                func_arg[k] + " = (" +
+                "if " + func_arg[k] +
+                " == _translator_kw_arg_default_value:\n" +
+                indent + "    " + func_arg[k] + " = (" +
                 untokenize(func_arg[eq_index+1:]) + ")")
         else:
             new_args_separated_flat += func_arg
