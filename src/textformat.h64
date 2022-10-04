@@ -33,6 +33,7 @@ func wrap(s, length,
         all_lines_prefix="",
         later_lines_prefix="",
         ) {
+    #print("textformat.wrap on: " + [s, length].as_str())
     if typename(length) != "num" or length <= 0 {
         raise ValueError("wrapped-to length must be positive number")
     }
@@ -58,12 +59,16 @@ func wrap(s, length,
                 remaining_lines.add(prefix + remaining_line)
                 prefix = later_lines_prefix + all_lines_prefix + ""
             }
-            return final_lines.join(line_break)
+            final_lines += remaining_lines
+            var result = final_lines.join(line_break)
+            #print("textformat.wrap result: " + result.as_str())
+            return result
         }
-        var wrap_index = math.max(0, line_length)
-        var line_break = s.find("\n")
-        if line_break != none and line_break < wrap_index {
-            wrap_index = line_break
+        var wrap_index = math.max(1, line_length)
+        var line_break_idx = s.find("\n")
+        if line_break_idx != none and
+                line_break_idx < wrap_index {
+            wrap_index = line_break_idx
         }
         var k = wrap_index
         while k > s.len / 2 and k > 1 {
@@ -75,14 +80,17 @@ func wrap(s, length,
         }
         final_lines.add(prefix + s.sub(0, wrap_index))
         if s[wrap_index] == "\n" or s[wrap_index] == "\t" or
-                s[wrap_index] == "\r" {
+                s[wrap_index] == "\r" or s[wrap_index] == " " {
             assert(wrap_index >= 0)
             s = s.sub(wrap_index + 1)
         } else {
             assert(wrap_index >= 1)
             s = s.sub(wrap_index)
         }
+        is_first_line = no
     }
-    return final_lines.join(line_break)
+    var result = final_lines.join(line_break)
+    #print("textformat.wrap result: " + result.as_str())
+    return result
 }
 

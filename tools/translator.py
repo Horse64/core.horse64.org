@@ -651,7 +651,7 @@ def translate_expression_tokens(s, module_name, package_name,
                     s[i + 2] == ")") or (
                     i + 1 < len(s) and
                     s[i] in ("add", "sort", "find",
-                        "join", "sub") and s[i + 1] == "("
+                        "join", "sub", "repeat") and s[i + 1] == "("
                     ))):
                 cmd = s[i]
                 insert_call = ["str"]
@@ -665,6 +665,9 @@ def translate_expression_tokens(s, module_name, package_name,
                 elif cmd == "join":
                     insert_call = ["_translator_runtime_helpers",
                         ".", "_container_join"]
+                elif cmd == "repeat":
+                    insert_call = ["_translator_runtime_helpers",
+                        ".", "_container_repeat"]
                 elif cmd == "sub":
                     insert_call = ["_translator_runtime_helpers",
                         ".", "_container_sub"]
@@ -688,22 +691,38 @@ def translate_expression_tokens(s, module_name, package_name,
                 if cmd in ("len"):
                     # Add in a ")":
                     s = s[:i - 1] + [")"] + s[i + 1:]
-                elif cmd in ("add", "sort", "join", "find", "sub"):
+                    i -= 1
+                    assert(s[i] == ")")
+                elif cmd in ("add", "sort", "join", "find", "sub",
+                        "repeat"):
                     # Truncate "(", ... and turn it to ",", ...
                     s = s[:i - 1] + [","] + s[i + 2:]
+                    i -= 1
+                    assert(s[i] == ",")
                 else:
                     # Truncate "(", ")" to leave a ")":
                     s = s[:i - 1] + s[i + 2:]
+                    i -= 1
+                    assert(s[i] == ")")
                 inserted_left_end = False
                 bdepth = 0
-                i -= 2
+                i -= 1  # Go before terminating ) or , character
+                # Now search back to find the beginning of the expression:
+                is_guaranteed_past_expr = False
                 while i >= 0:
                     if s[i] in {")", "]", "}"}:
                         bdepth += 1
                     elif s[i] in {"(", "[", "{"}:
-                        bdepth -= 1
-                    if (s[i] != "." and
+                        if bdepth > 0:
+                            bdepth -= 1
+                            i -= 1
+                            continue
+                        is_guaranteed_past_expr = True
+                    if is_guaranteed_past_expr or (s[i] != "." and
                             not is_keyword_or_idf(s[i]) and
+                            ((not s[i].startswith('"') and
+                              not s[i].startswith("'")) or
+                              i + 1 < len(s) and s[i + 1] == ".") and
                             bdepth <= 0):
                         s = s[:i + 1] + insert_call + ["("] + s[i + 1:]
                         inserted_left_end = True
