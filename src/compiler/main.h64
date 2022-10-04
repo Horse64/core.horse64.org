@@ -25,20 +25,31 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-import argparse
-import system
+import argparse from core.horse64.org
+import system from core.horse64.org
+
+
+func print_compiler_version {
+    return "horsec v" + system.program_version()
+}
 
 
 func main {
     var defs = argparse.ArgumentDefs(program_name="horsec")
-    defs.add_arg("action", description="Pick an available actions: "
+    defs.add_arg(
+        "action", description="Pick an available actions: "
         "compile, run. To see details for an action, use it with --help "
         "like e.g.: horse compile --help")
-    defs.add_catchall("action params", description="List of "
+    defs.add_catchall(
+        "action params", description="List of "
         "arguments for the specified action")
+    defs.add_switch(
+        "--version", aliases=["-V", "-version"],
+        description="Print out the program version.",
+        action_func=print_compiler_version)
     var result = argparse.parse(defs)
     if result.output != "" {
         print(result.output)
-        system.exit(result.exit_code)
+        return result.exit_code
     }
 }
