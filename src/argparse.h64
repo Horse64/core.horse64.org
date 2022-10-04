@@ -29,6 +29,7 @@
 import path from core.horse64.org
 import process from core.horse64.org
 import system from core.horse64.org
+import textformat from core.horse64.org
 
 
 type _ArgumentInfo {
@@ -210,6 +211,7 @@ func ArgumentDefs.add_arg(name, is_optional=no, description=none) {
     }
 }
 
+
 ## @func ArgumentDefs.add_catchall
 ##
 ## **(Advanced functionality)**
@@ -340,6 +342,29 @@ func get_usage_text(options) {
         ) + (if arg.catchall ("..") else ("")) + ""
     }
     output += "\n\n"
+
+    # Output info on all positional args:
+    var got_positional = no
+    for arg in options.args {
+        if arg.positional {
+            got_positional = yes
+            break
+        }
+    }
+    if got_positional {
+        output += "Arguments:\n"
+        for arg in options.args {
+            if arg.positional {
+                var wrapped = textformat.wrap(
+                    "   " + arg.name +
+                    (if arg.description != none (": " + arg.description)
+                    else ("")), 79,
+                    later_lines_prefix="      ")
+                output += wrapped + "\n"
+            }
+        }
+        output += "\n"
+    }
 
     # Output all available option switches as a nice table:
     output += "Available Options:\n"

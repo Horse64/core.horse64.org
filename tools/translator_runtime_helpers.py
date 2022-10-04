@@ -107,4 +107,40 @@ def _container_add(container, item):
 
 def _container_sort(container):
     return sorted(container)
- 
+
+
+def _container_join(container, join_element):
+    return join_element.join(container)
+
+
+def _container_find(container, search_element):
+    try:
+        return container.index(search_element)
+    except ValueError:
+        return None
+
+
+def _container_sub(container, i1, i2=None):
+    if i2 == None:
+        i2 = len(container)
+    if (type(i1) not in {float, int} and
+            type(i2) not in {float, int}):
+        raise TypeError("indexes must be type num")
+    i1 = max(0, i1)
+    i2 = max(i1, i2)
+    if i2 <= i1:
+        return ""
+    return container[i1:i2]
+
+
+def _math_max(v1, v2):
+    return max(v1, v2)
+
+
+def _math_min(v1, v2):
+    return min(v1, v2)
+
+
+def _math_round(v1):
+    return int(round(v1))
+

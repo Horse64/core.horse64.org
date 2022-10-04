@@ -28,6 +28,7 @@
 
 VERSION="2022-09-16"
 
+import math
 import os
 import platform
 import shutil
@@ -55,6 +56,11 @@ remapped_uses = {
     },
     "files@core.horse64.org": {
         "files.get_working_dir" : "_remapped_os.getcwd",
+    },
+    "math@core.horse64.org": {
+        "math.min": "_translator_runtime_helpers._math_min",
+        "math.max": "_translator_runtime_helpers._math_max",
+        "math.round": "_translator_runtime_helpers._math_round",
     },
     "path@core.horse64.org": {
         "path.basename" : "_remapped_os.path.basename",
@@ -317,7 +323,8 @@ def get_next_statement(s):
                     is_string_continuation = True
             if not is_string_continuation:
                 return s[:token_count]
-        assert(bracket_nesting >= 0)
+        assert(bracket_nesting >= 0), \
+            "failed to find terminating bracket in: " + str(s)
         if t.strip(" \t\r\n") != "":
             last_nonwhitespace_token = t
     return s
@@ -643,7 +650,8 @@ def translate_expression_tokens(s, module_name, package_name,
                     s[i] in ("as_str", "to_num") and s[i + 1] == "(" and
                     s[i + 2] == ")") or (
                     i + 1 < len(s) and
-                    s[i] in ("add", "sort") and s[i + 1] == "("
+                    s[i] in ("add", "sort", "find",
+                        "join", "sub") and s[i + 1] == "("
                     ))):
                 cmd = s[i]
                 insert_call = ["str"]
@@ -654,6 +662,15 @@ def translate_expression_tokens(s, module_name, package_name,
                 elif cmd == "add":
                     insert_call = ["_translator_runtime_helpers",
                         ".", "_container_add"]
+                elif cmd == "join":
+                    insert_call = ["_translator_runtime_helpers",
+                        ".", "_container_join"]
+                elif cmd == "sub":
+                    insert_call = ["_translator_runtime_helpers",
+                        ".", "_container_sub"]
+                elif cmd == "find":
+                    insert_call = ["_translator_runtime_helpers",
+                        ".", "_container_find"]
                 elif cmd == "sort":
                     insert_call = ["_translator_runtime_helpers",
                         ".", "_container_sort"]
@@ -671,7 +688,7 @@ def translate_expression_tokens(s, module_name, package_name,
                 if cmd in ("len"):
                     # Add in a ")":
                     s = s[:i - 1] + [")"] + s[i + 1:]
-                elif cmd in ("add", "sort"):
+                elif cmd in ("add", "sort", "join", "find", "sub"):
                     # Truncate "(", ... and turn it to ",", ...
                     s = s[:i - 1] + [","] + s[i + 2:]
                 else:
@@ -1241,6 +1258,8 @@ def separate_func_keyword_arg_code(
                 indent + "    " + func_arg[k] + " = (" +
                 untokenize(func_arg[eq_index+1:]) + ")")
         else:
+            if len(new_args_separated_flat) > 0:
+                new_args_separated_flat.append(",")
             new_args_separated_flat += func_arg
     result = (
         ["("] + (new_args_separated_flat) + [")"],
