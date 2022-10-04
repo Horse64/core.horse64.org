@@ -1,6 +1,7 @@
 *~
 *.o
 *.bin
+__pycache__/
 /horse_modules/
 /tests/basic-1/horse_modules/core.horse64.org/
 /tests/basic-2/horse_modules/core.horse64.org/

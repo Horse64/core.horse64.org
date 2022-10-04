@@ -1,4 +1,5 @@
-# @module compiler.main
+#!/usr/bin/python3
+
 # Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -25,43 +26,55 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-import argparse from core.horse64.org
-import system from core.horse64.org
+VERSION="unknown"
+
+import math
+import os
+import platform
+import shutil
+import subprocess
+import sys
+import tempfile
+import textwrap
 
 
-func version_output_for_terminal {
-    return "horsec v" + system.program_version() + ".\n" +
-        "Copyright (c) 2020-2022, ellie/@ell1e & Horse64 Team."
-}
+translator_py_script_dir = (
+    os.path.abspath(os.path.dirname(__file__))
+)
+translator_py_script_path = os.path.abspath(__file__)
 
 
-func license_output_for_terminal {
-    return "All horsec license info, no guarantee of "
-        "completeness or accuracy:\n" +
-        system.program_license_text(layout_width=79)
-}
+def horp_ini_string_get_package_key(s, key):
+    lines = s.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    lines = [(line.rpartition("#")[0].rstrip() if
+        "#" in line else line.rstrip()) for line in lines]
+    section = None
+    for line in lines:
+        if line.startswith("[") and line.endswith("]"):
+            section = line[1:-1].strip()
+        if (section == "package" and
+                line.startswith(str(key) + "=") or
+                line.startswith(str(key) + " ")):
+            while (len(line) >= len(str(key) + "X") and
+                    line[len(key)] == " "):
+                line = key + line[len(key) + 1:]
+            if line.startswith(key + "="):
+                result = line.partition("=")[2].strip()
+                if "." in result:
+                    return result
+                return None
+    return None
 
 
-func main {
-    var defs = argparse.ArgumentDefs(program_name="horsec")
-    defs.add_arg(
-        "action", description="Pick an available actions: "
-        "compile, run. To see details for an action, use it with --help "
-        "like e.g.: horse compile --help")
-    defs.add_catchall(
-        "action params", description="List of "
-        "arguments for the specified action")
-    defs.add_switch(
-        "--license",
-        description="Print out the program's licensing.",
-        action_func=license_output_for_terminal)
-    defs.add_switch(
-        "--version", aliases=["-V", "-version"],
-        description="Print out the program version.",
-        action_func=version_output_for_terminal)
-    var result = argparse.parse(defs)
-    if result.output != "" {
-        print(result.output)
-        return result.exit_code
-    }
-}
+def horp_ini_string_get_package_name(s):
+    return horp_ini_string_get_package_key(s, "name")
+
+
+def horp_ini_string_get_package_version(s):
+    return horp_ini_string_get_package_key(s, "version")
+
+
+def horp_ini_string_get_package_license_files(s):
+    return horp_ini_string_get_package_key(s, "license files")
+
+

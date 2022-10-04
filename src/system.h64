@@ -1,4 +1,4 @@
-# @module compiler.main
+# @module system
 # Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -25,43 +25,30 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-import argparse from core.horse64.org
-import system from core.horse64.org
+import math from core.horse64.org
+import textformat from core.horse64.org
 
 
-func version_output_for_terminal {
-    return "horsec v" + system.program_version() + ".\n" +
-        "Copyright (c) 2020-2022, ellie/@ell1e & Horse64 Team."
-}
-
-
-func license_output_for_terminal {
-    return "All horsec license info, no guarantee of "
-        "completeness or accuracy:\n" +
-        system.program_license_text(layout_width=79)
-}
-
-
-func main {
-    var defs = argparse.ArgumentDefs(program_name="horsec")
-    defs.add_arg(
-        "action", description="Pick an available actions: "
-        "compile, run. To see details for an action, use it with --help "
-        "like e.g.: horse compile --help")
-    defs.add_catchall(
-        "action params", description="List of "
-        "arguments for the specified action")
-    defs.add_switch(
-        "--license",
-        description="Print out the program's licensing.",
-        action_func=license_output_for_terminal)
-    defs.add_switch(
-        "--version", aliases=["-V", "-version"],
-        description="Print out the program version.",
-        action_func=version_output_for_terminal)
-    var result = argparse.parse(defs)
-    if result.output != "" {
-        print(result.output)
-        return result.exit_code
+func program_license_text(
+        layout_width=79, blank_lines_at_end=1
+        ) {
+    var output = ""
+    var is_first = yes
+    var licenses = program_licenses_as_list()
+    for license in licenses {
+        var target_len = layout_width
+        var side_len = math.max(0, math.floor(
+            (target_len - license.file_name.len - 2) / 2))
+        var side_dashes = "-".repeat(side_len)
+        if is_first {
+            is_first = no
+        } else {
+            output += "\n".repeat(blank_lines_at_end)
+        }
+        output += side_dashes + " " + license.file_name +
+            " " + side_dashes + "\n"
+        output += textformat.wrap(license.text.trim(" \r\n\t"),
+            layout_width) + "\n"
     }
+    return output
 }
