@@ -105,32 +105,61 @@ def _container_add(container, item):
     return container
 
 
-def _container_sort(container):
-    return sorted(container)
+def _container_sort(container, *args, **kwargs):
+    if (type(container) in {list, set}):
+        return sorted(container)
+    return container.sort(*args, **kwargs)
 
 
-def _container_join(container, join_element):
-    return join_element.join(container)
+def _container_repeat(container, *args, **kwargs):
+    if type(container) in {bytes, str} and \
+            len(args) == 1 and type(args[0]) in {int, float}:
+        return container * int(round(args[0]))
+    return container.repeat(*args, **kwargs)
 
 
-def _container_find(container, search_element):
+def _container_join(container, *args, **kwargs):
+    if (hasattr(container, "join") and
+            type(container) not in {list, set, map}):
+        return container.join(*args, **kwargs)
+    if len(args) == 1 and (type(args[0]) == str or
+            type(args[0]) == bytes):
+        return args[0].join(container)
+    return container.join(*args)
+
+
+def _container_find(container, *args, **kwargs):
+    if type(container) == str and len(args) == 1:
+        result = container.find(args[0])
+        if result < 0:
+            return None
+        return result
+    if (hasattr(container, "find") and
+            type(container) != list) or len(args) < 1:
+        return container.find(*args, **kwargs)
     try:
-        return container.index(search_element)
+        return container.index(args[0])
     except ValueError:
         return None
 
 
-def _container_sub(container, i1, i2=None):
-    if i2 == None:
-        i2 = len(container)
-    if (type(i1) not in {float, int} and
-            type(i2) not in {float, int}):
-        raise TypeError("indexes must be type num")
-    i1 = max(0, i1)
-    i2 = max(i1, i2)
-    if i2 <= i1:
-        return ""
-    return container[i1:i2]
+def _container_sub(container, *args, **kwargs):
+    if len(args) >= 1 and type(container) in {bytes, str, list}:
+        i1 = args[0]
+        i2 = None
+        if len(args) > 1:
+            i2 = args[1]
+        if i2 == None:
+            i2 = len(container)
+        if (type(i1) not in {float, int} and
+                type(i2) not in {float, int}):
+            raise TypeError("indexes must be type num")
+        i1 = max(0, i1)
+        i2 = max(i1, i2)
+        if i2 <= i1:
+            return ""
+        return container[i1:i2]
+    return container.sub(*args, **kwargs)
 
 
 def _math_max(v1, v2):

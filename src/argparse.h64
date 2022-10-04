@@ -26,6 +26,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import math from core.horse64.org
 import path from core.horse64.org
 import process from core.horse64.org
 import system from core.horse64.org
@@ -200,7 +201,7 @@ func ArgumentDefs.add_arg(name, is_optional=no, description=none) {
         }
     }
     self.args.add(new _ArgumentInfo(
-        name, is_switch=no,
+        name, is_switch=no, description=description,
         takes_arg=(if is_optional ("optional") else (yes))
     ))
     if self.args[self.args.len - 1].positional {
@@ -353,13 +354,27 @@ func get_usage_text(options) {
     }
     if got_positional {
         output += "Arguments:\n"
+        var longest_arg_len = 0
         for arg in options.args {
             if arg.positional {
+                longest_arg_len = math.max(
+                    longest_arg_len, arg.name.len)
+            }
+        }
+        var indent_target_len = min(
+            30, longest_arg_len + 3
+        )
+        for arg in options.args {
+            if arg.positional {
+                var spaces = " ".repeat(math.max(
+                    2, indent_target_len - arg.name.len
+                ))
+                var spaces_after_wrap = " ".repeat(indent_target_len)
                 var wrapped = textformat.wrap(
-                    "   " + arg.name +
-                    (if arg.description != none (": " + arg.description)
+                    "   " + arg.name.replace(" ", "_") +
+                    (if arg.description != none (spaces + arg.description)
                     else ("")), 79,
-                    later_lines_prefix="      ")
+                    later_lines_prefix="   " + spaces_after_wrap)
                 output += wrapped + "\n"
             }
         }
@@ -368,19 +383,49 @@ func get_usage_text(options) {
 
     # Output all available option switches as a nice table:
     output += "Available Options:\n"
+    var switch_desc_map = {->}
     var unsorted_names = []
     for arg in options.args {
         if not arg.name.starts("-") {
             continue
         }
         unsorted_names.add(arg.name)
+        if arg.description != none and
+                arg.description.len > 0 {
+            switch_desc_map[arg.name] = arg.description
+        }
     }
     if not unsorted_names.contains("--help") {
         unsorted_names.add("--help")
+        switch_desc_map["--help"] =
+            "Show this help text."
     }
     var sorted_names = unsorted_names.sort()
-    for name in sorted_names {
-        output += "   " + name + "\n"
+    var longest_switch_len = 0
+    for switch_name in sorted_names {
+        longest_switch_len = math.max(
+            longest_switch_len, switch_name.len)
+    }
+    var indent_target_len = min(
+        30, longest_switch_len + 3
+    )
+    for switch_name in sorted_names {
+        var spaces = " ".repeat(math.max(
+            2, indent_target_len - switch_name.len
+        ))
+        var spaces_after_wrap = " ".repeat(indent_target_len)
+        var switch_description = none
+        if switch_desc_map.contains(switch_name) {
+            switch_description = switch_desc_map[switch_name]
+        }
+        var wrapped = textformat.wrap(
+            "   " + switch_name +
+            (if switch_description != none
+                (spaces + switch_description)
+                else ("")),
+            79,
+            later_lines_prefix="   " + spaces_after_wrap)
+        output += wrapped + "\n"
     }
 
     return output

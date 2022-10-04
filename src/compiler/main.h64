@@ -31,8 +31,11 @@ import system
 
 func main {
     var defs = argparse.ArgumentDefs(program_name="horsec")
-    defs.add_arg("action")
-    defs.add_catchall("action params")
+    defs.add_arg("action", description="Pick an available actions: "
+        "compile, run. To see details for an action, use it with --help "
+        "like e.g.: horse compile --help")
+    defs.add_catchall("action params", description="List of "
+        "arguments for the specified action")
     var result = argparse.parse(defs)
     if result.output != "" {
         print(result.output)
