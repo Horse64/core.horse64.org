@@ -26,7 +26,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-VERSION="2022-09-16"
+VERSION="unknown"
 
 import math
 import os
@@ -37,12 +37,50 @@ import sys
 import tempfile
 import textwrap
 
+from translator_horphelpers import (
+    horp_ini_string_get_package_name,
+    horp_ini_string_get_package_version,
+    horp_ini_string_get_package_license_files
+)
 
 translator_py_script_dir = (
     os.path.abspath(os.path.dirname(__file__))
 )
 translator_py_script_path = os.path.abspath(__file__)
 translated_files = {}
+
+# Set version:
+if os.path.exists(os.path.join(translator_py_script_dir,
+        "..", "horp.ini")):
+    with open(os.path.join(translator_py_script_dir,
+            "..", "horp.ini")) as f:
+        _get_version = horp_ini_string_get_package_version(
+            f.read()
+        )
+        if _get_version:
+            VERSION = _get_version
+
+
+def as_escaped_code_string(s):
+    insert_value = "(b\""
+    bytes_path = s.encode(
+        "utf-8", "replace"
+    )
+    for byteval in bytes_path:
+        assert(byteval >= 0 and byteval <= 255)
+        if ((byteval >= ord("a") and byteval <= ord("z")) or
+                (byteval >= ord("A") and byteval <= ord("Z")) or
+                (byteval >= ord("0") and byteval <= ord("9")) or
+                chr(byteval) in {"/", ".", " ", "-", "!", "?",
+                    ":"}):
+            insert_value += chr(byteval)
+            continue
+        insert_value += "\\" + (
+            "x%0.2X" % byteval
+        )
+    insert_value += "\").decode(\"utf-8\", \"replace\")"
+    return insert_value
+
 
 DEBUG_ENABLE = False
 DEBUG_ENABLE_CONTENTS = False
@@ -60,6 +98,8 @@ remapped_uses = {
     "math@core.horse64.org": {
         "math.min": "_translator_runtime_helpers._math_min",
         "math.max": "_translator_runtime_helpers._math_max",
+        "math.floor": "_translator_runtime_helpers._math_floor",
+        "math.ceil": "_translator_runtime_helpers.math_ceil",
         "math.round": "_translator_runtime_helpers._math_round",
     },
     "path@core.horse64.org": {
@@ -73,6 +113,11 @@ remapped_uses = {
     },
     "system@core.horse64.org": {
         "system.exit" : "_remapped_sys.exit",
+        "system.program_compiled_with":
+            "(lambda: \"horse64-translator-py v\" + " +
+            as_escaped_code_string(VERSION) + ")",
+        "system.program_licenses_as_list":
+            "(lambda: _translator_runtime_helpers._return_licenses())",
         "system.program_version":
             "(lambda: _translated_program_version)",
         "system.self_exec_path" :
@@ -124,46 +169,7 @@ class TranslatedProjectInfo:
         self.package_name = None
         self.code_relpath = None
         self.package_version = None
-
-
-def horp_ini_string_get_package_name(s):
-    lines = s.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    lines = [(line.rpartition("#")[0].rstrip() if
-        "#" in line else line.rstrip()) for line in lines]
-    section = None
-    for line in lines:
-        if line.startswith("[") and line.endswith("]"):
-            section = line[1:-1].strip()
-        if (section == "package" and
-                line.startswith("name=") or line.startswith("name ")):
-            while len(line) >= len("nameX") and line[4] == " ":
-                line = "name" + line[5:]
-            if line.startswith("name="):
-                result = line.partition("=")[2].strip()
-                if "." in result:
-                    return result
-                return None
-    return None
-
-
-def horp_ini_string_get_package_version(s):
-    lines = s.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    lines = [(line.rpartition("#")[0].rstrip() if
-        "#" in line else line.rstrip()) for line in lines]
-    section = None
-    for line in lines:
-        if line.startswith("[") and line.endswith("]"):
-            section = line[1:-1].strip()
-        if (section == "package" and
-                line.startswith("version=") or line.startswith("version ")):
-            while len(line) >= len("versionX") and line[7] == " ":
-                line = "version" + line[8:]
-            if line.startswith("version="):
-                result = line.partition("=")[2].strip()
-                if "." in result:
-                    return result
-                return None
-    return None
+        self.licenses = []
 
 
 def sublist_index(full_list, sub_list):
@@ -191,27 +197,6 @@ def is_whitespace_token(s):
         if char not in [" ", "\t", "\n", "\r"]:
             return False
     return True
-
-
-def as_escaped_code_string(s):
-    insert_value = "(b\""
-    bytes_path = s.encode(
-        "utf-8", "replace"
-    )
-    for byteval in bytes_path:
-        assert(byteval >= 0 and byteval <= 255)
-        if ((byteval >= ord("a") and byteval <= ord("z")) or
-                (byteval >= ord("A") and byteval <= ord("Z")) or
-                (byteval >= ord("0") and byteval <= ord("9")) or
-                chr(byteval) in {"/", ".", " ", "-", "!", "?",
-                    ":"}):
-            insert_value += chr(byteval)
-            continue
-        insert_value += "\\" + (
-            "x%0.2X" % byteval
-        )
-    insert_value += "\").decode(\"utf-8\", \"replace\")"
-    return insert_value
 
 
 def get_next_token(s):
@@ -333,7 +318,7 @@ def get_next_statement(s):
                 (t.endswith("\n") or t.endswith("\r")) and
                 last_nonwhitespace_token not in {
                     "and", "or", "not", "+", "-", "*", "/",
-                    ">", "<", "->",
+                    ">", "<", "->", "."
                 } and not last_nonwhitespace_token.endswith("=")):
             is_string_continuation = False
             if (last_nonwhitespace_token.endswith("\"") or
@@ -394,7 +379,7 @@ def untokenize(tokens):
 
 
 def translate_expression_tokens(s, module_name, package_name,
-        parent_statements=[], known_imports=None,
+        parent_statements=[], known_imports=None, project_info=None,
         add_indent="", repo_package_name=None):
     s = list(s)
     assert("_remapped_os" not in s)
@@ -435,7 +420,7 @@ def translate_expression_tokens(s, module_name, package_name,
     i = 0
     while i < len(s):
         if (s[i] in {">", "=", "<", "!", "+", "-", "/", "*",
-                "%", "|", "^", "&", "~"} or
+                "%", "|", "^", "&", "~", "."} or
                 s[i].endswith("=") or s[i] == "->") and (
                 s[i + 1].strip(" \t\r\n") == "" and
                 s[i + 1].strip(" \t") != ""):
@@ -457,7 +442,8 @@ def translate_expression_tokens(s, module_name, package_name,
     i = 0
     while i < len(s):
         if (i > 1 and s[i - 1].strip(" \t\r\n") == "" and
-                s[i - 2] == "import"):
+                s[i - 2] in {"import", "func", ".", "var",
+                "const"}):
             i += 1
             continue
         if len(s[i]) == 0 or (
@@ -472,6 +458,33 @@ def translate_expression_tokens(s, module_name, package_name,
             i += 1
             continue
         #print("s[i] " + str(s[i]))
+
+        # See if we are INSIDE a remapped module:
+        for remap_module_key in remapped_uses:
+            if (package_name == None or module_name == None or
+                    module_name + "@" + package_name !=
+                    remap_module_key):
+                continue
+            did_remap = False
+            for remapped_use in remapped_uses[remap_module_key]:
+                if (remapped_use == module_name + "." +
+                        s[i]):
+                    if DEBUG_ENABLE_REMAPPED_USES:
+                        print("tools/translator.py: debug: remapping " +
+                            "use to the overridden expression: " +
+                            module_name + "." + s[i] + " in " +
+                            remap_module_key)
+                    insert_tokens = tokenize(remapped_uses
+                        [remap_module_key][remapped_use])
+                    s = s[:i] + insert_tokens + s[i + 1:]
+                    i += len(insert_tokens)
+                    did_remap = True
+                    break
+            if did_remap:
+                i += 1
+                continue
+
+        # See if any external, imported use needs a remap:
         match = False
         match_package = None
         match_import_module = None
@@ -556,7 +569,7 @@ def translate_expression_tokens(s, module_name, package_name,
                         [remap_module_key][remapped_use])
                     s = s[:i] + insert_tokens + s[i + match_tokens:]
                     i += len(insert_tokens)
-                    continue
+                    break
         i += 1
 
     # Remove "new" and "protect" since Python doesn't have these:
@@ -673,7 +686,7 @@ def translate_expression_tokens(s, module_name, package_name,
                     s[i] in ("as_str", "to_num") and s[i + 1] == "(" and
                     s[i + 2] == ")") or (
                     i + 1 < len(s) and
-                    s[i] in ("add", "sort", "find",
+                    s[i] in ("add", "sort", "trim", "find",
                         "join", "sub", "repeat") and s[i + 1] == "("
                     ))):
                 cmd = s[i]
@@ -688,6 +701,9 @@ def translate_expression_tokens(s, module_name, package_name,
                 elif cmd == "join":
                     insert_call = ["_translator_runtime_helpers",
                         ".", "_container_join"]
+                elif cmd == "trim":
+                    insert_call = ["_translator_runtime_helpers",
+                        ".", "_container_trim"]
                 elif cmd == "repeat":
                     insert_call = ["_translator_runtime_helpers",
                         ".", "_container_repeat"]
@@ -717,7 +733,7 @@ def translate_expression_tokens(s, module_name, package_name,
                     i -= 1
                     assert(s[i] == ")")
                 elif cmd in ("add", "sort", "join", "find", "sub",
-                        "repeat"):
+                        "repeat", "trim"):
                     # Truncate "(", ... and turn it to ",", ...
                     s = s[:i - 1] + [","] + s[i + 2:]
                     i -= 1
@@ -817,6 +833,7 @@ def translate(s, module_name, package_name, parent_statements=[],
                 statement = (statement[:i + 1] + ["("] +
                     translate_expression_tokens(
                     statement[i + 1:], module_name, package_name,
+                    project_info=project_info,
                     parent_statements=(
                         parent_statements + [statement_cpy]),
                     known_imports=known_imports) + [")"])
@@ -861,6 +878,7 @@ def translate(s, module_name, package_name, parent_statements=[],
                 condition = (
                     translate_expression_tokens(statement[j + 1:i],
                         module_name, package_name,
+                        project_info=project_info,
                         parent_statements=parent_statements,
                         known_imports=known_imports,
                         add_indent=extra_indent))
@@ -1163,6 +1181,7 @@ def translate(s, module_name, package_name, parent_statements=[],
                 argument_tokens = translate_expression_tokens(
                     statement[start_arguments_idx:k + 1],
                     module_name, package_name,
+                    project_info=project_info,
                     parent_statements=parent_statements,
                     known_imports=known_imports,
                     add_indent=extra_indent)
@@ -1220,6 +1239,7 @@ def translate(s, module_name, package_name, parent_statements=[],
             continue
         result += indent + untokenize(translate_expression_tokens(
             statement, module_name, package_name,
+            project_info=project_info,
             parent_statements=parent_statements,
             known_imports=known_imports,
             add_indent=extra_indent)) + "\n"
@@ -1445,6 +1465,24 @@ if __name__ == "__main__":
                 pkg_version = horp_ini_string_get_package_version(contents)
                 if pkg_version != None:
                     project_info.package_version = pkg_version
+                flicenses = horp_ini_string_get_package_license_files(contents)
+                if flicenses != None:
+                    flicenses = flicenses.split(",")
+                    for fname in sorted(flicenses):
+                        if (".." in fname or fname == "." or "/" in fname or
+                                "\\" in fname or fname == "" or
+                                "?" in fname or "*" in fname):
+                            continue
+                        fpath = os.path.join(
+                            project_info.repo_folder, fname)
+                        if (os.path.exists(fpath) and
+                                not os.path.isdir(fpath)):
+                            with open(fpath, "r", encoding="utf-8") as f:
+                                text = f.read()
+                                text = (text.replace("\r\n", "\n").
+                                    replace("\r", "\n"))
+                                project_info.licenses.append(
+                                    (fname, text))
             else:
                 print("tools/translator.py: warning: " +
                     "failed to get package name from horp.ini: " +
@@ -1588,6 +1626,17 @@ if __name__ == "__main__":
                     t = f.read()
                     t = t.replace("__translator_py_path__",
                         as_escaped_code_string(translator_py_script_path))
+                    license_list_str = "["
+                    for linfo in project_info.licenses:
+                        if len(license_list_str) > 1:
+                            license_list_str += ","
+                        license_list_str += ("_LicenseObj(" +
+                            as_escaped_code_string(linfo[0]) + "," +
+                            "text=" +
+                            as_escaped_code_string(linfo[1]) + ")")
+                    license_list_str += "]"
+                    t = t.replace("__translator_licenses_list",
+                        license_list_str)
                 with open(os.path.join(subfolder_abs,
                         "_translator_runtime_helpers.py"), "w",
                         encoding="utf-8") as f:

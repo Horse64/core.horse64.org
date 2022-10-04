@@ -25,10 +25,21 @@
 # license, see accompanied LICENSE.md.
 
 
+import math
 import subprocess
 import sys
 import threading
 import time
+
+
+class _LicenseObj:
+    def __init__(self, file_name, text=""):
+        self.file_name = file_name
+        self.text = text
+
+
+def _return_licenses():
+    return __translator_licenses_list
 
 
 def _process_run(cmd, args=[], run_in_dir=None,
@@ -114,8 +125,23 @@ def _container_sort(container, *args, **kwargs):
 def _container_repeat(container, *args, **kwargs):
     if type(container) in {bytes, str} and \
             len(args) == 1 and type(args[0]) in {int, float}:
+        if int(round(args[0])) <= 0:
+            if type(container) == bytes:
+                return b""
+            return ""
         return container * int(round(args[0]))
     return container.repeat(*args, **kwargs)
+
+
+def _container_trim(container, *args, **kwargs):
+    if type(container) in {bytes, str} and \
+            len(args) <= 1:
+        if len(args) == 0:
+            if type(container) == bytes:
+                return container.strip(b" \t\r\n")
+            return container.strip(" \t\r\n")
+        return container.strip(args[0])
+    return container.trim(*args, **kwargs)
 
 
 def _container_join(container, *args, **kwargs):
@@ -160,6 +186,14 @@ def _container_sub(container, *args, **kwargs):
             return ""
         return container[i1:i2]
     return container.sub(*args, **kwargs)
+
+
+def _math_floor(v1):
+    return math.floor(v1)
+
+
+def _math_ceil(v1):
+    return math.ceil(v1)
 
 
 def _math_max(v1, v2):
