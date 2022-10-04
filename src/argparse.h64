@@ -31,20 +31,25 @@ import process from core.horse64.org
 import system from core.horse64.org
 
 
-type ArgumentInfo {
+type _ArgumentInfo {
     var name = ""
     var catchall = no
     var takes_arg = no
     var aliases = []
     var optional = no
     var positional = no
+    var description = none
 }
 
 
-func ArgumentInfo.init(
+func _ArgumentInfo.init(
         name, aliases=[],
-        is_switch=no, takes_arg="default"
+        is_switch=no, takes_arg="default",
+        description=none
         ) {
+    self.description = (
+        if description != none (description + "") else (none)
+    )
     self.name = name + ""
     for alias in aliases {
         self.aliases.add(alias + "")
@@ -88,7 +93,7 @@ func ArgumentInfo.init(
 }
 
 
-func ArgumentInfo.names_intersect(names) {
+func _ArgumentInfo.names_intersect(names) {
     if names.contains(self.name) {
         return yes
     }
@@ -168,18 +173,21 @@ func ArgumentDefs.get_namedarg(name) {
 ## print(parsed_values["target_file"])  # will print out "some_file.txt"!
 ## ```
 ##
-## @param is_optional specifies that the positional argument can
-##   be silently omitted, in which case the final map of all parsed
-##   values will have the corresponding entry set to @{none} instead.
-func ArgumentDefs.add_arg(name, aliases=[], is_optional=no) {
+## @param name str the name for the positional argument
+## @param is_optional bool specifies that the positional argument can
+##   be silently omitted if set to true. Then the final map of all parsed
+##   values will have the corresponding entry set to @{none} if
+##   it isn't specified by the user.
+## @param description str (optional) a description for the user
+##   what this argument is for
+func ArgumentDefs.add_arg(name, is_optional=no, description=none) {
     if name.starts("-") {
         throw new ValueError(
             "positional arguments can't have a name "
             "starting with a dash")
     }
     for arg in self.args {
-        if arg.names_intersect([name]) or
-                arg.names_intersect(aliases) {
+        if arg.names_intersect([name]) {
             throw new ValueError(
                 "name conflict with existing options"
             )
@@ -190,13 +198,13 @@ func ArgumentDefs.add_arg(name, aliases=[], is_optional=no) {
             )
         }
     }
-    self.args.add(new ArgumentInfo(
-        name, aliases=aliases, is_switch=no,
-        takes_arg=(if is_optional ("optional") else (no))
+    self.args.add(new _ArgumentInfo(
+        name, is_switch=no,
+        takes_arg=(if is_optional ("optional") else (yes))
     ))
-    if self.args[self.args.len].positional {
+    if self.args[self.args.len - 1].positional {
         self.max_positional_args += 1
-        if not self.args[self.args.len].optional {
+        if not self.args[self.args.len - 1].optional {
             self.min_positional_args += 1
         }
     }
@@ -214,7 +222,11 @@ func ArgumentDefs.add_arg(name, aliases=[], is_optional=no) {
 ## After @{parsing|ArgumentDefs.parse}, the map of all parsed values
 ## will contain an entry with the name set to the consumed arguments as
 ## a @{list}.
-func ArgumentDefs.add_catchall(name, aliases=[]) {
+##
+## @param name str the name for the catchall argument
+## @param description str (optional) a description for the user
+##   what this argument is for
+func ArgumentDefs.add_catchall(name, description=none) {
     if name.starts("-") {
         throw new ValueError(
             "positional arguments can't have a name "
@@ -222,8 +234,7 @@ func ArgumentDefs.add_catchall(name, aliases=[]) {
     }
     var positional_count = 0
     for arg in self.args {
-        if arg.names_intersect([name]) or
-                arg.names_intersect(aliases) {
+        if arg.names_intersect([name]) {
             throw new ValueError(
                 "name conflict with existing options"
             )
@@ -242,9 +253,9 @@ func ArgumentDefs.add_catchall(name, aliases=[]) {
             "cannot add catchall without any positional arguments"
         )
     }
-    self.args.add(new ArgumentInfo(
-        name, aliases=aliases, is_switch=no,
-        takes_arg="catchall"
+    self.args.add(new _ArgumentInfo(
+        name, is_switch=no,
+        takes_arg="catchall", description=description
     ))
 }
 
@@ -268,16 +279,26 @@ func ArgumentDefs.add_catchall(name, aliases=[]) {
 ## print(parsed_values["switch-2"])  # will print out "yes"!
 ## ```
 ##
-## @param takes_arg specify that this switch takes its own argument
+## @param name str the name of a switch which must start with a dash
+## @param aliases list alternate names for this switch which also
+##     must all start with a dash
+## @param takes_arg bool specify that this switch takes an argument
 ##   specified right after, e.g. `--target-file path-to-file`. If set
 ##   to yes, the map of all parsed values will instead contain either
 ##   @{none} if the switch wasn't specified, or the user-given @{str}
 ##   of that argument.
+## @param description str (optional) a description for the user
+##   what this argument is for
 func ArgumentDefs.add_switch(
-        name, aliases=[], takes_arg=no
+        name, aliases=[], takes_arg=no, description=none
         ) {
     if not name.starts("-") {
         throw new ValueError("switch names must start with dash")
+    }
+    for alias in aliases {
+        if not alias.startswith("-") {
+            throw new ValueError("switch aliases must start with dash")
+        }
     }
     if takes_arg != yes and takes_arg != no {
         throw new ValueError("takes_arg must be yes or no")
@@ -290,16 +311,10 @@ func ArgumentDefs.add_switch(
             )
         }
     }
-    self.args.add(new ArgumentInfo(
+    self.args.add(new _ArgumentInfo(
         name, aliases=aliases, is_switch=yes,
-        takes_arg=takes_arg
+        takes_arg=takes_arg, description=description
     ))
-    if self.args[self.args.len].positional {
-        self.max_positional_args += 1
-        if not self.args[self.args.len].optional {
-            self.min_positional_args += 1
-        }
-    }
 }
 
 
@@ -322,7 +337,7 @@ func get_usage_text(options) {
         }
         output += " " + arg.name.replace(" ", "_") + (
             if arg.optional ("[optional]") else ("")
-        ) + ""
+        ) + (if arg.catchall ("..") else ("")) + ""
     }
     output += "\n\n"
 
