@@ -73,6 +73,8 @@ remapped_uses = {
     },
     "system@core.horse64.org": {
         "system.exit" : "_remapped_sys.exit",
+        "system.program_version":
+            "(lambda: _translated_program_version)",
         "system.self_exec_path" :
             "(lambda: _translated_program_main_script_file)",
     },
@@ -121,6 +123,7 @@ class TranslatedProjectInfo:
         self.repo_folder = None
         self.package_name = None
         self.code_relpath = None
+        self.package_version = None
 
 
 def horp_ini_string_get_package_name(s):
@@ -133,9 +136,29 @@ def horp_ini_string_get_package_name(s):
             section = line[1:-1].strip()
         if (section == "package" and
                 line.startswith("name=") or line.startswith("name ")):
-            while len(line) >= 5 and line[4] == " ":
+            while len(line) >= len("nameX") and line[4] == " ":
                 line = "name" + line[5:]
             if line.startswith("name="):
+                result = line.partition("=")[2].strip()
+                if "." in result:
+                    return result
+                return None
+    return None
+
+
+def horp_ini_string_get_package_version(s):
+    lines = s.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    lines = [(line.rpartition("#")[0].rstrip() if
+        "#" in line else line.rstrip()) for line in lines]
+    section = None
+    for line in lines:
+        if line.startswith("[") and line.endswith("]"):
+            section = line[1:-1].strip()
+        if (section == "package" and
+                line.startswith("version=") or line.startswith("version ")):
+            while len(line) >= len("versionX") and line[7] == " ":
+                line = "version" + line[8:]
+            if line.startswith("version="):
                 result = line.partition("=")[2].strip()
                 if "." in result:
                     return result
@@ -1419,6 +1442,9 @@ if __name__ == "__main__":
             pkg_name = horp_ini_string_get_package_name(contents)
             if pkg_name != None:
                 project_info.package_name = pkg_name
+                pkg_version = horp_ini_string_get_package_version(contents)
+                if pkg_version != None:
+                    project_info.package_version = pkg_version
             else:
                 print("tools/translator.py: warning: " +
                     "failed to get package name from horp.ini: " +
@@ -1474,6 +1500,11 @@ if __name__ == "__main__":
         contents_result = (
             "import os as _remapped_os;import sys as _remapped_sys;" +
             "_translator_kw_arg_default_value = object();" +
+            "_translated_program_version = " +
+            as_escaped_code_string(
+                project_info.package_version if
+                project_info.package_version != None else
+                "unknown") + ";" +
             "_translated_program_main_script_file = " +
             as_escaped_code_string(mainfilepath) + ";" +
             "import _translator_runtime_helpers;\n"
@@ -1516,7 +1547,7 @@ if __name__ == "__main__":
 
         if (translated_files[translated_file]["path"] ==
                 mainfilepath):
-            contents_result += "\nif __name__ == '__main__':\n    main()\n"
+            contents_result += "\nif __name__ == '__main__':\n    _remapped_sys.exit(main())\n"
 
         if DEBUG_ENABLE and DEBUG_ENABLE_CONTENTS:
             print("tools/translator.py: debug: have output of " +

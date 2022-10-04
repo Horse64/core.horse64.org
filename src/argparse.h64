@@ -40,6 +40,7 @@ type _ArgumentInfo {
     var aliases = []
     var optional = no
     var positional = no
+    var action_func = none
     var description = none
 }
 
@@ -47,7 +48,7 @@ type _ArgumentInfo {
 func _ArgumentInfo.init(
         name, aliases=[],
         is_switch=no, takes_arg="default",
-        description=none
+        description=none, action_func=none
         ) {
     self.description = (
         if description != none (description + "") else (none)
@@ -61,6 +62,11 @@ func _ArgumentInfo.init(
         throw ValueError("is_switch must be yes if "
             "argument begins with dash, otherwise no")
     }
+    if not is_switch and action_func != none {
+        throw ValueError("action_func only allowed "
+            "for switches")
+    }
+    self.action_func = action_func
     if takes_arg == "default" {
         if self.positional {
             self.takes_arg = yes
@@ -68,6 +74,7 @@ func _ArgumentInfo.init(
             self.takes_arg = no
         }
     } elseif takes_arg == "optional" or takes_arg == "catchall" {
+        self.takes_arg = yes
         if not self.positional {
             throw new ValueError("only positional arguments "
                 "may take an argument value optionally or "
@@ -95,7 +102,7 @@ func _ArgumentInfo.init(
 }
 
 
-func _ArgumentInfo.names_intersect(names) {
+func _ArgumentInfo.contains_argname(names) {
     if names.contains(self.name) {
         return yes
     }
@@ -112,6 +119,7 @@ type ArgumentDefs {
     var args protect = []
     var min_positional_args protect = 0
     var max_positional_args protect = 0
+    var catchall_exists protect = no
     var program_name = "unknown"
 }
 
@@ -189,7 +197,7 @@ func ArgumentDefs.add_arg(name, is_optional=no, description=none) {
             "starting with a dash")
     }
     for arg in self.args {
-        if arg.names_intersect([name]) {
+        if arg.contains_argname([name]) {
             throw new ValueError(
                 "name conflict with existing options"
             )
@@ -237,7 +245,7 @@ func ArgumentDefs.add_catchall(name, description=none) {
     }
     var positional_count = 0
     for arg in self.args {
-        if arg.names_intersect([name]) {
+        if arg.contains_argname([name]) {
             throw new ValueError(
                 "name conflict with existing options"
             )
@@ -260,6 +268,7 @@ func ArgumentDefs.add_catchall(name, description=none) {
         name, is_switch=no,
         takes_arg="catchall", description=description
     ))
+    self.catchall_exists = yes
 }
 
 
@@ -292,8 +301,12 @@ func ArgumentDefs.add_catchall(name, description=none) {
 ##   of that argument.
 ## @param description str (optional) a description for the user
 ##   what this argument is for
+## @param action_func func (optional) a function that should be
+##   run as soon as this switch is found during a
+##   @{parse|ArgumentDefs.parse} run.
 func ArgumentDefs.add_switch(
-        name, aliases=[], takes_arg=no, description=none
+        name, aliases=[], takes_arg=no, description=none,
+        action_func=none
         ) {
     if not name.starts("-") {
         throw new ValueError("switch names must start with dash")
@@ -307,8 +320,8 @@ func ArgumentDefs.add_switch(
         throw new ValueError("takes_arg must be yes or no")
     }
     for arg in self.args {
-        if arg.names_intersect([name]) or
-                arg.names_intersect(aliases) {
+        if arg.contains_argname([name]) or
+                arg.contains_argname(aliases) {
             throw new ValueError(
                 "name conflict with existing options"
             )
@@ -316,7 +329,8 @@ func ArgumentDefs.add_switch(
     }
     self.args.add(new _ArgumentInfo(
         name, aliases=aliases, is_switch=yes,
-        takes_arg=takes_arg, description=description
+        takes_arg=takes_arg, description=description,
+        action_func=action_func
     ))
 }
 
@@ -450,9 +464,10 @@ func parse(argument_defs, args=none) {
     var i = 0
     while i < args.len {
         var argstr = args[i]
-        if not argstr.starts("-") {
+        if not args[i].starts("-") {
             # Positional argument. See if we reached maximum:
-            if posargs_seen + 1 > argument_defs.max_positional_args {
+            if posargs_seen + 1 > argument_defs.max_positional_args and
+                    not argument_defs.catchall_exists {
                 result.output += argument_defs.program_name + ": error: "
                     "excessive positional argument: " + argstr + "\n"
                 result.output += (
@@ -514,14 +529,48 @@ func parse(argument_defs, args=none) {
     }
     # Fill in empty spots in result dictionary:
     for arg in argument_defs.args {
-        if not result.args.contains(arg) {
-            if result.args.takes_arg {
-                result_args[arg] = none
+        if not arg.positional and
+                not result_args.contains(arg.name) {
+            if arg.takes_arg {
+                result_args[arg.name] = none
             } else {
-                result_args[arg] = no
+                result_args[arg.name] = no
             }
         }
     }
+    # Collect all switches that will have an action_func run:
+    var action_switch_names = []
+    for arg in argument_defs.args {
+        if not arg.positional and
+                arg.action_func != none and
+                result_args.contains(arg.name) and
+                result_args[arg.name] != none and
+                result_args[arg.name] != no {
+            # A switch with an action. Collect it for later sorting:
+            action_switch_names.add(arg.name)
+        }
+    }
+    # Get each action_func to be run in alphabetical switch order:
+    action_switch_names = action_switch_names.sort()
+    var action_funcs_in_order = []
+    for action_switch_name in action_switch_names {
+        for arg in argument_defs.args {
+            if arg.name == action_switch_name {
+                action_funcs_in_order.add(arg.action_func)
+                break
+            }
+        }
+    }
+    # Run each action_func in order:
+    for action_func in action_funcs_in_order {
+        var result_value = action_func()
+        if typename(result_value) == "str" and
+                result.exit_code == none {
+            result.output = result_value
+            result.exit_code = 0
+        }
+    }
+    # Return result:
     result.args = result_args
     return result
 }
