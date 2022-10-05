@@ -138,9 +138,34 @@ func ArgumentDefs.init(program_name=none) {
 }
 
 
-func ArgumentDefs.get_nth_posarg(index) {
+func ArgumentDefs.get_catchall_arg {
     for arg in self.args {
-        if arg.positional {
+        if arg.positional and arg.catchall {
+            return arg
+        }
+    }
+    return none
+}
+
+
+func ArgumentDefs.get_nth_posarg(index, total_posargs_assigned=none) {
+    var non_optional_count = 0
+    for arg in self.args {
+        if arg.positional and not arg.optional {
+            non_optional_count = 1
+        }
+    }
+    var optional_args_filled = 0
+    if total_posargs_assigned {
+        optional_args_filled =
+            math.max(0,
+                total_posargs_assigned - non_optional_count
+            )
+    }
+    for arg in self.args {
+        if arg.positional and
+                (not arg.optional or
+                optional_args_filled > 0) {
             if index > 1 {
                 index -= 1
             } else {
@@ -459,6 +484,33 @@ func parse(argument_defs, args=none) {
     var result_args = {->}
     var posargs_seen = 0
 
+    # Count number of positional arguments in advance:
+    # (We need the total in advance to handle optional ones right)
+    var positional_args_total = 0
+    var i = 0
+    while i < args.len {
+        var argstr = args[i]
+        if not args[i].starts("-") {
+            positional_args_total += 1
+        } else {
+            var switch_with_arg = no
+            for arg in argument_defs.args {
+                if arg.name == args[i] or
+                        arg.aliases.contains(args[i]) {
+                    if arg.takes_arg {
+                        switch_with_arg = yes
+                    }
+                    break
+                }
+            }
+            if switch_with_arg {
+                i += 2
+                continue
+            }
+        }
+        i += 1
+    }
+
     # Extract all arguments:
     var i = 0
     while i < args.len {
@@ -467,27 +519,52 @@ func parse(argument_defs, args=none) {
             # Positional argument. See if we reached maximum:
             if posargs_seen + 1 > argument_defs.max_positional_args and
                     not argument_defs.catchall_exists {
+                var xth = (posargs_seen + 1).as_str()
+                if xth.endswith("1") {
+                    xth += "st"
+                } elseif xth.endswith("2") {
+                    xth += "nd"
+                } elseif xth.endswith("3") {
+                    xth += "rd"
+                } else {
+                    xth += "th"
+                }
                 result.output += argument_defs.program_name + ": error: "
-                    "excessive positional argument: " + argstr + "\n"
+                    "excessive " + xth +
+                    "positional argument: " + argstr + "\n"
                 result.output += (
                     "Use " + argument_defs.program_name +
                     " --help to show usage.\n"
                 )
-                result.output_exit_code = -1
+                result.exit_code = -1
                 return result
             }
 
             # Check what exactly this maps to:
-            var target_arg = (
-                argument_defs.get_nth_posarg(posargs_seen + 1)
-            )
+            var target_arg =
+                argument_defs.get_nth_posarg(
+                    posargs_seen + 1, positional_args_total)
+            if target_arg == none {
+                target_arg = argument_defs.get_catchall_arg()
+            }
             assert(target_arg != none)
-            result_args[target_arg.name] = argstr
+
+            # Add it to the result value of what it maps to:
+            if target_arg.catchall {
+                # Catchall arg that collects multiple values as list:
+                if not result_arg.contains(target_arg.name) {
+                    result_args[target_arg.name] = []
+                }
+                result_args[target_arg.name].append(argstr)
+            } else {
+                # Regular positional arg that takes exactly one value:
+                result_args[target_arg.name] = argstr
+            }
         } else {
             # Special handling for --help:
             if argstr == "--help" {
                 result.output = get_usage_text(argument_defs)
-                result.output_exit_code = 0
+                result.exit_code = 0
                 return result
             }
             # See if we can find out the arg def this matches:
@@ -530,8 +607,10 @@ func parse(argument_defs, args=none) {
     for arg in argument_defs.args {
         if not arg.positional and
                 not result_args.contains(arg.name) {
-            if arg.takes_arg {
+            if arg.takes_arg and not arg.catchall {
                 result_args[arg.name] = none
+            } elseif arg.catchall {
+                result_args[arg.name] = []
             } else {
                 result_args[arg.name] = no
             }
@@ -568,6 +647,23 @@ func parse(argument_defs, args=none) {
             result.output = result_value
             result.exit_code = 0
         }
+    }
+    # Check if we even have the minimum number of required arguments:
+    # (Needs to be after action switches, so e.g. --help still works)
+    if positional_args_total < argument_defs.min_positional_args and
+            result.exit_code == none {
+        var target_arg = argument_defs.get_nth_posarg(
+            positional_args_total
+        )
+        result.output += argument_defs.program_name + ": error: "
+            "missing positional argument: " +
+            target_arg.name + "\n"
+        result.output += (
+            "Use " + argument_defs.program_name +
+            " --help to show usage.\n"
+        )
+        result.exit_code = -1
+        return result
     }
     # Return result:
     result.args = result_args
