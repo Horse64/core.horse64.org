@@ -40,7 +40,7 @@ func main {
     assert(output.lower().contains("usage") and
         output.lower().contains("available options"))
 
-    # Test a few complicated edge cases:
+    # Test a basic scenario with optional and catchall args:
     var defs = argparse.ArgumentDefs()
     defs.add_switch("--flob")
     defs.add_arg("arg1", optional=yes)
@@ -92,7 +92,7 @@ func main {
     assert(result.args["trailingargs"][0] == "--")
     assert(result.args["trailingargs"][1] == "test")
 
-    # Test some more complicated edge cases:
+    # Tests focused around a switch with parameter:
     defs = argparse.ArgumentDefs()
     defs.add_switch("--flob", takes_arg=yes)
     defs.add_arg("arg1")
@@ -121,7 +121,7 @@ func main {
 
     result = argparse.parse(defs,
         ["urgh", "--flob", "--", "orgh", "test"])
-    assert(result.exit_code != none)  # --flob has no non-dash argument following!
+    assert(result.exit_code != none)  # --flob has no non-dash following!
 
     result = argparse.parse(defs,
         ["urgh", "--flob", "bla", "--", "orgh", "test"])
@@ -132,7 +132,7 @@ func main {
     assert(result.args["trailingargs"].len == 1)
     assert(result.args["trailingargs"][0] == "test")
 
-    # Test some further complicated edge cases:
+    # Tests with different with catchall but NO optional args:
     defs = argparse.ArgumentDefs()
     defs.add_switch("--flob", takes_arg=yes, repeatable=yes)
     defs.add_arg("arg1")
@@ -169,7 +169,7 @@ func main {
     assert(result.args["trailingargs"].len == 1)
     assert(result.args["trailingargs"][0] == "test")
 
-    # Test some additional complicated edge cases:
+    # Tests around repeatable switches:
     defs = argparse.ArgumentDefs()
     defs.add_switch("--flob", takes_arg=yes, repeatable=yes)
     defs.add_arg("arg1")
@@ -187,5 +187,34 @@ func main {
 
     result = argparse.parse(defs,
         ["--flob", "bla", "--flib", "--", "--flob", "te", "st"])
-    assert(result.exit_code != none)  # too many positional args
+    assert(result.exit_code != none)  # Too many positional args.
+
+    # Tests around switch aliases:
+    defs = argparse.ArgumentDefs()
+    defs.add_switch("--flob", takes_arg=yes, repeatable=yes)
+    defs.add_arg("arg1")
+    defs.add_switch("--flib", aliases=["-f"])
+    defs.add_arg("arg2")
+
+    result = argparse.parse(defs,
+        ["--flob", "bla", "-f", "--", "--flob", "test"])
+    assert(result.exit_code == none)
+    assert(result.args["--flob"].len == 1)
+    assert(result.args["--flob"][0] == "bla")
+    assert(result.args["--flib"] == yes)
+    assert(result.args["arg1"] == "--flob")
+    assert(result.args["arg2"] == "test")
+
+    result = argparse.parse(defs,
+        ["--flob", "bla", "-f", "--", "--flib", "test"])
+    assert(result.exit_code == none)
+    assert(result.args["--flob"].len == 1)
+    assert(result.args["--flob"][0] == "bla")
+    assert(result.args["--flib"] == yes)
+    assert(result.args["arg1"] == "--flib")
+    assert(result.args["arg2"] == "test")
+
+    result = argparse.parse(defs,
+        ["--flob", "bla", "-f", "--flib", "test"])
+    assert(result.exit_code != none)  # --flib/f specified twice.
 }
