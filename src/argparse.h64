@@ -35,7 +35,7 @@ import textformat from core.horse64.org
 type _ArgumentInfo {
     var name = ""
     var catchall = no
-    var multiple_uses = no
+    var repeatable = no
     var takes_arg = no
     var aliases = []
     var optional = no
@@ -48,7 +48,7 @@ type _ArgumentInfo {
 func _ArgumentInfo.init(
         name, aliases=[],
         is_switch=no, takes_arg="default",
-        multiple_uses=no,
+        repeatable=no,
         description=none, action_func=none
         ) {
     self.description = (
@@ -63,11 +63,11 @@ func _ArgumentInfo.init(
         throw ValueError("is_switch must be yes if "
             "argument begins with dash, otherwise no")
     }
-    if not is_switch and multiple_uses != no {
+    if not is_switch and repeatable != no {
         throw ValueError("multiple uses only allowed "
             "for switches")
     }
-    self.multiple_uses = (multiple_uses == yes)
+    self.repeatable = (repeatable == yes)
     if not is_switch and action_func != none {
         throw ValueError("action_func only allowed "
             "for switches")
@@ -338,7 +338,7 @@ func ArgumentDefs.add_catchall(name, description=none) {
 ##   to yes, the map of all parsed values will instead contain the
 ##   switch set to either @{none} if the switch wasn't specified,
 ##   or the user-given @{str} of that argument.
-## @param multiple_uses bool Specify if this switch can be used
+## @param repeatable bool Specify if this switch can be used
 ##   by the user multiple times. If yes and then the map of all
 ##   parsed values will contain the switch with a
 ##   @{numeric counter|num} instead of a @{bool} that counts the
@@ -351,7 +351,7 @@ func ArgumentDefs.add_catchall(name, description=none) {
 ##   @{parse|ArgumentDefs.parse} run.
 func ArgumentDefs.add_switch(
         name, aliases=[], takes_arg=no, description=none,
-        multiple_uses=no,
+        repeatable=no,
         action_func=none
         ) {
     if not name.starts("-") {
@@ -375,7 +375,7 @@ func ArgumentDefs.add_switch(
     }
     self.args.add(new _ArgumentInfo(
         name, aliases=aliases, is_switch=yes,
-        multiple_uses=multiple_uses,
+        repeatable=repeatable,
         takes_arg=takes_arg, description=description,
         action_func=action_func
     ))
@@ -737,7 +737,7 @@ func parse(argument_defs, args=none) {
             }
             # Block specifying multiple times if not allowed:
             if result_args.contains(target_arg.name) and
-                    not target_arg.multiple_uses and
+                    not target_arg.repeatable and
                     result_args[target_arg] == yes {
                 result.output += argument_defs.program_name +
                     ": error: "
@@ -766,7 +766,7 @@ func parse(argument_defs, args=none) {
                     result.exit_code = -1
                     return result
                 }
-                if target_arg.multiple_uses {
+                if target_arg.repeatable {
                     # Can be specified multiple times, use list:
                     if not result_args.contains(target_arg.name) {
                         result_args[target_arg.name] = []
@@ -778,7 +778,7 @@ func parse(argument_defs, args=none) {
                 i += 2
                 continue
             } else {
-                if target_arg.multiple_uses {
+                if target_arg.repeatable {
                     # Can be specified multiple times, use counter:
                     if not result_args.contains(target_arg.name) {
                         result_args[target_arg.name] = 0
@@ -795,12 +795,12 @@ func parse(argument_defs, args=none) {
     for arg in argument_defs.args {
         if not result_args.contains(arg.name) {
             if arg.takes_arg and not arg.catchall and
-                    not arg.multiple_uses {
+                    not arg.repeatable {
                 result_args[arg.name] = none
             } elseif arg.catchall or (arg.takes_arg and
-                    arg.multiple_uses) {
+                    arg.repeatable) {
                 result_args[arg.name] = []
-            } elseif not arg.takes_arg and arg.multiple_uses {
+            } elseif not arg.takes_arg and arg.repeatable {
                 result_args[arg.name] = 0
             } else {
                 result_args[arg.name] = no
