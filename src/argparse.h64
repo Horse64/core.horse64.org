@@ -647,7 +647,8 @@ func parse(argument_defs, args=none) {
             double_dash_idx < args.len)
         args = args.sub(0, double_dash_idx) +
             args.sub(double_dash_idx + 1)
-        if catchall_start_index > double_dash_idx {
+        if catchall_start_index != none and
+                catchall_start_index > double_dash_idx {
             catchall_start_index -= 1
         }
     }
