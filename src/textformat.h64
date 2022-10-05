@@ -28,11 +28,24 @@
 import math from core.horse64.org
 
 
-func wrap(s, length,
+## @func wrap
+## Wrap monospace text e.g. for orderly terminal output.
+##
+## @returns str The text but wrapped and with prefixes applied, if any.
+## @param text str the text to be wrapped
+## @param length num The length of characters after which lines in
+##   the text should be wrapped
+## @param all_lines_prefix str A prefix to add to all lines after
+##   wrapping. The result will still fit the specified wrap length.
+## @param later_lines_prefix str like all_lines_prefix, except it
+##   it will only be applied to the 2nd and later lines, not the
+##   first one.
+func wrap(text, length,
         all_lines_prefix="",
         later_lines_prefix="",
         ) {
     #print("textformat.wrap on: " + [s, length].as_str())
+    var s = text
     if typename(length) != "num" or length <= 0 {
         raise ValueError("wrapped-to length must be positive number")
     }
