@@ -28,6 +28,8 @@
 import argparse from core.horse64.org
 import system from core.horse64.org
 
+import compiler.tokens
+
 
 func version_output_for_terminal {
     return "horsec v" + system.program_version() + ", built by " +
@@ -40,6 +42,29 @@ func license_output_for_terminal {
     return "All horsec license info, no guarantee of "
         "completeness or accuracy:\n" +
         system.program_license_text(layout_width=79)
+}
+
+
+func actionparser_compile(args) {
+    var defs = argparse.ArgumentDefs(program_name="horsec compile")
+    defs.add_arg(
+        "source_file", description="The target file to compile, "
+        "must have a .h64 file extension.")
+    defs.add_switch(
+        "--stage", takes_arg=yes,
+        description="At which stage to stop. The default is "
+            "\"binary\" which means full compilation, other "
+            "available stages are: tokens, ast-local, ast, bytecode.")
+    defs.add_switch(
+        "--output-file", takes_arg=yes,
+        description="Where to write the resulting binary, or "
+            "json file in case of --stage tokens, "
+            "--stage ast-local, --stage ast, or --stage bytecode.")
+    var result = argparse.parse(defs, args)
+    if result.output != "" {
+        print(result.output)
+        return result.exit_code
+    }
 }
 
 
@@ -64,5 +89,12 @@ func main {
     if result.output != "" {
         print(result.output)
         return result.exit_code
+    }
+    if result.args["action"] == "compile" {
+        return actionparser_compile(result.args["action params"])
+    } else {
+        print("horsec: error: unknown action: " + result.args["action"])
+        print("Use horsec --help to show usage.")
+        return 1
     }
 }

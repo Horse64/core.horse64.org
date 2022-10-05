@@ -536,12 +536,20 @@ func parse(argument_defs, args=none) {
 
     # Count number of positional arguments in advance:
     # (We need the total in advance to handle optional ones right)
+    var double_dash_idx = none
     var positional_args_total = 0
     var i = 0
     while i < args.len {
         var argstr = args[i]
-        if not args[i].starts("-") {
+        if not args[i].starts("-") or
+                (double_dash_idx != none and
+                i >= double_dash_idx) {
             positional_args_total += 1
+        } elseif args[i] == "--" {
+            double_dash_idx = i
+            args = args.sub(0, i) +
+                args.sub(i + 1)
+            continue
         } else {
             var switch_with_arg = no
             for arg in argument_defs.args {
@@ -561,11 +569,55 @@ func parse(argument_defs, args=none) {
         i += 1
     }
 
+    # See from where everything needs to go into the catchall:
+    # (Basically, everything after the last regular positional arg,
+    # when a catchall follows, everything including switches should
+    # go into it)
+    var catchall_start_index = none
+    var _posarg_no = 0
+    i = 0
+    while i < args.len {
+        var argstr = args[i]
+        if not args[i].starts("-") or
+                (double_dash_idx != none and
+                i > double_dash_idx) {
+            _posarg_no += 1
+            var target_arg =
+                argument_defs.get_nth_posarg(
+                    _posarg_no, positional_args_total)
+            if target_arg != none and
+                    target_arg.catchall {
+                # Special case: first positional arg is already a catchall.
+                # In that case, everything starting from the first
+                # obvious non-switch (=here) will go inside.
+                catchall_start_index = i
+                break
+            } else {
+                # Regular case: we reached the last positional arg
+                # that is regular. Everything past here (=one index further)
+                # should go inside.
+                var followup_arg =
+                    argument_defs.get_nth_posarg(
+                        _posarg_no + 1, positional_args_total)
+                if followup_arg != none and
+                        followup_arg.catchall {
+                    catchall_start_index = i + 1
+                    break
+                }
+            }
+        }
+        i += 1
+    }
+
     # Extract all arguments:
+    posargs_seen = 0
     var i = 0
     while i < args.len {
         var argstr = args[i]
-        if not args[i].starts("-") {
+        if (not args[i].starts("-")) or (catchall_start_index != none and
+                i >= catchall_start_index) or
+                (double_dash_idx != none and
+                i >= double_dash_idx) {
             # Positional argument. See if we reached maximum:
             if posargs_seen + 1 > argument_defs.max_positional_args and
                     not argument_defs.catchall_exists {
@@ -580,7 +632,7 @@ func parse(argument_defs, args=none) {
                     xth += "th"
                 }
                 result.output += argument_defs.program_name + ": error: "
-                    "excessive " + xth +
+                    "excessive " + xth + " "
                     "positional argument: " + argstr + "\n"
                 result.output += (
                     "Use " + argument_defs.program_name +
@@ -599,10 +651,14 @@ func parse(argument_defs, args=none) {
             }
             assert(target_arg != none)
 
+            #print("argparse.h64: debug: feeding into "
+            #    "arg \"" + target_arg.name +
+            #    "\" => " + argstr)
+
             # Add it to the result value of what it maps to:
             if target_arg.catchall {
                 # Catchall arg that collects multiple values as list:
-                if not result_arg.contains(target_arg.name) {
+                if not result_args.contains(target_arg.name) {
                     result_args[target_arg.name] = []
                 }
                 result_args[target_arg.name].append(argstr)
@@ -610,6 +666,7 @@ func parse(argument_defs, args=none) {
                 # Regular positional arg that takes exactly one value:
                 result_args[target_arg.name] = argstr
             }
+            posargs_seen += 1
         } else {
             # Special handling for --help:
             if argstr == "--help" {
