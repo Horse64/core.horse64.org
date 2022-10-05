@@ -30,7 +30,8 @@ import system from core.horse64.org
 
 
 func version_output_for_terminal {
-    return "horsec v" + system.program_version() + ".\n" +
+    return "horsec v" + system.program_version() + ", built by " +
+        system.program_compiled_with() + ".\n" +
         "Copyright (c) 2020-2022, ellie/@ell1e & Horse64 Team."
 }
 
