@@ -61,6 +61,14 @@ if os.path.exists(os.path.join(translator_py_script_dir,
             VERSION = _get_version
 
 
+def _splitpath(p):
+    if os.path.sep == "\\" or platform.system().lower == "windows":
+        p = p.replace("\\", "/")
+    while p.endswith("/") and len(p) > 1:
+        p = p[:-1]
+    return p.split("/")
+
+
 def as_escaped_code_string(s):
     insert_value = "(b\""
     bytes_path = s.encode(
@@ -86,6 +94,7 @@ DEBUG_ENABLE = False
 DEBUG_ENABLE_CONTENTS = False
 DEBUG_ENABLE_TYPES = False
 DEBUG_ENABLE_REMAPPED_USES = False
+DEBUG_RESULT_FILE_PATHS = False
 
 remapped_uses = {
     "compiler@core.horse64.org": {
@@ -959,6 +968,7 @@ def translate(s, module_name, package_name, parent_statements=[],
                     import_package += "." + statement[i + 2]
                     i += 2
             target_path = import_module.replace(".", "/") + ".h64"
+            target_filename = import_module.split(".")[-1] + ".py"
             append_code = ""
             python_module = import_module
             if (import_package != None and
@@ -996,6 +1006,15 @@ def translate(s, module_name, package_name, parent_statements=[],
                 target_path = os.path.normpath(
                     os.path.join(os.path.abspath(
                     project_info.code_folder), target_path))
+            if (not os.path.exists(target_path) and
+                    os.path.isdir(target_path.rpartition(".h64")[0])):
+                # Case of 'import bla' targeting 'bla/bla.h64'
+                alternate_path = os.path.join(
+                    target_path.rpartition(".h64")[0],
+                    import_module.split(".")[-1] + ".h64")
+                if os.path.exists(alternate_path):
+                    target_path = alternate_path
+                    target_filename = "__init__.py"
 
             # Check if this module is only used for remapped uses:
             found_nonremapped_use = False
@@ -1068,6 +1087,7 @@ def translate(s, module_name, package_name, parent_statements=[],
                 "module": import_module,
                 "python-module": python_module,
                 "path": target_path,
+                "target-filename": target_filename,
             }
 
             # Skip import code if it only has remapped uses:
@@ -1086,7 +1106,7 @@ def translate(s, module_name, package_name, parent_statements=[],
             # Add translated import code:
             result += "import " + python_module + append_code + "\n"
             translate_file_queue.append(
-                (target_path,
+                (target_path, target_filename,
                 import_module, os.path.dirname(target_path),
                 import_package)
             )
@@ -1097,12 +1117,18 @@ def translate(s, module_name, package_name, parent_statements=[],
                 if (not otherfilepath.endswith(".h64") or
                         os.path.isdir(otherfilepath)):
                     continue
+                otherfilename = os.path.basename(
+                    otherfilepath.rpartition(".h64")[0]
+                ) + ".py"
+                if (otherfilename.rpartition(".py")[0] ==
+                        _splitpath(os.path.dirname(target_path))[-1]):
+                    otherfilename = "__init__.py"
                 otherfile_module = ".".join(
                     import_module.split(".")[:-1] +
                     [otherfile.rpartition(".h64")[0].strip()]
                 )
                 translate_file_queue.append(
-                    (otherfilepath,
+                    (otherfilepath, otherfilename,
                     otherfile_module, os.path.dirname(target_path),
                     import_package)
                 )
@@ -1376,6 +1402,7 @@ if __name__ == "__main__":
                 continue
             elif args[i] == "--debug":
                 DEBUG_ENABLE = True
+                DEBUG_RESULT_FILE_PATHS = True
                 DEBUG_ENABLE_TYPES = True
                 DEBUG_ENABLE_CONTENTS = True
                 DEBUG_ENABLE_REMAPPED_USES = True
@@ -1493,10 +1520,11 @@ if __name__ == "__main__":
             str(project_info.package_name))
     translate_file_queue = [
         (os.path.normpath(os.path.abspath(target_file)),
+        os.path.basename(target_file.rpartition(".h64")[0]) + ".py",
         modname, modfolder, project_info.package_name)]
     mainfilepath = translate_file_queue[0][0]
     while len(translate_file_queue) > 0:
-        (target_file, modname, modfolder,
+        (target_file, target_filename, modname, modfolder,
          package_name) = translate_file_queue[0]
         translate_file_queue = translate_file_queue[1:]
         if target_file in translated_files:
@@ -1506,13 +1534,21 @@ if __name__ == "__main__":
                 os.path.abspath(os.path.join(modfolder, otherfile)))
             if (os.path.isdir(otherfilepath) or
                     not otherfilepath.endswith(".h64") or
-                    otherfilepath in translated_files):
+                    otherfilepath in translated_files or
+                    otherfilepath == target_file):
                 continue
+            otherfilename = os.path.basename(
+                otherfilepath.rpartition(".h64")[0]) + ".py"
+            if (otherfilename.rpartition(".py")[0] ==
+                    _splitpath(modfolder)[-1]):
+                otherfilename = "__init__.py"
+                new_modname = modname
             new_modname = (modname.rpartition(".")[0] + "."
                 if "." in modname else "")
             new_modname += (os.path.basename(otherfile).
                 rpartition(".h64")[0])
             translate_file_queue.append((otherfilepath,
+                otherfilename,
                 new_modname, modfolder, package_name))
         contents = None
         with open(target_file, "r", encoding="utf-8") as f:
@@ -1522,16 +1558,20 @@ if __name__ == "__main__":
                 folder_path=modfolder,
                 project_info=project_info,
                 translate_file_queue=translate_file_queue))
+        disk_target_folder = (
+            ("" if package_name is None else
+            "horse_modules/" +
+            package_name.replace(".", "_") + "/") +
+            modname.replace(".", "/"))
+        if target_filename != "__init__.py":
+            disk_target_folder = os.path.dirname(disk_target_folder)
         translated_files[target_file] = {
             "module-name": modname,
             "package-name": package_name,
             "module-folder": modfolder,
+            "target-filename": target_filename,
             "path": target_file,
-            "disk-fake-folder": os.path.dirname(
-                ("" if package_name is None else
-                "horse_modules/" +
-                package_name.replace(".", "_") + "/") +
-                modname.replace(".", "/")),
+            "disk-fake-folder": disk_target_folder,
             "output": contents_result
         }
     for translated_file in translated_files:
@@ -1567,9 +1607,11 @@ if __name__ == "__main__":
                 if regtype.init_code != None:
                     contents_result += regtype.init_code + "\n"
                 contents_result += regtype.funcs["init"]["code"] + "\n"
+                contents_result += ("        pass\n")
             elif regtype.init_code != None:
                 contents_result += ("    def __init__(self):\n")
                 contents_result += regtype.init_code + "\n"
+                contents_result += ("        pass\n")
             for funcname in regtype.funcs:
                 if funcname == "init":
                     continue
@@ -1585,12 +1627,14 @@ if __name__ == "__main__":
 
         if (translated_files[translated_file]["path"] ==
                 mainfilepath):
-            contents_result += "\nif __name__ == '__main__':\n    _remapped_sys.exit(main())\n"
+            contents_result += ("\nif __name__ == '__main__':" +
+                "\n    _remapped_sys.exit(main())\n")
 
         if DEBUG_ENABLE and DEBUG_ENABLE_CONTENTS:
             print("tools/translator.py: debug: have output of " +
                 str(len(contents_result.splitlines())) + " lines for: " +
-                translated_file)
+                translated_file + " (module: " +
+                translated_files[translated_file]["module-name"] + ")")
             print(contents_result)
         translated_files[translated_file]["output"] = contents_result
         #print(tokenize(b" \n\r test".decode("utf-8")))
@@ -1611,6 +1655,9 @@ if __name__ == "__main__":
             name = os.path.basename(
                 translated_files[translated_file]["path"]
             ).rpartition(".h64")[0].strip()
+            targetfilename = os.path.basename(
+                translated_files[translated_file]["target-filename"]
+            )
             contents = translated_files[translated_file]["output"]
             subfolder = translated_files[translated_file]["disk-fake-folder"]
             assert(not os.path.isabs(subfolder) and ".." not in subfolder)
@@ -1641,12 +1688,22 @@ if __name__ == "__main__":
                         "_translator_runtime_helpers.py"), "w",
                         encoding="utf-8") as f:
                     f.write(t)
+                if DEBUG_ENABLE and DEBUG_RESULT_FILE_PATHS:
+                    print("tools/translator.py: debug: wrote file: " +
+                        os.path.join(subfolder_abs,
+                        "_translator_runtime_helpers.py"))
             with open(os.path.join(output_folder, subfolder,
-                    name + ".py"), "w", encoding="utf-8") as f:
+                    targetfilename), "w", encoding="utf-8") as f:
                 f.write(contents)
+            if DEBUG_ENABLE and DEBUG_RESULT_FILE_PATHS:
+                print("tools/translator.py: debug: wrote file: " +
+                    os.path.join(output_folder, subfolder,
+                    targetfilename) + " (module: " +
+                    translated_files[translated_file]["module-name"] + ")")
+                print(contents)
             if translated_files[translated_file]["path"] == mainfilepath:
                 run_py_path = os.path.join(output_folder, subfolder,
-                    name + ".py")
+                    targetfilename)
         launch_cmd = [
             sys.executable, run_py_path
         ] + target_file_args

@@ -183,6 +183,10 @@ def _container_sub(container, *args, **kwargs):
         i1 = max(0, i1)
         i2 = max(i1, i2)
         if i2 <= i1:
+            if type(container) == bytes:
+                return b""
+            if type(container) == list:
+                return []
             return ""
         return container[i1:i2]
     return container.sub(*args, **kwargs)
