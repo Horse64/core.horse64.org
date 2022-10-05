@@ -4,8 +4,8 @@
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 #
-# 1. Redistributions of source code must retain the above copyright notice, this
-#   list of conditions and the following disclaimer.
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
 # 2. Redistributions in binary form must reproduce the above copyright notice,
 #    this list of conditions and the following disclaimer in the documentation
 #    and/or other materials provided with the distribution.
@@ -60,16 +60,16 @@ func _ArgumentInfo.init(
     }
     self.positional = not self.name.starts("-")
     if is_switch != (not self.positional) {
-        throw ValueError("is_switch must be yes if "
+        throw new ValueError("is_switch must be yes if "
             "argument begins with dash, otherwise no")
     }
     if not is_switch and repeatable != no {
-        throw ValueError("multiple uses only allowed "
+        throw new ValueError("multiple uses only allowed "
             "for switches")
     }
     self.repeatable = (repeatable == yes)
     if not is_switch and action_func != none {
-        throw ValueError("action_func only allowed "
+        throw new ValueError("action_func only allowed "
             "for switches")
     }
     self.action_func = action_func
@@ -141,7 +141,7 @@ type ArgumentDefs {
 func ArgumentDefs.init(program_name=none) {
     # Sanitize and guess the program name for this arguments set:
     if program_name != none and typename(program_name) != "str" {
-        throw TypeError("program_name must be none or string")
+        throw new TypeError("program_name must be none or string")
     }
     if program_name == none {
         program_name = path.basename(system.self_exec_path())

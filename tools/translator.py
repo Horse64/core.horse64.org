@@ -5,8 +5,8 @@
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 #
-# 1. Redistributions of source code must retain the above copyright notice, this
-#   list of conditions and the following disclaimer.
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
 # 2. Redistributions in binary form must reproduce the above copyright notice,
 #    this list of conditions and the following disclaimer in the documentation
 #    and/or other materials provided with the distribution.
@@ -104,6 +104,11 @@ remapped_uses = {
     "files@core.horse64.org": {
         "files.get_working_dir" : "_remapped_os.getcwd",
     },
+    "io@core.horse64.org": {
+        "io.open":
+            "(lambda path, mode: _translator_runtime_helpers." +
+            "_FileObjFromDisk(path, mode))",
+    },
     "math@core.horse64.org": {
         "math.min": "_translator_runtime_helpers._math_min",
         "math.max": "_translator_runtime_helpers._math_max",
@@ -131,6 +136,14 @@ remapped_uses = {
             "(lambda: _translated_program_version)",
         "system.self_exec_path" :
             "(lambda: _translated_program_main_script_file)",
+    },
+    "uri@core.horse64.org": {
+        "uri.normalize":
+            "(lambda v: _translator_runtime_helpers." +
+            "_uri_normalize(v))",
+        "uri.from_disk_path":
+            "(lambda v: _translator_runtime_helpers." +
+            "_file_uri_from_path(v))"
     },
 }
 

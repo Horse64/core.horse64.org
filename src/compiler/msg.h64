@@ -1,4 +1,4 @@
-
+# @module compiler.message
 # Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -25,15 +25,23 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-import argparse from core.horse64.org
-import system from core.horse64.org
+
+type FileMsg {
+    ## @types compiler.project.ProjectFile, none
+    var source_file
+    var variant = "error"
+    var line = -1
+    var column = -1
+    var message = ""
+}
 
 
-func main {
-    var defs = new argparse.ArgumentDefs()
-    var result = argparse.parse(defs)
-    if result.output != "" {
-        print(result.output)
-        system.exit(result.exit_code)
-    }
+func FileMsg.init(message, variant="error",
+        source_file=none,
+        line=-1, column=-1) {
+    self.message = message + ""
+    self.source_file = source_file
+    self.line = line
+    self.column = column
+    self.variant = variant + ""
 }
