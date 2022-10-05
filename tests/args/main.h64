@@ -25,16 +25,103 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import argparse from core.horse64.org
 import compiler from core.horse64.org
 import path from core.horse64.org
 import system from core.horse64.org
 
 
 func main {
+    # Test if it works as a standalone separate program:
     var output = compiler.run_file(
         "args_program_main.h64", args=["--help"],
         run_in_dir=path.dirname(system.self_exec_path())
     )
     assert(output.lower().contains("usage") and
         output.lower().contains("available options"))
+
+    # Test a few complicated edge cases:
+    var defs = argparse.ArgumentDefs()
+    defs.add_switch("--flob")
+    defs.add_arg("arg1", optional=yes)
+    defs.add_arg("arg2")
+    defs.add_catchall("trailingargs")
+
+    var result = argparse.parse(defs, ["--flob"])
+    assert(result.exit_code != none)  # (missing positional arg)
+
+    result = argparse.parse(defs, ["--", "--flob"])
+    assert(result.exit_code == none)
+    assert(result.args["arg1"] == none)
+    assert(result.args["arg2"] == "--flob")
+    assert(result.args["trailingargs"].len == 0)
+
+    result = argparse.parse(defs, ["--", "--flob", "flubb"])
+    assert(result.exit_code == none)
+    assert(result.args["arg1"] == "--flob")
+    assert(result.args["arg2"] == "flubb")
+    assert(result.args["trailingargs"].len == 0)
+
+    result = argparse.parse(defs, ["--flob", "--flubb"])
+    assert(result.exit_code != none)  # (unknown switch --flub)
+
+    result = argparse.parse(defs, ["--flob", "--", "--flubb", "fleb", "--flob"])
+    assert(result.exit_code == none)
+    assert(result.args["arg1"] == "--flubb")
+    assert(result.args["arg2"] == "fleb")
+    assert(result.args["trailingargs"].len == 1)
+    assert(result.args["trailingargs"][0] == "--flob")
+
+    result = argparse.parse(defs, ["--flob", "urgh", "orgh", "--", "test"])
+    assert(result.exit_code == none)
+    assert(result.args["arg1"] == "urgh")
+    assert(result.args["arg2"] == "orgh")
+    assert(result.args["trailingargs"].len == 2)
+    assert(result.args["trailingargs"][0] == "--")
+    assert(result.args["trailingargs"][1] == "test")
+
+    result = argparse.parse(defs, ["--flob", "urgh", "--", "orgh", "--", "test"])
+    assert(result.exit_code == none)
+    assert(result.args["--flob"] == yes)
+    assert(result.args["arg1"] == "urgh")
+    assert(result.args["arg2"] == "orgh")
+    assert(result.args["trailingargs"].len == 2)
+    assert(result.args["trailingargs"][0] == "--")
+    assert(result.args["trailingargs"][1] == "test")
+
+    # Test some more complicated edge cases:
+    defs = argparse.ArgumentDefs()
+    defs.add_switch("--flob", takes_arg=yes)
+    defs.add_arg("arg1")
+    defs.add_arg("arg2", optional=yes)
+    defs.add_catchall("trailingargs")
+
+    result = argparse.parse(defs, ["urgh", "--", "orgh", "--", "test"])
+    assert(result.exit_code == none)
+    assert(result.args["arg1"] == "urgh")
+    assert(result.args["arg2"] == "orgh")
+    assert(result.args["trailingargs"].len == 2)
+    assert(result.args["trailingargs"][0] == "--")
+    assert(result.args["trailingargs"][1] == "test")
+
+    result = argparse.parse(defs, ["urgh", "--", "--flob", "--", "orgh", "test"])
+    assert(result.exit_code == none)
+    assert(result.args["--flob"] == none)
+    assert(result.args["arg1"] == "urgh")
+    assert(result.args["arg2"] == "--flob")
+    assert(result.args["trailingargs"].len == 3)
+    assert(result.args["trailingargs"][0] == "--")
+    assert(result.args["trailingargs"][1] == "orgh")
+    assert(result.args["trailingargs"][2] == "test")
+
+    result = argparse.parse(defs, ["urgh", "--flob", "--", "orgh", "test"])
+    assert(result.exit_code != none)  # --flob has no non-dash argument following!
+
+    result = argparse.parse(defs, ["urgh", "--flob", "bla", "--", "orgh", "test"])
+    assert(result.exit_code == none)
+    assert(result.args["--flob"] == "bla")
+    assert(result.args["arg1"] == "urgh")
+    assert(result.args["arg2"] == "orgh")
+    assert(result.args["trailingargs"].len == 1)
+    assert(result.args["trailingargs"][0] == "test")
 }

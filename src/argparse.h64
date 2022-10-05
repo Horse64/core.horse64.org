@@ -223,13 +223,13 @@ func ArgumentDefs.get_namedarg(name) {
 ## ```
 ##
 ## @param name str the name for the positional argument
-## @param is_optional bool Specifies that the positional argument can
+## @param optional bool Specifies that the positional argument can
 ##   be silently omitted if set to true. Then the final map of all parsed
 ##   values will have the corresponding entry set to @{none} if
 ##   it isn't specified by the user.
 ## @param description str (Optional) A description for the user
 ##   what this argument is for.
-func ArgumentDefs.add_arg(name, is_optional=no, description=none) {
+func ArgumentDefs.add_arg(name, optional=no, description=none) {
     if name.starts("-") {
         throw new ValueError(
             "positional arguments can't have a name "
@@ -249,7 +249,7 @@ func ArgumentDefs.add_arg(name, is_optional=no, description=none) {
     }
     self.args.add(new _ArgumentInfo(
         name, is_switch=no, description=description,
-        takes_arg=(if is_optional ("optional") else (yes))
+        takes_arg=(if optional ("optional") else (yes))
     ))
     if self.args[self.args.len - 1].positional {
         self.max_positional_args += 1
@@ -546,11 +546,13 @@ func parse(argument_defs, args=none) {
                 i >= double_dash_idx) {
             positional_args_total += 1
         } elseif args[i] == "--" {
-            double_dash_idx = i
-            args = args.sub(0, i) +
-                args.sub(i + 1)
+            if double_dash_idx == none {
+                double_dash_idx = i
+            }
+            i += 1
             continue
-        } else {
+        } elseif args[i].starts("-") {
+            # Make sure to jump over switches and their arguments:
             var switch_with_arg = no
             for arg in argument_defs.args {
                 if arg.name == args[i] or
@@ -578,9 +580,16 @@ func parse(argument_defs, args=none) {
     i = 0
     while i < args.len {
         var argstr = args[i]
-        if not args[i].starts("-") or
+        if (not args[i].starts("-") or
                 (double_dash_idx != none and
-                i > double_dash_idx) {
+                i >= double_dash_idx)) {
+            # This is a positional arg. See if it maps to catchall:
+            if args[i] == "--" and
+                    i == double_dash_idx {
+                # We're supposed to ignore this one
+                i += 1
+                continue
+            }
             _posarg_no += 1
             var target_arg =
                 argument_defs.get_nth_posarg(
@@ -591,6 +600,10 @@ func parse(argument_defs, args=none) {
                 # In that case, everything starting from the first
                 # obvious non-switch (=here) will go inside.
                 catchall_start_index = i
+                if double_dash_idx != none and
+                        double_dash_idx >= i {
+                    double_dash_idx = none
+                }
                 break
             } else {
                 # Regular case: we reached the last positional arg
@@ -602,14 +615,49 @@ func parse(argument_defs, args=none) {
                 if followup_arg != none and
                         followup_arg.catchall {
                     catchall_start_index = i + 1
+                    if double_dash_idx != none and
+                            double_dash_idx >= i + 1 {
+                        double_dash_idx = none
+                    }
                     break
                 }
+            }
+        } elseif args[i].starts("-") {
+            # Make sure to jump over switches and their arguments:
+            var switch_with_arg = no
+            for arg in argument_defs.args {
+                if arg.name == args[i] or
+                        arg.aliases.contains(args[i]) {
+                    if arg.takes_arg {
+                        switch_with_arg = yes
+                    }
+                    break
+                }
+            }
+            if switch_with_arg {
+                i += 2
+                continue
             }
         }
         i += 1
     }
+    # Remove double dash from args list to not confuse later code:
+    if double_dash_idx != none {
+        assert(double_dash_idx >= 0 and
+            double_dash_idx < args.len)
+        args = args.sub(0, double_dash_idx) +
+            args.sub(double_dash_idx + 1)
+        if catchall_start_index > double_dash_idx {
+            catchall_start_index -= 1
+        }
+    }
 
-    # Extract all arguments:
+    #print("argparse.h64: debug: extracting args: " +
+    #    args.as_str() + ", catchall_start_index=" +
+    #    catchall_start_index.as_str() +
+    #    ", double_dash_idx=" + double_dash_idx.as_str())
+
+    # Extract all arguments now:
     posargs_seen = 0
     var i = 0
     while i < args.len {
@@ -745,8 +793,7 @@ func parse(argument_defs, args=none) {
     }
     # Fill in empty spots in result dictionary:
     for arg in argument_defs.args {
-        if not arg.positional and
-                not result_args.contains(arg.name) {
+        if not result_args.contains(arg.name) {
             if arg.takes_arg and not arg.catchall and
                     not arg.multiple_uses {
                 result_args[arg.name] = none
