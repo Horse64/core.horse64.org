@@ -311,6 +311,21 @@ func ArgumentDefs.add_catchall(name, description=none) {
 }
 
 
+func _check_switch_name(name) {
+    if not name.starts("-") {
+        throw new ValueError("switch names must start with dash")
+    }
+    if name.contains(" ") or name.contains("\t") or
+            name.contains("\n") or name.contains("\r") {
+        throw new ValueError("switch names must not contain whitespace")
+    }
+    if name.contains("=") or name.contains(",") or
+            name.contains(":") or name.contains("!") or name.contains("/") {
+        throw new ValueError("switch name contains invalid character")
+    }
+}
+
+
 ## @func ArgumentDefs.add_switch
 ##
 ## Add an option switch that begins with a dash that the user may or
@@ -354,13 +369,9 @@ func ArgumentDefs.add_switch(
         repeatable=no,
         action_func=none
         ) {
-    if not name.starts("-") {
-        throw new ValueError("switch names must start with dash")
-    }
+    _check_switch_name(name)  # Will throw ValueError if invalid.
     for alias in aliases {
-        if not alias.startswith("-") {
-            throw new ValueError("switch aliases must start with dash")
-        }
+        _check_switch_name(alias)  # Will throw ValueError if invalid.
     }
     if takes_arg != yes and takes_arg != no {
         throw new ValueError("takes_arg must be yes or no")
@@ -553,17 +564,8 @@ func parse(argument_defs, args=none) {
             continue
         } elseif args[i].starts("-") {
             # Make sure to jump over switches and their arguments:
-            var switch_with_arg = no
-            for arg in argument_defs.args {
-                if arg.name == args[i] or
-                        arg.aliases.contains(args[i]) {
-                    if arg.takes_arg {
-                        switch_with_arg = yes
-                    }
-                    break
-                }
-            }
-            if switch_with_arg {
+            var target_arg = argument_defs.get_namedarg(args[i])
+            if target_arg != none and target_arg.takes_arg {
                 i += 2
                 continue
             }
@@ -624,17 +626,8 @@ func parse(argument_defs, args=none) {
             }
         } elseif args[i].starts("-") {
             # Make sure to jump over switches and their arguments:
-            var switch_with_arg = no
-            for arg in argument_defs.args {
-                if arg.name == args[i] or
-                        arg.aliases.contains(args[i]) {
-                    if arg.takes_arg {
-                        switch_with_arg = yes
-                    }
-                    break
-                }
-            }
-            if switch_with_arg {
+            var target_arg = argument_defs.get_namedarg(args[i])
+            if target_arg != none and target_arg.takes_arg {
                 i += 2
                 continue
             }
@@ -739,10 +732,10 @@ func parse(argument_defs, args=none) {
             # Block specifying multiple times if not allowed:
             if result_args.contains(target_arg.name) and
                     not target_arg.repeatable and
-                    result_args[target_arg] == yes {
+                    result_args[target_arg.name] == yes {
                 result.output += argument_defs.program_name +
                     ": error: "
-                    "option cannot be spilled multiple times: " +
+                    "option cannot be used multiple times: " +
                     target_arg.name
                 result.output += (
                     "Use " + argument_defs.program_name +
