@@ -1,4 +1,4 @@
-
+# @module compiler.projectfile
 # Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -25,15 +25,13 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-import argparse from core.horse64.org
-import system from core.horse64.org
+
+type ProjectFile {
+    ## types str or none
+    var source_uri
+}
 
 
-func main {
-    var defs = new argparse.ArgumentDefs()
-    var result = argparse.parse(defs)
-    if result.output != "" {
-        print(result.output)
-        system.exit(result.exit_code)
-    }
+func ProjectFile.init(source_uri=none) {
+    self.source_uri = source_uri
 }

@@ -4,8 +4,8 @@
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 #
-# 1. Redistributions of source code must retain the above copyright notice, this
-#   list of conditions and the following disclaimer.
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
 # 2. Redistributions in binary form must reproduce the above copyright notice,
 #    this list of conditions and the following disclaimer in the documentation
 #    and/or other materials provided with the distribution.
@@ -26,7 +26,77 @@
 # license, see accompanied LICENSE.md.
 
 
-type Token {
+import uri from core.horse64.org
 
+import compiler.limits
+import compiler.msg
+import compiler.project
+
+
+type Token {
+    var variant = "unknown"
+    var text = ""
+    var value = none
+
+    ## @type compiler.project.ProjectFile
+    var project_file
 }
 
+
+type TokenizeResult {
+    ## @type [compiler.msg.FileMsg]
+    var msgs = []
+
+    ## @type [Token]
+    var tokens = []
+
+    ## @types compiler.project.ProjectFile, none
+    var project_file
+}
+
+
+func tokenize_from_fileobj(fobj, project_file=none) {
+    var result = new TokenizeResult()
+    var contents = fobj.read(max_project_file_size + 1)
+    if contents.len >= max_project_file_size + 1 {
+        result.msgs.add(compiler.msg.FileMsg(
+            "file exceeds maximum size limit of " +
+            max_project_file_size + " characters",
+            variant="error", project_file=project_file
+        ))
+        return result
+    }
+    var c = contents
+    var clen = contents.len
+    var i = 0
+    while i < clen {
+
+        i += 1
+    }
+    return result
+}
+
+
+func tokenize_file(path, project_file=none) {
+    return tokenize_file_by_uri(
+        uri.from_disk_path(path), project_file=project_file)
+}
+
+
+func tokenize_file_by_uri(source_uri, project_file=none) {
+    source_uri = uri.normalize(source_uri)
+    var resource = _uri_to_file_or_vfs_path(source_uri)
+    var is_vfs = source_uri.lower().startswith("vfs://")
+    if project_file == none {
+        project_file = compiler.project.ProjectFile(
+            source_uri=source_uri
+        )
+    }
+    var fileobj = io.open(resource, "r")
+    do {
+        return tokenize_from_fileobj(fileobj,
+            project_file=project_file)
+    } finally {
+        fileobj.close()
+    }
+}

@@ -3,8 +3,8 @@
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 #
-# 1. Redistributions of source code must retain the above copyright notice, this
-#   list of conditions and the following disclaimer.
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
 # 2. Redistributions in binary form must reproduce the above copyright notice,
 #    this list of conditions and the following disclaimer in the documentation
 #    and/or other materials provided with the distribution.
@@ -26,6 +26,7 @@
 
 
 import math
+import os
 import subprocess
 import sys
 import threading
@@ -210,4 +211,130 @@ def _math_min(v1, v2):
 
 def _math_round(v1):
     return int(round(v1))
+
+
+def _is_digits(v):
+    if len(v) == 0:
+        return False
+    for c in v:
+        if ord(c) < ord("0") or ord(c) > ord("9"):
+            return False
+    return True
+
+
+def _looks_like_uri(v):
+    if len(v) >= 1 and v[0] == "/":
+        return False
+    if (len(v) >= 3 and v[1] == ":" and
+            (v[2] == "/" or c[2] == "\\")):
+        return False
+    if ("." in v and ":" in v and
+            v.find(":") > v.find(".") and
+            v.find("/") > v.find(":") + 1):
+        possible_host = v.partition(":")[0]
+        possible_port = v.partition(":")[2]
+        possible_resource = possible_port.partition("/")[2]
+        possible_port = possible_port.partition("/")[0]
+        if not _is_digits(possible_port) or ":" in possible_resource:
+            return False
+        if "." not in possible_host or possible_host.startswith("."):
+            return False
+        if (" " in possible_host or
+                possible_host.endswith(".")):
+            return False
+        return True
+    common_tlds = [".org", ".com", ".co.uk", ".io",
+        ".eu", ".dev", ".cn", ".in", ".net"]
+    for common_tld in common_tlds:
+        tld_pos = v.find(common_told + "/")
+        if tld_pos >= 2:
+            return True
+    if v.find("://") >= 1:
+        return True
+    return False
+
+
+def _file_uri_from_path(v):
+    if platform.system().lower() == "windows":
+        v = (os.path.normpath(v.replace("\\", "/")).
+            replace("\\", "/"))
+    else:
+        v = os.path.normpath(v)
+    v = "file://" + urllib.parse.quote(v)
+    return v
+
+
+def _uri_normalize(v):
+    import urllib.parse
+    v = str(v + "")
+    if _looks_like_uri(v):
+        if "://" not in v:
+            target_part = v
+            resource_part = "/"
+            if "/" in v:
+                resource_part = "/" + v.partition("/")[2]
+                target_part = v.partition("/")[0]
+            v = ("https://" + target_part +
+                urllib.parse.quote(resource_part))
+    else:
+        if platform.system().lower() == "windows":
+            v = (os.path.normpath(v.replace("\\", "/")).
+                replace("\\", "/"))
+        else:
+            v = os.path.normpath(v)
+        v = "file://" + urllib.parse.quote(v)
+    if (v.lower().startswith("file://") or
+            v.lower().startswith("vfs://")):
+        resource = urllib.parse.unquote(v.partition("://")[2])
+        resource = os.path.normpath(resource)
+        if resource == ".":
+            resource = "./"
+        return (v.partition("://")[0].lower() + "://" +
+            urllib.parse.quote(v))
+    urlobj = urllib.parse.urlparse(v)
+    result = (urlobj.scheme.lower() + "://" +
+        urlobj.hostname.lower())
+    if urlobj.port != None:
+        result += ":" + str(urlobj.port)
+    resource = urlobj.path
+    if not resource.startswith("/"):
+        resource = "/" + resource
+    result += resource
+    return resource
+
+
+def _uri_to_file_or_vfs_path(v):
+    if (not v.lower().startswith("file://") and
+            not v.lower().startswith("vfs://")):
+        raise ValueError("not a file:// or vfs:// path")
+    resource = urllib.parse.unquote(v.partition("://")[2])
+    resource = os.path.normpath(resource)
+    return resource
+
+
+class _FileObjFromDisk:
+    def __init__(self, path, mode):
+        self.binary = "b" in mode
+        if not self.binary:
+            self.fobj = open(path, mode, encoding="utf-8",
+                errors='replace')
+        else:
+            self.fobj = open(path, mode)
+
+    def read(self, amount=None):
+        if amount == None:
+            return self.fobj.read()
+        amount = int(amount)
+        if amount <= 0:
+            return (b"" if self.binary else "")
+
+    def write(self, value):
+        if not self.binary and type(value) != str:
+            raise TypeError("value must be unicode string")
+        elif self.binary and type(value) != bytes:
+            raise TypeError("value must be bytes value")
+        return self.fobj.write(value)
+
+    def close(self):
+        self.fobj.close()
 
