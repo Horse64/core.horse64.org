@@ -25,8 +25,10 @@
 # license, see accompanied LICENSE.md.
 
 
+import ipaddress
 import math
 import os
+import socket
 import subprocess
 import sys
 import threading
@@ -339,6 +341,110 @@ class _FileObjFromDisk:
         self.fobj.close()
 
 
+class _AsyncOperation:
+    def __init__(self, userdata, do_func, callback_func):
+        self.started = False
+        self.done = False
+        self.userdata = userdata
+        self.userdata2 = None
+        self.do_func = do_func
+        self.callback_func = callback_func
+
+
+_async_ops_lock = threading.Lock()
+_async_ops = []
+_async_ops_stop_threads = False
+
+
+class _RequestsFetchObj:
+    def __init__(self, request):
+        self.request = request
+        self.rawobj = self.request.raw
+
+    def recv(self, amount, cb):
+        if amount != None:
+            amount = int(amount)
+        global _async_ops_lock, _async_ops
+        def recv_sync(op):
+            result = b""
+            if amount is None or amount > 0:
+                try:
+                    result = self.rawobj.read(amount)
+                except (OSError, IOError):
+                    result = None
+            if len(result) == 0 and (
+                    amount is None or amount > 0):
+                result = None
+            _async_ops.acquire()
+            op.userdata2 = result
+            op.done = True
+            _async_ops.release()
+        def done_cb(op):
+            result = op.userdata2
+            op.userdata = None
+            op.userdata2 = None
+            op.do_func = None
+            f = op.callback_func
+            op.callback_func = None
+            return f(result)
+        op = AsyncOperation(self, recv_sync, done_cb)
+        _async_ops_lock.acquire()
+        _async_ops.append(op)
+        _async_ops_lock.release()
+
+    def close(self):
+        if self.rawobj is None:
+            return
+        try:
+            self.rawobj.close()
+        except (IOError, OSError):
+            pass
+        self.rawobj = None
+
+
+def _net_fetch_lookup_name(name, cb):
+    try:
+        ip = ipaddress.ip_address(name)
+        return [str(ip)]
+    except ValueError:
+        pass
+    def async_lookup_do(op):
+        ipv6_results = []
+        try:
+            result = socket.getaddrinfo(
+                name, None, socket.AF_INET6)
+            if len(result) > 0:
+                ipv6_results += [
+                    str(entry[4][0]) for entry in result
+                ]
+        except socket.gaierror as e:
+            pass
+        ipv4_results = []
+        try:
+            result = socket.getaddrinfo(
+                name, None, socket.AF_INET)
+            if len(result) > 0:
+                ipv4_results += [
+                    str(entry[4][0]) for entry in result
+                ]
+        except socket.gaierror as e:
+            pass
+        job.done = True
+        job.userdata2 = ipv6_results + ipv4_results
+    def done_cb(op):
+        result = op.userdata2
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        f = op.callback_func
+        op.callback_func = None
+        return f(result)
+    op = AsyncOperation(self, async_lookup_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
+
+
 def _net_fetch_get(uri, extra_headers=None,
         user_agent="core.horse64.org net.fetch/0.1 (translator)"):
     if not "://" in uri:
@@ -360,5 +466,83 @@ def _net_fetch_get(uri, extra_headers=None,
         del(extra_headers[key])
     extra_headers["User-Agent"] = str(user_agent + "")
     import requests
-    return requests.get(uri, headers=extra_headers).raw()
+    return _RequestsFetchObj(
+        requests.get(uri, headers=extra_headers)
+    )
 
+
+def _run_main(main_func):
+    def async_jobs_worker():
+        while True:
+            _async_ops_lock.acquire()
+            if _async_ops_stop_threads:
+                _async_ops_lock.release()
+                return
+            if len(_async_ops) == 0:
+                _async_ops_lock.release()
+                time.sleep(0.1)
+            work_job = None
+            for job in _async_ops:
+                if not job.done and not job.started:
+                    job.started = True
+                    work_job = job
+                    break
+            _async_ops_lock.release()
+            if work_job:
+                try:
+                    job.do_func(job):
+                except Exception as e:
+                    print("translator_runtime_helper.py: " +
+                        "error: " +
+                        "uncaught error in async job: " +
+                        str((e,
+                        type(job.userdata))))
+                    pass
+                _async_ops_lock.acquire()
+                job.done = True
+                if _async_ops_stop_threads:
+                    _async_ops_lock.release()
+                    return
+                _async_ops_lock.release()
+            else:
+                time.sleep(0.1)
+    workers = []
+    i = 0
+    while i < 16:
+        worker_thread = threading.Thread(
+            target=async_jobs_worker,
+            args=(,))
+        worker_thread.daemon = True
+        worker_thread.start()
+        workers.append(worker_thread)
+        i += 1
+    return_value = main_func()
+    while True:
+        _async_ops_lock.acquire()
+        if len(_async_ops) == 0:
+            _async_ops_lock.release()
+            break
+        done_op = None
+        i = 0
+        while i < len(_async_ops):
+            if _async_ops[i].done:
+                done_op = _async_ops[i]
+                _async_ops = (async_ops[:i] +
+                    async_ops[i + 1:])
+                break
+            i += 1
+        _async_ops_lock.release()
+        if done_op != None:
+            try:
+                done_op.callback_func(done_op)
+            except Exception as e:
+                _async_ops_lock.acquire()
+                _async_ops_stop_threads = True
+                _async_ops_lock.release()
+                raise e
+            continue
+        time.sleep(0.01)
+    _async_ops_lock.acquire()
+    _async_ops_stop_threads = True
+    _async_ops_lock.release()
+    sys.exit(return_value)

@@ -50,7 +50,7 @@ type TokenizeResult {
     ## @type [Token]
     var tokens = []
 
-    ## @types compiler.project.ProjectFile, none
+    ## @types (compiler.project.ProjectFile, none)
     var project_file
 }
 
