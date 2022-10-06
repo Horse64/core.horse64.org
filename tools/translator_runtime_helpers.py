@@ -338,3 +338,27 @@ class _FileObjFromDisk:
     def close(self):
         self.fobj.close()
 
+
+def _net_fetch_get(uri, extra_headers=None,
+        user_agent="core.horse64.org net.fetch/0.1 (translator)"):
+    if not "://" in uri:
+        raise ValueError("need web url to fetch from")
+    if uri.lower().startswith("file://"):
+        fpath = _uri_to_file_or_vfs_path(uri)
+        return _FileObjFromDisk(fpath, "rb")
+    if (not uri.lower().startswith("https://") and
+            not uri.lower().startswith("http://")):
+        raise ValueError("unsupported protocol, "
+            "supported protocols are http, https, file")
+    if extra_headers != None:
+        extra_headers = dict(extra_headers)
+    clean_keys = []
+    for key in extra_headers:
+        if key.lower() == "user-agent":
+            clean_keys.append(key)
+    for key in clean_keys:
+        del(extra_headers[key])
+    extra_headers["User-Agent"] = str(user_agent + "")
+    import requests
+    return requests.get(uri, headers=extra_headers).raw()
+
