@@ -37,12 +37,28 @@ my_dir = os.path.abspath(os.path.dirname(__file__))
 if __name__ == "__main__":
     args = sys.argv[1:]
     use_debug = False
-    if len(args) > 0 and args[0] == "--debug-translator":
-        use_debug = True
-        args = args[1:]
+    use_debug_python_output = False
+    use_debug_keep_files = False
+    while True:
+        if (not use_debug and len(args) > 0 and
+                args[0] == "--debug-translator"):
+            use_debug = True
+            args = args[1:]
+        elif (not use_debug_python_output and len(args) > 0 and
+                args[0] == "--debug-translator-python-output"):
+            use_debug_python_output = True
+            args = args[1:]
+        elif (not use_debug_keep_files and len(args) > 0 and
+                args[0] == "--debug-translator-keep-files"):
+            use_debug_keep_files = True
+            args = args[1:]
+        else:
+            break
     process = subprocess.Popen([
         os.path.join(my_dir, "translator.py")] +
         (["--debug"] if use_debug else []) +
+        (["--debug-python-output"] if use_debug_python_output else []) +
+        (["--keep-files"] if use_debug_keep_files else []) +
         [os.path.join("src", "compiler", "main.h64")] + args)
     exit_code = process.wait()
     sys.exit(exit_code)

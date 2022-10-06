@@ -68,7 +68,7 @@ def as_escaped_code_string(s):
                 (byteval >= ord("A") and byteval <= ord("Z")) or
                 (byteval >= ord("0") and byteval <= ord("9")) or
                 chr(byteval) in {"/", ".", " ", "-", "!", "?",
-                    ":"}):
+                    ":", "_"}):
             insert_value += chr(byteval)
             continue
         insert_value += "\\" + (

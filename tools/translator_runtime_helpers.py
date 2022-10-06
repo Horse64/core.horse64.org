@@ -562,3 +562,8 @@ def _run_main(main_func):
     _async_ops_stop_threads = True
     _async_ops_lock.release()
     sys.exit(return_value)
+
+
+class _ModuleObject:
+    pass
+

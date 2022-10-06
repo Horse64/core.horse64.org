@@ -43,6 +43,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import traceback
 
 from translator_horphelpers import (
     horp_ini_string_get_package_name,
@@ -87,6 +88,7 @@ def _splitpath(p):
 
 DEBUG_ENABLE = False
 DEBUG_ENABLE_CONTENTS = False
+DEBUG_TRANSLATE_QUEUE = False
 DEBUG_ENABLE_TYPES = False
 DEBUG_ENABLE_REMAPPED_USES = False
 DEBUG_RESULT_FILE_PATHS = False
@@ -198,6 +200,29 @@ class TranslatedProjectInfo:
         self.code_relpath = None
         self.package_version = None
         self.licenses = []
+
+    def get_package_subfolder(self,
+            package_name,
+            for_output=True):
+        if not for_output and (package_name is None or
+                package_name == self.package_name):
+            return ""
+        if package_name == None:
+            return "horse_modules/main/"
+        assert("/" not in package_name and
+                "\\" not in package_name and
+                len(package_name) > 0 and
+                not package_name.startswith("."))
+        if for_output:
+            return "horse_modules/" + str(package_name).\
+                replace(".", "_") + "/"
+        folder = "horse_modules/" + str(package_name) + "/"
+        if (os.path.exists(os.path.join(
+                self.repo_folder, folder, "src")) and
+                os.path.isdir(os.path.join(
+                self.repo_folder, folder, "src"))):
+            folder = folder + "src/"
+        return folder
 
 
 def sublist_index(full_list, sub_list):
@@ -620,6 +645,22 @@ def translate_expression_tokens(s, module_name, package_name,
             s[i] = "None"
         i += 1
     return s
+
+
+def queue_file_if_not_queued(translate_file_queue, entry):
+    for queue_item in translate_file_queue:
+        if (os.path.normpath(queue_item[0]) ==
+                os.path.normpath(entry[0])):
+            return
+    if DEBUG_ENABLE and DEBUG_TRANSLATE_QUEUE:
+        print("tools/translator.py: debug: queueing item: " +
+            str(entry))
+        traceback.print_stack()
+    translate_file_queue.append(entry)
+    if "compiler/main.h64" in entry[0]:
+        assert(entry[2] == "compiler.main")
+    if "limits" in entry[0]:
+        assert(entry[2] == "compiler.limits")
 
 
 def translate(s, module_name, package_name, parent_statements=[],
@@ -1072,37 +1113,34 @@ def translate(s, module_name, package_name, parent_statements=[],
             target_filename = import_module.split(".")[-1] + ".py"
             append_code = ""
             python_module = import_module
-            if (import_package != None and
-                    import_package !=
-                    project_info.package_name):
-                assert("." in import_package)
-                python_module = "horse_modules." + (
-                        import_package.replace(".", "_")
-                    ) + "." + python_module
-                if os.path.exists(os.path.join(
-                        project_info.repo_folder,
-                        "horse_modules/" + import_package + "/" +
-                        "src/")) and (
-                        "." in import_package):
-                    target_path = ("horse_modules/" +
-                        import_package
-                    ) + "/src/" + target_path
-                else:
-                    target_path = ("horse_modules/" +
-                        import_package
-                    ) + "/" + target_path
+            package_python_subfolder = project_info.\
+                get_package_subfolder(import_package,
+                for_output=True)
+            package_source_subfolder = project_info.\
+                get_package_subfolder(import_package,
+                for_output=False)
+            if (package_python_subfolder != None and
+                    len(package_python_subfolder) > 0):
+                if package_python_subfolder.endswith("/"):
+                    package_python_subfolder = (
+                        package_python_subfolder[:-1])
+                python_module = package_python_subfolder.\
+                    replace("/", ".") + "." + python_module
                 for module_part in import_module.split(".")[:-1]:
-                    append_code += ("; (" + module_part +
-                        " := dict() if \"" +
-                        module_part + "\" not in locals and \"" +
-                        module_part + "\" not in globals)")
+                    append_code += ("; ((" + module_part +
+                        " := _translator_runtime_helpers." +
+                        "_ModuleObject()) if (\"" +
+                        module_part + "\" not in locals() and \"" +
+                        module_part + "\" not in globals()) else None)")
                 append_code += ("; " +
-                    import_module + " = horse_modules." +
-                    import_package.replace(".", "_") +
+                    import_module + " = " +
+                    package_python_subfolder.replace("/", ".") +
                     "." + import_module)
+            if len(package_source_subfolder) > 0:
                 target_path = os.path.normpath(
                     os.path.join(os.path.abspath(
-                    project_info.repo_folder), target_path))
+                    project_info.repo_folder),
+                    package_source_subfolder, target_path))
             else:
                 target_path = os.path.normpath(
                     os.path.join(os.path.abspath(
@@ -1206,11 +1244,10 @@ def translate(s, module_name, package_name, parent_statements=[],
 
             # Add translated import code:
             result += "import " + python_module + append_code + "\n"
-            translate_file_queue.append(
+            queue_file_if_not_queued(translate_file_queue,
                 (target_path, target_filename,
                 import_module, os.path.dirname(target_path),
-                import_package)
-            )
+                import_package))
             for otherfile in os.listdir(os.path.dirname(target_path)):
                 otherfilepath = os.path.normpath(os.path.join(
                     os.path.dirname(target_path), otherfile
@@ -1228,11 +1265,10 @@ def translate(s, module_name, package_name, parent_statements=[],
                     import_module.split(".")[:-1] +
                     [otherfile.rpartition(".h64")[0].strip()]
                 )
-                translate_file_queue.append(
+                queue_file_if_not_queued(translate_file_queue,
                     (otherfilepath, otherfilename,
                     otherfile_module, os.path.dirname(target_path),
-                    import_package)
-                )
+                    import_package))
             continue
         elif statement[0] == "func":
             statement_cpy = list(statement)
@@ -1505,10 +1541,14 @@ if __name__ == "__main__":
                 continue
             elif args[i] == "--debug":
                 DEBUG_ENABLE = True
+                DEBUG_TRANSLATE_QUEUE = True
                 DEBUG_RESULT_FILE_PATHS = True
                 DEBUG_ENABLE_TYPES = True
-                DEBUG_ENABLE_CONTENTS = True
                 DEBUG_ENABLE_REMAPPED_USES = True
+            elif args[i] == "--debug-python-output":
+                DEBUG_ENABLE = True
+                DEBUG_TRANSLATE_QUEUE = True
+                DEBUG_ENABLE_CONTENTS = True
             elif args[i] == "--keep-files":
                 keep_files = True
             else:
@@ -1553,6 +1593,7 @@ if __name__ == "__main__":
                 if project_info.package_name is None:
                     project_info.package_name = pkg_name
                 break
+        # Normalize and make to absolute path, and clean it up:
         project_info.repo_folder = os.path.normpath(
             os.path.abspath(project_info.repo_folder))
         if "windows" in platform.system().lower():
@@ -1566,11 +1607,16 @@ if __name__ == "__main__":
                 len(project_info.repo_folder) > 3) and \
                 project_info.repo_folder != "/":
             project_info.repo_folder = project_info.repo_folder[:-1]
+        # Detect if we hit the root folder, and hence found nothing:
         if (("windows" in platform.system().lower() and
                 len(project_info.repo_folder) == 3) or
                 "windows" not in platform.system().lower() and
                 project_info.repo_folder == "/"):
             raise RuntimeError("failed to detect repository folder")
+        # Go up by one:
+        modname = os.path.basename(
+            os.path.normpath(os.path.normpath(
+            project_info.repo_folder))) + "." + modname
         project_info.repo_folder = os.path.normpath(
             os.path.abspath(
             os.path.join(project_info.repo_folder, "..")))
@@ -1581,6 +1627,8 @@ if __name__ == "__main__":
     project_info.code_relpath = ""
     if os.path.exists(os.path.join(project_info.repo_folder, "src")):
         project_info.code_relpath = "src/"
+        assert(modname.startswith("src."))
+        modname = modname[len("src."):]
     project_info.code_folder = os.path.join(
         project_info.repo_folder, project_info.code_relpath)
     if (project_info.package_name is None and
@@ -1621,17 +1669,22 @@ if __name__ == "__main__":
         print("tools/translator.py: debug: " +
             "detected package name: " +
             str(project_info.package_name))
-    translate_file_queue = [
+    translate_file_queue = []
+    queue_file_if_not_queued(translate_file_queue,
         (os.path.normpath(os.path.abspath(target_file)),
         os.path.basename(target_file.rpartition(".h64")[0]) + ".py",
-        modname, modfolder, project_info.package_name)]
+        modname, modfolder, project_info.package_name))
     mainfilepath = translate_file_queue[0][0]
     while len(translate_file_queue) > 0:
         (target_file, target_filename, modname, modfolder,
          package_name) = translate_file_queue[0]
+        original_queue_tuple = translate_file_queue[0]
         translate_file_queue = translate_file_queue[1:]
         if target_file in translated_files:
             continue
+        if DEBUG_ENABLE and DEBUG_TRANSLATE_QUEUE:
+            print("tools/translator.py: debug: looking at "
+                "queue item: " + str(original_queue_tuple))
         for otherfile in os.listdir(modfolder):
             otherfilepath = os.path.normpath(
                 os.path.abspath(os.path.join(modfolder, otherfile)))
@@ -1645,13 +1698,13 @@ if __name__ == "__main__":
             if (otherfilename.rpartition(".py")[0] ==
                     _splitpath(modfolder)[-1]):
                 otherfilename = "__init__.py"
-                new_modname = modname
             new_modname = (modname.rpartition(".")[0] + "."
                 if "." in modname else "")
-            new_modname += (os.path.basename(otherfile).
-                rpartition(".h64")[0])
-            translate_file_queue.append((otherfilepath,
-                otherfilename,
+            if otherfilename != "__init__.py":
+                new_modname += (os.path.basename(otherfile).
+                    rpartition(".h64")[0])
+            queue_file_if_not_queued(translate_file_queue,
+                (otherfilepath, otherfilename,
                 new_modname, modfolder, package_name))
         contents = None
         with open(target_file, "r", encoding="utf-8") as f:
@@ -1664,12 +1717,15 @@ if __name__ == "__main__":
                 project_info=project_info,
                 translate_file_queue=translate_file_queue))
         disk_target_folder = (
-            ("" if package_name is None else
-            "horse_modules/" +
-            package_name.replace(".", "_") + "/") +
+            project_info.get_package_subfolder(
+                package_name, for_output=True) +
             modname.replace(".", "/"))
         if target_filename != "__init__.py":
             disk_target_folder = os.path.dirname(disk_target_folder)
+        if DEBUG_ENABLE and DEBUG_TRANSLATE_QUEUE:
+            print("tools/translator.py: debug: will write "
+                "queue item " + str(target_file) + " to "
+                "disk target folder: " + str(disk_target_folder))
         translated_files[target_file] = {
             "module-name": modname,
             "package-name": package_name,
@@ -1679,74 +1735,84 @@ if __name__ == "__main__":
             "disk-fake-folder": disk_target_folder,
             "output": contents_result
         }
-    for translated_file in translated_files:
-        contents_result = (
-            "import os as _remapped_os;import sys as _remapped_sys;" +
-            "_translator_kw_arg_default_value = object();" +
-            "_translated_program_version = " +
-            as_escaped_code_string(
-                project_info.package_version if
-                project_info.package_version != None else
-                "unknown") + ";" +
-            "_translated_program_main_script_file = " +
-            as_escaped_code_string(mainfilepath) + ";" +
-            "import _translator_runtime_helpers;\n"
-            ) + translated_files[translated_file]["output"]
-        for regtype in known_types.values():
-            if (regtype.module != translated_files
-                    [translated_file]["module-name"] or
-                    regtype.pkgname != translated_files
-                    [translated_file]["package-name"]):
-                continue
-            contents_result += "\n"
-            contents_result += "class " + regtype.name + ":\n"
-            if "init" in regtype.funcs:
-                assert(regtype.funcs["init"]["arguments"][0] == "(")
-                regtype.funcs["init"]["arguments"] = (
-                    regtype.funcs["init"]["arguments"][:1] +
-                    ["self", ",", " "] +
-                    regtype.funcs["init"]["arguments"][1:]
-                )
-                contents_result += ("    def __init__" +
-                    untokenize(regtype.funcs["init"]["arguments"]) + ":\n")
-                if regtype.init_code != None:
-                    contents_result += regtype.init_code + "\n"
-                contents_result += regtype.funcs["init"]["code"] + "\n"
-                contents_result += ("        pass\n")
-            elif regtype.init_code != None:
-                contents_result += ("    def __init__(self):\n")
-                contents_result += regtype.init_code + "\n"
-                contents_result += ("        pass\n")
-            for funcname in regtype.funcs:
-                if funcname == "init":
-                    continue
-                assert(regtype.funcs[funcname]["arguments"][0] == "(")
-                regtype.funcs[funcname]["arguments"] = (
-                    regtype.funcs[funcname]["arguments"][:1] +
-                    ["self", ",", " "] +
-                    regtype.funcs[funcname]["arguments"][1:]
-                )
-                contents_result += ("    def " + funcname +
-                    untokenize(regtype.funcs[funcname]["arguments"]) + ":\n")
-                contents_result += regtype.funcs[funcname]["code"] + "\n"
-
-        if (translated_files[translated_file]["path"] ==
-                mainfilepath):
-            contents_result += ("\nif __name__ == '__main__':" +
-                "\n    _remapped_sys.exit(main())\n")
-
-        if DEBUG_ENABLE and DEBUG_ENABLE_CONTENTS:
-            print("tools/translator.py: debug: have output of " +
-                str(len(contents_result.splitlines())) + " lines for: " +
-                translated_file + " (module: " +
-                translated_files[translated_file]["module-name"] + ")")
-            print(contents_result)
-        translated_files[translated_file]["output"] = contents_result
-        #print(tokenize(b" \n\r test".decode("utf-8")))
     output_folder = tempfile.mkdtemp(prefix="h64-tools-translator-")
     assert(os.path.isabs(output_folder) and "h64-tools" in output_folder)
-    returncode = 0
     try:
+        for translated_file in translated_files:
+            associated_package_output_folder = os.path.join(
+                output_folder,
+                project_info.get_package_subfolder(
+                    translated_files[translated_file]
+                        ["package-name"], for_output=True))
+            contents_result = (
+                "import os as _remapped_os;import sys as _remapped_sys;" +
+                "_remapped_sys.path.insert(1, " +
+                    as_escaped_code_string(
+                    associated_package_output_folder) + ");" +
+                "_remapped_sys.path.append(" +
+                    as_escaped_code_string(output_folder) + ");" +
+                "_translator_kw_arg_default_value = object();" +
+                "_translated_program_version = " +
+                as_escaped_code_string(
+                    project_info.package_version if
+                    project_info.package_version != None else
+                    "unknown") + ";" +
+                "_translated_program_main_script_file = " +
+                as_escaped_code_string(mainfilepath) + ";" +
+                "import _translator_runtime_helpers;\n"
+                ) + translated_files[translated_file]["output"]
+            for regtype in known_types.values():
+                if (regtype.module != translated_files
+                        [translated_file]["module-name"] or
+                        regtype.pkgname != translated_files
+                        [translated_file]["package-name"]):
+                    continue
+                contents_result += "\n"
+                contents_result += "class " + regtype.name + ":\n"
+                if "init" in regtype.funcs:
+                    assert(regtype.funcs["init"]["arguments"][0] == "(")
+                    regtype.funcs["init"]["arguments"] = (
+                        regtype.funcs["init"]["arguments"][:1] +
+                        ["self", ",", " "] +
+                        regtype.funcs["init"]["arguments"][1:]
+                    )
+                    contents_result += ("    def __init__" +
+                        untokenize(regtype.funcs["init"]["arguments"]) + ":\n")
+                    if regtype.init_code != None:
+                        contents_result += regtype.init_code + "\n"
+                    contents_result += regtype.funcs["init"]["code"] + "\n"
+                    contents_result += ("        pass\n")
+                elif regtype.init_code != None:
+                    contents_result += ("    def __init__(self):\n")
+                    contents_result += regtype.init_code + "\n"
+                    contents_result += ("        pass\n")
+                for funcname in regtype.funcs:
+                    if funcname == "init":
+                        continue
+                    assert(regtype.funcs[funcname]["arguments"][0] == "(")
+                    regtype.funcs[funcname]["arguments"] = (
+                        regtype.funcs[funcname]["arguments"][:1] +
+                        ["self", ",", " "] +
+                        regtype.funcs[funcname]["arguments"][1:]
+                    )
+                    contents_result += ("    def " + funcname +
+                        untokenize(regtype.funcs[funcname]["arguments"]) + ":\n")
+                    contents_result += regtype.funcs[funcname]["code"] + "\n"
+
+            if (translated_files[translated_file]["path"] ==
+                    mainfilepath):
+                contents_result += ("\nif __name__ == '__main__':" +
+                    "\n    _remapped_sys.exit(main())\n")
+
+            if DEBUG_ENABLE and DEBUG_ENABLE_CONTENTS:
+                print("tools/translator.py: debug: have output of " +
+                    str(len(contents_result.splitlines())) + " lines for: " +
+                    translated_file + " (module: " +
+                    translated_files[translated_file]["module-name"] + ")")
+                print(contents_result)
+            translated_files[translated_file]["output"] = contents_result
+            #print(tokenize(b" \n\r test".decode("utf-8")))
+        returncode = 0
         if keep_files:
             print("tools/translator.py: info: writing " +
                 "translated files to (will be kept): " +
@@ -1805,7 +1871,6 @@ if __name__ == "__main__":
                     os.path.join(output_folder, subfolder,
                     targetfilename) + " (module: " +
                     translated_files[translated_file]["module-name"] + ")")
-                print(contents)
             if translated_files[translated_file]["path"] == mainfilepath:
                 run_py_path = os.path.join(output_folder, subfolder,
                     targetfilename)
