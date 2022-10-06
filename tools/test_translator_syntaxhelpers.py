@@ -31,7 +31,8 @@ import unittest
 from translator_syntaxhelpers import (
     tokenize, untokenize, split_toplevel_statements,
     get_statement_expr_ranges, get_statement_block_ranges,
-    get_statement_inline_funcs,
+    get_statement_inline_funcs, tree_transform_statements,
+    firstnonblank, firstnonblankidx
 )
 
 
@@ -98,6 +99,32 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         t = ["do", "{", "v", "=", "func", "{", "}", "(", ")", "}"]
         ranges = get_statement_inline_funcs(t)
         self.assertEqual(len(ranges), 0)
+
+        t = ['func', ' ', 't', '{', 'while', ' ', 'yes', ' ',
+            '{', 'print', '(', "'hello!'", ')', '}', '}']
+        ranges = get_statement_block_ranges(t)
+        self.assertEqual(len(ranges), 1)
+        self.assertEqual(ranges[0][0], 4)
+        self.assertEqual(ranges[0][1], 14)
+
+    def test_tree_transform_statements(self):
+        def transform_while_weirdly(v):
+            #print("Visited: " + str(v))
+            assert(type(v) == list and
+                (len(v) == 0 or type(v[0]) == list))
+            new_v = []
+            for st in v:
+                if firstnonblank(st) == "while":
+                    st[firstnonblankidx(st)] = "weird"
+                new_v.append(st)
+            return new_v
+        t = tree_transform_statements(
+            "func t{while yes {print('hello!')}}",
+            transform_while_weirdly)
+        #print("Transformed: " + str(t))
+        self.assertTrue(type(t) == str)
+        self.assertTrue("weird" in t)
+        self.assertTrue("while" not in t)
 
     def test_split_statements(self):
         t = tokenize(textwrap.dedent("""\
