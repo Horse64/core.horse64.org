@@ -357,9 +357,11 @@ _async_ops_stop_threads = False
 
 
 class _RequestsFetchObj:
-    def __init__(self, request):
+    def __init__(self, request, retries=0, retry_delay=0.5):
         self.request = request
         self.rawobj = self.request.raw
+        self.retries = retries
+        self.retry_delay = retry_delay
 
     def recv(self, amount, cb):
         if amount != None:
@@ -402,35 +404,49 @@ class _RequestsFetchObj:
         self.rawobj = None
 
 
-def _net_fetch_lookup_name(name, cb):
+def _net_fetch_lookup_name(name, cb, retries=0, retry_delay=0.5):
     try:
         ip = ipaddress.ip_address(name)
         return [str(ip)]
     except ValueError:
         pass
     def async_lookup_do(op):
-        ipv6_results = []
-        try:
-            result = socket.getaddrinfo(
-                name, None, socket.AF_INET6)
-            if len(result) > 0:
-                ipv6_results += [
-                    str(entry[4][0]) for entry in result
-                ]
-        except socket.gaierror as e:
-            pass
-        ipv4_results = []
-        try:
-            result = socket.getaddrinfo(
-                name, None, socket.AF_INET)
-            if len(result) > 0:
-                ipv4_results += [
-                    str(entry[4][0]) for entry in result
-                ]
-        except socket.gaierror as e:
-            pass
+        tries = retries + 1
+        retry_delay = max(0, retry_delay)
+        while tries > 0:
+            tries -= 1
+            want_retry = False
+            ipv6_results = []
+            try:
+                result = socket.getaddrinfo(
+                    name, None, socket.AF_INET6)
+                if len(result) > 0:
+                    ipv6_results += [
+                        str(entry[4][0]) for entry in result
+                    ]
+            except socket.gaierror as e:
+                if e.errno != -2:  # -2 means NXDOMAIN
+                    want_retry = True
+            ipv4_results = []
+            try:
+                result = socket.getaddrinfo(
+                    name, None, socket.AF_INET)
+                if len(result) > 0:
+                    ipv4_results += [
+                        str(entry[4][0]) for entry in result
+                    ]
+            except socket.gaierror as e:
+                if e.errno != -2:  # -2 means NXDOMAIN
+                    want_retry = True
+            if want_retry and tries > 0:
+                if retry_delay > 0:
+                    time.sleep(retry_delay)
+                continue
+            job.userdata2 = ipv6_results + ipv4_results
+            break
+        if job.userdata2 is None:
+            job.userdata2 = []
         job.done = True
-        job.userdata2 = ipv6_results + ipv4_results
     def done_cb(op):
         result = op.userdata2
         op.userdata = None
@@ -490,7 +506,7 @@ def _run_main(main_func):
             _async_ops_lock.release()
             if work_job:
                 try:
-                    job.do_func(job):
+                    job.do_func(job)
                 except Exception as e:
                     print("translator_runtime_helper.py: " +
                         "error: " +
@@ -511,7 +527,7 @@ def _run_main(main_func):
     while i < 16:
         worker_thread = threading.Thread(
             target=async_jobs_worker,
-            args=(,))
+            args=tuple())
         worker_thread.daemon = True
         worker_thread.start()
         workers.append(worker_thread)

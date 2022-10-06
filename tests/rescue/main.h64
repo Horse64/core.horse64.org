@@ -24,21 +24,39 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-var mynum = (
-    99
-)
-type MyObject {
-    var counter = 0
-}
-func MyObject.increase_counter {
-    self.counter += 1
-    print("Count: " + self.counter.as_str())
+
+func oopsie_func(v) {
+    if typename(v) != "num" {
+        throw new TypeError("oopsie, wrong value")
+    }
+    return v + 1
 }
 
 
 func main {
-    var testobj = new MyObject()
-    testobj.increase_counter()
-    testobj.increase_counter()
-    assert(testobj.counter == 3)  # thanks to mod_counterstart.h64
+    var x = 1
+    do {
+        x = oopsie_func("abc")  # Shouldn't run
+    } rescue TypeError {
+        x += 2  # Should run, x now 3
+    }
+    assert(x == 3)
+    do {
+        do {
+            x = oopsie_func("florb")  # Shouldn't run
+        } rescue ValueError {
+            x += 2  # Shouldn't run
+        } finally {
+            x -= 1  # Should run, x now 2
+        }
+    } rescue TypeError {
+        x += 4  # Should run, x now 6
+    } finally {
+        x += 10  # Should run, x now 16
+    }
+    assert(x == 16)
+    oopsie_func(x)
+    assert(x == 16)
+    x = oopsie_func(x)
+    assert(x == 17)
 }
