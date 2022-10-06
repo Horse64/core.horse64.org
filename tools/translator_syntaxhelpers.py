@@ -372,8 +372,12 @@ def get_statement_ranges_ex(t,
             # Skip over dots in function name (for types)
             while (i + 1 < len(t) and
                     could_be_identifier(t[i]) and
-                    t[i + 1] == "."):
-                i += 2
+                    nextnonblank(t, i) == "."):
+                i += 1  # the identifier
+                while (i < len(t) and
+                        t[i].strip(" \r\n\t") == ""):
+                    i += 1
+                i += 1  # the dot
                 while (i < len(t) and
                         t[i].strip(" \r\n\t") == ""):
                     i += 1
@@ -385,23 +389,25 @@ def get_statement_ranges_ex(t,
             while (i < len(t) and
                     t[i].strip(" \r\n\t") == ""):
                 i += 1
-            if (i >= len(t) or t[i] == "{"):
-                # No parameters expression.
+            if (i >= len(t) or (t[i] == "{" and
+                    range_type == "expr")):
+                # A parameterless func, or cut off early.
                 return []
             # Fall through, block after collects expression or block.
         expr_start = i
-        previous_nonwhitespace_token = ""
+        prev_seen_nonblank = ""
         bracket_depth = 0
         while (i < len(t) and
                 ((stmt_type == "with" and t[i] != "as") or
                 (stmt_type != "with" and (t[i] != "{" or
-                i == expr_start)) or (i > expr_start and
+                (i == expr_start and stmt_type != "func"))) or
                 is_h64op_with_righthand(
-                    previous_nonwhitespace_token)) or
+                    prevnonblank(t, i)) or
                 bracket_depth > 0 or
-                previous_nonwhitespace_token == "")):
+                (stmt_type != "func" and
+                prev_seen_nonblank == ""))):
             if t[i].strip(" \r\n\t") != "":
-                previous_nonwhitespace_token = t[i]
+                prev_seen_nonblank = t[i]
             if t[i] in {"[", "(", "{"}:
                 bracket_depth += 1
             elif t[i] in {"]", ")", "}"}:
@@ -511,7 +517,9 @@ def get_statement_ranges_ex(t,
             return [i + 1, i]
         return []
     # General unrecognized statement.
-    return [[0, len(t)]]
+    if range_type == "expr":
+        return [[0, len(t)]]  # Default to full length expression.
+    return []  # Default to no sub-blocks.
 
 
 def get_statement_expr_ranges(t):
@@ -523,6 +531,26 @@ def get_statement_block_ranges(t):
     ranges = get_statement_ranges_ex(
         t, range_type="block")
     return ranges
+
+
+def firstnonblankidx(t):
+    idx = 0
+    while (idx < len(t) and
+            t[idx].strip(" \r\n\t") == ""):
+        idx += 1
+    if idx >= len(t):
+        return -1
+    return idx
+
+
+def firstnonblank(t):
+    idx = 0
+    while (idx < len(t) and
+            t[idx].strip(" \r\n\t") == ""):
+        idx += 1
+    if idx >= len(t):
+        return ""
+    return t[idx]
 
 
 def nextnonblank(t, idx, no=1):
@@ -685,13 +713,15 @@ def get_next_statement(s):
     return s
 
 
-def split_toplevel_statements(s):
-    def is_whitespace_statement(tokens):
+def is_whitespace_statement(tokens):
         for token in tokens:
             for c in token:
-                if c not in [" ", "\r", "\n", "\t"]:
+                if not is_whitespace_token(c):
                     return False
         return True
+
+
+def split_toplevel_statements(s, skip_whitespace=True):
     assert(type(s) in {list, tuple})
     if len(s) == 0:
         return []
@@ -700,7 +730,9 @@ def split_toplevel_statements(s):
         next_stmt = get_next_statement(s)
         if len(next_stmt) == 0:
             return statements
-        if not is_whitespace_statement(next_stmt):
+        if (not skip_whitespace or
+                not is_whitespace_statement(
+                next_stmt)):
             statements.append(next_stmt)
         s = s[len(next_stmt):]
     return statements
@@ -750,6 +782,46 @@ def untokenize(tokens):
         result += token
         prevtoken = token
     return result
+
+
+def tree_transform_statements(code, callback_statement_list):
+    if (type(code) != str and (
+            type(code) not in {list, tuple} or
+            (len(code) > 0 and type(code[0]) != str))):
+        raise TypeError("code must be string or "
+            "list of tokens (=list of strings)")
+    was_string = False
+    if type(code) == str:
+        code = tokenize(code)
+        was_string = True
+    statements = split_toplevel_statements(
+        code, skip_whitespace=False
+    )
+    if callback_statement_list != None:
+        statements = callback_statement_list(statements)
+    final_statements = []
+    for statement in statements:
+        ranges = get_statement_block_ranges(statement)
+        for block_range in reversed(ranges):
+            assert(block_range[0] > 0 or
+                block_range[1] < len(statement))
+            replacement = tree_transform_statements(statement[
+                block_range[0]:block_range[1]],
+                callback_statement_list)
+            replacement_flat = []
+            for inner_stmt in replacement:
+                replacement_flat += inner_stmt
+            statement = (statement[:block_range[0]] +
+                replacement_flat +
+                statement[block_range[1]:])
+        final_statements.append(statement)
+    if was_string:
+        return "".join([untokenize(st)
+            for st in final_statements])
+    return final_statements
+
+
+
 
 
 def sanity_check_h64_codestring(s, filename="", modname=""):
