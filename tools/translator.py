@@ -45,7 +45,7 @@ from translator_horphelpers import (
 
 from translator_syntaxhelpers import (
     tokenize, untokenize,
-    as_escaped_code_string,
+    could_be_identifier, as_escaped_code_string,
     is_whitespace_token, get_next_token,
     split_toplevel_statements,
     get_next_statement,
@@ -339,16 +339,6 @@ def translate_expression_tokens(s, module_name, package_name,
                     maybe_match = False
                     break
                 k += 1
-            def could_be_identifier(x):
-                if (len(x) == 0 or (x[0] != "_" and
-                        (ord(x[0]) < ord("a") or ord(x[0]) > ord("z")) and
-                        (ord(x[0]) < ord("A") or ord(x[0]) > ord("Z")))):
-                    return False
-                if x in {"if", "func", "import", "else",
-                        "var", "const", "elseif", "while",
-                        "for", "in", "not", "and", "or"}:
-                    return False
-                return True
             maybe_match_tokens = -1
             maybe_match_item = None
             if (k * 2 + i < len(s) and
@@ -684,6 +674,286 @@ def translate(s, module_name, package_name, parent_statements=[],
                 continue
             result += indent + untokenize(statement) + "\n"
             # (we already did translate_expression_tokens above.)
+            continue
+        elif statement[0] == "do":
+            statement_cpy = list(statement)
+            j = 1
+            while (j < len(statement) and
+                    statement[j].strip(" \t\r\n") == ""):
+                j += 1
+            assert(statement[j] == "{")
+            do_block_content_first = j + 1
+            bracket_depth = 0
+            j += 1
+            while (j < len(statement) and
+                    (statement[j] != "}" or
+                    bracket_depth > 0)):
+                if statement[j] in {"(", "[", "{"}:
+                    bracket_depth += 1
+                elif statement[j] in {")", "]", "}"}:
+                    bracket_depth -= 1
+                j += 1
+            do_block_content_last = j - 1
+            assert(statement[j] == "}")
+            j += 1  # Go past '}'
+            while (j < len(statement) and
+                    statement[j].strip(" \t\r\n") == ""):
+                j += 1
+            rescue_block_content_first = -1
+            rescue_block_content_last = -1
+            rescue_error_label_name = None
+            rescue_error_types_first = -1
+            rescue_error_types_last = -1
+            finally_block_content_first = -1
+            finally_block_content_last = -1
+            if (j < len(statement) and
+                    statement[j] == "rescue"):
+                j += 1  # Past 'rescue' keyword.
+                while (j < len(statement) and
+                         statement[j].strip(" \t\r\n") == ""):
+                    j += 1
+                assert(statement[j] != "{")
+                rescue_error_types_first = j
+                bracket_depth = 0
+                while (j < len(statement) and
+                        ((statement[j] != "{" and
+                        statement[j] != "as") or
+                        bracket_depth > 0)):
+                    if statement[j] in {"(", "[", "{"}:
+                        bracket_depth += 1
+                    elif statement[j] in {")", "]", "}"}:
+                        bracket_depth -= 1
+                    j += 1
+                rescue_error_types_last = j - 1
+                while (rescue_error_types_last >
+                        rescue_error_types_first and
+                        statement[rescue_error_types_last].
+                        strip(" \r\n\t") == ""):
+                    rescue_error_types_last -= 1
+                assert(statement[j] == "{" or
+                    statement[j] == "as")
+                if statement[j] == "as":
+                    j += 1
+                    while (j < len(statement) and
+                            statement[j].strip(" \t\r\n") == ""):
+                        j += 1
+                    assert(could_be_identifier(statement[j]))
+                    rescue_error_label_name = statement[j]
+                    j += 1
+                    while (j < len(statement) and
+                            statement[j].strip(" \t\r\n") == ""):
+                        j += 1
+                assert(statement[j] == "{")
+                j += 1  # Go past the opening '{'
+                rescue_block_content_first = j
+                bracket_depth = 0
+                while (j < len(statement) and
+                        (statement[j] != "}" or
+                        bracket_depth > 0)):
+                    if statement[j] in {"(", "[", "{"}:
+                        bracket_depth += 1
+                    elif statement[j] in {")", "]", "}"}:
+                        bracket_depth -= 1
+                    j += 1
+                rescue_block_content_last = j - 1
+                assert(statement[j] == "}")
+                j += 1
+                while (j < len(statement) and
+                         statement[j].strip(" \t\r\n") == ""):
+                    j += 1
+            if (j < len(statement) and
+                    statement[j] == "finally"):
+                j += 1  # Past 'finally' keyword.
+                while (j < len(statement) and
+                         statement[j].strip(" \t\r\n") == ""):
+                    j += 1
+                assert(statement[j] == "{")
+                j += 1
+                finally_block_content_first = j
+                bracket_depth = 0
+                while (j < len(statement) and
+                        (statement[j] != "}" or
+                        bracket_depth > 0)):
+                    if statement[j] in {"(", "[", "{"}:
+                        bracket_depth += 1
+                    elif statement[j] in {")", "]", "}"}:
+                        bracket_depth -= 1
+                    j += 1
+                finally_block_content_last = j - 1
+                assert(statement[j] == "}")
+                j += 1
+            while (j < len(statement) and
+                     statement[j].strip(" \t\r\n") == ""):
+                j += 1
+            assert(j >= len(statement))  # Require no trailing data.
+            rescued_errors_expr = None
+            rescue_block_code = None
+            do_block_code = translate(
+                    untokenize(statement[
+                        do_block_content_first:
+                        do_block_content_last+1
+                    ]), module_name, package_name,
+                    parent_statements=(
+                        parent_statements + [statement_cpy]),
+                    extra_indent=extra_indent,
+                    folder_path=folder_path,
+                    project_info=project_info,
+                    known_imports=known_imports,
+                    translate_file_queue=translate_file_queue
+                )
+            if rescue_block_content_first >= 0:
+                rescue_block_code = translate(
+                    untokenize(statement[
+                        rescue_block_content_first:
+                        rescue_block_content_last+1
+                    ]), module_name, package_name,
+                    parent_statements=(
+                        parent_statements + [statement_cpy]),
+                    extra_indent=extra_indent,
+                    folder_path=folder_path,
+                    project_info=project_info,
+                    known_imports=known_imports,
+                    translate_file_queue=translate_file_queue
+                )
+                rescued_errors_tokens = statement[
+                    rescue_error_types_first:
+                    rescue_error_types_last+1]
+                while (len(rescued_errors_tokens) > 1 and
+                        rescued_errors_tokens[0].strip(" \r\n\t") == ""):
+                    rescued_errors_tokens = (
+                        rescued_errors_tokens[1:])
+                while (len(rescued_errors_tokens) > 1 and
+                        rescued_errors_tokens[-1].strip(" \r\n\t") == ""):
+                    rescued_errors_tokens = (
+                        rescued_errors_tokens[:-1])
+                assert(len(rescued_errors_tokens) > 0)
+                # Ensure rescue a, b is translated to except (a, b):
+                if rescued_errors_tokens[0] != "(":
+                    rescued_errors_tokens = (["("] +
+                        rescued_errors_tokens + [")"])
+                rescued_errors_expr = translate_expression_tokens(
+                    rescued_errors_tokens,
+                    module_name, package_name,
+                    project_info=project_info,
+                    parent_statements=parent_statements,
+                    known_imports=known_imports,
+                    add_indent=extra_indent)
+            finally_block_code = None
+            if finally_block_content_first >= 0:
+                finally_block_code = translate(
+                    untokenize(statement[
+                        finally_block_content_first:
+                        finally_block_content_last+1
+                    ]), module_name, package_name,
+                    parent_statements=(
+                        parent_statements + [statement_cpy]),
+                    extra_indent=extra_indent,
+                    folder_path=folder_path,
+                    project_info=project_info,
+                    known_imports=known_imports,
+                    translate_file_queue=translate_file_queue
+                )
+            result += (indent + "try:\n")
+            result += do_block_code + "\n"
+            result += (indent + "    pass\n")
+            if (rescue_block_code is None
+                    and finally_block_code is None):
+                result += (indent + "finally:\n")
+                result += (indent + "    pass\n")
+            else:
+                if rescue_block_code != None:
+                    result += (indent + "except " +
+                        untokenize(rescued_errors_expr))
+                    if rescue_error_label_name != None:
+                        result += (" as " +
+                            rescue_error_label_name)
+                    result += ":\n"
+                    result += rescue_block_code + "\n"
+                    result += (indent + "    pass\n")
+                if finally_block_code != None:
+                    result += (indent + "finally:\n")
+                    result += finally_block_code + "\n"
+                    result += (indent + "    pass\n")
+            continue
+        elif statement[0] == "with":
+            statement_cpy = list(statement)
+            bracket_depth = 0
+            assign_obj_first = 1
+            j = 1  # Past 'with' keyword.
+            while (j < len(statement) and (
+                    statement[j] != "as" or
+                    bracket_depth > 0)):
+                if statement[j] in {"(", "[", "{"}:
+                    bracket_depth += 1
+                elif statement[j] in {")", "]", "}"}:
+                    bracket_depth -= 1
+                j += 1
+            assign_obj_last = j - 1
+            assert(statement[j] == "as")
+            j += 1  # Past 'as' keyword.
+            while (j < len(statement) and
+                     statement[j].strip(" \t\r\n") == ""):
+                j += 1
+            assert(j < len(statement) and
+                    could_be_identifier(statement[j]))
+            assign_obj_label = statement[j]
+            j += 1
+            while (j < len(statement) and
+                     statement[j].strip(" \t\r\n") == ""):
+                j += 1
+            assert(statement[j] == "{")
+            j += 1  # Past content opening '{'
+            with_block_first = j
+            bracket_depth = 0
+            while (j < len(statement) and
+                    (statement[j] != "}" or
+                    bracket_depth > 0)):
+                if statement[j] in {"(", "[", "{"}:
+                    bracket_depth += 1
+                elif statement[j] in {")", "]", "}"}:
+                    bracket_depth -= 1
+                j += 1
+            assert(statement[j] == "}")
+            with_block_last = j - 1
+            j += 1  # Past closing '}'
+            while (j < len(statement) and
+                     statement[j].strip(" \t\r\n") == ""):
+                j += 1
+            assert(j >= len(statement))
+            assigned_expr = translate_expression_tokens(
+                statement[assign_obj_first:
+                    assign_obj_last+1],
+                module_name, package_name,
+                project_info=project_info,
+                parent_statements=parent_statements,
+                known_imports=known_imports,
+                add_indent=extra_indent)
+            with_block_code = translate(
+                untokenize(statement[
+                    with_block_first:
+                    with_block_last+1]), module_name, package_name,
+                parent_statements=(
+                    parent_statements + [statement_cpy]),
+                extra_indent=extra_indent,
+                folder_path=folder_path,
+                project_info=project_info,
+                known_imports=known_imports,
+                translate_file_queue=translate_file_queue
+            )
+            result += (indent + assign_obj_label + " = (" +
+                untokenize(assigned_expr) + ")\n")
+            result += (indent + "try:\n")
+            result += with_block_code + "\n"
+            result += (indent + "    pass\n")
+            result += (indent + "finally:\n")
+            result += (indent + "    if hasattr(" +
+                assign_obj_label + ", \"close\"):\n")
+            result += (indent + "        " +
+                assign_obj_label + ".close()\n")
+            result += (indent + "    elif hasattr(" +
+                assign_obj_label + ", \"destroy\"):\n")
+            result += (indent + "        " +
+                assign_obj_label + ".destroy()\n")
             continue
         elif (statement[0] == "if" or statement[0] == "while" or
                 statement[0] == "for"):

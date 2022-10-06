@@ -7,6 +7,12 @@ test-translator:
 	rm -rf ./tests/args/horse_modules/core.horse64.org/
 	rm -rf ./tests/rescue/horse_modules/core.horse64.org/
 	rm -rf ./tests/inlinefunc/horse_modules/core.horse64.org/
+	# rescue:
+	rm -rf ./tests/rescue/horse_modules/core.horse64.org/
+	rm -rf /tmp/h64-test-core-copy/
+	cp -R ./ /tmp/h64-test-core-copy/
+	mv /tmp/h64-test-core-copy/ ./tests/rescue/horse_modules/core.horse64.org/
+	tools/translator.py ./tests/rescue/main.h64
 	# basic-1:
 	rm -rf ./tests/basic-1/horse_modules/core.horse64.org/
 	rm -rf /tmp/h64-test-core-copy/
@@ -25,12 +31,6 @@ test-translator:
 	cp -R ./ /tmp/h64-test-core-copy/
 	mv /tmp/h64-test-core-copy/ ./tests/args/horse_modules/core.horse64.org/
 	tools/translator.py ./tests/args/main.h64
-	# rescue:
-	rm -rf ./tests/rescue/horse_modules/core.horse64.org/
-	rm -rf /tmp/h64-test-core-copy/
-	cp -R ./ /tmp/h64-test-core-copy/
-	mv /tmp/h64-test-core-copy/ ./tests/rescue/horse_modules/core.horse64.org/
-	tools/translator.py ./tests/rescue/main.h64
 	# inline func:
 	rm -rf ./tests/inlinefunc/horse_modules/core.horse64.org/
 	rm -rf /tmp/h64-test-core-copy/

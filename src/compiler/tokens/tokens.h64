@@ -92,11 +92,8 @@ func tokenize_file_by_uri(source_uri, project_file=none) {
             source_uri=source_uri
         )
     }
-    var fileobj = io.open(resource, "r")
-    do {
+    with io.open(resource, "r") as fileobj {
         return tokenize_from_fileobj(fileobj,
             project_file=project_file)
-    } finally {
-        fileobj.close()
     }
 }

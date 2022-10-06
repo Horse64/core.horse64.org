@@ -43,6 +43,20 @@ translator_py_script_dir = (
 translator_py_script_path = os.path.abspath(__file__)
 
 
+def could_be_identifier(x):
+    if (len(x) == 0 or (x[0] != "_" and
+            (ord(x[0]) < ord("a") or ord(x[0]) > ord("z")) and
+            (ord(x[0]) < ord("A") or ord(x[0]) > ord("Z")))):
+        return False
+    if x in {"if", "func", "import", "else",
+            "type", "do", "rescue", "finally",
+            "from",
+            "var", "const", "elseif", "while",
+            "for", "in", "not", "and", "or"}:
+        return False
+    return True
+
+
 def as_escaped_code_string(s):
     insert_value = "(b\""
     bytes_path = s.encode(
@@ -216,7 +230,7 @@ def split_toplevel_statements(s):
     def is_whitespace_statement(tokens):
         for token in tokens:
             for c in token:
-                if c not in [" ", "\r", "\n", "|t"]:
+                if c not in [" ", "\r", "\n", "\t"]:
                     return False
         return True
     assert(type(s) in {list, tuple})
