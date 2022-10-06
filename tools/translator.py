@@ -116,6 +116,10 @@ remapped_uses = {
         "math.ceil": "_translator_runtime_helpers.math_ceil",
         "math.round": "_translator_runtime_helpers._math_round",
     },
+    "net.fetch@core.horse64.org": {
+        "net.fetch.get":
+            "_translator_runtime_helpers._net_fetch_get",
+    },
     "path@core.horse64.org": {
         "path.basename" : "_remapped_os.path.basename",
         "path.dirname": "_remapped_os.path.dirname",
