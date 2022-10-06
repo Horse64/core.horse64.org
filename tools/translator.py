@@ -55,8 +55,8 @@ from translator_syntaxhelpers import (
     tokenize, untokenize,
     could_be_identifier, as_escaped_code_string,
     is_whitespace_token, get_next_token,
-    split_toplevel_statements,
-    get_next_statement,
+    split_toplevel_statements, nextnonblank,
+    get_next_statement, prevnonblank,
     sanity_check_h64_codestring
 )
 
@@ -535,14 +535,14 @@ def translate_expression_tokens(s, module_name, package_name,
         replaced_one = False
         i = 0
         while i < len(s):
-            if (i > 0 and s[i - 1] == "." and (
+            if (prevnonblank(s, i) == "." and (
                     s[i] in ("len") or (
-                    i + 2 < len(s) and
-                    s[i] in ("as_str", "to_num") and s[i + 1] == "(" and
-                    s[i + 2] == ")") or (
-                    i + 1 < len(s) and
+                    s[i] in ("as_str", "to_num") and
+                        nextnonblank(s, i) == "(" and
+                        nextnonblank(s, i, no=2) == ")") or (
                     s[i] in ("add", "sort", "trim", "find",
-                        "join", "sub", "repeat") and s[i + 1] == "("
+                        "join", "sub", "repeat") and
+                        nextnonblank(s, i) == "("
                     ))):
                 cmd = s[i]
                 insert_call = ["str"]

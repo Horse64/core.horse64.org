@@ -29,11 +29,76 @@ import textwrap
 import unittest
 
 from translator_syntaxhelpers import (
-    tokenize, untokenize, split_toplevel_statements
+    tokenize, untokenize, split_toplevel_statements,
+    get_statement_expr_ranges, get_statement_block_ranges,
+    get_statement_inline_funcs,
 )
 
 
 class TestTranslatorSyntaxHelpers(unittest.TestCase):
+    def test_get_statement_expr_ranges(self):
+        t = ["func", " ", "myfunc", " ",
+            "(", "bla", "=", "{", "->", "}", " ",
+            ")", "{", "}"]
+        ranges = get_statement_expr_ranges(t)
+        self.assertEqual(len(ranges), 1)
+        self.assertEqual(ranges[0][0], 4)
+        self.assertEqual(t[ranges[0][0]], "(")
+        self.assertEqual(ranges[0][1], 12)
+        self.assertEqual(t[ranges[0][1] - 1], ")")
+        ranges = get_statement_block_ranges(t)
+        self.assertEqual(len(ranges), 1)
+        self.assertEqual(ranges[0][0], 13)
+        self.assertEqual(ranges[0][1], 13)
+
+        t = ["func", " ", "myfunc", "(", "a",
+            "=", "func", "{", "return", "5", "}",
+            "(", ")", ")", "{", "return", "}"]
+        ranges = get_statement_expr_ranges(t)
+        self.assertEqual(len(ranges), 1)
+        self.assertEqual(ranges[0][0], 3)
+        self.assertEqual(t[ranges[0][0]], "(")
+        self.assertEqual(ranges[0][1], 14)
+        self.assertEqual(t[ranges[0][1] - 1], ")")
+        ranges = get_statement_block_ranges(t)
+        self.assertEqual(len(ranges), 1)
+        self.assertEqual(ranges[0][0], 15)
+        self.assertEqual(ranges[0][1], 16)
+
+        t = ["with", "{", "lol", "}", "as", " ", "hello",
+            "{", "return", "}"]
+        ranges = get_statement_expr_ranges(t)
+        self.assertEqual(len(ranges), 1)
+        self.assertEqual(ranges[0][0], 1)
+        self.assertEqual(ranges[0][1], 4)
+        ranges = get_statement_block_ranges(t)
+        self.assertEqual(len(ranges), 1)
+        self.assertEqual(ranges[0][0], 8)
+        self.assertEqual(ranges[0][1], 9)
+
+        t = ["if", " ", "{", "lol", "}", "{", " ", "hello",
+            "(", ")", "}", "elseif", " ", "yes",
+            "{", "return", "}"]
+        ranges = get_statement_expr_ranges(t)
+        self.assertEqual(len(ranges), 2)
+        ranges = get_statement_block_ranges(t)
+        self.assertEqual(len(ranges), 2)
+        self.assertEqual(ranges[0][0], 6)
+        self.assertEqual(ranges[0][1], 10)
+        self.assertEqual(ranges[1][0], 15)
+        self.assertEqual(ranges[1][1], 16)
+
+        t = ["v", "=", "func", "{", "}", "(", ")"]
+        ranges = get_statement_inline_funcs(t)
+        self.assertEqual(len(ranges), 1)
+        self.assertEqual(ranges[0][0], 2)
+        self.assertEqual(ranges[0][1], 3)
+        self.assertEqual(ranges[0][2], 5)
+
+        t = ["do", "{", "v", "=", "func", "{", "}", "(", ")", "}"]
+        ranges = get_statement_inline_funcs(t)
+        self.assertEqual(len(ranges), 0)
+
     def test_split_statements(self):
         t = tokenize(textwrap.dedent("""\
         func m1 {
@@ -44,9 +109,11 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         }
         """))
         statements = split_toplevel_statements(t)
-        assert(len(statements) == 2)
-        assert(untokenize(statements[0]).strip().startswith("func "))
-        assert(untokenize(statements[1]).strip().startswith("func "))
+        self.assertEqual(len(statements), 2)
+        self.assertTrue(
+            untokenize(statements[0]).strip().startswith("func "))
+        self.assertTrue(
+            untokenize(statements[1]).strip().startswith("func "))
         t = tokenize(textwrap.dedent("""\
         func m1 {
             print('test')
@@ -55,9 +122,11 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         }
         """))
         statements = split_toplevel_statements(t)
-        assert(len(statements) == 2)
-        assert(untokenize(statements[0]).strip().startswith("func "))
-        assert(untokenize(statements[1]).strip().startswith("func "))
+        self.assertEqual(len(statements), 2)
+        self.assertTrue(
+            untokenize(statements[0]).strip().startswith("func "))
+        self.assertTrue(
+            untokenize(statements[1]).strip().startswith("func "))
 
 
 if __name__ == '__main__':
