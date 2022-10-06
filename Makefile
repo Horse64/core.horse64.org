@@ -6,6 +6,7 @@ test-translator:
 	rm -rf ./tests/basic-2/horse_modules/core.horse64.org/
 	rm -rf ./tests/args/horse_modules/core.horse64.org/
 	rm -rf ./tests/rescue/horse_modules/core.horse64.org/
+	rm -rf ./tests/inlinefunc/horse_modules/core.horse64.org/
 	# basic-1:
 	rm -rf ./tests/basic-1/horse_modules/core.horse64.org/
 	rm -rf /tmp/h64-test-core-copy/
@@ -30,5 +31,11 @@ test-translator:
 	cp -R ./ /tmp/h64-test-core-copy/
 	mv /tmp/h64-test-core-copy/ ./tests/rescue/horse_modules/core.horse64.org/
 	tools/translator.py ./tests/rescue/main.h64
+	# inline func:
+	rm -rf ./tests/inlinefunc/horse_modules/core.horse64.org/
+	rm -rf /tmp/h64-test-core-copy/
+	cp -R ./ /tmp/h64-test-core-copy/
+	mv /tmp/h64-test-core-copy/ ./tests/inlinefunc/horse_modules/core.horse64.org/
+	tools/translator.py ./tests/inlinefunc/main.h64
 	# Done!
 	@echo -e "\033[92;40mCompleted tests for bootstrap translator.\033[0m"

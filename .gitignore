@@ -7,3 +7,4 @@ __pycache__/
 /tests/basic-2/horse_modules/core.horse64.org/
 /tests/args/horse_modules/core.horse64.org/
 /tests/rescue/horse_modules/core.horse64.org/
+/tests/inlinefunc/horse_modules/core.horse64.org/
