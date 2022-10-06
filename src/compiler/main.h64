@@ -75,7 +75,7 @@ func main {
         "compile, run. To see details for an action, use it with --help "
         "like e.g.: horse compile --help")
     defs.add_catchall(
-        "action params", description="List of "
+        "action args", description="List of "
         "arguments for the specified action")
     defs.add_switch(
         "--license",
@@ -91,7 +91,7 @@ func main {
         return result.exit_code
     }
     if result.args["action"] == "compile" {
-        return actionparser_compile(result.args["action params"])
+        return actionparser_compile(result.args["action args"])
     } else {
         print("horsec: error: unknown action: " + result.args["action"])
         print("Use horsec --help to show usage.")

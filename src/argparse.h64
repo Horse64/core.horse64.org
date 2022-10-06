@@ -137,7 +137,8 @@ type ArgumentDefs {
 
 ## @param program_name str (Optional) The name of your command
 ##   line program, should match what the actual name of the binary
-##   is that the user types. If unspecified, it will be auto-detected.
+##   is that the user would write to run the command.
+##   If unspecified, it will be auto-detected.
 func ArgumentDefs.init(program_name=none) {
     # Sanitize and guess the program name for this arguments set:
     if program_name != none and typename(program_name) != "str" {

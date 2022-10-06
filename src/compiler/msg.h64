@@ -27,7 +27,7 @@
 
 
 type FileMsg {
-    ## @types compiler.project.ProjectFile, none
+    ## @types (compiler.project.ProjectFile, none)
     var source_file
     var variant = "error"
     var line = -1

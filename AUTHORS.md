@@ -1,4 +1,3 @@
-
 # Horse64 Authors
 
 This is the Horse64 Team which created Horse64,

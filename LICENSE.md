@@ -7,9 +7,8 @@ too.)*
 
 ## License
 
-Files outside of the `logo` and `vendor` folders are, unless
-indicated otherwise in the file, licensed under the following
-**BSD-2-Clause license**:
+Files outside of the `logo` and `vendor` folders are, unless indicated
+otherwise, licensed under the following **BSD-2-Clause license**:
 
 ```
 Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
@@ -38,7 +37,7 @@ POSSIBILITY OF SUCH DAMAGE.
 ```
 
 Alternatively, at your option, files outside of the `logo` and `vendor`
-folders are, unless indicated otherwise in the file, also offered under the
+folders are, unless indicated otherwise, also offered under the
 following **Apache 2 License**:
 
 ```

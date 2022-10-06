@@ -117,6 +117,8 @@ remapped_uses = {
         "math.round": "_translator_runtime_helpers._math_round",
     },
     "net.fetch@core.horse64.org": {
+        "net.fetch.lookup_name":
+            "_translator_runtime_helpers._net_fetch_lookup_name",
         "net.fetch.get":
             "_translator_runtime_helpers._net_fetch_get",
     },
@@ -139,7 +141,12 @@ remapped_uses = {
         "system.program_version":
             "(lambda: _translated_program_version)",
         "system.self_exec_path" :
-            "(lambda: _translated_program_main_script_file)",
+            "(lambda: _translated_program_main_script_file." +
+            "rpartition(\".h64\")[0])",
+    },
+    "text@core.horse64.org": {
+        "text.codes":
+            "(lambda x: [int(ord(x))])",
     },
     "uri@core.horse64.org": {
         "uri.normalize":

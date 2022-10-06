@@ -27,7 +27,7 @@
 
 
 type ProjectFile {
-    ## types str or none
+    ## types (str or none)
     var source_uri
 }
 
