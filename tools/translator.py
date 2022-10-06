@@ -49,6 +49,7 @@ from translator_syntaxhelpers import (
     is_whitespace_token, get_next_token,
     split_toplevel_statements,
     get_next_statement,
+    sanity_check_h64_codestring
 )
 
 translator_py_script_dir = (
@@ -1646,6 +1647,8 @@ if __name__ == "__main__":
         contents = None
         with open(target_file, "r", encoding="utf-8") as f:
             contents = f.read()
+        sanity_check_h64_codestring(contents, modname=modname,
+            filename=target_file)
         contents_result = (
             translate(contents, modname, package_name,
                 folder_path=modfolder,

@@ -285,4 +285,37 @@ def untokenize(tokens):
     return result
 
 
-
+def sanity_check_h64_codestring(s, filename="", modname=""):
+    tokens = tokenize(s.replace("\r\n", "\n").replace("\r", "\n"))
+    col = 1
+    line = 1
+    bracket_nesting = []
+    i = -1
+    for token in tokens:
+        i += 1
+        if token in {"(", "{", "["}:
+            bracket_nesting.append(token)
+        elif token in {")", "}", "]"}:
+            reverse_bracket = "("
+            if token == "}":
+                reverse_bracket = "{"
+            elif token == "]":
+                reverse_bracket = "["
+            if (len(bracket_nesting) == 0 or
+                    bracket_nesting[-1] != reverse_bracket):
+                raise ValueError(("" if (modname == "" or
+                    modname == None) else ("in module " +
+                    str(modname) + " ")) +
+                    ("" if (filename == "" or
+                    filename == None) else ("in file " +
+                    str(filename) + " ")) +
+                    "in line " + str(line) + ", col " + str(col) + ": " +
+                    "unexpected unmatched closing bracket '" +
+                    str(token) + "'")
+            bracket_nesting = bracket_nesting[:-1]
+        if "\n" in token:
+            token_per_line = token.split("\n")
+            line += len(token_per_line) - 1
+            col = 1 + len(token_per_line[-1])
+        else:
+            col += len(token)
