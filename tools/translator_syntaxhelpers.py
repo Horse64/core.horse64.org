@@ -46,7 +46,8 @@ translator_py_script_path = os.path.abspath(__file__)
 def could_be_identifier(x):
     if (len(x) == 0 or (x[0] != "_" and
             (ord(x[0]) < ord("a") or ord(x[0]) > ord("z")) and
-            (ord(x[0]) < ord("A") or ord(x[0]) > ord("Z")))):
+            (ord(x[0]) < ord("A") or ord(x[0]) > ord("Z")) and
+            ord(x[0]) <= 127)):
         return False
     if x in {"if", "func", "import", "else",
             "type", "do", "rescue", "finally",
@@ -54,6 +55,22 @@ def could_be_identifier(x):
             "var", "const", "elseif", "while",
             "for", "in", "not", "and", "or"}:
         return False
+    return True
+
+
+def identifier_or_keyword(x):
+    if x == "" or type(x) != str:
+        return False
+    i = 0
+    while i < len(x):
+        if (x[i] != "_" and
+                (ord(x[i]) < ord("a") or ord(x[i]) > ord("z")) and
+                (ord(x[i]) < ord("A") or ord(x[i]) > ord("Z")) and
+                (ord(x[i]) < ord("0") or ord(x[i]) < ord("9")
+                 or i == 0) and
+                ord(x[i]) <= 127):
+            return False
+        i += 1
     return True
 
 
@@ -179,6 +196,404 @@ def get_next_token(s):
     return s[:1]
 
 
+def get_statement_ranges_ex(t,
+        range_type="expr"):
+    result = []
+    assert(type(t) in {list, tuple})
+    i = 0
+    while (i < len(t) and
+            t[i].strip(" \r\n\t") == ""):
+        i += 1
+    if i >= len(t):
+        return []
+    if (t[i] in {"type"}):
+        if range_type == "block":
+            while (i < len(t) and
+                    t[i] != "{"):
+                i += 1
+            if t[i] != "{":
+                return []
+            i += 1
+            block_start = i
+            bracket_depth = 0
+            while (i < len(t) and
+                    (t[i] != "}" or
+                    bracket_depth > 0)):
+                if t[i] in {"[", "(", "{"}:
+                    bracket_depth += 1
+                elif t[i] in {"]", ")", "}"}:
+                    bracket_depth -= 1
+                i += 1
+            if i > len(t) or t[i] != "}":
+                return []
+            return [[block_start, i]]
+        return []
+    if (t[i] in {"func", "while", "for",
+            "do", "with", "if"}):
+        stmt_type = t[i]
+        i += 1  # Past statement's main keyword.
+        if stmt_type != "if" and stmt_type != "while":
+            # (For "if"/"while", keep whitespace in expression.)
+            while (i < len(t) and
+                    t[i].strip(" \r\n\t") == ""):
+                i += 1
+        if (stmt_type == "do" and
+                range_type == "block"):
+            if t[i] != "{":
+                return []
+            i += 1  # Past '{' opening bracket.
+            block_start = i
+            bracket_depth = 0
+            while (i < len(t) and
+                    (t[i] != "}" or
+                    bracket_depth > 0)):
+                if t[i] in {"[", "(", "{"}:
+                    bracket_depth += 1
+                elif t[i] in {"]", ")", "}"}:
+                    bracket_depth -= 1
+                i += 1
+            if i > len(t) or t[i] != "}":
+                return []
+            result.append([[block_start, i]])
+            i += 1  # Past '}' closing bracket.
+            while (i < len(t) and
+                    t[i].strip(" \r\n\t") == ""):
+                i += 1
+            if i >= len(t):
+                return result
+            if t[i] == "rescue":
+                i += 1  # Past 'rescue' keyword.
+                bracket_depth = 0
+                while (i < len(t) and
+                        (t[i] != "as" or
+                        bracket_depth > 0)):
+                    if t[i] in {"[", "(", "{"}:
+                        bracket_depth += 1
+                    elif t[i] in {"]", ")", "}"}:
+                        bracket_depth -= 1
+                    i += 1
+                while (i < len(t) and
+                        (t[i] != "{" or
+                        bracket_depth > 0)):
+                    if t[i] in {"[", "(", "{"}:
+                        bracket_depth += 1
+                    elif t[i] in {"]", ")", "}"}:
+                        bracket_depth -= 1
+                    i += 1
+                if i >= len(t):
+                    return result
+                assert(t[i] == "{")
+                i += 1  # Past '{' opening bracket.
+                block_start = i
+                bracket_depth = 0
+                while (i < len(t) and
+                        (t[i] != "}" or
+                        bracket_depth > 0)):
+                    if t[i] in {"[", "(", "{"}:
+                        bracket_depth += 1
+                    elif t[i] in {"]", ")", "}"}:
+                        bracket_depth -= 1
+                    i += 1
+                if i >= len(t):
+                    return result
+                assert(t[i] == "}")
+                result.append([block_start, i, "rescue"])
+                i += 1  # Past '}" closing bracket.
+            if t[i] == "finally":
+                i += 1  # Past 'finally' keyword.
+                bracket_depth = 0
+                while (i < len(t) and
+                        (t[i] != "{" or
+                        bracket_depth > 0)):
+                    if t[i] in {"[", "(", "{"}:
+                        bracket_depth += 1
+                    elif t[i] in {"]", ")", "}"}:
+                        bracket_depth -= 1
+                    i += 1
+                if i >= len(t):
+                    return result
+                assert(t[i] == "{")
+                i += 1  # Past '{' opening bracket.
+                block_start = i
+                bracket_depth = 0
+                while (i < len(t) and
+                        (t[i] != "}" or
+                        bracket_depth > 0)):
+                    if t[i] in {"[", "(", "{"}:
+                        bracket_depth += 1
+                    elif t[i] in {"]", ")", "}"}:
+                        bracket_depth -= 1
+                    i += 1
+                if i >= len(t):
+                    return result
+                assert(t[i] == "}")
+                result.append([block_start, i, "finally"])
+                i += 1  # Past '}" closing bracket.
+            return result
+        if (stmt_type == "do" and
+                range_type == "expr"):
+            # Skip until 'rescue' keyword (since
+            # nothing else directly has expressions):
+            bracket_depth = 0
+            while (i < len(t) and
+                    (t[i] != "rescue" or
+                    bracket_depth > 0)):
+                if t[i] in {"[", "(", "{"}:
+                    bracket_depth += 1
+                elif t[i] in {"]", ")", "}"}:
+                    bracket_depth -= 1
+                i += 1
+            if i >= len(t):
+                return []
+            i += 1  # Past 'rescue' keyword.
+            while (i < len(t) and
+                    t[i].strip(" \r\n\t") == ""):
+                i += 1
+            # Fall through, code after collects expression.
+        elif stmt_type == "for":
+            # Skip until 'in' keyword:
+            bracket_depth = 0
+            while (i < len(t) and
+                    (t[i] != "in" or
+                    bracket_depth > 0)):
+                if t[i] in {"[", "(", "{"}:
+                    bracket_depth += 1
+                elif t[i] in {"]", ")", "}"}:
+                    bracket_depth -= 1
+                i += 1
+            if i >= len(t):
+                return []
+            i += 1  # Past 'in' keyword.
+            while (i < len(t) and
+                    t[i].strip(" \r\n\t") == ""):
+                i += 1
+            # Fall through, code after collects expression or block.
+        elif stmt_type == "func":
+            # Skip over dots in function name (for types)
+            while (i + 1 < len(t) and
+                    could_be_identifier(t[i]) and
+                    t[i + 1] == "."):
+                i += 2
+                while (i < len(t) and
+                        t[i].strip(" \r\n\t") == ""):
+                    i += 1
+            if (i >= len(t) or
+                    not could_be_identifier(t[i])):
+                # Shouldn't happen if this was valid.
+                return []
+            i += 1  # Past identifier.
+            while (i < len(t) and
+                    t[i].strip(" \r\n\t") == ""):
+                i += 1
+            if (i >= len(t) or t[i] == "{"):
+                # No parameters expression.
+                return []
+            # Fall through, block after collects expression or block.
+        expr_start = i
+        previous_nonwhitespace_token = ""
+        bracket_depth = 0
+        while (i < len(t) and
+                ((stmt_type == "with" and t[i] != "as") or
+                (stmt_type != "with" and (t[i] != "{" or
+                i == expr_start)) or (i > expr_start and
+                is_h64op_with_righthand(
+                    previous_nonwhitespace_token)) or
+                bracket_depth > 0 or
+                previous_nonwhitespace_token == "")):
+            if t[i].strip(" \r\n\t") != "":
+                previous_nonwhitespace_token = t[i]
+            if t[i] in {"[", "(", "{"}:
+                bracket_depth += 1
+            elif t[i] in {"]", ")", "}"}:
+                bracket_depth -= 1
+            i += 1
+        if stmt_type != "if" and range_type == "expr":
+            if i < len(t):
+                return ([[expr_start, i]])
+            return []
+        elif range_type == "block":
+            if stmt_type == "with":
+                # We're at 'as' keyword, forward to '{'.
+                while i < len(t) and t[i] != '{':
+                    i += 1
+            if i >= len(t):
+                return []
+            assert(t[i] == "{")
+            i += 1  # Past '{' opening bracket.
+            block_start = i
+            bracket_depth = 0
+            while (i < len(t) and
+                    (t[i] != "}" or
+                    bracket_depth > 0)):
+                if t[i] in {"[", "(", "{"}:
+                    bracket_depth += 1
+                elif t[i] in {"]", ")", "}"}:
+                    bracket_depth -= 1
+                i += 1
+            if i >= len(t):
+                return []
+            assert(t[i] == "}")
+            result.append([block_start, i])
+            if stmt_type != "if":
+                return result
+            i += 1  # Past '}' closing bracket.
+        else:
+            assert(stmt_type == "if" and
+                range_type == "expr")
+            result = [[expr_start, i]]
+        assert(stmt_type == "if")  # Everything else handled above.
+        # Scan for any elseif/else:
+        while True:
+            if i >= len(t):
+                return result
+            bracket_depth = 0
+            while (i < len(t) and (
+                    (t[i] != "elseif" and
+                    t[i] != "else") or
+                    bracket_depth > 0)):
+                if t[i] in {"[", "(", "{"}:
+                    bracket_depth += 1
+                elif t[i] in {"]", ")", "}"}:
+                    bracket_depth -= 1
+                i += 1
+            if i >= len(t) or (t[i] == "else" and
+                    range_type == "expr"):
+                return result
+            is_elseif = (t[i] == "elseif")
+            i += 1  # Past 'elseif'/'else keyword.
+            expr_start = i
+            while (i < len(t) and
+                    t[i].strip(" \r\n\t") == ""):
+                i += 1
+            if is_elseif:
+                while (i < len(t) and
+                        (t[i] != "{" or i == expr_start or
+                        is_h64op_with_righthand(t[i - 1]) or
+                        bracket_depth > 0)):
+                    if t[i] in {"[", "(", "{"}:
+                        bracket_depth += 1
+                    elif t[i] in {"]", ")", "}"}:
+                        bracket_depth -= 1
+                    i += 1
+            if i >= len(t) or t[i] != "{":
+                return result
+            expr_end = i - 1
+            i += 1  # Past '{' opening bracket.
+            if range_type == "expr":
+                result.append([expr_start, expr_end + 1])
+            block_start = i
+            bracket_depth = 0
+            while (i < len(t) and
+                    (t[i] != "}" or
+                    bracket_depth > 0)):
+                if t[i] in {"[", "(", "{"}:
+                    bracket_depth += 1
+                elif t[i] in {"]", ")", "}"}:
+                    bracket_depth -= 1
+                i += 1
+            if i >= len(t):
+                return result
+            assert(t[i] == '}')
+            if range_type == "block":
+                result.append([block_start, i])
+            if not is_elseif:
+                # Was an 'else', so we have to stop.
+                return result
+            i += 1  # Past '}' closing bracket
+            continue  # Search for further 'elseif' blocks.
+    if t[i] in {"const", "var"}:
+        if range_type == "block":
+            return []
+        while (i < len(t) and
+                t[i] != "="):
+            i += 1
+        if i < len(t) and t[i] == "=":
+            return [i + 1, i]
+        return []
+    # General unrecognized statement.
+    return [[0, len(t)]]
+
+
+def get_statement_expr_ranges(t):
+    return get_statement_ranges_ex(
+        t, range_type="expr")
+
+
+def get_statement_block_ranges(t):
+    ranges = get_statement_ranges_ex(
+        t, range_type="block")
+    return ranges
+
+
+def nextnonblank(t, idx, no=1):
+    while no > 0:
+        idx += 1
+        while (idx < len(t) and
+                t[idx].strip(" \r\n\t") == ""):
+            idx += 1
+        no -= 1
+    if idx >= len(t):
+        return ""
+    return t[idx]
+
+
+def prevnonblank(t, idx, no=1):
+    while no > 0:
+        idx -= 1
+        while (idx >= 0 and
+                t[idx].strip(" \r\n\t") == ""):
+            idx -= 1
+        no -= 1
+    if idx < 0:
+        return ""
+    return t[idx]
+
+
+def get_statement_inline_funcs(t):
+    assert(type(t) in {list, tuple})
+    ranges = get_statement_expr_ranges(t)
+    result = []
+    for expr_range in ranges:
+        assert(expr_range[0] >= 0 and
+            expr_range[1] >= expr_range[0] and
+            expr_range[1] <= len(t))
+        i = expr_range[0]
+        while i < expr_range[1]:
+            if t[i] != "func":
+                i += 1
+                continue
+            func_start = i
+            bracket_depth = 0
+            while (i < len(t) and
+                    i < expr_range[1] - 1 and
+                    (t[i] != "{" or bracket_depth > 0 or
+                    (i > func_start and
+                    is_h64op_with_righthand(
+                        prevnonblank(t, i))))):
+                if t[i] in {"{", "(", "["}:
+                    bracket_depth += 1
+                elif t[i] in {"}", ")", "]"}:
+                    bracket_depth -= 1
+                i += 1
+            assert(t[i] == "{")
+            body_opening_bracket = i
+            i += 1  # Past '{' opening bracket.
+            bracket_depth = 0
+            while i < len(t) and (bracket_depth > 0 or
+                    t[i] != "}") and i < expr_range[1]:
+                if t[i] in {"{", "(", "["}:
+                    bracket_depth += 1
+                elif t[i] in {"}", ")", "]"}:
+                    bracket_depth -= 1
+                i += 1
+            assert(t[i] == "}")
+            result.append([func_start,
+                body_opening_bracket, i + 1])
+            i += 1
+            continue
+    return result
+
+
 def tokenize(s):
     tokens = []
     while len(s) > 0:
@@ -190,12 +605,37 @@ def tokenize(s):
     return tokens
 
 
-def is_h64_operator(v):
+def is_h64op_with_righthand(v):
     if v in {"and", "or", "not", "+", "-", "*", "/",
             ">", "<", "->", ".", "!=", "=", "=="}:
         return True
     if len(v) == 2 and v[1] == "=":
         return True
+    return False
+
+
+def has_no_ascii_letters(v):
+    if v == "":
+        return True
+    v = v.lower()
+    i = 0
+    while i < len(v):
+        if (ord(v[i]) >= ord("a") and
+                ord(v[i]) <= ord("z")):
+            return False
+        i += 1
+    return True
+
+
+def has_any_ascii_letters(v):
+    if v == "":
+        return False
+    v = v.lower()
+    i = 0
+    while i < len(v):
+        if (ord(v[i]) >= ord("a") and
+                ord(v[i]) <= ord("z")):
+            return True
     return False
 
 
@@ -220,12 +660,12 @@ def get_next_statement(s):
             if j >= len(s):
                 return s
             if (not s[j] in {"rescue", "finally", "elseif",
-                    "else"} and not is_h64_operator(s[j]) and
+                    "else"} and not is_h64op_with_righthand(s[j]) and
                     not s[j] in {"(", "{", "["}):
                 return s[:token_count + 1]
         if (bracket_nesting == 0 and
                 (t.endswith("\n") or t.endswith("\r")) and
-                not is_h64_operator(last_nonwhitespace_token)
+                not is_h64op_with_righthand(last_nonwhitespace_token)
                 ):
             is_string_continuation = False
             if (last_nonwhitespace_token.endswith("\"") or
@@ -266,6 +706,38 @@ def split_toplevel_statements(s):
     return statements
 
 
+def is_bracket(v):
+    return v in {"(", "[", "{",
+        "}", "]", ")"}
+
+
+def tokens_need_spacing(v1, v2):
+    if v1 == "" or v2 == "":
+        return False
+    if (is_whitespace_token(v1) or
+            is_whitespace_token(v2)):
+        return False
+    if is_bracket(v1) or is_bracket(v2):
+        return False
+    if v1 == "." or v2 == ".":
+        return False
+    if (identifier_or_keyword(v1) and
+            identifier_or_keyword(v2)):
+        return True
+    if (not is_h64op_with_righthand(v1) and
+            not is_h64op_with_righthand(v2)) and (
+            has_no_ascii_letters(v1) and
+            has_no_ascii_letters(v2)
+            ):
+        return False
+    if v2 == "->":
+        return False
+    if (len(v1) == 2 and not has_any_ascii_letters(v1) and
+            len(v2) == 2 and not has_any_ascii_leters(v2)):
+        return False
+    return True
+
+
 def untokenize(tokens):
     assert(type(tokens) in {list, tuple})
     result = ""
@@ -273,12 +745,7 @@ def untokenize(tokens):
     for token in tokens:
         assert(type(token) == str)
         if prevtoken != "" and \
-                prevtoken not in {".", "(", "[", "{",
-                    "}", "]", ")", ","} and \
-                token not in {".", ",", "(", "[", "{",
-                    "}", "]", ")", "\\"} and \
-                not is_whitespace_token(token) and \
-                not is_whitespace_token(prevtoken):
+                tokens_need_spacing(prevtoken, token):
             result += " "
         result += token
         prevtoken = token
