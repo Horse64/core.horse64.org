@@ -26,6 +26,13 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+# !!!!!!!!! HEED THIS WARNING !!!!!!!!!
+HACKY_WARNING=(
+    "THIS TOOL (tools/translator.py) ONLY SUPPORTS A SUBSET OF " +
+    "HORSE64 AND WILL OTHERWISE CRASH AND BURN. IT WON'T CATCH MANY " +
+    "CODE ERRORS AND JUST EXPLODE OR RUN IT WRONG. " +
+    "If you can, really use the official compiler horsec.")
+
 VERSION="unknown"
 
 import math
@@ -1469,6 +1476,8 @@ if __name__ == "__main__":
             if args[i] == "--help":
                 print("Usage: translator.py [(optional) options...] "
                       "path-to/h64-file.h64")
+                print("\n" + "\n".join(textwrap.wrap(
+                    HACKY_WARNING.strip(), width=70)) + "\n")
                 print("Options:")
                 print("    --help        Show this help text")
                 print("    --keep-files  Keep translated files and ")
