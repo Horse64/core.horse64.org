@@ -33,6 +33,16 @@ func oopsie_func(v) {
 }
 
 
+type ToCloseObj {
+    var closed = no
+}
+
+
+func ToCloseObj.close {
+    self.closed = yes
+}
+
+
 func main {
     var x = 1
     do {
@@ -59,4 +69,10 @@ func main {
     assert(x == 16)
     x = oopsie_func(x)
     assert(x == 17)
+
+    # Test that with blocks also work:
+    with new ToCloseObj() as f {
+        assert(not f.closed)
+    }  # End bracket should call f.close()
+    assert(f.closed)
 }
