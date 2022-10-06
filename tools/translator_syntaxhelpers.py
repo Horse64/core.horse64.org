@@ -190,6 +190,15 @@ def tokenize(s):
     return tokens
 
 
+def is_h64_operator(v):
+    if v in {"and", "or", "not", "+", "-", "*", "/",
+            ">", "<", "->", ".", "!=", "=", "=="}:
+        return True
+    if len(v) == 2 and v[1] == "=":
+        return True
+    return False
+
+
 def get_next_statement(s):
     if len(s) == 0:
         return []
@@ -203,11 +212,21 @@ def get_next_statement(s):
         if t in [")", "]", "}"]:
             bracket_nesting -= 1
         if (bracket_nesting == 0 and
+                t == "}"):
+            j = token_count
+            while (j < len(s) and
+                    s[j].strip(" \r\n\t") == ""):
+                j += 1
+            if j >= len(s):
+                return s
+            if (not s[j] in {"rescue", "finally", "elseif",
+                    "else"} and not is_h64_operator(s[j]) and
+                    not s[j] in {"(", "{", "["}):
+                return s[:token_count + 1]
+        if (bracket_nesting == 0 and
                 (t.endswith("\n") or t.endswith("\r")) and
-                last_nonwhitespace_token not in {
-                    "and", "or", "not", "+", "-", "*", "/",
-                    ">", "<", "->", "."
-                } and not last_nonwhitespace_token.endswith("=")):
+                not is_h64_operator(last_nonwhitespace_token)
+                ):
             is_string_continuation = False
             if (last_nonwhitespace_token.endswith("\"") or
                     last_nonwhitespace_token.endswith("'")):

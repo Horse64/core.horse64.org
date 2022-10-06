@@ -1,7 +1,11 @@
 
 test-translator:
-	@echo -e "\033[95;40mTesting the bootstrap translator...\033[0m"
-	# wipe our horse_modules copies:
+	# Unit tests for bootstrap translator:
+	@echo -e "\033[95;40mTest via bootstrap translator unit tests...\033[0m"
+	python -m unittest discover tools 'test*.py'
+	# Regular test suite from here:
+	@echo -e "\033[95;40mTesting the bootstrap translator with full test suite...\033[0m"
+	# Wipe our horse_modules copies:
 	rm -rf ./tests/basic-1/horse_modules/core.horse64.org/
 	rm -rf ./tests/basic-2/horse_modules/core.horse64.org/
 	rm -rf ./tests/args/horse_modules/core.horse64.org/
