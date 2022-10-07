@@ -252,9 +252,9 @@ func ArgumentDefs.add_arg(name, optional=no, description=none) {
         name, is_switch=no, description=description,
         takes_arg=(if optional ("optional") else (yes))
     ))
-    if self.args[self.args.len - 1].positional {
+    if self.args[self.args.len].positional {
         self.max_positional_args += 1
-        if not self.args[self.args.len - 1].optional {
+        if not self.args[self.args.len].optional {
             self.min_positional_args += 1
         }
     }
@@ -550,8 +550,8 @@ func parse(argument_defs, args=none) {
     # (We need the total in advance to handle optional ones right)
     var double_dash_idx = none
     var positional_args_total = 0
-    var i = 0
-    while i < args.len {
+    var i = 1
+    while i <= args.len {
         var argstr = args[i]
         if not args[i].starts("-") or
                 (double_dash_idx != none and
@@ -580,8 +580,8 @@ func parse(argument_defs, args=none) {
     # go into it)
     var catchall_start_index = none
     var _posarg_no = 0
-    i = 0
-    while i < args.len {
+    i = 1
+    while i <= args.len {
         var argstr = args[i]
         if (not args[i].starts("-") or
                 (double_dash_idx != none and
@@ -637,9 +637,9 @@ func parse(argument_defs, args=none) {
     }
     # Remove double dash from args list to not confuse later code:
     if double_dash_idx != none {
-        assert(double_dash_idx >= 0 and
-            double_dash_idx < args.len)
-        args = args.sub(0, double_dash_idx) +
+        assert(double_dash_idx >= 1 and
+            double_dash_idx <= args.len)
+        args = args.sub(1, double_dash_idx - 1) +
             args.sub(double_dash_idx + 1)
         if catchall_start_index != none and
                 catchall_start_index > double_dash_idx {
@@ -654,8 +654,8 @@ func parse(argument_defs, args=none) {
 
     # Extract all arguments now:
     posargs_seen = 0
-    var i = 0
-    while i < args.len {
+    var i = 1
+    while i <= args.len {
         var argstr = args[i]
         if (not args[i].starts("-")) or (catchall_start_index != none and
                 i >= catchall_start_index) or
