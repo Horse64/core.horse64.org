@@ -575,6 +575,18 @@ def nextnonblank(t, idx, no=1):
     return t[idx]
 
 
+def nextnonblankidx(t, idx, no=1):
+    while no > 0:
+        idx += 1
+        while (idx < len(t) and
+                t[idx].strip(" \r\n\t") == ""):
+            idx += 1
+        no -= 1
+    if idx >= len(t):
+        return -1
+    return idx
+
+
 def prevnonblank(t, idx, no=1):
     while no > 0:
         idx -= 1
@@ -585,6 +597,18 @@ def prevnonblank(t, idx, no=1):
     if idx < 0:
         return ""
     return t[idx]
+
+
+def prevnonblankidx(t, idx, no=1):
+    while no > 0:
+        idx -= 1
+        while (idx >= 0 and
+                t[idx].strip(" \r\n\t") == ""):
+            idx -= 1
+        no -= 1
+    if idx < 0:
+        return -1
+    return idx
 
 
 def get_statement_inline_funcs(t):
@@ -676,6 +700,7 @@ def has_any_ascii_letters(v):
         if (ord(v[i]) >= ord("a") and
                 ord(v[i]) <= ord("z")):
             return True
+        i += 1
     return False
 
 
