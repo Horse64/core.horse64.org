@@ -158,18 +158,22 @@ def _container_join(container, *args, **kwargs):
 
 
 def _container_find(container, *args, **kwargs):
-    if type(container) == str and len(args) == 1:
+    if (type(container) in {str, bytes} and
+            len(args) == 1):
         result = container.find(args[0])
         if result < 0:
             return None
-        return result
-    if (hasattr(container, "find") and
-            type(container) != list) or len(args) < 1:
-        return container.find(*args, **kwargs)
-    try:
-        return container.index(args[0])
-    except ValueError:
-        return None
+        return result + 1
+    if (type(container) in {tuple, list} and
+            len(args) == 1):
+        try:
+            result = container.index(args[0])
+            if result < 0:
+                return None
+            return result + 1
+        except ValueError:
+            return None
+    return container.find(*args, **kwargs)
 
 
 def _container_sub(container, *args, **kwargs):
@@ -183,15 +187,14 @@ def _container_sub(container, *args, **kwargs):
         if (type(i1) not in {float, int} and
                 type(i2) not in {float, int}):
             raise TypeError("indexes must be type num")
-        i1 = max(0, i1)
-        i2 = max(i1, i2)
-        if i2 <= i1:
+        i1 = max(1, i1)
+        if i2 < i1:
             if type(container) == bytes:
                 return b""
             if type(container) == list:
                 return []
             return ""
-        return container[i1:i2]
+        return container[i1 - 1:i2]
     return container.sub(*args, **kwargs)
 
 

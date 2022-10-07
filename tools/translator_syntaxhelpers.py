@@ -44,19 +44,14 @@ translator_py_script_dir = (
 translator_py_script_path = os.path.abspath(__file__)
 
 
-def could_be_identifier(x):
-    if (len(x) == 0 or (x[0] != "_" and
-            (ord(x[0]) < ord("a") or ord(x[0]) > ord("z")) and
-            (ord(x[0]) < ord("A") or ord(x[0]) > ord("Z")) and
-            ord(x[0]) <= 127)):
-        return False
+def is_keyword(x):
     if x in {"if", "func", "import", "else",
             "type", "do", "rescue", "finally",
-            "from",
+            "from", "as", "extends",
             "var", "const", "elseif", "while",
             "for", "in", "not", "and", "or"}:
-        return False
-    return True
+        return True
+    return False
 
 
 def identifier_or_keyword(x):
@@ -67,12 +62,17 @@ def identifier_or_keyword(x):
         if (x[i] != "_" and
                 (ord(x[i]) < ord("a") or ord(x[i]) > ord("z")) and
                 (ord(x[i]) < ord("A") or ord(x[i]) > ord("Z")) and
-                (ord(x[i]) < ord("0") or ord(x[i]) < ord("9")
+                (ord(x[i]) < ord("0") or ord(x[i]) > ord("9")
                  or i == 0) and
                 ord(x[i]) <= 127):
             return False
         i += 1
     return True
+
+
+def is_identifier(v):
+    return (identifier_or_keyword(v) and
+        not is_keyword(v))
 
 
 def as_escaped_code_string(s):
@@ -381,7 +381,7 @@ def get_statement_ranges_ex(t,
         elif stmt_type == "func":
             # Skip over dots in function name (for types)
             while (i + 1 < len(t) and
-                    could_be_identifier(t[i]) and
+                    is_identifier(t[i]) and
                     nextnonblank(t, i) == "."):
                 i += 1  # the identifier
                 while (i < len(t) and
@@ -392,7 +392,7 @@ def get_statement_ranges_ex(t,
                         t[i].strip(" \r\n\t") == ""):
                     i += 1
             if (i >= len(t) or
-                    not could_be_identifier(t[i])):
+                    not is_identifier(t[i])):
                 # Shouldn't happen if this was valid.
                 return []
             i += 1  # Past identifier.
@@ -597,6 +597,84 @@ def prevnonblank(t, idx, no=1):
     if idx < 0:
         return ""
     return t[idx]
+
+
+def expr_nonblank_equals(v1, v2):
+    if type(v1) == str:
+        v1 = tokenize(v1)
+    if type(v2) == str:
+        v2 = tokenize(v2)
+    i1 = 0
+    i2 = 0
+    while True:
+        while (i1 < len(v1) and
+                is_whitespace_token(v1[i1])):
+            i1 += 1
+        while (i2 < len(v2) and
+                is_whitespace_token(v2[i2])):
+            i2 += 1
+        if i1 >= len(v1):
+            return (i2 >= len(v2))
+        elif i2 >= len(v2):
+            return False
+        if (v1[i1] != v2[i2]):
+            return False
+        i1 += 1
+        i2 += 1
+
+
+def find_start_of_call_index_chain(s, i):
+    while (i >= 0 and
+            is_whitespace_token(s)):
+        i -= 1
+    if i < 0:
+        return 0
+    while True:
+        if is_identifier(s[i]):
+            if prevnonblank(s, i) == ".":
+                i = prevnonblankidx(s, i, no=2)
+                if i < 0:
+                    return 0
+                continue
+            return i
+        if s[i] in {"[", "{", "("}:
+            return i + 1
+        if s[i] == "]" or s[i] == ")" or s[i] == "}":
+            endbracket = "["
+            if s[i] == ")":
+                endbracket = "("
+            elif s[i] == "}":
+                endbracket = "{"
+            bracket_depth = 0
+            while (i >= 0 and
+                    (s[i] != endbracket or
+                    bracket_depth > 0)):
+                if s[i] in {"]", ")", "}"}:
+                    bracket_depth += 1
+                elif s[i] in {"[", "(", "{"}:
+                    bracket_depth -= 1
+                    if bracket_depth <= 0:
+                        break
+                i -= 1
+            if i < 0 or s[i] != endbracket:
+                return 0
+            if (prevnonblank(s, i) in {")", "]"} or
+                    (endbracket == "[" and
+                    prevnonblank(s, i) in {"}"})):
+                i = prevnonblankidx(s, i)
+                continue
+            if (endbracket in {"(", "["} and
+                    is_identifier(prevnonblank(s, i))):
+                i = prevnonblankidx(s, i)
+                continue
+            return i
+        if (s[i].startswith("'") or
+                s[i].startswith("\"") or
+                s[i].startswith("b'") or
+                s[i].startswith("b\"") or
+                is_number_token(s[i])):
+            return i
+        return i + 1
 
 
 def is_number_token(v):
@@ -920,7 +998,7 @@ def get_global_standalone_func_names(s):
         while (i < len(statement) and
                 statement[i].strip(" \n\r\t") == ""):
             i += 1
-        if not could_be_identifier(statement[i]):
+        if not is_identifier(statement[i]):
             continue
         result.append(statement[i])
     return result
