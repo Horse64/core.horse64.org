@@ -151,6 +151,9 @@ remapped_uses = {
             "rpartition(\".h64\")[0])",
     },
     "text@core.horse64.org": {
+        "text.full_glyphs_in_sub":
+            "(lambda a, b, c: _translator_runtime_helpers."
+            "_container_sub(a, b, c))",
         "text.code":
             "(lambda x: int(ord(x)))",
     },

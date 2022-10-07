@@ -66,12 +66,12 @@ def transform_h64_misc_inline_to_python(s):
         while i < len(s):
             cmd = None
             if (prevnonblank(s, i) == "." and (
-                    s[i] in ("len") or (
+                    s[i] in ("len", "glyph_len") or (
                     s[i] in ("as_str", "to_num") and
                         nextnonblank(s, i) == "(" and
                         nextnonblank(s, i, no=2) == ")") or (
                     s[i] in ("add", "sort", "trim", "find",
-                        "join", "sub", "repeat") and
+                        "join", "glyph_sub", "sub", "repeat") and
                         nextnonblank(s, i) == "("
                     ))):
                 cmd = s[i]
@@ -84,7 +84,7 @@ def transform_h64_misc_inline_to_python(s):
                 continue
             replaced_one = True
             insert_call = ["str"]
-            if cmd == "len":
+            if cmd == "len" or cmd == "glyph_len":
                 insert_call = ["len"]
             elif cmd == "to_num":
                 insert_call = ["float"]
@@ -100,7 +100,7 @@ def transform_h64_misc_inline_to_python(s):
             elif cmd == "repeat":
                 insert_call = ["_translator_runtime_helpers",
                     ".", "_container_repeat"]
-            elif cmd == "sub":
+            elif cmd == "sub" or cmd == "glyph_sub":
                 insert_call = ["_translator_runtime_helpers",
                     ".", "_container_sub"]
             elif cmd == "find":
@@ -123,13 +123,13 @@ def transform_h64_misc_inline_to_python(s):
                 return False
             replaced_one = True
             old_s = s
-            if cmd in ("len"):
+            if cmd in ("len", "glyph_len"):
                 # Add in a ")":
                 s = s[:i - 1] + [")"] + s[i + 1:]
                 i -= 1
                 assert(s[i] == ")")
             elif cmd in ("add", "sort", "join", "find", "sub",
-                    "repeat", "trim"):
+                    "repeat", "trim", "glyph_sub"):
                 # Truncate "("/"]", ... and turn it to ",", ...
                 s = s[:i - 1] + [","] + s[i + 2:]
                 i -= 1
