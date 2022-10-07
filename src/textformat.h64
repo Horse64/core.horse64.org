@@ -26,26 +26,28 @@
 # license, see accompanied LICENSE.md.
 
 import math from core.horse64.org
+import text from core.horse64.org
 
 
 ## @func wrap
-## Wrap monospace text e.g. for orderly terminal output.
+## Wrap monospace text e.g. for orderly terminal output. It uses
+## @{str.glyph_len} internally to better handle international text.
 ##
 ## @returns str The text but wrapped and with prefixes applied, if any.
-## @param text str the text to be wrapped
-## @param length num The length of characters after which lines in
-##   the text should be wrapped
+## @param text str The text to be wrapped.
+## @param length num The length of glyphs after which lines in
+##   the text should be wrapped.
 ## @param all_lines_prefix str A prefix to add to all lines after
 ##   wrapping. The result will still fit the specified wrap length.
 ## @param later_lines_prefix str like all_lines_prefix, except it
 ##   it will only be applied to the 2nd and later lines, not the
 ##   first one.
-func wrap(text, length,
+func wrap(multiline_text, length,
         all_lines_prefix="",
         later_lines_prefix="",
         ) {
-    #print("textformat.wrap on: " + [s, length].as_str())
-    var s = text
+    # Some sanity checks:
+    var s = multiline_text
     if typename(length) != "num" or length <= 0 {
         raise ValueError("wrapped-to length must be positive number")
     }
@@ -55,16 +57,21 @@ func wrap(text, length,
         line_break = "\r\n"
     }
     s = s.replace("\r\n", "\n").replace("\r", "\n")
+
+    # Wrap the input text as often as required:
     var final_lines = []
     var is_first_line = yes
     while yes {
-        var line_length = length - all_lines_prefix.len
+        # Compute available line length given the prefixes:
+        var line_length = length - all_lines_prefix.glyph_len
         var prefix = all_lines_prefix + ""
         if not is_first_line {
-            line_length -= later_lines_prefix.len
+            line_length -= later_lines_prefix.glyph_len
             prefix = later_lines_prefix + prefix
         }
-        if s.len < line_length or s.len <= 1 {
+
+        if s.glyph_len < line_length or s.glyph_len <= 1 {
+            # What we have already fits into the requested wrap width.
             var remaining_lines_noprefix = s.split("\n")
             var remaining_lines = []
             for remaining_line in remaining_lines_noprefix {
@@ -73,24 +80,46 @@ func wrap(text, length,
             }
             final_lines += remaining_lines
             var result = final_lines.join(line_break)
-            #print("textformat.wrap result: " + result.as_str())
             return result
         }
-        var wrap_index = math.max(2, line_length)
-        var line_break_idx = s.find("\n")
-        if line_break_idx != none and
-                line_break_idx < wrap_index {
-            wrap_index = line_break_idx
+        # This is where we want to wrap at the latest, worst case:
+        var wrap_index = math.max(2,
+            text.full_glyphs_in_sub(
+                s, 1, line_length).len)
+
+        # Some helper info for figuring out a nicer wrap point:
+        var line_break_index = s.find("\n")
+        var s_half_glyphs = math.max(1, math.round(s.glyph_len / 2))
+        var s_half_glyphs_index = (
+            # (String index where we have exactly half the glyphs)
+            s.glyph_sub(1, s_half_glyphs).len
+        )
+        var s_two_glyph_index = (
+            # (String index after two full glyphs)
+            s.glyph_sub(1, 2).len
+        )
+
+        # If the line break fits the maximum worst case range, use it:
+        if line_break_index != none and
+                line_break_index < wrap_index {
+            wrap_index = line_break_index
         }
+
+        # Try if there's a nicer, closer wrap point than we have now:
         var k = wrap_index
-        while k > s.len / 2 and k > 2 {
-            if s[k] == " " or s[k] == "\n" or s[k] == "\t" {
+        while k > s_half_glyphs_index + 1 and
+                k > s_two_glyph_index + 1 {
+            if s[k] == " " or
+                    s[k] == "\n" or
+                    s[k] == "\t" {
                 wrap_index = k
                 break
             }
             k -= 1
         }
-        final_lines.add(prefix + s.sub(0, wrap_index))
+
+        # Do the wrap:
+        final_lines.add(prefix + s.sub(1, wrap_index))
         if s[wrap_index] == "\n" or s[wrap_index] == "\t" or
                 s[wrap_index] == "\r" or s[wrap_index] == " " {
             assert(wrap_index >= 1)
@@ -102,7 +131,6 @@ func wrap(text, length,
         is_first_line = no
     }
     var result = final_lines.join(line_break)
-    #print("textformat.wrap result: " + result.as_str())
     return result
 }
 

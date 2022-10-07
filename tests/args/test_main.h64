@@ -70,7 +70,7 @@ func test_args_things {
     assert(result.args["arg1"] == "--flubb")
     assert(result.args["arg2"] == "fleb")
     assert(result.args["trailingargs"].len == 1)
-    assert(result.args["trailingargs"][0] == "--flob")
+    assert(result.args["trailingargs"][1] == "--flob")
 
     result = argparse.parse(defs,
         ["--flob", "urgh", "orgh", "--", "test"])
@@ -78,8 +78,8 @@ func test_args_things {
     assert(result.args["arg1"] == "urgh")
     assert(result.args["arg2"] == "orgh")
     assert(result.args["trailingargs"].len == 2)
-    assert(result.args["trailingargs"][0] == "--")
-    assert(result.args["trailingargs"][1] == "test")
+    assert(result.args["trailingargs"][1] == "--")
+    assert(result.args["trailingargs"][2] == "test")
 
     result = argparse.parse(defs,
         ["--flob", "urgh", "--", "orgh", "--", "test"])
@@ -88,8 +88,8 @@ func test_args_things {
     assert(result.args["arg1"] == "urgh")
     assert(result.args["arg2"] == "orgh")
     assert(result.args["trailingargs"].len == 2)
-    assert(result.args["trailingargs"][0] == "--")
-    assert(result.args["trailingargs"][1] == "test")
+    assert(result.args["trailingargs"][1] == "--")
+    assert(result.args["trailingargs"][2] == "test")
 
     # Tests focused around a switch with parameter:
     defs = argparse.ArgumentDefs()
@@ -104,8 +104,8 @@ func test_args_things {
     assert(result.args["arg1"] == "urgh")
     assert(result.args["arg2"] == "orgh")
     assert(result.args["trailingargs"].len == 2)
-    assert(result.args["trailingargs"][0] == "--")
-    assert(result.args["trailingargs"][1] == "test")
+    assert(result.args["trailingargs"][1] == "--")
+    assert(result.args["trailingargs"][2] == "test")
 
     result = argparse.parse(defs,
         ["urgh", "--", "--flob", "--", "orgh", "test"])
@@ -114,9 +114,9 @@ func test_args_things {
     assert(result.args["arg1"] == "urgh")
     assert(result.args["arg2"] == "--flob")
     assert(result.args["trailingargs"].len == 3)
-    assert(result.args["trailingargs"][0] == "--")
-    assert(result.args["trailingargs"][1] == "orgh")
-    assert(result.args["trailingargs"][2] == "test")
+    assert(result.args["trailingargs"][1] == "--")
+    assert(result.args["trailingargs"][2] == "orgh")
+    assert(result.args["trailingargs"][3] == "test")
 
     result = argparse.parse(defs,
         ["urgh", "--flob", "--", "orgh", "test"])
@@ -129,7 +129,7 @@ func test_args_things {
     assert(result.args["arg1"] == "urgh")
     assert(result.args["arg2"] == "orgh")
     assert(result.args["trailingargs"].len == 1)
-    assert(result.args["trailingargs"][0] == "test")
+    assert(result.args["trailingargs"][1] == "test")
 
     # Tests with different with catchall but NO optional args:
     defs = argparse.ArgumentDefs()
@@ -145,28 +145,28 @@ func test_args_things {
     assert(result.args["--flib"] == 0)
     assert(result.args["arg1"] == "urgh")
     assert(result.args["trailingargs"].len == 5)
-    assert(result.args["trailingargs"][0] == "--flob")
+    assert(result.args["trailingargs"][1] == "--flob")
 
     result = argparse.parse(defs,
         ["--flob", "bla", "--", "--flib", "--flob", "test"])
     assert(result.exit_code == none)
     assert(result.args["--flob"].len == 1)
-    assert(result.args["--flob"][0] == "bla")
+    assert(result.args["--flob"][1] == "bla")
     assert(result.args["--flib"] == 0)
     assert(result.args["arg1"] == "--flib")
     assert(result.args["trailingargs"].len == 2)
-    assert(result.args["trailingargs"][0] == "--flob")
-    assert(result.args["trailingargs"][1] == "test")
+    assert(result.args["trailingargs"][1] == "--flob")
+    assert(result.args["trailingargs"][2] == "test")
 
     result = argparse.parse(defs,
         ["--flob", "bla", "--flib", "--", "--flob", "test"])
     assert(result.exit_code == none)
     assert(result.args["--flob"].len == 1)
-    assert(result.args["--flob"][0] == "bla")
+    assert(result.args["--flob"][1] == "bla")
     assert(result.args["--flib"] == 1)
     assert(result.args["arg1"] == "--flob")
     assert(result.args["trailingargs"].len == 1)
-    assert(result.args["trailingargs"][0] == "test")
+    assert(result.args["trailingargs"][1] == "test")
 
     # Tests around repeatable switches:
     defs = argparse.ArgumentDefs()
@@ -179,7 +179,7 @@ func test_args_things {
         ["--flob", "bla", "--flib", "--", "--flob", "test"])
     assert(result.exit_code == none)
     assert(result.args["--flob"].len == 1)
-    assert(result.args["--flob"][0] == "bla")
+    assert(result.args["--flob"][1] == "bla")
     assert(result.args["--flib"] == 1)
     assert(result.args["arg1"] == "--flob")
     assert(result.args["arg2"] == "test")
@@ -199,7 +199,7 @@ func test_args_things {
         ["--flob", "bla", "-f", "--", "--flob", "test"])
     assert(result.exit_code == none)
     assert(result.args["--flob"].len == 1)
-    assert(result.args["--flob"][0] == "bla")
+    assert(result.args["--flob"][1] == "bla")
     assert(result.args["--flib"] == yes)
     assert(result.args["arg1"] == "--flob")
     assert(result.args["arg2"] == "test")
@@ -208,7 +208,7 @@ func test_args_things {
         ["--flob", "bla", "-f", "--", "--flib", "test"])
     assert(result.exit_code == none)
     assert(result.args["--flob"].len == 1)
-    assert(result.args["--flob"][0] == "bla")
+    assert(result.args["--flob"][1] == "bla")
     assert(result.args["--flib"] == yes)
     assert(result.args["arg1"] == "--flib")
     assert(result.args["arg2"] == "test")
