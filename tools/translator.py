@@ -57,7 +57,8 @@ from translator_syntaxhelpers import (
     is_whitespace_token, get_next_token,
     split_toplevel_statements, nextnonblank,
     get_next_statement, prevnonblank,
-    sanity_check_h64_codestring
+    sanity_check_h64_codestring,
+    separate_out_inline_funcs
 )
 
 translator_py_script_dir = (
@@ -675,7 +676,11 @@ def translate(s, module_name, package_name, parent_statements=[],
         known_imports = {}
     folder_path = os.path.normpath(os.path.abspath(folder_path))
     result = ""
-    tokens = tokenize(s)
+    if type(s) != list or (len(s) > 0 and type(s[0]) != str):
+        assert(type(s) == str)
+        tokens = tokenize(s)
+    else:
+        tokens = s
     statements = split_toplevel_statements(tokens)
     for statement in statements:
         assert("_remapped_os" not in statement)
@@ -1711,6 +1716,10 @@ if __name__ == "__main__":
             contents = f.read()
         sanity_check_h64_codestring(contents, modname=modname,
             filename=target_file)
+        assert(type(contents) == str)
+        contents = separate_out_inline_funcs(tokenize(contents))
+        assert(type(contents) == list and
+            (len(contents) == 0 or type(contents[0]) == str))
         contents_result = (
             translate(contents, modname, package_name,
                 folder_path=modfolder,

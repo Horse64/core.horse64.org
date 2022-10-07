@@ -36,6 +36,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import uuid
 
 translator_py_script_dir = (
     os.path.abspath(os.path.dirname(__file__))
@@ -254,7 +255,7 @@ def get_statement_ranges_ex(t,
                 i += 1
             if i > len(t) or t[i] != "}":
                 return []
-            result.append([[block_start, i]])
+            result.append([block_start, i])
             i += 1  # Past '}' closing bracket.
             while (i < len(t) and
                     t[i].strip(" \r\n\t") == ""):
@@ -263,23 +264,29 @@ def get_statement_ranges_ex(t,
                 return result
             if t[i] == "rescue":
                 i += 1  # Past 'rescue' keyword.
+                saw_nonwhitespace = False
                 bracket_depth = 0
                 while (i < len(t) and
-                        (t[i] != "as" or
-                        bracket_depth > 0)):
+                        ((t[i] != "as" and
+                        (t[i] != "{" or not saw_nonwhitespace) or
+                        bracket_depth > 0))):
                     if t[i] in {"[", "(", "{"}:
                         bracket_depth += 1
                     elif t[i] in {"]", ")", "}"}:
                         bracket_depth -= 1
+                    if t[i].strip(" \r\n\t") != "":
+                        saw_nonwhitespace = True
                     i += 1
-                while (i < len(t) and
-                        (t[i] != "{" or
-                        bracket_depth > 0)):
-                    if t[i] in {"[", "(", "{"}:
-                        bracket_depth += 1
-                    elif t[i] in {"]", ")", "}"}:
-                        bracket_depth -= 1
-                    i += 1
+                if t[i] == "as":
+                    bracket_depth = 0
+                    while (i < len(t) and
+                            (t[i] != "{" or
+                            bracket_depth > 0)):
+                        if t[i] in {"[", "(", "{"}:
+                            bracket_depth += 1
+                        elif t[i] in {"]", ")", "}"}:
+                            bracket_depth -= 1
+                        i += 1
                 if i >= len(t):
                     return result
                 assert(t[i] == "{")
@@ -299,7 +306,10 @@ def get_statement_ranges_ex(t,
                 assert(t[i] == "}")
                 result.append([block_start, i, "rescue"])
                 i += 1  # Past '}" closing bracket.
-            if t[i] == "finally":
+                while (i < len(t) and
+                        t[i].strip(" \r\n\t") == ""):
+                    i += 1
+            if i < len(t) and t[i] == "finally":
                 i += 1  # Past 'finally' keyword.
                 bracket_depth = 0
                 while (i < len(t) and
@@ -514,7 +524,7 @@ def get_statement_ranges_ex(t,
                 t[i] != "="):
             i += 1
         if i < len(t) and t[i] == "=":
-            return [i + 1, i]
+            return [[i + 1, len(t)]]
         return []
     # General unrecognized statement.
     if range_type == "expr":
@@ -580,8 +590,10 @@ def prevnonblank(t, idx, no=1):
 def get_statement_inline_funcs(t):
     assert(type(t) in {list, tuple})
     ranges = get_statement_expr_ranges(t)
+    assert(type(ranges) == list)
     result = []
     for expr_range in ranges:
+        assert(type(expr_range) == list)
         assert(expr_range[0] >= 0 and
             expr_range[1] >= expr_range[0] and
             expr_range[1] <= len(t))
@@ -799,29 +811,90 @@ def tree_transform_statements(code, callback_statement_list):
     )
     if callback_statement_list != None:
         statements = callback_statement_list(statements)
-    final_statements = []
+        assert(type(statements) == list)
+        assert(len(statements) == 0 or (
+            type(statements[0]) == list and
+            (len(statements[0]) == 0 or
+            type(statements[0][0]) == str)))
+    final_tokens = []
     for statement in statements:
         ranges = get_statement_block_ranges(statement)
         for block_range in reversed(ranges):
+            assert(type(block_range) == list and
+                len(block_range) >= 2 and
+                type(block_range[0]) in {float, int} and
+                type(block_range[1]) in {float, int})
             assert(block_range[0] > 0 or
                 block_range[1] < len(statement))
             replacement = tree_transform_statements(statement[
                 block_range[0]:block_range[1]],
                 callback_statement_list)
-            replacement_flat = []
-            for inner_stmt in replacement:
-                replacement_flat += inner_stmt
             statement = (statement[:block_range[0]] +
-                replacement_flat +
+                replacement +
                 statement[block_range[1]:])
-        final_statements.append(statement)
+        final_tokens += statement
     if was_string:
-        return "".join([untokenize(st)
-            for st in final_statements])
-    return final_statements
+        return untokenize(final_tokens)
+    return final_tokens
 
 
+def get_leading_whitespace(st):
+    if type(st) == str:
+        st = [st]
+    leading = ""
+    i = 0
+    while i < len(st):
+        if st[i].strip(" \r\n\t") != "":
+            len_diff = (len(st[i]) -
+                len(st[i].lstrip(" \r\n\t")))
+            if len_diff > 0:
+                leading += st[i][:len_diff]
+            return leading
+        else:
+            leading += st[i]
+        i += 1
+    return leading
 
+
+def separate_out_inline_funcs(s):
+    def do_separate_out(sts):
+        new_sts = []
+        for st in sts:
+            func_ranges = get_statement_inline_funcs(st)
+            if len(func_ranges) == 0:
+                new_sts.append(st)
+                continue
+            for frange in reversed(func_ranges):
+                assert(len(frange) == 3)
+                assert(frange[0] >= 0 and
+                    frange[0] < len(st) and
+                    st[frange[0]] == "func")
+                assert(frange[2] > frange[0] and
+                    frange[2] <= len(st) and
+                    st[frange[2] - 1] == "}")
+                fname = "_f" + str(uuid.uuid4()).replace("-", "")
+                prepend_st = [get_leading_whitespace(st),
+                    "func", " ", fname]
+                params = st[frange[0] + 1:frange[1]]
+                while (len(params) > 0 and
+                        is_whitespace_token(params[0])):
+                    params = params[1:]
+                while (len(params) > 0 and
+                        is_whitespace_token(params[-1])):
+                    params = params[:-1]
+                if (len(params) == 0 or
+                        params[0] != "(" or
+                        params[1] != ")"):
+                    params = ["("] + params + [")"]
+                prepend_st += (params + ["{"] + st[
+                    frange[1] + 1:frange[2]] + ["\n"])
+                new_sts.append(prepend_st)
+                st = (st[:frange[0]] +
+                    [fname, " "] + st[frange[2]:])
+            new_sts.append(st)
+        return new_sts
+    s = tree_transform_statements(s, do_separate_out)
+    return s
 
 
 def sanity_check_h64_codestring(s, filename="", modname=""):
