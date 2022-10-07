@@ -70,7 +70,7 @@ func wrap(multiline_text, length,
             prefix = later_lines_prefix + prefix
         }
 
-        if s.glyph_len < line_length or s.glyph_len <= 1 {
+        if s.glyph_len <= line_length or s.glyph_len <= 1 {
             # What we have already fits into the requested wrap width.
             var remaining_lines_noprefix = s.split("\n")
             var remaining_lines = []
@@ -90,14 +90,12 @@ func wrap(multiline_text, length,
         # Some helper info for figuring out a nicer wrap point:
         var line_break_index = s.find("\n")
         var s_half_glyphs = math.max(1, math.round(s.glyph_len / 2))
-        var s_half_glyphs_index = (
+        var s_half_glyphs_index =
             # (String index where we have exactly half the glyphs)
             s.glyph_sub(1, s_half_glyphs).len
-        )
-        var s_two_glyph_index = (
+        var s_two_glyph_index =
             # (String index after two full glyphs)
             s.glyph_sub(1, 2).len
-        )
 
         # If the line break fits the maximum worst case range, use it:
         if line_break_index != none and
