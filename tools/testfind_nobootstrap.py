@@ -99,6 +99,7 @@ if __name__ == "__main__":
                 test_paths.append(os.path.join(base, f))
     test_paths = sorted(test_paths)
 
+    had_error = False
     for test_path in test_paths:
         print("\033[1m==> RUNNING TEST ==> \033[0m" + str(test_path))
         cmd = os.path.join(my_dir, "translator.py")
@@ -117,6 +118,12 @@ if __name__ == "__main__":
         sys.stderr.flush()
         if failed:
             print("\033[1m!!!! TEST FAILED !!!!\033[0m")
-            sys.exit(1)
-        print("==> TEST SUCCESSFUL.")
-    print("All tests done.")
+            had_error = True
+        else:
+            print("==> TEST SUCCESSFUL.")
+    if had_error:
+        print("Failure for some tests.")
+        sys.exit(1)
+    else:
+        print("Success and all tests done.")
+        sys.exit(0)
