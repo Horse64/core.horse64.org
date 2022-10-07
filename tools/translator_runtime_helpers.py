@@ -151,9 +151,45 @@ def _container_add(container, item):
 
 
 def _container_sort(container, *args, **kwargs):
-    if (type(container) in {list, set}):
-        return sorted(container)
+    if (type(container) in {list}):
+        sorted_container = list(sorted(container))
+        i = 0
+        while i < len(sorted_container):
+            container[i] = sorted_container[i]
+            i += 1
+        return container
+    elif type(container) in {tuple, set}:
+        return TypeError("cannot sort this container")
     return container.sort(*args, **kwargs)
+
+
+def _container_reverse(container, *args, **kwargs):
+    if (type(container) in {list}):
+        sorted_container = list(reversed(container))
+        i = 0
+        while i < len(sorted_container):
+            container[i] = sorted_container[i]
+            i += 1
+        return container
+    elif type(container) in {tuple, set}:
+        return TypeError("cannot reverse this container")
+    return container.sort(*args, **kwargs)
+
+
+def _value_to_str(value):
+    if type(value) == bytes:
+        return value.decode("utf-8",
+            errors="surrogateescape")
+    return str(value)
+
+
+def _value_as_bytes(value):
+    if type(value) == str:
+        return value.encode("utf-8",
+            errors="surrogateescape")
+    else:
+        return NotImplementedError("conversion not handled "
+            "by this runtime")
 
 
 def _container_repeat(container, *args, **kwargs):
