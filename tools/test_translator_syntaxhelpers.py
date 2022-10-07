@@ -32,7 +32,8 @@ from translator_syntaxhelpers import (
     tokenize, untokenize, split_toplevel_statements,
     get_statement_expr_ranges, get_statement_block_ranges,
     get_statement_inline_funcs, tree_transform_statements,
-    firstnonblank, firstnonblankidx
+    firstnonblank, firstnonblankidx,
+    get_leading_whitespace, separate_out_inline_funcs
 )
 
 
@@ -107,9 +108,58 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         self.assertEqual(ranges[0][0], 4)
         self.assertEqual(ranges[0][1], 14)
 
+        t = [" ", "const", "i"]
+        ranges = get_statement_expr_ranges(t)
+        self.assertEqual(len(ranges), 0)
+
+        t = [" ", "const", "i", "=", "2"]
+        ranges = get_statement_expr_ranges(t)
+        self.assertEqual(len(ranges), 1)
+        self.assertEqual(ranges[0][0], 4)
+        self.assertEqual(ranges[0][1], 5)
+
+        t = ['do', ' ', '{', '\n', 'x', ' ', '=', ' ',
+            'oopsie_func', '(', '"florb"', ')', '  ', '\n', ' ', '}',
+            ' ', 'rescue', ' ', 'ValueError', ' ', '{', '\n',
+            ' ', 'x', ' ', '+=', ' ', '2', '  ', '    \n', '  ', '}',
+            ' ', 'finally', ' ', '{', '\n', '   ',
+            'x', ' ', '-=', ' ', '1', '  ', '  \n', ' ', '}',
+            '\n', ' ']  # (Based on real world example)
+        ranges = get_statement_block_ranges(t)
+        self.assertEqual(len(ranges), 3)
+        self.assertEqual(ranges[0][0], 3)
+        self.assertEqual(ranges[0][1], 15)
+        self.assertEqual(t[ranges[0][1]], "}")
+
+    def test_get_leading_whitespace(self):
+        t = get_leading_whitespace(["\n ", "\ttest"])
+        self.assertEqual(t, "\n \t")
+
+    def test_separate_out_inline_funcs(self):
+        t = "func mine{func mine2{return yes}}"
+        self.assertTrue("func mine" in t)
+        self.assertTrue("func mine2" in t)
+        tresult = separate_out_inline_funcs(t)
+        self.assertTrue("func mine" in tresult)
+        self.assertTrue("func mine2" in tresult)
+
+        t = ("    func mine (a=\nfunc{return yes}){}")
+        #print("tools/test_translator_syntaxhelper.py: " +
+        #    "test_separate_out_inline_funcs: before 1: " +
+        #    str(t))
+        t_tokens = tokenize(t)
+        franges = get_statement_inline_funcs(t_tokens)
+        self.assertEqual(len(franges), 1)
+        self.assertTrue(franges[0][2] < len(t_tokens))
+        self.assertEqual(t_tokens[franges[0][2]], ")")
+        tresult = separate_out_inline_funcs(t)
+        #print("tools/test_translator_syntaxhelper.py: " +
+        #    "test_separate_out_inline_funcs: after 1: " +
+        #    str(tresult))
+        self.assertTrue(tresult.startswith("    func"))
+
     def test_tree_transform_statements(self):
         def transform_while_weirdly(v):
-            #print("Visited: " + str(v))
             assert(type(v) == list and
                 (len(v) == 0 or type(v[0]) == list))
             new_v = []
@@ -121,7 +171,6 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         t = tree_transform_statements(
             "func t{while yes {print('hello!')}}",
             transform_while_weirdly)
-        #print("Transformed: " + str(t))
         self.assertTrue(type(t) == str)
         self.assertTrue("weird" in t)
         self.assertTrue("while" not in t)
