@@ -1346,6 +1346,7 @@ def translate(s, module_name, package_name, parent_statements=[],
                     untokenize(cleaned_argument_tokens) + ":\n")
                 result += (extra_init_code + "\n" +
                     translated_contents + "\n")
+                result += (indent + "    pass\n")
             else:
                 regtype = get_type(type_name, type_module, type_package)
                 regtype.funcs[name] = {

@@ -43,7 +43,7 @@ class TestTranslatorTransformHelpers(unittest.TestCase):
             "(\"complex string concat test: \" + f(l, 1).as_str())")
         texpected = ("var test = " +
             "(\"complex string concat test: \" + " +
-            "str(f(l, 1)))")
+            "_translator_runtime_helpers._value_to_str(f(l, 1)))")
         tresult = transform_h64_misc_inline_to_python(t)
         self.assertTrue(expr_nonblank_equals(tresult, texpected),
             msg=("got " + tresult + ", expected: " + texpected))

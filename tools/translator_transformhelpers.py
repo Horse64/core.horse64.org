@@ -67,10 +67,11 @@ def transform_h64_misc_inline_to_python(s):
             cmd = None
             if (prevnonblank(s, i) == "." and (
                     s[i] in ("len", "glyph_len") or (
-                    s[i] in ("as_str", "to_num") and
+                    s[i] in ("as_str", "as_bytes", "to_num") and
                         nextnonblank(s, i) == "(" and
                         nextnonblank(s, i, no=2) == ")") or (
                     s[i] in ("add", "sort", "trim", "find",
+                        "reverse",
                         "join", "glyph_sub", "sub", "repeat") and
                         nextnonblank(s, i) == "("
                     ))):
@@ -83,9 +84,13 @@ def transform_h64_misc_inline_to_python(s):
                 i += 1
                 continue
             replaced_one = True
-            insert_call = ["str"]
+            insert_call = ["_translator_runtime_helpers",
+                ".", "_value_to_str"]
             if cmd == "len" or cmd == "glyph_len":
                 insert_call = ["len"]
+            elif cmd == "as_bytes":
+                insert_call = ["_translator_runtime_helpers",
+                    ".", "_value_to_bytes"]
             elif cmd == "to_num":
                 insert_call = ["float"]
             elif cmd == "add":
@@ -109,6 +114,9 @@ def transform_h64_misc_inline_to_python(s):
             elif cmd == "sort":
                 insert_call = ["_translator_runtime_helpers",
                     ".", "_container_sort"]
+            elif cmd == "reverse":
+                insert_call = ["_translator_runtime_helpers",
+                    ".", "_container_reverse"]
             elif cmd == "[":
                 insert_call = ["_translator_runtime_helpers",
                     ".", "_container_squarebracketaccess"]
@@ -130,7 +138,7 @@ def transform_h64_misc_inline_to_python(s):
                 assert(s[i] == ")")
             elif cmd in ("add", "sort", "join", "find", "sub",
                     "repeat", "trim", "glyph_sub"):
-                # Truncate "("/"]", ... and turn it to ",", ...
+                # Truncate "(", ... and turn it to ",", ...
                 s = s[:i - 1] + [","] + s[i + 2:]
                 i -= 1
                 assert(s[i] == ",")
