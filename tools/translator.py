@@ -44,6 +44,14 @@ import tempfile
 import textwrap
 import traceback
 
+translator_py_script_dir = (
+    os.path.abspath(os.path.dirname(__file__))
+)
+translator_py_script_path = os.path.abspath(__file__)
+
+import translator_debugvars
+from translator_debugvars import DEBUGV
+
 from translator_horphelpers import (
     horp_ini_string_get_package_name,
     horp_ini_string_get_package_version,
@@ -95,12 +103,12 @@ def _splitpath(p):
     return p.split("/")
 
 
-DEBUG_ENABLE = False
-DEBUG_ENABLE_CONTENTS = False
-DEBUG_TRANSLATE_QUEUE = False
-DEBUG_ENABLE_TYPES = False
-DEBUG_ENABLE_REMAPPED_USES = False
-DEBUG_RESULT_FILE_PATHS = False
+DEBUGV.ENABLE = False
+DEBUGV.ENABLE_CONTENTS = False
+DEBUGV.ENABLE_QUEUE = False
+DEBUGV.ENABLE_TYPES = False
+DEBUGV.ENABLE_REMAPPED_USES = False
+DEBUGV.ENABLE_FILE_PATHS = False
 
 remapped_uses = {
     "compiler@core.horse64.org": {
@@ -122,9 +130,13 @@ remapped_uses = {
         "math.ceil": "_translator_runtime_helpers.math_ceil",
         "math.round": "_translator_runtime_helpers._math_round",
     },
+    "net@core.horse64.org": {
+        "net.lookup_name":
+            "_translator_runtime_helpers._net_lookup_name",
+        "net.NetworkIOError":
+            "_translator_runtime_helpers._NetworkIOError",
+    },
     "net.fetch@core.horse64.org": {
-        "net.fetch.lookup_name":
-            "_translator_runtime_helpers._net_fetch_lookup_name",
         "net.fetch.get":
             "_translator_runtime_helpers._net_fetch_get",
     },
@@ -192,7 +204,7 @@ def register_type(type_name, module_path, package_name):
     known_types[module_path + "." + type_name + package_name_part] = (
         RegisteredType(type_name, module_path, package_name)
     )
-    if DEBUG_ENABLE and DEBUG_ENABLE_TYPES:
+    if DEBUGV.ENABLE and DEBUGV.ENABLE_TYPES:
         print("tools/translator.py: debug: registered type " +
             module_path + "." + type_name + package_name_part)
 
@@ -323,6 +335,9 @@ def translate_expression_tokens(s, module_name, package_name,
                 previous_token != "."):
             s = s[:i] + ["_translator_runtime_helpers",
                 ".", "h64_type"] + s[i + 1:]
+        elif s[i] == "ValueError" and previous_token != ".":
+            s = s[:i] + ["_translator_runtime_helpers",
+                ".", "_ValueError"] + s[i + 1:]
         elif s[i] == "starts" and previous_token == ".":
             s[i] = "startswith"
         elif s[i] == "ends" and previous_token == ".":
@@ -393,7 +408,7 @@ def translate_expression_tokens(s, module_name, package_name,
             for remapped_use in remapped_uses[remap_module_key]:
                 if (remapped_use == module_name + "." +
                         s[i]):
-                    if DEBUG_ENABLE_REMAPPED_USES:
+                    if DEBUGV.ENABLE_REMAPPED_USES:
                         print("tools/translator.py: debug: remapping " +
                             "use to the overridden expression: " +
                             module_name + "." + s[i] + " in " +
@@ -469,13 +484,13 @@ def translate_expression_tokens(s, module_name, package_name,
             remap_original_use = (
                 match_import_module + "." + match_item
             )
-            if DEBUG_ENABLE_REMAPPED_USES:
+            if DEBUGV.ENABLE_REMAPPED_USES:
                 print("tools/translator.py: debug: checking if " +
                     "use needs translation to remap: " +
                     remap_original_use + " in " + remap_module_key)
             for remapped_use in remapped_uses[remap_module_key]:
                 if remapped_use == remap_original_use:
-                    if DEBUG_ENABLE_REMAPPED_USES:
+                    if DEBUGV.ENABLE_REMAPPED_USES:
                         print("tools/translator.py: debug: "
                             "remapping use of "
                             "the overridden expression: " +
@@ -608,7 +623,7 @@ def queue_file_if_not_queued(translate_file_queue, entry):
         if (os.path.normpath(queue_item[0]) ==
                 os.path.normpath(entry[0])):
             return
-    if DEBUG_ENABLE and DEBUG_TRANSLATE_QUEUE:
+    if DEBUGV.ENABLE and DEBUGV.ENABLE_QUEUE:
         print("tools/translator.py: debug: queueing item: " +
             str(entry))
         traceback.print_stack()
@@ -622,9 +637,11 @@ def queue_file_if_not_queued(translate_file_queue, entry):
 def translate(s, module_name, package_name, parent_statements=[],
         extra_indent="", folder_path="", project_info=None,
         known_imports=None, translate_file_queue=None):
-    if len(parent_statements) == 0 and DEBUG_ENABLE:
+    if (len(parent_statements) == 0 and DEBUGV.ENABLE and
+            DEBUGV.ENABLE_FILE_PATHS):
         print("tools/translator.py: debug: translating " +
-            "module \"" + modname + "\" in folder: " + folder_path +
+            "module \"" + module_name + "\" in folder: " +
+            folder_path +
             (" (no package)" if package_name is None else
              " (package: " + str(package_name) + ")"))
     if known_imports is None:
@@ -1118,7 +1135,7 @@ def translate(s, module_name, package_name, parent_statements=[],
             # Check if this module is only used for remapped uses:
             found_nonremapped_use = False
             found_remapped_use = False
-            if DEBUG_ENABLE_REMAPPED_USES:
+            if DEBUGV.ENABLE_REMAPPED_USES:
                 print("tools/translator.py: debug: scanning \"" +
                     "import " + import_module +
                     (" from " + import_package
@@ -1152,7 +1169,7 @@ def translate(s, module_name, package_name, parent_statements=[],
                 if import_package != None:
                     remapped_uses_key += "@" + import_package
                 if remapped_uses_key not in remapped_uses:
-                    if DEBUG_ENABLE_REMAPPED_USES:
+                    if DEBUGV.ENABLE_REMAPPED_USES:
                         print("tools/translator.py: debug: found " +
                             "non-remapped use (no remaps for " +
                             "module " + str(remapped_uses_key) + "): " + str(
@@ -1172,7 +1189,7 @@ def translate(s, module_name, package_name, parent_statements=[],
                         break
                 if not matched_remap:
                     found_nonremapped_use = True
-                    if DEBUG_ENABLE_REMAPPED_USES:
+                    if DEBUGV.ENABLE_REMAPPED_USES:
                         print("tools/translator.py: debug: found " +
                             "non-remapped use: " + str(
                             tokens[i:i + len(import_module_elements) + 10]))
@@ -1191,7 +1208,7 @@ def translate(s, module_name, package_name, parent_statements=[],
 
             # Skip import code if it only has remapped uses:
             if not found_nonremapped_use and found_remapped_use:
-                if DEBUG_ENABLE_REMAPPED_USES:
+                if DEBUGV.ENABLE_REMAPPED_USES:
                     print("tools/translator.py: debug: hiding " +
                         "import since all uses are remapped: " +
                         str(import_module) + ("" if
@@ -1474,7 +1491,7 @@ def separate_func_keyword_arg_code(
     return result
 
 
-if __name__ == "__main__":
+def run_translator_main():
     args = sys.argv[1:]
     target_file = None
     target_file_args = []
@@ -1497,12 +1514,26 @@ if __name__ == "__main__":
                 print("\n" + "\n".join(textwrap.wrap(
                     HACKY_WARNING.strip(), width=70)) + "\n")
                 print("Options:")
-                print("    --as-test     Don't look for a main func,")
-                print("                  instead run all test_* funcs.")
-                print("    --help        Show this help text")
-                print("    --keep-files  Keep translated files and ")
-                print("                  print out path to them.")
-                print("    --version     Print out program version")
+                print("    --as-test              "
+                      "Don't look for a main func,")
+                print("                           "
+                      "instead run all test_* funcs.")
+                print("    --debug                "
+                      "Show debug output.")
+                print("    --debug-async          "
+                      "Show info on async operations.")
+                print("    --debug-python-output  "
+                      "Show the generated python.")
+                print("    --debug-queue          "
+                      "Show info about queueing files.")
+                print("    --help                 "
+                      "Show this help text")
+                print("    --keep-files           "
+                      "Keep translated files and ")
+                print("                           "
+                      "print out path to them.")
+                print("    --version              "
+                      "Print out program version")
                 sys.exit(0)
             elif args[i] == "--as-test":
                 run_as_test = True
@@ -1525,16 +1556,20 @@ if __name__ == "__main__":
                 overridden_package_name = args[i + 1]
                 i += 2
                 continue
+            elif args[i] == "--debug-async":
+                DEBUGV.ENABLE = True
+                DEBUGV.ENABLE_ASYNC_OPS = True
             elif args[i] == "--debug":
-                DEBUG_ENABLE = True
-                DEBUG_TRANSLATE_QUEUE = True
-                DEBUG_RESULT_FILE_PATHS = True
-                DEBUG_ENABLE_TYPES = True
-                DEBUG_ENABLE_REMAPPED_USES = True
+                DEBUGV.ENABLE = True
+                DEBUGV.ENABLE_FILE_PATHS = True
+                DEBUGV.ENABLE_TYPES = True
+                DEBUGV.ENABLE_REMAPPED_USES = True
+            elif args[i] == "--debug-queue":
+                DEBUGV.ENABLE = True
+                DEBUGV.ENABLE_QUEUE = True
             elif args[i] == "--debug-python-output":
-                DEBUG_ENABLE = True
-                DEBUG_TRANSLATE_QUEUE = True
-                DEBUG_ENABLE_CONTENTS = True
+                DEBUGV.ENABLE = True
+                DEBUGV.ENABLE_CONTENTS = True
             elif args[i] == "--keep-files":
                 keep_files = True
             else:
@@ -1606,7 +1641,7 @@ if __name__ == "__main__":
         project_info.repo_folder = os.path.normpath(
             os.path.abspath(
             os.path.join(project_info.repo_folder, "..")))
-    if DEBUG_ENABLE:
+    if DEBUGV.ENABLE:
         print("tools/translator.py: debug: " +
             "detected repository folder: " +
             project_info.repo_folder)
@@ -1651,7 +1686,7 @@ if __name__ == "__main__":
                 print("tools/translator.py: warning: " +
                     "failed to get package name from horp.ini: " +
                     str(os.path.join(repo_folder, "horp.ini")))
-    if DEBUG_ENABLE:
+    if DEBUGV.ENABLE:
         print("tools/translator.py: debug: " +
             "detected package name: " +
             str(project_info.package_name))
@@ -1668,7 +1703,7 @@ if __name__ == "__main__":
         translate_file_queue = translate_file_queue[1:]
         if target_file in translated_files:
             continue
-        if DEBUG_ENABLE and DEBUG_TRANSLATE_QUEUE:
+        if DEBUGV.ENABLE and DEBUGV.ENABLE_QUEUE:
             print("tools/translator.py: debug: looking at "
                 "queue item: " + str(original_queue_tuple))
         for otherfile in os.listdir(modfolder):
@@ -1693,8 +1728,14 @@ if __name__ == "__main__":
                 (otherfilepath, otherfilename,
                 new_modname, modfolder, package_name))
         contents = None
-        with open(target_file, "r", encoding="utf-8") as f:
-            contents = f.read()
+        try:
+            with open(target_file, "r", encoding="utf-8") as f:
+                contents = f.read()
+        except FileNotFoundError as e:
+            print("translator.py: error: trying to locate module " +
+                modname + " in package " + package_name +
+                " but file is missing: " + str(target_file))
+            sys.exit(1)
         original_contents = contents
         sanity_check_h64_codestring(contents, modname=modname,
             filename=target_file)
@@ -1713,7 +1754,7 @@ if __name__ == "__main__":
             modname.replace(".", "/"))
         if target_filename != "__init__.py":
             disk_target_folder = os.path.dirname(disk_target_folder)
-        if DEBUG_ENABLE and DEBUG_TRANSLATE_QUEUE:
+        if DEBUGV.ENABLE and DEBUGV.ENABLE_QUEUE:
             print("tools/translator.py: debug: will write "
                 "queue item " + str(target_file) + " to "
                 "disk target folder: " + str(disk_target_folder))
@@ -1738,6 +1779,9 @@ if __name__ == "__main__":
                         ["package-name"], for_output=True))
             contents_result = (
                 "import os as _remapped_os;import sys as _remapped_sys;" +
+                "_remapped_sys.path.insert(1, " +
+                    as_escaped_code_string(os.path.join(
+                        output_folder, "_translator_runtime")) + ");" +
                 "_remapped_sys.path.insert(1, " +
                     as_escaped_code_string(
                     associated_package_output_folder) + ");" +
@@ -1813,9 +1857,11 @@ if __name__ == "__main__":
                 else:
                     contents_result += (
                         "\nif __name__ == '__main__':" +
-                        "\n    _remapped_sys.exit(main())\n")
+                        "\n    _remapped_sys.exit(" +
+                        "\n        _translator_runtime_helpers." +
+                                    "_run_main(main))\n")
 
-            if DEBUG_ENABLE and DEBUG_ENABLE_CONTENTS:
+            if DEBUGV.ENABLE and DEBUGV.ENABLE_CONTENTS:
                 print("tools/translator.py: debug: have output of " +
                     str(len(contents_result.splitlines())) + " lines for: " +
                     translated_file + " (module: " +
@@ -1828,10 +1874,45 @@ if __name__ == "__main__":
             print("tools/translator.py: info: writing " +
                 "translated files to (will be kept): " +
                 output_folder)
-        elif DEBUG_ENABLE:
+        elif DEBUGV.ENABLE and DEBUGV.ENABLE_FILE_PATHS:
             print("tools/translator.py: debug: writing temporary " +
                 "result to (will be deleted): " +
                 output_folder)
+        for helper_file in os.listdir(translator_py_script_dir):
+            if (not helper_file.startswith("translator_runtime") or
+                    not helper_file.endswith(".py")):
+                continue
+            if not os.path.exists(os.path.join(output_folder,
+                    "_translator_runtime")):
+                os.mkdir(os.path.join(output_folder,
+                    "_translator_runtime"))
+            t = None
+            with open(os.path.join(translator_py_script_dir,
+                    helper_file), "r", encoding="utf-8") as f:
+                t = f.read()
+                t = (translator_debugvars.
+                    get_debug_var_strings() + "\n" + t)
+                t = t.replace("__translator_py_path__",
+                    as_escaped_code_string(translator_py_script_path))
+                license_list_str = "["
+                for linfo in project_info.licenses:
+                    if len(license_list_str) > 1:
+                        license_list_str += ","
+                    license_list_str += ("_LicenseObj(" +
+                        as_escaped_code_string(linfo[0]) + "," +
+                        "text=" +
+                        as_escaped_code_string(linfo[1]) + ")")
+                license_list_str += "]"
+                t = t.replace("__translator_licenses_list",
+                    license_list_str)
+            with open(os.path.join(output_folder,
+                    "_translator_runtime", "_" + helper_file),
+                    "w", encoding="utf-8") as f:
+                f.write(t)
+            if DEBUGV.ENABLE and DEBUGV.ENABLE_FILE_PATHS:
+                print("tools/translator.py: debug: wrote file: " +
+                    os.path.join(output_folder,
+                    "_translator_runtime", "_" + helper_file))
         run_py_path = None
         for translated_file in translated_files:
             name = os.path.basename(
@@ -1846,38 +1927,10 @@ if __name__ == "__main__":
             subfolder_abs = os.path.join(output_folder, subfolder)
             if not os.path.exists(subfolder_abs):
                 os.makedirs(subfolder_abs)
-            if not os.path.exists(os.path.join(subfolder_abs,
-                    "_translator_runtime_helpers.py")):
-                t = None
-                with open(os.path.join(translator_py_script_dir,
-                        "translator_runtime_helpers.py"), "r",
-                        encoding="utf-8") as f:
-                    t = f.read()
-                    t = t.replace("__translator_py_path__",
-                        as_escaped_code_string(translator_py_script_path))
-                    license_list_str = "["
-                    for linfo in project_info.licenses:
-                        if len(license_list_str) > 1:
-                            license_list_str += ","
-                        license_list_str += ("_LicenseObj(" +
-                            as_escaped_code_string(linfo[0]) + "," +
-                            "text=" +
-                            as_escaped_code_string(linfo[1]) + ")")
-                    license_list_str += "]"
-                    t = t.replace("__translator_licenses_list",
-                        license_list_str)
-                with open(os.path.join(subfolder_abs,
-                        "_translator_runtime_helpers.py"), "w",
-                        encoding="utf-8") as f:
-                    f.write(t)
-                if DEBUG_ENABLE and DEBUG_RESULT_FILE_PATHS:
-                    print("tools/translator.py: debug: wrote file: " +
-                        os.path.join(subfolder_abs,
-                        "_translator_runtime_helpers.py"))
             with open(os.path.join(output_folder, subfolder,
                     targetfilename), "w", encoding="utf-8") as f:
                 f.write(contents)
-            if DEBUG_ENABLE and DEBUG_RESULT_FILE_PATHS:
+            if DEBUGV.ENABLE and DEBUGV.ENABLE_FILE_PATHS:
                 print("tools/translator.py: debug: wrote file: " +
                     os.path.join(output_folder, subfolder,
                     targetfilename) + " (module: " +
@@ -1888,7 +1941,7 @@ if __name__ == "__main__":
         launch_cmd = [
             sys.executable, run_py_path
         ] + target_file_args
-        if DEBUG_ENABLE:
+        if DEBUGV.ENABLE:
             print("tools/translator.py: debug: launching program: " +
                 str(launch_cmd))
         result = subprocess.run(launch_cmd)
@@ -1899,4 +1952,8 @@ if __name__ == "__main__":
         else:
             print("Translated files left available in: " + output_folder)
     sys.exit(returncode)
+
+
+if __name__ == "__main__":
+    run_translator_main()
 

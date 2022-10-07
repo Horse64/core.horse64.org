@@ -35,10 +35,41 @@ import threading
 import time
 
 
+_async_ops_lock = threading.Lock()
+_async_ops = []
+_async_ops_stop_threads = False
+
+
 class _LicenseObj:
     def __init__(self, file_name, text=""):
         self.file_name = file_name
         self.text = text
+
+
+class _ValueError(ValueError):
+    def __init__(self, msg):
+        if msg is None:
+            msg = ("Invalid value.")
+        super().__init__()
+        self.msg = msg
+
+
+class _ResourceError(OSError):
+    def __init__(self, msg):
+        if msg is None:
+            msg = ("Hardware resource problem occured.")
+        super().__init__()
+        self.msg = msg
+
+
+class _NetworkIOError(_ResourceError):
+    def __init__(self, msg):
+        if msg is None:
+            msg = (
+                "Temporary network failure occured. "
+                "Check your internet connectivity.")
+        super().__init__()
+        self.msg = msg
 
 
 def _return_licenses():
@@ -354,15 +385,13 @@ class _AsyncOperation:
         self.callback_func = callback_func
 
 
-_async_ops_lock = threading.Lock()
-_async_ops = []
-_async_ops_stop_threads = False
-
-
 class _RequestsFetchObj:
-    def __init__(self, request, retries=0, retry_delay=0.5):
-        self.request = request
-        self.rawobj = self.request.raw
+    def __init__(self, uri,
+            extra_headers={},
+            retries=0, retry_delay=0.5):
+        self.uri = uri
+        self.extra_headers = extra_headers
+        self.request = None
         self.retries = retries
         self.retry_delay = retry_delay
 
@@ -371,19 +400,40 @@ class _RequestsFetchObj:
             amount = int(amount)
         global _async_ops_lock, _async_ops
         def recv_sync(op):
+            global _async_ops_lock
+            if self.request is None:
+                try:
+                    self.request = (
+                        requests.get(self.uri,
+                        headers=self.extra_headers))
+                    self.rawobj = self.request.raw
+                except (OSError, requests.RequestException):
+                    _async_ops_lock.acquire()
+                    op.userdata2 = [
+                        _NetworkIOError("Connection setup "
+                            "failed."), None]
+                    op.done = True
+                    _async_ops_lock.release()
+                    return
             result = b""
             if amount is None or amount > 0:
                 try:
                     result = self.rawobj.read(amount)
                 except (OSError, IOError):
-                    result = None
+                    _async_ops_lock.acquire()
+                    op.userdata2 = [
+                        _NetworkIOError("Connection read "
+                            "failed"), None]
+                    op.done = True
+                    _async_ops_lock.release()
+                    return
             if len(result) == 0 and (
                     amount is None or amount > 0):
                 result = None
-            _async_ops.acquire()
-            op.userdata2 = result
+            _async_ops_lock.acquire()
+            op.userdata2 = [None, result]
             op.done = True
-            _async_ops.release()
+            _async_ops_lock.release()
         def done_cb(op):
             result = op.userdata2
             op.userdata = None
@@ -391,8 +441,8 @@ class _RequestsFetchObj:
             op.do_func = None
             f = op.callback_func
             op.callback_func = None
-            return f(result)
-        op = AsyncOperation(self, recv_sync, done_cb)
+            return f(result[0], result[1])
+        op = _AsyncOperation(self, recv_sync, done_cb)
         _async_ops_lock.acquire()
         _async_ops.append(op)
         _async_ops_lock.release()
@@ -407,58 +457,96 @@ class _RequestsFetchObj:
         self.rawobj = None
 
 
-def _net_fetch_lookup_name(name, cb, retries=0, retry_delay=0.5):
-    try:
-        ip = ipaddress.ip_address(name)
-        return [str(ip)]
-    except ValueError:
-        pass
-    def async_lookup_do(op):
-        tries = retries + 1
-        retry_delay = max(0, retry_delay)
-        while tries > 0:
-            tries -= 1
-            want_retry = False
-            ipv6_results = []
+def _net_lookup_name(name, cb, retries=0, retry_delay=0.5):
+    returnasdict = True
+    names = None
+    if type(name) == str:
+        returnasdict = False
+        names = [name]
+    elif type(name) in {tuple, list}:
+        names = list(name)
+    else:
+        raise TypeError("name must be str or list")
+    def async_lookup_do(job):
+        returnasdict = job.userdata["returnasdict"]
+        perma_tempfail = False
+        finalresult = {}
+        for name in job.userdata["names"]:
+            was_tempfail = False
             try:
-                result = socket.getaddrinfo(
-                    name, None, socket.AF_INET6)
-                if len(result) > 0:
-                    ipv6_results += [
-                        str(entry[4][0]) for entry in result
-                    ]
-            except socket.gaierror as e:
-                if e.errno != -2:  # -2 means NXDOMAIN
-                    want_retry = True
-            ipv4_results = []
-            try:
-                result = socket.getaddrinfo(
-                    name, None, socket.AF_INET)
-                if len(result) > 0:
-                    ipv4_results += [
-                        str(entry[4][0]) for entry in result
-                    ]
-            except socket.gaierror as e:
-                if e.errno != -2:  # -2 means NXDOMAIN
-                    want_retry = True
-            if want_retry and tries > 0:
-                if retry_delay > 0:
-                    time.sleep(retry_delay)
+                ip = str(ipaddress.ip_address(name))
+                # Oh, so it was an ip already!
+                finalresult[name] = ip
                 continue
-            job.userdata2 = ipv6_results + ipv4_results
-            break
-        if job.userdata2 is None:
-            job.userdata2 = []
+            except ValueError:
+                pass
+            finalresult[name] = None
+            retries = job.userdata["retries"]
+            retry_delay = job.userdata["retry_delay"]
+            tries = retries + 1
+            retry_delay = max(0, retry_delay)
+            while tries > 0:
+                tries -= 1
+                want_retry = False
+                was_tempfail = False
+                ipv6_results = []
+                try:
+                    result = socket.getaddrinfo(
+                        name, None, socket.AF_INET6)
+                    if len(result) > 0:
+                        ipv6_results += [
+                            str(entry[4][0]) for entry in result
+                        ]
+                except socket.gaierror as e:
+                    if e.errno != -2:  # -2 means NXDOMAIN
+                        want_retry = True
+                        was_tempfail = True
+                ipv4_results = []
+                try:
+                    result = socket.getaddrinfo(
+                        name, None, socket.AF_INET)
+                    if len(result) > 0:
+                        ipv4_results += [
+                            str(entry[4][0]) for entry in result
+                        ]
+                except socket.gaierror as e:
+                    if e.errno != -2:  # -2 means NXDOMAIN
+                        want_retry = True
+                        was_tempfail = True
+                if want_retry and tries > 0:
+                    if retry_delay > 0:
+                        time.sleep(retry_delay)
+                    continue
+                finalresult[name] = ipv6_results + ipv4_results
+                break
+            if finalresult[name] is None and was_tempfail:
+                perma_tempfail = True
+                break
+            continue
+        if perma_tempfail:
+            job.userdata2 = [_NetworkIOError("Look-up "
+                 "temporarily failed, check connectivity."), {}]
+        else:
+            if not job.userdata["returnasdict"]:
+                job.userdata2 = [None,
+                    finalresult[job.userdata["names"][0]]]
+            else:
+                job.userdata2 = [None, finalresult]
         job.done = True
     def done_cb(op):
+        f = op.userdata["usercb"]
         result = op.userdata2
         op.userdata = None
         op.userdata2 = None
         op.do_func = None
-        f = op.callback_func
         op.callback_func = None
-        return f(result)
-    op = AsyncOperation(self, async_lookup_do, done_cb)
+        return f(result[0], result[1])
+    op = _AsyncOperation({
+        "returnasdict": returnasdict,
+        "names": names, "retries": retries,
+        "retry_delay": retry_delay,
+        "usercb": cb},
+        async_lookup_do, done_cb)
     _async_ops_lock.acquire()
     _async_ops.append(op)
     _async_ops_lock.release()
@@ -484,14 +572,17 @@ def _net_fetch_get(uri, extra_headers=None,
     for key in clean_keys:
         del(extra_headers[key])
     extra_headers["User-Agent"] = str(user_agent + "")
-    import requests
     return _RequestsFetchObj(
-        requests.get(uri, headers=extra_headers)
+        uri=uri, headers=extra_headers
     )
 
 
 def _run_main(main_func):
+    global DEBUGV, _async_ops_stop_threads,\
+        _async_ops_lock, _async_ops
     def async_jobs_worker():
+        global _async_ops_stop_threads,\
+            _async_ops_lock, _async_ops
         while True:
             _async_ops_lock.acquire()
             if _async_ops_stop_threads:
@@ -500,6 +591,7 @@ def _run_main(main_func):
             if len(_async_ops) == 0:
                 _async_ops_lock.release()
                 time.sleep(0.1)
+                continue
             work_job = None
             for job in _async_ops:
                 if not job.done and not job.started:
@@ -525,6 +617,9 @@ def _run_main(main_func):
                 _async_ops_lock.release()
             else:
                 time.sleep(0.1)
+    if DEBUGV.ENABLE and DEBUGV.ENABLE_ASYNC_OPS:
+        print("tools/translator.py: debug: starting worker "
+            "threads for async jobs...")
     workers = []
     i = 0
     while i < 16:
@@ -546,8 +641,8 @@ def _run_main(main_func):
         while i < len(_async_ops):
             if _async_ops[i].done:
                 done_op = _async_ops[i]
-                _async_ops = (async_ops[:i] +
-                    async_ops[i + 1:])
+                _async_ops = (_async_ops[:i] +
+                    _async_ops[i + 1:])
                 break
             i += 1
         _async_ops_lock.release()
@@ -561,6 +656,9 @@ def _run_main(main_func):
                 raise e
             continue
         time.sleep(0.01)
+    if DEBUGV.ENABLE and DEBUGV.ENABLE_ASYNC_OPS:
+        print("tools/translator.py: debug: program "
+            "shutting down for good, stopping jobs...")
     _async_ops_lock.acquire()
     _async_ops_stop_threads = True
     _async_ops_lock.release()

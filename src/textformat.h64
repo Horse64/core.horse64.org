@@ -49,7 +49,9 @@ func wrap(multiline_text, length,
     # Some sanity checks:
     var s = multiline_text
     if typename(length) != "num" or length <= 0 {
-        raise ValueError("wrapped-to length must be positive number")
+        throw new ValueError(
+            "wrapped-to length must be positive number"
+        )
     }
     length = math.round(length)
     var line_break = "\n"
