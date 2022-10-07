@@ -564,6 +564,53 @@ def _run_main(main_func):
     sys.exit(return_value)
 
 
+def _container_squarebracketaccess(container, index):
+    if type(container) in {str, bytes, list}:
+        if type(index) not in {float, int}:
+            raise TypeError("index not a num")
+        index = round(index)
+        if index <= 0 or index > len(container):
+            raise IndexError("out of range")
+        return container[index - 1]
+    raise NotImplementedError("container type "
+        "not imlemented")
+
+
+def _container_squarebracketassign(container, index,
+        assign_type, value):
+    if type(container) in {str, bytes, list}:
+        if type(index) not in {float, int}:
+            raise TypeError("index not a num")
+        index = round(index)
+        if index <= 0 or index > len(container):
+            raise IndexError("out of range")
+        if assign_type == "=":
+            container[index - 1] = value
+        elif assign_type == "+=":
+            container[index - 1] = (
+                container[index - 1] + value)
+        elif assign_type == "-=":
+            container[index - 1] = (
+                container[index - 1] - value)
+        elif assign_type == "*=":
+            container[index - 1] = (
+                container[index - 1] * value)
+        elif assign_type == "/=":
+            container[index - 1] = (
+                container[index - 1] / value)
+        elif assign_type == "|=":
+            container[index - 1] = (
+                container[index - 1] | value)
+        elif assign_type == "&=":
+            container[index - 1] = (
+                container[index - 1] & value)
+        else:
+            raise NotImplementedError("assign type " +
+                "not implemented: " + assign_type)
+    raise NotImplementedError("container type "
+        "not imlemented")
+
+
 class _ModuleObject:
     pass
 

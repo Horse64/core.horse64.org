@@ -44,6 +44,7 @@ func test_basic_things {
 
     var l = [1 + 3, 2 + 3, 3 + 3]
     assert(l.len == 3)
+    var test = ("complex string concat test: " + l[1].as_str())
     assert(l[1] == 4)
-    assert(l[3] == 7)
+    assert(l[3] == 6)
 }

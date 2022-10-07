@@ -62,6 +62,7 @@ from translator_syntaxhelpers import (
     separate_out_inline_funcs,
     get_global_standalone_func_names,
     identifier_or_keyword, is_h64op_with_righthand,
+    is_number_token
 )
 
 translator_py_script_dir = (
@@ -253,6 +254,8 @@ def translate_expression_tokens(s, module_name, package_name,
         assign_token_index=-1):
     s = list(s)
     assert("_remapped_os" not in s)
+    assert("_remapped_sys" not in s)
+    assert(sublist_index(s, ["sys", ".", "argv"]) < 0)
 
     # Fix indent first:
     i = 0
@@ -349,6 +352,180 @@ def translate_expression_tokens(s, module_name, package_name,
                 s = (s[:i + 1] + ["+", "\\"] +
                     [s[i + 1].lstrip(" \t")] + s[i + 2:])
         i += 1
+    # Translate XYZ.as_str()/XYZ.len to str(XYZ)/len(XYZ),
+    # important (!!!) this needs to be BEFORE remapping functions.
+    replaced_one = True
+    while replaced_one:
+        replaced_one = False
+        i = 0
+        while i < len(s):
+            cmd = None
+            if (prevnonblank(s, i) == "." and (
+                    s[i] in ("len") or (
+                    s[i] in ("as_str", "to_num") and
+                        nextnonblank(s, i) == "(" and
+                        nextnonblank(s, i, no=2) == ")") or (
+                    s[i] in ("add", "sort", "trim", "find",
+                        "join", "sub", "repeat") and
+                        nextnonblank(s, i) == "("
+                    ))):
+                cmd = s[i]
+            elif (s[i] == "[" and (
+                    prevnonblank(s, i) in {")", "]", "}"} or (
+                    identifier_or_keyword(prevnonblank(s, i)) and
+                    could_be_identifier(prevnonblank(s, i))))):
+                cmd = "["
+            else:
+                i += 1
+                continue
+            replaced_one = True
+            insert_call = ["str"]
+            if cmd == "len":
+                insert_call = ["len"]
+            elif cmd == "to_num":
+                insert_call = ["float"]
+            elif cmd == "add":
+                insert_call = ["_translator_runtime_helpers",
+                    ".", "_container_add"]
+            elif cmd == "join":
+                insert_call = ["_translator_runtime_helpers",
+                    ".", "_container_join"]
+            elif cmd == "trim":
+                insert_call = ["_translator_runtime_helpers",
+                    ".", "_container_trim"]
+            elif cmd == "repeat":
+                insert_call = ["_translator_runtime_helpers",
+                    ".", "_container_repeat"]
+            elif cmd == "sub":
+                insert_call = ["_translator_runtime_helpers",
+                    ".", "_container_sub"]
+            elif cmd == "find":
+                insert_call = ["_translator_runtime_helpers",
+                    ".", "_container_find"]
+            elif cmd == "sort":
+                insert_call = ["_translator_runtime_helpers",
+                    ".", "_container_sort"]
+            elif cmd == "[":
+                insert_call = ["_translator_runtime_helpers",
+                    ".", "_container_squarebracketaccess"]
+            def is_keyword_or_idf(s):
+                if len(s) == 0:
+                    return False
+                if (s[0] == "_" or(ord(s[0]) >= ord("A") and
+                        ord(s[0]) <= ord("Z")) or
+                        (ord(s[0]) >= ord("a") and
+                        ord(s[0]) <= ord("z"))):
+                    return True
+                return False
+            replaced_one = True
+            old_s = s
+            if cmd in ("len"):
+                # Add in a ")":
+                s = s[:i - 1] + [")"] + s[i + 1:]
+                i -= 1
+                assert(s[i] == ")")
+            elif cmd in ("add", "sort", "join", "find", "sub",
+                    "repeat", "trim"):
+                # Truncate "("/"]", ... and turn it to ",", ...
+                s = s[:i - 1] + [","] + s[i + 2:]
+                i -= 1
+                assert(s[i] == ",")
+            elif cmd == "[":
+                # Change the "[" into a ",":
+                s = s[:i] + [","] + s[i + 1:]
+                # We also need to replace the closing ']' with a ')':
+                bracket_depth = 0
+                k = i + 2
+                while (k < len(s) and (
+                        bracket_depth > 0 or
+                        s[k] != "]")):
+                    if s[k] in {"(", "[", "{"}:
+                        bracket_depth += 1
+                    elif s[k] in {")", "]", "}"}:
+                        bracket_depth -= 1
+                    k += 1
+                if k >= len(s) or s[k] != "]":
+                    raise ValueError("invalid code, failed to "
+                        "find closing ']' in: " +
+                        untokenize(s[i:i + 20]) + "||" + str(s))
+                s[k] = ")"
+            else:
+                # Truncate "(", ")" to leave a ")":
+                s = s[:i - 1] + s[i + 2:]
+                i -= 1
+                assert(s[i] == ")")
+            inserted_left_end = False
+            bdepth = 0
+            i -= 1  # Go before terminating ) or , character
+            # Now search back to find the beginning of the expression:
+            is_guaranteed_past_expr = False
+            scan_start = i
+            while i >= 0:
+                if is_whitespace_token(s[i]):
+                    i -= 1
+                    continue
+                if s[i] in {")", "]", "}"}:
+                    bdepth += 1
+                elif s[i] in {"(", "[", "{"}:
+                    must_continue_if_not_guaranteed = False
+                    if bdepth > 1:
+                        bdepth -= 1
+                        i -= 1
+                        continue
+                    elif bdepth == 1:
+                        bdepth -= 1
+                        must_continue_if_not_guaranteed = True
+                    else:
+                        is_guaranteed_past_expr = True
+                    if (is_h64op_with_righthand(
+                                prevnonblank(s, i)) or (
+                            not could_be_identifier(
+                                prevnonblank(s, i)) and
+                            (prevnonblank(s, i) not in {"]", ")"} or
+                            s[i] == "{"))):
+                        is_guaranteed_past_expr = True
+                    if (must_continue_if_not_guaranteed and
+                            not is_guaranteed_past_expr):
+                        i -= 1
+                        continue
+                if (is_guaranteed_past_expr or (s[i] != "." and
+                        not is_keyword_or_idf(s[i]) and
+                        ((not s[i].startswith('"') and
+                          not s[i].startswith("'")) or
+                          nextnonblank(s, i) == ".") and
+                        bdepth <= 0) or (
+                        is_h64op_with_righthand(s[i]) and
+                        bdepth == 0 and
+                        s[i] not in {".", "]"})):
+                    print("STOPPING AT (and cut off after): " +
+                        str((s[i], s, i,
+                        is_guaranteed_past_expr,
+                        is_keyword_or_idf(s[i]))))
+                    s = s[:i + 1] + insert_call + ["("] + s[i + 1:]
+                    inserted_left_end = True
+                    break
+                elif (prevnonblankidx(s, i) < 0 and
+                        (is_keyword_or_idf(s[i]) or
+                        s[i].startswith("\"") or
+                        s[i].startswith("'") or
+                        is_number_token(s[i])) and
+                        bdepth <= 0):
+                    print("STOPPING AT (and cut off before): " +
+                        str((s[i], s, i,
+                        is_guaranteed_past_expr,
+                        is_keyword_or_idf(s[i]))))
+                    s = s[:i] + insert_call + ["("] + s[i:]
+                    inserted_left_end = True
+                    break
+                i -= 1
+            assert(inserted_left_end), (
+                "FAILED TO FIND LEFT END OF EXPRESSION FOR: " + str(
+                (cmd, old_s, s, scan_start)))
+            #print("BEFORE REPLACEMENT: " +
+            #    str(old_s[max(0, i - 10):i + 40]) +
+            #    " AFTER: " +
+            #    str(s[max(0, i - 10):i + 40]))
+            break
     # Translate remapped use to the proper remapped thing:
     i = 0
     while i < len(s):
@@ -577,152 +754,6 @@ def translate_expression_tokens(s, module_name, package_name,
         ) + [")"])
         s = s[:i] + transformed_tokens + s[value_2_end_idx + 1:]
         i = i + len(transformed_tokens) + 1
-    # Translate XYZ.as_str()/XYZ.len to str(XYZ)/len(XYZ)
-    replaced_one = True
-    while replaced_one:
-        replaced_one = False
-        i = 0
-        while i < len(s):
-            cmd = None
-            if (prevnonblank(s, i) == "." and (
-                    s[i] in ("len") or (
-                    s[i] in ("as_str", "to_num") and
-                        nextnonblank(s, i) == "(" and
-                        nextnonblank(s, i, no=2) == ")") or (
-                    s[i] in ("add", "sort", "trim", "find",
-                        "join", "sub", "repeat") and
-                        nextnonblank(s, i) == "("
-                    ))):
-                cmd = s[i]
-            elif (s[i] == "[" and (
-                    prevnonblank(s, i) in {")", "]", "}"} or (
-                    identifier_or_keyword(prevnonblank(s, i)) and
-                    could_be_identifier(prevnonblank(s, i))))):
-                cmd = "["
-            else:
-                i += 1
-                continue
-            replaced_one = True
-            insert_call = ["str"]
-            if cmd == "len":
-                insert_call = ["len"]
-            elif cmd == "to_num":
-                insert_call = ["float"]
-            elif cmd == "add":
-                insert_call = ["_translator_runtime_helpers",
-                    ".", "_container_add"]
-            elif cmd == "join":
-                insert_call = ["_translator_runtime_helpers",
-                    ".", "_container_join"]
-            elif cmd == "trim":
-                insert_call = ["_translator_runtime_helpers",
-                    ".", "_container_trim"]
-            elif cmd == "repeat":
-                insert_call = ["_translator_runtime_helpers",
-                    ".", "_container_repeat"]
-            elif cmd == "sub":
-                insert_call = ["_translator_runtime_helpers",
-                    ".", "_container_sub"]
-            elif cmd == "find":
-                insert_call = ["_translator_runtime_helpers",
-                    ".", "_container_find"]
-            elif cmd == "sort":
-                insert_call = ["_translator_runtime_helpers",
-                    ".", "_container_sort"]
-            elif cmd == "[":
-                insert_call = ["_translator_runtime_helpers",
-                    ".", "_container_squarebracketaccess"]
-            def is_keyword_or_idf(s):
-                if len(s) == 0:
-                    return False
-                if (s[0] == "_" or(ord(s[0]) >= ord("A") and
-                        ord(s[0]) <= ord("Z")) or
-                        (ord(s[0]) >= ord("a") and
-                        ord(s[0]) <= ord("z"))):
-                    return True
-                return False
-            replaced_one = True
-            old_s = s
-            if cmd in ("len"):
-                # Add in a ")":
-                s = s[:i - 1] + [")"] + s[i + 1:]
-                i -= 1
-                assert(s[i] == ")")
-            elif cmd in ("add", "sort", "join", "find", "sub",
-                    "repeat", "trim"):
-                # Truncate "("/"]", ... and turn it to ",", ...
-                s = s[:i - 1] + [","] + s[i + 2:]
-                i -= 1
-                assert(s[i] == ",")
-            elif cmd == "[":
-                # Change the "[" into a ",":
-                s = s[:i] + [","] + s[i + 1:]
-                # We also need to replace the closing ']' with a ')':
-                bracket_depth = 0
-                k = i + 2
-                while (k < len(s) and (
-                        bracket_depth > 0 or
-                        s[k] != "]")):
-                    if s[k] in {"(", "[", "{"}:
-                        bracket_depth += 1
-                    elif s[k] in {")", "]", "}"}:
-                        bracket_depth -= 1
-                    k += 1
-                if k >= len(s) or s[k] != "]":
-                    raise ValueError("invalid code, failed to "
-                        "find closing ']' in: " +
-                        untokenize(s[i:i + 20]) + "||" + str(s))
-                s[k] = ")"
-            else:
-                # Truncate "(", ")" to leave a ")":
-                s = s[:i - 1] + s[i + 2:]
-                i -= 1
-                assert(s[i] == ")")
-            inserted_left_end = False
-            bdepth = 0
-            i -= 1  # Go before terminating ) or , character
-            # Now search back to find the beginning of the expression:
-            is_guaranteed_past_expr = False
-            while i >= 0:
-                if s[i] in {")", "]", "}"}:
-                    bdepth += 1
-                elif s[i] in {"(", "[", "{"}:
-                    if bdepth > 1:
-                        bdepth -= 1
-                        i -= 1
-                        continue
-                    elif bdepth == 1:
-                        bdepth -= 1
-                    else:
-                        is_guaranteed_past_expr = True
-                    if (is_h64op_with_righthand(
-                                prevnonblank(s, i)) or (
-                            not could_be_identifier(
-                                prevnonblank(s, i)) and
-                            (prevnonblank(s, i) not in {"]", ")"} or
-                            s[i] == "{"))):
-                        is_guaranteed_past_expr = True
-                if is_guaranteed_past_expr or (s[i] != "." and
-                        not is_keyword_or_idf(s[i]) and
-                        ((not s[i].startswith('"') and
-                          not s[i].startswith("'")) or
-                          i + 1 < len(s) and s[i + 1] == ".") and
-                        bdepth <= 0):
-                    s = s[:i + 1] + insert_call + ["("] + s[i + 1:]
-                    inserted_left_end = True
-                    break
-                elif (i == 0 and is_keyword_or_idf(s[i]) and
-                        bdepth <= 0):
-                    s = insert_call + ["("] + s
-                    inserted_left_end = True
-                    break
-                i -= 1
-            assert(inserted_left_end)
-            #print("BEFORE REPLACEMENT: " +
-            #    str(old_s[max(0, i - 10):i + 40]) +
-            #    " AFTER: " +
-            #    str(s[max(0, i - 10):i + 40]))
-            break
     # Translate some keywords:
     i = 0
     while i < len(s):
@@ -1509,7 +1540,8 @@ def translate(s, module_name, package_name, parent_statements=[],
             k += 1
         if k < len(statement):
             assert("=" in statement[k])
-            assign_token_idx = k
+            if statement[k] not in {"==", ">=", "<="}:
+                assign_token_idx = k
         # Process as generic unknown statement:
         result += indent + untokenize(translate_expression_tokens(
             statement, module_name, package_name,
