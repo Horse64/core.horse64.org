@@ -55,7 +55,9 @@ from translator_syntaxhelpers import (
     could_be_identifier, as_escaped_code_string,
     is_whitespace_token, get_next_token,
     split_toplevel_statements, nextnonblank,
-    get_next_statement, prevnonblank,
+    nextnonblankidx,
+    firstnonblank, firstnonblankidx,
+    get_next_statement, prevnonblank, prevnonblankidx,
     sanity_check_h64_codestring,
     separate_out_inline_funcs,
     get_global_standalone_func_names,
@@ -247,7 +249,8 @@ def sublist_index(full_list, sub_list):
 
 def translate_expression_tokens(s, module_name, package_name,
         parent_statements=[], known_imports=None, project_info=None,
-        add_indent="", repo_package_name=None):
+        add_indent="", repo_package_name=None, is_assign_stmt=False,
+        assign_token_index=-1):
     s = list(s)
     assert("_remapped_os" not in s)
 
@@ -255,12 +258,53 @@ def translate_expression_tokens(s, module_name, package_name,
     i = 0
     while i < len(s):
         t = s[i]
-        if t.strip("\r\n ") == "" and (
+        if t.strip("\t\r\n ") == "" and (
                 t.startswith("\r\n") or
                 t.startswith("\n")):
             t += add_indent
             s[i] = t
+        elif t.strip("\t\r\n ") == "" and (
+                t.endswith("\r\n") or
+                t.endswith("\n")):
+            t = add_indent + t
+            s[i] = t
         i += 1
+    # Fix assignments to square bracket accessed expression:
+    if (is_assign_stmt and
+            prevnonblank(s, assign_token_index) == "]"):
+        i = prevnonblankidx(s, assign_token_index)
+        # Find opening '[':
+        bracket_depth = 0
+        k = i - 1
+        while (k >= 0 and (
+                bracket_depth > 0 or
+                s[k] != "[")):
+            if s[k] in {")", "]", "}"}:
+                bracket_depth += 1
+            elif s[k] in {"(", "[", "{"}:
+                bracket_depth -= 1
+            k -= 1
+        assert(k >= 0 and s[k] == "[")
+        start_whitespace_len = 0
+        while (start_whitespace_len < len(s) and
+                is_whitespace_token(s[start_whitespace_len])):
+            start_whitespace_len += 1
+        end_whitepace_len = 0
+        while (end_whitepace_len < len(s) and
+                is_whitespace_token(
+                s[len(s)-(end_whitepace_len + 1)])):
+            end_whitepace_len -= 1
+        orig_s = list(s)
+        s = (["_translator_runtime_helpers", ".",
+            "_container_squarebracketassign", "("] +
+            s[start_whitespace_len:k] +
+            [","] + s[k + 1:i] + [","] +
+            tokenize(as_escaped_code_string(s[assign_token_index])) +
+            [","] +
+            s[assign_token_index+1:len(s) - end_whitepace_len] +
+            [")"])
+        #print("CHANGED TO ASSIGN: " + str(s))
+        #print("ORIG: " + str(orig_s))
     # Translate typename()/"throw"/"has_attr"/...:
     previous_token = None
     i = 0
@@ -302,8 +346,8 @@ def translate_expression_tokens(s, module_name, package_name,
                 z += 1
             if (z < len(s) and (
                     s[z].endswith("\"") or s[z].endswith("'"))):
-                s = (s[:i + 1] + ["+", "\\"] + [s[i + 1].lstrip(" \t")] +
-                    s[i + 2:])
+                s = (s[:i + 1] + ["+", "\\"] +
+                    [s[i + 1].lstrip(" \t")] + s[i + 2:])
         i += 1
     # Translate remapped use to the proper remapped thing:
     i = 0
@@ -419,9 +463,11 @@ def translate_expression_tokens(s, module_name, package_name,
             for remapped_use in remapped_uses[remap_module_key]:
                 if remapped_use == remap_original_use:
                     if DEBUG_ENABLE_REMAPPED_USES:
-                        print("tools/translator.py: debug: remapping " +
-                            "use to the overridden expression: " +
-                            remap_original_use + " in " + remap_module_key)
+                        print("tools/translator.py: debug: "
+                            "remapping use of "
+                            "the overridden expression: " +
+                            remap_original_use + " in " +
+                            remap_module_key)
                     insert_tokens = tokenize(remapped_uses
                         [remap_module_key][remapped_use])
                     s = s[:i] + insert_tokens + s[i + match_tokens:]
@@ -1447,12 +1493,32 @@ def translate(s, module_name, package_name, parent_statements=[],
                 translate_file_queue=translate_file_queue
             )
             continue
+        # See if this is an assignment:
+        assign_token_idx = -1
+        bracket_depth = 0
+        k = 0
+        while (k < len(statement) and ((
+                statement[k] != "=" and
+                (len(statement[k]) != 2 or
+                statement[k][1] != "=")) or
+                bracket_depth > 0)):
+            if statement[k] in {"(", "[", "{"}:
+                bracket_depth += 1
+            elif statement[k] in {")", "]", "}"}:
+                bracket_depth -= 1
+            k += 1
+        if k < len(statement):
+            assert("=" in statement[k])
+            assign_token_idx = k
+        # Process as generic unknown statement:
         result += indent + untokenize(translate_expression_tokens(
             statement, module_name, package_name,
             project_info=project_info,
             parent_statements=parent_statements,
             known_imports=known_imports,
-            add_indent=extra_indent)) + "\n"
+            add_indent=extra_indent,
+            is_assign_stmt=(assign_token_idx >= 0),
+            assign_token_index=assign_token_idx)) + "\n"
     return result
 
 
