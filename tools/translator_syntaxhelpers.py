@@ -599,6 +599,31 @@ def prevnonblank(t, idx, no=1):
     return t[idx]
 
 
+def is_number_token(v):
+    def is_digit(v):
+        if len(v) == 0:
+            return False
+        i = 0
+        while i < len(v):
+            if (ord(v[i]) < ord("0") or
+                    ord(v[i]) > ord("9")):
+                return False
+            i += 1
+        return True
+    if "." in v:
+        nonfrac = v.partition(".")[0]
+        frac = v.partition(".")[2]
+        if (is_digit(frac) and (
+                (nonfrac.startswith("-") and
+                is_digit(nonfrac[1:])) or
+                is_digit(nonfrac))):
+            return True
+    else:
+        if v.startswith("-") and is_digit(v[1:]):
+            return True
+        return is_digit(v)
+
+
 def prevnonblankidx(t, idx, no=1):
     while no > 0:
         idx -= 1

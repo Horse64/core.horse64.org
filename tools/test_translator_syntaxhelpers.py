@@ -34,7 +34,7 @@ from translator_syntaxhelpers import (
     get_statement_inline_funcs, tree_transform_statements,
     firstnonblank, firstnonblankidx,
     get_leading_whitespace, separate_out_inline_funcs,
-    get_global_standalone_func_names
+    get_global_standalone_func_names, is_number_token
 )
 
 
@@ -52,6 +52,16 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0], "hello")
         self.assertEqual(result[1], "hello2")
+
+    def test_is_number_token(self):
+        self.assertFalse(is_number_token(""))
+        self.assertTrue(is_number_token("1"))
+        self.assertTrue(is_number_token("1.2"))
+        self.assertFalse(is_number_token("1."))
+        self.assertTrue(is_number_token("34341"))
+        self.assertTrue(is_number_token("-1342.4224"))
+        self.assertTrue(is_number_token("-1"))
+        self.assertFalse(is_number_token("1.2.3"))
 
     def test_get_statement_expr_ranges(self):
         t = ["func", " ", "myfunc", " ",
