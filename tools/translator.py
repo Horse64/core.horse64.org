@@ -1719,6 +1719,7 @@ if __name__ == "__main__":
         contents = None
         with open(target_file, "r", encoding="utf-8") as f:
             contents = f.read()
+        original_contents = contents
         sanity_check_h64_codestring(contents, modname=modname,
             filename=target_file)
         assert(type(contents) == str)
@@ -1747,7 +1748,8 @@ if __name__ == "__main__":
             "target-filename": target_filename,
             "path": target_file,
             "disk-fake-folder": disk_target_folder,
-            "output": contents_result
+            "output": contents_result,
+            "original-source": original_contents,
         }
     output_folder = tempfile.mkdtemp(prefix="h64-tools-translator-")
     assert(os.path.isabs(output_folder) and "h64-tools" in output_folder)
@@ -1791,7 +1793,8 @@ if __name__ == "__main__":
                         regtype.funcs["init"]["arguments"][1:]
                     )
                     contents_result += ("    def __init__" +
-                        untokenize(regtype.funcs["init"]["arguments"]) + ":\n")
+                        untokenize(regtype.funcs
+                            ["init"]["arguments"]) + ":\n")
                     if regtype.init_code != None:
                         contents_result += regtype.init_code + "\n"
                     contents_result += regtype.funcs["init"]["code"] + "\n"
@@ -1810,21 +1813,27 @@ if __name__ == "__main__":
                         regtype.funcs[funcname]["arguments"][1:]
                     )
                     contents_result += ("    def " + funcname +
-                        untokenize(regtype.funcs[funcname]["arguments"]) + ":\n")
-                    contents_result += regtype.funcs[funcname]["code"] + "\n"
+                        untokenize(regtype.funcs
+                            [funcname]["arguments"]) + ":\n")
+                    contents_result += (
+                        regtype.funcs[funcname]["code"] + "\n")
 
             if (translated_files[translated_file]["path"] ==
                     mainfilepath):
                 if run_as_test:
                     test_funcs = get_global_standalone_func_names(
-                        test_funcs
-                    )
+                        translated_files[translated_file]
+                            ["original-source"])
                     test_funcs = [tf for tf in test_funcs if
                         tf.startswith("test_")]
+                    if len(test_funcs) == 0:
+                        print("tools/translator.py: error: "
+                            "no test functions found in this file")
+                        sys.exit(1)
                     contents_result += ("\nif __name__ == '__main__':" +
                         "\n    ")
                     for tf in test_funcs:
-                        content_results += tf + "(); "
+                        contents_result += tf + "(); "
                 else:
                     contents_result += (
                         "\nif __name__ == '__main__':" +

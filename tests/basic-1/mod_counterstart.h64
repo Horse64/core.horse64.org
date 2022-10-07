@@ -24,10 +24,10 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-import main
+import test_main
 
 
-func main.MyObject.init {
+func test_main.MyObject.init {
     self.counter = 1
     print("This code modified the counter start value to 1.")
 }
