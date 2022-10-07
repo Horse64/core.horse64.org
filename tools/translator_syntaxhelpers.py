@@ -856,6 +856,26 @@ def get_leading_whitespace(st):
     return leading
 
 
+def get_global_standalone_func_names(s):
+    if type(s) == str:
+        s = tokenize(s)
+    result = []
+    statements = split_toplevel_statements(s)
+    for statement in statements:
+        if firstnonblank(statement) != "func":
+            continue
+        i = firstnonblankidx(statement)
+        assert(statement[i] == "func")
+        i += 1
+        while (i < len(statement) and
+                statement[i].strip(" \n\r\t") == ""):
+            i += 1
+        if not could_be_identifier(statement[i]):
+            continue
+        result.append(statement[i])
+    return result
+
+
 def separate_out_inline_funcs(s):
     def do_separate_out(sts):
         new_sts = []

@@ -24,21 +24,14 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-var mynum = (
-    99
-)
-type MyObject {
-    var counter = 0
-}
-func MyObject.increase_counter {
-    self.counter += 1
-    print("Count: " + self.counter.as_str())
-}
 
+func test_more_basic_things {
+    # Test some math:
+    var value = (2 + 2 * 3)
+    assert(value == 8)
 
-func main {
-    var testobj = new MyObject()
-    testobj.increase_counter()
-    testobj.increase_counter()
-    assert(testobj.counter == 3)  # thanks to mod_counterstart.h64
+    # Test ternary operator:
+    var value = if 1 == 2 (yes) else (no)
+    assert(typename(value) == "bool")
+    assert(value == no)
 }

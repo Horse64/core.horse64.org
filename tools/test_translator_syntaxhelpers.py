@@ -33,11 +33,26 @@ from translator_syntaxhelpers import (
     get_statement_expr_ranges, get_statement_block_ranges,
     get_statement_inline_funcs, tree_transform_statements,
     firstnonblank, firstnonblankidx,
-    get_leading_whitespace, separate_out_inline_funcs
+    get_leading_whitespace, separate_out_inline_funcs,
+    get_global_standalone_func_names
 )
 
 
 class TestTranslatorSyntaxHelpers(unittest.TestCase):
+    def test_get_global_standalone_func_names(self):
+        testcode = textwrap.dedent("""\
+        func hello {} func hello2(a=func x{return 5}) {
+            print("Hello")
+            while yes {
+                func myfunc {}
+            }
+        }
+        """)
+        result = get_global_standalone_func_names(testcode)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0], "hello")
+        self.assertEqual(result[1], "hello2")
+
     def test_get_statement_expr_ranges(self):
         t = ["func", " ", "myfunc", " ",
             "(", "bla", "=", "{", "->", "}", " ",

@@ -1,5 +1,4 @@
 #!/usr/bin/python3
-
 # Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -58,7 +57,8 @@ from translator_syntaxhelpers import (
     split_toplevel_statements, nextnonblank,
     get_next_statement, prevnonblank,
     sanity_check_h64_codestring,
-    separate_out_inline_funcs
+    separate_out_inline_funcs,
+    get_global_standalone_func_names
 )
 
 translator_py_script_dir = (
@@ -1503,6 +1503,7 @@ if __name__ == "__main__":
     target_file = None
     target_file_args = []
     keep_files = False
+    run_as_test = False
     overridden_package_name = None
     i = 0
     while i < len(args):
@@ -1520,11 +1521,15 @@ if __name__ == "__main__":
                 print("\n" + "\n".join(textwrap.wrap(
                     HACKY_WARNING.strip(), width=70)) + "\n")
                 print("Options:")
+                print("    --as-test     Don't look for a main func,")
+                print("                  instead run all test_* funcs.")
                 print("    --help        Show this help text")
                 print("    --keep-files  Keep translated files and ")
                 print("                  print out path to them.")
                 print("    --version     Print out program version")
                 sys.exit(0)
+            elif args[i] == "--as-test":
+                run_as_test = True
             elif (args[i] == "--version" or args[i] == "-v" or
                     args[i] == "-V"):
                 print("tools/translator.py version " + VERSION)
@@ -1810,8 +1815,20 @@ if __name__ == "__main__":
 
             if (translated_files[translated_file]["path"] ==
                     mainfilepath):
-                contents_result += ("\nif __name__ == '__main__':" +
-                    "\n    _remapped_sys.exit(main())\n")
+                if run_as_test:
+                    test_funcs = get_global_standalone_func_names(
+                        test_funcs
+                    )
+                    test_funcs = [tf for tf in test_funcs if
+                        tf.startswith("test_")]
+                    contents_result += ("\nif __name__ == '__main__':" +
+                        "\n    ")
+                    for tf in test_funcs:
+                        content_results += tf + "(); "
+                else:
+                    contents_result += (
+                        "\nif __name__ == '__main__':" +
+                        "\n    _remapped_sys.exit(main())\n")
 
             if DEBUG_ENABLE and DEBUG_ENABLE_CONTENTS:
                 print("tools/translator.py: debug: have output of " +

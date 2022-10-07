@@ -30,7 +30,7 @@ import path from core.horse64.org
 import system from core.horse64.org
 
 
-func main {
+func test_args_things {
     # Test if it works as a standalone separate program:
     var output = compiler.run_file(
         "args_program_main.h64", args=["--help"],
