@@ -25,10 +25,54 @@
 # license, see accompanied LICENSE.md.
 
 
-func main {
+func oopsie_func(v) {
+    if typename(v) != "num" {
+        throw new TypeError("oopsie, wrong value")
+    }
+    return v + 1
+}
+
+
+type ToCloseObj {
+    var closed = no
+}
+
+
+func ToCloseObj.close {
+    self.closed = yes
+}
+
+
+func test_rescue_examples {
     var x = 1
-    x = (func z {
-        return z * 3
-    })(x)
+    do {
+        x = oopsie_func("abc")  # Shouldn't run
+    } rescue TypeError {
+        x += 2  # Should run, x now 3
+    }
     assert(x == 3)
+    do {
+        do {
+            x = oopsie_func("florb")  # Shouldn't run
+        } rescue ValueError {
+            x += 2  # Shouldn't run
+        } finally {
+            x -= 1  # Should run, x now 2
+        }
+    } rescue TypeError {
+        x += 4  # Should run, x now 6
+    } finally {
+        x += 10  # Should run, x now 16
+    }
+    assert(x == 16)
+    oopsie_func(x)
+    assert(x == 16)
+    x = oopsie_func(x)
+    assert(x == 17)
+
+    # Test that with blocks also work:
+    with new ToCloseObj() as f {
+        assert(not f.closed)
+    }  # End bracket should call f.close()
+    assert(f.closed)
 }
