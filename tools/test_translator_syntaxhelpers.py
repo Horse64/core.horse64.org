@@ -34,7 +34,9 @@ from translator_syntaxhelpers import (
     get_statement_inline_funcs, tree_transform_statements,
     firstnonblank, firstnonblankidx,
     get_leading_whitespace, separate_out_inline_funcs,
-    get_global_standalone_func_names, is_number_token
+    get_global_standalone_func_names, is_number_token,
+    expr_nonblank_equals, find_start_of_call_index_chain,
+    is_identifier
 )
 
 
@@ -52,6 +54,46 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0], "hello")
         self.assertEqual(result[1], "hello2")
+
+    def test_expr_nonblank_equals(self):
+        self.assertTrue(expr_nonblank_equals(
+            "func  main {   }", "func main{}"
+        ))
+        self.assertTrue(not expr_nonblank_equals(
+            "func  main {   }}", "func main{}"
+        ))
+        self.assertTrue(expr_nonblank_equals(
+            ["func", " ", "bla"], ["func", "bla"]
+        ))
+
+    def test_is_identifier(self):
+        self.assertTrue(is_identifier("flurb"))
+        self.assertFalse(is_identifier("5f"))
+        self.assertTrue(is_identifier("f5"))
+        self.assertFalse(is_identifier("and"))
+
+    def test_find_start_of_call_index_chain(self):
+        t = "5 + abc[\"def\"].flurb[5][2].acke()()"
+        texpected = "abc[\"def\"].flurb[5][2].acke()()"
+        tokens = tokenize(t)
+        idx = find_start_of_call_index_chain(tokens, len(tokens) - 1)
+        self.assertTrue(expr_nonblank_equals(
+            tokens[idx:], texpected
+        ), msg=("got " + untokenize(tokens[idx:]) +
+            ", expected " + texpected))
+
+        t = "abc{1->2}[1]"
+        texpected = "{1->2}[1]"
+        tokens = tokenize(t)
+        idx = find_start_of_call_index_chain(tokens, len(tokens) - 1)
+        self.assertTrue(expr_nonblank_equals(
+            tokens[idx:], texpected
+        ), msg=("got " + untokenize(tokens[idx:]) +
+            ", expected " + texpected))
+
+        self.assertEqual(
+            find_start_of_call_index_chain(["(", " ",
+            "abc", "(", ")", ")"], 4), 2)
 
     def test_is_number_token(self):
         self.assertFalse(is_number_token(""))
