@@ -568,7 +568,9 @@ def _run_main(main_func):
 
 
 def _container_squarebracketaccess(container, index):
-    if type(container) in {str, bytes, list}:
+    if type(container) == dict:
+        return container[index]
+    elif type(container) in {str, bytes, list}:
         if type(index) not in {float, int}:
             raise TypeError("index not a num")
         index = round(index)
@@ -576,42 +578,54 @@ def _container_squarebracketaccess(container, index):
             raise IndexError("out of range")
         return container[index - 1]
     raise NotImplementedError("container type "
-        "not imlemented")
+        "not imlemented for '[' indexing: " +
+        str(type(container)))
 
 
 def _container_squarebracketassign(container, index,
         assign_type, value):
+    recognized_type = False
+    index_to_use = None
     if type(container) in {str, bytes, list}:
         if type(index) not in {float, int}:
             raise TypeError("index not a num")
-        index = round(index)
-        if index <= 0 or index > len(container):
+        index_to_use = round(index)
+        if (index_to_use <= 0 or
+                index_to_use > len(container)):
             raise IndexError("out of range")
+        index_to_use -= 1
+        recognized_type = True
+    elif type(container) == dict:
+        index_to_use = index
+        recognized_type = True
+    if recognized_type:
         if assign_type == "=":
-            container[index - 1] = value
+            container[index_to_use] = value
         elif assign_type == "+=":
-            container[index - 1] = (
-                container[index - 1] + value)
+            container[index_to_use] = (
+                container[index_to_use] + value)
         elif assign_type == "-=":
-            container[index - 1] = (
-                container[index - 1] - value)
+            container[index_to_use] = (
+                container[index_to_use] - value)
         elif assign_type == "*=":
-            container[index - 1] = (
-                container[index - 1] * value)
+            container[index_to_use] = (
+                container[index_to_use] * value)
         elif assign_type == "/=":
-            container[index - 1] = (
-                container[index - 1] / value)
+            container[index_to_use] = (
+                container[index_to_use] / value)
         elif assign_type == "|=":
-            container[index - 1] = (
-                container[index - 1] | value)
+            container[index_to_use] = (
+                container[index_to_use] | value)
         elif assign_type == "&=":
-            container[index - 1] = (
-                container[index - 1] & value)
+            container[index_to_use] = (
+                container[index_to_use] & value)
         else:
             raise NotImplementedError("assign type " +
                 "not implemented: " + assign_type)
+        return
     raise NotImplementedError("container type "
-        "not imlemented")
+        "not imlemented for '[' assign: " +
+        str(type(container)))
 
 
 class _ModuleObject:

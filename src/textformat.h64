@@ -76,14 +76,14 @@ func wrap(text, length,
             #print("textformat.wrap result: " + result.as_str())
             return result
         }
-        var wrap_index = math.max(1, line_length)
+        var wrap_index = math.max(2, line_length)
         var line_break_idx = s.find("\n")
         if line_break_idx != none and
                 line_break_idx < wrap_index {
             wrap_index = line_break_idx
         }
         var k = wrap_index
-        while k > s.len / 2 and k > 1 {
+        while k > s.len / 2 and k > 2 {
             if s[k] == " " or s[k] == "\n" or s[k] == "\t" {
                 wrap_index = k
                 break
@@ -93,10 +93,10 @@ func wrap(text, length,
         final_lines.add(prefix + s.sub(0, wrap_index))
         if s[wrap_index] == "\n" or s[wrap_index] == "\t" or
                 s[wrap_index] == "\r" or s[wrap_index] == " " {
-            assert(wrap_index >= 0)
+            assert(wrap_index >= 1)
             s = s.sub(wrap_index + 1)
         } else {
-            assert(wrap_index >= 1)
+            assert(wrap_index >= 2)
             s = s.sub(wrap_index)
         }
         is_first_line = no
