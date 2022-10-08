@@ -59,7 +59,8 @@ from translator_horphelpers import (
 )
 
 from translator_transformhelpers import (
-    transform_h64_misc_inline_to_python
+    transform_h64_misc_inline_to_python,
+    get_first_nonempty_line_indent
 )
 
 from translator_syntaxhelpers import (
@@ -74,7 +75,7 @@ from translator_syntaxhelpers import (
     separate_out_inline_funcs,
     get_global_standalone_func_names,
     identifier_or_keyword, is_h64op_with_righthand,
-    is_number_token
+    is_number_token, extract_all_imports
 )
 
 translator_py_script_dir = (
@@ -267,8 +268,102 @@ def sublist_index(full_list, sub_list):
     return -1
 
 
+def find_matching_remap_module(s, i, processed_imports={}):
+    # See if any external, imported use needs a remap:
+    match = False
+    match_package = None
+    match_import_module = None
+    match_item = None
+    match_tokens = -1
+    for known_import in processed_imports:
+        import_module_elements = (
+            processed_imports[known_import]
+                ["module"].split(".")
+        )
+        maybe_match = True
+
+        # See if this matches our module:
+        k = 0
+        while k < len(import_module_elements):
+            if (k * 2 + i >= len(s) or
+                    s[i + k * 2] !=
+                    import_module_elements[k] or
+                    (k + 1 < len(import_module_elements) and
+                    (k * 2 + 1 + i >= len(s) or
+                    s[i + k * 2 + 1] != "."))):
+                maybe_match = False
+                break
+            k += 1
+        if not maybe_match:
+            continue
+        #print("MAYBE MATCH: " + str(import_module_elements))
+
+        # Rule out, however, that this matches a module with
+        # more components (so that net.fetch trumps net, for
+        # example:
+        for known_other_import in processed_imports:
+            other_module_elements = (
+                processed_imports[known_other_import]
+                    ["module"].split(".")
+            )
+            if (len(other_module_elements) <=
+                    len(import_module_elements)):
+                # Uninteresting, doesn't have more components.
+                continue
+            #print("CHECKING AGAINST OTHER: " +str(other_module_elements))
+            maybe_other_match = True
+            k2 = 0
+            while k2 < len(other_module_elements):
+                if (k2 * 2 + i >= len(s) or
+                        s[i + k2 * 2] !=
+                        other_module_elements[k2] or
+                        (k2 + 1 < len(other_module_elements) and
+                        (k2 * 2 + 1 + i >= len(s) or
+                        s[i + k2 * 2 + 1] != "."))):
+                    maybe_other_match = False
+                    break
+                k2 += 1
+            if maybe_other_match:
+                # Trumped by longer remap module.
+                maybe_match = False
+                break
+        if not maybe_match:
+            continue
+        maybe_match_tokens = -1
+        maybe_match_item = None
+        if (k * 2 + i < len(s) and
+                is_identifier(s[k * 2 + i])):
+            maybe_match_item = s[k * 2 + i]
+            maybe_match_tokens = k * 2 + 1
+        #print((s[i], k, maybe_match_item, maybe_match,
+        #    processed_imports[known_import]
+        #            ["module"],
+        #    import_module_elements,
+        #    maybe_match_tokens))
+        if (maybe_match and (not match or
+                len(import_module_elements) >
+                len(match_import_module.split("."))) and
+                maybe_match_item != None):
+            match = True
+            match_import_module = (
+                processed_imports[known_import]
+                    ["module"]
+            )
+            match_package = (
+                processed_imports[known_import]
+                    ["package"]
+            )
+            match_tokens = maybe_match_tokens
+            match_item = maybe_match_item
+    if match == True:
+        return (match_import_module, match_package,
+            match_item, match_tokens)
+    else:
+        return (None, None, None, None)
+
+
 def translate_expression_tokens(s, module_name, package_name,
-        parent_statements=[], known_imports=None, project_info=None,
+        parent_statements=[], processed_imports=None, project_info=None,
         add_indent="", repo_package_name=None, is_assign_stmt=False,
         assign_token_index=-1):
     s = list(s)
@@ -393,7 +488,7 @@ def translate_expression_tokens(s, module_name, package_name,
                     ord(s[i][0]) > ord("Z"))):
             i += 1
             continue
-        if len(known_imports) == 0:
+        if len(processed_imports) == 0:
             i += 1
             continue
         #print("s[i] " + str(s[i]))
@@ -424,57 +519,10 @@ def translate_expression_tokens(s, module_name, package_name,
                 continue
 
         # See if any external, imported use needs a remap:
-        match = False
-        match_package = None
-        match_import_module = None
-        match_item = None
-        match_tokens = -1
-        for known_import in known_imports:
-            import_module_elements = (
-                known_imports[known_import]
-                    ["module"].split(".")
-            )
-            maybe_match = True
-            k = 0
-            while k < len(import_module_elements):
-                if (k * 2 + i >= len(s) or
-                        s[i + k * 2] !=
-                        import_module_elements[k] or
-                        (k + 1 < len(import_module_elements) and
-                        (k * 2 + 1 + i >= len(s) or
-                        s[i + k * 2 + 1] != "."))):
-                    maybe_match = False
-                    break
-                k += 1
-            maybe_match_tokens = -1
-            maybe_match_item = None
-            if (k * 2 + i < len(s) and
-                    is_identifier(s[k * 2 + i])):
-                maybe_match_item = s[k * 2 + i]
-                maybe_match_tokens = k * 2 + i + 1 - i
-            if maybe_match:
-                #print((s[i], k, maybe_match_item, maybe_match,
-                #    known_imports[known_import]
-                #            ["module"],
-                #    import_module_elements,
-                #    maybe_match_tokens))
-                pass
-            if (maybe_match and (not match or
-                    len(import_module_elements) >
-                    len(match_import_module.split("."))) and
-                    maybe_match_item != None):
-                match = True
-                match_import_module = (
-                    known_imports[known_import]
-                        ["module"]
-                )
-                match_package = (
-                    known_imports[known_import]
-                        ["package"]
-                )
-                match_tokens = maybe_match_tokens
-                match_item = maybe_match_item
-        if not match:
+        (match_import_module, match_package,
+         match_item, match_tokens) = find_matching_remap_module(
+            s, i, processed_imports=processed_imports)
+        if match_import_module is None:
             i += 1
             continue
         remap_module_key = match_import_module + (
@@ -618,15 +666,22 @@ def translate_expression_tokens(s, module_name, package_name,
     return s
 
 
-def queue_file_if_not_queued(translate_file_queue, entry):
+def queue_file_if_not_queued(
+        translate_file_queue, entry,
+        reason=None
+        ):
     for queue_item in translate_file_queue:
         if (os.path.normpath(queue_item[0]) ==
                 os.path.normpath(entry[0])):
             return
     if DEBUGV.ENABLE and DEBUGV.ENABLE_QUEUE:
         print("tools/translator.py: debug: queueing item: " +
-            str(entry))
+            str(entry) + (
+            " due to reason: " + str(reason) if
+            reason != None and len(reason) > 0 else
+            " with reason unknown"))
         traceback.print_stack()
+    entry = tuple(list(entry) + [reason])
     translate_file_queue.append(entry)
     if "compiler/main.h64" in entry[0]:
         assert(entry[2] == "compiler.main")
@@ -636,7 +691,15 @@ def queue_file_if_not_queued(translate_file_queue, entry):
 
 def translate(s, module_name, package_name, parent_statements=[],
         extra_indent="", folder_path="", project_info=None,
-        known_imports=None, translate_file_queue=None):
+        processed_imports=None, translate_file_queue=None,
+        orig_h64_imports=None):
+    if orig_h64_imports == None:
+        assert(parent_statements is None or
+            len(parent_statements) == 0)
+        assert(processed_imports is None or
+            len(processed_imports) == 0)
+        assert(type(s) == list)
+        orig_h64_imports = extract_all_imports(s)
     if (len(parent_statements) == 0 and DEBUGV.ENABLE and
             DEBUGV.ENABLE_FILE_PATHS):
         print("tools/translator.py: debug: translating " +
@@ -644,8 +707,8 @@ def translate(s, module_name, package_name, parent_statements=[],
             folder_path +
             (" (no package)" if package_name is None else
              " (package: " + str(package_name) + ")"))
-    if known_imports is None:
-        known_imports = {}
+    if processed_imports is None:
+        processed_imports = {}
     folder_path = os.path.normpath(os.path.abspath(folder_path))
     result = ""
     if type(s) != list or (len(s) > 0 and type(s[0]) != str):
@@ -684,7 +747,8 @@ def translate(s, module_name, package_name, parent_statements=[],
                     project_info=project_info,
                     parent_statements=(
                         parent_statements + [statement_cpy]),
-                    known_imports=known_imports) + [")"])
+                    processed_imports=processed_imports) + [")"]
+                    )
                 assert("no" not in statement)
             else:
                 statement += ["=", "None"]
@@ -824,8 +888,9 @@ def translate(s, module_name, package_name, parent_statements=[],
                     extra_indent=extra_indent,
                     folder_path=folder_path,
                     project_info=project_info,
-                    known_imports=known_imports,
-                    translate_file_queue=translate_file_queue
+                    processed_imports=processed_imports,
+                    translate_file_queue=translate_file_queue,
+                    orig_h64_imports=orig_h64_imports
                 )
             if rescue_block_content_first >= 0:
                 rescue_block_code = translate(
@@ -838,8 +903,9 @@ def translate(s, module_name, package_name, parent_statements=[],
                     extra_indent=extra_indent,
                     folder_path=folder_path,
                     project_info=project_info,
-                    known_imports=known_imports,
-                    translate_file_queue=translate_file_queue
+                    processed_imports=processed_imports,
+                    translate_file_queue=translate_file_queue,
+                    orig_h64_imports=orig_h64_imports
                 )
                 rescued_errors_tokens = statement[
                     rescue_error_types_first:
@@ -862,7 +928,7 @@ def translate(s, module_name, package_name, parent_statements=[],
                     module_name, package_name,
                     project_info=project_info,
                     parent_statements=parent_statements,
-                    known_imports=known_imports,
+                    processed_imports=processed_imports,
                     add_indent=extra_indent)
             finally_block_code = None
             if finally_block_content_first >= 0:
@@ -876,8 +942,9 @@ def translate(s, module_name, package_name, parent_statements=[],
                     extra_indent=extra_indent,
                     folder_path=folder_path,
                     project_info=project_info,
-                    known_imports=known_imports,
-                    translate_file_queue=translate_file_queue
+                    processed_imports=processed_imports,
+                    translate_file_queue=translate_file_queue,
+                    orig_h64_imports=orig_h64_imports
                 )
             result += (indent + "try:\n")
             result += do_block_code + "\n"
@@ -952,7 +1019,7 @@ def translate(s, module_name, package_name, parent_statements=[],
                 module_name, package_name,
                 project_info=project_info,
                 parent_statements=parent_statements,
-                known_imports=known_imports,
+                processed_imports=processed_imports,
                 add_indent=extra_indent)
             with_block_code = translate(
                 untokenize(statement[
@@ -963,8 +1030,9 @@ def translate(s, module_name, package_name, parent_statements=[],
                 extra_indent=extra_indent,
                 folder_path=folder_path,
                 project_info=project_info,
-                known_imports=known_imports,
-                translate_file_queue=translate_file_queue
+                processed_imports=processed_imports,
+                translate_file_queue=translate_file_queue,
+                orig_h64_imports=orig_h64_imports
             )
             result += (indent + assign_obj_label + " = (" +
                 untokenize(assigned_expr) + ")\n")
@@ -1008,7 +1076,7 @@ def translate(s, module_name, package_name, parent_statements=[],
                         module_name, package_name,
                         project_info=project_info,
                         parent_statements=parent_statements,
-                        known_imports=known_imports,
+                        processed_imports=processed_imports,
                         add_indent=extra_indent))
                 assert("as_str" not in condition)
                 assert(sublist_index(condition, [".", "len"]) < 0)
@@ -1030,8 +1098,9 @@ def translate(s, module_name, package_name, parent_statements=[],
                     extra_indent=extra_indent,
                     folder_path=folder_path,
                     project_info=project_info,
-                    known_imports=known_imports,
-                    translate_file_queue=translate_file_queue
+                    processed_imports=processed_imports,
+                    translate_file_queue=translate_file_queue,
+                    orig_h64_imports=orig_h64_imports
                 )
                 if statement[j] == "elseif":
                     statement[j] = "elif"
@@ -1086,6 +1155,17 @@ def translate(s, module_name, package_name, parent_statements=[],
                 while i + 2 < len(statement) and statement[i + 1] == ".":
                     import_package += "." + statement[i + 2]
                     i += 2
+            in_orig_imports = False
+            for orig_h64_import in orig_h64_imports:
+                if (orig_h64_import[0] == import_module and
+                        (orig_h64_import[1] == import_package or
+                        import_package == project_info.package_name)):
+                    in_orig_imports = True
+            if not in_orig_imports:
+                raise RuntimeError(
+                    "encountered import statement for " +
+                    str((import_module, import_package)) +
+                    ", but it's not listed in orig_h64_imports???")
             target_path = import_module.replace(".", "/") + ".h64"
             target_filename = import_module.split(".")[-1] + ".py"
             append_code = ""
@@ -1150,6 +1230,7 @@ def translate(s, module_name, package_name, parent_statements=[],
                         tokens[i - 2] == "from")):
                     i += 1
                     continue
+                # See if it matches our current import:
                 match = True
                 k = 0
                 while k < len(import_module_elements):
@@ -1165,6 +1246,32 @@ def translate(s, module_name, package_name, parent_statements=[],
                 if not match:
                     i += 1
                     continue
+                # Make sure it doesn't match another known import
+                # that has more components:
+                for orig_h64_import in orig_h64_imports:
+                    other_elements = orig_h64_import[0].split(".")
+                    if (len(other_elements) <=
+                            len(import_module_elements)):
+                        continue
+                    other_match = True
+                    k2 = 0
+                    while k2 < len(other_elements):
+                        if (k2 * 2 + i >= len(tokens) or
+                                tokens[i + k2 * 2] !=
+                                other_elements[k2] or
+                                (k2 + 1 < len(other_elements) and
+                                (k2 * 2 + 1 + i >= len(tokens) or
+                                tokens[i + k2 * 2 + 1] != "."))):
+                            other_match = False
+                            break
+                        k2 += 1
+                    if other_match:
+                        match = False
+                        break
+                if not match:
+                    i += 1
+                    continue
+                # If we arrive here, it's a definite match:
                 remapped_uses_key = import_module
                 if import_package != None:
                     remapped_uses_key += "@" + import_package
@@ -1172,8 +1279,10 @@ def translate(s, module_name, package_name, parent_statements=[],
                     if DEBUGV.ENABLE_REMAPPED_USES:
                         print("tools/translator.py: debug: found " +
                             "non-remapped use (no remaps for " +
-                            "module " + str(remapped_uses_key) + "): " + str(
-                            tokens[i:i + len(import_module_elements) + 10]))
+                            "module " + str(remapped_uses_key) +
+                            "): " + str(
+                            tokens[i:i +
+                            len(import_module_elements) + 10]))
                     found_nonremapped_use = True
                     break
                 remapped_uses_list = list(
@@ -1198,7 +1307,7 @@ def translate(s, module_name, package_name, parent_statements=[],
                 i += 1
 
             # Add import:
-            known_imports[import_module] = {
+            processed_imports[import_module] = {
                 "package": import_package,
                 "module": import_module,
                 "python-module": python_module,
@@ -1214,7 +1323,7 @@ def translate(s, module_name, package_name, parent_statements=[],
                         str(import_module) + ("" if
                         import_package is None else
                         "@" + import_package))
-                known_imports[import_module]["python-module"] = (
+                processed_imports[import_module]["python-module"] = (
                     None  # since it wasn't actually imported
                 )
                 continue
@@ -1224,7 +1333,10 @@ def translate(s, module_name, package_name, parent_statements=[],
             queue_file_if_not_queued(translate_file_queue,
                 (target_path, target_filename,
                 import_module, os.path.dirname(target_path),
-                import_package))
+                import_package), reason="imported from " +
+                "module " + str(module_name) + (
+                "" if package_name is None else "@" + package_name) +
+                " with non-remapped uses")
             for otherfile in os.listdir(os.path.dirname(target_path)):
                 otherfilepath = os.path.normpath(os.path.join(
                     os.path.dirname(target_path), otherfile
@@ -1292,13 +1404,13 @@ def translate(s, module_name, package_name, parent_statements=[],
                     name = statement[i2 + 2]
                     i2 += 2
                 start_arguments_idx = i2 + 1
-                for import_mod_name in known_imports:
+                for import_mod_name in processed_imports:
                     if type_name.startswith(import_mod_name + "."):
                         type_module = import_mod_name
                         type_name = type_name[len(type_module) + 1:]
-                        type_package = known_imports\
+                        type_package = processed_imports\
                             [type_module]["package"]
-                        type_python_module = known_imports[
+                        type_python_module = processed_imports[
                             type_module]["python-module"]
             while (start_arguments_idx < len(statement) and
                     statement[start_arguments_idx].
@@ -1323,7 +1435,7 @@ def translate(s, module_name, package_name, parent_statements=[],
                     module_name, package_name,
                     project_info=project_info,
                     parent_statements=parent_statements,
-                    known_imports=known_imports,
+                    processed_imports=processed_imports,
                     add_indent=extra_indent)
             assert("_remapped_os" not in contents)
             translated_contents = translate(
@@ -1334,8 +1446,9 @@ def translate(s, module_name, package_name, parent_statements=[],
                     if type_name is not None else "")),
                 folder_path=folder_path,
                 project_info=project_info,
-                known_imports=known_imports,
-                translate_file_queue=translate_file_queue
+                processed_imports=processed_imports,
+                translate_file_queue=translate_file_queue,
+                orig_h64_imports=orig_h64_imports
             )
             (cleaned_argument_tokens,
                 extra_init_code) = separate_func_keyword_arg_code(
@@ -1344,9 +1457,16 @@ def translate(s, module_name, package_name, parent_statements=[],
             if type_name is None:
                 result += (indent + "def " + name +
                     untokenize(cleaned_argument_tokens) + ":\n")
+                suggested_indent = (
+                    get_first_nonempty_line_indent(
+                    extra_init_code + "\n" +
+                    translated_contents + "\n"))
                 result += (extra_init_code + "\n" +
                     translated_contents + "\n")
-                result += (indent + "    pass\n")
+                if suggested_indent != None:
+                    result += (suggested_indent + "pass\n")
+                else:
+                    result += (indent + "    pass\n")
             else:
                 regtype = get_type(type_name, type_module, type_package)
                 regtype.funcs[name] = {
@@ -1374,8 +1494,9 @@ def translate(s, module_name, package_name, parent_statements=[],
                 extra_indent=(extra_indent + "    "),
                 folder_path=folder_path,
                 project_info=project_info,
-                known_imports=known_imports,
-                translate_file_queue=translate_file_queue
+                processed_imports=processed_imports,
+                translate_file_queue=translate_file_queue,
+                orig_h64_imports=orig_h64_imports
             )
             continue
         # See if this is an assignment:
@@ -1401,7 +1522,7 @@ def translate(s, module_name, package_name, parent_statements=[],
             statement, module_name, package_name,
             project_info=project_info,
             parent_statements=parent_statements,
-            known_imports=known_imports,
+            processed_imports=processed_imports,
             add_indent=extra_indent,
             is_assign_stmt=(assign_token_idx >= 0),
             assign_token_index=assign_token_idx)) + "\n"
@@ -1699,14 +1820,18 @@ def run_translator_main():
     mainfilepath = translate_file_queue[0][0]
     while len(translate_file_queue) > 0:
         (target_file, target_filename, modname, modfolder,
-         package_name) = translate_file_queue[0]
+         package_name, reason) = translate_file_queue[0]
         original_queue_tuple = translate_file_queue[0]
         translate_file_queue = translate_file_queue[1:]
         if target_file in translated_files:
             continue
         if DEBUGV.ENABLE and DEBUGV.ENABLE_QUEUE:
             print("tools/translator.py: debug: looking at "
-                "queue item: " + str(original_queue_tuple))
+                "queue item: " + str(
+                list(original_queue_tuple)[:-1]) +
+                " (queue reason" +
+                (" not given" if (reason is None or reason == "") else
+                ": " + reason) + ")")
         for otherfile in os.listdir(modfolder):
             otherfilepath = os.path.normpath(
                 os.path.abspath(os.path.join(modfolder, otherfile)))

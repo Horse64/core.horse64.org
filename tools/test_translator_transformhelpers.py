@@ -33,11 +33,22 @@ from translator_syntaxhelpers import (
 )
 
 from translator_transformhelpers import (
-    transform_h64_misc_inline_to_python
+    transform_h64_misc_inline_to_python,
+    get_first_nonempty_line_indent
 )
 
 
 class TestTranslatorTransformHelpers(unittest.TestCase):
+    def test_get_first_nonempty_line_indent(self):
+        self.assertEqual(get_first_nonempty_line_indent(
+            "  abc"), "  ")
+        self.assertEqual(get_first_nonempty_line_indent(
+            "\n \n  abc\n    def"), "  ")
+        self.assertEqual(get_first_nonempty_line_indent(
+            "fkirb\n  "), "")
+        self.assertEqual(get_first_nonempty_line_indent(
+            "    \n    "), None)
+
     def test_transform_h64_misc_inline_to_python(self):
         t = ("var test = " +
             "(\"complex string concat test: \" + f(l, 1).as_str())")

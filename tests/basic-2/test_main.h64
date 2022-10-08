@@ -43,4 +43,15 @@ func test_more_basic_things {
     l.reverse()
     assert(l[1] == 3)
     assert(l[3] == 1)
+
+    # Test that a func sees itself in its own scope:
+    var v = 1
+    func testcall(x) {
+        if x > 0 {
+            x -= 1
+            return testcall(x)
+        }
+        return 0
+    }
+    assert(testcall(5) == 0)
 }

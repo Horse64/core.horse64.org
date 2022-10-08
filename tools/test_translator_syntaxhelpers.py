@@ -36,7 +36,7 @@ from translator_syntaxhelpers import (
     get_leading_whitespace, separate_out_inline_funcs,
     get_global_standalone_func_names, is_number_token,
     expr_nonblank_equals, find_start_of_call_index_chain,
-    is_identifier
+    is_identifier, extract_all_imports
 )
 
 
@@ -54,6 +54,20 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0], "hello")
         self.assertEqual(result[1], "hello2")
+
+    def test_extract_all_imports(self):
+        testcode = textwrap.dedent("""\
+        import bla
+        import bla.blu from bli.ble func hello {}
+        func hello2(a=func x{return 5}) {
+            print("Hello")
+        }
+        """)
+        result = extract_all_imports(testcode)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0][0], "bla")
+        self.assertEqual(result[1][0], "bla.blu")
+        self.assertEqual(result[1][1], "bli.ble")
 
     def test_expr_nonblank_equals(self):
         self.assertTrue(expr_nonblank_equals(

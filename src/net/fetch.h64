@@ -26,7 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 
-func get_str(uri, callback, max_size=(4 * 1024)) {
+func _get_str_single(uri, callback, max_size=(4 * 1024)) {
     var obj = net.fetch.get(uri)
     obj.recv(max_size, func(err, data) {
         if err != none {
@@ -35,5 +35,51 @@ func get_str(uri, callback, max_size=(4 * 1024)) {
         obj.close()
         callback(err, data.as_str())
     })
+}
+
+
+func get_str(uri, callback, max_size=(4 * 1024)) {
+    # Validate input:
+    if typename(uri) == "bytes" {
+        uri = uri.as_str()
+    }
+    if (typename(uri) != "list" and typename(uri) != "str") or
+            (typename(uri) == "list" and uri.len > 0 and
+            typename(uri[1]) != "str" and typename(uri[1]) != "bytes") {
+        throw new TypeError("unknown type for uri, expected "
+            "str or list for multiple")
+    }
+    var uris_unclean = uri
+    if typename(uris) != "list" {
+        uris_clean = [uris]
+    }
+    var uris = []
+    for uri in uris_unclean {
+        if typename(uri) == "bytes" {
+            uris.append(uri.as_str())
+        }
+        uris.append(uri)
+    }
+    uris.reverse()
+
+    # Let's go do the work:
+    var results = []
+    func fetch_next_do {
+        if uris.len == 0 {
+            # Reached the end of queue.
+            return callback(none, results)
+        }
+        var uri = uris.pop()
+
+        # Trigger next download:
+        _get_str_single(uri, func (err, result) {
+            if err != none {
+                callback(err, none)
+            }
+            results.append(result)
+            fetch_next_do()  # Start over and repeat!
+        })
+    }
+    fetch_next_do()
 }
 
