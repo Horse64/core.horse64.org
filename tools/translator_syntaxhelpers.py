@@ -984,6 +984,47 @@ def get_leading_whitespace(st):
     return leading
 
 
+def extract_all_imports(s):
+    if type(s) == str:
+        s = tokenize(s)
+    result = []
+    statements = split_toplevel_statements(s)
+    for statement in statements:
+        if firstnonblank(statement) != "import":
+            continue
+        i = firstnonblankidx(statement) + 1
+        while (i < len(statement) and
+                statement[i].strip(" \n\r\t") == ""):
+            i += 1
+        import_module = []
+        if i >= len(statement) or not is_identifier(
+                statement[i]):
+            continue
+        import_module.append(statement[i])
+        while (i < len(statement) and
+                nextnonblank(statement, i) == "." and
+                is_identifier(nextnonblank(
+                    statement, i, no=2))):
+            i = nextnonblankidx(statement, i, no=2)
+            import_module.append(statement[i])
+        assert(is_identifier(statement[i]))
+        if nextnonblank(statement, i) != "from":
+            result.append([".".join(import_module), None])
+            continue
+        i = nextnonblankidx(statement, i, no=2)
+        import_package = statement[i]
+        while (i < len(statement) and
+                nextnonblank(statement, i) == "." and
+                is_identifier(nextnonblank(
+                    statement, i, no=2))):
+            i = nextnonblankidx(statement, i, no=2)
+            import_package += ("." + statement[i])
+        result.append([".".join(import_module),
+            import_package])
+        continue
+    return result
+
+
 def get_global_standalone_func_names(s):
     if type(s) == str:
         s = tokenize(s)
@@ -1049,11 +1090,13 @@ def sanity_check_h64_codestring(s, filename="", modname=""):
     tokens = tokenize(s.replace("\r\n", "\n").replace("\r", "\n"))
     col = 1
     line = 1
+    bracket_nesting_orig_loc = []
     bracket_nesting = []
     i = -1
     for token in tokens:
         i += 1
         if token in {"(", "{", "["}:
+            bracket_nesting_orig_loc.append((line, col))
             bracket_nesting.append(token)
         elif token in {")", "}", "]"}:
             reverse_bracket = "("
@@ -1071,8 +1114,14 @@ def sanity_check_h64_codestring(s, filename="", modname=""):
                     str(filename) + " ")) +
                     "in line " + str(line) + ", col " + str(col) + ": " +
                     "unexpected unmatched closing bracket '" +
-                    str(token) + "'")
+                    str(token) + "', expected one closing '" +
+                    bracket_nesting[-1] +
+                    "' opened in line " + str(
+                    bracket_nesting_orig_loc[-1][0]) +
+                    ", col " + str(bracket_nesting_orig_loc[-1][1]))
             bracket_nesting = bracket_nesting[:-1]
+            bracket_nesting_orig_loc = (
+                bracket_nesting_orig_loc[:-1])
         if "\n" in token:
             token_per_line = token.split("\n")
             line += len(token_per_line) - 1
