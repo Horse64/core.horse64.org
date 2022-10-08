@@ -75,7 +75,8 @@ from translator_syntaxhelpers import (
     separate_out_inline_funcs,
     get_global_standalone_func_names,
     identifier_or_keyword, is_h64op_with_righthand,
-    is_number_token, extract_all_imports
+    is_number_token, extract_all_imports,
+    make_kwargs_in_call_tailing,
 )
 
 translator_py_script_dir = (
@@ -1886,6 +1887,7 @@ def run_translator_main():
             filename=target_file)
         assert(type(contents) == str)
         contents = separate_out_inline_funcs(tokenize(contents))
+        contents = make_kwargs_in_call_tailing(contents)
         assert(type(contents) == list and
             (len(contents) == 0 or type(contents[0]) == str))
         contents_result = (
