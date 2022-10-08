@@ -54,4 +54,20 @@ func test_more_basic_things {
         return 0
     }
     assert(testcall(5) == 0)
+
+    # Test that we can pull keyword args in a call before positionals:
+    func target_func(a, must_be_random, b=2) {
+        assert(must_be_random == "random")
+        return a + b * 2
+    }
+    var result = target_func(3, b=5, "random")
+    assert(result == 13)
+}
+
+func test_weird_kwarg_order_and_nesting {
+    # Test kw args before positionals, but also inline multiline func:
+    var result2 = (func (a, must_be_random, b=2) {
+        assert(must_be_random == "random")
+        return a + b * 2
+    })(3, b=5, "random")
 }

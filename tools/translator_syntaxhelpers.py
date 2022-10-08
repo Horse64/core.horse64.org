@@ -47,7 +47,7 @@ translator_py_script_path = os.path.abspath(__file__)
 def is_keyword(x):
     if x in {"if", "func", "import", "else",
             "type", "do", "rescue", "finally",
-            "from", "as", "extends",
+            "from", "as", "extends", "protect",
             "var", "const", "elseif", "while",
             "for", "in", "not", "and", "or"}:
         return True
@@ -1128,3 +1128,145 @@ def sanity_check_h64_codestring(s, filename="", modname=""):
             col = 1 + len(token_per_line[-1])
         else:
             col += len(token)
+
+
+def make_kwargs_in_call_tailing(s):
+    was_str = False
+    if type(s) == str:
+        s = tokenize(s)
+        was_str = True
+    i = 0
+    while i < len(s):
+        if s[i] != "(":
+            i += 1
+            continue
+        # Check if this is a function definition (which
+        # we don't want to touch):
+        is_fdef = False
+        k = i - 1
+        while k >= 0 and s[k].strip(" \t\r\n") == "":
+            k -= 1
+        if k >= 0 and s[k] == "func":
+            is_fdef = True
+        elif (k >= 0 and s[k] != "=" and
+                (len(s[k]) != 2 or s[k][1] != "=") and
+                not is_keyword(s[k]) and
+                not is_h64op_with_righthand(s[k]) and
+                s[k] not in {"(", "[", "{"}
+                ):
+            notdef_kw = ["as", "with", "rescue",
+                "while", "for", "if", "elseif",
+                "type", "var", "const"]
+            bracket_depth = 0
+            while k >= 0:
+                if s[k] in {")", "]", "}"}:
+                    bracket_depth += 1
+                elif s[k] in {"(", "[", "{"}:
+                    bracket_depth -= 1
+                    if bracket_depth <= 0:
+                        break
+                if prevnonblank(s, k) == "func":
+                    break
+                if s[k] in notdef_kw:
+                    break
+                k -= 1
+            if (k >= 0 and s[k] not in notdef_kw and
+                    prevnonblank(s, k) == "func"):
+                is_fdef = True
+        if is_fdef:
+            i += 1
+            continue
+        bracket_depth = 0
+        arg_indexes = []
+        assert(s[i] == "(")
+        k = i + 1
+        guaranteed_not_a_call = False
+        had_any_kw_arg = False
+        current_arg_eq = None
+        current_arg_start = k
+        while k < len(s) and (s[k] != ")" or
+                bracket_depth > 0):
+            if s[k] in {"(", "[", "{"}:
+                bracket_depth += 1
+            if s[k] in {")", "]", "}"}:
+                bracket_depth -= 1
+            if (bracket_depth == 0 and
+                    s[k] in {"rescue", "var", "const",
+                        "do", "with", "while", "if", "elseif",
+                        "else"}):
+                # Oops, this some other expr in ( .. ), not a call.
+                guaranteed_not_a_call = True
+                break
+            if (bracket_depth == 0 and
+                    k + 1 < len(s) and
+                    s[k + 1] == ")"):
+                arg_indexes.append((
+                    current_arg_start,
+                    current_arg_eq, k + 1))
+            elif s[k] == "," and bracket_depth == 0:
+                arg_indexes.append((
+                    current_arg_start,
+                    current_arg_eq, k))
+                current_arg_start = k + 1
+                current_arg_eq = None
+            elif bracket_depth == 0 and s[k] == "=":
+                current_arg_eq = k
+                had_any_kw_arg = True
+            k += 1
+        if guaranteed_not_a_call:
+            i += 1
+            continue
+        if not had_any_kw_arg:
+            # Nothing for us to do, even if this is a call.
+            i += 1
+            continue
+        if nextnonblank(s, k) == "{":
+            # Oops, this isn't possible inside a normal statement
+            # after a call. Assume we shouldn't touch this!
+            i += 1
+            continue
+        # We got all arguments and even a '=', and it doesn't
+        # look like a func definition, so this has to be a call.
+        #print("FOUND ARGS WITH EQ: " + str((arg_indexes,
+        #    s[i:k + 1])))
+        old_tokens = s[i:k + 1]
+        new_tokens = ["("]
+        arg_no = 0
+        # Collect all positional args first:
+        had_positional_before_kwarg = False
+        seen_any_kw_arg = None
+        for arg_index_entry in arg_indexes:
+            if arg_index_entry[1] is not None:
+                seen_any_kw_arg = True
+                continue
+            if seen_any_kw_arg:
+                had_positional_before_kwarg = True
+            arg_no += 1
+            if arg_no > 1:
+                new_tokens += [","]
+            new_tokens += s[arg_index_entry[0]:arg_index_entry[2]]
+        # If we didn't have a positional arg before a kwarg yet,
+        # then everything is already in order and we can bail early:
+        if not had_positional_before_kwarg:
+            i = k + 1
+            continue
+        # Now add the keyword arguments:
+        for arg_index_entry in arg_indexes:
+            if arg_index_entry[1] == None:
+                continue
+            arg_no += 1
+            if arg_no > 1:
+                new_tokens += [","]
+            new_tokens += s[arg_index_entry[0]:arg_index_entry[2]]
+        new_tokens += ")"
+        #print(" TRANSFORM =" + str([s[i:k + 1], new_tokens]))
+
+        # Insert the new result:
+        s = s[:i] + new_tokens + s[k + 1:]
+
+        i += 1
+        continue
+    if was_str:
+        return untokenize(s)
+    return s
+

@@ -36,7 +36,8 @@ from translator_syntaxhelpers import (
     get_leading_whitespace, separate_out_inline_funcs,
     get_global_standalone_func_names, is_number_token,
     expr_nonblank_equals, find_start_of_call_index_chain,
-    is_identifier, extract_all_imports
+    is_identifier, extract_all_imports,
+    make_kwargs_in_call_tailing
 )
 
 
@@ -54,6 +55,16 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0], "hello")
         self.assertEqual(result[1], "hello2")
+
+    def test_make_kwargs_in_call_tailing(self):
+        t = ["func", " ", "bla", "(", "b", "=", "5", ")", "{",
+            "var", " ", "c", "=", "x", "(", "z", "=", "\n", "7",
+            ",", "x", ")"]
+        tresult = make_kwargs_in_call_tailing(t)
+        texpected = ["func", " ", "bla", "(", "b", "=", "5", ")", "{",
+            "var", " ", "c", "=", "x", "(", "x", ",", "z", "=", "\n",
+            "7", ")"]
+        self.assertTrue(expr_nonblank_equals(tresult, texpected))
 
     def test_extract_all_imports(self):
         testcode = textwrap.dedent("""\
@@ -238,6 +249,10 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         #    "test_separate_out_inline_funcs: after 1: " +
         #    str(tresult))
         self.assertTrue(tresult.startswith("    func"))
+
+    def test_tokenizer(self):
+        self.assertEqual(tokenize("func name{var x}"),
+            ["func", " ", "name", "{", "var", " ", "x", "}"])
 
     def test_tree_transform_statements(self):
         def transform_while_weirdly(v):

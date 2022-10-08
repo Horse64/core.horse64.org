@@ -101,7 +101,7 @@ if __name__ == "__main__":
 
     had_error = False
     for test_path in test_paths:
-        print("\033[1m==> RUNNING TEST ==> \033[0m" + str(test_path))
+        print("\x1B[1m==> RUNNING TEST ==> \x1B[0m" + str(test_path))
         cmd = os.path.join(my_dir, "translator.py")
         cmd_args = ["--as-test", "--", test_path]
         if debug_cmd:
@@ -117,13 +117,13 @@ if __name__ == "__main__":
         sys.stdout.flush()
         sys.stderr.flush()
         if failed:
-            print("\033[1m!!!! TEST FAILED !!!!\033[0m")
+            print("\x1B[1m!!!! TEST FAILED !!!!\x1B[0m")
             had_error = True
         else:
             print("==> TEST SUCCESSFUL.")
     if had_error:
-        print("Failure for some tests.")
+        print("\x1B[31;40;1mFAILURE for some tests.\x1B[0m")
         sys.exit(1)
     else:
-        print("Success and all tests done.")
+        print("\x1B[32;40;1mSuccess and all tests done.\x1B[0m")
         sys.exit(0)
