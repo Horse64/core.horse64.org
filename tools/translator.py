@@ -666,6 +666,61 @@ def translate_expression_tokens(s, module_name, package_name,
     return s
 
 
+def queue_module_neighbors(
+        translate_file_queue,
+        module_source_file_path, module_name, package_name
+        ):
+    assert(type(translate_file_queue) == list)
+    module_source_file_path = os.path.normpath(
+        os.path.abspath(module_source_file_path))
+    assert(module_source_file_path.endswith(".h64"))
+    for otherfile in os.listdir(os.path.dirname(
+            module_source_file_path
+            )):
+        otherfilepath = os.path.normpath(os.path.join(
+            os.path.dirname(module_source_file_path), otherfile
+        ))
+        if (not otherfilepath.endswith(".h64") or
+                os.path.isdir(otherfilepath)):
+            continue
+        otherfilename = os.path.basename(
+            otherfilepath.rpartition(".h64")[0]
+        ) + ".py"
+        otheraddsubmodule = [os.path.basename(
+            otherfilepath.rpartition(".h64")[0])]
+        if (otherfilename.rpartition(".py")[0] ==
+                _splitpath(os.path.dirname(
+                module_source_file_path))[-1]):
+            otherfilename = "__init__.py"
+            otheraddsubmodule = []
+        otherfile_module = None
+        if os.path.normpath(module_source_file_path).endswith(
+                os.path.sep +
+                module_name.split(".")[-1] +
+                os.path.sep +
+                module_name.split(".")[-1] + ".h64"):
+            # Special case: target path must be bla/bla.h64
+            # with code file matching folder, so the module
+            # must be "bla" (not "bla.bla"). Hence, don't
+            # strip off final module part:
+            otherfile_module = (".".join(
+                module_name.split(".") + otheraddsubmodule))
+        else:
+            # Target path is something like
+            # bla/otherwordthanbla.h64 and
+            # we want "otherwordthanbla" added:
+            otherfile_module = (".".join(
+                module_name.split(".")[:-1] +
+                otheraddsubmodule))
+        assert("/" not in otherfile_module)
+        queue_file_if_not_queued(translate_file_queue,
+            (otherfilepath, otherfilename,
+            otherfile_module, os.path.dirname(
+            module_source_file_path),
+            package_name), reason="neighboring file to " +
+            "imported module " + module_name)
+
+
 def queue_file_if_not_queued(
         translate_file_queue, entry,
         reason=None
@@ -1337,27 +1392,9 @@ def translate(s, module_name, package_name, parent_statements=[],
                 "module " + str(module_name) + (
                 "" if package_name is None else "@" + package_name) +
                 " with non-remapped uses")
-            for otherfile in os.listdir(os.path.dirname(target_path)):
-                otherfilepath = os.path.normpath(os.path.join(
-                    os.path.dirname(target_path), otherfile
-                ))
-                if (not otherfilepath.endswith(".h64") or
-                        os.path.isdir(otherfilepath)):
-                    continue
-                otherfilename = os.path.basename(
-                    otherfilepath.rpartition(".h64")[0]
-                ) + ".py"
-                if (otherfilename.rpartition(".py")[0] ==
-                        _splitpath(os.path.dirname(target_path))[-1]):
-                    otherfilename = "__init__.py"
-                otherfile_module = ".".join(
-                    import_module.split(".")[:-1] +
-                    [otherfile.rpartition(".h64")[0].strip()]
-                )
-                queue_file_if_not_queued(translate_file_queue,
-                    (otherfilepath, otherfilename,
-                    otherfile_module, os.path.dirname(target_path),
-                    import_package))
+            queue_module_neighbors(
+                translate_file_queue, target_path,
+                import_module, import_package)
             continue
         elif statement[0] == "func":
             statement_cpy = list(statement)
@@ -1832,27 +1869,9 @@ def run_translator_main():
                 " (queue reason" +
                 (" not given" if (reason is None or reason == "") else
                 ": " + reason) + ")")
-        for otherfile in os.listdir(modfolder):
-            otherfilepath = os.path.normpath(
-                os.path.abspath(os.path.join(modfolder, otherfile)))
-            if (os.path.isdir(otherfilepath) or
-                    not otherfilepath.endswith(".h64") or
-                    otherfilepath in translated_files or
-                    otherfilepath == target_file):
-                continue
-            otherfilename = os.path.basename(
-                otherfilepath.rpartition(".h64")[0]) + ".py"
-            if (otherfilename.rpartition(".py")[0] ==
-                    _splitpath(modfolder)[-1]):
-                otherfilename = "__init__.py"
-            new_modname = (modname.rpartition(".")[0] + "."
-                if "." in modname else "")
-            if otherfilename != "__init__.py":
-                new_modname += (os.path.basename(otherfile).
-                    rpartition(".h64")[0])
-            queue_file_if_not_queued(translate_file_queue,
-                (otherfilepath, otherfilename,
-                new_modname, modfolder, package_name))
+        queue_module_neighbors(
+            translate_file_queue, target_file,
+            modname, package_name)
         contents = None
         try:
             with open(target_file, "r", encoding="utf-8") as f:
