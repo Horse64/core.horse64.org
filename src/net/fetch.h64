@@ -50,8 +50,8 @@ func get_str(uri, callback, max_size=(4 * 1024)) {
             "str or list for multiple")
     }
     var uris_unclean = uri
-    if typename(uris) != "list" {
-        uris_clean = [uris]
+    if typename(uri) != "list" {
+        uris_unclean = [uri]
     }
     var uris = []
     for uri in uris_unclean {
