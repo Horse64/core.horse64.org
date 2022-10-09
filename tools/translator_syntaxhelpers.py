@@ -839,8 +839,13 @@ def get_next_statement(s):
     last_nonwhitespace_token = ""
     token_count = 0
     bracket_nesting = 0
+    _future_last_token = None
     i = -1
     for t in s:
+        if (_future_last_token != None and
+                _future_last_token.strip(" \t\r\n") != ""):
+            last_nonwhitespace_token = _future_last_token
+        _future_last_token = t
         i += 1
         token_count += 1
         if t in ["(", "[", "{"]:
@@ -857,7 +862,13 @@ def get_next_statement(s):
             if (not nt in must_continue_tokens and
                     not is_h64op_with_lefthand(nt) and
                     not nt in {"(", "{", "["}) :
-                return s[:token_count + 1]
+                return s[:token_count]
+        if (bracket_nesting == 0 and
+                last_nonwhitespace_token != "" and
+                t in {"var", "const", "while",
+                "do", "for", "type"}):  # "if"/"func" can be inline!
+            # Important: cut off BEFORE the token for this one.
+            return s[:token_count - 1]
         if (bracket_nesting == 0 and
                 (t.endswith("\n") or t.endswith("\r")) and
                 not is_h64op_with_righthand(last_nonwhitespace_token) and
@@ -877,8 +888,6 @@ def get_next_statement(s):
                 return s[:token_count]
         assert(bracket_nesting >= 0), \
             "failed to find terminating bracket in: " + str(s)
-        if t.strip(" \t\r\n") != "":
-            last_nonwhitespace_token = t
     return s
 
 
@@ -1149,6 +1158,90 @@ def sanity_check_h64_codestring(s, filename="", modname=""):
             col = 1 + len(token_per_line[-1])
         else:
             col += len(token)
+
+
+def get_names_defined_in_func(
+        st, is_anonymous_inline=False
+        ):
+    """ Get all identifiers that are present in the most
+        outer scope of the given function statement."""
+
+    if type(st) == str:
+        st = tokenize(st)
+    else:
+        st = list(st)
+    func_kw_idx = firstnonblankidx(st)
+    if (func_kw_idx < 0 or
+            st[func_kw_idx] != "func"):
+        return []
+    names = []
+
+    # Get names of function arguments:
+    k = nextnonblankidx(st, func_kw_idx)
+    if not is_anonymous_inline:
+        # Skip the function name.
+        if k < 0 or not is_identifier(st[k]):
+            return []
+        if not st[k] in names:
+            names.append(st[k])
+        k = nextnonblankidx(st, k)
+    else:
+        if not st[k] in {"(", "{"}:
+            return []
+        # We must insert a fake function name because
+        # get_statement_block_ranges() only knows named
+        # func statements, not anonymous inline funcs.
+        st = st[:k] + [
+            "_f" + str(uuid.uuid4()).replace("-", "")
+            ] + st[k:]
+        k += 1
+    if st[k] == "(":
+        # Arugment list start!
+        k += 1  # Past opening "(" of argument list.
+        while k < len(st) and st[k] != ")":
+            if st[k] == "" or is_whitespace_token(st[k]):
+                k += 1
+                continue
+            # Get argument name first:
+            if is_identifier(st[k]):
+                if not st[k] in names:
+                    names.append(st[k])
+                bracket_depth = 0
+                # Forward to end of argument:
+                while k < len(st) and (
+                        bracket_depth > 0 or
+                        (st[k] != ")" and st[k] != ",")):
+                    if st[k] in {"(", "[", "{"}:
+                        bracket_depth += 1
+                    elif st[k] in {")", "]", "}"}:
+                        bracket_depth -= 1
+                    k += 1
+                if k >= len(st) or st[k] != ",":
+                    # End of parameter list.
+                    break
+                k += 1  # Past "," of last argument.
+                continue  # Parse next argument.
+            k += 1
+
+    # Get names from function body:
+    ranges = get_statement_block_ranges(st)
+    for brange in ranges:
+        subtokens = st[brange[0]:brange[1]]
+        stmts = split_toplevel_statements(subtokens)
+        for inner_st in stmts:
+            if firstnonblank(inner_st) in {
+                    "var", "const"
+                    }:
+                k = nextnonblankidx(inner_st,
+                    firstnonblankidx(inner_st))
+                if (k < 0 or
+                        not is_identifier(inner_st[k])):
+                    continue
+                if not inner_st[k] in names:
+                    names.append(inner_st[k])
+                continue
+    # We should have all names in the outermost scope now!
+    return names
 
 
 def transform_then_to_closure_unnested(

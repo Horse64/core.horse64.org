@@ -40,7 +40,7 @@ from translator_syntaxhelpers import (
     make_kwargs_in_call_tailing,
     get_indent, transform_then_to_closure_unnested,
     transform_then_to_closures,
-    get_global_names,
+    get_global_names, get_names_defined_in_func,
 )
 
 
@@ -68,6 +68,31 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
             "var", " ", "c", "=", "x", "(", "x", ",", "z", "=", "\n",
             "7", ")"]
         self.assertTrue(expr_nonblank_equals(tresult, texpected))
+
+    def test_get_names_defined_in_func(self):
+        self.assertEqual(get_names_defined_in_func(
+            textwrap.dedent("""\
+            func blorb(abc) {
+                var def
+                if yes {
+                    var blorb = 5
+                }
+                var flobb
+            }""")), ["blorb", "abc", "def", "flobb"])
+        self.assertEqual(get_names_defined_in_func(
+            textwrap.dedent("""\
+            var def
+            """)), [])
+        self.assertEqual(get_names_defined_in_func(
+            textwrap.dedent("""\
+            func (abc) {
+                var stuff var xyz
+                if yes {
+                    var blorb = 5
+                }
+                var flobb
+            }"""), is_anonymous_inline=True),
+            ["abc", "stuff", "xyz", "flobb"])
 
     def test_get_global_names(self):
         self.assertEqual(set(get_global_names(textwrap.dedent("""\
@@ -97,6 +122,14 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         self.assertEqual(
             len(split_toplevel_statements(tokenize(testcode))),
             2)
+        self.assertEqual(
+            len(split_toplevel_statements(tokenize(
+                "var one var two"
+            ))), 2)
+        self.assertEqual(
+            len(split_toplevel_statements(tokenize(
+                "var one = if yes (1) else (0)"
+            ))), 1)
 
     def test_transform_then_to_closure(self):
         def do_test(testcode, texpected, any_match_value=None,
