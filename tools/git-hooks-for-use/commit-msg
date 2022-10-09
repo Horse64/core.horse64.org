@@ -1,0 +1,11 @@
+#!/usr/bin/bash
+
+# Require a proper signed off message:
+SIGNED_OFF_TEST="$(grep 'DCO-1.1-Signed-off-by: ' "$1")"
+if [ "x$?" != "x0" ]; then
+    echo >&2 "ERROR: Missing signature with DCO-1.1-Signed-off-by."
+    echo >&2 "!! Check LICENSE.md's 'Contributions' section !!"
+    exit 1 
+fi
+
+
