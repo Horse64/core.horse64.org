@@ -1079,11 +1079,15 @@ def separate_out_inline_funcs(s):
     def do_separate_out(sts):
         new_sts = []
         for st in sts:
+            # Find all inline functions in this statement:
             func_ranges = get_statement_inline_funcs(st)
             if len(func_ranges) == 0:
                 new_sts.append(st)
                 continue
+
+            # For each inline function, we need to separate it:
             for frange in reversed(func_ranges):
+                # Sanity checks on inline func's reported extent:
                 assert(len(frange) == 3)
                 assert(frange[0] >= 0 and
                     frange[0] < len(st) and
@@ -1091,6 +1095,8 @@ def separate_out_inline_funcs(s):
                 assert(frange[2] > frange[0] and
                     frange[2] <= len(st) and
                     st[frange[2] - 1] == "}")
+
+                # Create new 'func' statement and extract arguments:
                 fname = "_f" + str(uuid.uuid4()).replace("-", "")
                 prepend_st = [get_leading_whitespace(st),
                     "func", " ", fname]
@@ -1105,9 +1111,15 @@ def separate_out_inline_funcs(s):
                         params[0] != "(" or
                         params[-1] != ")"):
                     params = ["("] + params + [")"]
-                prepend_st += (params + ["{"] + st[
+                prepend_st += params
+
+                # Now add in the body and prepend new statement:
+                prepend_st += (["{"] + st[
                     frange[1] + 1:frange[2]] + ["\n"])
                 new_sts.append(prepend_st)
+
+                # In the original/old statement, rip out the inline
+                # 'func' def and refer to our new 'func' statement:
                 st = (st[:frange[0]] +
                     [fname, " "] + st[frange[2]:])
             new_sts.append(st)
