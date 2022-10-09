@@ -248,17 +248,21 @@ If you contribute to the project, you **agree to both licensing types**
 as well as below **Developer Certificate of Origin**.
 
 
-## Logo license (files inside `logo` folder)
+## Logo license
 
+This concerns the files inside `logo` folder:
+
+```
 Horse64 Logo is Copyright (C)  2020-2021, ellie/@ell1e. All Rights Reserved.
 
 The "Horse64 Logo"'s files are located in `misc/` with the filenames starting
 with "logo".
 The Horse64 Logo and its files may only be used in the official unmodified
 "Horse64" distribution as maintained by ellie/@ell1e, currently found at
-`codeberg.org/horse64`, `github.com/horse64`, and `https://horse64.org/`.
-**If you distribute modified versions of Horse64, don't use
-the Horse64 Logo and please don't use the official name "Horse64" either.**
+codeberg.org/horse64, github.com/horse64, and https://horse64.org/.
+DON'T DISTRIBUTE MODIFIED HORSE64 VERSIONS WITH THE LOGO, PLEASE DON'T
+USE THE OFFICIAL NAME "Horse64" FOR THEM EITHER.
+```
 
 *(Non-binding side notes: 1. Binaries you compile with `horsec` yourself
 shouldn't by default include the logo, so these should be unaffected. 2.
