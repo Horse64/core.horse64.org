@@ -1103,7 +1103,7 @@ def separate_out_inline_funcs(s):
                     params = params[:-1]
                 if (len(params) == 0 or
                         params[0] != "(" or
-                        params[1] != ")"):
+                        params[-1] != ")"):
                     params = ["("] + params + [")"]
                 prepend_st += (params + ["{"] + st[
                     frange[1] + 1:frange[2]] + ["\n"])
@@ -1309,8 +1309,11 @@ def transform_then_to_closure_unnested(
             continue
         then_preceding_call_noargs = False
         then_preceding_call_close = prevnonblankidx(st, then_index)
+        then_preceding_call_args_have_trailing_comma = False
         if prevnonblank(st, then_index, no=2) == "(":
             then_preceding_call_noargs = True
+        elif prevnonblank(st, then_index, no=2) == ",":
+            then_preceding_call_args_have_trailing_comma = True
 
         # Extract the arguments after 'then' keyword:
         arg_start = then_index + 1
@@ -1374,11 +1377,21 @@ def transform_then_to_closure_unnested(
         new_sts.append(insert_st)
 
         # Now add the call that had the 'then', but stripped off:
+        orig_st = list(st)
         st = st[:then_preceding_call_close]
-        if not then_preceding_call_noargs:
+        if (not then_preceding_call_noargs and
+                not then_preceding_call_args_have_trailing_comma):
             st += [",", " "]
         st += [funcname] + [")", "\n"]
         new_sts.append(st)
+
+        # Output some debug info:
+        #print("CREATED STATEMENTS: " + str(new_sts[-2:]))
+        #print("ORIGINAL ONE: " + str(orig_st))
+        #print("TOKEN WHERE ORIG CALL ENDED: " +
+        #    str(then_preceding_call_close))
+        #print("ARG START:ARG_END FOR 'then': " +
+        #    str(orig_st[arg_start:arg_end]))
         break
     return new_sts
 

@@ -418,6 +418,15 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         #    str(tresult))
         self.assertTrue(tresult.startswith("    func"))
 
+        t = ("    func mine (c=\nfunc (a, b,){return yes}){}")
+        texpected = (
+            "    func __ANYTOK__ (a, b,){return yes}\n"
+            "    func mine(c=__ANYTOK__){}\n")
+        tresult = separate_out_inline_funcs(t)
+        self.assertTrue(expr_nonblank_equals(tresult, texpected,
+            any_match_value="__ANYTOK__"), "got this:\n" +
+            tresult + "\nexpected:\n" + texpected)
+
     def test_tokenizer(self):
         self.assertEqual(tokenize("func name{var x}"),
             ["func", " ", "name", "{", "var", " ", "x", "}"])
