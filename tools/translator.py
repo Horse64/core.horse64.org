@@ -784,9 +784,18 @@ def translate(s, sc):
             len(sc.processed_imports) == 0)
         assert(type(s) == list)
         sc.orig_h64_imports = extract_all_imports(s)
-        sc.orig_h64_globals = get_global_names(
-            s, error_on_duplicates=True
-        )
+        try:
+            sc.orig_h64_globals = get_global_names(
+                s, error_on_duplicates=True
+            )
+        except ValueError as e:
+            if not "syntax error" in str(e.args[0]).lower():
+                raise e
+            raise ValueError(
+                "get_global_names() reports error for "
+                "module \"" +
+                sc.module_name + "\" in folder \"" +
+                sc.folder_path + "\": " + str(e.args[0]))
 
     if (len(sc.parent_statements) == 0 and DEBUGV.ENABLE and
             DEBUGV.ENABLE_FILE_PATHS):

@@ -1414,7 +1414,9 @@ def get_global_names(
             continue
         is_type = kw
         is_named = st[i]
-        if is_named in result:
+        if (is_named in result and (
+                result[is_named]["type"] != "import" or
+                is_type != "import")):
             if error_on_duplicates:
                 raise ValueError("code syntax error, "
                     "global identifier \"" +
