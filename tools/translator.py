@@ -271,19 +271,111 @@ def sublist_index(full_list, sub_list):
     return -1
 
 
-def find_matching_remap_module(s, i, processed_imports={}):
-    # See if any external, imported use needs a remap:
+def find_matching_remap_module(s, i, sc):
+    if i >= len(s) or not is_identifier(s[i]):
+        return (None, None, None, None)
+    debug_details = False
+
+    # Output some start info:
+    if debug_details:
+        print("tools/translator.py: debug: " +
+            "find_matching_remap_module() " +
+            "considering expression of: " +
+            str(s[i:i + 5]))
+
+    # See if we are INSIDE a remapped module:
+    found_remapped_module = None
+    found_remapped_package = None
+    found_remapped_item = None
+    found_remapped_tokens = None
+    for remap_module_key in remapped_uses:
+        if (sc.package_name == None or sc.module_name == None or
+                sc.module_name + "@" + sc.package_name !=
+                remap_module_key):
+            continue
+
+        if debug_details:
+            print("tools/translator.py: debug: " +
+                "find_matching_remap_module() " +
+                "checking a remap that happens in our own " +
+                "module without import: " +
+                str(remap_module_key))
+
+        # See if module name actually occurs in token stream here:
+        remapped_elements = (
+            remap_module_key.partition("@")[0].split(".")
+        )
+        could_match = True
+        k = 0
+        while k < len(remapped_elements):
+            if (k * 2 + i >= len(s) or
+                    s[i + k * 2] !=
+                    remapped_elements[k] or
+                    (k + 1 < len(remapped_elements) and
+                    (k * 2 + 1 + i >= len(s) or
+                    s[i + k * 2 + 1] != "."))):
+                could_match = False
+                break
+            k += 1
+        if not could_match:
+            continue
+        if (k * 2 + i >= len(s) or
+                s[k * 2 + i - 1] != "."):
+            continue
+        could_match_item = s[k * 2 + i]
+        if not is_identifier(could_match_item):
+            continue
+        # So this COULD match an item in this remapped module.
+        # See if any item actually fits:
+        for remapped_use in remapped_uses[remap_module_key]:
+            if (remapped_use == sc.module_name + "." +
+                    could_match_item):
+                found_remapped_module = sc.module_name
+                found_remapped_package = sc.package_name
+                found_remapped_item = could_match_item
+                found_remapped_tokens = k * 2 + 1
+                break
+        if found_remapped_module != None:
+            break
+    if found_remapped_module != None:
+        # Found remap that is exact match in our own module.
+        # Return that early:
+        if debug_details:
+            print("tools/translator.py: debug: " +
+                "find_matching_remap_module() " +
+                "FOUND REMAP THAT BELONGS TO OWN MODULE " +
+                found_remapped_module)
+        return (found_remapped_module, found_remapped_package,
+            found_remapped_item, found_remapped_tokens)
+
+    # See if any external, imported use matches a remap:
     match = False
     match_package = None
     match_import_module = None
     match_item = None
     match_tokens = -1
-    for known_import in processed_imports:
+
+    processed_imports_pairs = []
+    for known_import in sc.processed_imports:
+        processed_imports_pairs.append((
+            sc.processed_imports[known_import]
+                ["module"],
+            sc.processed_imports[known_import]
+                ["package"]))
+    processed_imports_pairs = sorted(list(
+        set(processed_imports_pairs).union(
+            set([(a[0], a[1]) for a in sc.orig_h64_imports]))))
+
+    for check_import in processed_imports_pairs:
         import_module_elements = (
-            processed_imports[known_import]
-                ["module"].split(".")
+            check_import[0].split(".")
         )
         maybe_match = True
+        if debug_details:
+            print("tools/translator.py: debug: " +
+                "find_matching_remap_module() " +
+                "CHECKING " + str(s[i:i + 15]) +
+                " AGAINST IMPORT " + str(check_import))
 
         # See if this matches our module:
         k = 0
@@ -303,11 +395,11 @@ def find_matching_remap_module(s, i, processed_imports={}):
 
         # Rule out, however, that this matches a module with
         # more components (so that net.fetch trumps net, for
-        # example:
-        for known_other_import in processed_imports:
+        # example).
+        # We do this first on actual imports we've already seen:
+        for known_other_import in processed_imports_pairs:
             other_module_elements = (
-                processed_imports[known_other_import]
-                    ["module"].split(".")
+                known_other_import[0].split(".")
             )
             if (len(other_module_elements) <=
                     len(import_module_elements)):
@@ -332,6 +424,8 @@ def find_matching_remap_module(s, i, processed_imports={}):
                 break
         if not maybe_match:
             continue
+        if not maybe_match:
+            continue
         maybe_match_tokens = -1
         maybe_match_item = None
         if (k * 2 + i < len(s) and
@@ -339,7 +433,7 @@ def find_matching_remap_module(s, i, processed_imports={}):
             maybe_match_item = s[k * 2 + i]
             maybe_match_tokens = k * 2 + 1
         #print((s[i], k, maybe_match_item, maybe_match,
-        #    processed_imports[known_import]
+        #    sc.processed_imports[known_import]
         #            ["module"],
         #    import_module_elements,
         #    maybe_match_tokens))
@@ -348,14 +442,8 @@ def find_matching_remap_module(s, i, processed_imports={}):
                 len(match_import_module.split("."))) and
                 maybe_match_item != None):
             match = True
-            match_import_module = (
-                processed_imports[known_import]
-                    ["module"]
-            )
-            match_package = (
-                processed_imports[known_import]
-                    ["package"]
-            )
+            match_import_module = check_import[0]
+            match_package = check_import[1]
             match_tokens = maybe_match_tokens
             match_item = maybe_match_item
     if match == True:
@@ -365,10 +453,8 @@ def find_matching_remap_module(s, i, processed_imports={}):
         return (None, None, None, None)
 
 
-def translate_expression_tokens(s, module_name, package_name,
-        parent_statements=[], processed_imports=None, project_info=None,
-        add_indent="", repo_package_name=None, is_assign_stmt=False,
-        assign_token_index=-1):
+def translate_expression_tokens(s, sc,
+        is_assign_stmt=False, assign_token_index=-1):
     s = list(s)
     assert("_remapped_os" not in s)
     assert("_remapped_sys" not in s)
@@ -381,12 +467,12 @@ def translate_expression_tokens(s, module_name, package_name,
         if t.strip("\t\r\n ") == "" and (
                 t.startswith("\r\n") or
                 t.startswith("\n")):
-            t += add_indent
+            t += sc.extra_indent
             s[i] = t
         elif t.strip("\t\r\n ") == "" and (
                 t.endswith("\r\n") or
                 t.endswith("\n")):
-            t = add_indent + t
+            t = sc.extra_indent + t
             s[i] = t
         i += 1
     # Fix assignments to square bracket accessed expression:
@@ -478,53 +564,21 @@ def translate_expression_tokens(s, module_name, package_name,
     # Translate remapped use to the proper remapped thing:
     i = 0
     while i < len(s):
-        if (i > 1 and s[i - 1].strip(" \t\r\n") == "" and
-                s[i - 2] in {"import", "func", ".", "var",
+        if (prevnonblank(s, i) in {
+                "import", "func", ".", "var",
                 "const"}):
             i += 1
             continue
-        if len(s[i]) == 0 or (
-                s[i][0] != "_" and
-                (ord(s[i][0]) < ord("a") or
-                    ord(s[i][0]) > ord("z")) and
-                (ord(s[i][0]) < ord("A") or
-                    ord(s[i][0]) > ord("Z"))):
-            i += 1
-            continue
-        if len(processed_imports) == 0:
+        if not is_identifier(s[i]):
             i += 1
             continue
         #print("s[i] " + str(s[i]))
 
-        # See if we are INSIDE a remapped module:
-        for remap_module_key in remapped_uses:
-            if (package_name == None or module_name == None or
-                    module_name + "@" + package_name !=
-                    remap_module_key):
-                continue
-            did_remap = False
-            for remapped_use in remapped_uses[remap_module_key]:
-                if (remapped_use == module_name + "." +
-                        s[i]):
-                    if DEBUGV.ENABLE_REMAPPED_USES:
-                        print("tools/translator.py: debug: remapping " +
-                            "use to the overridden expression: " +
-                            module_name + "." + s[i] + " in " +
-                            remap_module_key)
-                    insert_tokens = tokenize(remapped_uses
-                        [remap_module_key][remapped_use])
-                    s = s[:i] + insert_tokens + s[i + 1:]
-                    i += len(insert_tokens)
-                    did_remap = True
-                    break
-            if did_remap:
-                i += 1
-                continue
-
         # See if any external, imported use needs a remap:
         (match_import_module, match_package,
          match_item, match_tokens) = find_matching_remap_module(
-            s, i, processed_imports=processed_imports)
+            s, i, sc
+        )
         if match_import_module is None:
             i += 1
             continue
@@ -839,13 +893,11 @@ def translate(s, sc):
                     is_whitespace_token(statement[i])):
                 i += 1
             if i < len(statement) and statement[i] == "=":
+                new_sc = sc.duplicate()
+                new_sc.parent_statements += [statement_cpy]
                 statement = (statement[:i + 1] + ["("] +
                     translate_expression_tokens(
-                    statement[i + 1:], sc.module_name, sc.package_name,
-                    project_info=sc.project_info,
-                    parent_statements=(
-                        sc.parent_statements + [statement_cpy]),
-                    processed_imports=sc.processed_imports) + [")"])
+                    statement[i + 1:], new_sc) + [")"])
                 assert("no" not in statement)
             else:
                 statement += ["=", "None"]
@@ -1009,13 +1061,11 @@ def translate(s, sc):
                 if rescued_errors_tokens[0] != "(":
                     rescued_errors_tokens = (["("] +
                         rescued_errors_tokens + [")"])
+                new_sc = sc.duplicate()
+                new_sc.parent_statements += [statement_cpy]
                 rescued_errors_expr = translate_expression_tokens(
                     rescued_errors_tokens,
-                    sc.module_name, sc.package_name,
-                    project_info=sc.project_info,
-                    parent_statements=sc.parent_statements,
-                    processed_imports=sc.processed_imports,
-                    add_indent=sc.extra_indent)
+                    new_sc)
             finally_block_code = None
             if finally_block_content_first >= 0:
                 new_sc = sc.duplicate()
@@ -1092,14 +1142,12 @@ def translate(s, sc):
                      statement[j].strip(" \t\r\n") == ""):
                 j += 1
             assert(j >= len(statement))
+            new_sc = sc.duplicate()
+            new_sc.parent_statements += [statement_cpy]
             assigned_expr = translate_expression_tokens(
                 statement[assign_obj_first:
                     assign_obj_last+1],
-                sc.module_name, sc.package_name,
-                project_info=sc.project_info,
-                parent_statements=sc.parent_statements,
-                processed_imports=sc.processed_imports,
-                add_indent=sc.extra_indent)
+                new_sc)
             new_sc = sc.duplicate()
             new_sc.parent_statements += [statement_cpy]
             with_block_code = translate(
@@ -1143,13 +1191,11 @@ def translate(s, sc):
                 assert(i < len(statement) and statement[i] == "{")
                 statement[i] = ":"
                 begin_content_idx = i + 1
+                new_sc = sc.duplicate()
+                new_sc.parent_statements += [statement_cpy]
                 condition = (
                     translate_expression_tokens(statement[j + 1:i],
-                        sc.module_name, sc.package_name,
-                        project_info=sc.project_info,
-                        parent_statements=sc.parent_statements,
-                        processed_imports=sc.processed_imports,
-                        add_indent=sc.extra_indent))
+                        new_sc))
                 assert("as_str" not in condition)
                 assert(sublist_index(condition, [".", "len"]) < 0)
                 bracket_depth = 0
@@ -1291,53 +1337,21 @@ def translate(s, sc):
             assert(len(import_module_elements) >= 1)
             i = 0
             while i < len(tokens):
-                if (i > 1 and tokens[i - 1].strip(" \t\r\n") == "" and
-                        (tokens[i - 2] == "import" or
-                        tokens[i - 2] == "from")):
+                if not is_identifier(tokens[i]):
                     i += 1
                     continue
-                # See if it matches our current import:
-                match = True
-                k = 0
-                while k < len(import_module_elements):
-                    if (k * 2 + i >= len(tokens) or
-                            tokens[i + k * 2] !=
-                            import_module_elements[k] or
-                            (k + 1 < len(import_module_elements) and
-                            (k * 2 + 1 + i >= len(tokens) or
-                            tokens[i + k * 2 + 1] != "."))):
-                        match = False
-                        break
-                    k += 1
-                if not match:
+                if prevnonblank(tokens, i) in {"import", "from", "."}:
                     i += 1
                     continue
-                # Make sure it doesn't match another known import
-                # that has more components:
-                for orig_h64_import in sc.orig_h64_imports:
-                    other_elements = orig_h64_import[0].split(".")
-                    if (len(other_elements) <=
-                            len(import_module_elements)):
-                        continue
-                    other_match = True
-                    k2 = 0
-                    while k2 < len(other_elements):
-                        if (k2 * 2 + i >= len(tokens) or
-                                tokens[i + k2 * 2] !=
-                                other_elements[k2] or
-                                (k2 + 1 < len(other_elements) and
-                                (k2 * 2 + 1 + i >= len(tokens) or
-                                tokens[i + k2 * 2 + 1] != "."))):
-                            other_match = False
-                            break
-                        k2 += 1
-                    if other_match:
-                        match = False
-                        break
-                if not match:
+                # See if this exact token matches an import, and it's ours:
+                (match_import_module, match_package,
+                 match_item, match_tokens) = find_matching_remap_module(
+                    s, i, sc
+                )
+                if (match_import_module != import_module or
+                        match_package != import_package):
                     i += 1
                     continue
-                # If we arrive here, it's a definite match:
                 remapped_uses_key = import_module
                 if import_package != None:
                     remapped_uses_key += "@" + import_package
@@ -1500,13 +1514,11 @@ def translate(s, sc):
                         bdepth -= 1
                     k += 1
                 assert(statement[k] == ")")
+                new_sc = sc.duplicate()
+                new_sc.parent_statements += [statement_cpy]
                 argument_tokens = translate_expression_tokens(
                     statement[start_arguments_idx:k + 1],
-                    sc.module_name, sc.package_name,
-                    project_info=sc.project_info,
-                    parent_statements=sc.parent_statements,
-                    processed_imports=sc.processed_imports,
-                    add_indent=sc.extra_indent)
+                    new_sc)
             assert("_remapped_os" not in contents)
 
             # Prepare the final args and code to be spit out:
@@ -1584,13 +1596,10 @@ def translate(s, sc):
             if statement[k] not in {"==", ">=", "<="}:
                 assign_token_idx = k
         # Process as generic unknown statement:
+        new_sc = sc.duplicate()
+        new_sc.parent_statements += [list(statement)]
         result += indent + untokenize(translate_expression_tokens(
-            statement, sc.module_name, sc.package_name,
-            project_info=sc.project_info,
-            parent_statements=sc.parent_statements,
-            processed_imports=sc.processed_imports,
-            add_indent=sc.extra_indent,
-            is_assign_stmt=(assign_token_idx >= 0),
+            statement, new_sc, is_assign_stmt=(assign_token_idx >= 0),
             assign_token_index=assign_token_idx)) + "\n"
     return result
 
