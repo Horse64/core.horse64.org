@@ -28,6 +28,7 @@
 import ipaddress
 import math
 import os
+import requests
 import socket
 import subprocess
 import sys
@@ -437,6 +438,7 @@ class _RequestsFetchObj:
         global _async_ops_lock, _async_ops
         def recv_sync(op):
             global _async_ops_lock
+            self = op.userdata[0]
             if self.request is None:
                 try:
                     self.request = (
@@ -472,13 +474,13 @@ class _RequestsFetchObj:
             _async_ops_lock.release()
         def done_cb(op):
             result = op.userdata2
+            f = op.userdata[1]
             op.userdata = None
             op.userdata2 = None
             op.do_func = None
-            f = op.callback_func
             op.callback_func = None
             return f(result[0], result[1])
-        op = _AsyncOperation(self, recv_sync, done_cb)
+        op = _AsyncOperation([self, cb], recv_sync, done_cb)
         _async_ops_lock.acquire()
         _async_ops.append(op)
         _async_ops_lock.release()
@@ -590,6 +592,8 @@ def _net_lookup_name(name, cb, retries=0, retry_delay=0.5):
 
 def _net_fetch_get(uri, extra_headers=None,
         user_agent="core.horse64.org net.fetch/0.1 (translator)"):
+    if extra_headers is None:
+        extra_headers = {}
     if not "://" in uri:
         raise ValueError("need web url to fetch from")
     if uri.lower().startswith("file://"):
@@ -609,7 +613,7 @@ def _net_fetch_get(uri, extra_headers=None,
         del(extra_headers[key])
     extra_headers["User-Agent"] = str(user_agent + "")
     return _RequestsFetchObj(
-        uri=uri, headers=extra_headers
+        uri=uri, extra_headers=extra_headers
     )
 
 
