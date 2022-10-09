@@ -1684,6 +1684,7 @@ def run_translator_main():
     target_file = None
     target_file_args = []
     keep_files = False
+    paranoid = False
     run_as_test = False
     overridden_package_name = None
     i = 0
@@ -1720,11 +1721,15 @@ def run_translator_main():
                       "Keep translated files and ")
                 print("                           "
                       "print out path to them.")
+                print("    --paranoid             "
+                      "Do extra checking of internal operations.")
                 print("    --version              "
                       "Print out program version")
                 sys.exit(0)
             elif args[i] == "--as-test":
                 run_as_test = True
+            elif args[i] == "--paranoid":
+                paranoid = True
             elif (args[i] == "--version" or args[i] == "-v" or
                     args[i] == "-V"):
                 print("tools/translator.py version " + VERSION)
@@ -1915,8 +1920,35 @@ def run_translator_main():
             filename=target_file)
         assert(type(contents) == str)
         contents = transform_then_to_closures(tokenize(contents))
+        if paranoid:
+            try:
+                sanity_check_h64_codestring(
+                    contents, modname=modname,
+                    filename=target_file)
+            except ValueError as e:
+                raise ValueError("INTERNAL ERROR, "
+                    "transform_then_to_closures() "
+                    "broke syntax: " + str(e))
         contents = separate_out_inline_funcs(contents)
+        if paranoid:
+            try:
+                sanity_check_h64_codestring(
+                    contents, modname=modname,
+                    filename=target_file)
+            except ValueError as e:
+                raise ValueError("INTERNAL ERROR, "
+                    "separate_out_inline_funcs() "
+                    "broke syntax: " + str(e))
         contents = make_kwargs_in_call_tailing(contents)
+        if paranoid:
+            try:
+                sanity_check_h64_codestring(
+                    contents, modname=modname,
+                    filename=target_file)
+            except ValueError as e:
+                raise ValueError("INTERNAL ERROR, "
+                    "make_kwargs_in_call_tailing() "
+                    "broke syntax: " + str(e))
         assert(type(contents) == list and
             (len(contents) == 0 or type(contents[0]) == str))
         sc = TranslateInfoScope()

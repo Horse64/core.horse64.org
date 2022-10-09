@@ -192,6 +192,23 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
             mycall(abc, __ANYTOK__)
             """), any_match_value="__ANYTOK__")
         do_test(textwrap.dedent("""\
+            func x {
+                func_a(
+                    "abc", kwarg=2,
+                ) then param1, param2:
+
+                print("test")
+            }"""), textwrap.dedent("""\
+            func x {
+                func __ANYTOK__ (param1, param2) {
+                    print("test")
+                }
+                func_a(
+                    "abc", kwarg=2, __ANYTOK__
+                )
+            }"""), recursive=True,
+            any_match_value="__ANYTOK__")
+        do_test(textwrap.dedent("""\
             func test_then {
                 assert(global_count == 0)
                 call_my_callback_and_count(2) then:

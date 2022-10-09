@@ -1117,7 +1117,13 @@ def separate_out_inline_funcs(s):
 
 
 def sanity_check_h64_codestring(s, filename="", modname=""):
-    tokens = tokenize(s.replace("\r\n", "\n").replace("\r", "\n"))
+    tokens = None
+    if type(s) == list:
+        tokens = s
+    else:
+        tokens = tokenize(
+            s.replace("\r\n", "\n").replace("\r", "\n")
+        )
     col = 1
     line = 1
     bracket_nesting_orig_loc = []
@@ -1125,6 +1131,15 @@ def sanity_check_h64_codestring(s, filename="", modname=""):
     i = -1
     for token in tokens:
         i += 1
+        if token == "," and nextnonblank(tokens, i) == ",":
+            raise ValueError(("" if (modname == "" or
+                modname == None) else ("in module " +
+                str(modname) + " ")) +
+                ("" if (filename == "" or
+                filename == None) else ("in file " +
+                str(filename) + " ")) +
+                "in line " + str(line) + ", col " + str(col) + ": " +
+                "invalid double use of ','")
         if token in {"(", "{", "["}:
             bracket_nesting_orig_loc.append((line, col))
             bracket_nesting.append(token)
@@ -1136,7 +1151,7 @@ def sanity_check_h64_codestring(s, filename="", modname=""):
                 reverse_bracket = "["
             if (len(bracket_nesting) == 0 or
                     bracket_nesting[-1] != reverse_bracket):
-                raise ValueError(("" if (modname == "" or
+                errmsg = (("" if (modname == "" or
                     modname == None) else ("in module " +
                     str(modname) + " ")) +
                     ("" if (filename == "" or
@@ -1144,11 +1159,16 @@ def sanity_check_h64_codestring(s, filename="", modname=""):
                     str(filename) + " ")) +
                     "in line " + str(line) + ", col " + str(col) + ": " +
                     "unexpected unmatched closing bracket '" +
-                    str(token) + "', expected one closing '" +
-                    bracket_nesting[-1] +
-                    "' opened in line " + str(
-                    bracket_nesting_orig_loc[-1][0]) +
-                    ", col " + str(bracket_nesting_orig_loc[-1][1]))
+                    str(token) + "', expected ")
+                if len(bracket_nesting) > 0:
+                    errmsg += ("one closing '" +
+                        bracket_nesting[-1] +
+                        "' opened in line " + str(
+                        bracket_nesting_orig_loc[-1][0]) +
+                        ", col " + str(bracket_nesting_orig_loc[-1][1]))
+                else:
+                    errmsg += ("none (all previous pairs closed)")
+                raise ValueError(errmsg)
             bracket_nesting = bracket_nesting[:-1]
             bracket_nesting_orig_loc = (
                 bracket_nesting_orig_loc[:-1])

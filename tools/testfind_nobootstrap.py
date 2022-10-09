@@ -103,7 +103,7 @@ if __name__ == "__main__":
     for test_path in test_paths:
         print("\x1B[1m==> RUNNING TEST ==> \x1B[0m" + str(test_path))
         cmd = os.path.join(my_dir, "translator.py")
-        cmd_args = ["--as-test", "--", test_path]
+        cmd_args = ["--as-test", "--paranoid", "--", test_path]
         if debug_cmd:
             print("tools/testfind_nobootstrap.py: debug: exact cmd: " +
                 str((cmd, cmd_args)))
@@ -122,7 +122,7 @@ if __name__ == "__main__":
         else:
             print("==> TEST SUCCESSFUL.")
     if had_error:
-        print("\x1B[31;40;1mFAILURE for some tests.\x1B[0m")
+        print("\x1B[31;40;1mFAILURE trying to run tests.\x1B[0m")
         sys.exit(1)
     else:
         print("\x1B[32;40;1mSuccess and all tests done.\x1B[0m")
