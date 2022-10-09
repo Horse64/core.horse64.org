@@ -5,6 +5,8 @@ guarantees of completeness or accuracy, `horp license .` run in
 this repository will attempt to output the licenses of dependencies,
 too.)*
 
+TEST PULL REQUEST
+
 ## License
 
 Files outside of the `logo` and `vendor` folders are, unless indicated
