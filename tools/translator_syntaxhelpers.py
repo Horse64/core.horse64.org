@@ -1420,8 +1420,10 @@ def get_global_names(
             if error_on_duplicates:
                 raise ValueError("code syntax error, "
                     "global identifier \"" +
-                    str(st[i]) +
-                    "\" defined twice")
+                    st[i] +
+                    "\" defined twice, first as " +
+                    result[is_named]["type"] + " and now as " +
+                    is_type)
             continue
         result[is_named] = {
             "type": is_type

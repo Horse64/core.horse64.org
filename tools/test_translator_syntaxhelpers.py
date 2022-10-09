@@ -96,20 +96,36 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
 
     def test_get_global_names(self):
         self.assertEqual(set(get_global_names(textwrap.dedent("""\
-            import net
-            import net.fetch
+                import net
+                import net.fetch
 
-            func blargh {
-                var c = 1
-            }
+                func blargh {
+                    var c = 1
+                }
 
-            type xyz {
-                var i = 5
-            }
-            type net.something {
-            }
-            var x
-        """))), {"net", "blargh", "xyz", "x"})
+                type xyz {
+                    var i = 5
+                }
+                func net.something {
+                }
+                var x
+            """), error_on_duplicates=True)),
+            {"net", "blargh", "xyz", "x"})
+        had_value_error = False
+        try:
+            self.assertEqual(set(get_global_names(textwrap.dedent("""\
+                import net
+                import net.fetch
+
+                func net {  # This should cause an error!
+                    var c = 1
+                }
+            """), error_on_duplicates=True)),
+            {"net"})
+        except ValueError:
+            had_value_error = True
+            pass
+        self.assertTrue(had_value_error)
 
     def test_split_toplevel_statements(self):
         testcode = textwrap.dedent("""\
