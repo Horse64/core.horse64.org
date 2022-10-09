@@ -77,7 +77,8 @@ from translator_syntaxhelpers import (
     identifier_or_keyword, is_h64op_with_righthand,
     is_number_token, extract_all_imports,
     make_kwargs_in_call_tailing,
-    transform_then_to_closures
+    transform_then_to_closures,
+    get_names_defined_in_func,
 )
 
 translator_py_script_dir = (
@@ -1403,6 +1404,22 @@ def translate(s, sc):
             continue
         elif statement[0] == "func":
             statement_cpy = list(statement)
+
+            # First, see what globals Python might need a hint:
+            function_outer_scope_names = (
+                get_names_defined_in_func(statement_cpy,
+                    is_anonymous_inline=True))
+            tell_python_about_globals = []
+            for entry in sc.orig_h64_globals:
+                if (sc.orig_h64_globals[entry]["type"]
+                        in {"var"} and
+                        not entry in function_outer_scope_names):
+                    # For some operations like +=, Python
+                    # won't believe us we're using a global
+                    # unless we explicitly list it:
+                    tell_python_about_globals.append(entry)
+
+            # Transform to "def" and see where content begins:
             statement[0] = "def"
             bracket_depth = 0
             i = 1
@@ -1464,6 +1481,7 @@ def translate(s, sc):
                 type_package = sc.package_name
             argument_tokens = ["(", ")"]
             if statement[start_arguments_idx] == "(":
+                # Extract the arguments:
                 bdepth = 1
                 k = start_arguments_idx + 1
                 while statement[k] != ")" or bdepth > 1:
@@ -1481,6 +1499,8 @@ def translate(s, sc):
                     processed_imports=sc.processed_imports,
                     add_indent=sc.extra_indent)
             assert("_remapped_os" not in contents)
+
+            # Prepare the final args and code to be spit out:
             new_sc = sc.duplicate()
             new_sc.parent_statements += [statement_cpy]
             new_sc.extra_indent += ("    "
@@ -1491,19 +1511,23 @@ def translate(s, sc):
                 extra_init_code) = separate_func_keyword_arg_code(
                     argument_tokens, indent=(indent + "    " +
                     ("    " if type_name is not None else "")))
+            inner_indent = (get_indent(
+                extra_init_code + "\n" +
+                translated_contents + "\n"))
+            if inner_indent is None:
+                inner_indent = indent + "    "
+            inner_code = (extra_init_code + "\n" +
+                translated_contents + "\n")
+            if len(tell_python_about_globals) > 0:
+                inner_code = (inner_indent +
+                    "global " + ",".join(
+                    tell_python_about_globals) +
+                    "\n" + inner_code)
+            inner_code += (inner_indent + "pass\n")
             if type_name is None:
                 result += (indent + "def " + name +
                     untokenize(cleaned_argument_tokens) + ":\n")
-                suggested_indent = (
-                    get_indent(
-                    extra_init_code + "\n" +
-                    translated_contents + "\n"))
-                result += (extra_init_code + "\n" +
-                    translated_contents + "\n")
-                if suggested_indent != None:
-                    result += (suggested_indent + "pass\n")
-                else:
-                    result += (indent + "    pass\n")
+                result += inner_code
             else:
                 regtype = get_type(
                     type_name, type_module, type_package
@@ -1511,8 +1535,7 @@ def translate(s, sc):
                 regtype.funcs[name] = {
                     "arguments": cleaned_argument_tokens,
                     "name": name,
-                    "code": (extra_init_code + "\n" +
-                    "\n".join(translated_contents.splitlines()) + "\n")
+                    "code": inner_code,
                 }
             continue
         elif statement[0] == "type":
