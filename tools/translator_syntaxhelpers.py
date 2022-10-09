@@ -106,6 +106,7 @@ def is_whitespace_token(s):
 
 
 def get_next_token(s):
+    assert(type(s) == str)
     if s == "":
         return ""
     len_s = len(s)
@@ -178,6 +179,8 @@ def get_next_token(s):
                     (ord(s[i]) >= ord("0") and ord(s[i]) <= ord("9"))):
                 i += 1
         return s[:i]
+    if s[0] == ":":
+        return ":"
     if s[0] in {">", "=", "<", "!", "+", "-", "/", "*",
             "%", "|", "^", "&", "~"}:
         if s[1:2] in ["="]:
@@ -599,7 +602,9 @@ def prevnonblank(t, idx, no=1):
     return t[idx]
 
 
-def expr_nonblank_equals(v1, v2):
+def expr_nonblank_equals(
+        v1, v2, any_match_value=None
+        ):
     if type(v1) == str:
         v1 = tokenize(v1)
     if type(v2) == str:
@@ -607,17 +612,24 @@ def expr_nonblank_equals(v1, v2):
     i1 = 0
     i2 = 0
     while True:
-        while (i1 < len(v1) and
-                is_whitespace_token(v1[i1])):
+        while (i1 < len(v1) and (v1[i1] == "" or
+                is_whitespace_token(v1[i1]))):
             i1 += 1
-        while (i2 < len(v2) and
-                is_whitespace_token(v2[i2])):
+        while (i2 < len(v2) and (v2[i2] == "" or
+                is_whitespace_token(v2[i2]))):
             i2 += 1
         if i1 >= len(v1):
             return (i2 >= len(v2))
         elif i2 >= len(v2):
             return False
-        if (v1[i1] != v2[i2]):
+        if (v1[i1] != v2[i2]) and (
+                any_match_value == None or
+                (v1[i1] != any_match_value and
+                v2[i2] != any_match_value)):
+            #print("DIVERGED AT: " + str((v1[:i1 + 1],
+            #    v2[:i2 + 1])) + ", " +
+            #    "MISMATCH '" + str(v1[i1]) + "' vs '" +
+            #    str(v2[i2]) + "'")
             return False
         i1 += 1
         i2 += 1
@@ -781,6 +793,16 @@ def is_h64op_with_righthand(v):
     return False
 
 
+def is_h64op_with_lefthand(v):
+    if v in {"and", "or", "+", "-", "*", "/",
+            ">", "<", "->", ".", "!=", "=", "==",
+            ":"}:
+        return True
+    if len(v) == 2 and v[1] == "=":
+        return True
+    return False
+
+
 def has_no_ascii_letters(v):
     if v == "":
         return True
@@ -810,30 +832,37 @@ def has_any_ascii_letters(v):
 def get_next_statement(s):
     if len(s) == 0:
         return []
+    must_continue_tokens = {
+        "->", "(", "[", ":", "then",
+        ",", "else", "as", "in", "from",
+        "rescue", "finally", "elseif"}
     last_nonwhitespace_token = ""
     token_count = 0
     bracket_nesting = 0
+    i = -1
     for t in s:
+        i += 1
         token_count += 1
         if t in ["(", "[", "{"]:
             bracket_nesting += 1
         if t in [")", "]", "}"]:
             bracket_nesting -= 1
+        if (is_whitespace_token(t) and
+                nextnonblank(t, i) in
+                must_continue_tokens):
+            continue
         if (bracket_nesting == 0 and
                 t == "}"):
-            j = token_count
-            while (j < len(s) and
-                    s[j].strip(" \r\n\t") == ""):
-                j += 1
-            if j >= len(s):
-                return s
-            if (not s[j] in {"rescue", "finally", "elseif",
-                    "else"} and not is_h64op_with_righthand(s[j]) and
-                    not s[j] in {"(", "{", "["}):
+            nt = nextnonblank(s, i)
+            if (not nt in must_continue_tokens and
+                    not is_h64op_with_lefthand(nt) and
+                    not nt in {"(", "{", "["}) :
                 return s[:token_count + 1]
         if (bracket_nesting == 0 and
                 (t.endswith("\n") or t.endswith("\r")) and
-                not is_h64op_with_righthand(last_nonwhitespace_token)
+                not is_h64op_with_righthand(last_nonwhitespace_token) and
+                not is_h64op_with_lefthand(nextnonblank(s, i)) and
+                not nextnonblank(s, i) in must_continue_tokens
                 ):
             is_string_continuation = False
             if (last_nonwhitespace_token.endswith("\"") or
@@ -889,7 +918,8 @@ def tokens_need_spacing(v1, v2):
     if (is_whitespace_token(v1) or
             is_whitespace_token(v2)):
         return False
-    if is_bracket(v1) or is_bracket(v2):
+    if (is_bracket(v1) or is_bracket(v2) or
+            v1 == ":" or v2 == ":"):
         return False
     if v1 == "." or v2 == ".":
         return False
@@ -1025,23 +1055,14 @@ def extract_all_imports(s):
     return result
 
 
-def get_global_standalone_func_names(s):
-    if type(s) == str:
-        s = tokenize(s)
+def get_global_standalone_func_names(s,
+        error_duplicates=False
+        ):
     result = []
-    statements = split_toplevel_statements(s)
-    for statement in statements:
-        if firstnonblank(statement) != "func":
-            continue
-        i = firstnonblankidx(statement)
-        assert(statement[i] == "func")
-        i += 1
-        while (i < len(statement) and
-                statement[i].strip(" \n\r\t") == ""):
-            i += 1
-        if not is_identifier(statement[i]):
-            continue
-        result.append(statement[i])
+    scope = get_global_names(s)
+    for entry in scope:
+        if scope[entry]["type"] == "func":
+            result.append(entry)
     return result
 
 
@@ -1128,6 +1149,189 @@ def sanity_check_h64_codestring(s, filename="", modname=""):
             col = 1 + len(token_per_line[-1])
         else:
             col += len(token)
+
+
+def transform_then_to_closure_unnested(
+        sts, h64_indent="    "
+        ):
+    new_sts = []
+    st_idx = -1
+    for st in sts:
+        st_idx += 1
+
+        # Find all 'then' keyword uses:
+        then_indexes = []
+        i = -1
+        for t in st:
+            i += 1
+            if t == "then":
+                then_indexes.append(i)
+        if len(then_indexes) == 0:
+            new_sts.append(st)
+            continue
+
+        # Discard those inside nested statement blocks:
+        ranges = get_statement_block_ranges(st)
+        for brange in ranges:
+            i = 0
+            while i < len(then_indexes):
+                if (then_indexes[i] >=
+                        brange[0] and
+                        then_indexes[i] < brange[1]):
+                    then_indexes = (
+                        then_indexes[:i] +
+                        then_indexes[i + 1:])
+                    continue
+                i += 1
+        if len(then_indexes) != 1:
+            new_sts.append(st)
+            continue
+
+        # Now we should have just one 'then' left if the
+        # code is valid in the first place:
+        then_index = then_indexes[0]
+        if prevnonblank(st, then_index) != ")":
+            # Invalid code. Just ignore.
+            new_sts.append(st)
+            continue
+        then_preceding_call_noargs = False
+        then_preceding_call_close = prevnonblankidx(st, then_index)
+        if prevnonblank(st, then_index, no=2) == "(":
+            then_preceding_call_noargs = True
+
+        # Extract the arguments after 'then' keyword:
+        arg_start = then_index + 1
+        i = arg_start
+        bracket_depth = 0
+        while (i < len(st) and (
+                st[i] != ":" or bracket_depth > 0)):
+            if st[i] in {"(", "{", "["}:
+                bracket_depth += 1
+            elif st[i] in {")", "}", "]"}:
+                bracket_depth -= 1
+            i += 1
+        arg_end = i
+        if i >= len(st) or st[i] != ":":
+            # Invalid, so skip this:
+            new_sts.append(st)
+            continue
+        i += 1  # Go past ':' past the 'then' args.
+
+        # Name for our new callback implicitly created by 'then',
+        # as well as indent for the 'func ... {' opening line:
+        funcname = "_" + str(uuid.uuid4()).replace("-", "")
+        indent = get_indent(st)
+        def flatten(l):
+            flat = []
+            for sl in l:
+                for item in sl:
+                    flat.append(item)
+            return flat
+
+        # Get all the statements after 'then' to pull into callback:
+        func_inner_content_str = (
+            untokenize(flatten(sts[st_idx + 1:])))
+        func_inner_content_str = h64_indent + (
+            ("\n" + h64_indent).join(
+                func_inner_content_str.split("\n")
+            ))
+        func_inner_content = flatten(
+            transform_then_to_closure_unnested(
+                split_toplevel_statements(
+                    tokenize(func_inner_content_str)
+                )
+            )
+        )
+        assert(len(func_inner_content) == 0 or
+            type(func_inner_content[0]) == str)
+
+        # Assemble callback statement and add it in:
+        insert_st = ([indent, "func", " ",
+            funcname, " "])
+        if len(untokenize(
+                st[arg_start:arg_end]).strip(" \t\r\n")) > 0:
+            insert_st += (["("] + st[arg_start:arg_end] +
+                [")", " "])
+        insert_st += (["{", "\n"] +
+            func_inner_content +
+            ["\n"] + ([indent] if
+                indent != None and len(indent) > 0 else
+                []) +
+            ["}", "\n"])
+        new_sts.append(insert_st)
+
+        # Now add the call that had the 'then', but stripped off:
+        st = st[:then_preceding_call_close]
+        if not then_preceding_call_noargs:
+            st += [",", " "]
+        st += [funcname] + [")", "\n"]
+        new_sts.append(st)
+        break
+    return new_sts
+
+
+def get_indent(statement):
+    s = statement
+    if type(s) == list:
+        s = untokenize(s)
+    i = 0
+    while i < len(s):
+        if not s[i] in {
+                " ", "\t", "\n", "\r"}:
+            break
+        if s[i] in {"\n", "\r"}:
+            s = s[i + 1:]
+            i = 0
+            continue
+        i += 1
+    indentlen = (
+        len(s) - len(s.lstrip(" \t"))
+    )
+    result = None
+    if indentlen < len(s):
+        result = s[:indentlen]
+    return result
+
+
+def transform_then_to_closures(s):
+    def do_transform_then(sts):
+        return transform_then_to_closure_unnested(sts)
+    s = tree_transform_statements(s, do_transform_then)
+    return s
+
+
+def get_global_names(
+        s, error_on_duplicates=False
+        ):
+    if type(s) == str:
+        s = tokenize(s)
+    sts = split_toplevel_statements(s)
+    result = {}
+    for st in sts:
+        kw = firstnonblank(st)
+        if kw not in {
+                "var", "const", "import", "func", "type"}:
+            continue
+        i = firstnonblankidx(st)
+        assert(st[i] == kw)
+        i = nextnonblankidx(st, i)
+        if (i < 0 or not is_identifier(st[i]) or
+                (kw == "func" and
+                nextnonblank(st, i) == ".")):
+            continue
+        is_type = kw
+        is_named = st[i]
+        if is_named in result:
+            if error_on_duplicates:
+                raise ValueError("code syntax error, "
+                    "global identifier \"" +
+                    str(st[i]) +
+                    "\" defined twice")
+            continue
+        result[is_named] = {
+            "type": is_type
+        }
+    return result
 
 
 def make_kwargs_in_call_tailing(s):

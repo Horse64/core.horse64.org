@@ -37,7 +37,10 @@ from translator_syntaxhelpers import (
     get_global_standalone_func_names, is_number_token,
     expr_nonblank_equals, find_start_of_call_index_chain,
     is_identifier, extract_all_imports,
-    make_kwargs_in_call_tailing
+    make_kwargs_in_call_tailing,
+    get_indent, transform_then_to_closure_unnested,
+    transform_then_to_closures,
+    get_global_names,
 )
 
 
@@ -65,6 +68,105 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
             "var", " ", "c", "=", "x", "(", "x", ",", "z", "=", "\n",
             "7", ")"]
         self.assertTrue(expr_nonblank_equals(tresult, texpected))
+
+    def test_get_global_names(self):
+        self.assertEqual(set(get_global_names(textwrap.dedent("""\
+            import net
+            import net.fetch
+
+            func blargh {
+                var c = 1
+            }
+
+            type xyz {
+                var i = 5
+            }
+            type net.something {
+            }
+            var x
+        """))), {"net", "blargh", "xyz", "x"})
+
+    def test_split_toplevel_statements(self):
+        testcode = textwrap.dedent("""\
+        func abc {
+            func def { }
+        } func blurb {return 2 while {
+            return 4
+        }
+        }""")
+        self.assertEqual(
+            len(split_toplevel_statements(tokenize(testcode))),
+            2)
+
+    def test_transform_then_to_closure(self):
+        def do_test(testcode, texpected, any_match_value=None,
+                recursive=False):
+            if texpected is None:  # That means no change expected.
+                texpected = testcode
+            resultstmts = None
+            resulttokens = []
+            if not recursive:
+                teststmts = split_toplevel_statements(
+                    tokenize(testcode) if type(testcode) == str else
+                    testcode)
+                resultstmts = (
+                    transform_then_to_closure_unnested(teststmts)
+                )
+                resulttokens = []
+                for resultstmt in resultstmts:
+                    resulttokens += resultstmt
+            else:
+                resulttokens = transform_then_to_closures(
+                    tokenize(testcode) if type(testcode) == str else
+                    testcode)
+            self.assertTrue(
+                expr_nonblank_equals(resulttokens,
+                    (tokenize(texpected) if type(texpected) == str else
+                     texpected), any_match_value=any_match_value),
+                'Got: """' + str(untokenize(resulttokens)) +
+                '""",\nexpected: """' + (
+                texpected if type(texpected) == str else
+                untokenize(texpected)) + '"""')
+        do_test(textwrap.dedent("""\
+            func hello2 {
+                mycall(abc) then:
+            }"""), None)  # Should change nothing, non-recursive!
+        do_test(textwrap.dedent("""\
+            print("Hello")
+            mycall(abc) then:
+            print("Bla")"""
+            ), textwrap.dedent("""\
+            print("Hello")
+            func __ANYTOK__ {
+                print("Bla")
+            }
+            mycall(abc, __ANYTOK__)
+            """), any_match_value="__ANYTOK__")
+        do_test(textwrap.dedent("""\
+            func test_then {
+                assert(global_count == 0)
+                call_my_callback_and_count(2) then:
+                assert(global_count == 3)
+                call_my_callback() then x:
+                assert(x == 6)
+            }"""), textwrap.dedent("""\
+            func test_then {
+                assert(global_count == 0)
+                func __ANYTOK__ {
+                    assert(global_count == 3)
+                    func __ANYTOK__ (x) {
+                        assert(x == 6)
+                    }
+                    call_my_callback(__ANYTOK__)
+                }
+                call_my_callback_and_count(2, __ANYTOK__)
+            }"""), recursive=True,
+            any_match_value="__ANYTOK__")
+
+    def test_get_indent(self):
+        self.assertEqual(get_indent("\n  "), None)
+        self.assertEqual(get_indent(" abc"), " ")
+        self.assertEqual(get_indent("  \n   \r abc"), " ")
 
     def test_extract_all_imports(self):
         testcode = textwrap.dedent("""\

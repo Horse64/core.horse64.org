@@ -60,11 +60,11 @@ from translator_horphelpers import (
 
 from translator_transformhelpers import (
     transform_h64_misc_inline_to_python,
-    get_first_nonempty_line_indent
 )
 
 from translator_syntaxhelpers import (
-    tokenize, untokenize,
+    get_global_names,
+    tokenize, untokenize, get_indent,
     is_identifier, as_escaped_code_string,
     is_whitespace_token, get_next_token,
     split_toplevel_statements, nextnonblank,
@@ -77,6 +77,7 @@ from translator_syntaxhelpers import (
     identifier_or_keyword, is_h64op_with_righthand,
     is_number_token, extract_all_imports,
     make_kwargs_in_call_tailing,
+    transform_then_to_closures
 )
 
 translator_py_script_dir = (
@@ -745,27 +746,58 @@ def queue_file_if_not_queued(
         assert(entry[2] == "compiler.limits")
 
 
-def translate(s, module_name, package_name, parent_statements=[],
-        extra_indent="", folder_path="", project_info=None,
-        processed_imports=None, translate_file_queue=None,
-        orig_h64_imports=None):
-    if orig_h64_imports == None:
-        assert(parent_statements is None or
-            len(parent_statements) == 0)
-        assert(processed_imports is None or
-            len(processed_imports) == 0)
+class TranslateInfoScope:
+    def __init__(self):
+        self.module_name = None
+        self.package_name = None
+        self.parent_statements = []
+        self.extra_indent = ""
+        self.folder_path = ""
+        self.project_info = None
+        self.processed_imports = None
+        self.translate_file_queue = None
+        self.orig_h64_imports = None
+        self.orig_h64_globals = None
+
+    def duplicate(self):
+        sc = TranslateInfoScope()
+        sc.module_name = self.module_name
+        sc.package_name = self.package_name
+        sc.parent_statements = list(self.parent_statements)
+        sc.extra_indent = self.extra_indent
+        sc.folder_path = self.folder_path
+        sc.project_info = self.project_info
+        sc.processed_imports = self.processed_imports
+        sc.translate_file_queue = self.translate_file_queue
+        sc.orig_h64_imports = self.orig_h64_imports
+        sc.orig_h64_globals = self.orig_h64_globals
+        return sc
+
+
+def translate(s, sc):
+    if sc.orig_h64_imports == None:
+        assert(sc.orig_h64_globals == None)
+        assert(sc.parent_statements is None or
+            len(sc.parent_statements) == 0)
+        assert(sc.processed_imports is None or
+            len(sc.processed_imports) == 0)
         assert(type(s) == list)
-        orig_h64_imports = extract_all_imports(s)
-    if (len(parent_statements) == 0 and DEBUGV.ENABLE and
+        sc.orig_h64_imports = extract_all_imports(s)
+        sc.orig_h64_globals = get_global_names(
+            s, error_on_duplicates=True
+        )
+
+    if (len(sc.parent_statements) == 0 and DEBUGV.ENABLE and
             DEBUGV.ENABLE_FILE_PATHS):
         print("tools/translator.py: debug: translating " +
-            "module \"" + module_name + "\" in folder: " +
-            folder_path +
-            (" (no package)" if package_name is None else
-             " (package: " + str(package_name) + ")"))
-    if processed_imports is None:
-        processed_imports = {}
-    folder_path = os.path.normpath(os.path.abspath(folder_path))
+            "module \"" + sc.module_name + "\" in folder: " +
+            sc.folder_path +
+            (" (no package)" if sc.package_name is None else
+             " (package: " + str(sc.package_name) + ")"))
+    if sc.processed_imports is None:
+        sc.processed_imports = {}
+    sc.folder_path = os.path.normpath(os.path.abspath(
+        sc.folder_path))
     result = ""
     if type(s) != list or (len(s) > 0 and type(s[0]) != str):
         assert(type(s) == str)
@@ -777,7 +809,7 @@ def translate(s, module_name, package_name, parent_statements=[],
         assert("_remapped_os" not in statement)
         while is_whitespace_token(statement[-1]):
             statement = statement[:-1]
-        indent = extra_indent
+        indent = sc.extra_indent
         if is_whitespace_token(statement[0]):
             indent += statement[0]
             statement = statement[1:]
@@ -799,24 +831,25 @@ def translate(s, module_name, package_name, parent_statements=[],
             if i < len(statement) and statement[i] == "=":
                 statement = (statement[:i + 1] + ["("] +
                     translate_expression_tokens(
-                    statement[i + 1:], module_name, package_name,
-                    project_info=project_info,
+                    statement[i + 1:], sc.module_name, sc.package_name,
+                    project_info=sc.project_info,
                     parent_statements=(
-                        parent_statements + [statement_cpy]),
-                    processed_imports=processed_imports) + [")"]
-                    )
+                        sc.parent_statements + [statement_cpy]),
+                    processed_imports=sc.processed_imports) + [")"])
                 assert("no" not in statement)
             else:
                 statement += ["=", "None"]
-            if len(parent_statements) > 0 and \
-                    "".join(parent_statements[0][:1]) == "type":
-                type_name = parent_statements[0][2]
-                get_type(type_name, module_name, package_name).\
-                    init_code += "\n" + indent +\
-                    ("\n" + indent).join((
-                        "self." +
-                        untokenize(statement) + "\n"
-                    ).splitlines())
+            if (len(sc.parent_statements) > 0 and
+                    "".join(sc.parent_statements[0][:1])
+                        == "type"):
+                type_name = sc.parent_statements[0][2]
+                get_type(type_name, sc.module_name,
+                        sc.package_name).\
+                    init_code += ("\n" + indent +
+                        ("\n" + indent).join((
+                            "self." +
+                            untokenize(statement) + "\n"
+                        ).splitlines()))
                 continue
             result += indent + untokenize(statement) + "\n"
             # (we already did translate_expression_tokens above.)
@@ -934,35 +967,22 @@ def translate(s, module_name, package_name, parent_statements=[],
             assert(j >= len(statement))  # Require no trailing data.
             rescued_errors_expr = None
             rescue_block_code = None
+            new_sc = sc.duplicate()
+            new_sc.parent_statements += [statement_cpy]
             do_block_code = translate(
                     untokenize(statement[
                         do_block_content_first:
                         do_block_content_last+1
-                    ]), module_name, package_name,
-                    parent_statements=(
-                        parent_statements + [statement_cpy]),
-                    extra_indent=extra_indent,
-                    folder_path=folder_path,
-                    project_info=project_info,
-                    processed_imports=processed_imports,
-                    translate_file_queue=translate_file_queue,
-                    orig_h64_imports=orig_h64_imports
+                    ]), new_sc
                 )
             if rescue_block_content_first >= 0:
+                new_sc = sc.duplicate()
+                new_sc.parent_statements += [statement_cpy]
                 rescue_block_code = translate(
                     untokenize(statement[
                         rescue_block_content_first:
                         rescue_block_content_last+1
-                    ]), module_name, package_name,
-                    parent_statements=(
-                        parent_statements + [statement_cpy]),
-                    extra_indent=extra_indent,
-                    folder_path=folder_path,
-                    project_info=project_info,
-                    processed_imports=processed_imports,
-                    translate_file_queue=translate_file_queue,
-                    orig_h64_imports=orig_h64_imports
-                )
+                    ]), new_sc)
                 rescued_errors_tokens = statement[
                     rescue_error_types_first:
                     rescue_error_types_last+1]
@@ -981,27 +1001,20 @@ def translate(s, module_name, package_name, parent_statements=[],
                         rescued_errors_tokens + [")"])
                 rescued_errors_expr = translate_expression_tokens(
                     rescued_errors_tokens,
-                    module_name, package_name,
-                    project_info=project_info,
-                    parent_statements=parent_statements,
-                    processed_imports=processed_imports,
-                    add_indent=extra_indent)
+                    sc.module_name, sc.package_name,
+                    project_info=sc.project_info,
+                    parent_statements=sc.parent_statements,
+                    processed_imports=sc.processed_imports,
+                    add_indent=sc.extra_indent)
             finally_block_code = None
             if finally_block_content_first >= 0:
+                new_sc = sc.duplicate()
+                new_sc.parent_statements += [statement_cpy]
                 finally_block_code = translate(
                     untokenize(statement[
                         finally_block_content_first:
                         finally_block_content_last+1
-                    ]), module_name, package_name,
-                    parent_statements=(
-                        parent_statements + [statement_cpy]),
-                    extra_indent=extra_indent,
-                    folder_path=folder_path,
-                    project_info=project_info,
-                    processed_imports=processed_imports,
-                    translate_file_queue=translate_file_queue,
-                    orig_h64_imports=orig_h64_imports
-                )
+                    ]), new_sc)
             result += (indent + "try:\n")
             result += do_block_code + "\n"
             result += (indent + "    pass\n")
@@ -1072,24 +1085,17 @@ def translate(s, module_name, package_name, parent_statements=[],
             assigned_expr = translate_expression_tokens(
                 statement[assign_obj_first:
                     assign_obj_last+1],
-                module_name, package_name,
-                project_info=project_info,
-                parent_statements=parent_statements,
-                processed_imports=processed_imports,
-                add_indent=extra_indent)
+                sc.module_name, sc.package_name,
+                project_info=sc.project_info,
+                parent_statements=sc.parent_statements,
+                processed_imports=sc.processed_imports,
+                add_indent=sc.extra_indent)
+            new_sc = sc.duplicate()
+            new_sc.parent_statements += [statement_cpy]
             with_block_code = translate(
                 untokenize(statement[
                     with_block_first:
-                    with_block_last+1]), module_name, package_name,
-                parent_statements=(
-                    parent_statements + [statement_cpy]),
-                extra_indent=extra_indent,
-                folder_path=folder_path,
-                project_info=project_info,
-                processed_imports=processed_imports,
-                translate_file_queue=translate_file_queue,
-                orig_h64_imports=orig_h64_imports
-            )
+                    with_block_last+1]), new_sc)
             result += (indent + assign_obj_label + " = (" +
                 untokenize(assigned_expr) + ")\n")
             result += (indent + "try:\n")
@@ -1129,11 +1135,11 @@ def translate(s, module_name, package_name, parent_statements=[],
                 begin_content_idx = i + 1
                 condition = (
                     translate_expression_tokens(statement[j + 1:i],
-                        module_name, package_name,
-                        project_info=project_info,
-                        parent_statements=parent_statements,
-                        processed_imports=processed_imports,
-                        add_indent=extra_indent))
+                        sc.module_name, sc.package_name,
+                        project_info=sc.project_info,
+                        parent_statements=sc.parent_statements,
+                        processed_imports=sc.processed_imports,
+                        add_indent=sc.extra_indent))
                 assert("as_str" not in condition)
                 assert(sublist_index(condition, [".", "len"]) < 0)
                 bracket_depth = 0
@@ -1147,17 +1153,10 @@ def translate(s, module_name, package_name, parent_statements=[],
                 content = statement[
                     begin_content_idx:i
                 ]
+                new_sc = sc.duplicate()
+                new_sc.parent_statements += [statement_cpy]
                 content_code = translate(
-                    untokenize(content), module_name, package_name,
-                    parent_statements=(
-                        parent_statements + [statement_cpy]),
-                    extra_indent=extra_indent,
-                    folder_path=folder_path,
-                    project_info=project_info,
-                    processed_imports=processed_imports,
-                    translate_file_queue=translate_file_queue,
-                    orig_h64_imports=orig_h64_imports
-                )
+                    untokenize(content), new_sc)
                 if statement[j] == "elseif":
                     statement[j] = "elif"
                 if statement[j] != "for":
@@ -1190,7 +1189,7 @@ def translate(s, module_name, package_name, parent_statements=[],
                 j = i + 1
             continue
         elif statement[0] == "import":
-            assert(len(parent_statements) == 0)
+            assert(len(sc.parent_statements) == 0)
             assert(len(statement) >= 2 and statement[1].strip() == "")
             i = 2
             while i + 2 < len(statement) and statement[i + 1] == ".":
@@ -1199,7 +1198,7 @@ def translate(s, module_name, package_name, parent_statements=[],
                 part.strip() for part in statement[1:i + 1]
                 if part.strip() != ""
             ])
-            import_package = project_info.package_name
+            import_package = sc.project_info.package_name
             i += 1
             while i < len(statement) and statement[i].strip() == "":
                 i += 1
@@ -1212,10 +1211,11 @@ def translate(s, module_name, package_name, parent_statements=[],
                     import_package += "." + statement[i + 2]
                     i += 2
             in_orig_imports = False
-            for orig_h64_import in orig_h64_imports:
+            for orig_h64_import in sc.orig_h64_imports:
                 if (orig_h64_import[0] == import_module and
                         (orig_h64_import[1] == import_package or
-                        import_package == project_info.package_name)):
+                        import_package ==
+                            sc.project_info.package_name)):
                     in_orig_imports = True
             if not in_orig_imports:
                 raise RuntimeError(
@@ -1226,10 +1226,10 @@ def translate(s, module_name, package_name, parent_statements=[],
             target_filename = import_module.split(".")[-1] + ".py"
             append_code = ""
             python_module = import_module
-            package_python_subfolder = project_info.\
+            package_python_subfolder = sc.project_info.\
                 get_package_subfolder(import_package,
                 for_output=True)
-            package_source_subfolder = project_info.\
+            package_source_subfolder = sc.project_info.\
                 get_package_subfolder(import_package,
                 for_output=False)
             if (package_python_subfolder != None and
@@ -1252,12 +1252,12 @@ def translate(s, module_name, package_name, parent_statements=[],
             if len(package_source_subfolder) > 0:
                 target_path = os.path.normpath(
                     os.path.join(os.path.abspath(
-                    project_info.repo_folder),
+                    sc.project_info.repo_folder),
                     package_source_subfolder, target_path))
             else:
                 target_path = os.path.normpath(
                     os.path.join(os.path.abspath(
-                    project_info.code_folder), target_path))
+                    sc.project_info.code_folder), target_path))
             if (not os.path.exists(target_path) and
                     os.path.isdir(target_path.rpartition(".h64")[0])):
                 # Case of 'import bla' targeting 'bla/bla.h64'
@@ -1304,7 +1304,7 @@ def translate(s, module_name, package_name, parent_statements=[],
                     continue
                 # Make sure it doesn't match another known import
                 # that has more components:
-                for orig_h64_import in orig_h64_imports:
+                for orig_h64_import in sc.orig_h64_imports:
                     other_elements = orig_h64_import[0].split(".")
                     if (len(other_elements) <=
                             len(import_module_elements)):
@@ -1355,15 +1355,18 @@ def translate(s, module_name, package_name, parent_statements=[],
                 if not matched_remap:
                     found_nonremapped_use = True
                     if DEBUGV.ENABLE_REMAPPED_USES:
-                        print("tools/translator.py: debug: found " +
-                            "non-remapped use: " + str(
-                            tokens[i:i + len(import_module_elements) + 10]))
+                        print(
+                            "tools/translator.py: debug: found "
+                            "non-remapped use: " +
+                            str(tokens[i:i +
+                                len(import_module_elements) + 10])
+                        )
                 else:
                     found_remapped_use = True
                 i += 1
 
             # Add import:
-            processed_imports[import_module] = {
+            sc.processed_imports[import_module] = {
                 "package": import_package,
                 "module": import_module,
                 "python-module": python_module,
@@ -1379,22 +1382,23 @@ def translate(s, module_name, package_name, parent_statements=[],
                         str(import_module) + ("" if
                         import_package is None else
                         "@" + import_package))
-                processed_imports[import_module]["python-module"] = (
+                sc.processed_imports[import_module]["python-module"] = (
                     None  # since it wasn't actually imported
                 )
                 continue
 
             # Add translated import code:
             result += "import " + python_module + append_code + "\n"
-            queue_file_if_not_queued(translate_file_queue,
+            queue_file_if_not_queued(sc.translate_file_queue,
                 (target_path, target_filename,
                 import_module, os.path.dirname(target_path),
                 import_package), reason="imported from " +
-                "module " + str(module_name) + (
-                "" if package_name is None else "@" + package_name) +
-                " with non-remapped uses")
+                "module " + str(sc.module_name) + (
+                "" if sc.package_name is None else
+                    "@" + sc.package_name) +
+                    " with non-remapped uses")
             queue_module_neighbors(
-                translate_file_queue, target_path,
+                sc.translate_file_queue, target_path,
                 import_module, import_package)
             continue
         elif statement[0] == "func":
@@ -1435,28 +1439,29 @@ def translate(s, module_name, package_name, parent_statements=[],
                 type_name = ""
                 name = ""
                 i2 = 2
-                while i2 + 2 < len(statement) and statement[i2 + 1] == ".":
+                while (i2 + 2 < len(statement) and
+                        statement[i2 + 1] == "."):
                     if len(type_name) > 0:
                         type_name += "."
                     type_name += statement[i2]
                     name = statement[i2 + 2]
                     i2 += 2
                 start_arguments_idx = i2 + 1
-                for import_mod_name in processed_imports:
+                for import_mod_name in sc.processed_imports:
                     if type_name.startswith(import_mod_name + "."):
                         type_module = import_mod_name
                         type_name = type_name[len(type_module) + 1:]
-                        type_package = processed_imports\
+                        type_package = sc.processed_imports\
                             [type_module]["package"]
-                        type_python_module = processed_imports[
+                        type_python_module = sc.processed_imports[
                             type_module]["python-module"]
             while (start_arguments_idx < len(statement) and
                     statement[start_arguments_idx].
                         strip(" \t\r\n") == ""):
                 start_arguments_idx += 1
             if type_module is None:
-                type_module = module_name
-                type_package = package_name
+                type_module = sc.module_name
+                type_package = sc.package_name
             argument_tokens = ["(", ")"]
             if statement[start_arguments_idx] == "(":
                 bdepth = 1
@@ -1470,24 +1475,18 @@ def translate(s, module_name, package_name, parent_statements=[],
                 assert(statement[k] == ")")
                 argument_tokens = translate_expression_tokens(
                     statement[start_arguments_idx:k + 1],
-                    module_name, package_name,
-                    project_info=project_info,
-                    parent_statements=parent_statements,
-                    processed_imports=processed_imports,
-                    add_indent=extra_indent)
+                    sc.module_name, sc.package_name,
+                    project_info=sc.project_info,
+                    parent_statements=sc.parent_statements,
+                    processed_imports=sc.processed_imports,
+                    add_indent=sc.extra_indent)
             assert("_remapped_os" not in contents)
+            new_sc = sc.duplicate()
+            new_sc.parent_statements += [statement_cpy]
+            new_sc.extra_indent += ("    "
+                if type_name is not None else "")
             translated_contents = translate(
-                untokenize(contents), module_name, package_name,
-                parent_statements=(
-                    parent_statements + [statement_cpy]),
-                extra_indent=(extra_indent + ("    "
-                    if type_name is not None else "")),
-                folder_path=folder_path,
-                project_info=project_info,
-                processed_imports=processed_imports,
-                translate_file_queue=translate_file_queue,
-                orig_h64_imports=orig_h64_imports
-            )
+                untokenize(contents), new_sc)
             (cleaned_argument_tokens,
                 extra_init_code) = separate_func_keyword_arg_code(
                     argument_tokens, indent=(indent + "    " +
@@ -1496,7 +1495,7 @@ def translate(s, module_name, package_name, parent_statements=[],
                 result += (indent + "def " + name +
                     untokenize(cleaned_argument_tokens) + ":\n")
                 suggested_indent = (
-                    get_first_nonempty_line_indent(
+                    get_indent(
                     extra_init_code + "\n" +
                     translated_contents + "\n"))
                 result += (extra_init_code + "\n" +
@@ -1506,7 +1505,9 @@ def translate(s, module_name, package_name, parent_statements=[],
                 else:
                     result += (indent + "    pass\n")
             else:
-                regtype = get_type(type_name, type_module, type_package)
+                regtype = get_type(
+                    type_name, type_module, type_package
+                )
                 regtype.funcs[name] = {
                     "arguments": cleaned_argument_tokens,
                     "name": name,
@@ -1524,18 +1525,13 @@ def translate(s, module_name, package_name, parent_statements=[],
             contents = (
                 statement[i:-1]
             )
-            register_type(statement[2], module_name, package_name)
+            register_type(statement[2], sc.module_name,
+                sc.package_name)
+            new_sc = sc.duplicate()
+            new_sc.parent_statements += [statement_cpy]
+            new_sc.extra_indent += "    "
             translated_contents = translate(
-                untokenize(contents), module_name, package_name,
-                parent_statements=(
-                    parent_statements + [statement_cpy]),
-                extra_indent=(extra_indent + "    "),
-                folder_path=folder_path,
-                project_info=project_info,
-                processed_imports=processed_imports,
-                translate_file_queue=translate_file_queue,
-                orig_h64_imports=orig_h64_imports
-            )
+                untokenize(contents), new_sc)
             continue
         # See if this is an assignment:
         assign_token_idx = -1
@@ -1557,11 +1553,11 @@ def translate(s, module_name, package_name, parent_statements=[],
                 assign_token_idx = k
         # Process as generic unknown statement:
         result += indent + untokenize(translate_expression_tokens(
-            statement, module_name, package_name,
-            project_info=project_info,
-            parent_statements=parent_statements,
-            processed_imports=processed_imports,
-            add_indent=extra_indent,
+            statement, sc.module_name, sc.package_name,
+            project_info=sc.project_info,
+            parent_statements=sc.parent_statements,
+            processed_imports=sc.processed_imports,
+            add_indent=sc.extra_indent,
             is_assign_stmt=(assign_token_idx >= 0),
             assign_token_index=assign_token_idx)) + "\n"
     return result
@@ -1886,15 +1882,18 @@ def run_translator_main():
         sanity_check_h64_codestring(contents, modname=modname,
             filename=target_file)
         assert(type(contents) == str)
-        contents = separate_out_inline_funcs(tokenize(contents))
+        contents = transform_then_to_closures(tokenize(contents))
+        contents = separate_out_inline_funcs(contents)
         contents = make_kwargs_in_call_tailing(contents)
         assert(type(contents) == list and
             (len(contents) == 0 or type(contents[0]) == str))
-        contents_result = (
-            translate(contents, modname, package_name,
-                folder_path=modfolder,
-                project_info=project_info,
-                translate_file_queue=translate_file_queue))
+        sc = TranslateInfoScope()
+        sc.module_name = modname
+        sc.package_name = package_name
+        sc.folder_path = modfolder
+        sc.project_info = project_info
+        sc.translate_file_queue = translate_file_queue
+        contents_result = translate(contents, sc)
         disk_target_folder = (
             project_info.get_package_subfolder(
                 package_name, for_output=True) +
