@@ -262,6 +262,9 @@ the Horse64 Logo and please don't use the official name "Horse64" either.**
 Temporary forks only made for the personal use of preparing
 pull requests for the official "Horse64" are fine, of course.
 
+*(Non-binding side note: binaries you compile with `horsec` yourself
+shouldn't by default include the logo, so these should be unaffected.)*
+
 
 ## Developer Certificate of Origin
 
