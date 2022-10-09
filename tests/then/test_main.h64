@@ -38,8 +38,12 @@ func call_my_callback(callback) {
 
 func test_then {
     assert(global_count == 0)
+
     call_my_callback_and_count(2) then:
+
     assert(global_count == 2)
+
     call_my_callback() then x:
+
     assert(x == 4)
 }
