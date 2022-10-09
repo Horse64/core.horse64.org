@@ -253,13 +253,14 @@ as well as below **Developer Certificate of Origin**.
 This concerns the files inside `logo` folder:
 
 ```
-Horse64 Logo is Copyright (C)  2020-2021, ellie/@ell1e. All Rights Reserved.
+Horse64 Logo is Copyright (C)  2020-2022, ellie/@ell1e. All Rights Reserved.
 
-The "Horse64 Logo"'s files are located in `misc/` with the filenames starting
-with "logo".
-The Horse64 Logo and its files may only be used in the official unmodified
-"Horse64" distribution as maintained by ellie/@ell1e, currently found at
-codeberg.org/horse64, github.com/horse64, and https://horse64.org/.
+The "Horse64 Logo"'s files are located in `misc/` with the filenames
+starting with "logo".
+The Horse64 Logo and its files may only be used in the official
+unmodified "Horse64" distribution as maintained by ellie/@ell1e,
+currently found at codeberg.org/horse64, github.com/horse64, and
+https://horse64.org/.
 DON'T DISTRIBUTE MODIFIED HORSE64 VERSIONS WITH THE LOGO, PLEASE DON'T
 USE THE OFFICIAL NAME "Horse64" FOR THEM EITHER.
 ```
