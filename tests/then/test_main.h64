@@ -25,38 +25,21 @@
 # license, see accompanied LICENSE.md.
 
 
-import textwrap
-import unittest
+var global_count = 0
 
-from translator_syntaxhelpers import (
-    tokenize, untokenize, expr_nonblank_equals
-)
+func call_my_callback_and_count(v, callback) {
+    global_count += v
+    callback()
+}
 
-from translator_transformhelpers import (
-    transform_h64_misc_inline_to_python,
-)
+func call_my_callback(callback) {
+    callback(global_count * 2)
+}
 
-
-class TestTranslatorTransformHelpers(unittest.TestCase):
-    def test_transform_h64_misc_inline_to_python(self):
-        t = ("var test = " +
-            "(\"complex string concat test: \" + f(l, 1).as_str())")
-        texpected = ("var test = " +
-            "(\"complex string concat test: \" + " +
-            "_translator_runtime_helpers._value_to_str(f(l, 1)))")
-        tresult = transform_h64_misc_inline_to_python(t)
-        self.assertTrue(expr_nonblank_equals(tresult, texpected),
-            msg=("got " + tresult + ", expected: " + texpected))
-
-        t = ("args = args.sub(0, double_dash_idx) +" +
-            "    args.sub(double_dash_idx + 1)")
-        texpected = ("args = _translator_runtime_helpers." +
-            "_container_sub(args, 0, double_dash_idx) +" +
-            "    _translator_runtime_helpers._container_sub(" +
-            "args, double_dash_idx + 1)")
-        tresult = transform_h64_misc_inline_to_python(t)
-        self.assertTrue(expr_nonblank_equals(tresult, texpected),
-            msg=("got " + tresult + ", expected: " + texpected))
-
-if __name__ == '__main__':
-    unittest.main()
+func test_then {
+    assert(global_count == 0)
+    call_my_callback_and_count(2) then:
+    assert(global_count == 3)
+    call_my_callback() then x:
+    assert(x == 6)
+}

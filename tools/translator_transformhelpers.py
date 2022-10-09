@@ -37,7 +37,7 @@ import traceback
 
 
 from translator_syntaxhelpers import (
-    tokenize, untokenize,
+    tokenize, untokenize, get_indent,
     is_identifier, as_escaped_code_string,
     is_whitespace_token, get_next_token,
     split_toplevel_statements, nextnonblank,
@@ -187,18 +187,3 @@ def transform_h64_misc_inline_to_python(s):
     if was_str:
         return untokenize(s)
     return s
-
-
-def get_first_nonempty_line_indent(s):
-    if type(s) == list:
-        s = untokenize(s)
-    s = s.replace("\r\n", "\n").replace("\r", "\n")
-    for sline in s.split("\n"):
-        if sline.strip(" \t") == "":
-            continue
-        i = 0
-        while (i < len(sline) and
-                sline[i] == " " or sline[i] == "\t"):
-            i += 1
-        return sline[:i]
-    return None
