@@ -259,11 +259,11 @@ The Horse64 Logo and its files may only be used in the official unmodified
 `codeberg.org/horse64`, `github.com/horse64`, and `https://horse64.org/`.
 **If you distribute modified versions of Horse64, don't use
 the Horse64 Logo and please don't use the official name "Horse64" either.**
-Temporary forks only made for the personal use of preparing
-pull requests for the official "Horse64" are fine, of course.
 
-*(Non-binding side note: binaries you compile with `horsec` yourself
-shouldn't by default include the logo, so these should be unaffected.)*
+*(Non-binding side notes: 1. Binaries you compile with `horsec` yourself
+shouldn't by default include the logo, so these should be unaffected. 2.
+If you fork Horse64 just temporarily for preparing pull requst, that's
+fine of course.)*
 
 
 ## Developer Certificate of Origin
