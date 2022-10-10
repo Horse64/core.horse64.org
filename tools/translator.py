@@ -1921,7 +1921,7 @@ def run_translator_main():
                 contents = f.read()
         except FileNotFoundError as e:
             print("translator.py: error: trying to locate module " +
-                modname + " in package " + package_name +
+                modname + " in package " + str(package_name) +
                 " but file is missing: " + str(target_file))
             sys.exit(1)
         original_contents = contents
