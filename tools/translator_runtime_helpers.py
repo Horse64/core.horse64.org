@@ -73,6 +73,56 @@ class _NetworkIOError(_ResourceError):
         self.msg = msg
 
 
+class _IOError(_ResourceError):
+    def __init__(self, msg):
+        if msg is None:
+            msg = ("Unexpected I/O failure")
+        super().__init__(msg)
+        self.msg = msg
+
+
+class _ResourceMisuseError(_ValueError):
+    def __init__(self, msg):
+        if msg is None:
+            msg = ("The given resource doesn't "
+                "support this operation in the "
+                "requested way.")
+        super().__init__(msg)
+        self.msg = msg
+
+
+class _PermissionError(_ResourceMisuseError):
+    def __init__(self, msg):
+        if msg is None:
+            msg = ("PermissionDenied.")
+        super().__init__(msg)
+        self.msg = msg
+
+
+class _PathNotFoundError(_ResourceMisuseError):
+    def __init__(self, msg):
+        if msg is None:
+            msg = ("Target path not found.")
+        super().__init__(msg)
+        self.msg = msg
+
+
+class _PathAlreadyExistsError(_ResourceMisuseError):
+    def __init__(self, msg):
+        if msg is None:
+            msg = ("Target path already exists.")
+        super().__init__(msg)
+        self.msg = msg
+
+
+class _PathIsWrongTypeError(_ResourceMisuseError):
+    def __init__(self, msg):
+        if msg is None:
+            msg = ("Target path isn't the right type.")
+        super().__init__(msg)
+        self.msg = msg
+
+
 def _return_licenses():
     return __translator_licenses_list
 
@@ -420,24 +470,96 @@ def _uri_normalize(v):
 def _uri_to_file_or_vfs_path(v):
     if (not v.lower().startswith("file://") and
             not v.lower().startswith("vfs://")):
-        raise ValueError("not a file:// or vfs:// path")
+        raise ValueError("Not a file:// or vfs:// path.")
     resource = urllib.parse.unquote(v.partition("://")[2])
     resource = os.path.normpath(resource)
     return resource
 
 
+def _io_ls_dir(v, allow_vfs=True, force_vfs=False):
+    if force_vfs:
+        if os.path.normpath(v) in {"", "."}:
+            return []
+        raise _PathNotFoundError(
+            "path not found"
+        )
+    result = None
+    try:
+        result = v.listdir(v)
+    except (FileNotFoundError, OSError, IOError) as e:
+        if isinstance(e, FileNotFoundError):
+            raise _PathNotFoundError()
+        if isinstance(e, NotADirectoryError):
+            raise _PathIsWrongTypeError(
+                "Target isn't a directory."
+            )
+        if isinstance(e, PermissionError):
+            raise _PermissionError()
+        raise _IOError(str(e))
+    return result
+
+
+def _wrap_io(f):
+    def wrapped_func(args, **kwargs):
+        result = None
+        try:
+            result = f(args, **kwargs)
+        except (FileNotFoundError, OSError, IOError) as e:
+            if isinstance(e, FileNotFoundError):
+                raise _PathNotFoundError()
+            if isinstance(e, IsADirectoryError):
+                raise _PathIsWrongTypeError("Target is a directory.")
+            if isinstance(e, NotADirectoryError):
+                raise _PathIsWrongTypeError(
+                    "Target isn't a directory."
+                )
+            if isinstance(e, FileExistsError):
+                raise _PathAlreadyExistsError()
+            if isinstance(e, shutil.Error):
+                raise _ResourceMisuseError()
+            if isinstance(e, PermissionError):
+                raise _PermissionError()
+            if isinstance(e, OSError):
+                raise _ResourceMisuseError()
+            raise _IOError(str(e))
+    return wrapped_func
+
+
 class _FileObjFromDisk:
-    def __init__(self, path, mode):
+    def __init__(self, path, mode,
+            allow_vfs=True,
+            force_vfs=False):
+        if force_vfs:
+            raise _ResourceMisuseError(
+                "no VFS support available in this runtime"
+            )
         self.binary = "b" in mode
-        if not self.binary:
-            self.fobj = open(path, mode, encoding="utf-8",
-                errors='replace')
-        else:
-            self.fobj = open(path, mode)
+        try:
+            if not self.binary:
+                self.fobj = open(path, mode, encoding="utf-8",
+                    errors='replace')
+            else:
+                self.fobj = open(path, mode)
+        except (FileNotFoundError, IsADirectoryError,
+                IOError, OSError) as e:
+            if isinstance(e, FileNotFoundError):
+                raise _PathNotFoundError()
+            if isinstance(e, IsADirectoryError):
+                raise _ResourceMisuseError("Target is a directory.")
+            if isinstance(e, PermissionError):
+                raise _PermissionError()
+            if isinstance(e, OSError):
+                raise _ResourceMisuseError()
+            raise _IOError()
 
     def read(self, amount=None):
         if amount == None:
-            return self.fobj.read()
+            try:
+                return self.fobj.read()
+            except (IOError, OSError) as e:
+                if isinstance(e, PermissionError):
+                    raise _PermissionError()
+                raise _IOError()
         amount = int(amount)
         if amount <= 0:
             return (b"" if self.binary else "")
@@ -450,7 +572,10 @@ class _FileObjFromDisk:
         return self.fobj.write(value)
 
     def close(self):
-        self.fobj.close()
+        try:
+            self.fobj.close()
+        except (IOError, OSError) as e:
+            raise _IOError()
 
 
 class _AsyncOperation:
@@ -751,10 +876,10 @@ def _container_squarebracketaccess(container, index):
         return container[index]
     elif type(container) in {str, bytes, list}:
         if type(index) not in {float, int}:
-            raise TypeError("index not a num")
+            raise TypeError("Index isn't a num.")
         index = round(index)
         if index <= 0 or index > len(container):
-            raise IndexError("out of range")
+            raise IndexError("Out of range.")
         return container[index - 1]
     raise NotImplementedError("container type "
         "not imlemented for '[' indexing: " +
@@ -767,11 +892,11 @@ def _container_squarebracketassign(container, index,
     index_to_use = None
     if type(container) in {str, bytes, list}:
         if type(index) not in {float, int}:
-            raise TypeError("index not a num")
+            raise TypeError("Index isn't a num.")
         index_to_use = round(index)
         if (index_to_use <= 0 or
                 index_to_use > len(container)):
-            raise IndexError("out of range")
+            raise IndexError("Out of range.")
         index_to_use -= 1
         recognized_type = True
     elif type(container) == dict:

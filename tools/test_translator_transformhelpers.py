@@ -34,10 +34,18 @@ from translator_syntaxhelpers import (
 
 from translator_transformhelpers import (
     transform_h64_misc_inline_to_python,
+    make_string_literal_python_friendly,
 )
 
 
 class TestTranslatorTransformHelpers(unittest.TestCase):
+    def test_make_string_literal_python_friendly(self):
+        self.assertEqual(make_string_literal_python_friendly(
+            "\"test\""), "\"test\"")
+        self.assertEqual(make_string_literal_python_friendly(
+            ["1", "2", '"a\nb"']), ["1", "2", '"a\\nb"']
+        )
+
     def test_transform_h64_misc_inline_to_python(self):
         t = ("var test = " +
             "(\"complex string concat test: \" + f(l, 1).as_str())")
@@ -57,6 +65,7 @@ class TestTranslatorTransformHelpers(unittest.TestCase):
         tresult = transform_h64_misc_inline_to_python(t)
         self.assertTrue(expr_nonblank_equals(tresult, texpected),
             msg=("got " + tresult + ", expected: " + texpected))
+
 
 if __name__ == '__main__':
     unittest.main()

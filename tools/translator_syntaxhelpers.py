@@ -215,7 +215,7 @@ def get_statement_ranges_ex(t,
             while (i < len(t) and
                     t[i] != "{"):
                 i += 1
-            if t[i] != "{":
+            if i >= len(t) or t[i] != "{":
                 return []
             i += 1
             block_start = i
@@ -228,9 +228,36 @@ def get_statement_ranges_ex(t,
                 elif t[i] in {"]", ")", "}"}:
                     bracket_depth -= 1
                 i += 1
-            if i > len(t) or t[i] != "}":
+            if i >= len(t) or t[i] != "}":
                 return []
             return [[block_start, i]]
+        elif range_type == "expr":
+            while (i < len(t) and
+                    t[i] != "{" and
+                    t[i] != "extends"):
+                i += 1
+            if i >= len(t) or t[i] != "extends":
+                return []
+            i += 1  # Past 'extends' kw.
+            while i < len(t) and t[i].strip(" \r\n\t") == "":
+                i += 1
+            had_nonwhitespace = False
+            expr_start = i
+            bracket_depth = 0
+            while (i < len(t) and
+                    (t[i] != "{" or
+                    bracket_depth > 0 or
+                    not had_nonwhitespace)):
+                if t[i].strip(" \r\n\t") != "":
+                    had_nonwhitespace = True
+                if t[i] in {"[", "(", "{"}:
+                    bracket_depth += 1
+                elif t[i] in {"]", ")", "}"}:
+                    bracket_depth -= 1
+                i += 1
+            if i >= len(t) or t[i] != "{":
+                return []
+            return [[expr_start, i]]
         return []
     if (t[i] in {"func", "while", "for",
             "do", "with", "if"}):

@@ -1,5 +1,4 @@
 #!/usr/bin/python3
-
 # Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,6 +35,7 @@ my_dir = os.path.abspath(os.path.dirname(__file__))
 
 if __name__ == "__main__":
     args = sys.argv[1:]
+    use_paranoid_translator = False
     use_debug = False
     use_debug_python_output = False
     use_debug_keep_files = False
@@ -52,10 +52,15 @@ if __name__ == "__main__":
                 args[0] == "--debug-translator-keep-files"):
             use_debug_keep_files = True
             args = args[1:]
+        elif (not use_paranoid_translator and len(args) > 0 and
+                args[0] == "--paranoid-translator"):
+            use_paranoid_translator = True
+            args = args[1:]
         else:
             break
     process = subprocess.Popen([
         os.path.join(my_dir, "translator.py")] +
+        (["--paranoid"] if use_paranoid_translator else []) +
         (["--debug"] if use_debug else []) +
         (["--debug-python-output"] if use_debug_python_output else []) +
         (["--keep-files"] if use_debug_keep_files else []) +

@@ -52,6 +52,51 @@ from translator_syntaxhelpers import (
 )
 
 
+def make_string_literal_python_friendly(t):
+    was_str = False
+    if type(t) == str:
+        was_str = True
+        t = [t]
+    assert(type(t) in {list, tuple})
+    is_escaped = False
+    result = []
+    i = 0
+    while i < len(t):
+        if (not t[i].startswith("'") and
+                not t[i].startswith('"') and
+                not t[i].startswith("b'") and
+                not t[i].startswith('b"')) or (
+                "\n" not in t[i] and
+                "\r" not in t[i]):
+            result.append(t[i])
+            i += 1
+            continue
+        s = t[i]
+        s = s.replace("\r\n", "\n").replace("\r", "\n")
+        is_escaped = False
+        k = 0
+        while k < len(s):
+            if s[k] == "\\" and not is_escaped:
+                is_escaped = True
+                i += 1
+                continue
+            if s[k] == "\n":
+                if is_escaped:
+                    is_escaped = False
+                    k += 1
+                    continue
+                s = s[:k] + "\\n" + s[k + 1:]
+                k += 2
+                continue
+            is_escaped = False
+            k += 1
+        result.append(s)
+        i += 1
+    if was_str:
+        return result[0]
+    return result
+
+
 def transform_h64_misc_inline_to_python(s):
     was_str = False
     if type(s) == str:

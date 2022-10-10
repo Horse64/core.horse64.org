@@ -299,6 +299,15 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         self.assertFalse(is_number_token("1.2.3"))
 
     def test_get_statement_expr_ranges(self):
+        t = ["type", " ", "abc", " ", "extends", " ",
+            "def", ".", "bla", "{", "}"]
+        ranges = get_statement_expr_ranges(t)
+        self.assertEqual(len(ranges), 1)
+        self.assertTrue(ranges[0][0] in {5, 6})
+        self.assertTrue(t[ranges[0][0]] in {" ", "def"})
+        self.assertEqual(ranges[0][1], 9)
+        self.assertEqual(t[ranges[0][1]], "{")
+
         t = ["func", " ", "myfunc", " ",
             "(", "bla", "=", "{", "->", "}", " ",
             ")", "{", "}"]

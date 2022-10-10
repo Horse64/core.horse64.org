@@ -34,6 +34,7 @@ HACKY_WARNING=(
 
 VERSION="unknown"
 
+import functools
 import math
 import os
 import platform
@@ -60,6 +61,7 @@ from translator_horphelpers import (
 
 from translator_transformhelpers import (
     transform_h64_misc_inline_to_python,
+    make_string_literal_python_friendly,
 )
 
 from translator_syntaxhelpers import (
@@ -124,8 +126,31 @@ remapped_uses = {
     },
     "io@core.horse64.org": {
         "io.open":
-            "(lambda path, mode: _translator_runtime_helpers." +
-            "_FileObjFromDisk(path, mode))",
+            "(lambda path, mode, allow_vfs=True," +
+            "force_vfs=False: _translator_runtime_helpers." +
+            "_FileObjFromDisk(path, mode," +
+            "allow_vfs=allow_vfs,force_vfs=force_vfs))",
+        "io.exists":
+            "(lambda path: " +
+            "_translator_runtime_helpers._wrap_io("
+            "_remapped_os.path.exists('.' if" +
+            "path == '' else path)))",
+        "io.isdir":
+            "(lambda path: " +
+            "_translator_runtime_helpers._wrap_io("
+            "_remapped_os.path.isdir('.' if" +
+            "path == '' else path)))",
+        "io.lsdir":
+            "_translator_runtime_helpers._io_ls_dir",
+        "io.rmfile":
+            "_translator_runtime_helpers._wrap_io("
+            "_remapped_os.remove)",
+        "io.rmdir":
+            "_translator_runtime_helpers._wrap_io("
+            "_remapped_shutil.rmtree)",
+        "io.rename":
+            "_translator_runtime_helpers._wrap_io("
+            "_remapped_shutil.move)",
     },
     "math@core.horse64.org": {
         "math.min": "_translator_runtime_helpers._math_min",
@@ -145,6 +170,10 @@ remapped_uses = {
             "_translator_runtime_helpers._net_fetch_get",
     },
     "path@core.horse64.org": {
+        "path.normalize":
+            "_remapped_os.path.normmpath",
+        "path.join":
+            "_remapped_os.path.join",
         "path.basename" : "_remapped_os.path.basename",
         "path.dirname": "_remapped_os.path.dirname",
     },
@@ -362,9 +391,14 @@ def find_matching_remap_module(s, i, sc):
                 ["module"],
             sc.processed_imports[known_import]
                 ["package"]))
+    def cmp(e1, e2):
+        if e1[0] == e2[0]:
+            return (-1 if str(e1[1]) < str(e2[1]) else 1)
+        return (-1 if e2[0] < e2[0] else 1)
     processed_imports_pairs = sorted(list(
         set(processed_imports_pairs).union(
-            set([(a[0], a[1]) for a in sc.orig_h64_imports]))))
+            set([(a[0], a[1]) for a in sc.orig_h64_imports]))),
+        key=functools.cmp_to_key(cmp))
 
     for check_import in processed_imports_pairs:
         import_module_elements = (
@@ -522,6 +556,21 @@ def translate_expression_tokens(s, sc,
         elif s[i] == "ValueError" and previous_token != ".":
             s = s[:i] + ["_translator_runtime_helpers",
                 ".", "_ValueError"] + s[i + 1:]
+        elif s[i] == "IOError" and previous_token != ".":
+            s = s[:i] + ["_translator_runtime_helpers",
+                ".", "_IOError"] + s[i + 1:]
+        elif (s[i] == "ResourceMisuseError" and
+                previous_token != "."):
+            s = s[:i] + ["_translator_runtime_helpers",
+                ".", "_ResourceMisuseError"] + s[i + 1:]
+        elif (s[i] == "PathNotFoundError" and
+                previous_token != "."):
+            s = s[:i] + ["_translator_runtime_helpers",
+                ".", "_PathNotFoundError"] + s[i + 1:]
+        elif (s[i] == "_PermissionError" and
+                previous_token != "."):
+            s = s[:i] + ["_translator_runtime_helpers",
+                ".", "_PermissionError"] + s[i + 1:]
         elif s[i] == "starts" and previous_token == ".":
             s[i] = "startswith"
         elif s[i] == "ends" and previous_token == ".":
@@ -813,9 +862,11 @@ class TranslateInfoScope:
         self.translate_file_queue = None
         self.orig_h64_imports = None
         self.orig_h64_globals = None
+        self.paranoid = False
 
     def duplicate(self):
         sc = TranslateInfoScope()
+        sc.paranoid = self.paranoid
         sc.module_name = self.module_name
         sc.package_name = self.package_name
         sc.parent_statements = list(self.parent_statements)
@@ -838,6 +889,18 @@ def translate(s, sc):
             len(sc.processed_imports) == 0)
         assert(type(s) == list)
         sc.orig_h64_imports = extract_all_imports(s)
+        if sc.paranoid:
+            assert(type(sc.orig_h64_imports) == list)
+            for import_entry in sc.orig_h64_imports:
+                assert(type(import_entry) == list and
+                        len(import_entry) == 2 and
+                        type(import_entry[0]) == str and
+                        type(import_entry[1]) in {type(None), str}), (
+                    "invalid import result: " + str(import_entry) +
+                    " when processing module: " + str(sc.module_name)
+                )
+                assert(import_entry[0].strip() == import_entry[0])
+                assert(len(import_entry[0]) > 0)
         try:
             sc.orig_h64_globals = get_global_names(
                 s, error_on_duplicates=True
@@ -1928,7 +1991,8 @@ def run_translator_main():
         sanity_check_h64_codestring(contents, modname=modname,
             filename=target_file)
         assert(type(contents) == str)
-        contents = transform_then_to_closures(tokenize(contents))
+        contents = transform_then_to_closures(
+            make_string_literal_python_friendly(tokenize(contents)))
         if paranoid:
             try:
                 sanity_check_h64_codestring(
@@ -1966,6 +2030,7 @@ def run_translator_main():
         sc.folder_path = modfolder
         sc.project_info = project_info
         sc.translate_file_queue = translate_file_queue
+        sc.paranoid = paranoid
         contents_result = translate(contents, sc)
         disk_target_folder = (
             project_info.get_package_subfolder(
@@ -1997,6 +2062,7 @@ def run_translator_main():
                     translated_files[translated_file]
                         ["package-name"], for_output=True))
             contents_result = (
+                "import shutil as _remapped_shutil;" +
                 "import os as _remapped_os;import sys as _remapped_sys;" +
                 "_remapped_sys.path.insert(1, " +
                     as_escaped_code_string(os.path.join(
