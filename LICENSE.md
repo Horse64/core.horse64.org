@@ -244,9 +244,6 @@ following **Apache 2 License**:
    limitations under the License.
 ```
 
-If you contribute to the project, you **agree to both licensing types**
-as well as below **Developer Certificate of Origin**.
-
 
 ## Logo license
 
@@ -269,6 +266,17 @@ USE THE OFFICIAL NAME "Horse64" FOR THEM EITHER.
 shouldn't by default include the logo, so these should be unaffected. 2.
 If you fork Horse64 just temporarily for preparing pull requst, that's
 fine of course.)*
+
+
+## Contributions
+
+If you contribute to the Horse64 project, you **permit licensing as
+described in this file** and agree to the [DCO](#Developer Certificate
+of Origin) below.
+
+For this, sign your commit messages:
+
+`DCO-1.1-Signed-off-by: Your Name <your@email>`
 
 
 ## Developer Certificate of Origin
