@@ -32,14 +32,14 @@ import textformat from core.horse64.org
 func test_configs {
     var result = confparse.parse_conf_str(
                 allow_multiline=yes, allow_multiassign=yes,
-                error_on_mistakes=yes, textformat.dedent("
+                error_on_mistakes=yes, textformat.outdent("
         # This is a test config file
         [mysection]
         abc.cde = 1 2 3 4
         "
     ))
-    assert(result.contains("mysection"))
-    assert(result["mysection"].contains("abc.cde"))
+    assert(result.has("mysection"))
+    assert(result["mysection"].has("abc.cde"))
     assert(result["mysection"]["abc.cde"] == "1 2 3 4")
 }
 

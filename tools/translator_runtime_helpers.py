@@ -932,6 +932,39 @@ def _container_squarebracketassign(container, index,
         str(type(container)))
 
 
+def _textformat_outdent(s):
+    if not type(s) in {str, bytes}:
+        raise TypeError("Text must be str or bytes")
+    was_bytes = False
+    if type(s) == bytes:
+        s = s.decode("utf-8", "surrogateescape")
+    linebreak = "\n"
+    if "\r\n" in s:
+        linebreak = "\r\n"
+    s = s.splitlines()
+    shared_indent = None
+    for sline in s:
+        indent = sline[
+            :(len(sline) - len(sline.strip(" \t")))
+        ]
+        if shared_indent is None:
+            shared_indent = indent
+        else:
+            i = 0
+            while (i < len(shared_indent) and
+                    i < len(indent) and
+                    shared_indent[i] == indent[i]):
+                i += 1
+            shared_indent = shared_indent[:i]
+    new_s = []
+    for sline in s:
+        new_s.append(sline[len(shared_indent):])
+    new_s = linebreak.join(new_s)
+    if was_bytes:
+        new_s = new_s.encode("utf-8", "surrogateescape")
+    return new_s
+
+
 class _ModuleObject:
     pass
 

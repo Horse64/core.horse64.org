@@ -202,6 +202,10 @@ remapped_uses = {
         "text.code":
             "(lambda x: int(ord(x)))",
     },
+    "textformat@core.horse64.org": {
+        "textformat.outdent":
+            "_translator_runtime_helpers._textformat_outdent",
+    },
     "uri@core.horse64.org": {
         "uri.normalize":
             "(lambda v: _translator_runtime_helpers." +
