@@ -36,8 +36,8 @@ func test_args_things {
         "args_program_main.h64", args=["--help"],
         run_in_dir=path.dirname(system.self_exec_path())
     )
-    assert(output.lower().contains("usage") and
-        output.lower().contains("available options"))
+    assert(output.lower().has("usage") and
+        output.lower().has("available options"))
 
     # Test a basic scenario with optional and catchall args:
     var defs = argparse.ArgumentDefs()

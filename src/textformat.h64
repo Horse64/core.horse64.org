@@ -55,7 +55,7 @@ func wrap(multiline_text, length,
     }
     length = math.round(length)
     var line_break = "\n"
-    if s.contains("\r\n") {
+    if s.has("\r\n") {
         line_break = "\r\n"
     }
     s = s.replace("\r\n", "\n").replace("\r", "\n")

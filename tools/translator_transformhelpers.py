@@ -71,6 +71,7 @@ def transform_h64_misc_inline_to_python(s):
                         nextnonblank(s, i) == "(" and
                         nextnonblank(s, i, no=2) == ")") or (
                     s[i] in ("add", "sort", "trim", "find",
+                        "ltrim", "rtrim", "rfind",
                         "reverse",
                         "join", "glyph_sub", "sub", "repeat") and
                         nextnonblank(s, i) == "("
@@ -102,6 +103,15 @@ def transform_h64_misc_inline_to_python(s):
             elif cmd == "trim":
                 insert_call = ["_translator_runtime_helpers",
                     ".", "_container_trim"]
+            elif cmd == "ltrim":
+                insert_call = ["_translator_runtime_helpers",
+                    ".", "_container_ltrim"]
+            elif cmd == "rtrim":
+                insert_call = ["_translator_runtime_helpers",
+                    ".", "_container_rtrim"]
+            elif cmd == "rfind":
+                insert_call = ["_translator_runtime_helpers",
+                    ".", "_container_rfind"]
             elif cmd == "repeat":
                 insert_call = ["_translator_runtime_helpers",
                     ".", "_container_repeat"]
@@ -137,7 +147,8 @@ def transform_h64_misc_inline_to_python(s):
                 i -= 1
                 assert(s[i] == ")")
             elif cmd in ("add", "sort", "join", "find", "sub",
-                    "repeat", "trim", "glyph_sub"):
+                    "repeat", "trim", "glyph_sub",
+                    "ltrim", "rtrim", "rfind"):
                 # Truncate "(", ... and turn it to ",", ...
                 s = s[:i - 1] + [","] + s[i + 2:]
                 i -= 1

@@ -108,12 +108,12 @@ func _ArgumentInfo.init(
 }
 
 
-func _ArgumentInfo.contains_argname(names) {
-    if names.contains(self.name) {
+func _ArgumentInfo.has_argname(names) {
+    if names.has(self.name) {
         return yes
     }
     for alias in self.aliases {
-        if names.contains(alias) {
+        if names.has(alias) {
             return yes
         }
     }
@@ -198,7 +198,7 @@ func ArgumentDefs.get_namedarg(name) {
         return none
     }
     for arg in self.args {
-        if arg.name == name or arg.aliases.contains(name) {
+        if arg.name == name or arg.aliases.has(name) {
             return arg
         }
     }
@@ -237,7 +237,7 @@ func ArgumentDefs.add_arg(name, optional=no, description=none) {
             "starting with a dash")
     }
     for arg in self.args {
-        if arg.contains_argname([name]) {
+        if arg.has_argname([name]) {
             throw new ValueError(
                 "name conflict with existing options"
             )
@@ -285,7 +285,7 @@ func ArgumentDefs.add_catchall(name, description=none) {
     }
     var positional_count = 0
     for arg in self.args {
-        if arg.contains_argname([name]) {
+        if arg.has_argname([name]) {
             throw new ValueError(
                 "name conflict with existing options"
             )
@@ -316,13 +316,13 @@ func _check_switch_name(name) {
     if not name.starts("-") {
         throw new ValueError("switch names must start with dash")
     }
-    if name.contains(" ") or name.contains("\t") or
-            name.contains("\n") or name.contains("\r") {
+    if name.has(" ") or name.has("\t") or
+            name.has("\n") or name.has("\r") {
         throw new ValueError("switch names must not contain whitespace")
     }
-    if name.contains("=") or name.contains(",") or
-            name.contains(":") or name.contains("!") or name.contains("/") {
-        throw new ValueError("switch name contains invalid character")
+    if name.has("=") or name.has(",") or
+            name.has(":") or name.has("!") or name.has("/") {
+        throw new ValueError("switch name has invalid character")
     }
 }
 
@@ -378,8 +378,8 @@ func ArgumentDefs.add_switch(
         throw new ValueError("takes_arg must be yes or no")
     }
     for arg in self.args {
-        if arg.contains_argname([name]) or
-                arg.contains_argname(aliases) {
+        if arg.has_argname([name]) or
+                arg.has_argname(aliases) {
             throw new ValueError(
                 "name conflict with existing options"
             )
@@ -451,7 +451,7 @@ func get_usage_text(options) {
                     longest_arg_len, arg.name.len)
             }
         }
-        var indent_target_len = min(
+        var indent_target_len = math.min(
             30, longest_arg_len + 3
         )
         for arg in options.args {
@@ -485,7 +485,7 @@ func get_usage_text(options) {
             switch_desc_map[arg.name] = arg.description
         }
     }
-    if not unsorted_names.contains("--help") {
+    if not unsorted_names.has("--help") {
         unsorted_names.add("--help")
         switch_desc_map["--help"] =
             "Show this help text."
@@ -496,7 +496,7 @@ func get_usage_text(options) {
         longest_switch_len = math.max(
             longest_switch_len, switch_name.len)
     }
-    var indent_target_len = min(
+    var indent_target_len = math.min(
         30, longest_switch_len + 3
     )
     for switch_name in sorted_names {
@@ -505,7 +505,7 @@ func get_usage_text(options) {
         ))
         var spaces_after_wrap = " ".repeat(indent_target_len)
         var switch_description = none
-        if switch_desc_map.contains(switch_name) {
+        if switch_desc_map.has(switch_name) {
             switch_description = switch_desc_map[switch_name]
         }
         var wrapped = textformat.wrap(
@@ -701,7 +701,7 @@ func parse(argument_defs, args=none) {
             # Add it to the result value of what it maps to:
             if target_arg.catchall {
                 # Catchall arg that collects multiple values as list:
-                if not result_args.contains(target_arg.name) {
+                if not result_args.has(target_arg.name) {
                     result_args[target_arg.name] = []
                 }
                 result_args[target_arg.name].append(argstr)
@@ -731,7 +731,7 @@ func parse(argument_defs, args=none) {
                 return result
             }
             # Block specifying multiple times if not allowed:
-            if result_args.contains(target_arg.name) and
+            if result_args.has(target_arg.name) and
                     not target_arg.repeatable and
                     result_args[target_arg.name] == yes {
                 result.output += argument_defs.program_name +
@@ -763,7 +763,7 @@ func parse(argument_defs, args=none) {
                 }
                 if target_arg.repeatable {
                     # Can be specified multiple times, use list:
-                    if not result_args.contains(target_arg.name) {
+                    if not result_args.has(target_arg.name) {
                         result_args[target_arg.name] = []
                     }
                     result_args[target_arg.name].add(args[i + 1])
@@ -775,7 +775,7 @@ func parse(argument_defs, args=none) {
             } else {
                 if target_arg.repeatable {
                     # Can be specified multiple times, use counter:
-                    if not result_args.contains(target_arg.name) {
+                    if not result_args.has(target_arg.name) {
                         result_args[target_arg.name] = 0
                     }
                     result_args[target_arg.name] += 1
@@ -788,7 +788,7 @@ func parse(argument_defs, args=none) {
     }
     # Fill in empty spots in result dictionary:
     for arg in argument_defs.args {
-        if not result_args.contains(arg.name) {
+        if not result_args.has(arg.name) {
             if arg.takes_arg and not arg.catchall and
                     not arg.repeatable {
                 result_args[arg.name] = none
@@ -807,7 +807,7 @@ func parse(argument_defs, args=none) {
     for arg in argument_defs.args {
         if not arg.positional and
                 arg.action_func != none and
-                result_args.contains(arg.name) and
+                result_args.has(arg.name) and
                 result_args[arg.name] != none and
                 result_args[arg.name] != no {
             # A switch with an action. Collect it for later sorting:

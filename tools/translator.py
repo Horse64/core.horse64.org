@@ -526,7 +526,7 @@ def translate_expression_tokens(s, sc,
             s[i] = "startswith"
         elif s[i] == "ends" and previous_token == ".":
             s[i] = "endswith"
-        elif s[i] == "contains" and previous_token == ".":
+        elif s[i] == "has" and previous_token == ".":
             s[i] = "__contains__"
         elif s[i] == "throw" and previous_token != ".":
             s[i] = "raise"

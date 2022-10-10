@@ -51,7 +51,7 @@ class _ValueError(ValueError):
     def __init__(self, msg):
         if msg is None:
             msg = ("Invalid value.")
-        super().__init__()
+        super().__init__(msg)
         self.msg = msg
 
 
@@ -59,7 +59,7 @@ class _ResourceError(OSError):
     def __init__(self, msg):
         if msg is None:
             msg = ("Hardware resource problem occured.")
-        super().__init__()
+        super().__init__(msg)
         self.msg = msg
 
 
@@ -69,7 +69,7 @@ class _NetworkIOError(_ResourceError):
             msg = (
                 "Temporary network failure occured. "
                 "Check your internet connectivity.")
-        super().__init__()
+        super().__init__(msg)
         self.msg = msg
 
 
@@ -204,6 +204,28 @@ def _container_repeat(container, *args, **kwargs):
     return container.repeat(*args, **kwargs)
 
 
+def _container_ltrim(container, *args, **kwargs):
+    if type(container) in {bytes, str} and \
+            len(args) <= 1:
+        if len(args) == 0:
+            if type(container) == bytes:
+                return container.lstrip(b" \t\r\n")
+            return container.lstrip(" \t\r\n")
+        return container.lstrip(args[0])
+    return container.ltrim(*args, **kwargs)
+
+
+def _container_rtrim(container, *args, **kwargs):
+    if type(container) in {bytes, str} and \
+            len(args) <= 1:
+        if len(args) == 0:
+            if type(container) == bytes:
+                return container.rstrip(b" \t\r\n")
+            return container.rstrip(" \t\r\n")
+        return container.rstrip(args[0])
+    return container.rtrim(*args, **kwargs)
+
+
 def _container_trim(container, *args, **kwargs):
     if type(container) in {bytes, str} and \
             len(args) <= 1:
@@ -242,6 +264,25 @@ def _container_find(container, *args, **kwargs):
         except ValueError:
             return None
     return container.find(*args, **kwargs)
+
+
+def _container_rfind(container, *args, **kwargs):
+    if (type(container) in {str, bytes} and
+            len(args) == 1):
+        result = container.rfind(args[0])
+        if result < 0:
+            return None
+        return result + 1
+    if (type(container) in {tuple, list} and
+            len(args) == 1):
+        try:
+            result = container.index(reversed(args[0]))
+            if result < 0:
+                return None
+            return result + 1
+        except ValueError:
+            return None
+    return container.rfind(*args, **kwargs)
 
 
 def _container_sub(container, *args, **kwargs):

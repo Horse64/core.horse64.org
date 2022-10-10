@@ -1,0 +1,210 @@
+# @module confparse
+# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+
+type ConfParseError extends ValueError {
+}
+
+
+## @func parse_conf_str
+## Parse the contents of a config file using the INI format,
+## supplied as a string.
+## @param string str The contents of the config file.
+## @param allow_multiline bool Whether an indent after an assignment
+##     line allows continuing the assigned value on the next line.
+## @param error_on_mistakes bool Whether to throw a
+##     @{ConfParseError} when encountering a line that is obviously
+##     invalid.
+## @returns map A map where each key is a string with the section name,
+##     with a sub map with all the key value pairs in that section.
+##     If @{allow_subsections} is @{yes}, this can be nested deeper.
+func parse_conf_str(
+        string, allow_multiline=yes, allow_multiassign=yes,
+        error_on_mistakes=yes
+        ) {
+    var s = string
+    s = s.replace("\r\n", "\n").replace("\r", "\n")
+    var lines_uncleaned = s.split("\n")
+    var lines = []
+    for l in lines_uncleaned {
+        if l.trim(" \t") == "" or
+                l.trim(" \t").starts(";") or
+                l.trim(" \t").starts("#") {
+            l = ""
+        }
+        lines.add(l)
+    }
+    var lines_with_indent = []
+    for line in lines {
+        entry = [l.sub(1, len(l) - len(l.ltrim(" \t")))]
+        entry.append([l.ltrim(" \t")])
+    }
+
+    # Some helper variables:
+    var result = {->}
+    var last_key = none
+    var section = none
+    var future_previous_indent = none
+    var previous_indent = none
+
+    # Parse the actual lines now:
+    var lineno = 0
+    for l in lines {
+        lineno += 1
+
+        # Extract indentation:
+        previous_indent = future_previous_indent
+        var indent = line.sub(1, len(line) - len(line.ltrim(" \t")))
+        var line = line.ltrim(" \t")
+        if line == "" {
+            last_key = none
+            continue
+        }
+        future_previous_indent = indent
+
+        # Parse square bracket section markers:
+        if line.startswith("[") {
+            var closing_bracket = line.rfind("]")
+            if closing_bracket == none {
+                if error_on_mistakes {
+                    throw new ConfParseError(
+                        "Error in line " + lineno.as_str() +
+                        ": Opening '[' without matching ']'."
+                    )
+                }
+                last_key = none
+                continue
+            }
+
+            line = line.rtrim()
+            if closing_bracket < line.len and
+                    error_on_mistakes {
+                throw new ConfParseError(
+                    "Error in line " + lineno.as_str() +
+                    ": Invalid trailing character after "
+                    "square brackets for section"
+                )
+            }
+
+            var new_section = line.sub(2, closing_bracket - 1).trim()
+            if new_section == "" {
+                # An empty section name obviously is nonsensical!
+                if error_on_mistakes {
+                    throw new ConfParseError(
+                        "Error in line " + lineno.as_str() +
+                        ": Empty square brackets without "
+                        "valid section name."
+                    )
+                }
+                last_key = none
+                continue
+            }
+
+            # Set the new section and resume:
+            section = new_section
+            last_key = none
+            continue
+        }
+        var eq_index = line.find("=")
+        if eq_index == none and last_key and
+                allow_multiline and
+                previous_indent != none and
+                indent.starts(previous_indent + "  ") or
+                indent.starts(previous_indent + "\t") {
+            # This is a multi-line continuation!
+            if typename(result[section][last_key]) == "str" {
+                result[section][last_key] += " " + line.trim()
+            } else {
+                var value_list = result[section][last_key]
+                value_list[value_list.len] += (
+                    " " + line.trim()
+                )
+            }
+
+            # Force last_key and previous_indent
+            # to carry over unchanged into next line:
+            future_previous_indent = indent
+            continue
+        }
+        if eq_index == none {
+            # Not empty line or comment, but we can't parse it!
+            if error_on_mistakes {
+                throw new ConfParseError(
+                    "Error in line " + lineno.as_str() +
+                    ": Line with unrecognized garbage contents"
+                )
+            }
+            continue
+        }
+        if section == none {
+            if error_on_mistakes {
+                throw new ConfParseError(
+                    "Error in line " + lineno.as_str() +
+                    ": Key value assignment outside of "
+                    "any section"
+                )
+            }
+            continue
+        }
+
+        var key = line.sub(1, eq_index - 1).trim()
+        var value = line.sub(eq_index + 1).trim()
+
+        if assigned_key == "" {
+            if error_on_mistakes {
+                throw new ConfParseError(
+                    "Error in line " + lineno.as_str() +
+                    ": Assigning to an empty key, this "
+                    "isn't allowed."
+                )
+            }
+            last_key = none
+            continue
+        }
+
+        # Assign the key and move on:
+        if not result.has(section) {
+            result[section] = {->}
+        }
+        if not result[section].has(key) or
+                not allow_multiassign {
+            result[section][assigned_key] = value
+        } else {
+            if typename(result[section][key]) == "str" {
+                result[section][key] = [
+                    result[section][key], value
+                ]
+            } else {
+                result[section][key].add(value)
+            }
+        }
+        last_key = key
+    }
+
+    return result
+}
+
