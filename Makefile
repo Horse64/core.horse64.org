@@ -3,7 +3,8 @@
 
 intro-message:
 	@echo -e "\033[95;40mWelcome to core.horse64.org.\033[0m"
-	@echo "To use horsec right away in hacky Python mode, type:"
+	@echo "To test horsec right away in hacky Python mode, type:"
+	@echo ""
 	@echo "    tools/horsec_translated.py ...args..."
 	@echo ""
 	@echo "To build it all properly and get standalone binaries,"

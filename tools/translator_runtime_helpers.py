@@ -941,24 +941,39 @@ def _textformat_outdent(s):
     linebreak = "\n"
     if "\r\n" in s:
         linebreak = "\r\n"
+
+    # Figure out what amount of indent all lines share:
     s = s.splitlines()
     shared_indent = None
     for sline in s:
+        # Ignore fully empty lines:
+        if sline.strip(" \t") == "":
+            continue
+
+        # Get the indent of this line:
         indent = sline[
             :(len(sline) - len(sline.strip(" \t")))
         ]
         if shared_indent is None:
             shared_indent = indent
-        else:
-            i = 0
-            while (i < len(shared_indent) and
-                    i < len(indent) and
-                    shared_indent[i] == indent[i]):
-                i += 1
-            shared_indent = shared_indent[:i]
+            continue
+        # Figure out the shortest, shared indent:
+        i = 0
+        while (i < len(shared_indent) and
+                i < len(indent) and
+                shared_indent[i] == indent[i]):
+            i += 1
+        shared_indent = shared_indent[:i]
+
+    # Rewrite lines with all the shared indent removed:
     new_s = []
     for sline in s:
+        if sline.strip(" \t") == "":
+            new_s.append(shared_indent)
+            continue
         new_s.append(sline[len(shared_indent):])
+
+    # Return result:
     new_s = linebreak.join(new_s)
     if was_bytes:
         new_s = new_s.encode("utf-8", "surrogateescape")

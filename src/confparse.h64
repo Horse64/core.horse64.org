@@ -48,6 +48,8 @@ func parse_conf_str(
         ) {
     var s = string
     s = s.replace("\r\n", "\n").replace("\r", "\n")
+
+    # Clean up lines by dumping the comments:
     var lines_uncleaned = s.split("\n")
     var lines = []
     for l in lines_uncleaned {
@@ -57,11 +59,6 @@ func parse_conf_str(
             l = ""
         }
         lines.add(l)
-    }
-    var lines_with_indent = []
-    for line in lines {
-        entry = [l.sub(1, len(l) - len(l.ltrim(" \t")))]
-        entry.append([l.ltrim(" \t")])
     }
 
     # Some helper variables:
@@ -73,12 +70,12 @@ func parse_conf_str(
 
     # Parse the actual lines now:
     var lineno = 0
-    for l in lines {
+    for line in lines {
         lineno += 1
 
         # Extract indentation:
         previous_indent = future_previous_indent
-        var indent = line.sub(1, len(line) - len(line.ltrim(" \t")))
+        var indent = line.sub(1, line.len - line.ltrim(" \t").len)
         var line = line.ltrim(" \t")
         if line == "" {
             last_key = none
@@ -174,7 +171,7 @@ func parse_conf_str(
         var key = line.sub(1, eq_index - 1).trim()
         var value = line.sub(eq_index + 1).trim()
 
-        if assigned_key == "" {
+        if key == "" {
             if error_on_mistakes {
                 throw new ConfParseError(
                     "Error in line " + lineno.as_str() +
@@ -192,7 +189,7 @@ func parse_conf_str(
         }
         if not result[section].has(key) or
                 not allow_multiassign {
-            result[section][assigned_key] = value
+            result[section][key] = value
         } else {
             if typename(result[section][key]) == "str" {
                 result[section][key] = [
