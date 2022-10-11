@@ -218,18 +218,22 @@ remapped_uses = {
 
 
 class RegisteredType:
-    def __init__(self, type_name, module_path, package_name):
+    def __init__(self, type_name, module_path, package_name,
+            extends_tokens=None):
         self.module = module_path
         self.pkgname = package_name
         self.name = type_name
         self.init_code = ""
+        self.extends_tokens = extends_tokens
         self.funcs = {}
 
 
 known_types = {}
 
 
-def register_type(type_name, module_path, package_name):
+def register_type(
+        type_name, module_path, package_name,
+        extends_tokens=None):
     global known_types
     package_name_part = ""
     if package_name is not None:
@@ -239,7 +243,8 @@ def register_type(type_name, module_path, package_name):
         raise ValueError("found duplicate type " +
             module_path + "." + type_name)
     known_types[module_path + "." + type_name + package_name_part] = (
-        RegisteredType(type_name, module_path, package_name)
+        RegisteredType(type_name, module_path, package_name,
+            extends_tokens=extends_tokens)
     )
     if DEBUGV.ENABLE and DEBUGV.ENABLE_TYPES:
         print("tools/translator.py: debug: registered type " +
@@ -1495,6 +1500,14 @@ def translate(s, sc):
         elif statement[0] == "func":
             statement_cpy = list(statement)
 
+            for pstatement in sc.parent_statements:
+                if (len(pstatement) > 0 and
+                        pstatement[0] == "type"):
+                    raise ValueError("Syntax error in " +
+                        sc.module_name + (" in " + sc.package_name
+                        if sc.package_name != None else "") + ": " +
+                        "found invalid \"func\" nested in \"type\"")
+
             # First, see what globals Python might need a hint:
             function_outer_scope_names = (
                 get_names_defined_in_func(statement_cpy,
@@ -1629,15 +1642,41 @@ def translate(s, sc):
         elif statement[0] == "type":
             statement_cpy = list(statement)
             i = 1
-            while statement[i] != "{":
+            while (statement[i] != "{" and
+                    statement[i] != "extends"):
                 i += 1
-            i += 1
+            extends_tokens = None
+            if statement[i] == "extends":
+                extends_tokens = []
+                i += 1  # Past 'extends' keyword.
+                start_idx = i
+                bracket_depth = 0
+                hadnonblank = False
+                while (i < len(statement) and (
+                        statement[i] != "{" or
+                        not hadnonblank or
+                        bracket_depth > 0)):
+                    if statement[i].strip(" \t\r\n") != "":
+                        hadnonblank = True
+                    if statement[i] in {"{", "(", "["}:
+                        bracket_depth += 1
+                    elif statement[i] in {"}", ")", "]"}:
+                        bracket_depth -= 1
+                    i += 1
+                if i < len(statement):
+                    new_sc = sc.duplicate()
+                    new_sc.parent_statements += [statement_cpy]
+                    extends_tokens = translate_expression_tokens(
+                        statement[start_idx:i],
+                        new_sc)
+            i += 1  # Go past '{' token.
             assert(statement[-1] == "}")
             contents = (
                 statement[i:-1]
             )
-            register_type(statement[2], sc.module_name,
-                sc.package_name)
+            register_type(nextnonblank(statement, 0),
+                sc.module_name, sc.package_name,
+                extends_tokens=(extends_tokens))
             new_sc = sc.duplicate()
             new_sc.parent_statements += [statement_cpy]
             new_sc.extra_indent += "    "
@@ -2093,7 +2132,11 @@ def run_translator_main():
                         [translated_file]["package-name"]):
                     continue
                 contents_result += "\n"
-                contents_result += "class " + regtype.name + ":\n"
+                contents_result += "class " + regtype.name
+                if regtype.extends_tokens != None:
+                    contents_result += ("(" +
+                        untokenize(regtype.extends_tokens) + ")")
+                contents_result += ":\n"
                 if "init" in regtype.funcs:
                     assert(regtype.funcs["init"]["arguments"][0] == "(")
                     regtype.funcs["init"]["arguments"] = (
