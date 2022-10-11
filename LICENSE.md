@@ -271,8 +271,8 @@ fine of course.)*
 ## Contributions
 
 If you contribute to the Horse64 project, you **permit licensing as
-described in this file** and agree to the [DCO](#Developer Certificate
-of Origin) below.
+described in the respective files** and agree to the
+[DCO](#developer-certificate-of-origin) below.
 
 For this, sign your commit messages:
 
