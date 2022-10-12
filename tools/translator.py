@@ -1455,16 +1455,16 @@ def translate(s, sc):
                         package_python_subfolder[:-1])
                 python_module = package_python_subfolder.\
                     replace("/", ".") + "." + python_module
-                for module_part in import_module.split(".")[:-1]:
-                    append_code += ("; ((" + module_part +
-                        " := _translator_runtime_helpers." +
-                        "_ModuleObject()) if (\"" +
-                        module_part + "\" not in locals() and \"" +
-                        module_part + "\" not in globals()) else None)")
-                append_code += ("; " +
-                    import_module + " = " +
-                    package_python_subfolder.replace("/", ".") +
-                    "." + import_module)
+                module_part = import_module.split(".")[0]
+                append_code += ("; ((" + module_part +
+                    " := _translator_runtime_helpers." +
+                    "_ModuleObject(" +
+                    as_escaped_code_string(module_part) + "," +
+                    (as_escaped_code_string(import_package) if
+                     import_package != None else "None") +
+                    ")) if (\"" +
+                    module_part + "\" not in locals() and \"" +
+                    module_part + "\" not in globals()) else None)")
             if len(package_source_subfolder) > 0:
                 target_path = os.path.normpath(
                     os.path.join(os.path.abspath(
@@ -2340,6 +2340,8 @@ def run_translator_main():
                 t = f.read()
                 t = (translator_debugvars.
                     get_debug_var_strings() + "\n" + t)
+                t = t.replace("__translated_output_root_path__",
+                    as_escaped_code_string(output_folder))
                 t = t.replace("__translator_py_path__",
                     as_escaped_code_string(translator_py_script_path))
                 license_list_str = "["

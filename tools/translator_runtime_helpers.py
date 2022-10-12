@@ -981,5 +981,18 @@ def _textformat_outdent(s):
 
 
 class _ModuleObject:
-    pass
+    def __init__(self, base_module, base_library):
+        self._base_module = base_module
+        self._base_library = base_library
 
+    def __getattr__(self, name):
+        if name == "" or "." in name or "_" in name:
+            raise AttributeError("nope")
+        folder = __translated_output_root_path__
+        if folder not in sys.path:
+            sys.path.insert(1, folder)
+        import horse_modules
+        result = getattr(horse_modules,
+            self._base_library.replace(".", "_"))
+        result = getattr(result, self._base_module)
+        return getattr(result, name)
