@@ -103,7 +103,7 @@ func parse_conf_str(
                 throw new ConfParseError(
                     "Error in line " + lineno.as_str() +
                     ": Invalid trailing character after "
-                    "square brackets for section"
+                    "square brackets for section."
                 )
             }
 
@@ -152,7 +152,7 @@ func parse_conf_str(
             if error_on_mistakes {
                 throw new ConfParseError(
                     "Error in line " + lineno.as_str() +
-                    ": Line with unrecognized garbage contents"
+                    ": Line with unrecognized garbage contents."
                 )
             }
             continue
@@ -162,7 +162,7 @@ func parse_conf_str(
                 throw new ConfParseError(
                     "Error in line " + lineno.as_str() +
                     ": Key value assignment outside of "
-                    "any section"
+                    "any section."
                 )
             }
             continue
