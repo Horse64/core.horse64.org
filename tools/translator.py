@@ -799,7 +799,7 @@ def translate_expression_tokens(s, sc,
                 bracket_depth += 1
             if s[z] in {"]", ")", "}"}:
                 bracket_depth -= 1
-            if s[z].strip(" \t\r\n") == "":
+            if s[z].strip(" \t\r\n") != "":
                 had_nonwhitespace_token = True
             z += 1
         if z >= len(s) or s[z] != "(":
