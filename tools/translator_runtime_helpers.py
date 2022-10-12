@@ -360,11 +360,32 @@ def _container_sub(container, *args, **kwargs):
     return container.sub(*args, **kwargs)
 
 
+def _container_subfirst(container, *args, **kwargs):
+    if (len(args) == 0 and
+            type(container) in {bytes, str, list}):
+        return container[:1]
+    return container.subfirst(*args, **kwargs)
+
+
 def _container_sublast(container, *args, **kwargs):
     if (len(args) == 0 and
             type(container) in {bytes, str, list}):
         return container[-1:]
     return container.sublast(*args, **kwargs)
+
+
+def _container_first(container, *args, **kwargs):
+    if (len(args) == 0 and
+            type(container) in {bytes, str, list}):
+        return container[0]
+    return container.first(*args, **kwargs)
+
+
+def _container_last(container, *args, **kwargs):
+    if (len(args) == 0 and
+            type(container) in {bytes, str, list}):
+        return container[-1]
+    return container.last(*args, **kwargs)
 
 
 def _math_floor(v1):

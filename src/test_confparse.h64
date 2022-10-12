@@ -141,14 +141,14 @@ func test_configs {
         allow_multiline=yes, allow_multiassign=yes,
         error_on_mistakes=yes, textformat.outdent("
             [mysection]
-            abc.cde = 1 2 3 4
+            abc.cdkk = 1 2 3 4
                 def == a = b
             # A double equals doesn't count! Multiline!
             "
     ))
     assert(result.has("mysection"))
-    assert(result["mysection"].has("abc.cde"))
-    assert(result["mysection"]["abc.cde"] ==
+    assert(result["mysection"].has("abc.cdkk"))
+    assert(result["mysection"]["abc.cdkk"] ==
         "1 2 3 4 def == a = b")
 }
 

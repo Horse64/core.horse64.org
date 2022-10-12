@@ -388,7 +388,7 @@ func tokenize_str(
                 ))
             } else {
                 var reversec = reverse_open_brackets(c)
-                var openinfo = bracket_nesting.sublast()
+                var openinfo = bracket_nesting.last()
                 if openinfo[1] != reversec {
                     result.msgs.add(compiler.msg.FileMsg(
                         "Invalid unexpected closing bracket '" +
@@ -431,7 +431,7 @@ func tokenize_str(
             }
             if guaranteed_outer_scope_tokens.contains(name) {
                 if bracket_nesting.len > 0 {
-                    var openinfo = bracket_nesting.sublast()
+                    var openinfo = bracket_nesting.last()
                     result.msgs.add(compiler.msg.FileMsg(
                         "Invalid unexpected keyword '" +
                         c + "', not allowed inside any nesting "

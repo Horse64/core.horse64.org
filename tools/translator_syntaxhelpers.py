@@ -434,6 +434,7 @@ def get_statement_ranges_ex(t,
                 # A parameterless func, or cut off early.
                 return []
             # Fall through, block after collects expression or block.
+        # Okay, now get the first main expression:
         expr_start = i
         prev_seen_nonblank = ""
         bracket_depth = 0

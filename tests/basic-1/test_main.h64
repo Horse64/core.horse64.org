@@ -48,8 +48,19 @@ func test_basic_things {
     assert(l[1] == 4)
     assert(l[3] == 6)
     assert(l.sublast().len == 1 and l.sublast()[1] == 6)
+    assert(l.last() == 6)
+    assert(l.first() == 4)
+    assert(l.subfirst().len == 1 and l.subfirst()[1] == 4)
     assert(l.sub(2, 4).len == 2 and l.sub(2, 4)[1] == 5
            and l.sub(2, 4)[2] == 6)
+    assert([].sublast().len == 0)
+    var had_error = no
+    do {
+        print("This should break: " + [].first().as_str())
+    } rescue IndexError {
+        had_error = yes
+    }
+    assert(had_error)
 
     var a, b = 5, "test"
     assert(a == 5)

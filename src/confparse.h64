@@ -54,9 +54,7 @@ func parse_conf_str(
     var lines = []
     for l in lines_uncleaned {
         assert(typename(l) == "str")
-        if l.trim(" \t") == "" or
-                l.trim(" \t").starts(";") or
-                l.trim(" \t").starts("#") {
+        if l.trim(" \t") == "" {
             l = ""
         }
         lines.add(l)
@@ -64,10 +62,10 @@ func parse_conf_str(
 
     # Some helper variables:
     var result = {->}
-    var last_key = none
+    var multiline_key = none
+    var multiline_exact_indent = none
+    var multiline_outer_indent = none
     var section = none
-    var future_previous_indent = none
-    var previous_indent = none
 
     # Parse the actual lines now:
     var lineno = 0
@@ -75,18 +73,29 @@ func parse_conf_str(
         lineno += 1
 
         # Extract indentation:
-        previous_indent = future_previous_indent
         var indent = line.sub(1, line.len - line.ltrim(" \t").len)
         var line = line.ltrim(" \t")
+        if multiline_outer_indent != none {
+            if not indent.startswith(multiline_outer_indent) or
+                    indent.len <= multiline_outer_indent.len or
+                    (multiline_exact_indent != none and
+                     multiline_exact_indent != indent) {
+                multiline_key = none
+            } else {
+                multiline_exact_indent = indent
+            }
+        }
         if line == "" {
-            last_key = none
+            multiline_key = none
+            continue
+        } elseif line.trim().starts(";") or
+                line.trim().starts("#") {
             continue
         }
-        future_previous_indent = indent
 
-        #print("LINE: " + [line, "'" + indent + "'",
-        #    if (previous_indent) ("'" + previous_indent + "'") else
-        #     ("")].as_str())
+        #print("LINE: " + [line, indent, multiline_key,
+        #    multiline_outer_indent,
+        #    multiline_exact_indent].as_str())
 
         # Parse square bracket section markers:
         if line.startswith("[") {
@@ -98,7 +107,7 @@ func parse_conf_str(
                         ": Opening '[' without matching ']'."
                     )
                 }
-                last_key = none
+                multiline_key = none
                 continue
             }
 
@@ -122,42 +131,60 @@ func parse_conf_str(
                         "valid section name."
                     )
                 }
-                last_key = none
+                multiline_key = none
                 continue
             }
 
             # Set the new section and resume:
             section = new_section
-            last_key = none
+            multiline_key = none
             continue
         }
-        var eq_index = line.find("=")
-        if eq_index == none and last_key and
-                allow_multiline and
-                previous_indent != none and (
-                indent.starts(previous_indent + "  ") or
-                indent.starts(previous_indent + "\t")) {
-            # This is a multi-line continuation!
-            if typename(result[section][last_key]) == "str" {
-                result[section][last_key] += " " + line.trim()
+
+        # Get an assignment, but only an allowed one:
+        var assign_index = line.find("=")
+        if assign_index != none {
+            if assign_index < line.len and
+                    line[assign_index + 1] == "=" {
+                # This is "==" as first occurance. Not allowed!
+                assign_index = none
+            } elseif assign_index > 1 and
+                    {"!", ">", "<", "~"}.has(line[assign_index - 1]) {
+                # This is one of "!=", ">=", "<=", "~=". Not allowed!
+                assign_index = none
+            }
+        }
+
+        # See if this is possibly a multiline continuation:
+        if assign_index == none and multiline_key != none and
+                allow_multiline {
+            # Since we didn't yank multiline_key above due to
+            # indent mismatch, it must be a valid continuation!
+
+            # Append it to our previous value:
+            if typename(result[section][multiline_key]) == "str" {
+                result[section][multiline_key] += " " + line.trim()
             } else {
-                var value_list = result[section][last_key]
+                var value_list = result[section][multiline_key]
                 value_list[value_list.len] += (
                     " " + line.trim()
                 )
             }
 
-            # Force last_key and previous_indent
+            # Force multiline_key and previous_indent
             # to carry over unchanged into next line:
-            future_previous_indent = indent
+            multiline_exact_indent = indent
             continue
+        } else {
+            multiline_key = none
         }
-        if eq_index == none {
+        if assign_index == none {
             # Not empty line or comment, but we can't parse it!
             if error_on_mistakes {
                 throw new ConfParseError(
                     "Error in line " + lineno.as_str() +
-                    ": Line with unrecognized garbage contents."
+                    ": Line with unrecognized contents: " +
+                    line.rtrim()
                 )
             }
             continue
@@ -173,8 +200,8 @@ func parse_conf_str(
             continue
         }
 
-        var key = line.sub(1, eq_index - 1).trim()
-        var value = line.sub(eq_index + 1).trim()
+        var key = line.sub(1, assign_index - 1).trim()
+        var value = line.sub(assign_index + 1).trim()
 
         if key == "" {
             if error_on_mistakes {
@@ -184,7 +211,7 @@ func parse_conf_str(
                     "isn't allowed."
                 )
             }
-            last_key = none
+            multiline_key = none
             continue
         }
 
@@ -204,7 +231,9 @@ func parse_conf_str(
                 result[section][key].add(value)
             }
         }
-        last_key = key
+        multiline_key = key
+        multiline_outer_indent = indent
+        multiline_exact_indent = none
     }
 
     return result

@@ -1409,18 +1409,30 @@ def translate(s, sc):
                 if statement[j].strip(" \t\r\n") == "":
                     j += 1
                     continue
-                assert(statement[j] in ("if", "while", "elseif",
-                    "else", "for"))
+                if not statement[j] in ("if", "while", "elseif",
+                        "else", "for"):
+                    raise ValueError("Syntax error or problem " +
+                        (("in " + sc.module_name + (" in " + sc.package_name
+                         if sc.package_name != None else "")) if
+                         sc != None else "") + ": parsing " +
+                        str(statement[j]) + " statement, and got " +
+                        "unexpected token: " + str(statement[j]))
                 bracket_depth = 0
+                hadnonwhitespace = False
                 i = j + 1
                 while i < len(statement) and (
-                        statement[i] != "{" or bracket_depth > 0):
+                        statement[i] != "{" or bracket_depth > 0 or
+                        not hadnonwhitespace or
+                        is_h64op_with_righthand(
+                        prevnonblank(statement, i))):
                     if statement[i] in {"{", "(", "["}:
                         bracket_depth += 1
                     elif statement[i] in {"}", ")", "]"}:
                         bracket_depth -= 1
                         if bracket_depth < 0:
                             break
+                    if statement[i].strip(" \t\r\n") == "":
+                        hadnonwhitespace = True
                     i += 1
                 assert(i < len(statement) and statement[i] == "{"), \
                     ("in module " + sc.module_name +
@@ -1441,13 +1453,15 @@ def translate(s, sc):
                 assert("as_str" not in condition)
                 assert(sublist_index(condition, [".", "len"]) < 0)
                 bracket_depth = 0
-                while statement[i] != "}" or bracket_depth > 0:
+                while (i < len(statement) and
+                        statement[i] != "}" or bracket_depth > 0):
                     if statement[i] in {"{", "(", "["}:
                         bracket_depth += 1
                     elif statement[i] in {"}", ")", "]"}:
                         bracket_depth -= 1
                     i += 1
-                assert(statement[i] == "}")
+                assert(i < len(statement) and
+                    statement[i] == "}")
                 content = statement[
                     begin_content_idx:i
                 ]

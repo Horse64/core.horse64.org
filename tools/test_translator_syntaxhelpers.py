@@ -308,6 +308,21 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         self.assertEqual(ranges[0][1], 9)
         self.assertEqual(t[ranges[0][1]], "{")
 
+        t = ["if", "{", "1", "}", ".", "len",
+            "=", "=", "5", "{", "}"]
+        ranges = get_statement_expr_ranges(t)
+        self.assertEqual(len(ranges), 1)
+        self.assertEqual(ranges[0][0], 1)
+        self.assertEqual(ranges[0][1], 9)
+
+        t = ["if", " ", "true", " ", "and",
+            "{", "1", "}", ".", "len",
+            "=", "=", "5", "{", "}"]
+        ranges = get_statement_expr_ranges(t)
+        self.assertEqual(len(ranges), 1)
+        self.assertTrue(ranges[0][0] in {1, 2})
+        self.assertEqual(ranges[0][1], 13)
+
         t = ["var", " ", "a", ",", "b", "=", "1", ",", "2"]
         ranges = get_statement_expr_ranges(t)
         self.assertEqual(len(ranges), 1)
