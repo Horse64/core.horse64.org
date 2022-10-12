@@ -899,6 +899,7 @@ def get_next_statement(s):
             return s[:token_count - 1]
         if (bracket_nesting == 0 and
                 (t.endswith("\n") or t.endswith("\r")) and
+                last_nonwhitespace_token != "," and
                 not is_h64op_with_righthand(last_nonwhitespace_token) and
                 not last_nonwhitespace_token in {"in", "as"} and
                 not is_h64op_with_lefthand(nextnonblank(s, i)) and
@@ -1475,10 +1476,13 @@ def get_global_names(
     sts = split_toplevel_statements(s)
     result = {}
     for st in sts:
+        # See if this is a statement naming something:
         kw = firstnonblank(st)
         if kw not in {
                 "var", "const", "import", "func", "type"}:
             continue
+
+        # Extract what it names:
         i = firstnonblankidx(st)
         assert(st[i] == kw)
         i = nextnonblankidx(st, i)
@@ -1487,21 +1491,29 @@ def get_global_names(
                 nextnonblank(st, i) == ".")):
             continue
         is_type = kw
-        is_named = st[i]
-        if (is_named in result and (
-                result[is_named]["type"] != "import" or
-                is_type != "import")):
-            if error_on_duplicates:
-                raise ValueError("code syntax error, "
-                    "global identifier \"" +
-                    st[i] +
-                    "\" defined twice, first as " +
-                    result[is_named]["type"] + " and now as " +
-                    is_type)
-            continue
-        result[is_named] = {
-            "type": is_type
-        }
+        is_named = [st[i]]
+        if is_type in {"var", "const"}:
+            while (nextnonblank(st, i) == "," and
+                    is_identifier(nextnonblank(st, i, no=2))):
+                is_named.append(nextnonblank(st, i, no=2))
+                i = nextnonblankidx(st, i, no=2)
+
+        # Go through all identifiers this name:
+        for is_named in is_named:
+            if (is_named in result and (
+                    result[is_named]["type"] != "import" or
+                    is_type != "import")):
+                if error_on_duplicates:
+                    raise ValueError("code syntax error, "
+                        "global identifier \"" +
+                        st[i] +
+                        "\" defined twice, first as " +
+                        result[is_named]["type"] + " and now as " +
+                        is_type)
+                continue
+            result[is_named] = {
+                "type": is_type
+            }
     return result
 
 

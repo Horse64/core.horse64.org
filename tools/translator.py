@@ -1044,41 +1044,109 @@ def translate(s, sc):
                 statement = statement[1:]
         if statement[0] == "var" or statement[0] == "const":
             statement_cpy = list(statement)
-            statement = statement[1:]
-            while is_whitespace_token(statement[0]):
-                statement = statement[1:]
-            statement[0] = make_valid_identifier(statement[0], sc=sc)
+
+            # Collect identifiers this var/const declares:
+            identifiers = []
             i = 1
-            while i < len(statement) and statement[i] != "=":
-                if statement[i] == "protect":
-                    statement[i] = ""  # Python doesn't have that.
-                i += 1
-            while (i < len(statement) and
-                    is_whitespace_token(statement[i])):
-                i += 1
-            if i < len(statement) and statement[i] == "=":
+            while True:
+                while (i < len(statement) and
+                        is_whitespace_token(statement[i])):
+                    i += 1
+                assert(is_identifier(statement[i]))
+                identifiers.append(make_valid_identifier(
+                    statement[i], sc=sc
+                ))
+                i += 1  # Go past identifier.
+                while (i < len(statement) and
+                        is_whitespace_token(statement[i])):
+                    i += 1
+                if (i < len(statement) and statement[i] == "protect"):
+                    i += 1
+                    while (i < len(statement) and
+                            is_whitespace_token(statement[i])):
+                        i += 1
+                if i >= len(statement) or statement[i] == "=":
+                    assert(i >= len(statement) or statement[i] == "=")
+                    break
+                assert(statement[i] == ",")
+                i += 1  # Past comma.
+                continue  # Get following identifiers!
+            if i < len(statement):
+                i += 1  # Past "=".
+
+            # Collect all the assigned values:
+            value_exprs = []
+            z = 0
+            while z < len(identifiers) and i < len(statement):
+                bracket_depth = 0
+                value_start = i
+                while i < len(statement) and (
+                        statement[i] != "," or
+                        bracket_depth > 0):
+                    if statement[i] in {"(", "[", "{"}:
+                        bracket_depth += 1
+                    elif statement[i] in {")", "]", "}"}:
+                        bracket_depth -= 1
+                    i += 1
                 new_sc = sc.duplicate()
                 new_sc.parent_statements += [statement_cpy]
-                statement = (statement[:i + 1] + ["("] +
+                value_exprs.append(
                     translate_expression_tokens(
-                    statement[i + 1:], new_sc) + [")"])
-                assert("no" not in statement)
-            else:
-                statement += ["=", "None"]
-            if (len(sc.parent_statements) > 0 and
-                    "".join(sc.parent_statements[0][:1])
-                        == "type"):
-                type_name = sc.parent_statements[0][2]
-                get_type(type_name, sc.module_name,
-                        sc.package_name).\
-                    init_code += ("\n" + indent +
-                        ("\n" + indent).join((
-                            "self." +
-                            untokenize(statement) + "\n"
-                        ).splitlines()))
+                    statement[value_start:i], new_sc))
+                gotnonblank = False
+                for value_token in value_exprs[-1]:
+                    if not is_whitespace_token(value_token):
+                        gotnonblank = True
+                assert(gotnonblank), ("must have non-blank " +
+                    "assigned value for var statement")
+                z += 1
+                if i >= len(statement):
+                    break
+                assert(statement[i] == ",")
+                i += 1
                 continue
-            result += indent + untokenize(statement) + "\n"
-            # (we already did translate_expression_tokens above.)
+
+            # Some error checking:
+            if z != 0 and z != len(identifiers):
+                raise ValueError("mismatched var statement " +
+                    "with identifiers " +
+                    (", ".join(identifiers)) + " " +
+                    (("in " + sc.module_name + (" in " + sc.package_name
+                     if sc.package_name != None else "")) if
+                     sc != None else "") + ": "
+                    "wrong assigend value count " + str(z))
+            if i < len(statement):
+                raise ValueError("can't have trailing " +
+                    "tokens for var statement with identifiers " +
+                    (", ".join(identifiers)) + " " +
+                    (("in " + sc.module_name + (" in " + sc.package_name
+                     if sc.package_name != None else "")) if
+                     sc != None else "") + ": " + str(statement[i:]))
+
+            # Finally, generate the code:
+            z = -1
+            for idf in identifiers:
+                z += 1
+                value_expr = (value_exprs[z] if
+                    len(value_exprs) > 0 else None)
+                new_sc = sc.duplicate()
+                new_sc.parent_statements += [statement_cpy]
+                pstatement = ([idf + "="] + ["("] + (
+                    value_expr if value_expr != None else ["None"]) +
+                    [")", "\n"])
+                if (len(sc.parent_statements) > 0 and
+                        "".join(sc.parent_statements[0][:1])
+                            == "type"):
+                    type_name = sc.parent_statements[0][2]
+                    get_type(type_name, sc.module_name,
+                            sc.package_name).\
+                        init_code += ("\n" + indent +
+                            ("\n" + indent).join((
+                                "self." +
+                                untokenize(pstatement)
+                            ).splitlines()))
+                    continue
+                result += indent + untokenize(pstatement) + "\n"
             continue
         elif statement[0] == "do":
             statement_cpy = list(statement)

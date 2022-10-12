@@ -108,9 +108,9 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
                 }
                 func net.something {
                 }
-                var x
+                var x, y
             """), error_on_duplicates=True)),
-            {"net", "blargh", "xyz", "x"})
+            {"net", "blargh", "xyz", "x", "y"})
         had_value_error = False
         try:
             self.assertEqual(set(get_global_names(textwrap.dedent("""\
@@ -308,6 +308,12 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         self.assertEqual(ranges[0][1], 9)
         self.assertEqual(t[ranges[0][1]], "{")
 
+        t = ["var", " ", "a", ",", "b", "=", "1", ",", "2"]
+        ranges = get_statement_expr_ranges(t)
+        self.assertEqual(len(ranges), 1)
+        self.assertTrue(ranges[0][0] == 6)
+        self.assertTrue(ranges[0][1] == 9)
+
         t = ["func", " ", "myfunc", " ",
             "(", "bla", "=", "{", "->", "}", " ",
             ")", "{", "}"]
@@ -472,6 +478,7 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
             untokenize(statements[0]).strip().startswith("func "))
         self.assertTrue(
             untokenize(statements[1]).strip().startswith("func "))
+
         t = tokenize(textwrap.dedent("""\
         func m1 {
             print('test')
@@ -485,6 +492,16 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
             untokenize(statements[0]).strip().startswith("func "))
         self.assertTrue(
             untokenize(statements[1]).strip().startswith("func "))
+
+        t = tokenize(textwrap.dedent("""\
+            var a,
+                b = 1, 2
+        """))
+        statements = split_toplevel_statements(t)
+        self.assertEqual(len(statements), 1)
+        self.assertTrue(untokenize(
+            statements[0]).strip().endswith("2"
+        ))
 
 
 if __name__ == '__main__':
