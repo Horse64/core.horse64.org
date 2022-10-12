@@ -986,8 +986,9 @@ class _ModuleObject:
         self._base_library = base_library
 
     def __getattr__(self, name):
-        if name == "" or "." in name or "_" in name:
-            raise AttributeError("nope")
+        if (name == "" or "." in name or
+                name.startswith("__")):
+            raise AttributeError("nope: " + str(name))
         folder = __translated_output_root_path__
         if folder not in sys.path:
             sys.path.insert(1, folder)
