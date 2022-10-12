@@ -30,7 +30,9 @@ import textformat from core.horse64.org
 
 
 func test_configs {
-    var result = confparse.parse_conf_str(
+    var result, haderror
+
+    result = confparse.parse_conf_str(
                 allow_multiline=yes, allow_multiassign=yes,
                 error_on_mistakes=yes, textformat.outdent("
         # This is a test config file
@@ -41,5 +43,112 @@ func test_configs {
     assert(result.has("mysection"))
     assert(result["mysection"].has("abc.cde"))
     assert(result["mysection"]["abc.cde"] == "1 2 3 4")
+
+    result = confparse.parse_conf_str(
+        allow_multiline=yes, allow_multiassign=yes,
+        error_on_mistakes=yes, textformat.outdent("
+            # This is a test config file
+            [mysection]
+            abc.cde = 1 2 3 4
+                aciaeojre
+            "
+    ))
+    assert(result.has("mysection"))
+    assert(result["mysection"].has("abc.cde"))
+    assert(result["mysection"]["abc.cde"] == "1 2 3 4 aciaeojre")
+
+    haderror = no
+    do {
+        # Expected to error since...
+        result = confparse.parse_conf_str(
+            allow_multiline=yes, allow_multiassign=yes,
+            error_on_mistakes=yes, textformat.outdent("
+                [mysection]
+                abc.cde = 1 2 3 4
+
+                    aciaeojre
+                    # (...the blank line above breaks multiline)
+                "
+        ))
+    } rescue confparse.ConfParseError {
+        haderror = yes
+    }
+    assert(haderror)
+
+    haderror = no
+    do {
+        # Should also error since...
+        result = confparse.parse_conf_str(
+            allow_multiline=yes, allow_multiassign=yes,
+            error_on_mistakes=yes, textformat.outdent("
+                [mysection]
+                abc.cde = 1 2 3 4
+                # (...this outdented line stops multiline too.)
+                    aciaeojre
+                "
+        ))
+    } rescue confparse.ConfParseError {
+        haderror = yes
+    }
+    assert(haderror)
+
+    result = confparse.parse_conf_str(
+        allow_multiline=yes, allow_multiassign=yes,
+        error_on_mistakes=yes, textformat.outdent("
+            [mysection]
+            abc.cde = 1 2 3 4
+                # Should work, same indent! Good multiline!
+                aciaeojre
+            "
+    ))
+    assert(result.has("mysection"))
+    assert(result["mysection"].has("abc.cde"))
+    assert(result["mysection"]["abc.cde"] == "1 2 3 4 aciaeojre")
+
+    haderror = no
+    do {
+        # This should error since...
+        result = confparse.parse_conf_str(
+            allow_multiline=yes, allow_multiassign=yes,
+            error_on_mistakes=yes, textformat.outdent("
+                [mysection]
+                abc.cde = 1 2 3 4
+                    aciaeojre
+                  earijoaeri
+                  # (...we changed the indent!)
+                "
+        ))
+    } rescue confparse.ConfParseError {
+        haderror = yes
+    }
+    assert(haderror)
+
+    result = confparse.parse_conf_str(
+        allow_multiline=yes, allow_multiassign=yes,
+        error_on_mistakes=yes, textformat.outdent("
+            [mysection]
+            abc.cde = 1 2 3 4
+                def = hello=
+            # The equals assign should make this not multiline.
+            "
+    ))
+    assert(result.has("mysection"))
+    assert(result["mysection"].has("abc.cde"))
+    assert(result["mysection"]["abc.cde"] == "1 2 3 4")
+    assert(result["mysection"]["def"] == "hello=")
+
+    result = confparse.parse_conf_str(
+        allow_multiline=yes, allow_multiassign=yes,
+        error_on_mistakes=yes, textformat.outdent("
+            [mysection]
+            abc.cde = 1 2 3 4
+                def == a = b
+            # A double equals doesn't count! Multiline!
+            "
+    ))
+    assert(result.has("mysection"))
+    assert(result["mysection"].has("abc.cde"))
+    assert(result["mysection"]["abc.cde"] ==
+        "1 2 3 4 def == a = b")
 }
 

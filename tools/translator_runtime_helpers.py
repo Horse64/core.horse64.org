@@ -363,7 +363,7 @@ def _container_sub(container, *args, **kwargs):
 def _container_sublast(container, *args, **kwargs):
     if (len(args) == 0 and
             type(container) in {bytes, str, list}):
-        return container[:-1]
+        return container[-1:]
     return container.sublast(*args, **kwargs)
 
 

@@ -47,4 +47,11 @@ func test_basic_things {
     var test = ("complex string concat test: " + l[1].as_str())
     assert(l[1] == 4)
     assert(l[3] == 6)
+    assert(l.sublast().len == 1 and l.sublast()[1] == 6)
+    assert(l.sub(2, 4).len == 2 and l.sub(2, 4)[1] == 5
+           and l.sub(2, 4)[2] == 6)
+
+    var a, b = 5, "test"
+    assert(a == 5)
+    assert(b == "test")
 }
