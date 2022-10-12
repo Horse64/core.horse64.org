@@ -632,6 +632,13 @@ def translate_expression_tokens(s, sc,
                 if sc.package_name != None else "") + ": "
                 "found \"def\" identifier, if you meant to "
                 "declare a function please use \"func\".")
+        elif s[i] in {"contains", "_translator_renamed_contains"}:
+            print("tools/translator.py: warning: "
+                "Suspicious use in " +
+                sc.module_name + (" in " + sc.package_name
+                if sc.package_name != None else "") + ": "
+                "found \"contains\" identifier, if you meant to "
+                "check a container for an item please use \"has\".")
         elif (s[i] == "base" and
                 i + 1 < len(s) and s[i + 1] == "("):
             raise ValueError("The expression base() in " +

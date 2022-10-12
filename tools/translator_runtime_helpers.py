@@ -360,6 +360,13 @@ def _container_sub(container, *args, **kwargs):
     return container.sub(*args, **kwargs)
 
 
+def _container_sublast(container, *args, **kwargs):
+    if (len(args) == 0 and
+            type(container) in {bytes, str, list}):
+        return container[:-1]
+    return container.sublast(*args, **kwargs)
+
+
 def _math_floor(v1):
     return math.floor(v1)
 

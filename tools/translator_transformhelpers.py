@@ -138,7 +138,7 @@ def transform_h64_misc_inline_to_python(s):
                         nextnonblank(s, i, no=2) == ")") or (
                     s[i] in ("add", "sort", "trim", "find",
                         "ltrim", "rtrim", "rfind",
-                        "reverse",
+                        "reverse", "sublast",
                         "join", "glyph_sub", "sub", "repeat") and
                         nextnonblank(s, i) == "("
                     ))):
@@ -160,6 +160,9 @@ def transform_h64_misc_inline_to_python(s):
                     ".", "_value_to_bytes"]
             elif cmd == "to_num":
                 insert_call = ["float"]
+            elif cmd == "sublast":
+                insert_call = ["_translator_runtime_helpers",
+                    ".", "_container_sublast"]
             elif cmd == "add":
                 insert_call = ["_translator_runtime_helpers",
                     ".", "_container_add"]
@@ -214,7 +217,7 @@ def transform_h64_misc_inline_to_python(s):
                 assert(s[i] == ")")
             elif cmd in ("add", "sort", "join", "find", "sub",
                     "repeat", "trim", "glyph_sub",
-                    "ltrim", "rtrim", "rfind"):
+                    "ltrim", "rtrim", "rfind", "sublast"):
                 # Truncate "(", ... and turn it to ",", ...
                 s = s[:i - 1] + [","] + s[i + 2:]
                 i -= 1
