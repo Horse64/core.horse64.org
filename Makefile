@@ -15,7 +15,7 @@ test: test-translator
 test-translator:
 	@# Unit tests for bootstrap translator:
 	@echo -e "\033[95;40mTest via bootstrap translator unit tests...\033[0m"
-	python -m unittest discover tools 'test*.py'
+	python3 -m unittest discover tools 'test*.py'
 	@echo "Regular unit tests done!"
 	@# Regular test suite from here:
 	@echo -e "\033[95;40mTesting the bootstrap translator with full test suite...\033[0m"
