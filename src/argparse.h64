@@ -675,7 +675,7 @@ func parse(argument_defs, args=none) {
                     xth += "th"
                 }
                 result.output += argument_defs.program_name + ": error: "
-                    "excessive " + xth + " "
+                    "Excessive " + xth + " "
                     "positional argument: " + argstr + "\n"
                 result.output += (
                     "Use " + argument_defs.program_name +
@@ -722,7 +722,7 @@ func parse(argument_defs, args=none) {
             if target_arg == none {
                 result.output += argument_defs.program_name +
                     ": error: "
-                    "unknown option: " + argstr + "\n"
+                    "Unknown option: " + argstr + "\n"
                 result.output += (
                     "Use " + argument_defs.program_name +
                     " --help to show usage.\n"
@@ -736,7 +736,7 @@ func parse(argument_defs, args=none) {
                     result_args[target_arg.name] == yes {
                 result.output += argument_defs.program_name +
                     ": error: "
-                    "option cannot be used multiple times: " +
+                    "Option cannot be used multiple times: " +
                     target_arg.name
                 result.output += (
                     "Use " + argument_defs.program_name +
@@ -752,7 +752,7 @@ func parse(argument_defs, args=none) {
                         args[i + 1].starts("-") {
                     result.output += argument_defs.program_name +
                         ": error: "
-                        "option is missing argument: " +
+                        "Option is missing argument: " +
                         target_arg.name + "\n"
                     result.output += (
                         "Use " + argument_defs.program_name +
@@ -842,7 +842,7 @@ func parse(argument_defs, args=none) {
             positional_args_total
         )
         result.output += argument_defs.program_name + ": error: "
-            "missing positional argument: " +
+            "Missing positional argument: " +
             target_arg.name + "\n"
         result.output += (
             "Use " + argument_defs.program_name +
