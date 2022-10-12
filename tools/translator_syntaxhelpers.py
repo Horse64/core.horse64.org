@@ -813,7 +813,8 @@ def tokenize(s):
 
 def is_h64op_with_righthand(v):
     if v in {"and", "or", "not", "+", "-", "*", "/",
-            ">", "<", "->", ".", "!=", "=", "=="}:
+            ">", "<", "->",
+            ".", "!=", "=", "=="}:
         return True
     if len(v) == 2 and v[1] == "=":
         return True
@@ -899,6 +900,7 @@ def get_next_statement(s):
         if (bracket_nesting == 0 and
                 (t.endswith("\n") or t.endswith("\r")) and
                 not is_h64op_with_righthand(last_nonwhitespace_token) and
+                not last_nonwhitespace_token in {"in", "as"} and
                 not is_h64op_with_lefthand(nextnonblank(s, i)) and
                 not nextnonblank(s, i) in must_continue_tokens
                 ):

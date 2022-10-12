@@ -39,6 +39,8 @@ func _get_str_single(uri, callback, max_size=(4 * 1024)) {
 
 
 func get_str(uri, callback, max_size=(4 * 1024)) {
+    var was_single_uri = no
+
     # Validate input:
     if typename(uri) == "bytes" {
         uri = uri.as_str()
@@ -51,6 +53,7 @@ func get_str(uri, callback, max_size=(4 * 1024)) {
     }
     var uris_unclean = uri
     if typename(uri) != "list" {
+        was_single_uri = yes
         uris_unclean = [uri]
     }
     var uris = []
@@ -60,13 +63,17 @@ func get_str(uri, callback, max_size=(4 * 1024)) {
         }
         uris.append(uri)
     }
-    uris.reverse()
+    uris.reverse()  # So we can use .pop() in order.
 
     # Let's go do the work:
     var results = []
     func fetch_next_do {
         if uris.len == 0 {
             # Reached the end of queue.
+            if was_single_uri {
+                assert(results.len == 1)
+                return callback(none, results[1])
+            }
             return callback(none, results)
         }
         var uri = uris.pop()
@@ -76,6 +83,7 @@ func get_str(uri, callback, max_size=(4 * 1024)) {
             if err != none {
                 callback(err, none)
             }
+            assert(result != none)
             results.append(result)
             fetch_next_do()  # Start over and repeat!
         })

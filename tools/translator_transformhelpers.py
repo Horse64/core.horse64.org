@@ -52,6 +52,27 @@ from translator_syntaxhelpers import (
 )
 
 
+def is_problematic_identifier_name(s,
+        h64_problematic_only=False,
+        python_problematic_only=False):
+    """ Returns True if the identifier is either not valid
+    in Horse64 to redeclare like "base", or valid in Horse64
+    but going to break after translation in Python like "super"."""
+    horse64_nope = {"base"}
+    if not python_problematic_only and s in horse64_nope:
+        return True
+    python_nope = {"super", "class",
+        "sorted", "reversed", "len", "def",
+        "yield", "async", "elif", "lambda",
+        "pass", "await", "global", "globals",
+        "locals", "del", "raise", "True", "False",
+        "nonlocal", "str", "dict", "set",
+        "object"}
+    if not h64_problematic_only and s in python_nope:
+        return True
+    return False
+
+
 def make_string_literal_python_friendly(t):
     was_str = False
     if type(t) == str:

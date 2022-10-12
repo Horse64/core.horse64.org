@@ -129,9 +129,9 @@ func parse_conf_str(
         var eq_index = line.find("=")
         if eq_index == none and last_key and
                 allow_multiline and
-                previous_indent != none and
+                previous_indent != none and (
                 indent.starts(previous_indent + "  ") or
-                indent.starts(previous_indent + "\t") {
+                indent.starts(previous_indent + "\t")) {
             # This is a multi-line continuation!
             if typename(result[section][last_key]) == "str" {
                 result[section][last_key] += " " + line.trim()

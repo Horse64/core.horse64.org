@@ -44,6 +44,7 @@ import sys
 import tempfile
 import textwrap
 import traceback
+import uuid
 
 translator_py_script_dir = (
     os.path.abspath(os.path.dirname(__file__))
@@ -62,6 +63,7 @@ from translator_horphelpers import (
 from translator_transformhelpers import (
     transform_h64_misc_inline_to_python,
     make_string_literal_python_friendly,
+    is_problematic_identifier_name,
 )
 
 from translator_syntaxhelpers import (
@@ -196,6 +198,8 @@ remapped_uses = {
             "rpartition(\".h64\")[0])",
     },
     "text@core.horse64.org": {
+        "text.glyph_codepoint_len":
+            "(lambda s, index=1: max(0, len(s) - (index - 1)))",
         "text.full_glyphs_in_sub":
             "(lambda a, b, c: _translator_runtime_helpers."
             "_container_sub(a, b, c))",
@@ -240,7 +244,7 @@ def register_type(
         package_name_part = "@" + package_name
     if (module_path + "." + type_name +
             package_name_part in known_types):
-        raise ValueError("found duplicate type " +
+        raise ValueError("Found duplicate type " +
             module_path + "." + type_name)
     known_types[module_path + "." + type_name + package_name_part] = (
         RegisteredType(type_name, module_path, package_name,
@@ -289,6 +293,31 @@ class TranslatedProjectInfo:
                 self.repo_folder, folder, "src"))):
             folder = folder + "src/"
         return folder
+
+
+def make_valid_identifier(idf, sc=None):
+    if (not is_identifier(idf) or
+            is_problematic_identifier_name(
+            idf, h64_problematic_only=True)):
+        raise ValueError("Syntax error or problem " +
+            (("in " + sc.module_name + (" in " + sc.package_name
+             if sc.package_name != None else "")) if
+             sc != None else "") + ": " +
+            "horse64 doesn't allow redeclaring this name: " +
+            idf)
+    if (idf.startswith("_translator_renamed_") or
+            idf == "assert"):
+        raise ValueError("Syntax error or problem " +
+            (("in " + sc.module_name + (" in " + sc.package_name
+             if sc.package_name != None else "")) if
+             sc != None else "") + ": " +
+            "only horsec allows redeclaring this, the translator "
+            "can't due to implementation limitations: " +
+            idf)
+    if is_problematic_identifier_name(
+            idf, python_problematic_only=True):
+        return "_translator_renamed_" + idf
+    return idf
 
 
 def sublist_index(full_list, sub_list):
@@ -558,10 +587,57 @@ def translate_expression_tokens(s, sc,
     previous_token = None
     i = 0
     while i < len(s):
+        if (is_identifier(s[i]) and
+                is_problematic_identifier_name(s[i],
+                python_problematic_only=True)) and (
+                s[i] != "len" or
+                previous_token != "."):
+            s[i] = "_translator_renamed_" + s[i]
         if (s[i] == "typename" and
                 previous_token != "."):
             s = s[:i] + ["_translator_runtime_helpers",
                 ".", "h64_type"] + s[i + 1:]
+        elif s[i].lower() in {"true",
+                "_translator_renamed_true", "false",
+                "_translator_renamed_false"}:
+            idf = s[i]
+            if "_" in idf:
+                idf = s[i].rpartition("_")[2]
+            print("tools/translator.py: warning: "
+                "Suspicious use in " +
+                sc.module_name + (" in " + sc.package_name
+                if sc.package_name != None else "") + ": "
+                "found \"" + idf + "\" identifier, if you "
+                "meant to use a bool, use: yes, no")
+        elif s[i] in {"super", "_translator_renamed_super"}:
+            print("tools/translator.py: warning: "
+                "Suspicious use in " +
+                sc.module_name + (" in " + sc.package_name
+                if sc.package_name != None else "") + ": "
+                "found \"super\" identifier, if you meant to "
+                "use the base class please use \"base\".")
+        elif s[i] in {"class", "_translator_renamed_class"}:
+            print("tools/translator.py: warning: "
+                "Suspicious use in " +
+                sc.module_name + (" in " + sc.package_name
+                if sc.package_name != None else "") + ": "
+                "found \"class\" identifier, if you meant to "
+                "declare a type please use \"type\".")
+        elif s[i] in {"def", "_translator_renamed_def"}:
+            print("tools/translator.py: warning: "
+                "Suspicious use in " +
+                sc.module_name + (" in " + sc.package_name
+                if sc.package_name != None else "") + ": "
+                "found \"def\" identifier, if you meant to "
+                "declare a function please use \"func\".")
+        elif (s[i] == "base" and
+                i + 1 < len(s) and s[i + 1] == "("):
+            raise ValueError("The expression base() in " +
+                sc.module_name + (" in " + sc.package_name
+                if sc.package_name != None else "") +
+                " is invalid, "
+                "a base type cannot be called. Did you mean to "
+                "use it without call brackets?")
         elif s[i] == "ValueError" and previous_token != ".":
             s = s[:i] + ["_translator_runtime_helpers",
                 ".", "_ValueError"] + s[i + 1:]
@@ -598,7 +674,8 @@ def translate_expression_tokens(s, sc,
     i = 0
     while i < len(s):
         if (s[i] in {">", "=", "<", "!", "+", "-", "/", "*",
-                "%", "|", "^", "&", "~", "."} or
+                "%", "|", "^", "&", "~", ".", "in",
+                "and", "or", "not"} or
                 s[i].endswith("=") or s[i] == "->") and (
                 s[i + 1].strip(" \t\r\n") == "" and
                 s[i + 1].strip(" \t") != ""):
@@ -918,7 +995,7 @@ def translate(s, sc):
             if not "syntax error" in str(e.args[0]).lower():
                 raise e
             raise ValueError(
-                "get_global_names() reports error for "
+                "Error from get_global_names() for "
                 "module \"" +
                 sc.module_name + "\" in folder \"" +
                 sc.folder_path + "\": " + str(e.args[0]))
@@ -956,6 +1033,7 @@ def translate(s, sc):
             statement = statement[1:]
             while is_whitespace_token(statement[0]):
                 statement = statement[1:]
+            statement[0] = make_valid_identifier(statement[0], sc=sc)
             i = 1
             while i < len(statement) and statement[i] != "=":
                 if statement[i] == "protect":
@@ -1259,8 +1337,18 @@ def translate(s, sc):
                         bracket_depth += 1
                     elif statement[i] in {"}", ")", "]"}:
                         bracket_depth -= 1
+                        if bracket_depth < 0:
+                            break
                     i += 1
-                assert(i < len(statement) and statement[i] == "{")
+                assert(i < len(statement) and statement[i] == "{"), \
+                    ("in module " + sc.module_name +
+                    (" in " + sc.package_name if
+                    sc.package_name != None else "") +
+                    ", failed finding '{' for \"" + str(statement[j]) +
+                    "\" inner block, instead reached " +
+                    ("end of stream" if i >= len(statement) else
+                    "character '" + str(statement[i]) + "': ") +
+                    str(statement))
                 statement[i] = ":"
                 begin_content_idx = i + 1
                 new_sc = sc.duplicate()
@@ -1499,7 +1587,10 @@ def translate(s, sc):
             continue
         elif statement[0] == "func":
             statement_cpy = list(statement)
+            nameidx = nextnonblankidx(statement, 0)
+            assert(nameidx >= 0)
 
+            # Catch this programming error: type bla { func bli { } }
             for pstatement in sc.parent_statements:
                 if (len(pstatement) > 0 and
                         pstatement[0] == "type"):
@@ -1507,6 +1598,10 @@ def translate(s, sc):
                         sc.module_name + (" in " + sc.package_name
                         if sc.package_name != None else "") + ": " +
                         "found invalid \"func\" nested in \"type\"")
+
+            # Make sure the name of the func is valid:
+            statement[nameidx] = make_valid_identifier(
+                statement[nameidx], sc=sc)
 
             # First, see what globals Python might need a hint:
             function_outer_scope_names = (
@@ -1554,11 +1649,11 @@ def translate(s, sc):
             type_package = None
             type_python_module = None
             start_arguments_idx = 3
-            name = statement[2]
-            if statement[3] == ".":
+            name = statement[nameidx]
+            if statement[nameidx + 1] == ".":
                 type_name = ""
                 name = ""
-                i2 = 2
+                i2 = nameidx
                 while (i2 + 2 < len(statement) and
                         statement[i2 + 1] == "."):
                     if len(type_name) > 0:
@@ -1641,6 +1736,13 @@ def translate(s, sc):
             continue
         elif statement[0] == "type":
             statement_cpy = list(statement)
+            nameidx = nextnonblankidx(statement, 0)
+
+            # Make sure the name of the type is valid:
+            statement[nameidx] = make_valid_identifier(
+                statement[nameidx], sc=sc)
+
+            # Find inner code block start:
             i = 1
             while (statement[i] != "{" and
                     statement[i] != "extends"):
@@ -1674,7 +1776,7 @@ def translate(s, sc):
             contents = (
                 statement[i:-1]
             )
-            register_type(nextnonblank(statement, 0),
+            register_type(statement[nameidx],
                 sc.module_name, sc.package_name,
                 extends_tokens=(extends_tokens))
             new_sc = sc.duplicate()
@@ -2152,9 +2254,23 @@ def run_translator_main():
                     contents_result += regtype.funcs["init"]["code"] + "\n"
                     contents_result += ("        pass\n")
                 elif regtype.init_code != None:
-                    contents_result += ("    def __init__(self):\n")
+                    inner_indent = (get_indent(
+                        regtype.init_code))
+                    if inner_indent is None:
+                        inner_indent = "        "
+                    contents_result += ("    def __init__(self, " +
+                        "*args, **kwargs):\n")
+                    # First, make sure to call super type constructor:
+                    super_result_var = (
+                        "_v" + str(uuid.uuid4()).replace("-", "")
+                    )
+                    contents_result += (inner_indent +
+                        super_result_var + " = " +
+                        "super().__init__(*args, **kwargs)")
+                    # Now initialize all variables:
                     contents_result += regtype.init_code + "\n"
-                    contents_result += ("        pass\n")
+                    # Then return whatever super type constructor gave:
+                    contents_result + (inner_indent + "pass\n")
                 for funcname in regtype.funcs:
                     if funcname == "init":
                         continue

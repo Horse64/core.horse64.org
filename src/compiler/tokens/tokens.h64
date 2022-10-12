@@ -27,19 +27,67 @@
 
 
 import uri from core.horse64.org
+import text from core.horse64.org
 
 import compiler.limits
 import compiler.msg
 import compiler.project
 
 
-type Token {
-    var variant = "unknown"
-    var text = ""
-    var value = none
+var maybe_statement_tokens = {
+    "while", "do", "func", "for", "with",
+    "var", "const", "type", "import", "if",
+    "return",
+}
+var guaranteed_outer_scope_tokens = {
+    "type", "import",
+}
 
-    ## @type compiler.project.ProjectFile
-    var project_file
+
+func reverse_open_brackets(value) {
+    if typename(value) == "list" and (
+            value.len == 0 or
+            typename(value[0]) == "str") {
+        var result = []
+        for bracket in value {
+            result.add(reverse_open_brackets(bracket))
+        }
+        return result
+    }
+    if typename(value) != "str" {
+        throw new TypeError("value must be bytes or str.")
+    }
+    i = 1
+    while i <= value.len {
+        if value[i] == "(" {
+            value[i] = ")"
+        } elseif value[i] == "[" {
+            value[i] = "]"
+        } elseif value[i] == "{" {
+            value[i] = "}"
+        }
+        i += 1
+    }
+    return value
+}
+
+
+type Token {
+    ## @type num
+    var line
+
+    ## @type num
+    var col
+
+    ## @type str
+    var str
+}
+
+
+func Token.init(str, line, col) {
+    self.str = str
+    self.line = line
+    self.col = col
 }
 
 
@@ -55,7 +103,367 @@ type TokenizeResult {
 }
 
 
-func tokenize_from_fileobj(fobj, project_file=none) {
+func describe_char_token(
+        s, i, maybe_cutoff_glyph=no
+        ) {
+    if s == "" or i > s.len {
+        return "''"
+    }
+
+    var codepoint = text.code(c)
+    var c = s.sub(i, i)
+    if codepoint >= 32 and codepoint <= 126 {
+        # Nice ASCII range, just print it:
+        if c == "'" {
+            return '"\'"'
+        }
+        return "'" + c + "'"
+    }
+    if codepoint < 32 {
+        # This is a range we definitely want to escape:
+        var result = "'\\x"
+        hexstr = text.code(c).as_hex()
+        if hexstr.len < 2 {
+            result += "0"
+        }
+        return result + hexstr + "'"
+    }
+    if codepoint == 127 {
+        return "'\\x7F'"
+    }
+
+    # If we arrive here it's a multibyte char.
+
+    # See if this is a complete glyph:
+    var glyph_indexes = text.glyph_codepoint_len(s, index=i)
+    if glyph_indexes <= s.len - i or not maybe_cutoff_glyph {
+        # We guaranteed got the full glyph.
+        return "'" + s.sub(i, i + 10).glyph_sub(1, 1) + "'"
+    }
+
+    # We can't know if we have the full glyph. Better escape:
+    var hexstr = text.code(c).as_hex()
+    while hexstr.len < 8 {
+        hexstr = "0" + hexstr
+    }
+    return "'\\u" + hexstr + "'"
+}
+
+
+## Tokenize the given Horse64 code string to proper tokens.
+## If auto recovery is enabled and the user forgets to close
+## brackets or terminate strings, `tokenize_str` might try to
+## repair the input and carry on anyway.
+##
+## @param str str The Horse64 code string to be tokenized.
+## @param project_file compiler.project.ProjectFile The associated
+##     code file for this code string, if any.
+## @param auto_recovery bool Whether to try to auto repair after
+##     errors to maybe still return a meaningful result. This may
+##     improve error output but risks false positive later errors.
+func tokenize_str(
+        str, project_file=none,
+        keep_whitespace=no,
+        auto_recovery=yes
+        ) {
+    var result = TokenizeResult()
+    var strlen = str.len
+
+    var known_string_escapes = {
+        "n", "r", "t", "x", "u", "0",
+        "\\", '"', "'"
+    }
+
+    const code_a = text.code("a")
+    const code_z = text.code("z")
+    const code_cap_a = text.code("a")
+    const code_cap_z = text.code("z")
+    const code_0 = text.code("0")
+    const code_9 = text.code("9")
+    var bracket_nesting = []
+    var guessed_expr_bracket_nesting = []
+
+    # Process the tokens:
+    var line = 1
+    var col = 0
+    var i = -1
+    while i < strlen {
+        i += 1
+        col += 1
+        c = str[i]
+
+        if i + 1 < strlen and c == "-" and
+                str[i + 1] == ">" {
+            result.tokens.add("->", line, col)
+            i += 1
+            col += 1
+            continue
+        } elseif c == "'" or c == '"' or
+                (c == "b" and i + 1 < strlen and
+                (str[i + 1] == "'" or str[i + 1] == '"')) {
+            # Str or bytes literal:
+            var start_line = line
+            var start_col = col
+            var end_marker = c
+            var is_bytes = no
+            var k = i
+            if c == "b" {
+                is_bytes = yes
+                end_marker = str[i + 1]
+                k += 1
+                col += 1
+            }
+            if k + 1 > strlen {
+                result.msgs.add(compiler.msg.FileMsg(
+                    "Unterminated " +
+                    if is_bytes ("bytes") else ("string") +
+                    " literal.",
+                    source_file=project_file,
+                    line=start_line, col=start_col
+                ))
+                continue
+            }
+
+            # Find the end of the literal:
+            var next_escaped = no
+            var inner_start_idx = k + 1
+            var inner_start_line = line
+            var inner_start_col = col + 1
+            while k + 1 <= strlen {
+                k += 1
+                col += 1
+                if str[k] == "\r" {
+                    col = 0
+                    line += 1
+                    next_escaped = no
+                    if k + 1 < strlen and str[k + 1] == "\n" {
+                        k += 1
+                        continue
+                    }
+                } elseif str[k] == "\n" {
+                    col = 0
+                    line += 1
+                    next_escaped = no
+                    continue
+                }
+                if str[k] == "\\" {
+                    if next_escaped {
+                        next_escaped = no
+                        continue
+                    }
+                    next_escaped = yes
+                    if k + 1 < strlen and
+                            not known_string_escapes.contains(
+                            str[k + 1]) {
+                        result.msgs.add(compiler.msg.FileMsg(
+                            "Invalid string escape '\\' + " +
+                            describe_char_token(k, 1,
+                                maybe_cutoff_glyph=no) + ".",
+                            source_file=project_file,
+                            line=line, col=col
+                        ))
+                    }
+                    continue
+                } elseif str[k] == end_marker and
+                        not next_escaped {
+                    break
+                }
+            }
+            if k != end_marker {
+                result.msgs.add(compiler.msg.FileMsg(
+                    "Unterminated " +
+                    if is_bytes ("bytes") else ("string") +
+                    " literal.",
+                    source_file=project_file,
+                    line=start_line, col=start_col
+                ))
+            }
+            if k != end_marker and auto_recovery and
+                    inner_start_idx <= strlen {
+                # Try to guess where this literal should have been
+                # terminated:
+                var inner_string = s.sub(inner_start_idx)
+                var inner_tokens_result = tokenize_str(
+                    inner_string, keep_whitespace=no,
+                    auto_recovery=no
+                )
+                var inner_tokens =
+                    inner_tokens_result.tokens
+                var recover_str_offset = none
+                var j = 0
+                while j < inner_tokens.len {
+                    j += 1
+                    var stroffset = none
+                    if maybe_statement_tokens.contains(
+                            inner_tokens[j].str) {
+                        # Might be a new statement. Terminate here.
+                        recover_str_offset =
+                            get_str_offset_from_line_col(
+                                inner_string,
+                                inner_tokens[j].line,
+                                inner_tokens[j].col,
+                                start_line=inner_start_line,
+                                start_col=inner_start_col
+                            )
+                        if recover_str_offset != none {
+                            break
+                        }
+                    }
+                }
+                if recover_str_offset != none {
+                    # We got a recovery point. Try to repair:
+                    var offset = recover_str_offset
+                    var close_brackets_str =
+                        guessed_expr_bracket_nesting.join("")
+                    close_brackets_str =
+                        reverse_open_brackets(
+                        close_brackets_str)
+
+                    # Insert the closing "/' and close all brackets
+                    # (at least the brackets we're guessing)
+                    str = str.sub(1, offset - 1) +
+                        end_marker +
+                        close_brackets_str +
+                        str.sub(offset)
+
+                    # Set ourselves to the new point and resume:
+                    strlen = str.len
+                    line = inner_tokens[j].line
+                    col = inner_tokens[j].col
+                    col += close_brackets_str.len
+                    for bracket in
+                            guessed_expr_bracket_nesting {
+                        if bracket_nesting.len > 0 {
+                            bracket_nesting.pop()
+                        }
+                    }
+                }
+            }
+            result.tokens.add(str.sub(i, k), line, col)
+            i = k
+            continue
+        } elseif c == "#" {
+            # A line comment:
+            col += 2
+            i += 1
+            while i < strlen and str[i] != "\n" and
+                    str[i] != "\r" {
+                col += 1
+                i += 1
+            }
+            continue
+        } elseif c == " " or c == "\t" or c == "\r" or c == "\n" {
+            # Handle whitespae:
+            if not keep_whitespace {
+                continue
+            }
+            while i < strlen and (
+                    str[i] == " " or str[i] == "\t" or
+                    str[i] == "\r") {
+                col += 1
+                i += 1
+            }
+            i -= 1
+            continue
+        } elseif c == "(" or c == "[" or c == "{" {
+            # Opening brackets:
+            if auto_recovery {
+                guessed_expr_bracket_nesting.add(c)
+            }
+            bracket_nesting.add([c, line, col])
+            result.tokens.add(c, line, col)
+            continue
+        } elseif c == ")" or c == "]" or c == "}" {
+            # Closing brackets:
+            if auto_recovery and
+                    guessed_expr_bracket_nesting.len > 0 {
+                guessed_expr_bracket_nesting.pop()
+            }
+            if bracket_nesting.len == 0 {
+                result.msgs.add(compiler.msg.FileMsg(
+                    "Invalid unexpected closing bracket '" +
+                    c + "', no brackets left open",
+                    source_file=project_file,
+                    line=line, col=col
+                ))
+            } else {
+                var reversec = reverse_open_brackets(c)
+                var openinfo = bracket_nesting.sublast()
+                if openinfo[1] != reversec {
+                    result.msgs.add(compiler.msg.FileMsg(
+                        "Invalid unexpected closing bracket '" +
+                        c + "', expected match for '" +
+                        openinfo[1] + "' in line " +
+                        openinfo[2].as_str() + ", column " +
+                        openinfo[3].as_str(),
+                        source_file=project_file,
+                        line=line, col=col
+                    ))
+                }
+                bracket_nesting.pop()
+            }
+            result.tokens.add(c, line, col)
+            continue
+        } elseif c == "_" or text.code(c) > 127 or
+                (text.code(c) >= code_a and
+                text.code(c) >= code_z) or
+                (text.code(c) >= code_cap_a and
+                text.code(c) <= code_cap_z) {
+            # That's an identifier or keyword.
+            var start_idx = i
+            i += 1
+            while i < strlen and (
+                    c == "_" or text.code(c) > 127 or
+                    (text.code(c) >= code_a and
+                    text.code(c) >= code_z) or
+                    (text.code(c) >= code_cap_a and
+                    text.code(c) <= code_cap_z) or
+                    (text.code(c) >= code_0 and
+                    text.code(c) <= code_9)) {
+                i += 1
+            }
+            i -= 1
+            const name = s.sub(start_idx, i)
+            if auto_recovery and
+                    maybe_statement_tokens.contains(
+                    name) {
+                guessed_expr_bracket_nesting = []
+            }
+            if guaranteed_outer_scope_tokens.contains(name) {
+                if bracket_nesting.len > 0 {
+                    var openinfo = bracket_nesting.sublast()
+                    result.msgs.add(compiler.msg.FileMsg(
+                        "Invalid unexpected keyword '" +
+                        c + "', not allowed inside any nesting "
+                        "like after unclosed '" +
+                        openinfo[1] + "' in line " +
+                        openinfo[2].as_str() + ", column " +
+                        openinfo[3].as_str(),
+                        source_file=project_file,
+                        line=line, col=col
+                    ))
+                }
+                bracket_nesting = []
+            }
+            continue
+        } else {
+            # Oops, we don't know what that is.
+            result.msgs.add(compiler.msg.FileMsg(
+                "Invalid unexpected character " +
+                describe_char_token(k, 1,
+                    maybe_cutoff_glyph=no),
+                source_file=project_file,
+                line=line, col=col
+            ))
+            continue
+        }
+    }
+    return result
+}
+
+
+func tokenize_from_fileobj(fobj, project_file=none,
+        keep_whitespace=no) {
     var result = new TokenizeResult()
     var contents = fobj.read(max_project_file_size + 1)
     if contents.len >= max_project_file_size + 1 {
@@ -66,20 +474,21 @@ func tokenize_from_fileobj(fobj, project_file=none) {
         ))
         return result
     }
-    var c = contents
-    var clen = contents.len
-    var i = 0
-    while i < clen {
-
-        i += 1
-    }
-    return result
+    return tokenize_str(
+        contents, project_file=project_file,
+        keep_whitespace=keep_whitespace
+    )
 }
 
 
-func tokenize_file(path, project_file=none) {
+func tokenize_file(
+        path, project_file=none,
+        keep_whitespae=no
+        ) {
     return tokenize_file_by_uri(
-        uri.from_disk_path(path), project_file=project_file)
+        uri.from_disk_path(path), project_file=project_file,
+        keep_whitespace=no
+    )
 }
 
 
