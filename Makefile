@@ -37,6 +37,6 @@ test-translator:
 	cp -R /tmp/h64-test-core-copy/ ./tests/then/horse_modules/core.horse64.org/
 	rm -rf /tmp/h64-test-core-copy/
 	@# Then run the actual tests:
-	tools/testfind_nobootstrap.py .
+	tools/testfind_translated.py .
 	@# Done!
 	@echo -e "\033[92;40mCompleted tests for bootstrap translator.\033[0m"

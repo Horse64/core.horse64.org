@@ -47,34 +47,48 @@ if __name__ == "__main__":
             "for the discovery.", width=75,
             subsequent_indent='  ')))
         print("")
-        print("Usage: tools/testfind_nobootstrap.py [..options..] folder")
+        print("Usage: tools/testfind_translated.py [..options..] folder")
         print("")
         print("Available options:")
         print("   --debug-cmd  Print the exact command run")
         print("   --help       Show this help text")
         sys.exit(0)
     if "--version" in args:
-        print("tools/testfind_nobootstrap.py V1")
+        print("tools/testfind_translated.py V1")
         sys.exit(0)
+    translator_options = []
     discovery_path = None
-    for arg in args:
+    i = -1
+    while i + 1 < len(args):
+        i += 1
+        arg = args[i]
         if arg.startswith("-"):
             if arg == "--debug-cmd":
                 debug_cmd = True
+            elif arg == "--tl-opt":
+                if (i + 1 > len(args) or
+                        args[i + 1].startswith("-")):
+                    print("tools/testfind_translated.py: "
+                        "error: missing argument " +
+                        "for --tl-opt")
+                    sys.exit(1)
+                translator_options.append("--" + args[i + 1])
+                i += 1
+                continue
             else:
-                print("tools/testfind_nobootstrap.py: error: " +
+                print("tools/testfind_translated.py: error: " +
                     "unknown option: " + str(arg))
                 sys.exit(1)
             continue
         dpath = os.path.normpath(os.path.abspath(arg))
         if not os.path.exists(dpath) or not os.path.isdir(dpath):
-            print("tools/testfind_nobootstrap.py: error: " +
+            print("tools/testfind_translated.py: error: " +
                 "no such path or not a dir: " + arg)
             sys.exit(1)
         discovery_path = dpath
         break
     if discovery_path is None:
-        print("tools/testfind_nobootstrap.py: error: " +
+        print("tools/testfind_translated.py: error: " +
             "missing discovery folder argument")
         sys.exit(1)
 
@@ -82,7 +96,7 @@ if __name__ == "__main__":
     for (base, dirs, files) in os.walk(discovery_path):
         base = os.path.normpath(os.path.abspath(base))
         if not base.startswith(discovery_path):
-            print("tools/testfind_nobootstrap.py: warning: " +
+            print("tools/testfind_translated.py: warning: " +
                 "unexpectedly ended up in outside folder, skipping: " +
                 str(base))
         base_relpath = base[len(discovery_path):]
@@ -103,9 +117,10 @@ if __name__ == "__main__":
     for test_path in test_paths:
         print("\x1B[1m==> RUNNING TEST ==> \x1B[0m" + str(test_path))
         cmd = os.path.join(my_dir, "translator.py")
-        cmd_args = ["--as-test", "--paranoid", "--", test_path]
+        cmd_args = (["--as-test", "--paranoid"] +
+            translator_options + ["--", test_path])
         if debug_cmd:
-            print("tools/testfind_nobootstrap.py: debug: exact cmd: " +
+            print("tools/testfind_translated.py: debug: exact cmd: " +
                 str((cmd, cmd_args)))
         failed = False
         try:

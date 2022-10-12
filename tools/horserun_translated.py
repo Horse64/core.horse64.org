@@ -49,19 +49,19 @@ if __name__ == "__main__":
             target_args = args[i + 2:]
             break
         elif args[i].startswith("-"):
-            if args[i].startswith("--tl-opt"):
+            if args[i] == "--tl-opt":
                 if (i + 1 > len(args) or
                         args[i + 1].startswith("-")):
-                    print("horserun_translated.py: "
+                    print("tools/horserun_translated.py: "
                         "error: missing argument " +
                         "for --tl-opt")
                     sys.exit(1)
-                translator_options.append(args[i + 1])
+                translator_options.append("--" + args[i + 1])
                 i += 2
                 continue
             elif args[i] == "--help" or args[i] == "-h":
-                print("Usage: horserun_translated.py [..options..] "
-                    "target_file(optional)")
+                print("Usage: tools/horserun_translated.py "
+                      "[..options..] target_file(optional)")
                 print("")
                 print("Runs the given Horse64 code directly.")
                 print("Options:")
@@ -73,13 +73,13 @@ if __name__ == "__main__":
                       "Display this help text.")
                 sys.exit(0)
             else:
-                print("horserun_translated.py: "
+                print("tools/horserun_translated.py: "
                     "error: unknown option: " + args[i])
                 sys.exit(1)
         elif args[i].startswith("-c"):
             if (i + 1 > len(args) or
                     args[i + 1].startswith("-")):
-                print("horserun_translated.py: "
+                print("tools/horserun_translated.py: "
                     "error: missing argument " +
                     "for -c")
             run_code = args[i + 1]
@@ -91,19 +91,20 @@ if __name__ == "__main__":
             break
         i += 1
     if target_file is None and run_code is None:
-        print("horserun_translated.py: error: "
+        print("tools/horserun_translated.py: error: "
             "must specify either .h64 file or "
             "code line to run")
         sys.exit(1)
     elif target_file !+ None and run_code != None:
-        print("horserun_translated.py: error: "
+        print("tools/horserun_translated.py: error: "
             "cannot specify both .h64 file and "
             "code line to run")
         sys.exit(1)
     if target_file != None and (
             not target_file.endswith(".h64") or
             not os.path.exists(target_file)):
-        print("horserun_translated.py: error: "
+        print("tools/horserun_translated.py: error: "
             "target file must exist and end "
             "with .h64 file extension")
         sys.exit(1)
+

@@ -186,6 +186,8 @@ remapped_uses = {
     },
     "system@core.horse64.org": {
         "system.exit" : "_remapped_sys.exit",
+        "system.osname":
+            "_translator_runtime_helpers._system_osname",
         "system.program_compiled_with":
             "(lambda: \"horse64-translator-py v\" + " +
             as_escaped_code_string(VERSION) + ")",
@@ -670,32 +672,12 @@ def translate_expression_tokens(s, sc,
             previous_token = s[i]
         i += 1
 
-    # Add line continuation things:
-    i = 0
-    while i < len(s):
-        if (s[i] in {">", "=", "<", "!", "+", "-", "/", "*",
-                "%", "|", "^", "&", "~", ".", "in",
-                "and", "or", "not"} or
-                s[i].endswith("=") or s[i] == "->") and (
-                s[i + 1].strip(" \t\r\n") == "" and
-                s[i + 1].strip(" \t") != ""):
-            s = (s[:i + 1] + ["\\"] + [s[i + 1].lstrip(" \t")] +
-                s[i + 2:])
-        if ((s[i].endswith("\"") or s[i].endswith("'")) and
-                i + 2 < len(s) and
-                s[i + 1].strip(" \t\r\n") == "" and
-                s[i + 1].strip(" \t") != ""):
-            z = i + 2
-            while z < len(s) and s[z].strip(" \t") == "":
-                z += 1
-            if (z < len(s) and (
-                    s[z].endswith("\"") or s[z].endswith("'"))):
-                s = (s[:i + 1] + ["+", "\\"] +
-                    [s[i + 1].lstrip(" \t")] + s[i + 2:])
-        i += 1
     # Translate XYZ.as_str()/XYZ.len to str(XYZ)/len(XYZ),
-    # important (!!!) this needs to be BEFORE remapping functions.
+    # XXX: important (!!!) this needs to be BEFORE remapping functions
+    #      translator built-ins, and BEFORE inserting Python line
+    #      continuations
     s = transform_h64_misc_inline_to_python(s)
+
     # Translate remapped use to the proper remapped thing:
     i = 0
     while i < len(s):
@@ -743,6 +725,30 @@ def translate_expression_tokens(s, sc,
                     break
         i += 1
 
+    # Add line continuation things:
+    i = 0
+    while i < len(s):
+        if (s[i] in {">", "=", "<", "!", "+", "-", "/", "*",
+                "%", "|", "^", "&", "~", ".", "in",
+                "and", "or", "not"} or
+                s[i].endswith("=") or s[i] == "->") and (
+                s[i + 1].strip(" \t\r\n") == "" and
+                s[i + 1].strip(" \t") != ""):
+            s = (s[:i + 1] + ["\\"] + [s[i + 1].lstrip(" \t")] +
+                s[i + 2:])
+        if ((s[i].endswith("\"") or s[i].endswith("'")) and
+                i + 2 < len(s) and
+                s[i + 1].strip(" \t\r\n") == "" and
+                s[i + 1].strip(" \t") != ""):
+            z = i + 2
+            while z < len(s) and s[z].strip(" \t") == "":
+                z += 1
+            if (z < len(s) and (
+                    s[z].endswith("\"") or s[z].endswith("'"))):
+                s = (s[:i + 1] + ["+", "\\"] +
+                    [s[i + 1].lstrip(" \t")] + s[i + 2:])
+        i += 1
+ 
     # Remove "new" and "protect" since Python doesn't have these:
     i = 0
     while i < len(s):
@@ -873,7 +879,8 @@ def queue_module_neighbors(
             os.path.dirname(module_source_file_path), otherfile
         ))
         if (not otherfilepath.endswith(".h64") or
-                os.path.isdir(otherfilepath)):
+                os.path.isdir(otherfilepath) or
+                otherfilepath.startswith("test_")):
             continue
         otherfilename = os.path.basename(
             otherfilepath.rpartition(".h64")[0]
@@ -2239,6 +2246,12 @@ def run_translator_main():
                     contents_result += ("(" +
                         untokenize(regtype.extends_tokens) + ")")
                 contents_result += ":\n"
+                contents_result += ("    def __repr__(self, *args):\n")
+                contents_result += ("        if hasattr(self, \"as_str\") "
+                                    "and len(args) == 0:\n")
+                contents_result += ("            return self.as_str()\n")
+                contents_result += ("        return super()."
+                                    "__repr__(*args)\n")
                 if "init" in regtype.funcs:
                     assert(regtype.funcs["init"]["arguments"][0] == "(")
                     regtype.funcs["init"]["arguments"] = (
@@ -2394,6 +2407,8 @@ def run_translator_main():
         if DEBUGV.ENABLE:
             print("tools/translator.py: debug: launching program: " +
                 str(launch_cmd))
+        sys.stdout.flush()
+        sys.stderr.flush()
         result = subprocess.run(launch_cmd)
         returncode = result.returncode
     finally:

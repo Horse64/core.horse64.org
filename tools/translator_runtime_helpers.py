@@ -231,6 +231,9 @@ def _value_to_str(value):
     if type(value) == bytes:
         return value.decode("utf-8",
             errors="surrogateescape")
+    if (hasattr(value, "as_str") and
+            callable(value.as_str)):
+        return str(value.as_str())
     return str(value)
 
 
@@ -609,13 +612,15 @@ class _RequestsFetchObj:
                 try:
                     self.request = (
                         requests.get(self.uri,
-                        headers=self.extra_headers))
+                        headers=self.extra_headers,
+                        stream=True))
                     self.rawobj = self.request.raw
-                except (OSError, requests.RequestException):
+                except (OSError, requests.RequestException,
+                        requests.HTTPError):
                     _async_ops_lock.acquire()
                     op.userdata2 = [
-                        _NetworkIOError("Connection setup "
-                            "failed."), None]
+                        _NetworkIOError("Connection setup or "
+                            "request failed."), None]
                     op.done = True
                     _async_ops_lock.release()
                     return
@@ -627,13 +632,10 @@ class _RequestsFetchObj:
                     _async_ops_lock.acquire()
                     op.userdata2 = [
                         _NetworkIOError("Connection read "
-                            "failed"), None]
+                            "failed."), None]
                     op.done = True
                     _async_ops_lock.release()
                     return
-            if len(result) == 0 and (
-                    amount is None or amount > 0):
-                result = None
             _async_ops_lock.acquire()
             op.userdata2 = [None, result]
             op.done = True
@@ -930,6 +932,26 @@ def _container_squarebracketassign(container, index,
     raise NotImplementedError("container type "
         "not imlemented for '[' assign: " +
         str(type(container)))
+
+
+def _system_osname(self):
+    import sys
+    if "linux" in sys.platform.lower():
+        return "linux"
+    if ("darwin" in sys.platform.lower() or
+            "mac" in sys.platform.lower()):
+        return "macos"
+    if "freebsd" in sys.platform.lower():
+        return "freebsd"
+    if "win" in sys.platform.lower():
+        return "windows"
+    if "openbsd" in sys.platform.lower():
+        return "openbsd"
+    if "netbsd" in sys.platform.lower():
+        return "netbsd"
+    raise NotImplementedError("Not implemented on "
+        "this platform, please file an issue to "
+        "get it fixed.")
 
 
 def _textformat_outdent(s):

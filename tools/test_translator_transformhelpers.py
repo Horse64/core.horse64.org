@@ -47,6 +47,17 @@ class TestTranslatorTransformHelpers(unittest.TestCase):
         )
 
     def test_transform_h64_misc_inline_to_python(self):
+        t = ("s = s.replace(\"\r\", " ")." +
+            "replace(\"\n\", " ").\n" +
+            "    replace(\"\t\", " ").trim()")
+        texpected = ("s = _translator_runtime_helpers." +
+            "_container_trim(s.replace(\"\r\", " ")." +
+            "replace(\"\n\", " ").\n" +
+            "    replace(\"\t\", " "),)")
+        tresult = transform_h64_misc_inline_to_python(t)
+        self.assertTrue(expr_nonblank_equals(tresult, texpected),
+            msg=("got " + tresult + ", expected: " + texpected))
+
         t = ("var test = " +
             "(\"complex string concat test: \" + f(l, 1).as_str())")
         texpected = ("var test = " +
