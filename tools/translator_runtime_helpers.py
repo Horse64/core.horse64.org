@@ -458,6 +458,8 @@ def _looks_like_uri(v):
 
 
 def _file_uri_from_path(v):
+    if v == "" or v == ".":
+        v = "./"
     if platform.system().lower() == "windows":
         v = (os.path.normpath(v.replace("\\", "/")).
             replace("\\", "/"))
