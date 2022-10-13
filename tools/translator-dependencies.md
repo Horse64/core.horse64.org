@@ -16,7 +16,7 @@ basic test suite:
 
 - Bash shell
 
-- requests package (from PyPI)
+- `requests`, `pywildcard` packages (from PyPI)
 
 The following is additionally needed to bootstrap from scratch:
 

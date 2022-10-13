@@ -38,6 +38,7 @@ import functools
 import math
 import os
 import platform
+import pywildcard
 import shutil
 import subprocess
 import sys
@@ -219,6 +220,10 @@ remapped_uses = {
         "uri.from_disk_path":
             "(lambda v: _translator_runtime_helpers." +
             "_file_uri_from_path(v))"
+    },
+    "wildcard@core.horse64.org": {
+        "wildcard.match":
+            "_translator_runtime_helpers._glob_match",
     },
 }
 
@@ -1415,23 +1420,32 @@ def translate(s, sc):
                         (("in " + sc.module_name + (" in " + sc.package_name
                          if sc.package_name != None else "")) if
                          sc != None else "") + ": parsing " +
-                        str(statement[j]) + " statement, and got " +
+                        str(statement[0]) + " statement, and got " +
                         "unexpected token: " + str(statement[j]))
                 bracket_depth = 0
                 hadnonwhitespace = False
                 i = j + 1
                 while i < len(statement) and (
                         statement[i] != "{" or bracket_depth > 0 or
-                        not hadnonwhitespace or
-                        is_h64op_with_righthand(
-                        prevnonblank(statement, i))):
+                        (statement[j] != "else" and (
+                            not hadnonwhitespace or
+                            is_h64op_with_righthand(
+                            prevnonblank(statement, i))))):
+                    if (bracket_depth == 0 and
+                            statement[i] in {",", ":"}):
+                        assert(i < len(statement) and statement[i] == "{"), \
+                            ("in module " + sc.module_name +
+                            (" in " + sc.package_name if
+                            sc.package_name != None else "") +
+                            ", found invalid '" + str(statement[i]) +
+                            "' in " + statement[j] + " condition")
                     if statement[i] in {"{", "(", "["}:
                         bracket_depth += 1
                     elif statement[i] in {"}", ")", "]"}:
                         bracket_depth -= 1
                         if bracket_depth < 0:
                             break
-                    if statement[i].strip(" \t\r\n") == "":
+                    if statement[i].strip(" \t\r\n") != "":
                         hadnonwhitespace = True
                     i += 1
                 assert(i < len(statement) and statement[i] == "{"), \
@@ -1440,7 +1454,7 @@ def translate(s, sc):
                     sc.package_name != None else "") +
                     ", failed finding '{' for \"" + str(statement[j]) +
                     "\" inner block, instead reached " +
-                    ("end of stream" if i >= len(statement) else
+                    ("end of stream: " if i >= len(statement) else
                     "character '" + str(statement[i]) + "': ") +
                     str(statement))
                 statement[i] = ":"

@@ -26,6 +26,7 @@
 
 
 import ipaddress
+import fnmatch
 import math
 import os
 import requests
@@ -962,7 +963,7 @@ def _container_squarebracketassign(container, index,
         str(type(container)))
 
 
-def _system_osname(self):
+def _system_osname():
     import sys
     if "linux" in sys.platform.lower():
         return "linux"
@@ -1047,3 +1048,25 @@ class _ModuleObject:
             self._base_library.replace(".", "_"))
         result = getattr(result, self._base_module)
         return getattr(result, name)
+
+
+def _wildcard_match(pattern, value,
+        doublestar_for_paths=False,
+        backslash_paths=False):
+    if "^" in pattern:
+        raise NotImplementedError(
+            "Escaping via '^' is not implemented by "
+            "the Python translator."
+        )
+    if is_winpath:
+        pattern = pattern.replace("\\", "/")
+        value = value.replace("\\", "/")
+    if doubleglob_for_paths and (
+            "/" in value):
+        return (len(pywildcard.filter([value], pattern)) == 1)
+        raise NotImplementedError(
+            "Proper doublestar_for_paths handling "
+            "is not implemented by the Python translator."
+        )
+    return fnmatch.fnmatch(value, pattern)
+
