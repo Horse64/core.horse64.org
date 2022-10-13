@@ -1064,9 +1064,5 @@ def _wildcard_match(pattern, value,
     if doubleglob_for_paths and (
             "/" in value):
         return (len(pywildcard.filter([value], pattern)) == 1)
-        raise NotImplementedError(
-            "Proper doublestar_for_paths handling "
-            "is not implemented by the Python translator."
-        )
     return fnmatch.fnmatch(value, pattern)
 
