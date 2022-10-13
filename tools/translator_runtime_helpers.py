@@ -1110,6 +1110,35 @@ def _is_num(v):
     return digitseen
 
 
+def _container_insert(v, *args, **kwargs):
+    if type(v) == list:
+        idx = int(args[0])
+        idx = max(0, idx)
+        return v.insert(idx, args[1])
+    return v.insert(*args, **kwargs)
+
+
+def _container_del(v, *args, **kwargs):
+    if type(v) == list or type(v) == set:
+        v.remove(args[0])
+        return
+    elif type(v) == dict:
+        del(v[args[0]])
+        return
+    if hasattr(v, "_translator_renamed_del"):
+        return v._translator_renamed_del(*args, **kwargs)
+
+
+def _value_copy(v, *args, **kwargs):
+    if type(v) == list:
+        return list(v)
+    elif type(v) == dict:
+        return dict(v)
+    elif type(v) == set:
+        return set(v)
+    return v.copy(*args, **kwargs)
+
+
 def _to_num(v):
     if type(v) in {int, float}:
         return v

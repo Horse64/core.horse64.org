@@ -48,6 +48,7 @@ def is_keyword(x):
     if x in {"if", "func", "import", "else",
             "type", "do", "rescue", "finally",
             "from", "as", "extends", "protect",
+            "return",
             "var", "const", "elseif", "while",
             "for", "in", "not", "and", "or"}:
         return True
@@ -663,10 +664,19 @@ def expr_nonblank_equals(
         i2 += 1
 
 
-def find_start_of_call_index_chain(s, i):
+def find_start_of_call_index_chain(s, i, debug=False):
+    if debug:
+        print("find_start_of_call_index_chain(): " +
+              "searching in " + str(s[i - 10:i + 10]) +
+              " from index " + str(i) +
+              "/token '" + str(s[i]) + "'")
     while (i >= 0 and
-            is_whitespace_token(s)):
+            is_whitespace_token(s[i])):
         i -= 1
+    if debug:
+        print("find_start_of_call_index_chain(): " +
+              "backed past whitespace to index " + str(i) +
+              "/token '" + str(s[i] if i >= 0 else None) + "'")
     if i < 0:
         return 0
     while True:

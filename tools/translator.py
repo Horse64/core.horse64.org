@@ -592,6 +592,7 @@ def translate_expression_tokens(s, sc,
             [")"])
         #print("CHANGED TO ASSIGN: " + str(s))
         #print("ORIG: " + str(orig_s))
+
     # Translate typename()/"throw"/"has_attr"/...:
     previous_token = None
     i = 0
@@ -599,7 +600,7 @@ def translate_expression_tokens(s, sc,
         if (is_identifier(s[i]) and
                 is_problematic_identifier_name(s[i],
                 python_problematic_only=True)) and (
-                s[i] != "len" or
+                (s[i] != "len" and s[i] != "del") or
                 previous_token != "."):
             s[i] = "_translator_renamed_" + s[i]
         if (s[i] == "typename" and

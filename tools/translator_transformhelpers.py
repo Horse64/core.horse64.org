@@ -137,9 +137,9 @@ def transform_h64_misc_inline_to_python(s):
                         nextnonblank(s, i) == "(" and
                         nextnonblank(s, i, no=2) == ")") or (
                     s[i] in ("add", "sort", "trim", "find",
-                        "ltrim", "rtrim", "rfind",
+                        "ltrim", "rtrim", "rfind", "copy",
                         "reverse", "sublast", "subfirst",
-                        "last", "first",
+                        "last", "first", "del", "insert",
                         "join", "glyph_sub", "sub", "repeat") and
                         nextnonblank(s, i) == "("
                     ))):
@@ -159,6 +159,15 @@ def transform_h64_misc_inline_to_python(s):
             elif cmd == "as_bytes":
                 insert_call = ["_translator_runtime_helpers",
                     ".", "_value_to_bytes"]
+            elif cmd == "copy":
+                insert_call = ["_translator_runtime_helpers",
+                    ".", "_value_copy"]
+            elif cmd == "insert":
+                insert_call = ["_translator_runtime_helpers",
+                    ".", "_container_insert"]
+            elif cmd == "del":
+                insert_call = ["_translator_runtime_helpers",
+                    ".", "_container_del"]
             elif cmd == "to_num":
                 insert_call = ["_translator_runtime_helpers",
                     ".", "_to_num"]
@@ -227,9 +236,10 @@ def transform_h64_misc_inline_to_python(s):
                 i -= 1
                 assert(s[i] == ")")
             elif cmd in ("add", "sort", "join", "find", "sub",
-                    "repeat", "trim", "glyph_sub",
+                    "repeat", "trim", "glyph_sub", "copy",
                     "ltrim", "rtrim", "rfind", "sublast",
-                    "subfirst", "last", "first"):
+                    "insert",
+                    "subfirst", "last", "first", "del"):
                 # Truncate "(", ... and turn it to ",", ...
                 s = s[:i - 1] + [","] + s[i + 2:]
                 i -= 1
@@ -263,7 +273,14 @@ def transform_h64_misc_inline_to_python(s):
             i -= 1  # Go before terminating ) or , character
             assert(i >= 0)
             istart = find_start_of_call_index_chain(s, i)
-            assert(istart <= i)
+            if istart > i:
+                istart = find_start_of_call_index_chain(s, i, debug=True)
+            assert(istart <= i), (
+                "expression start should be before where we began "
+                "searching at " + str(i) + " (token: '" +
+                str(s[i]) + "') but it's at " +
+                str(istart) + ", expression surroundings: " +
+                str(s[min(istart, i) - 10:max(istart, i) + 10]))
             s = s[:istart] + insert_call + ["("] + s[istart:]
             inserted_left_end = True
             assert(inserted_left_end), (
