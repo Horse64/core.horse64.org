@@ -129,6 +129,14 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
 
     def test_split_toplevel_statements(self):
         testcode = textwrap.dedent("""\
+        mycall(abc, def)
+        then x:
+        """)
+        self.assertEqual(
+            len(split_toplevel_statements(tokenize(testcode))),
+            1)
+
+        testcode = textwrap.dedent("""\
         func abc {
             func def { }
         } func blurb {return 2 while {
@@ -138,10 +146,12 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         self.assertEqual(
             len(split_toplevel_statements(tokenize(testcode))),
             2)
+
         self.assertEqual(
             len(split_toplevel_statements(tokenize(
                 "var one var two"
             ))), 2)
+
         self.assertEqual(
             len(split_toplevel_statements(tokenize(
                 "var one = if yes (1) else (0)"

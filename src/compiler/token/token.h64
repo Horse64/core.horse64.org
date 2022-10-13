@@ -1,4 +1,4 @@
-# @module compiler.tokens
+# @module compiler.token
 # Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -462,10 +462,12 @@ func tokenize_str(
 }
 
 
-func tokenize_from_fileobj(fobj, project_file=none,
+func tokenize_from_fileobj async (
+        fobj, project_file=none,
         keep_whitespace=no) {
     var result = new TokenizeResult()
-    var contents = fobj.read(max_project_file_size + 1)
+    fobj.read(max_project_file_size + 1)
+    then contents:
     if contents.len >= max_project_file_size + 1 {
         result.msgs.add(compiler.msg.FileMsg(
             "file exceeds maximum size limit of " +

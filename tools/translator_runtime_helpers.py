@@ -43,6 +43,7 @@ import urllib.parse
 _async_ops_lock = threading.Lock()
 _async_ops = []
 _async_ops_stop_threads = False
+_async_callbacks = []
 
 
 class _LicenseObj:
@@ -577,6 +578,13 @@ def _wrap_io(f):
     return wrapped_func
 
 
+def _async_delay_call(f, args):
+    global _async_callbacks, async_ops_lock
+    _async_ops_lock.acquire()
+    _async_callbacks.append((f, args))
+    _async_ops_lock.release()
+
+
 class _FileObjFromDisk:
     def __init__(self, path, mode,
             allow_vfs=True,
@@ -604,24 +612,42 @@ class _FileObjFromDisk:
                 raise _ResourceMisuseError()
             raise _IOError()
 
-    def read(self, amount=None):
-        if amount == None:
-            try:
-                return self.fobj.read()
-            except (IOError, OSError) as e:
-                if isinstance(e, PermissionError):
-                    raise _PermissionError()
-                raise _IOError()
-        amount = int(amount)
-        if amount <= 0:
-            return (b"" if self.binary else "")
+    def read(self, callback, amount=None):
+        if amount != None:
+            amount = int(amount)
+            if amount <= 0:
+                _async_delay_call(
+                    callback, [None, b"" if self.binary else ""]
+                )
+                return
+        err = None
+        data = None
+        try:
+            if amount == None:
+                data = self.fobj.read()
+            else:
+                data = self.fobj.read(amount)
+        except (IOError, OSError) as e:
+            if isinstance(e, PermissionError):
+                err = _PermissionError()
+            else:
+                err = _IOError()
+            assert(data == None)
+        _async_delay_call(callback, [err, data])
 
-    def write(self, value):
+    def write(self, callback, value):
         if not self.binary and type(value) != str:
-            raise TypeError("value must be unicode string")
+            _async_delay_call(callback, [
+                TypeError("value must be unicode string")
+            ])
+            return
         elif self.binary and type(value) != bytes:
-            raise TypeError("value must be bytes value")
-        return self.fobj.write(value)
+            _async_delay_call(callback, [
+                TypeError("value must be bytes value")
+            ])
+            return
+        self.fobj.write(value)
+        _async_delay_call(callback, [None])
 
     def close(self):
         try:
