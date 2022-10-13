@@ -29,12 +29,15 @@ import ipaddress
 import fnmatch
 import math
 import os
+import platform
 import requests
 import socket
 import subprocess
 import sys
 import threading
 import time
+import urllib
+import urllib.parse
 
 
 _async_ops_lock = threading.Lock()
@@ -419,6 +422,10 @@ def _is_digits(v):
 
 
 def _looks_like_uri(v):
+    if (v.find("://") >= 1 and
+            len(v.partition("://")[0].strip()) > 1
+            ):
+        return True
     if len(v) >= 1 and v[0] == "/":
         return False
     if (len(v) >= 3 and v[1] == ":" and
@@ -442,7 +449,7 @@ def _looks_like_uri(v):
     common_tlds = [".org", ".com", ".co.uk", ".io",
         ".eu", ".dev", ".cn", ".in", ".net"]
     for common_tld in common_tlds:
-        tld_pos = v.find(common_told + "/")
+        tld_pos = v.find(common_tld + "/")
         if tld_pos >= 2:
             return True
     if v.find("://") >= 1:
@@ -460,8 +467,11 @@ def _file_uri_from_path(v):
     return v
 
 
+def _uri_escape_path(v):
+    return urllib.parse.quote(v)
+
+
 def _uri_normalize(v):
-    import urllib.parse
     v = str(v + "")
     if _looks_like_uri(v):
         if "://" not in v:
@@ -486,7 +496,7 @@ def _uri_normalize(v):
         if resource == ".":
             resource = "./"
         return (v.partition("://")[0].lower() + "://" +
-            urllib.parse.quote(v))
+            urllib.parse.quote(resource))
     urlobj = urllib.parse.urlparse(v)
     result = (urlobj.scheme.lower() + "://" +
         urlobj.hostname.lower())

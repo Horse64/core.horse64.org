@@ -214,6 +214,8 @@ remapped_uses = {
             "_translator_runtime_helpers._textformat_outdent",
     },
     "uri@core.horse64.org": {
+        "uri.escape_path":
+            "_translator_runtime_helpers._uri_escape_path",
         "uri.normalize":
             "(lambda v: _translator_runtime_helpers." +
             "_uri_normalize(v))",
