@@ -160,7 +160,8 @@ def transform_h64_misc_inline_to_python(s):
                 insert_call = ["_translator_runtime_helpers",
                     ".", "_value_to_bytes"]
             elif cmd == "to_num":
-                insert_call = ["float"]
+                insert_call = ["_translator_runtime_helpers",
+                    ".", "_to_num"]
             elif cmd == "sublast":
                 insert_call = ["_translator_runtime_helpers",
                     ".", "_container_sublast"]

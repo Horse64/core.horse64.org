@@ -235,6 +235,8 @@ def _value_to_str(value):
     if type(value) == bytes:
         return value.decode("utf-8",
             errors="surrogateescape")
+    if type(value) == str:
+        return value
     if (hasattr(value, "as_str") and
             callable(value.as_str)):
         return str(value.as_str())
@@ -1077,4 +1079,52 @@ def _wildcard_match(pattern, value,
             "/" in value):
         return (len(pywildcard.filter([value], pattern)) == 1)
     return fnmatch.fnmatch(value, pattern)
+
+
+def _is_num(v):
+    if type(v) in {float, int}:
+        return True
+    if type(v) == bytes:
+        v = v.decode("utf-8", "surrogateescape")
+    if type(v) != str:
+        return False
+    dotseen = False
+    digitseen = False
+    i = 0
+    while i < len(v):
+        if (digitseen and i + 1 < len(v) and
+                v[i] == "." and
+                not dotseen):
+            dotseen = True
+            i += 1
+            continue
+        elif (ord(v[i]) >= ord("0") and
+                ord(v[i]) <= ord("9")):
+            digitseen = True
+            i += 1
+            continue
+        elif v[i] == "-" and i == 0:
+            i += 1
+            continue
+        return False
+    return digitseen
+
+
+def _to_num(v):
+    if type(v) in {int, float}:
+        return v
+    if not _is_num(v):
+        raise _ValueError("Given value can't "
+            "be converted to number")
+    if type(v) == bytes:
+        v = v.decode("utf-8", "surrogateescape")
+    assert(type(v) == str)
+    while v.endswith("0"):
+        v = v[:-1]
+    if v.endswith("."):
+        v = v[:-1]
+    if "." in v:
+        return float(v)
+    return int(v)
+
 

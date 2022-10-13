@@ -680,8 +680,18 @@ def translate_expression_tokens(s, sc,
             s[i] = "__contains__"
         elif s[i] == "throw" and previous_token != ".":
             s[i] = "raise"
+        elif s[i] == "is_num" and previous_token != ".":
+            s = s[:i] + ["_translator_runtime_helpers",
+                ".", "_is_num"] + s[i + 1:]
         elif s[i] == "has_attr" and previous_token != ".":
             s[i] = "hasattr"
+        if (s[i] == "{" and nextnonblank(s, i) == "}" and
+                (previous_token in {"(", "[", "{", "="} or
+                (previous_token != None and
+                len(previous_token) == 2 and
+                previous_token[1] == "="))):
+            s = s[:i] + ["set", "(", ")"] + s[
+                nextnonblankidx(s, i) + 1:]
         if s[i].strip("\r\n\t ") != "":
             previous_token = s[i]
         i += 1
@@ -1085,6 +1095,7 @@ def translate(s, sc):
             value_exprs = []
             z = 0
             while z < len(identifiers) and i < len(statement):
+                # Find end of next assigned expression:
                 bracket_depth = 0
                 value_start = i
                 while i < len(statement) and (
@@ -1095,6 +1106,8 @@ def translate(s, sc):
                     elif statement[i] in {")", "]", "}"}:
                         bracket_depth -= 1
                     i += 1
+
+                # Translate it over:
                 new_sc = sc.duplicate()
                 new_sc.parent_statements += [statement_cpy]
                 value_exprs.append(
@@ -1106,7 +1119,19 @@ def translate(s, sc):
                         gotnonblank = True
                 assert(gotnonblank), ("must have non-blank " +
                     "assigned value for var statement")
-                z += 1
+
+                # Hack to make assigned sets work:
+                if (len(value_exprs[-1]) > 0 and
+                        firstnonblank(value_exprs[-1]) == "{"):
+                    next_idx = nextnonblankidx(value_exprs[-1],
+                        firstnonblankidx(value_exprs[-1]))
+                    if (next_idx >= 0 and
+                            value_exprs[-1][next_idx] == "}"):
+                        value_exprs[-1] = (
+                            ["set", "(", ")"] +
+                            value_exprs[-1][next_idx + 1:])
+
+                z += 1  # Go to next assigned value.
                 if i >= len(statement):
                     break
                 assert(statement[i] == ",")
@@ -1425,14 +1450,16 @@ def translate(s, sc):
                         str(statement[0]) + " statement, and got " +
                         "unexpected token: " + str(statement[j]))
                 bracket_depth = 0
+                lastnonblanktoken = ""
                 hadnonwhitespace = False
                 i = j + 1
                 while i < len(statement) and (
                         statement[i] != "{" or bracket_depth > 0 or
                         (statement[j] != "else" and (
                             not hadnonwhitespace or
+                            lastnonblanktoken == "in" or
                             is_h64op_with_righthand(
-                            prevnonblank(statement, i))))):
+                            lastnonblanktoken)))):
                     if (bracket_depth == 0 and
                             statement[i] in {",", ":"}):
                         assert(i < len(statement) and statement[i] == "{"), \
@@ -1449,6 +1476,7 @@ def translate(s, sc):
                             break
                     if statement[i].strip(" \t\r\n") != "":
                         hadnonwhitespace = True
+                        lastnonblanktoken = statement[i]
                     i += 1
                 assert(i < len(statement) and statement[i] == "{"), \
                     ("in module " + sc.module_name +
