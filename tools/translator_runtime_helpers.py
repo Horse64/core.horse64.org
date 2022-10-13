@@ -1154,7 +1154,8 @@ def _to_num(v):
     if type(v) == bytes:
         v = v.decode("utf-8", "surrogateescape")
     assert(type(v) == str)
-    while v.endswith("0"):
+    while (v.endswith("0") and len(v) > 1 and
+            v[-2] != "-"):
         v = v[:-1]
     if v.endswith("."):
         v = v[:-1]
