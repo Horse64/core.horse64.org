@@ -149,6 +149,7 @@ def _process_run(cmd, args=[], run_in_dir=None,
             output[0] += char
             if print_output:
                 sys.stdout.buffer.write(char)
+        sys.stdout.flush()
     output_thread = threading.Thread(
         target=output_thread_func,
         args=(output, process, print_output))
@@ -202,7 +203,7 @@ def _container_add(container, item):
     if (not hasattr(container, "add") and
             hasattr(container, "append")):
         return container.append(item)
-    return container
+    return container.add(item)
 
 
 def _container_sort(container, *args, **kwargs):
@@ -240,6 +241,11 @@ def _value_to_str(value):
     if (hasattr(value, "as_str") and
             callable(value.as_str)):
         return str(value.as_str())
+    if type(value) == type(set()):
+        v = repr(value)
+        if v.strip().lower() == "set()":
+            return "{}"
+        return v
     return str(value)
 
 

@@ -69,7 +69,20 @@ func test_basic_things {
 
     var myset = {}
     assert(typename(myset) == "set")
+    myset.add(5)
+    assert(myset.len == 1)
+    assert(myset.has(5) and not myset.has(6))
 
     var mymap = {->}
     assert(typename(mymap) == "map")
+    mymap[5] = 3
+    assert(mymap.has(5) and not mymap.has(3))
+    mymap.del(5)
+    assert(not mymap.has(5))
+
+    func some_func(a=[], b={}) {
+        assert(typename(a) == "list")
+        assert(typename(b) == "set")
+    }
+    some_func()
 }

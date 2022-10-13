@@ -2544,6 +2544,8 @@ def run_translator_main():
         sys.stdout.flush()
         sys.stderr.flush()
         result = subprocess.run(launch_cmd)
+        sys.stdout.flush()
+        sys.stderr.flush()
         returncode = result.returncode
     finally:
         if not keep_files:
