@@ -82,7 +82,7 @@ from translator_syntaxhelpers import (
     identifier_or_keyword, is_h64op_with_righthand,
     is_number_token, extract_all_imports,
     make_kwargs_in_call_tailing,
-    transform_then_to_closures,
+    transform_later_to_closures,
     get_names_defined_in_func,
 )
 
@@ -661,6 +661,9 @@ def translate_expression_tokens(s, sc,
         elif s[i] == "IOError" and previous_token != ".":
             s = s[:i] + ["_translator_runtime_helpers",
                 ".", "_IOError"] + s[i + 1:]
+        elif (s[i] == "Error" and
+                previous_token != "."):
+            s[i] = "BaseException"
         elif (s[i] == "ResourceMisuseError" and
                 previous_token != "."):
             s = s[:i] + ["_translator_runtime_helpers",
@@ -1331,6 +1334,7 @@ def translate(s, sc):
                 rescued_errors_expr = translate_expression_tokens(
                     rescued_errors_tokens,
                     new_sc)
+                assert(rescued_errors_expr != None)
             finally_block_code = None
             if finally_block_content_first >= 0:
                 new_sc = sc.duplicate()
@@ -1349,6 +1353,7 @@ def translate(s, sc):
                 result += (indent + "    pass\n")
             else:
                 if rescue_block_code != None:
+                    assert(rescued_errors_expr != None)
                     result += (indent + "except " +
                         untokenize(rescued_errors_expr))
                     if rescue_error_label_name != None:
@@ -2039,6 +2044,7 @@ def separate_func_keyword_arg_code(
 
 def run_translator_main():
     args = sys.argv[1:]
+    output_file = False
     target_file = None
     target_file_args = []
     keep_files = False
@@ -2079,6 +2085,8 @@ def run_translator_main():
                       "Keep translated files and ")
                 print("                           "
                       "print out path to them.")
+                print("    --output-file          "
+                      "Don't run, just output translated file.")
                 print("    --paranoid             "
                       "Do extra checking of internal operations.")
                 print("    --version              "
@@ -2088,6 +2096,8 @@ def run_translator_main():
                 run_as_test = True
             elif args[i] == "--paranoid":
                 paranoid = True
+            elif args[i] == "--output-file":
+                output_file = True
             elif (args[i] == "--version" or args[i] == "-v" or
                     args[i] == "-V"):
                 print("tools/translator.py version " + VERSION)
@@ -2247,6 +2257,7 @@ def run_translator_main():
         os.path.basename(target_file.rpartition(".h64")[0]) + ".py",
         modname, modfolder, project_info.package_name))
     mainfilepath = translate_file_queue[0][0]
+    output_file_result = None
     while len(translate_file_queue) > 0:
         (target_file, target_filename, modname, modfolder,
          package_name, reason) = translate_file_queue[0]
@@ -2277,17 +2288,6 @@ def run_translator_main():
         sanity_check_h64_codestring(contents, modname=modname,
             filename=target_file)
         assert(type(contents) == str)
-        contents = transform_then_to_closures(
-            make_string_literal_python_friendly(tokenize(contents)))
-        if paranoid:
-            try:
-                sanity_check_h64_codestring(
-                    contents, modname=modname,
-                    filename=target_file)
-            except ValueError as e:
-                raise ValueError("INTERNAL ERROR, "
-                    "transform_then_to_closures() "
-                    "broke syntax: " + str(e))
         contents = separate_out_inline_funcs(contents)
         if paranoid:
             try:
@@ -2297,6 +2297,20 @@ def run_translator_main():
             except ValueError as e:
                 raise ValueError("INTERNAL ERROR, "
                     "separate_out_inline_funcs() "
+                    "broke syntax: " + str(e))
+        contents = transform_later_to_closures(
+            make_string_literal_python_friendly(tokenize(contents)),
+            callback_delayed_func_name=[
+                "_translator_runtime_helpers", ".",
+                "_async_delay_call"])
+        if paranoid:
+            try:
+                sanity_check_h64_codestring(
+                    contents, modname=modname,
+                    filename=target_file)
+            except ValueError as e:
+                raise ValueError("INTERNAL ERROR, "
+                    "transform_later_to_closures() "
                     "broke syntax: " + str(e))
         contents = make_kwargs_in_call_tailing(contents)
         if paranoid:
@@ -2455,6 +2469,8 @@ def run_translator_main():
                         "\n    _remapped_sys.exit(" +
                         "\n        _translator_runtime_helpers." +
                                     "_run_main(main))\n")
+                if output_file:
+                    output_file_result = contents_result
 
             if DEBUGV.ENABLE and DEBUGV.ENABLE_CONTENTS:
                 print("tools/translator.py: debug: have output of " +
@@ -2543,10 +2559,15 @@ def run_translator_main():
                 str(launch_cmd))
         sys.stdout.flush()
         sys.stderr.flush()
-        result = subprocess.run(launch_cmd)
+        returncode = None
+        if not output_file:
+            result = subprocess.run(launch_cmd)
+            returncode = result.returncode
+        else:
+            print(output_file_result)
+            returncode = 0
         sys.stdout.flush()
         sys.stderr.flush()
-        returncode = result.returncode
     finally:
         if not keep_files:
             shutil.rmtree(output_folder)

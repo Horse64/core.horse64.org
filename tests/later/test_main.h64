@@ -27,23 +27,49 @@
 
 var global_count = 0
 
-func call_my_callback_and_count(v, callback) {
+
+func call_my_callback_and_count(v) {
     global_count += v
-    callback()
+    return later
 }
 
-func call_my_callback(callback) {
-    callback(global_count * 2)
+
+func delayed_stuff {
+    return later global_count * 2
 }
 
-func test_then {
+
+func inner_later_test {
     assert(global_count == 0)
 
-    call_my_callback_and_count(2) then:
+    var had_repeat = no
+
+    call_my_callback_and_count(2)
+    later:
 
     assert(global_count == 2)
 
-    call_my_callback() then x:
+    var x = call_my_callback()
+    later:
 
-    assert(x == 4)
+    await x  # (Will throw any error that occurred in call_my_callback)
+    if not had_repeat {
+        print("First inner run. x=" + x.as_str())
+        assert(x == 4)
+        global_count += 1
+        had_repeat = yes
+        x = call_my_callback()
+        later repeat
+    } else {
+        print("Second inner run. x=" + x.as_str())
+        assert(x == 6)
+    }
+}
+
+
+func test_later {
+    inner_later_test()
+    later:
+
+    print("Full test ran.")
 }

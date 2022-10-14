@@ -55,6 +55,14 @@ def is_keyword(x):
     return False
 
 
+def flatten(l):
+    flat = []
+    for sl in l:
+        for item in sl:
+            flat.append(item)
+    return flat
+
+
 def identifier_or_keyword(x):
     if x == "" or type(x) != str:
         return False
@@ -872,7 +880,7 @@ def get_next_statement(s):
     if len(s) == 0:
         return []
     must_continue_tokens = {
-        "->", "(", "[", ":", "then",
+        "->", "(", "[", ":", "later",
         ",", "else", "as", "in", "from",
         "rescue", "finally", "elseif"}
     last_nonwhitespace_token = ""
@@ -1317,135 +1325,427 @@ def get_names_defined_in_func(
     return names
 
 
-def transform_then_to_closure_unnested(
-        sts, h64_indent="    "
+def transform_later_to_closure_funccontents(
+        sts, h64_indent="    ",
+        outer_callback_name=None,
+        callback_delayed_func_name=None,
+        await_error_name=None,
+        closest_scope_later_func_name=None
         ):
+    assert(outer_callback_name != None)
+    assert(callback_delayed_func_name != None)
     new_sts = []
     st_idx = -1
     for st in sts:
         st_idx += 1
+        assert(type(st) == list and
+            len(st) == 0 or type(st[0]) == str)
 
-        # Find all 'then' keyword uses:
-        then_indexes = []
+        # First, handle any 'return'/'return later':
+        if firstnonblank(st) == "return":
+            wrap_in_delay = False
+            i = firstnonblankidx(st)
+            returnidx = i
+            if nextnonblank(st, i) == "later":
+                wrap_in_delay = True
+                i = nextnonblankidx(st, i)
+            i += 1
+            return_arg = st[i:]
+            while (len(return_arg) > 0 and
+                    return_arg[-1].strip(" \r\t\n") == ""):
+                return_arg = return_arg[:-1]
+            indent_tokens = st[:returnidx]
+            _delayfuncname = None
+            if wrap_in_delay:
+                _delayfuncname = "_fdelay" + (
+                    str(uuid.uuid4()).replace("-", "")
+                )
+                new_sts.append(
+                    indent_tokens + ["func", " ", _delayfuncname,
+                    " ", "{", "\n"] +
+                    indent_tokens + [h64_indent] + [
+                    outer_callback_name, "("] +
+                    return_arg + [")", "\n"] + indent_tokens +
+                    ["}", "\n"]
+                )
+                delayed_call_tokens = callback_delayed_func_name
+                if type(delayed_call_tokens) == str:
+                    delayed_call_tokens = tokenize(delayed_call_tokens)
+                new_sts.append(
+                    indent_tokens + ["return", " "] +
+                    delayed_call_tokens +
+                    ["(", _delayfuncname, ")"]
+                )
+            else:
+                new_sts.append(
+                    indent_tokens + [outer_callback_name, "("] +
+                    return_arg + [")"]
+                )
+            continue
+
+        # Not a 'return'/'return later'. Find other 'later' uses:
+        later_indexes = []
+        bracket_depth = 0
         i = -1
         for t in st:
             i += 1
-            if t == "then":
-                then_indexes.append(i)
-        if len(then_indexes) == 0:
+            if t in {"(", "{", "["}:
+                bracket_depth += 1
+            elif t in {")", "}", "]"}:
+                bracket_depth -= 1
+            if t == "later" and bracket_depth == 0:
+                later_indexes.append(i)
+
+        if len(later_indexes) != 1:
+            # Okay, just transform the inner blocks and be done:
+            ranges = reversed(get_statement_block_ranges(st))
+            for brange in ranges:
+                st = (st[:brange[0]] +
+                    flatten(transform_later_to_closure_funccontents(
+                        split_toplevel_statements(
+                            st[brange[0]:brange[1]]
+                        ),
+                        h64_indent=h64_indent,
+                        outer_callback_name=outer_callback_name,
+                        callback_delayed_func_name=
+                            callback_delayed_func_name,
+                        await_error_name=await_error_name,
+                        closest_scope_later_func_name=
+                            closest_scope_later_func_name
+                    )) +
+                    st[brange[1]:])
             new_sts.append(st)
             continue
 
-        # Discard those inside nested statement blocks:
-        ranges = get_statement_block_ranges(st)
-        for brange in ranges:
-            i = 0
-            while i < len(then_indexes):
-                if (then_indexes[i] >=
-                        brange[0] and
-                        then_indexes[i] < brange[1]):
-                    then_indexes = (
-                        then_indexes[:i] +
-                        then_indexes[i + 1:])
-                    continue
-                i += 1
-        if len(then_indexes) != 1:
-            new_sts.append(st)
-            continue
-
-        # Now we should have just one 'then' left if the
+        # Now we should have just one 'later' left if the
         # code is valid in the first place:
-        then_index = then_indexes[0]
-        if prevnonblank(st, then_index) != ")":
+        later_index = later_indexes[0]
+        if (not nextnonblank(st, later_index) in {":", "repeat"} or
+                nextnonblank(st, later_index, no=2) != ""):
             # Invalid code. Just ignore.
             new_sts.append(st)
             continue
-        then_preceding_call_noargs = False
-        then_preceding_call_close = prevnonblankidx(st, then_index)
-        then_preceding_call_args_have_trailing_comma = False
-        if prevnonblank(st, then_index, no=2) == "(":
-            then_preceding_call_noargs = True
-        elif prevnonblank(st, then_index, no=2) == ",":
-            then_preceding_call_args_have_trailing_comma = True
+        is_a_repeat = (nextnonblank(st, later_index) == "repeat")
 
-        # Extract the arguments after 'then' keyword:
-        arg_start = then_index + 1
-        i = arg_start
-        bracket_depth = 0
-        while (i < len(st) and (
-                st[i] != ":" or bracket_depth > 0)):
-            if st[i] in {"(", "{", "["}:
-                bracket_depth += 1
-            elif st[i] in {")", "}", "]"}:
-                bracket_depth -= 1
-            i += 1
-        arg_end = i
-        if i >= len(st) or st[i] != ":":
-            # Invalid, so skip this:
+        # See where in the 'later'ed call to insert the callback:
+        later_preceding_call_close = prevnonblankidx(st, later_index)
+        if (later_preceding_call_close < 0 or
+                st[later_preceding_call_close] != ")"):
+            # Invalid code. Just ignore.
             new_sts.append(st)
             continue
-        i += 1  # Go past ':' past the 'then' args.
+        later_preceding_call_noargs = False
+        later_preceding_call_args_have_trailing_comma = False
+        if prevnonblank(st, later_index, no=2) == "(":
+            later_preceding_call_noargs = True
+        elif prevnonblank(st, later_index, no=2) == ",":
+            later_preceding_call_args_have_trailing_comma = True
 
-        # Name for our new callback implicitly created by 'then',
+        # Get argument name from var/const declaration if any:
+        vardef_at_start_idx = None
+        vardef_past_eq_idx = None
+        arg_name = None
+        if firstnonblank(st) in {"var", "const"}:
+            # Extract name and then get index where to cut it off:
+            i2 = firstnonblankidx(st)
+            vardef_at_start_idx = i2
+            if is_identifier(nextnonblank(st, i2)):
+                arg_name = nextnonblank(st, i2)
+            i2 += 1  # Go past identifier.
+            while i2 < len(st) and st[i2] != '=':
+                i2 += 1
+            if i2 >= len(st):
+                new_sts.append(st)
+                continue  # Invalid code.
+            i2 += 1  # Move past '='.
+            while i2 < len(st) and st[i2].strip(" \t\r\n") == "":
+                i2 += 1
+            if i2 >= len(st):
+                new_sts.append(st)
+                continue  # Invalid code.
+            vardef_past_eq_idx = i2
+
+        # Name for our new callback implicitly created by 'later',
         # as well as indent for the 'func ... {' opening line:
-        funcname = "_" + str(uuid.uuid4()).replace("-", "")
+        funcname = None
+        awaiterrorname = None
+        if not is_a_repeat:
+            funcname = "_" + str(uuid.uuid4()).replace("-", "")
+            awaiterrorname = "_awerr" + str(uuid.uuid4()).replace("-", "")
         indent = get_indent(st)
-        def flatten(l):
-            flat = []
-            for sl in l:
-                for item in sl:
-                    flat.append(item)
-            return flat
 
-        # Get all the statements after 'then' to pull into callback:
+        # Get all the statements after 'later' to pull into callback:
         func_inner_content_str = (
             untokenize(flatten(sts[st_idx + 1:])))
         func_inner_content_str = h64_indent + (
             ("\n" + h64_indent).join(
                 func_inner_content_str.split("\n")
             ))
-        func_inner_content = flatten(
-            transform_then_to_closure_unnested(
-                split_toplevel_statements(
-                    tokenize(func_inner_content_str)
+        func_inner_content = None
+        if not is_a_repeat:
+            func_inner_content = flatten(
+                transform_later_to_closure_funccontents(
+                    split_toplevel_statements(
+                        tokenize(func_inner_content_str)
+                    ),
+                    h64_indent=h64_indent,
+                    outer_callback_name=outer_callback_name,
+                    callback_delayed_func_name=
+                        callback_delayed_func_name,
+                    await_error_name=await_error_name,
+                    closest_scope_later_func_name=
+                        funcname
                 )
             )
-        )
-        assert(len(func_inner_content) == 0 or
-            type(func_inner_content[0]) == str)
+            assert(len(func_inner_content) == 0 or
+                type(func_inner_content[0]) == str)
 
         # Assemble callback statement and add it in:
-        insert_st = ([indent, "func", " ",
-            funcname, " "])
-        if len(untokenize(
-                st[arg_start:arg_end]).strip(" \t\r\n")) > 0:
-            insert_st += (["("] + st[arg_start:arg_end] +
-                [")", " "])
-        insert_st += (["{", "\n"] +
-            func_inner_content +
-            ["\n"] + ([indent] if
-                indent != None and len(indent) > 0 else
-                []) +
-            ["}", "\n"])
-        new_sts.append(insert_st)
+        if not is_a_repeat:
+            insert_st = ([indent, "func", " ",
+                funcname, " ", "(", awaiterrorname])
+            if arg_name != None:
+                insert_st += [",", arg_name]
+            insert_st += [")", " "]
+            insert_st += (["{", "\n"] +
+                func_inner_content +
+                ["\n"] + ([indent] if
+                    indent != None and len(indent) > 0 else
+                    []) +
+                ["}", "\n"])
+            new_sts.append(insert_st)
 
-        # Now add the call that had the 'then', but stripped off:
+        # If this is a repeat, call back ourselves!
+        call_to = funcname
+        if is_a_repeat:
+            assert(closest_scope_later_func_name != None)
+            call_to = closest_scope_later_func_name
+
+        # Now add the call that had the 'later', but stripped off:
         orig_st = list(st)
-        st = st[:then_preceding_call_close]
-        if (not then_preceding_call_noargs and
-                not then_preceding_call_args_have_trailing_comma):
+        st = st[:later_preceding_call_close]
+        if (not later_preceding_call_noargs and
+                not later_preceding_call_args_have_trailing_comma):
             st += [",", " "]
-        st += [funcname] + [")", "\n"]
+        st += [call_to] + [")", "\n"]
         new_sts.append(st)
+        new_sts.append([indent, "return", "\n"])
 
         # Output some debug info:
-        #print("CREATED STATEMENTS: " + str(new_sts[-2:]))
+        #print("CREATED STATEMENTS: " + str(new_sts[-3:]))
         #print("ORIGINAL ONE: " + str(orig_st))
         #print("TOKEN WHERE ORIG CALL ENDED: " +
-        #    str(then_preceding_call_close))
-        #print("ARG START:ARG_END FOR 'then': " +
+        #    str(later_preceding_call_close))
+        #print("ARG START:ARG_END FOR 'later': " +
         #    str(orig_st[arg_start:arg_end]))
         break
+    return new_sts
+
+
+def is_func_a_later_func(st):
+    if type(st) == str:
+        st = tokenize(St)
+    assert(type(st) in {tuple, list})
+    assert(len(st) == 0 or type(st[0]) == str)
+
+    if firstnonblank(st) != "func":
+        return False
+
+    def scan_inner_stmts(sts):
+        for st in sts:
+            if firstnonblank(st) == "func":
+                continue
+            if firstnonblank(st) == "return":
+                if (nextnonblank(st, firstnonblankidx(st)) ==
+                        "later"):
+                    return True
+                continue
+            elif (is_identifier(firstnonblank(st)) or
+                    firstnonblank(st) in {"var", "const"}):
+                i = firstnonblankidx(st) + 1
+                bracket_depth = 0
+                while i < len(st):
+                    if st[i] in {"(", "{", "["}:
+                        bracket_depth += 1
+                    elif st[i] in {")", "}", "]"}:
+                        bracket_depth -= 1
+                    if (bracket_depth == 0 and
+                            st[i] == "later"):
+                        return True
+                    i += 1
+                continue
+            assert(type(st) == list)
+            assert(len(st) == 0 or type(st[0]) == str)
+            ranges = get_statement_block_ranges(st)
+            for block_range in ranges:
+                if scan_inner_stmts(
+                        split_toplevel_statements(
+                        st[block_range[0]:block_range[1]]
+                        )):
+                    return True
+        return False
+    ranges = get_statement_block_ranges(st)
+    for block_range in ranges:
+        if scan_inner_stmts(
+                split_toplevel_statements(
+                st[block_range[0]:block_range[1]]
+                )):
+            return True
+    return False
+
+
+def transform_later_to_closure_unnested(
+        sts, h64_indent="    ",
+        callback_delayed_func_name=None
+        ):
+    new_sts = []
+    st_idx = -1
+    for st in sts:
+        st_idx += 1
+
+        if not is_func_a_later_func(st):
+            new_sts.append(st)
+            continue
+        callback_name = ("_later_cb" +
+            str(uuid.uuid4()).replace("-", ""))
+
+        # Go from 'func' past until arg or code block start:
+        i = firstnonblankidx(st)
+        if i >= len(st) or st[i] != "func":
+            new_sts.append(st)
+            continue  # Invalid code!
+        i += 1  # Past 'func'.
+        while i < len(st) and st[i].strip(" \r\n\t") == "":
+            i += 1
+        if i >= len(st) or not is_identifier(st[i]):
+            new_sts.append(st)
+            continue  # Invalid code!
+        i += 1  # Past func name.
+        arg_start = i
+        while (i < len(st) and
+                st[i] != "(" and st[i] != "{"):
+            i += 1
+        if i >= len(st):
+            new_sts.append(st)
+            continue  # Invalid code!
+
+        # We're at either code or args now. Check args if present:
+        code_block_open_bracket = None
+        arg_list_start = None
+        last_nonkw_arg_end = None
+        if st[i] == "{":
+            code_block_open_bracket = i
+        elif st[i] == "(":
+            # We got function arguments! Find our insert point:
+            i += 1  # Past the '('.
+            arg_list_start = i
+            current_arg_start = i
+            current_arg_had_assign = False
+            bracket_depth = 1
+            while i < len(st) and (
+                    bracket_depth > 0 or
+                    is_h64op_with_righthand(
+                        prevnonblank(st, i)) or
+                    prevnonblank(st, i) == "," or
+                    prevnonblank(st, i) == "("):
+                are_at_bail_bracket = False
+                if st[i] in {"(", "{", "["}:
+                    bracket_depth += 1
+                elif st[i] in {")", "}", "]"}:
+                    bracket_depth -= 1
+                    if st[i] == ")" and bracket_depth <= 0:
+                        are_at_bail_bracket = True
+                # See if we reached end of arg list, or end of arg:
+                if are_at_bail_bracket or (st[i] == "," and
+                        nextnonblank(st, i) == ")" and
+                        bracket_depth <= 1):
+                    if st[i] == ",":
+                        inext = nextnonblank(st, i)
+                        st[i] == " "
+                        i = inext
+                    if not current_arg_had_assign:
+                        last_nonkw_arg_end = i
+                    break
+                elif st[i] == "=" and bracket_depth == 0:
+                    current_arg_had_assign = True
+                elif st[i] == "," and bracket_depth == 0:
+                    if not current_arg_had_assign:
+                        last_nonkw_arg_end = i
+                    current_arg_start = i + 1
+                    current_arg_had_assign = False
+                i += 1
+
+            # We're at the end of the arguments. Go to code block:
+            if i >= len(st) or st[i] != ")":
+                new_sts.append(st)
+                continue  # Invalid code!
+            i += 1  # Past closing ')'.
+            while i < len(st) and st[i].strip(" \r\t\n") == "":
+                i += 1
+            if i >= len(st) or st[i] != "{":
+                new_sts.append(st)
+                continue  # Invalid code
+            code_block_open_bracket = i
+        assert(code_block_open_bracket != None)
+        if last_nonkw_arg_end != None:
+            st = (st[:last_nonkw_arg_end] + [",",
+                callback_name] +
+                st[last_nonkw_arg_end:])
+        else:
+            st = (st[:code_block_open_bracket] +
+                ["(", callback_name, ")", " "] +
+                st[code_block_open_bracket:])
+
+        # Get the block ranges, to transform our code contents:
+        ranges = get_statement_block_ranges(st)
+        assert(len(ranges) == 1), (
+            "transformed statement in "
+            "transform_later_to_closure_unnested() "
+            "after inserting callback arg no longer "
+            "has a block range??? st=" + str(st))
+        block_range = ranges[0]
+        inner_statements = split_toplevel_statements(
+            st[block_range[0]:block_range[1]]
+        )
+        inner_indent = None
+        if len(inner_statements) > 0:
+            inner_indent = get_indent(inner_statements[0])
+        if inner_indent == 0:
+            inner_indent = get_indent(st) + h64_indent
+
+        # Actually transform our inner function code:
+        inner_code_lines = (
+            transform_later_to_closure_funccontents(
+                inner_statements,
+                h64_indent=h64_indent,
+                callback_delayed_func_name=
+                    callback_delayed_func_name,
+                outer_callback_name=callback_name
+            ))
+        ends_in_return = False
+        if len(inner_code_lines) > 0:
+            last_line = inner_code_lines[-1]
+            while is_whitespace_statement(last_line):
+                inner_code_lines = inner_code_lines[:-1]
+                if len(inner_code_lines) <= 0:
+                    break
+                last_line = inner_code_lines[-1]
+            if ("".join(get_indent(last_line)) ==
+                    inner_indent and
+                    firstnonblank(last_line) == "return"):
+                ends_in_return = True
+        newst = (st[:block_range[0]] + flatten(
+            inner_code_lines))
+        while (len(newst) > 0 and
+                newst[-1].strip(" \r\n\t") == ""):
+            newst = newst[:-1]
+        if not ends_in_return:
+            newst += (["\n"] + ["\n", inner_indent,
+                callback_name, "(",
+                "None", ",", "None", ")", "\n",
+                inner_indent, "return", "\n"])
+        newst += (st[block_range[1]:])
+        new_sts.append(newst)
     return new_sts
 
 
@@ -1472,10 +1772,14 @@ def get_indent(statement):
     return result
 
 
-def transform_then_to_closures(s):
-    def do_transform_then(sts):
-        return transform_then_to_closure_unnested(sts)
-    s = tree_transform_statements(s, do_transform_then)
+def transform_later_to_closures(
+        s, callback_delayed_func_name=None):
+    assert(type(callback_delayed_func_name) in {str, list})
+    def do_transform_later(sts):
+        return transform_later_to_closure_unnested(
+            sts, callback_delayed_func_name=
+                callback_delayed_func_name)
+    s = tree_transform_statements(s, do_transform_later)
     return s
 
 
