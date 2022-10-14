@@ -42,14 +42,14 @@ func delayed_stuff {
 func inner_later_test {
     assert(global_count == 0)
 
-    var had_repeat = no
+    var had_repeat = yes
 
     call_my_callback_and_count(2)
     later:
 
     assert(global_count == 2)
 
-    var x = call_my_callback()
+    var x = delayed_stuff()
     later:
 
     await x  # (Will throw any error that occurred in call_my_callback)
@@ -58,7 +58,7 @@ func inner_later_test {
         assert(x == 4)
         global_count += 1
         had_repeat = yes
-        x = call_my_callback()
+        x = delayed_stuff()
         later repeat
     } else {
         print("Second inner run. x=" + x.as_str())

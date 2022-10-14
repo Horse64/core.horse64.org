@@ -158,26 +158,37 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
             ))), 1)
 
     def test_transform_later_to_closure(self):
+        # A helper function to test the later transform for us:
         def do_test(testcode, texpected, any_match_value=None,
                 recursive=False):
             if texpected is None:  # That means no change expected.
                 texpected = testcode
+
+            # Get test code into expected format first:
             resultstmts = None
             resulttokens = []
             if not recursive:
+                # Split it up into statements, run un-nested inner func:
                 teststmts = split_toplevel_statements(
                     tokenize(testcode) if type(testcode) == str else
                     testcode)
                 resultstmts = (
-                    transform_later_to_closure_unnested(teststmts)
-                )
+                    transform_later_to_closure_unnested(teststmts,
+                        callback_delayed_func_name=[
+                        "_translator_runtime_helpers", ".",
+                        "_async_delay_call"]))
                 resulttokens = []
                 for resultstmt in resultstmts:
                     resulttokens += resultstmt
             else:
+                # Run the recursive func to transform everything:
                 resulttokens = transform_later_to_closures(
                     tokenize(testcode) if type(testcode) == str else
-                    testcode)
+                    testcode,
+                    callback_delayed_func_name=[
+                        "_translator_runtime_helpers", ".",
+                        "_async_delay_call"])
+            # Check the result matches what we expected:
             self.assertTrue(
                 expr_nonblank_equals(resulttokens,
                     (tokenize(texpected) if type(texpected) == str else
@@ -187,25 +198,57 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
                 texpected if type(texpected) == str else
                 untokenize(texpected)) + '"""')
 
-        if True:
-            return
-
+        # First test that the non-recursive call won't recurse:
         do_test(textwrap.dedent("""\
             func hello2 {
-                mycall(abc) later:
-            }"""), None)  # Should change nothing, non-recursive!
+                func blorb {
+                    mycall(abc) later:
+                }
+            }"""), None, recursive=False)
 
+        # A slightly more complex attempt:
         do_test(textwrap.dedent("""\
-            print("Hello")
-            mycall(abc) later:
-            print("Bla")"""
-            ), textwrap.dedent("""\
-            print("Hello")
-            func __ANYTOK__ {
+            func f {
+                print("Hello")
+                mycall(abc) later:
                 print("Bla")
+            }"""
+            ), textwrap.dedent("""\
+            func f(__ANYTOK__) {
+                print("Hello")
+                func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
+                    print("Bla")
+                    __ANYTOK__(None, None)
+                    return
+                }
+                mycall(abc, __ANYTOK__)
+                return
             }
-            mycall(abc, __ANYTOK__)
             """), any_match_value="__ANYTOK__")
+
+        # Ensure trailing returns are handled fine:
+        do_test(textwrap.dedent("""\
+            func f {
+                print("Hello")
+                mycall(abc) later:
+                print("Bla")
+                return 5
+            }"""
+            ), textwrap.dedent("""\
+            func f(__ANYTOK__) {
+                print("Hello")
+                func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
+                    print("Bla")
+                    __ANYTOK__(None, 5)
+                    return
+                }
+                mycall(abc, __ANYTOK__)
+                return
+            }
+            """), any_match_value="__ANYTOK__")
+
+        if True:
+            return
 
         do_test(textwrap.dedent("""\
             func x {

@@ -862,7 +862,8 @@ def _net_fetch_get(uri, extra_headers=None,
 
 def _run_main(main_func):
     global DEBUGV, _async_ops_stop_threads,\
-        _async_ops_lock, _async_ops
+        _async_ops_lock, _async_ops, \
+        _async_delayed_calls
     def async_jobs_worker():
         global _async_ops_stop_threads,\
             _async_ops_lock, _async_ops
@@ -951,7 +952,8 @@ def _run_main(main_func):
                 _async_ops_lock.release()
                 continue
             first_call = _async_delayed_calls[0]
-            _async_delayed_calls[0] = (
+            assert(type(first_call) == tuple)
+            _async_delayed_calls = (
                 _async_delayed_calls[1:]
             )
             _async_ops_lock.release()

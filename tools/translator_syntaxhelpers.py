@@ -1360,6 +1360,8 @@ def transform_later_to_closure_funccontents(
                 _delayfuncname = "_fdelay" + (
                     str(uuid.uuid4()).replace("-", "")
                 )
+                if "".join(return_arg).strip(" \t\r\n") == "":
+                    return_arg = ["None"]
                 new_sts.append(
                     indent_tokens + ["func", " ", _delayfuncname,
                     " ", "{", "\n"] +
@@ -1379,7 +1381,10 @@ def transform_later_to_closure_funccontents(
             else:
                 new_sts.append(
                     indent_tokens + [outer_callback_name, "("] +
-                    return_arg + [")"]
+                    ["None", ","] + return_arg + [")", "\n"]
+                )
+                new_sts.append(
+                    indent_tokens + ["return", "\n"]
                 )
             continue
 
@@ -1499,7 +1504,7 @@ def transform_later_to_closure_funccontents(
             ))
         func_inner_content = None
         if not is_a_repeat:
-            func_inner_content = flatten(
+            func_inner_lines = (
                 transform_later_to_closure_funccontents(
                     split_toplevel_statements(
                         tokenize(func_inner_content_str)
@@ -1513,8 +1518,39 @@ def transform_later_to_closure_funccontents(
                         funcname
                 )
             )
-            assert(len(func_inner_content) == 0 or
-                type(func_inner_content[0]) == str)
+            inner_indent = get_indent(st) + h64_indent
+            assert(len(func_inner_lines) == 0 or
+                type(func_inner_lines[0]) == list)
+
+            # Check if it ends with a 'return':
+            ends_in_return = False
+            if len(func_inner_lines) > 0:
+                inner_indent = get_indent(func_inner_lines[0])
+                if inner_indent is None:
+                    # Revert to working value.
+                    inner_indent = get_indent(st) + h64_indent
+                last_line = func_inner_lines[-1]
+                while is_whitespace_statement(last_line):
+                    func_inner_lines = func_inner_lines[:-1]
+                    if len(func_inner_lines) <= 0:
+                        break
+                    last_line = func_inner_lines[-1]
+                if ("".join(get_indent(last_line)) ==
+                        inner_indent and
+                        firstnonblank(last_line) == "return"):
+                    ends_in_return = True
+
+            # Now flatten function code:
+            func_inner_content = flatten(func_inner_lines)
+
+            # If new function doesn't have return at the end,
+            # add a callback and return to make sure we bail:
+            if not ends_in_return:
+                func_inner_content += (
+                    ["\n"] + ["\n", inner_indent,
+                    outer_callback_name, "(",
+                    "None", ",", "None", ")", "\n",
+                    inner_indent, "return", "\n"])
 
         # Assemble callback statement and add it in:
         if not is_a_repeat:
@@ -1753,17 +1789,31 @@ def transform_later_to_closure_unnested(
                     inner_indent and
                     firstnonblank(last_line) == "return"):
                 ends_in_return = True
-        newst = (st[:block_range[0]] + flatten(
-            inner_code_lines))
+
+        # Put together a new statement around the code:
+        outer_indent = get_indent(st)
+        if outer_indent == None:
+            outer_indent = ""
+        newst = (st[:block_range[0]] + ["\n"] +
+            flatten(inner_code_lines))  # Old "header" + inner code
         while (len(newst) > 0 and
                 newst[-1].strip(" \r\n\t") == ""):
             newst = newst[:-1]
         if not ends_in_return:
+            # If new function doesn't have return at the end,
+            # add a callback and return to make sure we bail:
             newst += (["\n"] + ["\n", inner_indent,
                 callback_name, "(",
                 "None", ",", "None", ")", "\n",
                 inner_indent, "return", "\n"])
-        newst += (st[block_range[1]:])
+        # Add the closing stuff to our func, ensure right indent:
+        def _trimindent(_st):
+            while len(_st) > 0 and _st[0].strip(" \r\t\n") == "":
+                _st = _st[:1]
+            return _st
+        newst += (["\n", outer_indent] + _trimindent(
+            st[block_range[1]:]))
+        # Ok done, add our reformatted function:
         new_sts.append(newst)
     return new_sts
 
