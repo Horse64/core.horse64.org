@@ -48,7 +48,7 @@ def is_keyword(x):
     if x in {"if", "func", "import", "else",
             "type", "do", "rescue", "finally",
             "from", "as", "extends", "protect",
-            "return",
+            "return", "await",
             "var", "const", "elseif", "while",
             "for", "in", "not", "and", "or"}:
         return True
@@ -1116,11 +1116,11 @@ def extract_all_imports(s):
 def get_global_standalone_func_names(s,
         error_duplicates=False
         ):
-    result = []
+    result = dict()
     scope = get_global_names(s)
     for entry in scope:
         if scope[entry]["type"] == "func":
-            result.append(entry)
+            result[entry] = scope[entry]
     return result
 
 
@@ -1364,7 +1364,7 @@ def transform_later_to_closure_funccontents(
                     indent_tokens + ["func", " ", _delayfuncname,
                     " ", "{", "\n"] +
                     indent_tokens + [h64_indent] + [
-                    outer_callback_name, "("] +
+                    outer_callback_name, "(", "None", ","] +
                     return_arg + [")", "\n"] + indent_tokens +
                     ["}", "\n"]
                 )
@@ -1374,13 +1374,29 @@ def transform_later_to_closure_funccontents(
                 new_sts.append(
                     indent_tokens + ["return", " "] +
                     delayed_call_tokens +
-                    ["(", _delayfuncname, ")"]
+                    ["(", _delayfuncname, ",", "[", "]", ")"]
                 )
             else:
                 new_sts.append(
                     indent_tokens + [outer_callback_name, "("] +
                     return_arg + [")"]
                 )
+            continue
+
+        # Then, handle awaits:
+        if firstnonblank(st) == "await":
+            if await_error_name is None:
+                # This is invalid code, ignore.
+                new_sts.append(st)
+                continue
+            indent_tokens = st[:firstnonblankidx(st)]
+            new_sts.append(
+                indent_tokens + ["if", " ", "(",
+                await_error_name, " ", "!=", " ", "none", ")", " ",
+                 "{", "\n"] + indent_tokens + [h64_indent,
+                "throw", " ", await_error_name, "\n"] +
+                indent_tokens + ["}", "\n"]
+            )
             continue
 
         # Not a 'return'/'return later'. Find other 'later' uses:
@@ -1468,10 +1484,10 @@ def transform_later_to_closure_funccontents(
         # Name for our new callback implicitly created by 'later',
         # as well as indent for the 'func ... {' opening line:
         funcname = None
-        awaiterrorname = None
+        await_error_name = None
         if not is_a_repeat:
             funcname = "_" + str(uuid.uuid4()).replace("-", "")
-            awaiterrorname = "_awerr" + str(uuid.uuid4()).replace("-", "")
+            await_error_name = "_awerr" + str(uuid.uuid4()).replace("-", "")
         indent = get_indent(st)
 
         # Get all the statements after 'later' to pull into callback:
@@ -1503,9 +1519,12 @@ def transform_later_to_closure_funccontents(
         # Assemble callback statement and add it in:
         if not is_a_repeat:
             insert_st = ([indent, "func", " ",
-                funcname, " ", "(", awaiterrorname])
+                funcname, " ", "(", await_error_name])
             if arg_name != None:
                 insert_st += [",", arg_name]
+            else:
+                insert_st += [",", "_unused" +
+                    str(uuid.uuid4()).replace("-", "")]
             insert_st += [")", " "]
             insert_st += (["{", "\n"] +
                 func_inner_content +
@@ -1797,6 +1816,11 @@ def get_global_names(
                 "var", "const", "import", "func", "type"}:
             continue
 
+        # See if this function uses 'later':
+        is_later_func = False
+        if kw == "func":
+            is_later_func = is_func_a_later_func(st)
+
         # Extract what it names:
         i = firstnonblankidx(st)
         assert(st[i] == kw)
@@ -1827,8 +1851,12 @@ def get_global_names(
                         is_type)
                 continue
             result[is_named] = {
-                "type": is_type
+                "type": is_type,
             }
+            if is_type == "func":
+                result[is_named]["is-later-func"] = (
+                    is_later_func
+                )
     return result
 
 

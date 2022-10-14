@@ -2045,6 +2045,7 @@ def separate_func_keyword_arg_code(
 def run_translator_main():
     args = sys.argv[1:]
     output_file = False
+    output_file_linenos = True
     target_file = None
     target_file_args = []
     keep_files = False
@@ -2098,6 +2099,9 @@ def run_translator_main():
                 paranoid = True
             elif args[i] == "--output-file":
                 output_file = True
+            elif args[i] == "--output-file-with-linenos":
+                output_file = True
+                output_file_linenos = True
             elif (args[i] == "--version" or args[i] == "-v" or
                     args[i] == "-V"):
                 print("tools/translator.py version " + VERSION)
@@ -2447,30 +2451,71 @@ def run_translator_main():
                     contents_result += (
                         regtype.funcs[funcname]["code"] + "\n")
 
-            if (translated_files[translated_file]["path"] ==
-                    mainfilepath):
-                if run_as_test:
-                    test_funcs = get_global_standalone_func_names(
-                        translated_files[translated_file]
-                            ["original-source"])
-                    test_funcs = [tf for tf in test_funcs if
-                        tf.startswith("test_")]
-                    if len(test_funcs) == 0:
-                        print("tools/translator.py: error: "
-                            "no test functions found in this file")
-                        sys.exit(1)
-                    contents_result += ("\nif __name__ == '__main__':" +
-                        "\n    ")
-                    for tf in test_funcs:
-                        contents_result += tf + "(); "
+            is_main_file = (translated_files\
+                [translated_file]["path"] == mainfilepath)
+            if is_main_file and run_as_test:
+                # Get the name & info of all global test funcs:
+                test_funcs = get_global_standalone_func_names(
+                    translated_files[translated_file]
+                        ["original-source"])
+                test_funcs = [(tf,
+                    test_funcs[tf]["is-later-func"]) for
+                    tf in test_funcs if tf.startswith("test_")]
+                if len(test_funcs) == 0:
+                    print("tools/translator.py: error: "
+                        "no test functions found in this file")
+                    sys.exit(1)
+
+                # Insert a new hidden main to call the test funcs:
+                testmain = ("_testsmain" +
+                    str(uuid.uuid4()).replace("-", ""))
+                contents_result += ("\ndef " + testmain + "():" +
+                    "\n    ")
+                for (tfname, tfislater) in test_funcs:
+                    contents_result += (tfname + "(" +
+                        ("lambda x, y: None" if
+                        tfislater else "") + "); ")
+
+                # Insert actual main to call our test main:
+                contents_result += ("\nif __name__ == '__main__':" +
+                    "\n    _remapped_sys.exit(" +
+                    "\n        _translator_runtime_helpers." +
+                                "_run_main(" + testmain + "))\n")
+            if is_main_file and not run_as_test:
+                # Get the name & info, find out about our 'main':
+                test_funcs = get_global_standalone_func_names(
+                    translated_files[translated_file]
+                        ["original-source"])
+                assert("main" in test_funcs)
+                main_is_later_func = test_funcs["main"]["is-later-func"]
+
+                # Insert a new hidden main that can pass a fake callback:
+                innermain = ("_testsmain" +
+                    str(uuid.uuid4()).replace("-", ""))
+                contents_result += ("\ndef " + innermain + "():" +
+                    "\n    ")
+                if main_is_later_func:
+                    contents_result += ("main(lambda x, y: None); ")
                 else:
-                    contents_result += (
-                        "\nif __name__ == '__main__':" +
-                        "\n    _remapped_sys.exit(" +
-                        "\n        _translator_runtime_helpers." +
-                                    "_run_main(main))\n")
-                if output_file:
+                    contents_result += ("main();")
+
+                # Add actual main call:
+                contents_result += (
+                    "\nif __name__ == '__main__':" +
+                    "\n    _remapped_sys.exit(" +
+                    "\n        _translator_runtime_helpers." +
+                                "_run_main(main))\n")
+            if is_main_file and output_file:
+                if not output_file_linenos:
                     output_file_result = contents_result
+                else:
+                    output_file_result = ""
+                    lineno = 0
+                    for content_line in contents_result.splitlines():
+                        lineno += 1
+                        output_file_result += (
+                            ("\n" if lineno > 1 else "") +
+                            str(lineno) + ": " + content_line)
 
             if DEBUGV.ENABLE and DEBUGV.ENABLE_CONTENTS:
                 print("tools/translator.py: debug: have output of " +

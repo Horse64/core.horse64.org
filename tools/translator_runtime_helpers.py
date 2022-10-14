@@ -43,7 +43,7 @@ import urllib.parse
 _async_ops_lock = threading.Lock()
 _async_ops = []
 _async_ops_stop_threads = False
-_async_callbacks = []
+_async_delayed_calls = []
 
 
 class _LicenseObj:
@@ -579,9 +579,9 @@ def _wrap_io(f):
 
 
 def _async_delay_call(f, args):
-    global _async_callbacks, async_ops_lock
+    global _async_delayed_calls, async_ops_lock
     _async_ops_lock.acquire()
-    _async_callbacks.append((f, args))
+    _async_delayed_calls.append((f, args))
     _async_ops_lock.release()
 
 
@@ -916,9 +916,13 @@ def _run_main(main_func):
     return_value = main_func()
     while True:
         _async_ops_lock.acquire()
-        if len(_async_ops) == 0:
+        if (len(_async_ops) == 0 and
+                len(_async_delayed_calls) == 0):
             _async_ops_lock.release()
             break
+
+        # If we got any operations done, process result:
+        have_calls_waiting = len(_async_delayed_calls)
         done_op = None
         i = 0
         while i < len(_async_ops):
@@ -938,7 +942,30 @@ def _run_main(main_func):
                 _async_ops_lock.release()
                 raise e
             continue
+        elif have_calls_waiting:
+            _async_ops_lock.acquire()
+
+            # No operator needing our time but delayed calls!
+            if len(_async_delayed_calls) == 0:
+                # Oops, was cleared out in race condition.
+                _async_ops_lock.release()
+                continue
+            first_call = _async_delayed_calls[0]
+            _async_delayed_calls[0] = (
+                _async_delayed_calls[1:]
+            )
+            _async_ops_lock.release()
+            try:
+                first_call[0](*(first_call[1]))
+            except Exception as e:
+                _async_ops_lock.acquire()
+                _async_ops_stop_threads = True
+                _async_ops_lock.release()
+                raise e
+            continue
+        # Since we didn't do work, sleep to not burn the CPU:
         time.sleep(0.01)
+        continue
     if DEBUGV.ENABLE and DEBUGV.ENABLE_ASYNC_OPS:
         print("tools/translator.py: debug: program "
             "shutting down for good, stopping jobs...")

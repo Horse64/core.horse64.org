@@ -56,8 +56,8 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         """)
         result = get_global_standalone_func_names(testcode)
         self.assertEqual(len(result), 2)
-        self.assertEqual(result[0], "hello")
-        self.assertEqual(result[1], "hello2")
+        self.assertTrue("hello" in result)
+        self.assertTrue("hello2" in result)
 
     def test_make_kwargs_in_call_tailing(self):
         t = ["func", " ", "bla", "(", "b", "=", "5", ")", "{",
