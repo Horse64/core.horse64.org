@@ -127,7 +127,7 @@ def statement_declared_identifiers(
         i += 1  # Past identifier.
         while i < len(st) and st[i].strip(" \t\r\n") == "":
             i += 1
-        if i >= len(st) or st[i] != "(":
+        if i >= len(st) or st[i] != "(" or not recurse:
             return result + do_recurse()
         i += 1  # Past opening '('.
 
