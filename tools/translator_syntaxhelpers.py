@@ -1058,7 +1058,10 @@ def split_toplevel_statements(s, skip_whitespace=True):
         if (not skip_whitespace or
                 not is_whitespace_statement(
                 next_stmt)):
-            statements.append(next_stmt)
+            statements.append(list(next_stmt))
+            if ("".join(statements[-1]).strip("\r\n") ==
+                    "".join(statements[-1])):
+                statements[-1] += ["\n"]
         s = s[len(next_stmt):]
     return statements
 
@@ -1147,6 +1150,9 @@ def tree_transform_statements(code, callback_statement_list):
                 replacement +
                 statement[block_range[1]:])
         final_tokens += statement
+        if ("".join(final_tokens) ==
+                "".join(final_tokens).strip("\r\n")):
+            final_tokens += ["\n"]
     if was_string:
         return untokenize(final_tokens)
     return final_tokens
@@ -1910,7 +1916,7 @@ def transform_later_to_closure_unnested(
                 _st = _st[:1]
             return _st
         newst += (["\n", outer_indent] + _trimindent(
-            st[block_range[1]:]))
+            st[block_range[1]:] + ["\n"]))
         # Ok done, add our reformatted function:
         new_sts.append(newst)
     return new_sts

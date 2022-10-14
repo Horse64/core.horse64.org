@@ -201,52 +201,79 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
 
         # First test that the non-recursive call won't recurse:
         do_test(textwrap.dedent("""\
-            func hello2 {
-                func blorb {
-                    mycall(abc) later:
-                }
-            }"""), None, recursive=False)
+        func hello2 {
+            func blorb {
+                mycall(abc) later:
+            }
+        }"""), None, recursive=False)
 
         # A slightly more complex attempt:
         do_test(textwrap.dedent("""\
-            func f {
-                print("Hello")
-                mycall(abc) later:
+        func f {
+            print("Hello")
+            mycall(abc) later:
+            print("Bla")
+        }"""
+        ), textwrap.dedent("""\
+        func f(__ANYTOK__) {
+            print("Hello")
+            func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
                 print("Bla")
-            }"""
-            ), textwrap.dedent("""\
-            func f(__ANYTOK__) {
-                print("Hello")
-                func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
-                    print("Bla")
-                    __ANYTOK__(None, None)
-                    return
-                }
-                mycall(abc, __ANYTOK__)
+                __ANYTOK__(None, None)
                 return
             }
-            """), any_match_value="__ANYTOK__")
+            mycall(abc, __ANYTOK__)
+            return
+        }
+        """), any_match_value="__ANYTOK__")
 
         # Ensure trailing returns are handled fine:
         do_test(textwrap.dedent("""\
-            func f {
-                print("Hello")
-                mycall(abc) later:
+        func f {
+            print("Hello")
+            mycall(abc) later:
+            print("Bla")
+            return 5
+        }"""
+        ), textwrap.dedent("""\
+        func f(__ANYTOK__) {
+            print("Hello")
+            func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
                 print("Bla")
-                return 5
-            }"""
-            ), textwrap.dedent("""\
-            func f(__ANYTOK__) {
-                print("Hello")
-                func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
-                    print("Bla")
-                    __ANYTOK__(None, 5)
-                    return
-                }
-                mycall(abc, __ANYTOK__)
+                __ANYTOK__(None, 5)
                 return
             }
-            """), any_match_value="__ANYTOK__")
+            mycall(abc, __ANYTOK__)
+            return
+        }
+        """
+        ), any_match_value="__ANYTOK__")
+
+        # Ensure arguments aren't in wrong order:
+        do_test(textwrap.dedent("""\
+        func xyz(args, thing=no) {
+            return later "test"
+        }
+        func main {
+            var result = xyz([1, 2], thing=yes) later:
+        }"""), textwrap.dedent(
+        """\
+        func xyz(args, __ANYTOK__, thing=no) {
+            func __ANYTOK__ {
+                __ANYTOK__(None, "test")
+            }
+            return _translator_runtime_helpers._async_delay_call(
+                __ANYTOK__, []
+            )
+        }
+        func main(__ANYTOK__) {
+            func __ANYTOK__(__ANYTOK__, result) {
+                __ANYTOK__(None, None)
+                return
+            }
+            var result = xyz([1, 2], thing=yes, __ANYTOK__)
+            return
+        }"""), any_match_value="__ANYTOK__")
 
     def test_statement_declared_identifiers(self):
         self.assertEqual(set(statement_declared_identifiers(
@@ -254,7 +281,7 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
             recurse=True)), {"x", "y", "z"})
         self.assertEqual(set(statement_declared_identifiers(
             "func x(y) {\nvar z = 1\n}",
-            recurse=False)), {"x", "y"})
+            recurse=False)), {"x"})
         self.assertEqual(set(statement_declared_identifiers(
             "func x(y) {\nvar z = 1\nfunc j{var u}\n}",
             recurse=True)), {"x", "y", "z", "j"})
