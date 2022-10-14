@@ -42,7 +42,7 @@ func delayed_stuff {
 func inner_later_test {
     assert(global_count == 0)
 
-    var had_repeat = yes
+    var had_repeat = no
 
     call_my_callback_and_count(2)
     later:

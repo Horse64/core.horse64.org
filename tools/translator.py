@@ -69,6 +69,7 @@ from translator_transformhelpers import (
 
 from translator_syntaxhelpers import (
     get_global_names,
+    statement_declared_identifiers,
     tokenize, untokenize, get_indent,
     is_identifier, as_escaped_code_string,
     is_whitespace_token, get_next_token,
@@ -1733,6 +1734,10 @@ def translate(s, sc):
             continue
         elif statement[0] == "func":
             statement_cpy = list(statement)
+            interesting_nonlocals = (
+                get_interesting_nonlocals(
+                    statement, sc.parent_statements
+                ))
             nameidx = nextnonblankidx(statement, 0)
             assert(nameidx >= 0)
 
@@ -1865,6 +1870,10 @@ def translate(s, sc):
                     "global " + ",".join(
                     tell_python_about_globals) +
                     "\n" + inner_code)
+            if len(interesting_nonlocals) > 0:
+                inner_code = (inner_indent +
+                    "nonlocal " + ",".join(
+                    interesting_nonlocals) + "\n" + inner_code)
             inner_code += (inner_indent + "pass\n")
             if type_name is None:
                 result += (indent + "def " + name +
@@ -2039,6 +2048,30 @@ def separate_func_keyword_arg_code(
         ["("] + (new_args_separated_flat) + [")"],
         kw_arg_init_code
     )
+    return result
+
+
+def get_interesting_nonlocals(st, parent_sts):
+    if firstnonblank(st) != "func":
+        raise ValueError("meant to be used on funcs")
+    current_inner_vars = statement_declared_identifiers(st)
+    collect = set()
+    i = len(parent_sts)
+    while i - 1 >= 0:
+        i -= 1
+        if firstnonblank(parent_sts[i]) == "func":
+            collect = collect.union(
+                set(statement_declared_identifiers(
+                parent_sts[i],
+                exclude_direct_func_name=True)))
+    result = []
+    for varname in list(collect):
+        if not varname in current_inner_vars:
+            result.append(varname)
+    #print("get_interesting_nonlocals(): on: " + str(st))
+    #print("INNER: " + str(current_inner_vars))
+    #print("OUTER: " + str(collect))
+    #print("RESULT: " + str(result))
     return result
 
 

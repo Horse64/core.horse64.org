@@ -80,7 +80,8 @@ def identifier_or_keyword(x):
 
 
 def statement_declared_identifiers(
-        st, recurse=True, recurse_into_funcs=False
+        st, recurse=True, recurse_into_funcs=False,
+        exclude_direct_func_name=False
         ):
     if type(st) == str:
         st = tokenize(st)
@@ -121,7 +122,8 @@ def statement_declared_identifiers(
         i = nextnonblankidx(st, firstnonblankidx(st))
         if i >= len(st) or not is_identifier(st[i]):
             return result + do_recurse()
-        result.append(st[i])  # Name of function itself.
+        if not exclude_direct_func_name:
+            result.append(st[i])  # Name of function itself.
         i += 1  # Past identifier.
         while i < len(st) and st[i].strip(" \t\r\n") == "":
             i += 1
@@ -172,6 +174,7 @@ def statement_declared_identifiers(
             if is_identifier(idf):
                 result.append(idf)
         return result + do_recurse()
+    return result
 
 
 def is_identifier(v):
