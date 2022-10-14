@@ -79,6 +79,101 @@ def identifier_or_keyword(x):
     return True
 
 
+def statement_declared_identifiers(
+        st, recurse=True, recurse_into_funcs=False
+        ):
+    if type(st) == str:
+        st = tokenize(st)
+    assert(type(st) in {tuple, list})
+
+    # Collects names from inner block ranges:
+    def do_recurse():
+        nonlocal recurse
+        if not recurse:
+            return []
+        inner_result = []
+
+        # Split all block contents to scan them all:
+        ranges = get_statement_block_ranges(st)
+        stmts = []
+        for brange in ranges:
+            subtokens = st[brange[0]:brange[1]]
+            stmts += split_toplevel_statements(subtokens)
+
+        # Scan resulting statements:
+        for inner_st in stmts:
+            inner_do_recurse = True
+            if (firstnonblank(inner_st) == "func" and
+                    not recurse_into_funcs):
+                # Don't pick up those func's inner blocks:
+                inner_do_recurse = False
+            # Add stuff to our overall result:
+            inner_result += (
+                statement_declared_identifiers(
+                    inner_st,
+                    recurse=inner_do_recurse,
+                    recurse_into_funcs=
+                        recurse_into_funcs))
+        return inner_result
+    result = []
+    if firstnonblank(st) == "func":
+        # Extract name, advance to parameters:
+        i = nextnonblankidx(st, firstnonblankidx(st))
+        if i >= len(st) or not is_identifier(st[i]):
+            return result + do_recurse()
+        result.append(st[i])  # Name of function itself.
+        i += 1  # Past identifier.
+        while i < len(st) and st[i].strip(" \t\r\n") == "":
+            i += 1
+        if i >= len(st) or st[i] != "(":
+            return result + do_recurse()
+        i += 1  # Past opening '('.
+
+        # Now parse the parameters:
+        bracket_depth = 1
+        while i < len(st):
+            assert(bracket_depth == 1)
+            while i < len(st) and st[i].strip(" \t\r\n") == "":
+                i += 1
+            if i < len(st) and is_identifier(st[i]):
+                result.append(st[i])
+            i += 1  # Past main name identifier.
+            while i < len(st) and (
+                    st[i] not in {",", ")"} or
+                    bracket_depth > 1):
+                if st[i] in {"(", "[", "{"}:
+                    bracket_depth += 1
+                elif st[i] in {")", "]", "}"}:
+                    bracket_depth -= 1
+                i += 1
+            if i >= len(st) or st[i] != ",":
+                break
+            i += 1  # Past ',', and to next param.
+        return result + do_recurse()
+    elif firstnonblank(st) in {"for", "const", "var"}:
+        idf = nextnonblank(st,
+            firstnonblankidx(st))
+        if is_identifier(idf):
+            result.append(idf)
+        return result + do_recurse()
+    elif firstnonblank(st) in {"with", "do"}:
+        bracket_depth = 0
+        i = 0
+        while i < len(st) and (
+                st[i] != "as" or
+                bracket_depth > 0):
+            if st[i] in {"(", "[", "{"}:
+                bracket_depth += 1
+            elif st[i] in {")", "]", "}"}:
+                bracket_depth -= 1
+            i += 1
+        if i < len(st) and st[i] == "as":
+            idf = nextnonblank(st, i)
+            if is_identifier(idf):
+                result.append(idf)
+        return result + do_recurse()
+
+
 def is_identifier(v):
     return (identifier_or_keyword(v) and
         not is_keyword(v))

@@ -41,6 +41,7 @@ from translator_syntaxhelpers import (
     get_indent, transform_later_to_closure_unnested,
     transform_later_to_closures,
     get_global_names, get_names_defined_in_func,
+    statement_declared_identifiers,
 )
 
 
@@ -247,49 +248,16 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
             }
             """), any_match_value="__ANYTOK__")
 
-        if True:
-            return
-
-        do_test(textwrap.dedent("""\
-            func x {
-                var param = func_a(
-                    "abc", kwarg=2,
-                ) later:
-
-                await param
-
-                print("test")
-            }"""), textwrap.dedent("""\
-            func x {
-                func __ANYTOK__ (param1, param2) {
-                    print("test")
-                }
-                func_a(
-                    "abc", kwarg=2, __ANYTOK__
-                )
-            }"""), recursive=True,
-            any_match_value="__ANYTOK__")
-
-        do_test(textwrap.dedent("""\
-            func test_later {
-                assert(global_count == 0)
-                call_my_callback_and_count(2) later:
-                assert(global_count == 3)
-                var x = call_my_callback() later:
-                assert(x == 6)
-            }"""), textwrap.dedent("""\
-            func test_later {
-                assert(global_count == 0)
-                func __ANYTOK__ {
-                    assert(global_count == 3)
-                    func __ANYTOK__ (x) {
-                        assert(x == 6)
-                    }
-                    call_my_callback(__ANYTOK__)
-                }
-                call_my_callback_and_count(2, __ANYTOK__)
-            }"""), recursive=True,
-            any_match_value="__ANYTOK__")
+    def test_statement_declared_identifiers(self):
+        self.assertEqual(set(statement_declared_identifiers(
+            "func x(y) {\nvar z = 1\n}",
+            recurse=True)), {"x", "y", "z"})
+        self.assertEqual(set(statement_declared_identifiers(
+            "func x(y) {\nvar z = 1\n}",
+            recurse=False)), {"x", "y"})
+        self.assertEqual(set(statement_declared_identifiers(
+            "func x(y) {\nvar z = 1\nfunc j{var u}\n}",
+            recurse=True)), {"x", "y", "z", "j"})
 
     def test_get_indent(self):
         self.assertEqual(get_indent("\n  "), None)
