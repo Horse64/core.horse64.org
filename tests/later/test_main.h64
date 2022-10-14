@@ -27,30 +27,24 @@
 
 var global_count = 0
 
-
 func call_my_callback_and_count(v) {
     global_count += v
     return later
 }
 
-
 func delayed_stuff {
     return later global_count * 2
 }
 
-
 func inner_later_test {
     assert(global_count == 0)
-
     var had_repeat = no
 
-    call_my_callback_and_count(2)
-    later:
+    call_my_callback_and_count(2) later:
 
     assert(global_count == 2)
 
-    var x = delayed_stuff()
-    later:
+    var x = delayed_stuff() later:
 
     await x  # (Will throw any error that occurred in call_my_callback)
     if not had_repeat {
@@ -65,7 +59,6 @@ func inner_later_test {
         assert(x == 6)
     }
 }
-
 
 func test_later {
     inner_later_test()
