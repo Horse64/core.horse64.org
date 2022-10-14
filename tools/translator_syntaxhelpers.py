@@ -1825,9 +1825,9 @@ def transform_later_to_closure_unnested(
                     if not current_arg_had_assign:
                         last_nonkw_arg_end = i
                     break
-                elif st[i] == "=" and bracket_depth == 0:
+                elif st[i] == "=" and bracket_depth <= 1:
                     current_arg_had_assign = True
-                elif st[i] == "," and bracket_depth == 0:
+                elif st[i] == "," and bracket_depth <= 1:
                     if not current_arg_had_assign:
                         last_nonkw_arg_end = i
                     current_arg_start = i + 1

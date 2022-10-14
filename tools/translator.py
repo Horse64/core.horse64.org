@@ -2523,7 +2523,7 @@ def run_translator_main():
                 main_is_later_func = test_funcs["main"]["is-later-func"]
 
                 # Insert a new hidden main that can pass a fake callback:
-                innermain = ("_testsmain" +
+                innermain = ("_wrapmain" +
                     str(uuid.uuid4()).replace("-", ""))
                 contents_result += ("\ndef " + innermain + "():" +
                     "\n    ")
@@ -2537,7 +2537,7 @@ def run_translator_main():
                     "\nif __name__ == '__main__':" +
                     "\n    _remapped_sys.exit(" +
                     "\n        _translator_runtime_helpers." +
-                                "_run_main(main))\n")
+                                "_run_main(" + innermain + "))\n")
             if is_main_file and output_file:
                 if not output_file_linenos:
                     output_file_result = contents_result
