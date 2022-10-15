@@ -67,9 +67,15 @@ from translator_transformhelpers import (
     is_problematic_identifier_name,
 )
 
-from translator_syntaxhelpers import (
+from translator_scopehelpers import (
+    get_global_standalone_func_names,
+    extract_all_imports,
+    get_names_defined_in_func,
     get_global_names,
     statement_declared_identifiers,
+)
+
+from translator_syntaxhelpers import (
     tokenize, untokenize, get_indent,
     is_identifier, as_escaped_code_string,
     is_whitespace_token, get_next_token,
@@ -79,13 +85,15 @@ from translator_syntaxhelpers import (
     get_next_statement, prevnonblank, prevnonblankidx,
     sanity_check_h64_codestring,
     separate_out_inline_funcs,
-    get_global_standalone_func_names,
     identifier_or_keyword, is_h64op_with_righthand,
-    is_number_token, extract_all_imports,
+    is_number_token,
     make_kwargs_in_call_tailing,
-    transform_later_to_closures,
-    get_names_defined_in_func,
 )
+
+from translator_latertransform import (
+    transform_later_to_closures,
+)
+
 
 translator_py_script_dir = (
     os.path.abspath(os.path.dirname(__file__))

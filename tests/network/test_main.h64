@@ -30,4 +30,11 @@ import net.fetch from core.horse64.org
 
 
 func test_fetch {
+    var test_dir = io.make_tmpdir(
+        prefix="core-h64-network-test-"
+    )
+    do {
+    } finally {
+        io.remove_dir(test_dir)
+    }
 }

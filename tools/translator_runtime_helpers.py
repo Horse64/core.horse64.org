@@ -553,10 +553,10 @@ def _io_ls_dir(v, allow_vfs=True, force_vfs=False):
 
 
 def _wrap_io(f):
-    def wrapped_func(args, **kwargs):
+    def wrapped_func(*args, **kwargs):
         result = None
         try:
-            result = f(args, **kwargs)
+            result = f(*args, **kwargs)
         except (FileNotFoundError, OSError, IOError) as e:
             if isinstance(e, FileNotFoundError):
                 raise _PathNotFoundError()
@@ -575,6 +575,7 @@ def _wrap_io(f):
             if isinstance(e, OSError):
                 raise _ResourceMisuseError()
             raise _IOError(str(e))
+        return result
     return wrapped_func
 
 

@@ -46,9 +46,12 @@ from translator_syntaxhelpers import (
     get_next_statement, prevnonblank, prevnonblankidx,
     sanity_check_h64_codestring,
     separate_out_inline_funcs,
-    get_global_standalone_func_names,
     identifier_or_keyword, is_h64op_with_righthand,
     is_number_token, find_start_of_call_index_chain
+)
+
+from translator_scopehelpers import (
+    get_global_standalone_func_names,
 )
 
 
