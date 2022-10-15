@@ -1221,6 +1221,7 @@ def get_indent(statement):
     s = statement
     if type(s) == list:
         s = untokenize(s)
+    assert(type(s) == str)
     i = 0
     while i < len(s):
         if not s[i] in {
@@ -1379,4 +1380,24 @@ def make_kwargs_in_call_tailing(s):
     if was_str:
         return untokenize(s)
     return s
+
+
+def mirror_brackets(s):
+    revs = {
+        "(": ")",
+        ")":"(",
+        "[": "]",
+        "]":"[",
+        "{": "}",
+        "}":"{"
+    }
+    snew = ""
+    i = 0
+    while i < len(s):
+        if s[i] in revs:
+            snew += revs[s[i]]
+        else:
+            snew += s[i]
+        i += 1
+    return snew
 

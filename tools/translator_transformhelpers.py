@@ -39,6 +39,7 @@ import traceback
 from translator_syntaxhelpers import (
     tokenize, untokenize, get_indent,
     is_identifier, as_escaped_code_string,
+    mirror_brackets,
     is_whitespace_token, get_next_token,
     split_toplevel_statements, nextnonblank,
     nextnonblankidx,
@@ -299,3 +300,155 @@ def transform_h64_misc_inline_to_python(s):
     if was_str:
         return untokenize(s)
     return s
+
+
+def indent_sanity_check(s, what_in="unknown code"):
+    if type(s) == list:
+        s = untokenize(s)
+    assert(type(s) == str)
+
+    # Dumb helper function for at least obvious cases:
+    def starts_with_statement_for_sure(s, prev_s):
+        s = s.replace("\t", " ")
+        s = s.replace("\n", " ")
+        s = s.replace("\t", " ")
+        prev_s = prev_s.replace("\t", " ")
+        prev_s = prev_s.replace("\n", " ")
+        prev_s = prev_s.replace("\t", " ")
+        if (s.startswith(")") or s.startswith("}") or
+                s.startswith("]")):
+            return False
+        if (s.startswith("var ") or
+                s.startswith("const ") or
+                s.startswith("do ") or
+                s.startswith("for ") or
+                s.startswith("return ") or
+                s.startswith("with ") or
+                s.startswith("await ") or
+                s.startswith("type ") or
+                s.startswith("import ")):
+            return True
+        if prev_s.endswith(":"):
+            return True
+        if prev_s.endswith(" repeat"):
+            return True
+        return False
+    def expected_indent_direction_after(s):
+        if (s.startswith("do ") or
+                s.startswith("func ") or
+                s.startswith("with ") or
+                s.startswith("type ") or
+                s.startswith("if ")):
+            return 1
+        if (s.startswith("var ") or
+                s.startswith("return ") or
+                s.startswith("const ") or
+                s.startswith("import ") or
+                s.endswith("repeat") or
+                s.startswith("await ") or
+                s.endswith(":")):
+            return 0
+        if s.strip() in {"}", "]", ")"}:
+            return -1
+        return None
+
+    def line_has_multi_stmts_for_sure(s):
+        s = tokenize(s)
+        hadnonblank = False
+        bdepth = 0
+        i = 0
+        while i < len(s):
+            if s[i] in {"(", "[", "{"}:
+                bdepth += 1
+            elif s[i] in {")", "]", "}"}:
+                bdepth -= 1
+            if (bdepth == 0 and hadnonblank and
+                    s[i] in {"var", "const",
+                    "do", "while", "for", "type",
+                    "import", "with", "await"}):
+                return True
+            if s[i].strip(" \r\n\t") != "":
+                hadnonblank = True
+            i += 1
+        return False
+
+    slines = s.splitlines()
+    prev_line = ""
+    prev_prev_s = ""
+    prev_s = ""
+    _future_prev_indent = ""
+    _future_prev_s = ""
+    i = -1
+    for sline in slines:
+        i += 1
+        if sline.strip() == "":
+            continue
+        prev_indent = _future_prev_indent
+        prev_prev_s = prev_s
+        prev_s = _future_prev_s
+        indent = get_indent(sline)
+        if indent is None:
+            indent = ""
+        s = sline.lstrip()
+        _future_prev_indent = indent
+        _future_prev_s = s
+
+        # Do some wild heuristic guesses:
+        shift_actual = len(indent) - len(prev_indent)
+        if (shift_actual >= 0 and (
+                s.startswith(")") or
+                s.startswith("]") or
+                s.startswith("}")) and
+                (starts_with_statement_for_sure(prev_s, prev_prev_s) or
+                prev_s in (")", "]", "}")) and
+                not prev_s.endswith(mirror_brackets(s[:1]))):
+            raise ValueError("in " + str(what_in) + ", " +
+                "line " + str(i + 1) + ": " +
+                "expected indent to decrease to last line, " +
+                "but it changed by " + str(shift_actual) +
+                " character(s)"
+            )
+        if prev_s == "}" and shift_actual > 0:
+            raise ValueError("in " + str(what_in) + ", " +
+                "line " + str(i + 1) + ": " +
+                "expected indent not increase to last line, " +
+                "but it changed by " + str(shift_actual) +
+                " character(s)"
+            )
+        if line_has_multi_stmts_for_sure(s):
+            raise ValueError("in " + str(what_in) + ", " +
+                "line " + str(i + 1) + ": " +
+                "indentation error, please write multiple "
+                "statements with same indentation in multiple "
+                "lines"
+            )
+        if not starts_with_statement_for_sure(s, prev_s):
+            continue
+        shift_expect = expected_indent_direction_after(prev_s)
+        if (shift_expect != None and
+                shift_expect == 0 and shift_actual != 0):
+            raise ValueError("in " + str(what_in) + ", " +
+                "line " + str(i + 1) + ": " +
+                "expected indent to remain same to last line, " +
+                "but it changed by " + str(shift_actual) +
+                " character(s)"
+            )
+        if (shift_expect != None and
+                shift_expect > 0 and shift_actual < 0):
+            raise ValueError("in " + str(what_in) + ", " +
+                "line " + str(i + 1) + ": " +
+                "expected indent to if at all increase after "
+                " last line, " +
+                "but it decreased by " + str(-shift_actual) +
+                " character(s)"
+            )
+        if (shift_expect != None and
+                shift_expect < 0 and shift_actual > 0):
+            raise ValueError("in " + str(what_in) + ", " +
+                "line " + str(i + 1) + ": " +
+                "expected indent to if at all decrease after "
+                " last line, " +
+                "but it increased by " + str(shift_actual) +
+                " character(s)"
+            )
+

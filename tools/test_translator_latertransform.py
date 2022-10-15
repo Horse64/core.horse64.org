@@ -33,6 +33,10 @@ from translator_syntaxhelpers import (
     expr_nonblank_equals, get_indent,
 )
 
+from translator_transformhelpers import (
+    indent_sanity_check
+)
+
 from translator_latertransform import (
     transform_later_to_closure_unnested,
     transform_later_to_closures,
@@ -46,6 +50,10 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                 recursive=False):
             if texpected is None:  # That means no change expected.
                 texpected = testcode
+            indent_sanity_check(
+                texpected,
+                what_in="test_transform_later_to_closure() "
+                "test input which must be indented right")
 
             # Get test code into expected format first:
             resultstmts = None
@@ -71,6 +79,18 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                     callback_delayed_func_name=[
                         "_translator_runtime_helpers", ".",
                         "_async_delay_call"])
+
+            # Check that the result is indented right:
+            try:
+                indent_sanity_check(
+                    resulttokens,
+                    what_in="test_transform_later_to_closure() "
+                    "test result after applying the tested func")
+            except ValueError:
+                print("WRONGLY INDENTED TEST OUTPUT:\n" +
+                      untokenize(resulttokens))
+                raise
+
             # Check the result matches what we expected:
             self.assertTrue(
                 expr_nonblank_equals(resulttokens,
@@ -156,6 +176,59 @@ class TestTranslatorLaterTransform(unittest.TestCase):
             var result = xyz([1, 2], thing=yes, __ANYTOK__)
             return
         }"""), any_match_value="__ANYTOK__")
+
+        # Ensure do/rescue/finally is factored in correctly:
+        do_test(textwrap.dedent("""\
+        func f {
+            do {
+                print("Hello")
+                mycall(abc) later:
+                print("Bla")
+                mycall(abc) later:
+                print("test")
+            } rescue any {
+                print("Rescued!")
+            } finally {
+                print("Finally.")
+            }
+        }"""
+        ), textwrap.dedent("""\
+        func f(__ANYTOK__) {
+            var __ANYTOK__ = no
+            do {
+                print("Hello")
+                func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
+                    var __ANYTOK__ = no
+                    do {
+                        print("Bla")
+                        __ANYTOK__ = no
+                        __ANYTOK__ = no
+                        __ANYTOK__(None, None)
+                        return
+                    } rescue any {
+                        if not __ANYTOK__ {
+                            print("Rescued")
+                        }
+                    } finally {
+                        if not __ANYTOK__ {
+                            print("Finally.")
+                        }
+                    }
+                }
+                mycall(abc, __ANYTOK__)
+                __ANYTOK__ = yes
+                return
+            } rescue any {
+                if not __ANYTOK__ {
+                    print("Rescued")
+                }
+            } finally {
+                if not __ANYTOK__ {
+                    print("Finally.")
+                }
+            }
+        }
+        """), any_match_value="__ANYTOK__")
 
 
 if __name__ == '__main__':

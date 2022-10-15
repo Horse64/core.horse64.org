@@ -33,6 +33,7 @@ from translator_syntaxhelpers import (
 )
 
 from translator_transformhelpers import (
+    indent_sanity_check,
     transform_h64_misc_inline_to_python,
     make_string_literal_python_friendly,
 )
@@ -45,6 +46,44 @@ class TestTranslatorTransformHelpers(unittest.TestCase):
         self.assertEqual(make_string_literal_python_friendly(
             ["1", "2", '"a\nb"']), ["1", "2", '"a\\nb"']
         )
+
+    def test_indent_sanity_check(self):
+        def do_test(s, should_fail=False):
+            had_error = False
+            try:
+                indent_sanity_check(s)
+            except ValueError:
+                had_error = True
+            self.assertEqual(had_error, should_fail,
+                "expected " + ("no " if should_fail else
+                "an ") + " indent mistake "
+                "to be detected in this code:\n" +
+                s)
+        do_test(textwrap.dedent("""\
+        func test {
+            var a
+                var b
+        }
+        """), should_fail=True)
+        do_test(textwrap.dedent("""\
+        func test {
+            var a
+            var b
+        }
+        """), should_fail=False)
+        do_test(textwrap.dedent("""\
+        func test {
+            do {
+                var a
+                var b
+        }
+        }
+        """), should_fail=True)
+        do_test(textwrap.dedent("""\
+        func test {
+            var a var b
+        }
+        """), should_fail=True)
 
     def test_transform_h64_misc_inline_to_python(self):
         t = ("s = s.replace(\"\r\", " ")." +

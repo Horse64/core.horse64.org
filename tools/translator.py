@@ -65,6 +65,7 @@ from translator_transformhelpers import (
     transform_h64_misc_inline_to_python,
     make_string_literal_python_friendly,
     is_problematic_identifier_name,
+    indent_sanity_check,
 )
 
 from translator_scopehelpers import (
@@ -2372,6 +2373,9 @@ def run_translator_main():
         original_contents = contents
         sanity_check_h64_codestring(contents, modname=modname,
             filename=target_file)
+        indent_sanity_check(contents, "module '" + str(modname) +
+            "'" + (" in '" + str(package_name) + "'" if
+            package_name != None else ""))
         assert(type(contents) == str)
         contents = separate_out_inline_funcs(contents)
         if paranoid:
