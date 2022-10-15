@@ -93,13 +93,13 @@ func write_to_file(uri, path) {
     if done and uris.len == 0 {
         # We're fully done!
         return
+    } elseif done {
+        # Go to next URI:
+        next_uri = uris.pop()
+        next_path = paths.pop()
+        target_obj = io.open(next_path, "wb")
+        src_obj = net.fetch.get(next_uri)
     }
-
-    # Go to next URI:
-    next_uri = uris.pop()
-    next_path = paths.pop()
-    target_obj = io.open(next_path, "wb")
-    src_obj = net.fetch.get(next_uri)
 
     # Do next chunk of read & write:
     done = read_and_write(
