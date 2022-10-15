@@ -31,6 +31,7 @@ import unittest
 from translator_syntaxhelpers import (
     tokenize, untokenize, split_toplevel_statements,
     get_statement_expr_ranges, get_statement_block_ranges,
+    increase_indent,
     get_statement_inline_funcs, tree_transform_statements,
     firstnonblank, firstnonblankidx,
     get_leading_whitespace, separate_out_inline_funcs,
@@ -259,6 +260,11 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         self.assertEqual(ranges[0][0], 4)
         self.assertEqual(ranges[0][1], 14)
         self.assertEqual(nextnonblank(t, ranges[0][1] - 1), "}")
+
+    def test_increase_indent(self):
+        self.assertEqual(increase_indent(
+            "   test\n   blob", added=" "),
+            "    test\n    blob")
 
     def test_get_leading_whitespace(self):
         t = get_leading_whitespace(["\n ", "\ttest"])

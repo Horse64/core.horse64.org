@@ -229,11 +229,106 @@ def get_statement_ranges_ex(t,
                 new_range[0] = linebreaks_range[0] + 1
             if linebreaks_range[1] != None:
                 new_range[1] = linebreaks_range[1] + 1
+            if len(brange) >= 3:
+                new_range.append(brange[2])  # Copy type.
             ranges_fixed.append(new_range)
         #print("FIX JOB : " + str((ranges, ranges_fixed)) +
         #    " ON: " + str(t))
         return ranges_fixed
     return ranges
+
+
+def adjust_to_absolute_indent(t, indent=""):
+    old_indent = get_indent(t)
+    if old_indent is None:
+        return
+    if len(indent) > len(old_indent):
+        change_indent = indent[len(old_indent):]
+        t = increase_indent(t, added=change_indent)
+        return t
+    else:
+        raise NotImplementedError("not implemented")
+
+
+def increase_indent(t, added="    "):
+    was_str = False
+    if type(t) == str:
+        was_str = True
+        t = tokenize(t)
+    else:
+        t = list(t)
+    assert(type(t) == list and (
+        len(t) == 0 or type(t[0]) == str))
+
+    lb = "\n"
+    for _t in t:
+        if "\r\n" in _t:
+            lb = "\r\n"
+            break
+        elif "\r" in _t:
+            lb = "\r"
+            break
+        elif "\n" in _t:
+            lb = "\n"
+            break
+
+    had_trailing_lb = (
+        len(lb) > 0 and t[-1].endswith(lb)
+    )
+    new_tokens = []
+    line_start = 0
+    i = 0
+    while True:
+        if i >= len(t) or (t[i].startswith(lb) and
+                i > line_start):
+            old_line = t[line_start:i]
+            if i < len(t) and t[i].index(lb) > 0:
+                old_line += t[i].partition(lb)[0]
+                t = (t[:i] + [t[i].partition(lb)[2]] +
+                    t[i + 1:])
+            else:
+                i += 1
+            line_start = i
+            old_line += [lb]
+            indent = get_indent(old_line)
+            while (len(old_line) > 0 and
+                    is_whitespace_token(old_line[0])):
+                old_line = old_line[1:]
+            new_line = [indent + added] + old_line
+            new_tokens += new_line
+            if i >= len(t):
+                break
+            continue
+        i += 1
+    if not had_trailing_lb and (
+            len(new_tokens) > 0 and
+            new_tokens[-1].endswith(lb)):
+        new_tokens[-1] = new_tokens[-1][:-len(lb)]
+        if len(new_tokens[-1]) == 0:
+            new_tokens = new_tokens[:-1]
+    if was_str:
+        return untokenize(new_tokens)
+    return new_tokens
+
+
+def token_outside_brackets_idx(
+        s, t, startidx = 0, startbdepth = 0):
+    assert(type(s) == list and (
+        len(s) == 0 or type(s[0]) == str))
+    assert(type(t) == str)
+    i = startidx
+    bdepth = startbdepth
+    while i < len(s):
+        if s[i] in {"(", "[", "{"}:
+            bdepth += 1
+        if s[i] in {")", "]", "}"}:
+            bdepth -= 1
+            if bdepth < 0:
+                return -1
+        if s[i] == t:
+            return i
+        i += 1
+    return -1
 
 
 def get_statement_ranges_ex_with_confused_linebreaks(t,
@@ -246,7 +341,17 @@ def get_statement_ranges_ex_with_confused_linebreaks(t,
         i += 1
     if i >= len(t):
         return []
-    if (t[i] in {"type"}):
+    if t[i] in {"return", "await"}:
+        if range_type != "expr":
+            return []
+        i += 1  # Past 'return' keyword.
+        while (i < len(t) and
+                t[i].strip(" \r\n\t") == ""):
+            i += 1
+        if i >= len(t):  # This can happen for 'return'.
+            return []
+        return [[i, len(t), t[i]]]
+    elif (t[i] in {"type"}):
         if range_type == "block":
             while (i < len(t) and
                     t[i] != "{"):
@@ -321,7 +426,7 @@ def get_statement_ranges_ex_with_confused_linebreaks(t,
                 i += 1
             if i > len(t) or t[i] != "}":
                 return []
-            result.append([block_start, i])
+            result.append([block_start, i, "do"])
             i += 1  # Past '}' closing bracket.
             while (i < len(t) and
                     t[i].strip(" \r\n\t") == ""):
@@ -492,7 +597,8 @@ def get_statement_ranges_ex_with_confused_linebreaks(t,
             i += 1
         if stmt_type != "if" and range_type == "expr":
             if i < len(t):
-                return ([[expr_start, i]])
+                return ([[expr_start, i,
+                    stmt_type]])
             return []
         elif range_type == "block":
             if stmt_type == "with":
@@ -516,7 +622,8 @@ def get_statement_ranges_ex_with_confused_linebreaks(t,
             if i >= len(t):
                 return []
             assert(t[i] == "}")
-            result.append([block_start, i])
+            result.append([block_start, i,
+                stmt_type])
             if stmt_type != "if":
                 return result
             i += 1  # Past '}' closing bracket.
@@ -544,10 +651,10 @@ def get_statement_ranges_ex_with_confused_linebreaks(t,
                 return result
             is_elseif = (t[i] == "elseif")
             i += 1  # Past 'elseif'/'else keyword.
-            expr_start = i
             while (i < len(t) and
                     t[i].strip(" \r\n\t") == ""):
                 i += 1
+            expr_start = i
             if is_elseif:
                 while (i < len(t) and
                         (t[i] != "{" or i == expr_start or
@@ -563,7 +670,9 @@ def get_statement_ranges_ex_with_confused_linebreaks(t,
             expr_end = i - 1
             i += 1  # Past '{' opening bracket.
             if range_type == "expr":
-                result.append([expr_start, expr_end + 1])
+                result.append([expr_start, expr_end + 1,
+                    "else" if not is_elseif else "elseif"
+                ])
             block_start = i
             bracket_depth = 0
             while (i < len(t) and
@@ -578,7 +687,8 @@ def get_statement_ranges_ex_with_confused_linebreaks(t,
                 return result
             assert(t[i] == '}')
             if range_type == "block":
-                result.append([block_start, i])
+                result.append([block_start, i,
+                    "else" if not is_elseif else "elseif"])
             if not is_elseif:
                 # Was an 'else', so we have to stop.
                 return result

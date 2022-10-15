@@ -177,8 +177,8 @@ class TestTranslatorLaterTransform(unittest.TestCase):
             return
         }"""), any_match_value="__ANYTOK__")
 
-        if True:
-            return  # Skip next one for now.
+        #if True:
+        #    return  # Skip next one for now.
 
         # Ensure do/rescue/finally is factored in correctly:
         do_test(textwrap.dedent("""\
