@@ -55,7 +55,7 @@ func read_from_write_to(
     # Make sure files are closed on error:
     do {
         await data
-    } rescue Error as e {
+    } rescue any as e {
         if close_on_error {
             src_obj.close()
             target_obj.close()
@@ -73,7 +73,7 @@ func read_from_write_to(
     # Make sure files are closed on error:
     do {
         await data
-    } rescue Error as e {
+    } rescue any as e {
         if close_on_error {
             src_obj.close()
             target_obj.close()

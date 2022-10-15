@@ -48,8 +48,9 @@ def is_keyword(x):
     if x in {"if", "func", "import", "else",
             "type", "do", "rescue", "finally",
             "from", "as", "extends", "protect",
-            "return", "await",
+            "return", "await", "throw", "repeat",
             "var", "const", "elseif", "while",
+            "any",
             "for", "in", "not", "and", "or"}:
         return True
     return False
@@ -414,7 +415,7 @@ def get_statement_ranges_ex(t,
                     if t[i].strip(" \r\n\t") != "":
                         saw_nonwhitespace = True
                     i += 1
-                if t[i] == "as":
+                if i < len(t) and t[i] == "as":
                     bracket_depth = 0
                     while (i < len(t) and
                             (t[i] != "{" or
@@ -977,10 +978,24 @@ def has_any_ascii_letters(v):
 def get_next_statement(s):
     if len(s) == 0:
         return []
-    must_continue_tokens = {
-        "->", "(", "[", ":", "later",
+    must_continue_after_toks = {
+        "->", "(", "[", "{", "later",
+        "elseif", "throw", "var", "const",
+        "func", "if", "while", "for", "do",
         ",", "else", "as", "in", "from",
         "rescue", "finally", "elseif"}
+    must_continue_before_toks = {
+        "->", "(", "[", ":", "later",
+        "repeat", "elseif",
+        ",", "else", "as", "in", "from",
+        "rescue", "finally", "elseif"
+    }
+    must_stop_before_toks = {
+        # XXX: does NOT include "func" or "if"! (Can be inline!)
+        "var", "const", "throw", "return",
+        "while", "with", "do", "type", "import",
+        "for"
+    }
     last_nonwhitespace_token = ""
     token_count = 0
     bracket_nesting = 0
@@ -997,30 +1012,36 @@ def get_next_statement(s):
             bracket_nesting += 1
         if t in [")", "]", "}"]:
             bracket_nesting -= 1
-        if (is_whitespace_token(t) and
+        if (bracket_nesting == 0 and
+                last_nonwhitespace_token != "" and (
+                t in must_stop_before_toks or (
+                is_whitespace_token(t) and
                 nextnonblank(t, i) in
-                must_continue_tokens):
+                must_stop_before_toks))):
+            return s[:token_count - 1]  # Stop EXCLUDING token.
+        if ((last_nonwhitespace_token != "" and (
+                is_whitespace_token(t) and
+                nextnonblank(t, i) in
+                must_continue_before_toks)) or
+                (t in must_continue_after_toks or
+                    is_whitespace_token(t) and
+                    last_nonwhitespace_token in
+                    must_continue_after_toks)):
             continue
         if (bracket_nesting == 0 and
-                t == "}"):
+                t in ("}", "]", ")")):
             nt = nextnonblank(s, i)
-            if (not nt in must_continue_tokens and
+            if (not nt in must_continue_before_toks and
                     not is_h64op_with_lefthand(nt) and
                     not nt in {"(", "{", "["}) :
                 return s[:token_count]
-        if (bracket_nesting == 0 and
-                last_nonwhitespace_token != "" and
-                t in {"var", "const", "while",
-                "do", "for", "type"}):  # "if"/"func" can be inline!
-            # Important: cut off BEFORE the token for this one.
-            return s[:token_count - 1]
         if (bracket_nesting == 0 and
                 (t.endswith("\n") or t.endswith("\r")) and
                 last_nonwhitespace_token != "," and
                 not is_h64op_with_righthand(last_nonwhitespace_token) and
                 not last_nonwhitespace_token in {"in", "as"} and
                 not is_h64op_with_lefthand(nextnonblank(s, i)) and
-                not nextnonblank(s, i) in must_continue_tokens
+                not nextnonblank(s, i) in must_continue_before_toks
                 ):
             is_string_continuation = False
             if (last_nonwhitespace_token.endswith("\"") or
@@ -1032,7 +1053,7 @@ def get_next_statement(s):
                         s[z].endswith("\"") or s[z].endswith("'")):
                     is_string_continuation = True
             if not is_string_continuation:
-                return s[:token_count]
+                return s[:token_count]  # Stop INCLUDING token.
         assert(bracket_nesting >= 0), \
             "failed to find terminating bracket in: " + str(s)
     return s

@@ -552,6 +552,22 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
             untokenize(statements[1]).strip().startswith("func "))
 
         t = tokenize(textwrap.dedent("""\
+        var
+        a
+        """))
+        statements = split_toplevel_statements(t)
+        self.assertEqual(len(statements), 1)
+        t = tokenize(textwrap.dedent("""\
+        var a = 2 var b
+        """))
+        statements = split_toplevel_statements(t)
+        self.assertEqual(len(statements), 2)
+        self.assertTrue(
+            untokenize(statements[0]).strip().endswith("2"))
+        self.assertTrue(
+            untokenize(statements[1]).strip().startswith("var "))
+
+        t = tokenize(textwrap.dedent("""\
         func m1 {
             print('test')
         } func m2 {

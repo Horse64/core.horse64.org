@@ -79,8 +79,15 @@ func write_to_file(uri, path) {
     # Go to first URI:
     var next_uri = uris.pop()
     var next_path = uris.pop()
-    var target_obj = io.open(next_path, "wb")
-    var src_obj = net.fetch.get(next_uri)
+    var target_obj, src_obj
+    do {
+        target_obj, src_obj = io.open(next_path, "wb"),
+            net.fetch.get(next_uri)
+    } rescue any {
+        target_obj.close()
+        src_obj.close()
+        throw repeat
+    }
 
     # Do first chunk of read & write:
     var done = io.read_and_write(
@@ -97,8 +104,16 @@ func write_to_file(uri, path) {
         # Go to next URI:
         next_uri = uris.pop()
         next_path = paths.pop()
-        target_obj = io.open(next_path, "wb")
-        src_obj = net.fetch.get(next_uri)
+        target_obj.close()
+        src_obj.close()
+        do {
+            target_obj, src_obj = io.open(next_path, "wb"),
+                net.fetch.get(next_uri)
+        } rescue any {
+            target_obj.close()
+            src_obj.close()
+            throw repeat
+        }
     }
 
     # Do next chunk of read & write:

@@ -690,6 +690,10 @@ def translate_expression_tokens(s, sc,
             s[i] = "__contains__"
         elif s[i] == "throw" and previous_token != ".":
             s[i] = "raise"
+            if nextnonblank(s, i) == "repeat":
+                s = s[:i + 1] + s[
+                    nextnonblankidx(s, i) + 1:
+                ]
         elif s[i] == "is_num" and previous_token != ".":
             s = s[:i] + ["_translator_runtime_helpers",
                 ".", "_is_num"] + s[i + 1:]
@@ -760,11 +764,19 @@ def translate_expression_tokens(s, sc,
         i += 1
 
     # Add line continuation things:
+    bdepth = 0
     i = 0
     while i < len(s):
+        if s[i] in {"{", "(", "["}:
+            bdepth += 1
+        if s[i] in {"}", ")", "]"}:
+            bdepth -= 1
+        if bdepth > 0:
+            i += 1
+            continue
         if (s[i] in {">", "=", "<", "!", "+", "-", "/", "*",
                 "%", "|", "^", "&", "~", ".", "in",
-                "and", "or", "not"} or
+                "and", "or", "not", ","} or
                 s[i].endswith("=") or s[i] == "->") and (
                 s[i + 1].strip(" \t\r\n") == "" and
                 s[i + 1].strip(" \t") != ""):
@@ -1072,6 +1084,22 @@ def translate(s, sc):
         if statement[0] == "var" or statement[0] == "const":
             statement_cpy = list(statement)
 
+            # Hack: for various reasons, easiest to just nuke
+            # unbracketed line breaks after commas:
+            bdepth = 0
+            j = 0
+            while j < len(statement):
+                if statement[j] == "," and bdepth == 0:
+                    while (j + 1 < len(statement) and
+                            statement[j + 1].strip(" \r\n\t") == ""):
+                        statement = (statement[:j + 1] +
+                            statement[j + 2:])
+                elif statement[j] in {"(", "[", "{"}:
+                    bdepth += 1
+                elif statement[j] in {")", "]", "}"}:
+                    bdepth -= 1
+                j += 1
+
             # Collect identifiers this var/const declares:
             identifiers = []
             i = 1
@@ -1227,17 +1255,22 @@ def translate(s, sc):
                 while (j < len(statement) and
                          statement[j].strip(" \t\r\n") == ""):
                     j += 1
-                assert(statement[j] != "{")
+                assert(j < len(statement) and
+                       statement[j] != "as")
                 rescue_error_types_first = j
+                hadnonblank = False
                 bracket_depth = 0
                 while (j < len(statement) and
-                        ((statement[j] != "{" and
+                        (((statement[j] != "{" or
+                        not hadnonblank) and
                         statement[j] != "as") or
                         bracket_depth > 0)):
                     if statement[j] in {"(", "[", "{"}:
                         bracket_depth += 1
                     elif statement[j] in {")", "]", "}"}:
                         bracket_depth -= 1
+                    if statement[j].strip(" \r\t\b"):
+                        hadnonblank = True
                     j += 1
                 rescue_error_types_last = j - 1
                 while (rescue_error_types_last >
@@ -1322,6 +1355,8 @@ def translate(s, sc):
                 rescued_errors_tokens = statement[
                     rescue_error_types_first:
                     rescue_error_types_last+1]
+                if rescued_errors_tokens == ["any"]:
+                    rescued_errors_tokens = ["Error"]
                 while (len(rescued_errors_tokens) > 1 and
                         rescued_errors_tokens[0].strip(" \r\n\t") == ""):
                     rescued_errors_tokens = (
@@ -2525,8 +2560,12 @@ def run_translator_main():
                 test_funcs = get_global_standalone_func_names(
                     translated_files[translated_file]
                         ["original-source"])
-                assert("main" in test_funcs)
-                main_is_later_func = test_funcs["main"]["is-later-func"]
+                has_main = ("main" in test_funcs)
+                main_is_later_func = False
+                if has_main:
+                    main_is_later_func = (
+                        test_funcs["main"]["is-later-func"]
+                    )
 
                 # Insert a new hidden main that can pass a fake callback:
                 innermain = ("_wrapmain" +
@@ -2539,11 +2578,12 @@ def run_translator_main():
                     contents_result += ("main();")
 
                 # Add actual main call:
-                contents_result += (
-                    "\nif __name__ == '__main__':" +
-                    "\n    _remapped_sys.exit(" +
-                    "\n        _translator_runtime_helpers." +
-                                "_run_main(" + innermain + "))\n")
+                if has_main:
+                    contents_result += (
+                        "\nif __name__ == '__main__':" +
+                        "\n    _remapped_sys.exit(" +
+                        "\n        _translator_runtime_helpers." +
+                                    "_run_main(" + innermain + "))\n")
             if is_main_file and output_file:
                 if not output_file_linenos:
                     output_file_result = contents_result
