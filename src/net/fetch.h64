@@ -149,9 +149,10 @@ func write_to_file(uri, path, max_size=(100 * 1024  * 1024)) {
 ##   into memory, for security reasons there must be a maximum
 ##   size. It defaults to 4KB. Use @{net.fetch.get} if you want
 ##   to avoid any limit.
-## @param one_or_more bool Whether to ignore if some of the
+## @param one_or_more bool If set to @{yes}, ignore if some of the
 ##   URIs (if you supplied a @{list}) fail, as long as at least
-##   one succeeds.
+##   one succeeds. The default is @{no}, and any @{error|Error}
+##   will always abort.
 ## @returns (str or list) If the `uri` parameter was a
 ##   an @{str} and not a @{list}, returns a single @{str} of
 ##   the contents. Otherwise, a @{list} of @{str}s, with
