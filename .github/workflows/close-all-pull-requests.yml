@@ -1,0 +1,24 @@
+
+# Since the GitHub repository is just a mirror, 
+# don't allow pull request.
+
+name: Close All Pull Requests
+
+on:
+  push:
+  pull_request:
+  # Run this once in a while:
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: crondaemon/close-pr@v1
+      with:
+        # Output a maybe-helpful message redirecting people to Codeberg:
+        comment: "This is a mirror, please use the repositories at https://codeberg.org/Horse64/ for pull requests instead. Go there for more information."
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
