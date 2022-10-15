@@ -170,10 +170,6 @@ def get_next_token(s):
         i = 1
         while i < len_s and s[i] in {" ", "\t"}:
             i += 1
-        if i < len_s and s[i] in {"\n", "\r"}:
-            i += 1
-            if s[i - 1] == "\n" and i < len_s and s[i] == "\r":
-                i += 1
         return s[:i]
     if s[0] in {"{", "}", "(", ")", "[", "]"}:
         return s[0]
@@ -212,6 +208,35 @@ def get_next_token(s):
 
 
 def get_statement_ranges_ex(t,
+        range_type="expr"):
+    assert(type(t) in {list, tuple})
+    ranges = get_statement_ranges_ex_with_confused_linebreaks(
+        t, range_type=range_type
+    )
+    if range_type == "block" and len(ranges) > 0:
+        # We want the start of the range always to be AFTER the
+        # full previous line (including its line break!!) and the
+        # end also just right AFTER the ending line break.
+        ranges_fixed = []
+        for brange in ranges:
+            linebreaks_range = [
+                idx_of_lineend(t, brange[0], forward_first=False),
+                idx_of_lineend(t, brange[1] - 1,  # <- since exclusive end
+                     forward_first=True)
+            ]
+            new_range = [brange[0], brange[1]]
+            if linebreaks_range[0] != None:
+                new_range[0] = linebreaks_range[0] + 1
+            if linebreaks_range[1] != None:
+                new_range[1] = linebreaks_range[1] + 1
+            ranges_fixed.append(new_range)
+        #print("FIX JOB : " + str((ranges, ranges_fixed)) +
+        #    " ON: " + str(t))
+        return ranges_fixed
+    return ranges
+
+
+def get_statement_ranges_ex_with_confused_linebreaks(t,
         range_type="expr"):
     result = []
     assert(type(t) in {list, tuple})
@@ -1400,4 +1425,62 @@ def mirror_brackets(s):
             snew += s[i]
         i += 1
     return snew
+
+
+def idx_of_lineend(st, i, forward_first=False):
+    assert(type(st) == list)
+    assert(len(st) == 0 or type(st[0]) == str)
+    assert(i >= 0 and i < len(st))
+    if len(st) == 0:
+        return None
+    orig_i = i
+    if st[i].strip(" \r\t\n") != "":
+        return None
+
+    if not forward_first:
+        # First, search backward:
+        while True:
+            if st[i].startswith("\n"):
+                return i
+            if (i - 1 < 0 or
+                    st[i - 1].strip(" \t\r\n") != ""):
+                break
+            i -= 1
+
+    # Try a forward search then:
+    i = orig_i
+    while True:
+        if st[i].startswith("\n"):
+            return i
+        if (i + 1 >= len(st) or
+                (not st[i + 1].startswith("\n") and
+                st[i + 1].strip(" \t\r\n") != "")):
+            break
+        i += 1
+
+    if forward_first:
+        # Finally, search backward:
+        i = orig_i
+        while True:
+            if st[i].startswith("\n"):
+                return i
+            if (i - 1 < 0 or
+                    st[i - 1].strip(" \t\r\n") != ""):
+                break
+            i -= 1
+
+    return None
+
+
+def cut_tokens_after_lineend(st, i):
+    assert(type(st) == list)
+    assert(len(st) == 0 or type(st[0]) == str)
+    assert(i >= 0 and i < len(st))
+    if len(st) == 0:
+        return []
+    i = idx_of_lineend(st, i)
+    if i == None:
+        raise ValueError("no line split point found")
+    return st[:i]
+
 

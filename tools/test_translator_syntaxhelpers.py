@@ -35,6 +35,7 @@ from translator_syntaxhelpers import (
     firstnonblank, firstnonblankidx,
     get_leading_whitespace, separate_out_inline_funcs,
     is_number_token,
+    nextnonblank, nextnonblankidx,
     expr_nonblank_equals, find_start_of_call_index_chain,
     is_identifier, make_kwargs_in_call_tailing, get_indent,
 )
@@ -255,9 +256,9 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
             '\n', ' ']  # (Based on real world example)
         ranges = get_statement_block_ranges(t)
         self.assertEqual(len(ranges), 3)
-        self.assertEqual(ranges[0][0], 3)
-        self.assertEqual(ranges[0][1], 15)
-        self.assertEqual(t[ranges[0][1]], "}")
+        self.assertEqual(ranges[0][0], 4)
+        self.assertEqual(ranges[0][1], 14)
+        self.assertEqual(nextnonblank(t, ranges[0][1] - 1), "}")
 
     def test_get_leading_whitespace(self):
         t = get_leading_whitespace(["\n ", "\ttest"])

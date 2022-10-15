@@ -345,8 +345,8 @@ def indent_sanity_check(s, what_in="unknown code"):
                 s.startswith("const ") or
                 s.startswith("import ") or
                 s.endswith("repeat") or
-                s.startswith("await ") or
-                s.endswith(":")):
+                s.startswith("await ")
+                ):
             return 0
         if s.strip() in {"}", "]", ")"}:
             return -1
@@ -364,6 +364,7 @@ def indent_sanity_check(s, what_in="unknown code"):
                 bdepth -= 1
             if (bdepth == 0 and hadnonblank and
                     s[i] in {"var", "const",
+                    "return",
                     "do", "while", "for", "type",
                     "import", "with", "await"}):
                 return True

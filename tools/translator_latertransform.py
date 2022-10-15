@@ -43,6 +43,7 @@ from translator_syntaxhelpers import (
     nextnonblank, nextnonblankidx,
     prevnonblank, prevnonblankidx,
     split_toplevel_statements, flatten,
+    cut_tokens_after_lineend,
     is_identifier, get_statement_block_ranges,
     is_whitespace_token, get_indent, tokenize,
     untokenize, is_whitespace_statement,
@@ -54,6 +55,9 @@ translator_py_script_dir = (
     os.path.abspath(os.path.dirname(__file__))
 )
 translator_py_script_path = os.path.abspath(__file__)
+
+
+DEBUG_LATER_TRANSFORM_INSERT = False
 
 
 def transform_later_to_closure_funccontents(
@@ -71,6 +75,8 @@ def transform_later_to_closure_funccontents(
         st_idx += 1
         assert(type(st) == list and
             len(st) == 0 or type(st[0]) == str)
+        st = list(st)
+        st_orig = list(st)
 
         # First, handle any 'return'/'return later':
         if firstnonblank(st) == "return":
@@ -284,6 +290,7 @@ def transform_later_to_closure_funccontents(
                     inner_indent, "return", "\n"])
 
         # Assemble callback statement and add it in:
+        new_sts_inserted = 0
         if not is_a_repeat:
             insert_st = ([indent, "func", " ",
                 funcname, " ", "(", await_error_name])
@@ -299,6 +306,7 @@ def transform_later_to_closure_funccontents(
                     indent != None and len(indent) > 0 else
                     []) +
                 ["}", "\n"])
+            new_sts_inserted += 1
             new_sts.append(insert_st)
 
         # If this is a repeat, call back ourselves!
@@ -314,11 +322,16 @@ def transform_later_to_closure_funccontents(
                 not later_preceding_call_args_have_trailing_comma):
             st += [",", " "]
         st += [call_to] + [")", "\n"]
+        new_sts_inserted += 1
         new_sts.append(st)
         new_sts.append([indent, "return", "\n"])
 
         # Output some debug info:
-        #print("CREATED STATEMENTS: " + str(new_sts[-3:]))
+        if DEBUG_LATER_TRANSFORM_INSERT:
+            print("transform_later_to_closure_funccontents(): " +
+                "DID REPLACEMENT FOR STATEMENT:\n" + str(st_orig) +
+                "\nINSERTED:\n" +
+                str(new_sts[-new_sts_inserted:]))
         #print("ORIGINAL ONE: " + str(orig_st))
         #print("TOKEN WHERE ORIG CALL ENDED: " +
         #    str(later_preceding_call_close))
@@ -389,6 +402,8 @@ def transform_later_to_closure_unnested(
     st_idx = -1
     for st in sts:
         st_idx += 1
+        st = list(st)
+        st_orig = list(st)
 
         if not is_func_a_later_func(st):
             new_sts.append(st)
@@ -491,6 +506,7 @@ def transform_later_to_closure_unnested(
             "after inserting callback arg no longer "
             "has a block range??? st=" + str(st))
         block_range = ranges[0]
+        assert(block_range[0] <= block_range[1])
         inner_statements = split_toplevel_statements(
             st[block_range[0]:block_range[1]]
         )
@@ -526,15 +542,12 @@ def transform_later_to_closure_unnested(
         outer_indent = get_indent(st)
         if outer_indent == None:
             outer_indent = ""
-        newst = (st[:block_range[0]] + ["\n"] +
+        newst = (st[:block_range[0]] +
             flatten(inner_code_lines))  # Old "header" + inner code
-        while (len(newst) > 0 and
-                newst[-1].strip(" \r\n\t") == ""):
-            newst = newst[:-1]
         if not ends_in_return:
             # If new function doesn't have return at the end,
             # add a callback and return to make sure we bail:
-            newst += (["\n"] + ["\n", inner_indent,
+            newst += ([inner_indent,
                 callback_name, "(",
                 "None", ",", "None", ")", "\n",
                 inner_indent, "return", "\n"])
@@ -543,10 +556,16 @@ def transform_later_to_closure_unnested(
             while len(_st) > 0 and _st[0].strip(" \r\t\n") == "":
                 _st = _st[:1]
             return _st
-        newst += (["\n", outer_indent] + _trimindent(
+        newst += ([outer_indent] + _trimindent(
             st[block_range[1]:] + ["\n"]))
         # Ok done, add our reformatted function:
         new_sts.append(newst)
+
+        if DEBUG_LATER_TRANSFORM_INSERT:
+            print("transform_later_to_closure_funccontents(): " +
+                "DID REPLACEMENT FOR STATEMENT:\n" + str(st_orig) +
+                "\nINSERTED:\n" +
+                str(new_sts[-1:]))
     return new_sts
 
 
