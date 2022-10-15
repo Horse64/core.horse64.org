@@ -97,6 +97,8 @@ func write_to_file(uri, path) {
     )
     later:
 
+    await done
+
     if done and uris.len == 0 {
         # We're fully done!
         return
