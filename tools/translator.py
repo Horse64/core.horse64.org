@@ -139,22 +139,27 @@ remapped_uses = {
             "_translator_runtime_helpers._wrap_io("
             "_remapped_os.path.exists('.' if" +
             "path == '' else path)))",
-        "io.isdir":
+        "io.is_dir":
             "(lambda path: " +
             "_translator_runtime_helpers._wrap_io("
             "_remapped_os.path.isdir('.' if" +
             "path == '' else path)))",
-        "io.lsdir":
+        "io.list_dir":
             "_translator_runtime_helpers._io_ls_dir",
-        "io.rmfile":
+        "io.remove_file":
             "_translator_runtime_helpers._wrap_io("
             "_remapped_os.remove)",
-        "io.rmdir":
+        "io.remove_dir":
             "_translator_runtime_helpers._wrap_io("
             "_remapped_shutil.rmtree)",
         "io.rename":
             "_translator_runtime_helpers._wrap_io("
             "_remapped_shutil.move)",
+        "io.make_tmpdir":
+            "_translator_runtime_helpers._wrap_io("
+            "lambda suffix='', prefix='': "
+            "_remapped_tempfile.mkdtemp(suffix=suffix,"
+            "prefix=prefix))",
     },
     "math@core.horse64.org": {
         "math.min": "_translator_runtime_helpers._math_min",
@@ -2399,8 +2404,9 @@ def run_translator_main():
                     translated_files[translated_file]
                         ["package-name"], for_output=True))
             contents_result = (
-                "import shutil as _remapped_shutil;" +
-                "import os as _remapped_os;import sys as _remapped_sys;" +
+                "import shutil as _remapped_shutil;"
+                "import os as _remapped_os;import sys as _remapped_sys;"
+                "import tempfile as _remapped_tempfile;"
                 "_remapped_sys.path.insert(1, " +
                     as_escaped_code_string(os.path.join(
                         output_folder, "_translator_runtime")) + ");" +

@@ -26,21 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 
-func _get_str_single(uri, callback, max_size=(4 * 1024)) {
-    var obj = net.fetch.get(uri)
-    obj.recv(max_size, func(err, data) {
-        if err != none {
-            return callback(error, none)
-        }
-        obj.close()
-        callback(err, data.as_str())
-    })
-}
-
-
-func get_str(uri, callback, max_size=(4 * 1024)) {
-    var was_single_uri = no
-
+func _validate_uri_list(uri) {
     # Validate input:
     if typename(uri) == "bytes" {
         uri = uri.as_str()
@@ -49,8 +35,10 @@ func get_str(uri, callback, max_size=(4 * 1024)) {
             (typename(uri) == "list" and uri.len > 0 and
             typename(uri[1]) != "str" and typename(uri[1]) != "bytes") {
         throw new TypeError("unknown type for uri, expected "
-            "str or list for multiple")
+            "str or bytes or list for multiple")
     }
+
+    # Turn to a list, ensure it's really all strings:
     var uris_unclean = uri
     if typename(uri) != "list" {
         was_single_uri = yes
@@ -60,34 +48,108 @@ func get_str(uri, callback, max_size=(4 * 1024)) {
     for uri in uris_unclean {
         if typename(uri) == "bytes" {
             uris.append(uri.as_str())
+        } elseif typename(uri) == "str" {
+            throw new TypeError("unknown type for uri "
+                "list entry, expected "
+                "str or bytes")
         }
         uris.append(uri)
     }
-    uris.reverse()  # So we can use .pop() in order.
+    return uri
+}
 
-    # Let's go do the work:
-    var results = []
-    func fetch_next_do {
-        if uris.len == 0 {
-            # Reached the end of queue.
-            if was_single_uri {
-                assert(results.len == 1)
-                return callback(none, results[1])
-            }
-            return callback(none, results)
-        }
-        var uri = uris.pop()
-
-        # Trigger next download:
-        _get_str_single(uri, func (err, result) {
-            if err != none {
-                callback(err, none)
-            }
-            assert(result != none)
-            results.append(result)
-            fetch_next_do()  # Start over and repeat!
-        })
+func write_to_file(uri, path) {
+    # Validate input:
+    var was_single_uri = {"bytes", "str"}.has(typename(uri))
+    var uris = _validate_uri_list(uri)
+    uris.reverse()  # So we can use .pop() to get it in order.
+    if uris.len == 0 {
+        return []
     }
-    fetch_next_do()
+    var paths = path
+    if typename(paths) != "list" {
+        paths = [paths]
+    }
+    if uris.len != paths.len {
+        throw new ValueError("supplied target paths "
+            "must be same amount as URIs")
+
+    }
+
+    # Go to first URI:
+    var next_uri = uris.pop()
+    var next_path = uris.pop()
+    var target_obj = io.open(next_path, "wb")
+    var src_obj = net.fetch.get(next_uri)
+
+    # Do first chunk of read & write:
+    var done = io.read_and_write(
+        src_obj, target_obj_next_uri,
+        error_prefix="Error on URI '" + next_uri + "':",
+        close_on_error=yes
+    )
+    later:
+
+    if done and uris.len == 0 {
+        # We're fully done!
+        return
+    }
+
+    # Go to next URI:
+    next_uri = uris.pop()
+    next_path = paths.pop()
+    target_obj = io.open(next_path, "wb")
+    src_obj = net.fetch.get(next_uri)
+
+    # Do next chunk of read & write:
+    done = read_and_write(
+        src_obj, target_obj,
+        error_prefix="Error on URI '" + next_uri + "':",
+        close_on_error=yes)
+    later repeat
+}
+
+func get_str(uri, max_size=(4 * 1024)) {
+    # Validate input:
+    var was_single_uri = {"bytes", "str"}.has(typename(uri))
+    var uri = _validate_uri_list(uri)
+    uris.reverse()  # So we can use .pop() to get it in order.
+    if uris.len == 0 {
+        return []
+    }
+
+    # Let's go do the work, get the first item:
+    var results = []
+    var next_uri = uris.pop()
+    var obj = net.fetch.get(next_uri)
+    var data = obj.read(max_size)
+    later:
+
+    # Collect result with last item we got:
+    do {
+        await data
+        result.add(data)
+    } rescue e as e {
+        if not was_single_uri {  # User might wonder which URI:
+            e.msg = "Error while fetching '" +
+                next_uri + "': " + e.msg
+        }
+        throw e
+    } finally {
+        obj.close()
+    }
+
+    if uris.len == 0 {
+        # We're done!
+        if was_single_uri {
+            return result[1]
+        }
+        return result
+    }
+
+    # We're not done yet, repeat with the next one:
+    next_uri = uris.pop()
+    obj = net.fetch.get(next_uri)
+    data = obj.read(max_size) later repeat
 }
 

@@ -676,7 +676,7 @@ class _RequestsFetchObj:
         self.retries = retries
         self.retry_delay = retry_delay
 
-    def recv(self, amount, cb):
+    def read(self, amount, cb):
         if amount != None:
             amount = int(amount)
         global _async_ops_lock, _async_ops

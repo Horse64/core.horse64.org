@@ -1,0 +1,86 @@
+# @module io
+# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+
+
+## Helper function to read one chunk from a source file,
+## and write it to a target one.
+##
+## @param src_obj Source @{file|io.File} to read from.
+## @param target_obj Target @{file|io.File} to write to.
+## @param amount (int or none)
+## @param error_prefix str A string to prepend to an
+##   encountered @{error|Error}'s `.msg` attribute before
+##   the error bubbles up.
+## @param close_on_error bool Whether to close the files if
+##   an error happens. The @{error|Error} will bubble up for
+##   you to handle in any case.
+## @returns @{yes} if the source file has reached the end
+##   and nothing was written, @{no} if something was written.
+##   Any IO @{errors|Error} otherwise encountered will bubble
+##   up for you to handle.
+func read_from_write_to(
+        src_obj, target_obj, amount=none,
+        error_prefix="",
+        close_on_error=no
+        ) {
+    # First, read:
+    var data = obj.read(1024)
+    later:
+
+    # Make sure files are closed on error:
+    do {
+        await data
+    } rescue Error as e {
+        if close_on_error {
+            src_obj.close()
+            target_obj.close()
+        }
+        e.msg = error_prefix + e.msg
+        throw e
+    }
+    if data == "" {
+        return yes  # End of file!
+    }
+
+    # Then write:
+    target_obj.write(data) later:
+
+    # Make sure files are closed on error:
+    do {
+        await data
+    } rescue Error as e {
+        if close_on_error {
+            src_obj.close()
+            target_obj.close()
+        }
+        e.msg = error_prefix + e.msg
+        throw e
+    }
+    return no  # Not end of file!
+}
+

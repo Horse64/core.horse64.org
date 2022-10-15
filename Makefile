@@ -27,6 +27,7 @@ test-translator:
 	rm -rf ./tests/rescue/horse_modules/core.horse64.org/
 	rm -rf ./tests/inlinefunc/horse_modules/core.horse64.org/
 	rm -rf ./tests/later/horse_modules/core.horse64.org/
+	rm -rf ./tests/network/horse_modules/core.horse64.org/
 	rm -rf /tmp/h64-test-core-copy/
 	cp -R ./ /tmp/h64-test-core-copy/
 	cp -R /tmp/h64-test-core-copy/ ./tests/rescue/horse_modules/core.horse64.org/
@@ -35,6 +36,7 @@ test-translator:
 	cp -R /tmp/h64-test-core-copy/ ./tests/args/horse_modules/core.horse64.org/
 	cp -R /tmp/h64-test-core-copy/ ./tests/inlinefunc/horse_modules/core.horse64.org/
 	cp -R /tmp/h64-test-core-copy/ ./tests/later/horse_modules/core.horse64.org/
+	cp -R /tmp/h64-test-core-copy/ ./tests/network/horse_modules/core.horse64.org/
 	rm -rf /tmp/h64-test-core-copy/
 	@# Then run the actual tests:
 	tools/testfind_translated.py .
