@@ -48,17 +48,30 @@ func _validate_uri_list(uri) {
     for uri in uris_unclean {
         if typename(uri) == "bytes" {
             uris.append(uri.as_str())
-        } elseif typename(uri) == "str" {
+        } elseif typename(uri) != "str" {
             throw new TypeError("unknown type for uri "
                 "list entry, expected "
                 "str or bytes")
         }
         uris.append(uri)
     }
-    return uri
+    return uris
 }
 
-func write_to_file(uri, path) {
+
+## Get an internet resource and write it to a disk file.
+##
+## @param uri (str or list) A single URI as an @{str}, or
+##   a @{list} or URIs, e.g. `["https://site1.org",
+##   `["https://site2.org"]`. For a list, any of them
+##   causing an @{error|Error} will interrupt and return it.
+## @param path (str or list) A target path as an @{str},
+##   or a @{list} of paths if the `uri` param is also a @{list}.
+## @param max_size num Since the string will be written to
+##   disk unattended, for security reasons there must be a maximum
+##   size. It defaults to 100MB. Use @{net.fetch.get} if you want
+##   to avoid any limit.
+func write_to_file(uri, path, max_size=(100 * 1024  * 1024)) {
     # Validate input:
     var was_single_uri = {"bytes", "str"}.has(typename(uri))
     var uris = _validate_uri_list(uri)
@@ -126,17 +139,35 @@ func write_to_file(uri, path) {
     later repeat
 }
 
-func get_str(uri, max_size=(4 * 1024)) {
+## Get an internet resource and download it as a unicode string.
+## Can also get a list of resources at once.
+##
+## @param uri (str or list) A single URI as an @{str}, or
+##   a @{list} or URIs, e.g. `["https://site1.org",
+##   `["https://site2.org"]`.
+## @param max_size num Since the string will be fully loaded
+##   into memory, for security reasons there must be a maximum
+##   size. It defaults to 4KB. Use @{net.fetch.get} if you want
+##   to avoid any limit.
+## @param one_or_more bool Whether to ignore if some of the
+##   URIs (if you supplied a @{list}) fail, as long as at least
+##   one succeeds.
+## @returns (str or list) If the `uri` parameter was a
+##   an @{str} and not a @{list}, returns a single @{str} of
+##   the contents. Otherwise, a @{list} of @{str}s, with
+##   failed entries @{none} if `one_or_more` is @{yes}.
+func get_str(uri, max_size=(4 * 1024), one_or_more=no) {
     # Validate input:
     var was_single_uri = {"bytes", "str"}.has(typename(uri))
-    var uri = _validate_uri_list(uri)
+    var uris = _validate_uri_list(uri)
     uris.reverse()  # So we can use .pop() to get it in order.
     if uris.len == 0 {
         return []
     }
 
     # Let's go do the work, get the first item:
-    var results = []
+    var result = []
+    var remain_unfailed = uris.len
     var next_uri = uris.pop()
     var obj = net.fetch.get(next_uri)
     var data = obj.read(max_size)
@@ -145,13 +176,18 @@ func get_str(uri, max_size=(4 * 1024)) {
     # Collect result with last item we got:
     do {
         await data
-        result.add(data)
-    } rescue e as e {
-        if not was_single_uri {  # User might wonder which URI:
-            e.msg = "Error while fetching '" +
-                next_uri + "': " + e.msg
+        result.add(data.as_str())
+    } rescue any as e {
+        remain_unfailed -= 1
+        result.add(none)
+
+        if not one_or_more or remain_unfailed <= 0 {
+            if not was_single_uri {  # User might wonder which URI:
+                e.msg = "Error while fetching '" +
+                    next_uri + "': " + e.msg
+            }
+            throw e
         }
-        throw e
     } finally {
         obj.close()
     }
