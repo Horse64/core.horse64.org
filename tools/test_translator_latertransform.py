@@ -95,10 +95,16 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                 raise
 
             # Check the result matches what we expected:
-            self.assertTrue(
+            mismatch_error = None
+            try:
                 expr_nonblank_equals(resulttokens,
                     (tokenize(texpected) if type(texpected) == str else
-                     texpected), any_match_value=any_match_value),
+                     texpected), throw_error_with_details=True,
+                    any_match_value=any_match_value)
+            except ValueError as e:
+                mismatch_error = e
+            self.assertEqual(mismatch_error, None,
+                'HAD A MISMATCH ERROR: ' + str(mismatch_error) + '\n'
                 'Got: """' + str(untokenize(resulttokens)) +
                 '""",\nexpected: """' + (
                 texpected if type(texpected) == str else
@@ -106,85 +112,81 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                 'test input: """' + (untokenize(testcode) if
                 type(testcode) != str else testcode) + '"""')
 
-        if False:
-            # First test that the non-recursive call won't recurse:
-            do_test(textwrap.dedent("""\
-            func hello2 {
-                func blorb {
-                    mycall(abc) later:
-                }
-            }"""), None, recursive=False)
-
-            # A slightly more complex attempt:
-            do_test(textwrap.dedent("""\
-            func f {
-                print("Hello")
+        # First test that the non-recursive call won't recurse:
+        do_test(textwrap.dedent("""\
+        func hello2 {
+            func blorb {
                 mycall(abc) later:
+            }
+        }"""), None, recursive=False)
+
+        # A slightly more complex attempt:
+        do_test(textwrap.dedent("""\
+        func f {
+            print("Hello")
+            mycall(abc) later:
+            print("Bla")
+        }"""
+        ), textwrap.dedent("""\
+        func f(__ANYTOK__) {
+            print("Hello")
+            func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
                 print("Bla")
-            }"""
-            ), textwrap.dedent("""\
-            func f(__ANYTOK__) {
-                print("Hello")
-                func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
-                    print("Bla")
-                    __ANYTOK__(None, None)
-                    return
-                }
-                mycall(abc, __ANYTOK__)
+                __ANYTOK__(None, None)
                 return
             }
-            """), any_match_value="__ANYTOK__")
+            mycall(abc, __ANYTOK__)
+            return
+        }
+        """), any_match_value="__ANYTOK__")
 
-            # Ensure trailing returns are handled fine:
-            do_test(textwrap.dedent("""\
-            func f {
-                print("Hello")
-                mycall(abc) later:
+        # Ensure trailing returns are handled fine:
+        do_test(textwrap.dedent("""\
+        func f {
+            print("Hello")
+            mycall(abc) later:
+            print("Bla")
+            return 5
+        }"""
+        ), textwrap.dedent("""\
+        func f(__ANYTOK__) {
+            print("Hello")
+            func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
                 print("Bla")
-                return 5
-            }"""
-            ), textwrap.dedent("""\
-            func f(__ANYTOK__) {
-                print("Hello")
-                func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
-                    print("Bla")
-                    __ANYTOK__(None, 5)
-                    return
-                }
-                mycall(abc, __ANYTOK__)
+                __ANYTOK__(None, 5)
                 return
             }
-            """
-            ), any_match_value="__ANYTOK__")
+            mycall(abc, __ANYTOK__)
+            return
+        }
+        """
+        ), any_match_value="__ANYTOK__")
 
-            # Ensure arguments aren't in wrong order:
-            do_test(textwrap.dedent("""\
-            func xyz(args, thing=no) {
-                return later "test"
+        # Ensure arguments aren't in wrong order:
+        do_test(textwrap.dedent("""\
+        func xyz(args, thing=no) {
+            return later "test"
+        }
+        func main {
+            var result = xyz([1, 2], thing=yes) later:
+        }"""), textwrap.dedent(
+        """\
+        func xyz(args, __ANYTOK__, thing=no) {
+            func __ANYTOK__ {
+                __ANYTOK__(None, "test")
             }
-            func main {
-                var result = xyz([1, 2], thing=yes) later:
-            }"""), textwrap.dedent(
-            """\
-            func xyz(args, __ANYTOK__, thing=no) {
-                func __ANYTOK__ {
-                    __ANYTOK__(None, "test")
-                }
-                return _translator_runtime_helpers._async_delay_call(
-                    __ANYTOK__, []
-                )
-            }
-            func main(__ANYTOK__) {
-                func __ANYTOK__(__ANYTOK__, result) {
-                    __ANYTOK__(None, None)
-                    return
-                }
-                var result = xyz([1, 2], thing=yes, __ANYTOK__)
+            return _translator_runtime_helpers._async_delay_call(
+                __ANYTOK__, []
+            )
+        }
+        func main(__ANYTOK__) {
+            func __ANYTOK__(__ANYTOK__, result) {
+                __ANYTOK__(None, None)
                 return
-            }"""), any_match_value="__ANYTOK__")
-
-        #if True:
-        #    return  # Skip next one for now.
+            }
+            var result = xyz([1, 2], thing=yes, __ANYTOK__)
+            return
+        }"""), any_match_value="__ANYTOK__")
 
         # Ensure do/rescue/finally is factored in correctly:
         do_test(textwrap.dedent("""\
@@ -203,39 +205,79 @@ class TestTranslatorLaterTransform(unittest.TestCase):
         }"""
         ), textwrap.dedent("""\
         func f(__ANYTOK__) {
-            var __ANYTOK__ = no
+            # Definitions of rescue/finally disable vars and callbacks:
+            var __ANYTOK__  # Disable var 1/2
+            var __ANYTOK__  # Disable var 2/2
+            var __ANYTOK__ = no  # Callback 1/2
+            var __ANYTOK__ = no  # Callback 2/2
             do {
                 print("Hello")
                 func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
-                    var __ANYTOK__ = no
+                    var __ANYTOK__ = no  # Local disable var 1/2
+                    var __ANYTOK__ = no  # Local disable var 2/2
                     do {
                         print("Bla")
-                        __ANYTOK__(None, None)
-                        __ANYTOK__ = no
-                        __ANYTOK__ = no
+                        func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
+                            var __ANYTOK__ = no  # Local disable var 1/2
+                            var __ANYTOK__ = no  # Local disable var 2/2
+                            do {
+                                print("test")
+                                __ANYTOK__(None, None)  # Final return none.
+                                __ANYTOK__ = yes
+                                __ANYTOK__ = yes
+                                return
+                            } rescue any {
+                                if not __ANYTOK__ {
+                                    __ANYTOK__()  # Call to rescue
+                                }
+                            } finally {
+                                if not __ANYTOK__ {
+                                    __ANYTOK__()  # Call to finally
+                                }
+                            }
+                        }
+                        mycall2(__ANYTOK__, __ANYTOK__)
+                        __ANYTOK__ = yes
+                        __ANYTOK__ = yes
                         return
                     } rescue any {
                         if not __ANYTOK__ {
-                            print("Rescued")
+                            __ANYTOK__()  # Call to rescue
                         }
                     } finally {
                         if not __ANYTOK__ {
-                            print("Finally.")
+                            __ANYTOK__()  # Call to finally
                         }
                     }
                 }
+                # Definition & assignment of rescue/finally closure copies:
+                func __ANYTOK__ {
+                    print("Rescued!")
+                }
+                __ANYTOK__ = __ANYTOK__
+                func __ANYTOK__ {
+                    print("Finally.")
+                }
+                __ANYTOK__ = __ANYTOK__
+                # The actual call (the 'later' call):
                 mycall(abc, __ANYTOK__)
+                # Disable our own finally/rescue now:
+                __ANYTOK__ = yes
                 __ANYTOK__ = yes
                 return
             } rescue any {
-                if not __ANYTOK__ {
-                    print("Rescued")
+                if not __ANYTOK__ {  # Checks the disable var.
+                    print("Rescued!")
                 }
             } finally {
                 if not __ANYTOK__ {
                     print("Finally.")
                 }
             }
+            # Return for when we don't make it through first later boundary
+            # above:
+            __ANYTOK__(None, None)
+            return
         }
         """), any_match_value="__ANYTOK__")
 

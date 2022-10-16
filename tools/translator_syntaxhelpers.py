@@ -779,20 +779,35 @@ def prevnonblank(t, idx, no=1):
 
 
 def expr_nonblank_equals(
-        v1, v2, any_match_value=None
+        v1, v2, any_match_value=None,
+        throw_error_with_details=False,
         ):
     if type(v1) == str:
         v1 = tokenize(v1)
     if type(v2) == str:
         v2 = tokenize(v2)
+    line1 = 1
+    prevline1starttok = 0
+    line1starttok = 0
     i1 = 0
+    line2 = 1
+    prevline2starttok = 0
+    line2starttok = 0
     i2 = 0
     while True:
         while (i1 < len(v1) and (v1[i1] == "" or
                 is_whitespace_token(v1[i1]))):
+            if "\n" in v1[i1] or "\r" in v1[i1]:
+                prevline1starttok = line1starttok
+                line1starttok = i1 + 1
+                line1 += 1
             i1 += 1
         while (i2 < len(v2) and (v2[i2] == "" or
                 is_whitespace_token(v2[i2]))):
+            if "\n" in v2[i2] or "\r" in v2[i2]:
+                prevline2starttok = line2starttok
+                line2starttok = i2 + 1
+                line2 += 1
             i2 += 1
         if i1 >= len(v1):
             return (i2 >= len(v2))
@@ -802,10 +817,21 @@ def expr_nonblank_equals(
                 any_match_value == None or
                 (v1[i1] != any_match_value and
                 v2[i2] != any_match_value)):
-            #print("DIVERGED AT: " + str((v1[:i1 + 1],
-            #    v2[:i2 + 1])) + ", " +
-            #    "MISMATCH '" + str(v1[i1]) + "' vs '" +
-            #    str(v2[i2]) + "'")
+            if throw_error_with_details:
+                raise ValueError("Tokens don't match, "
+                    "diverged at positions #" + str(i1) +
+                    "(value 1 line " + str(line1) +
+                    ") and #" + str(i2) +
+                    "(value 2 line " + str(line2) +
+                    "), at:\n  (value1 excerpt follows)\n" +
+                    str(untokenize(v1[prevline1starttok:
+                        i1 + 10])) + "\n" +
+                    "  (value2 excerpt follows)\n" +
+                    str(untokenize(v2[prevline2starttok:
+                        i2 + 10])) + "\n" +
+                    "Exact mismatch was: '" + str(v1[i1]) +
+                    "' vs '" +
+                    str(v2[i2]) + "'")
             return False
         i1 += 1
         i2 += 1
