@@ -52,7 +52,15 @@ class _LicenseObj:
         self.text = text
 
 
-class _ValueError(ValueError):
+class _RuntimeError(BaseException):
+    def __init__(self, msg):
+        if msg is None:
+            msg = ("Runtime error.")
+        super().__init__(msg)
+        self.msg = msg
+
+
+class _ValueError(ValueError, _RuntimeError):
     def __init__(self, msg):
         if msg is None:
             msg = ("Invalid value.")
@@ -60,7 +68,7 @@ class _ValueError(ValueError):
         self.msg = msg
 
 
-class _ResourceError(OSError):
+class _ResourceError(OSError, _RuntimeError):
     def __init__(self, msg):
         if msg is None:
             msg = ("Hardware resource problem occured.")

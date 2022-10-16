@@ -175,9 +175,10 @@ class TestTranslatorLaterTransform(unittest.TestCase):
             func __ANYTOK__ {
                 __ANYTOK__(None, "test")
             }
-            return _translator_runtime_helpers._async_delay_call(
+            _translator_runtime_helpers._async_delay_call(
                 __ANYTOK__, []
             )
+            return
         }
         func main(__ANYTOK__) {
             func __ANYTOK__(__ANYTOK__, result) {
@@ -212,6 +213,15 @@ class TestTranslatorLaterTransform(unittest.TestCase):
             var __ANYTOK__ = no  # Callback 1/2
             var __ANYTOK__ = no  # Callback 2/2
             do {
+                # Definition & assignment of rescue/finally closure copies:
+                func __ANYTOK__(__ANYTOK__) {
+                    print("Rescued!")
+                }
+                __ANYTOK__ = __ANYTOK__
+                func __ANYTOK__ {
+                    print("Finally.")
+                }
+                __ANYTOK__ = __ANYTOK__
                 print("Hello")
                 func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
                     var __ANYTOK__ = no  # Local disable var 1/2
@@ -228,12 +238,12 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                                     throw __ANYTOK__
                                 }
                                 __ANYTOK__(None, None)  # Final return none.
-                                __ANYTOK__ = yes
-                                __ANYTOK__ = yes
+                                __ANYTOK__ = yes  # Disables 'rescue',
+                                    # 'finally' should run now...
                                 return
-                            } rescue any {
+                            } rescue any as e {
                                 if not __ANYTOK__ {
-                                    __ANYTOK__()  # Call to rescue
+                                    __ANYTOK__(e)  # Call to rescue
                                 }
                             } finally {
                                 if not __ANYTOK__ {
@@ -245,9 +255,9 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                         __ANYTOK__ = yes
                         __ANYTOK__ = yes
                         return
-                    } rescue any {
+                    } rescue any as e {
                         if not __ANYTOK__ {
-                            __ANYTOK__()  # Call to rescue
+                            __ANYTOK__(e)  # Call to rescue
                         }
                     } finally {
                         if not __ANYTOK__ {
@@ -255,15 +265,6 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                         }
                     }
                 }
-                # Definition & assignment of rescue/finally closure copies:
-                func __ANYTOK__ {
-                    print("Rescued!")
-                }
-                __ANYTOK__ = __ANYTOK__
-                func __ANYTOK__ {
-                    print("Finally.")
-                }
-                __ANYTOK__ = __ANYTOK__
                 # The actual call (the 'later' call):
                 mycall(abc, __ANYTOK__)
                 # Disable our own finally/rescue now:
@@ -272,11 +273,11 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                 return
             } rescue any {
                 if not __ANYTOK__ {  # Checks the disable var.
-                    print("Rescued!")
+                    __ANYTOK__(none)  # Call to rescue
                 }
             } finally {
                 if not __ANYTOK__ {
-                    print("Finally.")
+                    __ANYTOK__()  # Call to finally
                 }
             }
             # Return for when we don't make it through first later boundary

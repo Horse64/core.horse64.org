@@ -247,20 +247,28 @@ def adjust_to_absolute_indent(t, indent=""):
     if len(indent) > len(old_indent):
         change_indent = indent[len(old_indent):]
         t = increase_indent(t, added=change_indent)
-        return t
     else:
-        raise NotImplementedError("not implemented")
+        t = increase_indent(t, removed=(
+            len(old_indent) - len(indent)))
+    return t
 
 
-def increase_indent(t, added="    "):
+def increase_indent(t, added="", removed=0):
     was_str = False
     if type(t) == str:
         was_str = True
         t = tokenize(t)
     else:
         t = list(t)
+        if len(t) > 0 and type(t[0]) == list:
+            t = flatten(t)
     assert(type(t) == list and (
         len(t) == 0 or type(t[0]) == str))
+    assert(type(added) == str)
+    if not ((len(added) == 0 or removed == 0) and
+            (len(added) > 0 or removed > 0)):
+        raise ValueError("can't have both added "
+            "and removed indent or neither!")
 
     lb = "\n"
     for _t in t:
@@ -283,20 +291,33 @@ def increase_indent(t, added="    "):
     while True:
         if i >= len(t) or (t[i].startswith(lb) and
                 i > line_start):
+            # We're at a line break.
             old_line = t[line_start:i]
             if i < len(t) and t[i].index(lb) > 0:
+                # Pull in partial token only up to line break!
                 old_line += t[i].partition(lb)[0]
                 t = (t[:i] + [t[i].partition(lb)[2]] +
                     t[i + 1:])
             else:
                 i += 1
+
+            # Prepare to transform line to new indent:
             line_start = i
             old_line += [lb]
             indent = get_indent(old_line)
+            if indent == None:
+                # Nothing to change.
+                if i >= len(t):
+                    break
+                continue
+            # Do actual transformation:
             while (len(old_line) > 0 and
                     is_whitespace_token(old_line[0])):
                 old_line = old_line[1:]
-            new_line = [indent + added] + old_line
+            if len(added) > 0:
+                new_line = [indent + added] + old_line
+            else:
+                new_line = [indent[:-removed]] + old_line
             new_tokens += new_line
             if i >= len(t):
                 break
@@ -1383,6 +1404,8 @@ def sanity_check_h64_codestring(s, filename="", modname=""):
 def get_indent(statement):
     s = statement
     if type(s) == list:
+        if len(s) > 0 and type(s[0]) == list:
+            s = flatten(s)
         s = untokenize(s)
     assert(type(s) == str)
     i = 0

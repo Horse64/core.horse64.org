@@ -687,10 +687,14 @@ def translate_expression_tokens(s, sc,
                 previous_token != "."):
             s = s[:i] + ["_translator_runtime_helpers",
                 ".", "_PathNotFoundError"] + s[i + 1:]
-        elif (s[i] == "_PermissionError" and
+        elif (s[i] == "PermissionError" and
                 previous_token != "."):
             s = s[:i] + ["_translator_runtime_helpers",
                 ".", "_PermissionError"] + s[i + 1:]
+        elif (s[i] == "RuntimeError" and
+                previous_token != "."):
+            s = s[:i] + ["_translator_runtime_helpers",
+                ".", "_RuntimeError"] + s[i + 1:]
         elif s[i] == "starts" and previous_token == ".":
             s[i] = "startswith"
         elif s[i] == "ends" and previous_token == ".":

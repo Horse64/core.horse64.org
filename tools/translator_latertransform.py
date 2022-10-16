@@ -78,7 +78,11 @@ def _func_sts_end_in_return(sts):
         sts = split_toplevel_statements(sts)
     if len(sts) == 0:
         return False
-    if firstnonblank(sts[-1]) == "return":
+    i = len(sts) - 1
+    while (i > 0 and
+            is_whitespace_statement(sts[i])):
+        i -= 1
+    if firstnonblank(sts[i]) == "return":
         return True
     return False
 
@@ -88,7 +92,8 @@ def wrap_later_closure_for_rescue(
         h64_indent="    ",
         rescue_disablers_pre_descent_len=None,
         finally_disablers_pre_descent_len=None,
-        cleanup_code_insert_info=None):
+        cleanup_code_insert_info=None,
+        ):
     assert(type(s) == list and (
         len(s) == 0 or type(s[0]) == str))
 
@@ -132,17 +137,15 @@ def wrap_later_closure_for_rescue(
             "\n"] + s
         if cleanup_block[0] != None:
             had_any_rescue = True
-            s += [old_indent, "}", " ", "rescue",
-                " "] + cleanup_block[0][2]
-            if cleanup_block[0][3] != None:
-                s += [" ", "as", " ",
-                    cleanup_block[0][3]]
+            s += ([old_indent, "}", " ", "rescue",
+                " "] + cleanup_block[0][2] +
+                [" ", "as", " ", "e"])
             s += [" ", "{", "\n"]
             s += [func_code_indent, "if", " ", "not", " ",
                 cinfo.rescue_disablers[
                     rescue_disbl_len - 1], " ", "{", "\n"]
             s += [func_code_indent + h64_indent,
-                cleanup_block[0][0], "(", ")", "\n"]
+                cleanup_block[0][0], "(", "e", ")", "\n"]
             s += [func_code_indent, "}", "\n"]
         if cleanup_block[1] != None:
             had_any_finally = True
@@ -178,11 +181,16 @@ def add_wrapped_later_call_for_rescue(
         finally_disablers_pre_descent_len=None,
         call_error_expr=None,
         call_result_expr=None,
-        cleanup_code_insert_info=None):
+        cleanup_code_insert_info=None,
+        let_finally_run=False,
+        ):
     assert(type(indent) == str)
     sts = []
     assert((call_stmt != None or call_name != None) and
         (call_stmt == None or call_name == None))
+    if (type(call_stmt) == list and len(call_stmt) > 0 and
+            type(call_stmt[0]) == list):
+        call_stmt = flatten(call_stmt)
     if call_error_expr is None:
         call_error_expr = ["None"]
     if call_result_expr is None:
@@ -197,39 +205,20 @@ def add_wrapped_later_call_for_rescue(
         finally_disablers_pre_descent_len = len(
             cinfo.finally_disablers)
 
-    if cinfo != None and (
-            rescue_disablers_pre_descent_len <= 1 and
-            finally_disablers_pre_descent_len <= 1):
-        # We're not inside a 'do'/'rescue' inside a later callback.
-        # Therefore, the 'rescue'/'finally' closures must be undefined
-        # still. Address that:
-        for cleanup_bl in cinfo.cleanup_blocks:
-            if cleanup_bl[0] != None:  # Rescue func.
-                name = cleanup_bl[0][0]
-                code = cleanup_bl[0][1]
-                new_temp_name = ("_assignfunc" +
-                    str(uuid.uuid4()).replace("-", ""))
-                sts.append([indent, "func", " ",
-                    new_temp_name, " ", "{", "\n"] +
-                    adjust_to_absolute_indent(code,
-                        indent=(indent + h64_indent)) +
-                    ["\n", indent, "}", "\n"])
-                sts.append([indent, name, " ", "=", " ",
-                    new_temp_name, "\n"])
-            if cleanup_bl[1] != None:  # Finally func.
-                name = cleanup_bl[1][0]
-                code = cleanup_bl[1][1]
-                new_temp_name = ("_assignfunc" +
-                    str(uuid.uuid4()).replace("-", ""))
-                sts.append([indent, "func", " ",
-                    new_temp_name, " ", "{", "\n"] +
-                    adjust_to_absolute_indent(code,
-                        indent=(indent + h64_indent)) +
-                    ["\n", indent, "}", "\n"])
-                sts.append([indent, name, " ", "=", " ",
-                    new_temp_name, "\n"])
     # Add the actual call:
+    return_stmt = [indent, "return", "\n"]
     if call_stmt != None:
+        if _func_sts_end_in_return(call_stmt):
+            # Our call already has a return. Extact it:
+            i = len(call_stmt) - 1
+            while i > 0 and call_stmt[i] != "return":
+                i -= 1
+            if call_stmt[i] == "return":
+                return_stmt = [indent] + call_stmt[i:]
+                i -= 1  # To before 'return'.
+                while i > 0 and is_whitespace_token(call_stmt[i]):
+                    i -= 1
+                call_stmt = call_stmt[:i + 1] + ["\n"]
         sts.append(adjust_to_absolute_indent(
             call_stmt, indent=indent))
     else:
@@ -245,13 +234,14 @@ def add_wrapped_later_call_for_rescue(
             sts.append([indent,
                 cleanup_var, " ", "=", " ",
                 "yes", "\n"])
-        for cleanup_var in cinfo.finally_disablers[
-                finally_var_idx - 1:finally_var_idx]:
-            sts.append([indent,
-                cleanup_var, " ", "=", " ",
-                "yes", "\n"])
+        if not let_finally_run:
+            for cleanup_var in cinfo.finally_disablers[
+                    finally_var_idx - 1:finally_var_idx]:
+                sts.append([indent,
+                    cleanup_var, " ", "=", " ",
+                    "yes", "\n"])
     # Add final return after call:
-    sts.append([indent, "return", "\n"])
+    sts.append(return_stmt)
     return sts
 
 
@@ -277,6 +267,7 @@ def transform_later_to_closure_funccontents(
 
         # First, handle any 'return'/'return later':
         if firstnonblank(st) == "return":
+            # Extact all needed info first:
             wrap_in_delay = False
             i = firstnonblankidx(st)
             returnidx = i
@@ -290,13 +281,16 @@ def transform_later_to_closure_funccontents(
                 return_arg = return_arg[:-1]
             indent_tokens = st[:returnidx]
             _delayfuncname = None
+
+            # Now, insert the call:
+            call_statements = []
             if wrap_in_delay:
                 _delayfuncname = "_fdelay" + (
                     str(uuid.uuid4()).replace("-", "")
                 )
                 if "".join(return_arg).strip(" \t\r\n") == "":
                     return_arg = ["None"]
-                new_sts.append(
+                call_statements += (
                     indent_tokens + ["func", " ", _delayfuncname,
                     " ", "{", "\n"] +
                     indent_tokens + [h64_indent] + [
@@ -307,19 +301,37 @@ def transform_later_to_closure_funccontents(
                 delayed_call_tokens = callback_delayed_func_name
                 if type(delayed_call_tokens) == str:
                     delayed_call_tokens = tokenize(delayed_call_tokens)
-                new_sts.append(
-                    indent_tokens + ["return", " "] +
+                call_statements += (
+                    indent_tokens +
                     delayed_call_tokens +
-                    ["(", _delayfuncname, ",", "[", "]", ")"]
+                    ["(", _delayfuncname, ",", "[", "]", ")", "\n"]
                 )
+                call_statements += (
+                    indent_tokens + ["return", "\n"])
             else:
-                new_sts.append(
+                call_statements += (
                     indent_tokens + [outer_callback_name, "("] +
                     ["None", ","] + return_arg + [")", "\n"]
                 )
-                new_sts.append(
+                call_statements += (
                     indent_tokens + ["return", "\n"]
                 )
+            if cleanup_code_insert_info:
+                # Nothing special here, just add the call:
+                new_sts += call_statements
+            else:
+                call_statements = (
+                    add_wrapped_later_call_for_rescue(
+                        "".join(indent_tokens),
+                        call_stmt=call_statements,
+                        h64_indent=h64_indent,
+                        rescue_disablers_pre_descent_len=None,  # All.
+                        finally_disablers_pre_descent_len=None,  # All.
+                        cleanup_code_insert_info=
+                            cleanup_code_insert_info,
+                        let_finally_run=True,  # Return = bail! It's ok.
+                    ))
+                new_sts += call_statements
             continue
 
         # Then, handle 'do'/'rescue':
@@ -345,8 +357,8 @@ def transform_later_to_closure_funccontents(
                     k += 1
                 if k >= len(st) or not st[k] in {"as", "{"}:
                     if not ignore_erroneous_code:
-                        raise ValueError("failed to parse 'do' "
-                            "statement, 'rescue' block is faulty")
+                        raise ValueError("Failed to parse 'do' "
+                            "statement, its 'rescue' block is faulty.")
                     new_sts.append(st)
                     continue
                 rescue_expr = st[korig:k]
@@ -428,15 +440,18 @@ def transform_later_to_closure_funccontents(
                 cinfo.finally_disablers.append(disable_finally_name)
             cleanup_code_insert_info = cinfo
 
-            # We need the if guards in our statement too, so
-            # update our blocks:
+            # We want to call into our prepared functions with 'if'
+            # guards rather than the original 'rescue'/... code,
+            # change that in our blocks:
             if cinfo_insert[1] != None:
                 # 'finally' first, since it's later and this shifts
                 # indexes:
                 _st = (st[:cinfo_range[1][0]])
                 _st += [indent_inner, "if",
                     " ", "not", disable_finally_name, " ", "{",
-                    "\n"] + cinfo_insert[1][1] + [
+                    "\n", indent_inner + h64_indent,
+                    cinfo_insert[1][0],
+                    "(", ")", "\n",
                     indent_inner, "}", "\n"]
                 _st += st[cinfo_range[1][1]:]
                 st = _st
@@ -445,19 +460,72 @@ def transform_later_to_closure_funccontents(
                 _st = (st[:cinfo_range[0][0]])
                 _st += [indent_inner, "if",
                     " ", "not", disable_rescue_name, " ", "{",
-                    "\n"] + cinfo_insert[0][1] + [
-                    indent_inner, "}", "\n"]
+                    "\n", indent_inner + h64_indent,
+                    cinfo_insert[0][0], "("]
+                _st += [rescue_lbl if rescue_lbl != None else "none"]
+                _st += [")", "\n", indent_inner, "}", "\n"]
                 _st += st[cinfo_range[0][1]:]
                 st = _st
 
             # Process our 'do' block now, last, since it has lowest
             # indexes:
             if do_range != None:
+                do_block_sts = split_toplevel_statements(
+                    st[do_range[0]:do_range[1]]
+                )
+                do_block_indent = get_indent(do_block_sts)
+                if do_block_indent == None:
+                    do_block_indent = indent_outer + h64_indent
+
+                # Also, insert our 'rescue'/'finally' original code (that
+                # we replaced above with calls) as new closure definitions.
+                # We can do that right after 'do'/inside our block,
+                # since due to scope rules they aren't supposed to access
+                # anything later inside the do { ... } block anyway.
+                added_sts = []
+                if cinfo_insert[0] != None:  # 'rescue' func.
+                    name = cinfo_insert[0][0]
+                    code = cinfo_insert[0][1]
+                    new_temp_name = ("_assignfunc" +
+                        str(uuid.uuid4()).replace("-", ""))
+                    added_sts.append([
+                        do_block_indent, "func", " ",
+                        new_temp_name, " "] + (["(",
+                            rescue_lbl, " "] if rescue_lbl != None else
+                            ["(", "_unused" + str(uuid.uuid4()).
+                                replace("-", ""), ")", " "]) +
+                        ["{", "\n"] +
+                        adjust_to_absolute_indent(code,
+                            indent=(do_block_indent + h64_indent)) +
+                        ["\n", do_block_indent, "}", "\n"]
+                    )
+                    added_sts.append([
+                        do_block_indent, name, " ",
+                        "=", " ", new_temp_name, "\n"
+                    ])
+                if cinfo_insert[1] != None:  # 'finally' func.
+                    name = cinfo_insert[1][0]
+                    code = cinfo_insert[1][1]
+                    new_temp_name = ("_assignfunc" +
+                        str(uuid.uuid4()).replace("-", ""))
+                    added_sts.append([
+                        do_block_indent, "func", " ",
+                        new_temp_name, " ", "{", "\n"] +
+                        adjust_to_absolute_indent(code,
+                            indent=(do_block_indent + h64_indent)) +
+                        ["\n", do_block_indent, "}", "\n"]
+                    )
+                    added_sts.append([
+                        do_block_indent, name, " ",
+                        "=", " ", new_temp_name, "\n"
+                    ])
+
+
+                do_block_sts = added_sts + do_block_sts
+                # Do actual transformation & reinsert of do block:
                 st = (st[:do_range[0]] +
                     flatten(transform_later_to_closure_funccontents(
-                        split_toplevel_statements(
-                            st[do_range[0]:do_range[1]]
-                        ),
+                        do_block_sts,
                         h64_indent=h64_indent,
                         outer_callback_name=outer_callback_name,
                         callback_delayed_func_name=
@@ -471,6 +539,7 @@ def transform_later_to_closure_funccontents(
                             ignore_erroneous_code,
                     )) +
                     st[do_range[1]:])
+                # Done with do block.
 
             # Insert the result along with our new required vars:
             if cinfo_insert[0] != None:
@@ -489,7 +558,9 @@ def transform_later_to_closure_funccontents(
         # Then, handle 'await's:
         if firstnonblank(st) == "await":
             if await_error_name is None:
-                # This is invalid code, ignore.
+                if not ignore_erroneous_code:
+                    raise ValueError("Found 'await' "
+                        "in forbidden location.")
                 new_sts.append(st)
                 continue
             indent_tokens = st[:firstnonblankidx(st)]
@@ -545,7 +616,9 @@ def transform_later_to_closure_funccontents(
         later_index = later_indexes[0]
         if (not nextnonblank(st, later_index) in {":", "repeat"} or
                 nextnonblank(st, later_index, no=2) != ""):
-            # Invalid code. Just ignore.
+            if not ignore_erroneous_code:
+                raise ValueError("Found invalid 'later' "
+                    "not followed by ':' or 'repeat'.")
             new_sts.append(st)
             continue
         is_a_repeat = (nextnonblank(st, later_index) == "repeat")
@@ -692,7 +765,9 @@ def transform_later_to_closure_funccontents(
                         finally_disablers_pre_descent_len=
                             rescue_disablers_INNERFUNC_len,
                         cleanup_code_insert_info=
-                            cleanup_code_insert_info))
+                            cleanup_code_insert_info,
+                        let_finally_run=True,  # End of function! It's ok.
+                    ))
 
             # Wrap everything in 'do'/'rescue' if needed:
             func_inner_content = wrap_later_closure_for_rescue(
@@ -845,8 +920,11 @@ def transform_later_to_closure_unnested(
         # Go from 'func' past until arg or code block start:
         i = firstnonblankidx(st)
         if i >= len(st) or st[i] != "func":
+            if not ignore_erroneous_code:
+                raise ValueError("Failed to find "
+                    "'func' in function statement.")
             new_sts.append(st)
-            continue  # Invalid code!
+            continue
         i += 1  # Past 'func'.
         while i < len(st) and st[i].strip(" \r\n\t") == "":
             i += 1
@@ -859,8 +937,11 @@ def transform_later_to_closure_unnested(
                 st[i] != "(" and st[i] != "{"):
             i += 1
         if i >= len(st):
+            if not ignore_erroneous_code:
+                raise ValueError("Didn't find end "
+                    "of function arguments.")
             new_sts.append(st)
-            continue  # Invalid code!
+            continue
 
         # We're at either code or args now. Check args if present:
         code_block_open_bracket = None
@@ -910,14 +991,20 @@ def transform_later_to_closure_unnested(
 
             # We're at the end of the arguments. Go to code block:
             if i >= len(st) or st[i] != ")":
+                if not ignore_erroneous_code:
+                    raise ValueError("Didn't find ')' after "
+                        "function arguments.")
                 new_sts.append(st)
-                continue  # Invalid code!
+                continue
             i += 1  # Past closing ')'.
             while i < len(st) and st[i].strip(" \r\t\n") == "":
                 i += 1
             if i >= len(st) or st[i] != "{":
+                if not ignore_erroneous_code:
+                    raise ValueError("Failed to find '{' "
+                        "to start function code block.")
                 new_sts.append(st)
-                continue  # Invalid code
+                continue
             code_block_open_bracket = i
         assert(code_block_open_bracket != None)
         if last_nonkw_arg_end != None:
