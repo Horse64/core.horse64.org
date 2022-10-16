@@ -126,3 +126,37 @@ func test_later_dorescue_2 {
             "should run at the very end and only show ONCE!!")
     }
 }
+
+func dosomething {
+    print("[test_later_dorescue_3 (3/7)] Doing nothing.")
+    return later
+}
+
+func breakme {
+    print("[test_later_dorescue_3 (5/7)] Before the error.")
+    throw new ValueError("toast")
+}
+
+func test_later_dorescue_3 {
+    print("[test_later_dorescue_3 (1/7)] Start.")
+    do {
+        do {
+            print("[test_later_dorescue_3 (2/7)] Before 1st jump.")
+            dosomething() later:
+
+            print("[test_later_dorescue_3 (4/7)] Before 2nd jump.")
+            var y = breakme() later:
+
+            await y
+            print("SHOULDNT BE REACHED!")
+        } rescue ValueError as e {
+            print("[test_later_dorescue_3 (6/7)] Caught error!")
+            throw new IOError("oops")
+        }
+    } rescue TypeError as e {
+        print("SHOULDNT BE REACHED EITHER!!")
+    } finally {
+        print("[test_later_dorescue_3 (7/7)] Leaving the test.")
+    }
+}
+

@@ -2583,7 +2583,7 @@ def run_translator_main():
                                 "_run_main(" + testmain + "))"
                     "\n    _remapped_sys.stdout.flush()"
                     "\n    _remapped_sys.stderr.flush()"
-                    "\n    return v\n")
+                    "\n    _remapped_sys.exit(v)\n")
             if is_main_file and not run_as_test:
                 # Get the name & info, find out about our 'main':
                 test_funcs = get_global_standalone_func_names(
@@ -2609,10 +2609,13 @@ def run_translator_main():
                 # Add actual main call:
                 if has_main:
                     contents_result += (
-                        "\nif __name__ == '__main__':" +
-                        "\n    _remapped_sys.exit(" +
-                        "\n        _translator_runtime_helpers." +
-                                    "_run_main(" + innermain + "))\n")
+                        "\nif __name__ == '__main__':"
+                        "\n    v = ("
+                        "\n        _translator_runtime_helpers."
+                                    "_run_main(" + innermain + "))"
+                        "\n    _remapped_sys.stdout.flush()"
+                        "\n    _remapped_sys.stderr.flush()"
+                        "\n    _remapped_sys.exit(v)\n")
             if is_main_file and output_file:
                 if not output_file_linenos:
                     output_file_result = contents_result
