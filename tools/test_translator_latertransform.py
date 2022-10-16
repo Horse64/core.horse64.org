@@ -172,18 +172,35 @@ class TestTranslatorLaterTransform(unittest.TestCase):
             return 5
         }"""
         ), textwrap.dedent("""\
-        func f(__ANYTOK__) {
-            print("Hello")
-            func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
-                print("Bla")
-                __ANYTOK__(None, 5)
+        func f(__ANYPAIR1__) {
+            do {
+                print("Hello")
+                func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
+                    do {
+                        print("Bla")
+                        __ANYPAIR1__(none, 5)
+                        return
+                    } rescue any as e {
+                        if __ANYPAIR1__ != none {
+                            __ANYPAIR1__(e, none)
+                            return
+                        }
+                        throw e
+                    }
+                }
+                mycall(abc, __ANYTOK__)
                 return
+            } rescue any as e {
+                if __ANYPAIR1__ != none {
+                    __ANYPAIR1__(e, none)
+                    return
+                }
+                throw e
             }
-            mycall(abc, __ANYTOK__)
-            return
         }
         """
-        ), any_match_value="__ANYTOK__")
+        ), any_match_value="__ANYTOK__",
+        pair_match_prefix="__ANYPAIR")
 
         # Ensure arguments aren't in wrong order:
         do_test(textwrap.dedent("""\
@@ -194,23 +211,48 @@ class TestTranslatorLaterTransform(unittest.TestCase):
             var result = xyz([1, 2], thing=yes) later:
         }"""), textwrap.dedent(
         """\
-        func xyz(args, __ANYTOK__, thing=no) {
-            func __ANYTOK__ {
-                __ANYTOK__(None, "test")
-            }
-            _translator_runtime_helpers._async_delay_call(
-                __ANYTOK__, []
-            )
-            return
-        }
-        func main(__ANYTOK__) {
-            func __ANYTOK__(__ANYTOK__, result) {
-                __ANYTOK__(None, None)
+        func xyz(args, __ANYPAIR1__, thing=no) {
+            do {
+                func __ANYPAIR3__ {
+                    __ANYPAIR1__(none, "test")
+                }
+                _translator_runtime_helpers._async_delay_call(
+                    __ANYPAIR3__, []
+                )
                 return
+            } rescue any as e {
+                if __ANYPAIR1 != none {
+                    __ANYPAIR1__(e, none)
+                    return
+                }
+                throw e
             }
-            var result = xyz([1, 2], thing=yes, __ANYTOK__)
-            return
-        }"""), any_match_value="__ANYTOK__")
+        }
+        func main(__ANYPAIR2__) {
+            do {
+                func __ANYTOK__(__ANYTOK__, result) {
+                    do {
+                        __ANYPAIR2__(none, none)
+                        return
+                    } rescue any as e {
+                        if __ANYPAIR2 != none {
+                            __ANYPAIR2__(e, none)
+                            return
+                        }
+                        throw e
+                    }
+                }
+                var result = xyz([1, 2], thing=yes, __ANYTOK__)
+                return
+            } rescue any as e {
+                if __ANYPAIR2 != none {
+                    __ANYPAIR2__(e, none)
+                    return
+                }
+                throw e
+            }
+        }"""), any_match_value="__ANYTOK__",
+        pair_match_prefix="__ANYPAIR")
 
         # Ensure do/rescue/finally is factored in correctly:
         do_test(textwrap.dedent("""\
@@ -229,7 +271,7 @@ class TestTranslatorLaterTransform(unittest.TestCase):
             }
         }"""
         ), textwrap.dedent("""\
-        func f(__ANYTOK__) {
+        func f(__ANYPAIR1__) {
             do {  # Handles anything uncaught
                 # Definitions of rescue/finally disable vars and callbacks:
                 var __ANYTOK__  # Disable var 1/2
@@ -264,7 +306,7 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                                                 throw __ANYTOK__
                                             }
                                             # Final return:
-                                            __ANYTOK__(None, None)
+                                            __ANYTOK__(none, none)
                                             # Disables 'rescue': ...
                                             __ANYTOK__ = yes
                                                 # ...'finally' runs now.
@@ -280,7 +322,11 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                                         }
                                     } rescue any as e {
                                         # Uncaught error to cb:
-                                        __ANYTOOK__(e, None)
+                                        if __ANYPAIR1__ != none {
+                                            __ANYPAIR__(e, none)
+                                            return
+                                        }
+                                        throw e
                                     }
                                 }
                                 var x = mycall2(__ANYTOK__, __ANYTOK__)
@@ -298,7 +344,11 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                             }
                         } rescue any as e {
                             # Uncaught error to cb:
-                            __ANYTOK__(e, None)
+                            if __ANYPAIR1__ != none {
+                                __ANYPAIR__(e, none)
+                                return
+                            }
+                            throw e
                         }
                     }
                     # The actual call (the 'later' call):
@@ -316,16 +366,21 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                         __ANYTOK__()  # Call to finally
                     }
                 }
-                # Return for when we don't make it through any 'later'.
-                # above:
-                __ANYTOK__(None, None)
-                return
             } rescue any as e {
                 # Uncaught error to cb:
-                __ANYTOK__(e, None)
+                if __ANYPAIR1__ != none {
+                    __ANYPAIR__(e, none)
+                    return
+                }
+                throw e
             }
+            # Return for when we don't make it through any 'later'.
+            # above:
+            __ANYPAIR1__(none, none)
+            return
         }
-        """), any_match_value="__ANYTOK__")
+        """), any_match_value="__ANYTOK__",
+        pair_match_prefix="__ANYPAIR")
 
 
 if __name__ == '__main__':

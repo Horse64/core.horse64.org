@@ -819,7 +819,7 @@ def transform_later_to_closure_funccontents(
             # Then, wrap it again for global error forward:
             func_inner_content = (
                 wrap_later_func_for_global_rescue(
-                    func_inner_content, arg_name,
+                    func_inner_content, outer_callback_name,
                     h64_indent=h64_indent,
                 ))
             # Done assembling function code!
