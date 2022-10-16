@@ -46,8 +46,11 @@ from translator_latertransform import (
 class TestTranslatorLaterTransform(unittest.TestCase):
     def test_transform_later_to_closure(self):
         # A helper function to test the later transform for us:
-        def do_test(testcode, texpected, any_match_value=None,
-                recursive=False):
+        def do_test(
+                testcode, texpected, any_match_value=None,
+                pair_match_prefix=None,
+                recursive=False
+                ):
             if texpected is None:  # That means no change expected.
                 texpected = testcode
             indent_sanity_check(
@@ -97,10 +100,13 @@ class TestTranslatorLaterTransform(unittest.TestCase):
             # Check the result matches what we expected:
             mismatch_error = None
             try:
-                expr_nonblank_equals(resulttokens,
+                expr_nonblank_equals(
+                    resulttokens,
                     (tokenize(texpected) if type(texpected) == str else
                      texpected), throw_error_with_details=True,
-                    any_match_value=any_match_value)
+                    any_match_value=any_match_value,
+                    pair_match_prefix=pair_match_prefix
+                )
             except ValueError as e:
                 mismatch_error = e
             self.assertEqual(mismatch_error, None,
@@ -128,17 +134,34 @@ class TestTranslatorLaterTransform(unittest.TestCase):
             print("Bla")
         }"""
         ), textwrap.dedent("""\
-        func f(__ANYTOK__) {
-            print("Hello")
-            func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
-                print("Bla")
-                __ANYTOK__(None, None)
+        func f(__ANYPAIR1__) {
+            do {
+                print("Hello")
+                func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
+                    do {
+                        print("Bla")
+                        __ANYTOK__(none, none)
+                        return
+                    } rescue any as e {
+                        if __ANYPAIR1__ != none {
+                            __ANYPAIR1__(e, none)
+                            return
+                        }
+                        throw e
+                    }
+                }
+                mycall(abc, __ANYTOK__)
                 return
+            } rescue any as e {
+                if __ANYPAIR1__ != none {
+                    __ANYPAIR1__(e, none)
+                    return
+                }
+                throw e
             }
-            mycall(abc, __ANYTOK__)
-            return
         }
-        """), any_match_value="__ANYTOK__")
+        """), any_match_value="__ANYTOK__",
+        pair_match_prefix="__ANYPAIR")
 
         # Ensure trailing returns are handled fine:
         do_test(textwrap.dedent("""\
@@ -207,39 +230,62 @@ class TestTranslatorLaterTransform(unittest.TestCase):
         }"""
         ), textwrap.dedent("""\
         func f(__ANYTOK__) {
-            # Definitions of rescue/finally disable vars and callbacks:
-            var __ANYTOK__  # Disable var 1/2
-            var __ANYTOK__  # Disable var 2/2
-            var __ANYTOK__ = no  # Callback 1/2
-            var __ANYTOK__ = no  # Callback 2/2
-            do {
-                # Definition & assignment of rescue/finally closure copies:
-                func __ANYTOK__(__ANYTOK__) {
-                    print("Rescued!")
-                }
-                __ANYTOK__ = __ANYTOK__
-                func __ANYTOK__ {
-                    print("Finally.")
-                }
-                __ANYTOK__ = __ANYTOK__
-                print("Hello")
-                func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
-                    var __ANYTOK__ = no  # Local disable var 1/2
-                    var __ANYTOK__ = no  # Local disable var 2/2
-                    do {
-                        print("Bla")
-                        func __ANYTOK__(__ANYTOK__, x) {
+            do {  # Handles anything uncaught
+                # Definitions of rescue/finally disable vars and callbacks:
+                var __ANYTOK__  # Disable var 1/2
+                var __ANYTOK__  # Disable var 2/2
+                var __ANYTOK__ = no  # Callback 1/2
+                var __ANYTOK__ = no  # Callback 2/2
+                do {
+                    # Define & assign rescue/finally closure copies:
+                    func __ANYTOK__(__ANYTOK__) {
+                        print("Rescued!")
+                    }
+                    __ANYTOK__ = __ANYTOK__
+                    func __ANYTOK__ {
+                        print("Finally.")
+                    }
+                    __ANYTOK__ = __ANYTOK__
+                    print("Hello")
+                    func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
+                        do {  # Handles anything uncaught
                             var __ANYTOK__ = no  # Local disable var 1/2
                             var __ANYTOK__ = no  # Local disable var 2/2
                             do {
-                                print("test")
-                                # 'await x' transforms into an error throw:
-                                if (__ANYTOK__ != none) {
-                                    throw __ANYTOK__
+                                print("Bla")
+                                func __ANYTOK__(__ANYTOK__, x) {
+                                    do {  # Handles anything uncaught
+                                        var __ANYTOK__ = no  # Dsbl. var 1/2
+                                        var __ANYTOK__ = no  # Dsbl. var 2/2
+                                        do {
+                                            print("test")
+                                            # 'await x' becomes error throw:
+                                            if (__ANYTOK__ != none) {
+                                                throw __ANYTOK__
+                                            }
+                                            # Final return:
+                                            __ANYTOK__(None, None)
+                                            # Disables 'rescue': ...
+                                            __ANYTOK__ = yes
+                                                # ...'finally' runs now.
+                                            return
+                                        } rescue any as e {
+                                            if not __ANYTOK__ {
+                                                __ANYTOK__(e)  # To rescue
+                                            }
+                                        } finally {
+                                            if not __ANYTOK__ {
+                                                __ANYTOK__()  # To finally
+                                            }
+                                        }
+                                    } rescue any as e {
+                                        # Uncaught error to cb:
+                                        __ANYTOOK__(e, None)
+                                    }
                                 }
-                                __ANYTOK__(None, None)  # Final return none.
-                                __ANYTOK__ = yes  # Disables 'rescue',
-                                    # 'finally' should run now...
+                                var x = mycall2(__ANYTOK__, __ANYTOK__)
+                                __ANYTOK__ = yes
+                                __ANYTOK__ = yes
                                 return
                             } rescue any as e {
                                 if not __ANYTOK__ {
@@ -250,40 +296,34 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                                     __ANYTOK__()  # Call to finally
                                 }
                             }
-                        }
-                        var x = mycall2(__ANYTOK__, __ANYTOK__)
-                        __ANYTOK__ = yes
-                        __ANYTOK__ = yes
-                        return
-                    } rescue any as e {
-                        if not __ANYTOK__ {
-                            __ANYTOK__(e)  # Call to rescue
-                        }
-                    } finally {
-                        if not __ANYTOK__ {
-                            __ANYTOK__()  # Call to finally
+                        } rescue any as e {
+                            # Uncaught error to cb:
+                            __ANYTOK__(e, None)
                         }
                     }
+                    # The actual call (the 'later' call):
+                    mycall(abc, __ANYTOK__)
+                    # Disable our own finally/rescue now:
+                    __ANYTOK__ = yes
+                    __ANYTOK__ = yes
+                    return
+                } rescue any {
+                    if not __ANYTOK__ {  # Checks the disable var.
+                        __ANYTOK__(none)  # Call to rescue
+                    }
+                } finally {
+                    if not __ANYTOK__ {
+                        __ANYTOK__()  # Call to finally
+                    }
                 }
-                # The actual call (the 'later' call):
-                mycall(abc, __ANYTOK__)
-                # Disable our own finally/rescue now:
-                __ANYTOK__ = yes
-                __ANYTOK__ = yes
+                # Return for when we don't make it through any 'later'.
+                # above:
+                __ANYTOK__(None, None)
                 return
-            } rescue any {
-                if not __ANYTOK__ {  # Checks the disable var.
-                    __ANYTOK__(none)  # Call to rescue
-                }
-            } finally {
-                if not __ANYTOK__ {
-                    __ANYTOK__()  # Call to finally
-                }
+            } rescue any as e {
+                # Uncaught error to cb:
+                __ANYTOK__(e, None)
             }
-            # Return for when we don't make it through first later boundary
-            # above:
-            __ANYTOK__(None, None)
-            return
         }
         """), any_match_value="__ANYTOK__")
 

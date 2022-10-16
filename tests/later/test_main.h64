@@ -128,35 +128,49 @@ func test_later_dorescue_2 {
 }
 
 func dosomething {
-    print("[test_later_dorescue_3 (3/7)] Doing nothing.")
+    print("[test_later_dorescue_3 (3/9)] Doing nothing.")
     return later
 }
 
 func breakme {
-    print("[test_later_dorescue_3 (5/7)] Before the error.")
-    throw new ValueError("toast")
+    print("[test_later_dorescue_3 (5/9)] Before the error.")
+    if yes {
+        throw new ValueError("toast")
+    }
+    return later
 }
 
-func test_later_dorescue_3 {
-    print("[test_later_dorescue_3 (1/7)] Start.")
+func _test_later_dorescue_3_inner {
+    print("[test_later_dorescue_3 (1/9)] Start.")
     do {
         do {
-            print("[test_later_dorescue_3 (2/7)] Before 1st jump.")
+            print("[test_later_dorescue_3 (2/9)] Before 1st jump.")
             dosomething() later:
 
-            print("[test_later_dorescue_3 (4/7)] Before 2nd jump.")
+            print("[test_later_dorescue_3 (4/9)] Before 2nd jump.")
             var y = breakme() later:
 
             await y
             print("SHOULDNT BE REACHED!")
         } rescue ValueError as e {
-            print("[test_later_dorescue_3 (6/7)] Caught error!")
+            print("[test_later_dorescue_3 (6/9)] Caught error!")
             throw new IOError("oops")
         }
     } rescue TypeError as e {
         print("SHOULDNT BE REACHED EITHER!!")
     } finally {
-        print("[test_later_dorescue_3 (7/7)] Leaving the test.")
+        print("[test_later_dorescue_3 (7/9)] Leaving the test.")
     }
+}
+
+func test_later_dorescue_3 {
+    var x = _test_later_dorescue_3_inner() later:
+
+    do {
+        await x
+    } rescue IOError {
+        print("[test_later_dorescue_3 (8/9)] Got expected 2nd error!")
+    }
+    print("[test_later_dorescue_3 (9/9)] Done!")
 }
 

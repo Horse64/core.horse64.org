@@ -98,6 +98,22 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         self.assertTrue(expr_nonblank_equals(
             ["func", " ", "bla"], ["func", "bla"]
         ))
+        self.assertFalse(expr_nonblank_equals(
+            ["func", " ", "blargh"], ["func", " ", "__ANYTOK__"]
+        ))
+        self.assertTrue(expr_nonblank_equals(
+            ["func", " ", "blargh"], ["func", "__ANYTOK__"],
+            any_match_value="__ANYTOK__"
+        ))
+        self.assertTrue(expr_nonblank_equals(
+            ["abcd", " ", "abcd"], ["__ANYPAIR1__", "__ANYPAIR1__"],
+            pair_match_prefix="__ANYPAIR"
+        ))
+        self.assertFalse(expr_nonblank_equals(
+            ["abFG", " ", "abcd"], ["__ANYPAIR1__", "__ANYPAIR1__"],
+            pair_match_prefix="__ANYPAIR"
+        ))
+
 
     def test_is_identifier(self):
         self.assertTrue(is_identifier("flurb"))

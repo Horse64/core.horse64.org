@@ -802,11 +802,18 @@ def prevnonblank(t, idx, no=1):
 def expr_nonblank_equals(
         v1, v2, any_match_value=None,
         throw_error_with_details=False,
+        pair_match_prefix=None,
         ):
     if type(v1) == str:
         v1 = tokenize(v1)
     if type(v2) == str:
         v2 = tokenize(v2)
+
+    # A map to store which pair values we had, so later pair
+    # placeholders can enforce the value stays the same:
+    pair_map = dict()
+
+    # Tracking line and token numbers:
     line1 = 1
     prevline1starttok = 0
     line1starttok = 0
@@ -815,6 +822,8 @@ def expr_nonblank_equals(
     prevline2starttok = 0
     line2starttok = 0
     i2 = 0
+
+    # Start loop checking for token equality:
     while True:
         while (i1 < len(v1) and (v1[i1] == "" or
                 is_whitespace_token(v1[i1]))):
@@ -834,10 +843,39 @@ def expr_nonblank_equals(
             return (i2 >= len(v2))
         elif i2 >= len(v2):
             return False
+        match = True
         if (v1[i1] != v2[i2]) and (
                 any_match_value == None or
                 (v1[i1] != any_match_value and
                 v2[i2] != any_match_value)):
+            match = False
+            # Check our pair mechanics:
+            if (pair_match_prefix != None and (
+                    v1[i1].startswith(pair_match_prefix) or
+                    v2[i2].startswith(pair_match_prefix)) and (
+                    not v1[i1].startswith(pair_match_prefix) or
+                    not v2[i2].startswith(pair_match_prefix))):
+                # One of these is a pair placeholder.
+                # See which one it is:
+                v1_is_pairval = (v1[i1].startswith(
+                    pair_match_prefix
+                ))
+                pair_val = v1[i1]
+                nonpair_val = v2[i2]
+                if not v1_is_pairval:
+                    pair_val = v2[i2]
+                    nonpair_val = v1[i1]
+                # A pair placeholder can match anything, but if
+                # used multiple times only the same recurring value:
+                if pair_val in pair_map:
+                    # Needs to be the same recurring!
+                    match = (pair_map[pair_val] == nonpair_val)
+                else:
+                    # Set what the next occurences need to match.
+                    pair_map[pair_val] = nonpair_val
+                    match = True
+            # (End of pair handling code above.)
+        if not match:
             if throw_error_with_details:
                 raise ValueError("Tokens don't match, "
                     "diverged at positions #" + str(i1) +
