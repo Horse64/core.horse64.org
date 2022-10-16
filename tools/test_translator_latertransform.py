@@ -195,8 +195,9 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                 print("Hello")
                 mycall(abc) later:
                 print("Bla")
-                mycall2(abc) later:
+                var x = mycall2(abc) later:
                 print("test")
+                await x
             } rescue any {
                 print("Rescued!")
             } finally {
@@ -217,11 +218,15 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                     var __ANYTOK__ = no  # Local disable var 2/2
                     do {
                         print("Bla")
-                        func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
+                        func __ANYTOK__(__ANYTOK__, x) {
                             var __ANYTOK__ = no  # Local disable var 1/2
                             var __ANYTOK__ = no  # Local disable var 2/2
                             do {
                                 print("test")
+                                # 'await x' transforms into an error throw:
+                                if (__ANYTOK__ != none) {
+                                    throw __ANYTOK__
+                                }
                                 __ANYTOK__(None, None)  # Final return none.
                                 __ANYTOK__ = yes
                                 __ANYTOK__ = yes
@@ -236,7 +241,7 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                                 }
                             }
                         }
-                        mycall2(__ANYTOK__, __ANYTOK__)
+                        var x = mycall2(__ANYTOK__, __ANYTOK__)
                         __ANYTOK__ = yes
                         __ANYTOK__ = yes
                         return
