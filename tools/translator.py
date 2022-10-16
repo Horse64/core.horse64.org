@@ -114,6 +114,37 @@ if os.path.exists(os.path.join(translator_py_script_dir,
             VERSION = _get_version
 
 
+# XXX HACK alert (written by ell1e):
+# The mpath() function is needed because python's module handling is
+# hazardously simplistic, and if any submodule anywhere matches a
+# standalone module like `token.py` it'll just happily import the
+# wrong one with no good way to prevent this other than renaming
+# your own module to never have naming conflicts.
+# To solve this, all horse modules are *actually* named _h64mod_...
+# on disk, which we achieve by piping only the final output paths
+# through this hacky transformation function (so that we can otherwise
+# pretend to have sane module names):
+def mpath(p, sep="/"):
+    if sep == "/":
+        p = p.replace("\\", "/")
+    parts = list(p.split(sep))
+    i = len(parts)
+    while i - 1 >= 0:
+        i -= 1
+        if (parts[i] == "main" and i >= 1 and
+                parts[i - 1] == "horse_modules"):
+            break
+        if ("_" in parts[i] and
+                parts[i].index("_") != parts[i].rindex("_") and
+                i >= 1 and parts[i - 1] == "horse_modules"):
+            break
+        if parts[i] == "horse_modules":
+            break
+        if not parts[i].startswith("_h64mod_"):
+            parts[i] = "_h64mod_" + parts[i]
+    return sep.join(parts)
+
+
 def _splitpath(p):
     if os.path.sep == "\\" or platform.system().lower == "windows":
         p = p.replace("\\", "/")
@@ -1642,7 +1673,7 @@ def translate(s, sc):
             target_path = import_module.replace(".", "/") + ".h64"
             target_filename = import_module.split(".")[-1] + ".py"
             append_code = ""
-            python_module = import_module
+            python_module = mpath(import_module, sep=".")
             package_python_subfolder = sc.project_info.\
                 get_package_subfolder(import_package,
                 for_output=True)
@@ -1654,8 +1685,8 @@ def translate(s, sc):
                 if package_python_subfolder.endswith("/"):
                     package_python_subfolder = (
                         package_python_subfolder[:-1])
-                python_module = package_python_subfolder.\
-                    replace("/", ".") + "." + python_module
+                python_module = mpath(package_python_subfolder +
+                    "/" + python_module).replace("/", ".")
                 module_part = import_module.split(".")[0]
                 append_code += ("; ((" + module_part +
                     " := _translator_runtime_helpers." +
@@ -1754,7 +1785,7 @@ def translate(s, sc):
             sc.processed_imports[import_module] = {
                 "package": import_package,
                 "module": import_module,
-                "python-module": python_module,
+                "python-module": mpath(python_module, sep="."),
                 "path": target_path,
                 "target-filename": target_filename,
             }
@@ -1773,7 +1804,8 @@ def translate(s, sc):
                 continue
 
             # Add translated import code:
-            result += "import " + python_module + append_code + "\n"
+            result += ("import " + mpath(python_module, sep=".") +
+                append_code + "\n")
             queue_file_if_not_queued(sc.translate_file_queue,
                 (target_path, target_filename,
                 import_module, os.path.dirname(target_path),
@@ -2465,15 +2497,13 @@ def run_translator_main():
                     translated_files[translated_file]
                         ["package-name"], for_output=True))
             contents_result = (
+                "import sys as _remapped_sys;"
                 "import shutil as _remapped_shutil;"
-                "import os as _remapped_os;import sys as _remapped_sys;"
+                "import os as _remapped_os;"
                 "import tempfile as _remapped_tempfile;"
                 "_remapped_sys.path.insert(1, " +
                     as_escaped_code_string(os.path.join(
                         output_folder, "_translator_runtime")) + ");" +
-                "_remapped_sys.path.insert(1, " +
-                    as_escaped_code_string(
-                    associated_package_output_folder) + ");" +
                 "_remapped_sys.path.append(" +
                     as_escaped_code_string(output_folder) + ");" +
                 "_translator_kw_arg_default_value = object();" +
@@ -2693,20 +2723,24 @@ def run_translator_main():
             contents = translated_files[translated_file]["output"]
             subfolder = translated_files[translated_file]["disk-fake-folder"]
             assert(not os.path.isabs(subfolder) and ".." not in subfolder)
-            subfolder_abs = os.path.join(output_folder, subfolder)
+            subfolder_abs = os.path.join(
+                output_folder, mpath(subfolder)
+            )
             if not os.path.exists(subfolder_abs):
                 os.makedirs(subfolder_abs)
-            with open(os.path.join(output_folder, subfolder,
-                    targetfilename), "w", encoding="utf-8") as f:
+            with open(os.path.join(output_folder, mpath(os.path.join(
+                    subfolder,
+                    targetfilename))), "w", encoding="utf-8") as f:
                 f.write(contents)
             if DEBUGV.ENABLE and DEBUGV.ENABLE_FILE_PATHS:
                 print("tools/translator.py: debug: wrote file: " +
-                    os.path.join(output_folder, subfolder,
-                    targetfilename) + " (module: " +
+                    os.path.join(output_folder, mpath(os.path.join(
+                    subfolder,
+                    targetfilename))) + " (module: " +
                     translated_files[translated_file]["module-name"] + ")")
             if translated_files[translated_file]["path"] == mainfilepath:
-                run_py_path = os.path.join(output_folder, subfolder,
-                    targetfilename)
+                run_py_path = os.path.join(output_folder, mpath(
+                    os.path.join(subfolder, targetfilename)))
         launch_cmd = [
             sys.executable, run_py_path
         ] + target_file_args

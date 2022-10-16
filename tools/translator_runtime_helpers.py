@@ -1130,7 +1130,12 @@ class _ModuleObject:
         import horse_modules
         result = getattr(horse_modules,
             self._base_library.replace(".", "_"))
-        result = getattr(result, self._base_module)
+        result = getattr(result,
+            ("_h64mod_" if self._base_library != "main"
+            else "") + self._base_module)
+        if (not hasattr(result, name) and
+                name.startswith("_h64mod_")):
+            name = "_h64mod_" + name
         return getattr(result, name)
 
 
