@@ -262,6 +262,7 @@ def transform_later_to_closure_funccontents(
         await_error_name=None,
         closest_scope_later_func_name=None,
         cleanup_code_insert_info=None,
+        ignore_erroneous_code=True,
         ):
     assert(outer_callback_name != None)
     assert(callback_delayed_func_name != None)
@@ -343,6 +344,9 @@ def transform_later_to_closure_funccontents(
                         bdepth -= 1
                     k += 1
                 if k >= len(st) or not st[k] in {"as", "{"}:
+                    if not ignore_erroneous_code:
+                        raise ValueError("failed to parse 'do' "
+                            "statement, 'rescue' block is faulty")
                     new_sts.append(st)
                     continue
                 rescue_expr = st[korig:k]
@@ -353,6 +357,29 @@ def transform_later_to_closure_funccontents(
             )
             if ((rescueidx < 0 and finallyidx < 0) or
                     not stmt_inner_blocks_use_later(st)):
+                # Good, not much to do. However, we still have to
+                # transform our insides (they might still contain
+                # 'await'):
+                ranges = reversed(get_statement_block_ranges(st))
+                for brange in ranges:
+                    st = (st[:brange[0]] +
+                        flatten(transform_later_to_closure_funccontents(
+                            split_toplevel_statements(
+                                st[brange[0]:brange[1]]
+                            ),
+                            h64_indent=h64_indent,
+                            outer_callback_name=outer_callback_name,
+                            callback_delayed_func_name=
+                                callback_delayed_func_name,
+                            await_error_name=await_error_name,
+                            closest_scope_later_func_name=
+                                closest_scope_later_func_name,
+                            cleanup_code_insert_info=
+                                cleanup_code_insert_info,
+                            ignore_erroneous_code=
+                                ignore_erroneous_code,
+                        )) +
+                        st[brange[1]:])
                 new_sts.append(st)
                 continue
 
@@ -440,6 +467,8 @@ def transform_later_to_closure_funccontents(
                             closest_scope_later_func_name,
                         cleanup_code_insert_info=
                             cleanup_code_insert_info,
+                        ignore_erroneous_code=
+                            ignore_erroneous_code,
                     )) +
                     st[do_range[1]:])
 
@@ -504,6 +533,8 @@ def transform_later_to_closure_funccontents(
                             closest_scope_later_func_name,
                         cleanup_code_insert_info=
                             cleanup_code_insert_info,
+                        ignore_erroneous_code=
+                            ignore_erroneous_code,
                     )) +
                     st[brange[1]:])
             new_sts.append(st)
@@ -619,6 +650,8 @@ def transform_later_to_closure_funccontents(
                         funcname,
                     cleanup_code_insert_info=
                         cleanup_code_insert_info,
+                    ignore_erroneous_code=
+                        ignore_erroneous_code,
                 )
             )
             inner_indent = get_indent(st) + h64_indent
@@ -793,7 +826,8 @@ def is_func_a_later_func(st):
 
 def transform_later_to_closure_unnested(
         sts, h64_indent="    ",
-        callback_delayed_func_name=None
+        callback_delayed_func_name=None,
+        ignore_erroneous_code=True,
         ):
     new_sts = []
     st_idx = -1
@@ -922,6 +956,8 @@ def transform_later_to_closure_unnested(
                     callback_delayed_func_name,
                 outer_callback_name=callback_name,
                 cleanup_code_insert_info=None,
+                ignore_erroneous_code=
+                    ignore_erroneous_code,
             ))
         ends_in_return = False
         if len(inner_code_lines) > 0:
@@ -966,12 +1002,14 @@ def transform_later_to_closure_unnested(
 
 
 def transform_later_to_closures(
-        s, callback_delayed_func_name=None):
+        s, callback_delayed_func_name=None,
+        ignore_erroneous_code=True):
     assert(type(callback_delayed_func_name) in {str, list})
     def do_transform_later(sts):
         return transform_later_to_closure_unnested(
             sts, callback_delayed_func_name=
-                callback_delayed_func_name)
+                callback_delayed_func_name,
+            ignore_erroneous_code=ignore_erroneous_code)
     s = tree_transform_statements(s, do_transform_later)
     return s
 
