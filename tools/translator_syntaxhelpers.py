@@ -241,7 +241,9 @@ def get_statement_ranges_ex(t,
 def adjust_to_absolute_indent(t, indent=""):
     old_indent = get_indent(t)
     if old_indent is None:
-        return
+        return t
+    if len(indent) == len(old_indent):
+        return t
     if len(indent) > len(old_indent):
         change_indent = indent[len(old_indent):]
         t = increase_indent(t, added=change_indent)

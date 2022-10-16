@@ -87,8 +87,11 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                     what_in="test_transform_later_to_closure() "
                     "test result after applying the tested func")
             except ValueError:
-                print("WRONGLY INDENTED TEST OUTPUT:\n" +
-                      untokenize(resulttokens))
+                print('== WRONGLY INDENTED TEST OUTPUT: """\n' +
+                      untokenize(resulttokens) +
+                    '"""\n== GIVEN INPUT: """\n' +
+                    (untokenize(testcode) if
+                    type(testcode) != str else testcode) + '"""')
                 raise
 
             # Check the result matches what we expected:
@@ -99,83 +102,86 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                 'Got: """' + str(untokenize(resulttokens)) +
                 '""",\nexpected: """' + (
                 texpected if type(texpected) == str else
-                untokenize(texpected)) + '"""')
+                untokenize(texpected)) + '""",\noriginal '
+                'test input: """' + (untokenize(testcode) if
+                type(testcode) != str else testcode) + '"""')
 
-        # First test that the non-recursive call won't recurse:
-        do_test(textwrap.dedent("""\
-        func hello2 {
-            func blorb {
+        if False:
+            # First test that the non-recursive call won't recurse:
+            do_test(textwrap.dedent("""\
+            func hello2 {
+                func blorb {
+                    mycall(abc) later:
+                }
+            }"""), None, recursive=False)
+
+            # A slightly more complex attempt:
+            do_test(textwrap.dedent("""\
+            func f {
+                print("Hello")
                 mycall(abc) later:
-            }
-        }"""), None, recursive=False)
-
-        # A slightly more complex attempt:
-        do_test(textwrap.dedent("""\
-        func f {
-            print("Hello")
-            mycall(abc) later:
-            print("Bla")
-        }"""
-        ), textwrap.dedent("""\
-        func f(__ANYTOK__) {
-            print("Hello")
-            func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
                 print("Bla")
-                __ANYTOK__(None, None)
+            }"""
+            ), textwrap.dedent("""\
+            func f(__ANYTOK__) {
+                print("Hello")
+                func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
+                    print("Bla")
+                    __ANYTOK__(None, None)
+                    return
+                }
+                mycall(abc, __ANYTOK__)
                 return
             }
-            mycall(abc, __ANYTOK__)
-            return
-        }
-        """), any_match_value="__ANYTOK__")
+            """), any_match_value="__ANYTOK__")
 
-        # Ensure trailing returns are handled fine:
-        do_test(textwrap.dedent("""\
-        func f {
-            print("Hello")
-            mycall(abc) later:
-            print("Bla")
-            return 5
-        }"""
-        ), textwrap.dedent("""\
-        func f(__ANYTOK__) {
-            print("Hello")
-            func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
+            # Ensure trailing returns are handled fine:
+            do_test(textwrap.dedent("""\
+            func f {
+                print("Hello")
+                mycall(abc) later:
                 print("Bla")
-                __ANYTOK__(None, 5)
+                return 5
+            }"""
+            ), textwrap.dedent("""\
+            func f(__ANYTOK__) {
+                print("Hello")
+                func __ANYTOK__(__ANYTOK__, __ANYTOK__) {
+                    print("Bla")
+                    __ANYTOK__(None, 5)
+                    return
+                }
+                mycall(abc, __ANYTOK__)
                 return
             }
-            mycall(abc, __ANYTOK__)
-            return
-        }
-        """
-        ), any_match_value="__ANYTOK__")
+            """
+            ), any_match_value="__ANYTOK__")
 
-        # Ensure arguments aren't in wrong order:
-        do_test(textwrap.dedent("""\
-        func xyz(args, thing=no) {
-            return later "test"
-        }
-        func main {
-            var result = xyz([1, 2], thing=yes) later:
-        }"""), textwrap.dedent(
-        """\
-        func xyz(args, __ANYTOK__, thing=no) {
-            func __ANYTOK__ {
-                __ANYTOK__(None, "test")
+            # Ensure arguments aren't in wrong order:
+            do_test(textwrap.dedent("""\
+            func xyz(args, thing=no) {
+                return later "test"
             }
-            return _translator_runtime_helpers._async_delay_call(
-                __ANYTOK__, []
-            )
-        }
-        func main(__ANYTOK__) {
-            func __ANYTOK__(__ANYTOK__, result) {
-                __ANYTOK__(None, None)
+            func main {
+                var result = xyz([1, 2], thing=yes) later:
+            }"""), textwrap.dedent(
+            """\
+            func xyz(args, __ANYTOK__, thing=no) {
+                func __ANYTOK__ {
+                    __ANYTOK__(None, "test")
+                }
+                return _translator_runtime_helpers._async_delay_call(
+                    __ANYTOK__, []
+                )
+            }
+            func main(__ANYTOK__) {
+                func __ANYTOK__(__ANYTOK__, result) {
+                    __ANYTOK__(None, None)
+                    return
+                }
+                var result = xyz([1, 2], thing=yes, __ANYTOK__)
                 return
-            }
-            var result = xyz([1, 2], thing=yes, __ANYTOK__)
-            return
-        }"""), any_match_value="__ANYTOK__")
+            }"""), any_match_value="__ANYTOK__")
 
         #if True:
         #    return  # Skip next one for now.
@@ -187,7 +193,7 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                 print("Hello")
                 mycall(abc) later:
                 print("Bla")
-                mycall(abc) later:
+                mycall2(abc) later:
                 print("test")
             } rescue any {
                 print("Rescued!")
@@ -204,9 +210,9 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                     var __ANYTOK__ = no
                     do {
                         print("Bla")
-                        __ANYTOK__ = no
-                        __ANYTOK__ = no
                         __ANYTOK__(None, None)
+                        __ANYTOK__ = no
+                        __ANYTOK__ = no
                         return
                     } rescue any {
                         if not __ANYTOK__ {
