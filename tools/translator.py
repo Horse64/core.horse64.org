@@ -140,7 +140,8 @@ def mpath(p, sep="/"):
             break
         if parts[i] == "horse_modules":
             break
-        if not parts[i].startswith("_h64mod_"):
+        if (not parts[i].startswith("_h64mod_") and
+                not parts[i] in {"__init__", "__init__.py"}):
             parts[i] = "_h64mod_" + parts[i]
     return sep.join(parts)
 

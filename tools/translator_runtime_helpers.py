@@ -1134,7 +1134,7 @@ class _ModuleObject:
             ("_h64mod_" if self._base_library != "main"
             else "") + self._base_module)
         if (not hasattr(result, name) and
-                name.startswith("_h64mod_")):
+                not name.startswith("_h64mod_")):
             name = "_h64mod_" + name
         return getattr(result, name)
 
