@@ -253,7 +253,7 @@ func tokenize_str(
                     }
                     next_escaped = yes
                     if k + 1 < strlen and
-                            not known_string_escapes.contains(
+                            not known_string_escapes.has(
                             str[k + 1]) {
                         result.msgs.add(compiler.msg.FileMsg(
                             "Invalid string escape '\\' + " +
@@ -294,7 +294,7 @@ func tokenize_str(
                 while j < inner_tokens.len {
                     j += 1
                     var stroffset = none
-                    if maybe_statement_tokens.contains(
+                    if maybe_statement_tokens.has(
                             inner_tokens[j].str) {
                         # Might be a new statement. Terminate here.
                         recover_str_offset =
@@ -425,11 +425,11 @@ func tokenize_str(
             i -= 1
             const name = s.sub(start_idx, i)
             if auto_recovery and
-                    maybe_statement_tokens.contains(
+                    maybe_statement_tokens.has(
                     name) {
                 guessed_expr_bracket_nesting = []
             }
-            if guaranteed_outer_scope_tokens.contains(name) {
+            if guaranteed_outer_scope_tokens.has(name) {
                 if bracket_nesting.len > 0 {
                     var openinfo = bracket_nesting.last()
                     result.msgs.add(compiler.msg.FileMsg(
@@ -462,12 +462,12 @@ func tokenize_str(
 }
 
 
-func tokenize_from_fileobj async (
+func tokenize_from_fileobj (
         fobj, project_file=none,
         keep_whitespace=no) {
     var result = new TokenizeResult()
-    fobj.read(max_project_file_size + 1)
-    then contents:
+    var contents = fobj.read(max_project_file_size + 1)
+    later:
     if contents.len >= max_project_file_size + 1 {
         result.msgs.add(compiler.msg.FileMsg(
             "file exceeds maximum size limit of " +

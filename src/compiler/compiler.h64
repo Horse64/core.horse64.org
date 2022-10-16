@@ -26,7 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 
-import compiler.tokens
+import compiler.token
 
 
 func reformat_horserun_oneliner_code(s) {

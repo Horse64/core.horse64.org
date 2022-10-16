@@ -490,11 +490,11 @@ def transform_later_to_closure_funccontents(
                         str(uuid.uuid4()).replace("-", ""))
                     added_sts.append([
                         do_block_indent, "func", " ",
-                        new_temp_name, " "] + (["(",
-                            rescue_lbl, " "] if rescue_lbl != None else
-                            ["(", "_unused" + str(uuid.uuid4()).
-                                replace("-", ""), ")", " "]) +
-                        ["{", "\n"] +
+                        new_temp_name, " ", "("] + ([
+                            rescue_lbl] if rescue_lbl != None else
+                            ["_unused" + str(uuid.uuid4()).
+                                replace("-", "")]) +
+                        [")", " ", "{", "\n"] +
                         adjust_to_absolute_indent(code,
                             indent=(do_block_indent + h64_indent)) +
                         ["\n", do_block_indent, "}", "\n"]

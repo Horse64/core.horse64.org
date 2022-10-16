@@ -1136,7 +1136,8 @@ def translate(s, sc):
                 if i >= len(statement) or statement[i] == "=":
                     assert(i >= len(statement) or statement[i] == "=")
                     break
-                assert(statement[i] == ",")
+                assert(statement[i] == ","), ("Bogus var statement: " +
+                    str(statement) + " in module " + str(sc.module_name))
                 i += 1  # Past comma.
                 continue  # Get following identifiers!
             if i < len(statement):
@@ -2390,21 +2391,30 @@ def run_translator_main():
             except ValueError as e:
                 raise ValueError("INTERNAL ERROR, "
                     "separate_out_inline_funcs() "
-                    "broke syntax: " + str(e))
+                    "broke syntax: " + str(e) + "\n"
+                    "FULL BROKEN FILE DUMP:\n" +
+                    untokenize(contents) + "\nEND OF DUMP.")
         contents = transform_later_to_closures(
             make_string_literal_python_friendly(tokenize(contents)),
             callback_delayed_func_name=[
                 "_translator_runtime_helpers", ".",
-                "_async_delay_call"])
+                "_async_delay_call"],
+            ignore_erroneous_code=False)
         if paranoid:
             try:
                 sanity_check_h64_codestring(
                     contents, modname=modname,
                     filename=target_file)
             except ValueError as e:
+                msg = ("INTERNAL ERROR, "
+                    "transform_later_to_closures() "
+                    "broke syntax: " + str(e) + "\n"
+                    "FULL BROKEN FILE DUMP:\n" +
+                    untokenize(contents) + "\nEND OF DUMP.")
+                print(msg, flush=True)
                 raise ValueError("INTERNAL ERROR, "
                     "transform_later_to_closures() "
-                    "broke syntax: " + str(e))
+                    "broke syntax: " + str(e) + "\n")
         contents = make_kwargs_in_call_tailing(contents)
         if paranoid:
             try:
@@ -2567,10 +2577,13 @@ def run_translator_main():
                         tfislater else "") + "); ")
 
                 # Insert actual main to call our test main:
-                contents_result += ("\nif __name__ == '__main__':" +
-                    "\n    _remapped_sys.exit(" +
-                    "\n        _translator_runtime_helpers." +
-                                "_run_main(" + testmain + "))\n")
+                contents_result += ("\nif __name__ == '__main__':"
+                    "\n    v = ("
+                    "\n        _translator_runtime_helpers."
+                                "_run_main(" + testmain + "))"
+                    "\n    _remapped_sys.stdout.flush()"
+                    "\n    _remapped_sys.stderr.flush()"
+                    "\n    return v\n")
             if is_main_file and not run_as_test:
                 # Get the name & info, find out about our 'main':
                 test_funcs = get_global_standalone_func_names(
