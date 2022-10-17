@@ -1,6 +1,6 @@
 # Form for a bug report.
 name: Bug Report
-about: Report a malfunction with existing functionality.
+about: Report a malfunction of existing functionality.
 labels:
   - bug
 body:

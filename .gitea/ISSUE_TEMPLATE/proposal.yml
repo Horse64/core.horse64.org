@@ -13,14 +13,15 @@ body:
     id: description
     attributes:
       label: What to add?
-      description: What feature or enhancement do you want added in, how should it work?
+      description: |
+        What feature or enhancement should be added, how should it work?
       placeholder: Detailed description...
     validations:
       required: true
   - type: textarea
     id: testprogram
     attributes:
-      label: Example code 
+      label: Example code
       description: |
         Is there some example code for how you envision the
         feature to be used, if it is code-related?
