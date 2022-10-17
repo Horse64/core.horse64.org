@@ -251,8 +251,11 @@ def add_wrapped_later_call_for_rescue(
                 while i > 0 and is_whitespace_token(call_stmt[i]):
                     i -= 1
                 call_stmt = call_stmt[:i + 1] + ["\n"]
-        sts.append(adjust_to_absolute_indent(
-            call_stmt, indent=indent))
+        adjusted = adjust_to_absolute_indent(
+            call_stmt, indent=indent)
+        assert(type(adjusted) == list and (len(adjusted) > 0
+            and type(adjusted[0]) == str))
+        sts.append(adjusted)
     else:
         sts.append([indent, call_name, "("] +
             call_result_expr + [","] +
@@ -322,7 +325,7 @@ def transform_later_to_closure_funccontents(
                 )
                 if "".join(return_arg).strip(" \t\r\n") == "":
                     return_arg = ["none"]
-                call_stmts += (
+                call_stmts.append(
                     indent_tokens + ["func", " ", _delayfuncname,
                     " ", "{", "\n"] +
                     indent_tokens + [h64_indent] + [
@@ -335,18 +338,18 @@ def transform_later_to_closure_funccontents(
                     delayed_call_tokens = tokenize(
                         delayed_call_tokens
                     )
-                call_stmts += (
+                call_stmts.append(
                     indent_tokens +
                     delayed_call_tokens +
                     ["(", _delayfuncname, ",", "[", "]", ")", "\n"]
                 )
-                call_stmts += (
+                call_stmts.append(
                     indent_tokens + ["return", "\n"])
             else:
-                call_stmts += (indent_tokens +
+                call_stmts.append(indent_tokens +
                     [outer_callback_name, "("] +
                     ["none", ","] + return_arg + [")", "\n"])
-                call_stmts += (
+                call_stmts.append(
                     indent_tokens + ["return", "\n"]
                 )
             if cleanup_code_insert_info:
@@ -363,6 +366,9 @@ def transform_later_to_closure_funccontents(
                         cleanup_code_insert_info,
                     let_finally_run=True,  # Return = bail! It's ok.
                 ))
+                assert(type(call_stmts) == list and
+                    (len(call_stmts) == 0 or
+                    type(call_stmts[0]) == list))
                 new_sts += call_stmts
             continue
 
@@ -715,14 +721,21 @@ def transform_later_to_closure_funccontents(
             while i2 < len(st) and st[i2] != '=':
                 i2 += 1
             if i2 >= len(st):
+                if not ignore_erroneous_code:
+                    raise ValueError("Found 'var' with 'later' "
+                        "line lacking the expected '='.")
                 new_sts.append(st)
-                continue  # Invalid code.
+                continue
             i2 += 1  # Move past '='.
             while i2 < len(st) and st[i2].strip(" \t\r\n") == "":
                 i2 += 1
             if i2 >= len(st):
+                if not ignore_erroneous_code:
+                    raise ValueError("Found 'var' with 'later' "
+                        "line but 'later' isn't after the '=' "
+                        "but somewhere earlier, this is invalid.")
                 new_sts.append(st)
-                continue  # Invalid code.
+                continue
             vardef_past_eq_idx = i2
 
         # Name for our new callback implicitly created by 'later',
@@ -768,7 +781,8 @@ def transform_later_to_closure_funccontents(
             )
             inner_indent = get_indent(st) + h64_indent
             assert(len(func_inner_lines) == 0 or
-                type(func_inner_lines[0]) == list)
+                type(func_inner_lines[0]) == list), ("oops, invalid "
+                "inner code: " + str(func_inner_lines))
 
             # If the 'later' is stored in 'var', it NEEDS an 'await',
             # otherwise it MUST NOT have one:
@@ -904,6 +918,9 @@ def transform_later_to_closure_funccontents(
                 cleanup_code_insert_info=
                     cleanup_code_insert_info))
         new_sts_inserted = len(new_sts_added)
+        assert(type(new_sts_added) == list and
+            (len(new_sts_added) == 0 or
+            type(new_sts_added[0]) == list))
         new_sts += new_sts_added
 
         # Output some debug info:
@@ -1227,6 +1244,9 @@ def transform_later_to_closure_unnested(
                 "DID REPLACEMENT FOR STATEMENT:\n" + str(st_orig) +
                 "\nINSERTED:\n" +
                 str(new_sts[-1:]))
+    assert(type(new_sts) == list and
+        (len(new_sts) == 0 or (type(new_sts[0]) == list and
+        (len(new_sts[0]) == 0 or type(new_sts[0][0]) == str))))
     return new_sts
 
 
