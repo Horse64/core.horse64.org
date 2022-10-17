@@ -1,0 +1,41 @@
+# Form for a bug report.
+name: Feature Proposal
+about: Suggest a new feature to be added.
+labels:
+  - proposal
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this feature request!
+        This is for asking for new functionality and enhancements to be added.
+  - type: textarea
+    id: description
+    attributes:
+      label: What to add?
+      description: What feature or enhancement do you want added in, how should it work?
+      placeholder: Detailed description...
+    validations:
+      required: true
+  - type: textarea
+    id: testprogram
+    attributes:
+      label: Example code 
+      description: |
+        Is there some example code for how you envision the
+        feature to be used, if it is code-related?
+        (Don't use backticks, will be automatically
+        formatted to code.)
+      render: shell
+  - type: checkboxes
+    id: duplicates
+    attributes:
+      label: I searched for duplicate issues
+      description: |
+        By submitting this issue, you confirm you searched
+        the issue list via "Search" button for whether someone
+        already requested this.
+      options:
+        - label: I searched for duplicate issues
+          required: true
+

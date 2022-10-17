@@ -1,0 +1,67 @@
+# Form for a bug report.
+name: Bug Report
+about: Report a malfunction with existing functionality.
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      description: |
+        Please enter the version (found in `horp.ini`) or the git commit
+        that you found the issue in.
+      placeholder: e.g. 2022.10.13-dev
+    validations:
+      required: false
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: What went wrong, what did you expect to happen instead?
+      placeholder: Detailed description...
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: Please enter what operating system you saw the issue on.
+      placeholder: e.g. Windows 10
+    validations:
+      required: false
+  - type: textarea
+    id: testprogram
+    attributes:
+      label: Minimal test program
+      description: |
+        Is there a minimal test program, which if run via
+        `horsec run --single-file path/to/testfile.h64` will reproduce
+        the problem? (Don't use backticks, will be automatically
+        formatted to code.)
+      render: shell
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: |
+        If you have any, please paste any relevant log or
+        terminal output. (Don't use backticks, will be automatically
+        formatted to code.)
+      render: shell
+  - type: checkboxes
+    id: duplicates
+    attributes:
+      label: I searched for duplicate issues
+      description: |
+        By submitting this issue, you confirm you searched
+        the issue list via "Search" button for whether someone
+        already reported this.
+      options:
+        - label: I searched for duplicate issues
+          required: true
+
