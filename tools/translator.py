@@ -162,6 +162,10 @@ DEBUGV.ENABLE_REMAPPED_USES = False
 DEBUGV.ENABLE_FILE_PATHS = False
 
 remapped_uses = {
+    "bignum@core.horse64.org": {
+        "bignum.compare_nums":
+            "_translator_runtime_helpers._bignum_compare_nums",
+    },
     "compiler@core.horse64.org": {
         "compiler.run_file":
             "_translator_runtime_helpers._compiler_run_file",
@@ -392,6 +396,28 @@ def sublist_index(full_list, sub_list):
             return i
         i += 1
     return -1
+
+
+def transform_for_file_output(
+        contents, with_linenos=False
+        ):
+    if type(contents) == list:
+        contents = untokenize(contents)
+    if not with_linenos:
+        return contents
+    def padno(no):
+        s = str(no)
+        while len(s) < 4:
+            s += " "
+        return s
+    output_file_result = ""
+    lineno = 0
+    for content_line in contents.splitlines():
+        lineno += 1
+        output_file_result += (
+            ("\n" if lineno > 1 else "") +
+            padno(lineno) + "|" + content_line.rstrip())
+    return output_file_result
 
 
 def find_matching_remap_module(s, i, sc):
@@ -705,6 +731,9 @@ def translate_expression_tokens(s, sc,
         elif s[i] == "ValueError" and previous_token != ".":
             s = s[:i] + ["_translator_runtime_helpers",
                 ".", "_ValueError"] + s[i + 1:]
+        elif s[i] == "TypeError" and previous_token != ".":
+            s = s[:i] + ["_translator_runtime_helpers",
+                ".", "_TypeError"] + s[i + 1:]
         elif s[i] == "IOError" and previous_token != ".":
             s = s[:i] + ["_translator_runtime_helpers",
                 ".", "_IOError"] + s[i + 1:]
@@ -2164,7 +2193,8 @@ def get_interesting_nonlocals(st, parent_sts):
 
 def run_translator_main():
     args = sys.argv[1:]
-    output_file = False
+    output_h64_file = False
+    output_py_file = False
     output_file_linenos = True
     target_file = None
     target_file_args = []
@@ -2206,8 +2236,10 @@ def run_translator_main():
                       "Keep translated files and ")
                 print("                           "
                       "print out path to them.")
-                print("    --output-file          "
-                      "Don't run, just output translated file.")
+                print("    --output-h64-file          "
+                      "Don't run, just output half-translated .h64 file.")
+                print("    --output-py-file          "
+                      "Don't run, just output final translated Python.")
                 print("    --paranoid             "
                       "Do extra checking of internal operations.")
                 print("    --version              "
@@ -2217,10 +2249,15 @@ def run_translator_main():
                 run_as_test = True
             elif args[i] == "--paranoid":
                 paranoid = True
-            elif args[i] == "--output-file":
-                output_file = True
-            elif args[i] == "--output-file-with-linenos":
-                output_file = True
+            elif args[i] == "--output-h64-file":
+                output_h64_file = True
+            elif args[i] == "--output-py-file":
+                output_py_file = True
+            elif args[i] == "--output-h64-file-with-linenos":
+                output_h64_file = True
+                output_file_linenos = True
+            elif args[i] == "--output-py-file-with-linenos":
+                output_py_file = True
                 output_file_linenos = True
             elif (args[i] == "--version" or args[i] == "-v" or
                     args[i] == "-V"):
@@ -2468,6 +2505,13 @@ def run_translator_main():
                     "broke syntax: " + str(e))
         assert(type(contents) == list and
             (len(contents) == 0 or type(contents[0]) == str))
+        if output_h64_file and target_file == mainfilepath:
+            output_file_result = (
+                transform_for_file_output(contents,
+                    with_linenos=output_file_linenos))
+            print(output_file_result)
+            sys.exit(0)
+
         sc = TranslateInfoScope()
         sc.module_name = modname
         sc.package_name = package_name
@@ -2655,17 +2699,10 @@ def run_translator_main():
                         "\n    _remapped_sys.stdout.flush()"
                         "\n    _remapped_sys.stderr.flush()"
                         "\n    _remapped_sys.exit(v)\n")
-            if is_main_file and output_file:
-                if not output_file_linenos:
-                    output_file_result = contents_result
-                else:
-                    output_file_result = ""
-                    lineno = 0
-                    for content_line in contents_result.splitlines():
-                        lineno += 1
-                        output_file_result += (
-                            ("\n" if lineno > 1 else "") +
-                            str(lineno) + ": " + content_line)
+            if is_main_file and output_py_file:
+                output_file_result = (
+                transform_for_file_output(contents,
+                    with_linenos=output_file_linenos))
 
             if DEBUGV.ENABLE and DEBUGV.ENABLE_CONTENTS:
                 print("tools/translator.py: debug: have output of " +
@@ -2759,7 +2796,7 @@ def run_translator_main():
         sys.stdout.flush()
         sys.stderr.flush()
         returncode = None
-        if not output_file:
+        if not output_py_file:
             result = subprocess.run(launch_cmd)
             returncode = result.returncode
         else:

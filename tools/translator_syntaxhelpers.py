@@ -190,7 +190,9 @@ def get_next_token(s):
         return ":"
     if s[0] in {">", "=", "<", "!", "+", "-", "/", "*",
             "%", "|", "^", "&", "~"}:
-        if s[1:2] in ["="]:
+        if s[0:3] == "**=":
+            return s[:3]
+        if s[1:2] == "=" or s[0:1] == "**":
             return s[:2]
         return s[:1]
     if (ord(s[0]) >= ord("a") and ord(s[0]) <= ord("z")) or \
@@ -1056,7 +1058,7 @@ def tokenize(s):
 
 def is_h64op_with_righthand(v):
     if v in {"and", "or", "not", "+", "-", "*", "/",
-            ">", "<", "->",
+            ">", "<", "->", "**",
             ".", "!=", "=", "=="}:
         return True
     if len(v) == 2 and v[1] == "=":
@@ -1067,7 +1069,7 @@ def is_h64op_with_righthand(v):
 def is_h64op_with_lefthand(v):
     if v in {"and", "or", "+", "-", "*", "/",
             ">", "<", "->", ".", "!=", "=", "==",
-            ":"}:
+            ":", "**"}:
         return True
     if len(v) == 2 and v[1] == "=":
         return True

@@ -34,16 +34,49 @@ import compiler.msg
 import compiler.project
 
 
-var maybe_statement_tokens = {
+const math_ops = {
+    "+", "/", "*", "-", "^", "&",
+    "|", "**", "~",
+}
+
+const math_assign_ops = {
+    "+=", "/=", "*=", "-=", "^=", "&=",
+    "|=", "**=", "~="
+}
+
+const comparison_ops = {
+    ">", "<", ">=", "<=", "!=",
+}
+
+const math_or_comp_starter_chars = (
+    math_ops + {">", "<", "!"}
+)
+
+const maybe_statement_tokens = {
     "while", "do", "func", "for", "with",
     "var", "const", "type", "import", "if",
-    "return",
+    "return", "await", "throw",
 }
-var guaranteed_outer_scope_tokens = {
+
+const guaranteed_outer_scope_tokens = {
     "type", "import",
 }
 
+const keywords = {
+    "while", "do", "func", "for", "with",
+    "var", "const", "type", "import", "if",
+    "return", "await", "later", "rescue",
+    "finally", "as", "in", "extends",
+    "throw", "new", "any", "from", "protect",
+    "repeat", "elseif", "else", "and", "or",
+    "not",
+}
 
+## Check if the given string represents a label that is
+## valid in Horse64 for representing a user-defined
+## identifier or a built-in keyword.
+## @returns bool @{Yes|yes} if valid as identifier or
+##   keyword, otherwise @{no}.
 func is_identifier_or_keyword(value, internal_labels=no) {
     if value.len == 0 {
         return no
@@ -55,12 +88,12 @@ func is_identifier_or_keyword(value, internal_labels=no) {
     const code_0 = text.code("0")
     const code_9 = text.code("9")
     var c = value[1]
-    if (c == "_" or text.code(c) > 127 or
+    if c == "_" or text.code(c) > 127 or
             (text.code(c) >= code_a and
             text.code(c) >= code_z) or
             (text.code(c) >= code_cap_a and
             text.code(c) <= code_cap_z) or
-            (allow_dollar_name and c == "$")) {
+            (allow_dollar_name and c == "$") {
         # That's an identifier or keyword.
         var hadnondollar = (c != '$')
         var i = 2
@@ -87,6 +120,9 @@ func is_identifier_or_keyword(value, internal_labels=no) {
     return no
 }
 
+## Reverse all the bracket types known in Horse64 source
+## code in the given string to the opposite. E.g. an input
+## of `"(]"` will return `")["`. Used by the tokenizer.
 func reverse_brackets(value) {
     if typename(value) == "list" and (
             value.len == 0 or
@@ -329,6 +365,7 @@ func tokenize_str(
 
         if i + 1 < strlen and c == "-" and
                 str[i + 1] == ">" {
+            # -> map operator
             result.tokens.add(new Token("->", line, col))
             i += 1
             col += 1
@@ -493,7 +530,7 @@ func tokenize_str(
             }
             continue
         } elseif c == " " or c == "\t" or c == "\r" or c == "\n" {
-            # Handle whitespae:
+            # Handle whitespace:
             if not keep_whitespace {
                 continue
             }
@@ -544,6 +581,28 @@ func tokenize_str(
                 bracket_nesting.pop()
             }
             result.tokens.add(new Token(c, line, col))
+            continue
+        } elseif c == "=" or (i + 1 <= strlen and
+                math_or_comp_starter_chars.contains(c) and (
+                comparison_ops.contains(str.sub(i, i + 1)) or
+                math_ops.contains(str.sub(i, i + 1)) or
+                math_assign_ops.contains(str.sub(i, i + 1)))) {
+            # A math, arithmetic math, or assign operator!
+            # (excluding exponential arithmetic assign "**=")
+            var oplen = 2
+            if c == "=" and (i + 1 > strlen or
+                    str[i + 1] != "=") {
+                oplen = 1
+            }
+            i += (oplen - 1)
+            result.tokens.add(new Token(c, line, col))
+            continue
+        } elseif c == "*" and i + 2 <= strlen and
+                str.sub(i, i + 3) == "**=" {
+            # Special handling of arithmetic assign "**=",
+            # since it's the only one three characters long.
+            i += 2
+            result.tokens.add(new Token("**=", line, col))
             continue
         } elseif c == "_" or text.code(c) > 127 or
                 (text.code(c) >= code_a and
@@ -606,6 +665,59 @@ func tokenize_str(
                 ))
             }
             col += name.len - 1
+            continue
+        } elseif (text.code(c) >= code_0 and
+                text.code(c) <= code_9) or
+                (c == "-" and i < strlen and
+                    text.code(str[i + 1]) >= code_0 and
+                    text.code(str[i + 1]) <= code_9) {
+            # Decimal number. Goes until a char stops fitting.
+            var k = i + 1
+            var haddot = no
+            if c == "-" {
+                k += 1
+            }
+            while k <= strlen {
+                c = str[k]
+                if c == "." {
+                    if haddot or k + 1 > strlen or
+                            text.code(str[k + 1]) < code_0 or
+                            text.code(str[k + 1]) > code_9 {
+                        break
+                    }
+                    haddot = 1
+                } elseif text.code(str[k]) < code_0 or
+                        text.code(str[k]) > code_9 {
+                    break
+                }
+                k += 1
+            }
+            k -= 1
+            var numtoken = str.sub(i, k)
+            if bigint.compare_nums(
+                    compiler.token.num_max_str,
+                    numtoken) < 0 {
+                result.msgs.add(compiler.msg.FileMsg(
+                    "Invalid unexpected number literal " +
+                    numtoken + " exceeds maximum value "
+                    compiler.token.num_max_str + " that "
+                    "a Horse64 num can hold",
+                    source_file=project_file,
+                    line=line, col=col
+                ))
+            } elseif bigint.compare_nums(
+                    compiler.token.num_min_str,
+                    numtoken) > 0 {
+                result.msgs.add(compiler.msg.FileMsg(
+                    "Invalid unexpected number literal " +
+                    numtoken + " is below minimum value "
+                    compiler.token.num_min_str + " that "
+                    "a Horse64 num can hold",
+                    source_file=project_file,
+                    line=line, col=col
+                ))
+            }
+            result.tokens.add(new Token(numtoken, line, col))
             continue
         } else {
             # Oops, we don't know what that is.

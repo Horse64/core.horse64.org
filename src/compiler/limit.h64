@@ -26,13 +26,13 @@
 # license, see accompanied LICENSE.md.
 
 
-var max_source_file_size = (1024 * 1024 * 20)
+var max_source_file_size = (1024 * 1024 * 5)  # 5 megabytes.
 
-var num_frac_bits = 12
+var num_frac_bits = 12  # XXX: Important! Keep in sync with HVM!
 
-var num_int_bits = 48
+var num_int_bits = 48  # XXX: Important! Keep in sync with HVM!
 
-var num_max_str = "140737488355328"
+var num_max_str = "140737488355328"  # == 2 ** 47
 
-var num_min_str = "-140737488355329"
+var num_min_str = "-140737488355329"  # == -(2 ** 47 + 1)
 

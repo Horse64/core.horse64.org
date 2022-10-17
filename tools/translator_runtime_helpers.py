@@ -68,6 +68,14 @@ class _ValueError(ValueError, _RuntimeError):
         self.msg = msg
 
 
+class _TypeError(TypeError, _RuntimeError):
+    def __init__(self, msg):
+        if msg is None:
+            msg = ("Invalid value.")
+        super().__init__(msg)
+        self.msg = msg
+
+
 class _ResourceError(OSError, _RuntimeError):
     def __init__(self, msg):
         if msg is None:
@@ -224,7 +232,7 @@ def _container_sort(container, *args, **kwargs):
             i += 1
         return container
     elif type(container) in {tuple, set}:
-        return TypeError("cannot sort this container")
+        return _TypeError("cannot sort this container")
     return container.sort(*args, **kwargs)
 
 
@@ -237,7 +245,7 @@ def _container_reverse(container, *args, **kwargs):
             i += 1
         return container
     elif type(container) in {tuple, set}:
-        return TypeError("cannot reverse this container")
+        return _TypeError("cannot reverse this container")
     return container.sort(*args, **kwargs)
 
 
@@ -369,7 +377,7 @@ def _container_sub(container, *args, **kwargs):
             i2 = len(container)
         if (type(i1) not in {float, int} and
                 type(i2) not in {float, int}):
-            raise TypeError("indexes must be type num")
+            raise _TypeError("indexes must be type num")
         i1 = max(1, i1)
         if i2 < i1:
             if type(container) == bytes:
@@ -647,12 +655,12 @@ class _FileObjFromDisk:
     def write(self, callback, value):
         if not self.binary and type(value) != str:
             _async_delay_call(callback, [
-                TypeError("value must be unicode string")
+                _TypeError("value must be unicode string")
             ])
             return
         elif self.binary and type(value) != bytes:
             _async_delay_call(callback, [
-                TypeError("value must be bytes value")
+                _TypeError("value must be bytes value")
             ])
             return
         self.fobj.write(value)
@@ -756,7 +764,7 @@ def _net_lookup_name(name, cb, retries=0, retry_delay=0.5):
     elif type(name) in {tuple, list}:
         names = list(name)
     else:
-        raise TypeError("name must be str or list")
+        raise _TypeError("name must be str or list")
     def async_lookup_do(job):
         returnasdict = job.userdata["returnasdict"]
         perma_tempfail = False
@@ -991,7 +999,7 @@ def _container_squarebracketaccess(container, index):
         return container[index]
     elif type(container) in {str, bytes, list}:
         if type(index) not in {float, int}:
-            raise TypeError("Index isn't a num.")
+            raise _TypeError("Index isn't a num.")
         index = round(index)
         if index <= 0 or index > len(container):
             raise IndexError("Out of range.")
@@ -1007,7 +1015,7 @@ def _container_squarebracketassign(container, index,
     index_to_use = None
     if type(container) in {str, bytes, list}:
         if type(index) not in {float, int}:
-            raise TypeError("Index isn't a num.")
+            raise _TypeError("Index isn't a num.")
         index_to_use = round(index)
         if (index_to_use <= 0 or
                 index_to_use > len(container)):
@@ -1069,7 +1077,7 @@ def _system_osname():
 
 def _textformat_outdent(s):
     if not type(s) in {str, bytes}:
-        raise TypeError("Text must be str or bytes")
+        raise _TypeError("Text must be str or bytes")
     was_bytes = False
     if type(s) == bytes:
         s = s.decode("utf-8", "surrogateescape")
@@ -1232,4 +1240,27 @@ def _to_num(v):
         return float(v)
     return int(v)
 
+
+def _bignum_compare_nums(v1, v2):
+    def conv(v):
+        if type(v) == str:
+            return float(v)
+        elif type(v) == bytes:
+            return float(v.decode("utf-8", "surrogateescape"))
+        if type(v) not in {float, int}:
+            raise _TypeError("parameters must be num or str")
+        return str(v)
+    v1 = conv(v)
+    v2 = conv(v)
+    if "." in v1 or "." in v2:
+        if float(v1) > float(v2):
+            return 1
+        elif float(v1) < float(v2):
+            return -1
+        return 0
+    if int(v1) > int(v2):
+        return 1
+    elif int(v1) < int(v2):
+        return -1
+    return 0
 
