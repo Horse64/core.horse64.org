@@ -468,6 +468,7 @@ func tokenize_from_fileobj (
     var result = new TokenizeResult()
     var contents = fobj.read(max_project_file_size + 1)
     later:
+    await contents
     if contents.len >= max_project_file_size + 1 {
         result.msgs.add(compiler.msg.FileMsg(
             "file exceeds maximum size limit of " +

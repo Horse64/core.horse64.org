@@ -2427,12 +2427,20 @@ def run_translator_main():
                     "broke syntax: " + str(e) + "\n"
                     "FULL BROKEN FILE DUMP:\n" +
                     untokenize(contents) + "\nEND OF DUMP.")
-        contents = transform_later_to_closures(
-            make_string_literal_python_friendly(tokenize(contents)),
-            callback_delayed_func_name=[
-                "_translator_runtime_helpers", ".",
-                "_async_delay_call"],
-            ignore_erroneous_code=False)
+        try:
+            contents = transform_later_to_closures(
+                make_string_literal_python_friendly(tokenize(contents)),
+                callback_delayed_func_name=[
+                    "_translator_runtime_helpers", ".",
+                    "_async_delay_call"],
+                ignore_erroneous_code=False)
+        except Exception as e:
+            raise ValueError("in module '" + str(modname)
+                + "'" + (" in package '" +
+                    str(package_name) + "'" if
+                    package_name != None else "") + ", "
+                "encountered transform_later_to_closures() error: " +
+                str(e))
         if paranoid:
             try:
                 sanity_check_h64_codestring(

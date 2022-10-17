@@ -52,7 +52,7 @@ func read_from_write_to(
     var data = obj.read(1024)
     later:
 
-    # Make sure files are closed on error:
+    # Ensure files are closed on error:
     do {
         await data
     } rescue any as e {
@@ -67,12 +67,10 @@ func read_from_write_to(
         return yes  # End of file!
     }
 
-    # Then write:
-    target_obj.write(data) later:
-
-    # Make sure files are closed on error:
+    # Write, and again ensure files are closed on error:
     do {
-        await data
+        target_obj.write(data) later:
+        return no  # Not end of file!
     } rescue any as e {
         if close_on_error {
             src_obj.close()
