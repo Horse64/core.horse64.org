@@ -25,6 +25,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import compiler.token
+
 
 type FileMsg {
     ## @types (compiler.project.ProjectFile, none)
@@ -35,7 +37,6 @@ type FileMsg {
     var message = ""
 }
 
-
 func FileMsg.init(message, variant="error",
         source_file=none,
         line=-1, col=-1) {
@@ -45,3 +46,17 @@ func FileMsg.init(message, variant="error",
     self.col = col
     self.variant = variant + ""
 }
+
+func FileMsg.as_str {
+    var t = "FileMsg(msg=" +
+        compiler.token.as_escaped_code_string(self.message) +
+        ",file=" + self.source_file.as_str()
+    if self.line != none {
+        t += ",line=" + self.line.as_str()
+        if self.col != none {
+            t += ",col=" + self.col.as_str()
+        }
+    }
+    return t + ")"
+}
+

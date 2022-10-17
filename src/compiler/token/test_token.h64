@@ -27,10 +27,43 @@
 
 import compiler.token
 
+
+func verify_tokens_with_list(tokens, str_list) {
+    i = 1
+    while i <= tokens.len {
+        if i > str_list.len {
+            throw new ValueError(
+                "Given tokens have excess entries, "
+                "first unexpected is entry #" + i.as_str() +
+                " -> " + tokens[i].as_str())
+        }
+        if tokens[i].str != str_list[i] {
+            entry = [tokens[i].str, str_list[i]]
+            print([entry.as_str(), entry[1] == entry[2]])
+            throw new ValueError(
+                "Given tokens have wrong entry, expected " +
+                compiler.token.as_escaped_code_string(
+                str_list[i]) + " but got entry #" +
+                i.as_str() + " -> " +
+                tokens[i].as_str())
+        }
+        i += 1
+    }
+    if i < str_list.len {
+        throw new ValueError(
+            "Given tokens have too few entries, only #" +
+            tokens.len.as_str() + " while expected " +
+            "were #" + str_list.len)
+    }
+}
+
 func test_tokenize {
     var result = compiler.token.tokenize_str(
-        "func main {print('Hello! \\nTest')}",
+        'func main {print("Hello! \\nTest")}',
         keep_whitespace=no, auto_recovery=yes
         )
-    print("TOKEN RESULT: " + result.as_str())
+    verify_tokens_with_list(result.tokens,
+        ["func", "main", "{", "print", "(",
+        '"Hello! \\nTest"', ")", "}"])
+    assert(result.msgs.len == 0)
 }

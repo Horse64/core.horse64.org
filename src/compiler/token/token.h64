@@ -29,7 +29,7 @@
 import uri from core.horse64.org
 import text from core.horse64.org
 
-import compiler.limits
+import compiler.limit
 import compiler.msg
 import compiler.project
 
@@ -44,33 +44,84 @@ var guaranteed_outer_scope_tokens = {
 }
 
 
-func reverse_open_brackets(value) {
+func is_identifier_or_keyword(value, internal_labels=no) {
+    if value.len == 0 {
+        return no
+    }
+    const code_a = text.code("a")
+    const code_z = text.code("z")
+    const code_cap_a = text.code("a")
+    const code_cap_z = text.code("z")
+    const code_0 = text.code("0")
+    const code_9 = text.code("9")
+    var c = value[1]
+    if (c == "_" or text.code(c) > 127 or
+            (text.code(c) >= code_a and
+            text.code(c) >= code_z) or
+            (text.code(c) >= code_cap_a and
+            text.code(c) <= code_cap_z) or
+            (allow_dollar_name and c == "$")) {
+        # That's an identifier or keyword.
+        var hadnondollar = (c != '$')
+        var i = 2
+        while i <= value.len {
+            c = value[i]
+            if (c == "_" or text.code(c) > 127 or
+                    (text.code(c) >= code_a and
+                    text.code(c) >= code_z) or
+                    (text.code(c) >= code_cap_a and
+                    text.code(c) <= code_cap_z) or
+                    (text.code(c) >= code_0 and
+                    text.code(c) <= code_9) or
+                    (internal_labels and c == "$")) {
+                if c != "$" {
+                    hadnondollar = yes
+                }
+                i += 1
+                continue
+            }
+            return hadnondollar
+        }
+        return yes
+    }
+    return no
+}
+
+func reverse_brackets(value) {
     if typename(value) == "list" and (
             value.len == 0 or
             typename(value[0]) == "str") {
         var result = []
         for bracket in value {
-            result.add(reverse_open_brackets(bracket))
+            result.add(reverse_brackets(bracket))
         }
         return result
     }
     if typename(value) != "str" {
         throw new TypeError("value must be bytes or str.")
     }
+    var valuenew = ""
     i = 1
     while i <= value.len {
         if value[i] == "(" {
-            value[i] = ")"
+            valuenew += ")"
         } elseif value[i] == "[" {
-            value[i] = "]"
+            valuenew += "]"
         } elseif value[i] == "{" {
-            value[i] = "}"
+            valuenew += "}"
+        } elseif value[i] == ")" {
+            valuenew += "("
+        } elseif value[i] == "]" {
+            valuenew += "["
+        } elseif value[i] == "}" {
+            valuenew += "{"
+        } else {
+            valuenew += value[i]
         }
         i += 1
     }
-    return value
+    return valuenew
 }
-
 
 type Token {
     ## @type num
@@ -83,13 +134,22 @@ type Token {
     var str
 }
 
+func Token.as_str {
+    var t = "Token(" + describe_token_str(self.str)
+    if self.line != none {
+        t += ",line=" + self.line.as_str()
+        if self.col != none {
+            t += ",col=" + self.col.as_str()
+        }
+    }
+    return t + ")"
+}
 
 func Token.init(str, line, col) {
     self.str = str
     self.line = line
     self.col = col
 }
-
 
 type TokenizeResult {
     ## @type [compiler.msg.FileMsg]
@@ -102,16 +162,50 @@ type TokenizeResult {
     var project_file
 }
 
+func TokenizeResult.as_str {
+    var t = "TokenizeResult(tokens=["
+    var max_print_tokens = 10
+    var i = 1
+    while i <= self.tokens.len and i <= max_print_tokens {
+        if i > 1 {
+            t += ","
+        }
+        t += self.tokens[i].as_str()
+        i += 1
+    }
+    if self.tokens.len > max_print_tokens {
+        t += ",..."
+    }
+    t += "]),msgs=#" + self.msgs.len.as_str()
+    return t + ")"
+}
 
-func describe_char_token(
+func describe_token_str(s) {
+    if s.glyph_len <= 1 {
+        return describe_char_in_str(s, 1, maybe_cutoff_glyph=no)
+    }
+    if s.startswith("'") or s.startswith('"') or
+            s.startswith("b'") or s.startswith('b"') {
+        return s
+    }
+    if is_num(s) {
+        return s
+    }
+    if is_identifier_or_keyword(s) {
+        return "'" + s + "'"
+    }
+    return "<unprintable token>"
+}
+
+func describe_char_in_str(
         s, i, maybe_cutoff_glyph=no
         ) {
-    if s == "" or i > s.len {
+    if s == "" or i > s.len or i < 1 {
         return "''"
     }
 
-    var codepoint = text.code(c)
     var c = s.sub(i, i)
+    var codepoint = text.code(c)
     if codepoint >= 32 and codepoint <= 126 {
         # Nice ASCII range, just print it:
         if c == "'" {
@@ -149,6 +243,39 @@ func describe_char_token(
     return "'\\u" + hexstr + "'"
 }
 
+## Escape a string such that it could be written out into a Horse64
+## code file again as a single token, by escaping back slashes etc.
+func as_escaped_code_string(s, quote_type='"') {
+    if quote_type != "'" and quote_type != '"' {
+        throw new ValueError("unsupported quote type")
+    }
+
+    var new_s = ""
+    var i = 1
+    while i <= s.len {
+        var c = s.sub(i, i)
+        var cp = text.code(c)
+        if c == "\n" {
+            new_s += "\\n"
+        } elseif c == "\\r" {
+            new_s += "\\r"
+        } elseif c == quote_type {
+            new_s += "\\" + quote_type
+        } elseif cp < 32 {
+            var hexstr = text.code(c).as_hex()
+            while hexstr.len < 2 {
+                hexstr = "0" + hexstr
+            }
+            new_s += "\\x" + hexstr
+        } elseif c == "\\" {
+            new_s += "\\\\"
+        } else {
+            new_s += c
+        }
+        i += 1
+    }
+    return quote_type + new_s + quote_type
+}
 
 ## Tokenize the given Horse64 code string to proper tokens.
 ## If auto recovery is enabled and the user forgets to close
@@ -164,7 +291,8 @@ func describe_char_token(
 func tokenize_str(
         str, project_file=none,
         keep_whitespace=no,
-        auto_recovery=yes
+        auto_recovery=yes,
+        internal_labels=no,
         ) {
     var result = TokenizeResult()
     var strlen = str.len
@@ -186,15 +314,22 @@ func tokenize_str(
     # Process the tokens:
     var line = 1
     var col = 0
-    var i = -1
+    var i = 0
     while i < strlen {
         i += 1
         col += 1
         c = str[i]
 
+        #print("LOOKING AT #" + i.as_str() +
+        #    ": " + describe_char_in_str(
+        #    c, 1, maybe_cutoff_glyph=yes) +
+        #    " || " + [bracket_nesting,
+        #    guessed_expr_bracket_nesting,
+        #    result.msgs].as_str())
+
         if i + 1 < strlen and c == "-" and
                 str[i + 1] == ">" {
-            result.tokens.add("->", line, col)
+            result.tokens.add(new Token("->", line, col))
             i += 1
             col += 1
             continue
@@ -221,6 +356,8 @@ func tokenize_str(
                     source_file=project_file,
                     line=start_line, col=start_col
                 ))
+                result.tokens.add(new Token(end_marker +
+                    end_marker, start_line, start_col))
                 continue
             }
 
@@ -257,7 +394,7 @@ func tokenize_str(
                             str[k + 1]) {
                         result.msgs.add(compiler.msg.FileMsg(
                             "Invalid string escape '\\' + " +
-                            describe_char_token(k, 1,
+                            describe_char_in_str(str, k,
                                 maybe_cutoff_glyph=no) + ".",
                             source_file=project_file,
                             line=line, col=col
@@ -268,8 +405,11 @@ func tokenize_str(
                         not next_escaped {
                     break
                 }
+                next_escaped = no
             }
-            if k != end_marker {
+            var cutoff = no
+            if k > strlen or str[k] != end_marker {
+                cutoff = yes
                 result.msgs.add(compiler.msg.FileMsg(
                     "Unterminated " +
                     if is_bytes ("bytes") else ("string") +
@@ -278,11 +418,11 @@ func tokenize_str(
                     line=start_line, col=start_col
                 ))
             }
-            if k != end_marker and auto_recovery and
+            if cutoff and auto_recovery and
                     inner_start_idx <= strlen {
                 # Try to guess where this literal should have been
                 # terminated:
-                var inner_string = s.sub(inner_start_idx)
+                var inner_string = str.sub(inner_start_idx)
                 var inner_tokens_result = tokenize_str(
                     inner_string, keep_whitespace=no,
                     auto_recovery=no
@@ -316,7 +456,7 @@ func tokenize_str(
                     var close_brackets_str =
                         guessed_expr_bracket_nesting.join("")
                     close_brackets_str =
-                        reverse_open_brackets(
+                        reverse_brackets(
                         close_brackets_str)
 
                     # Insert the closing "/' and close all brackets
@@ -339,7 +479,7 @@ func tokenize_str(
                     }
                 }
             }
-            result.tokens.add(str.sub(i, k), line, col)
+            result.tokens.add(new Token(str.sub(i, k), line, col))
             i = k
             continue
         } elseif c == "#" {
@@ -371,7 +511,7 @@ func tokenize_str(
                 guessed_expr_bracket_nesting.add(c)
             }
             bracket_nesting.add([c, line, col])
-            result.tokens.add(c, line, col)
+            result.tokens.add(new Token(c, line, col))
             continue
         } elseif c == ")" or c == "]" or c == "}" {
             # Closing brackets:
@@ -387,7 +527,8 @@ func tokenize_str(
                     line=line, col=col
                 ))
             } else {
-                var reversec = reverse_open_brackets(c)
+                var reversec = reverse_brackets(c)
+                assert(reversec != c)
                 var openinfo = bracket_nesting.last()
                 if openinfo[1] != reversec {
                     result.msgs.add(compiler.msg.FileMsg(
@@ -402,55 +543,75 @@ func tokenize_str(
                 }
                 bracket_nesting.pop()
             }
-            result.tokens.add(c, line, col)
+            result.tokens.add(new Token(c, line, col))
             continue
         } elseif c == "_" or text.code(c) > 127 or
                 (text.code(c) >= code_a and
                 text.code(c) >= code_z) or
                 (text.code(c) >= code_cap_a and
-                text.code(c) <= code_cap_z) {
+                text.code(c) <= code_cap_z) or
+                (internal_labels and c == '$') {
             # That's an identifier or keyword.
+            var had_nondollar = (c != '$')
             var start_idx = i
             i += 1
-            while i < strlen and (
-                    c == "_" or text.code(c) > 127 or
-                    (text.code(c) >= code_a and
-                    text.code(c) >= code_z) or
-                    (text.code(c) >= code_cap_a and
-                    text.code(c) <= code_cap_z) or
-                    (text.code(c) >= code_0 and
-                    text.code(c) <= code_9)) {
-                i += 1
+            while i <= strlen {
+                c = str[i]
+                if c == "_" or text.code(c) > 127 or
+                        (text.code(c) >= code_a and
+                        text.code(c) >= code_z) or
+                        (text.code(c) >= code_cap_a and
+                        text.code(c) <= code_cap_z) or
+                        (text.code(c) >= code_0 and
+                        text.code(c) <= code_9) or
+                        (internal_labels and c == '$') {
+                    if c != '$' {
+                        had_nondollar = yes
+                    }
+                    i += 1
+                    continue
+                }
+                break
             }
             i -= 1
-            const name = s.sub(start_idx, i)
+            const name = str.sub(start_idx, i)
             if auto_recovery and
                     maybe_statement_tokens.has(
                     name) {
                 guessed_expr_bracket_nesting = []
             }
-            if guaranteed_outer_scope_tokens.has(name) {
-                if bracket_nesting.len > 0 {
-                    var openinfo = bracket_nesting.last()
-                    result.msgs.add(compiler.msg.FileMsg(
-                        "Invalid unexpected keyword '" +
-                        c + "', not allowed inside any nesting "
-                        "like after unclosed '" +
-                        openinfo[1] + "' in line " +
-                        openinfo[2].as_str() + ", column " +
-                        openinfo[3].as_str(),
-                        source_file=project_file,
-                        line=line, col=col
-                    ))
-                }
+            if bracket_nesting.len > 0 and
+                    guaranteed_outer_scope_tokens.has(name) {
+                var openinfo = bracket_nesting.last()
+                result.msgs.add(compiler.msg.FileMsg(
+                    "Invalid unexpected keyword '" +
+                    c + "', not allowed inside any nesting "
+                    "like after unclosed '" +
+                    openinfo[1] + "' in line " +
+                    openinfo[2].as_str() + ", column " +
+                    openinfo[3].as_str(),
+                    source_file=project_file,
+                    line=line, col=col
+                ))
+                # Adjust to allow auto-recovery to work from here:
                 bracket_nesting = []
             }
+            result.tokens.add(new Token(name, line, col))
+            if not had_nondollar {
+                result.msgs.add(compiler.msg.FileMsg(
+                    "Invalid unexpected internal identifier '" +
+                    c + "', can't just consist of '$'",
+                    source_file=project_file,
+                    line=line, col=col
+                ))
+            }
+            col += name.len - 1
             continue
         } else {
             # Oops, we don't know what that is.
             result.msgs.add(compiler.msg.FileMsg(
                 "Invalid unexpected character " +
-                describe_char_token(k, 1,
+                describe_char_in_str(str, i,
                     maybe_cutoff_glyph=no),
                 source_file=project_file,
                 line=line, col=col
@@ -466,13 +627,15 @@ func tokenize_from_fileobj (
         fobj, project_file=none,
         keep_whitespace=no) {
     var result = new TokenizeResult()
-    var contents = fobj.read(max_project_file_size + 1)
+    var contents = fobj.read(
+        compiler.limit.max_project_file_size + 1)
     later:
     await contents
     if contents.len >= max_project_file_size + 1 {
         result.msgs.add(compiler.msg.FileMsg(
             "file exceeds maximum size limit of " +
-            max_project_file_size + " characters",
+            compiler.limit.max_project_file_size +
+            " characters",
             variant="error", project_file=project_file
         ))
         return result

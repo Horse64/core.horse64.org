@@ -1,4 +1,4 @@
-# @module compiler.limits
+# @module compiler.limit
 # Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -27,4 +27,12 @@
 
 
 var max_source_file_size = (1024 * 1024 * 20)
+
+var num_frac_bits = 12
+
+var num_int_bits = 48
+
+var num_max_str = "140737488355328"
+
+var num_min_str = "-140737488355329"
 
