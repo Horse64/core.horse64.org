@@ -351,7 +351,7 @@ def transform_later_to_closure_funccontents(
                 )
             if cleanup_code_insert_info:
                 # Nothing special here, just add the call:
-                new_sts += call_statements
+                new_sts += call_stmts
             else:
                 call_stmts = (add_wrapped_later_call_for_rescue(
                     "".join(indent_tokens),
@@ -598,8 +598,8 @@ def transform_later_to_closure_funccontents(
                 continue
             indent_tokens = st[:firstnonblankidx(st)]
             new_sts.append(
-                indent_tokens + ["if", " ", "(",
-                await_error_name, " ", "!=", " ", "none", ")", " ",
+                indent_tokens + ["if", " ",
+                await_error_name, " ", "!=", " ", "none", " ",
                  "{", "\n"] + indent_tokens + [h64_indent,
                 "throw", " ", await_error_name, "\n"] +
                 indent_tokens + ["}", "\n"]
@@ -688,7 +688,10 @@ def transform_later_to_closure_funccontents(
         later_preceding_call_close = prevnonblankidx(st, later_index)
         if (later_preceding_call_close < 0 or
                 st[later_preceding_call_close] != ")"):
-            # Invalid code. Just ignore.
+            if not ignore_erroneous_code:
+                raise ValueError("Found invalid 'later' "
+                    "placed somewhere else than after a ')' of "
+                    "a call.")
             new_sts.append(st)
             continue
         later_preceding_call_noargs = False
@@ -742,6 +745,9 @@ def transform_later_to_closure_funccontents(
             ))
         func_inner_content = None
         if not is_a_repeat:
+            has_await = (stmt_list_uses_await_before_later(
+                sts[st_idx + 1:]
+            ) is True)  # (can return True, False, None)
             func_inner_lines = (
                 transform_later_to_closure_funccontents(
                     split_toplevel_statements(
@@ -763,6 +769,21 @@ def transform_later_to_closure_funccontents(
             inner_indent = get_indent(st) + h64_indent
             assert(len(func_inner_lines) == 0 or
                 type(func_inner_lines[0]) == list)
+
+            # If the 'later' is stored in 'var', it NEEDS an 'await',
+            # otherwise it MUST NOT have one:
+            if arg_name == None and has_await:
+                if not ignore_erroneous_code:
+                    raise ValueError("Found invalid 'await' "
+                        "following a 'later' with no return value.")
+                new_sts.append(st)
+                continue
+            elif arg_name != None and not has_await:
+                if not ignore_erroneous_code:
+                    raise ValueError("Didn't find valid 'await' "
+                        "following a 'later' with a return value.")
+                new_sts.append(st)
+                continue
 
             # Check if it ends with a 'return':
             ends_in_return = False
@@ -802,6 +823,17 @@ def transform_later_to_closure_funccontents(
                             cleanup_code_insert_info,
                         let_finally_run=True,  # End of function! It's ok.
                     ))
+
+            # If not assigned to a 'var' with 'await', bubble up
+            # error right at the start:
+            if arg_name is None:
+                func_inner_content = [
+                    inner_indent, "if", " ", await_error_name,
+                        " ", "!=", " ", "none", " ", "{", "\n",
+                    inner_indent + h64_indent, "throw", " ",
+                        await_error_name, "\n",
+                    inner_indent, "}", "\n"
+                ] + func_inner_content
 
             # Wrap everything in 'do'/'rescue' if needed:
             func_inner_content = wrap_later_func_for_user_rescue(
@@ -851,7 +883,11 @@ def transform_later_to_closure_funccontents(
 
         # Now add the call that had the 'later', but stripped off:
         orig_st = list(st)
-        st = st[:later_preceding_call_close]
+        if vardef_past_eq_idx != None:
+            st = st[vardef_past_eq_idx:
+                later_preceding_call_close]
+        else:
+            st = st[:later_preceding_call_close]
         if (not later_preceding_call_noargs and
                 not later_preceding_call_args_have_trailing_comma):
             st += [",", " "]
@@ -891,6 +927,61 @@ def transform_later_to_closure_funccontents(
             cleanup_code_insert_info != None and False:
         new_sts.append([first_st_indent, "ASS2", "\n"])
     return new_sts
+
+
+def stmt_inner_blocks_use_await_before_later(st):
+    ranges = get_statement_block_ranges(st)
+    for block_range in ranges:
+        sts = split_toplevel_statements(
+            st[block_range[0]:block_range[1]]
+        )
+        result = stmt_list_uses_await_before_later(sts)
+        if result != None:
+            return result
+    return False
+
+
+def stmt_has_later(st):
+    assert(type(st) == list and (
+        len(st) == 0 or type(st[0]) == str))
+    bdepth = 0
+    i = 0
+    while i < len(st):
+        if st[i] == "later" and bdepth == 0:
+            return True
+        if st[i] in {"[", "(", "{"}:
+            bdepth += 1
+        elif st[i] in {"]", ")", "}"}:
+            bdepth -=1
+        i += 1
+    return False
+
+
+def stmt_list_uses_await_before_later(sts):
+    if (type(sts) == list and len(sts) > 0 and
+            type(sts[0]) == str):
+        sts = split_toplevel_statements(
+            sts
+        )
+    assert(type(sts) == list and (
+           len(sts) == 0 or (type(sts[0]) == list and (
+           len(sts[0]) == 0 or type(sts[0][0]) == str))))
+    for st in sts:
+        assert(type(st) == list and
+            (len(st) == 0 or type(st[0]) == str))
+        if firstnonblank(st) == "func":
+            continue
+        if firstnonblank(st) == "return":
+            continue
+        elif stmt_has_later(st):
+            return False
+        elif firstnonblank(st) == "await":
+            return True
+        assert(type(st) == list)
+        assert(len(st) == 0 or type(st[0]) == str)
+        if stmt_inner_blocks_use_await_before_later(st):
+            return True
+    return None
 
 
 def stmt_inner_blocks_use_later(st):
@@ -1124,7 +1215,7 @@ def transform_later_to_closure_unnested(
         # Add the closing stuff to our func, ensure right indent:
         def _trimindent(_st):
             while len(_st) > 0 and _st[0].strip(" \r\t\n") == "":
-                _st = _st[:1]
+                _st = _st[1:]
             return _st
         newst += ([outer_indent] + _trimindent(
             st[block_range[1]:] + ["\n"]))
