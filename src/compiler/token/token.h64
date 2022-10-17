@@ -583,10 +583,10 @@ func tokenize_str(
             result.tokens.add(new Token(c, line, col))
             continue
         } elseif c == "=" or (i + 1 <= strlen and
-                math_or_comp_starter_chars.contains(c) and (
-                comparison_ops.contains(str.sub(i, i + 1)) or
-                math_ops.contains(str.sub(i, i + 1)) or
-                math_assign_ops.contains(str.sub(i, i + 1)))) {
+                math_or_comp_starter_chars.has(c) and (
+                comparison_ops.has(str.sub(i, i + 1)) or
+                math_ops.has(str.sub(i, i + 1)) or
+                math_assign_ops.has(str.sub(i, i + 1)))) {
             # A math, arithmetic math, or assign operator!
             # (excluding exponential arithmetic assign "**=")
             var oplen = 2
@@ -699,7 +699,7 @@ func tokenize_str(
                     numtoken) < 0 {
                 result.msgs.add(compiler.msg.FileMsg(
                     "Invalid unexpected number literal " +
-                    numtoken + " exceeds maximum value "
+                    numtoken + " exceeds maximum value " +
                     compiler.token.num_max_str + " that "
                     "a Horse64 num can hold",
                     source_file=project_file,
@@ -710,7 +710,7 @@ func tokenize_str(
                     numtoken) > 0 {
                 result.msgs.add(compiler.msg.FileMsg(
                     "Invalid unexpected number literal " +
-                    numtoken + " is below minimum value "
+                    numtoken + " is below minimum value " +
                     compiler.token.num_min_str + " that "
                     "a Horse64 num can hold",
                     source_file=project_file,

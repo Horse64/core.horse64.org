@@ -321,6 +321,7 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
     def test_tokenizer(self):
         self.assertEqual(tokenize("func name{var x}"),
             ["func", " ", "name", "{", "var", " ", "x", "}"])
+        self.assertEqual(tokenize("**"), ["**"])
 
     def test_tree_transform_statements(self):
         def transform_while_weirdly(v):

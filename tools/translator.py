@@ -54,6 +54,7 @@ translator_py_script_path = os.path.abspath(__file__)
 
 import translator_debugvars
 from translator_debugvars import DEBUGV
+import translator_hacks_registry
 
 from translator_horphelpers import (
     horp_ini_string_get_package_name,
@@ -410,14 +411,14 @@ def transform_for_file_output(
         while len(s) < 4:
             s += " "
         return s
-    output_file_result = ""
+    result = ""
     lineno = 0
     for content_line in contents.splitlines():
         lineno += 1
-        output_file_result += (
+        result += (
             ("\n" if lineno > 1 else "") +
             padno(lineno) + "|" + content_line.rstrip())
-    return output_file_result
+    return result
 
 
 def find_matching_remap_module(s, i, sc):
@@ -2418,7 +2419,6 @@ def run_translator_main():
         os.path.basename(target_file.rpartition(".h64")[0]) + ".py",
         modname, modfolder, project_info.package_name))
     mainfilepath = translate_file_queue[0][0]
-    output_file_result = None
     while len(translate_file_queue) > 0:
         (target_file, target_filename, modname, modfolder,
          package_name, reason) = translate_file_queue[0]
@@ -2505,6 +2505,11 @@ def run_translator_main():
                     "broke syntax: " + str(e))
         assert(type(contents) == list and
             (len(contents) == 0 or type(contents[0]) == str))
+        contents = (
+            translator_hacks_registry.apply_hacks_on_file(
+                contents, modname, package_name,
+                is_after_python_translate=False
+            ))
         if output_h64_file and target_file == mainfilepath:
             output_file_result = (
                 transform_for_file_output(contents,
@@ -2644,7 +2649,7 @@ def run_translator_main():
                 test_funcs = [(tf,
                     test_funcs[tf]["is-later-func"]) for
                     tf in test_funcs if tf.startswith("test_")]
-                if len(test_funcs) == 0:
+                if len(test_funcs) == 0 and not output_py_file:
                     print("tools/translator.py: error: "
                         "no test functions found in this file")
                     sys.exit(1)
@@ -2667,6 +2672,16 @@ def run_translator_main():
                     "\n    _remapped_sys.stdout.flush()"
                     "\n    _remapped_sys.stderr.flush()"
                     "\n    _remapped_sys.exit(v)\n")
+            # As final step, apply known per file hacks:
+            contents_result = (
+                translator_hacks_registry.apply_hacks_on_file(
+                    contents_result,
+                    translated_files[translated_file]
+                        ["module-name"],
+                    translated_files[translated_file]
+                        ["package-name"],
+                    is_after_python_translate=True
+                ))
             if is_main_file and not run_as_test:
                 # Get the name & info, find out about our 'main':
                 test_funcs = get_global_standalone_func_names(
@@ -2700,9 +2715,12 @@ def run_translator_main():
                         "\n    _remapped_sys.stderr.flush()"
                         "\n    _remapped_sys.exit(v)\n")
             if is_main_file and output_py_file:
+                print(mainfilepath)
                 output_file_result = (
-                transform_for_file_output(contents,
+                transform_for_file_output(contents_result,
                     with_linenos=output_file_linenos))
+                print(output_file_result)
+                sys.exit(0)
 
             if DEBUGV.ENABLE and DEBUGV.ENABLE_CONTENTS:
                 print("tools/translator.py: debug: have output of " +
@@ -2796,12 +2814,8 @@ def run_translator_main():
         sys.stdout.flush()
         sys.stderr.flush()
         returncode = None
-        if not output_py_file:
-            result = subprocess.run(launch_cmd)
-            returncode = result.returncode
-        else:
-            print(output_file_result)
-            returncode = 0
+        result = subprocess.run(launch_cmd)
+        returncode = result.returncode
         sys.stdout.flush()
         sys.stderr.flush()
     finally:

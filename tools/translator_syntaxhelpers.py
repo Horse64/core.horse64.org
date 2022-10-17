@@ -192,7 +192,7 @@ def get_next_token(s):
             "%", "|", "^", "&", "~"}:
         if s[0:3] == "**=":
             return s[:3]
-        if s[1:2] == "=" or s[0:1] == "**":
+        if s[1:2] == "=" or s[0:2] == "**":
             return s[:2]
         return s[:1]
     if (ord(s[0]) >= ord("a") and ord(s[0]) <= ord("z")) or \
@@ -770,6 +770,20 @@ def nextnonblank(t, idx, no=1):
         idx += 1
         while (idx < len(t) and
                 t[idx].strip(" \r\n\t") == ""):
+            idx += 1
+        no -= 1
+    if idx >= len(t):
+        return ""
+    return t[idx]
+
+
+def nextnonblanksameline(t, idx, no=1):
+    while no > 0:
+        idx += 1
+        while (idx < len(t) and
+                t[idx].strip(" \r\n\t") == ""):
+            if "\n" in t[idx] or "\r" in t[idx]:
+                return ""
             idx += 1
         no -= 1
     if idx >= len(t):
@@ -1392,6 +1406,35 @@ def sanity_check_h64_codestring(s, filename="", modname=""):
     i = -1
     for token in tokens:
         i += 1
+        if ((is_identifier(tokens[i]) and
+                nextnonblanksameline(tokens, i)
+                    in {"'", '"'}) or (
+                bracket_nesting[-1:] == ["("] and
+                is_identifier(tokens[i]) and
+                nextnonblank(tokens, i) in {"'", '"'})):
+            raise ValueError(("" if (modname == "" or
+                modname == None) else ("in module " +
+                str(modname) + " ")) +
+                ("" if (filename == "" or
+                filename == None) else ("in file " +
+                str(filename) + " ")) +
+                "in line " + str(line) + ", col " + str(col) + ": "
+                "identifier followed by spurious string literal, "
+                "did you forget a '+'?")
+        if ((is_identifier(nextnonblanksameline(tokens, i)) and
+                tokens[i][:1] in {"'", '"'}) or (
+                bracket_nesting[-1:] == ["("] and (
+                is_identifier(nextnonblank(tokens, i)) and
+                tokens[i][:1] in {"'", '"'}))):
+            raise ValueError(("" if (modname == "" or
+                modname == None) else ("in module " +
+                str(modname) + " ")) +
+                ("" if (filename == "" or
+                filename == None) else ("in file " +
+                str(filename) + " ")) +
+                "in line " + str(line) + ", col " + str(col) + ": "
+                "string literal followed by spurious identifier, "
+                "did you forget a '+'?")
         if token == "," and nextnonblank(tokens, i) == ",":
             raise ValueError(("" if (modname == "" or
                 modname == None) else ("in module " +
