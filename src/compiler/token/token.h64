@@ -30,18 +30,18 @@ import bignum from core.horse64.org
 import uri from core.horse64.org
 import text from core.horse64.org
 
-import compiler.limit
-import compiler.msg
-import compiler.project
+import compiler.limit as limit
+import compiler.msg as msg
+import compiler.project as project
 
 
-const math_ops_single_char = {
+const _math_ops_single_char = {
     "+", "/", "*", "-", "^", "&",
     "|", "~",
 }
 
 const math_ops = (
-    math_ops_single_char + {"**"}
+    _math_ops_single_char + {"**"}
 )
 
 const math_assign_ops = {
@@ -49,40 +49,61 @@ const math_assign_ops = {
     "|=", "**=", "~="
 }
 
-const comparison_ops = {
+const compare_ops = {
     ">", "<", ">=", "<=", "!=",
 }
 
-const math_or_comp_starter_chars = (
-    math_ops_single_char + {">", "<", "!"}
+const bool_compare_ops = {
+    "and", "or", "not"
+}
+
+const _math_or_comp_starter_chars = (
+    _math_ops_single_char + {">", "<", "!"}
 )
 
-const maybe_statement_tokens = {
+const _maybe_statement_tokens = {
     "while", "do", "func", "for", "with",
     "var", "const", "type", "import", "if",
     "return", "await", "throw",
 }
 
-const guaranteed_outer_scope_tokens = {
+const _guaranteed_outer_scope_tokens = {
     "type", "import",
 }
 
-const keywords = {
+const special_words = {
     "while", "do", "func", "for", "with",
     "var", "const", "type", "import", "if",
     "return", "await", "later", "rescue",
     "finally", "as", "in", "extends",
     "throw", "new", "any", "from", "protect",
     "repeat", "elseif", "else", "and", "or",
-    "not", "ignore"
+    "not", "ignore", "none", "yes", "no",
+    "enum"
 }
 
-## Check if the given string represents a label that is
+## Check if the given @{str} or @{token|Token} is a label
+## representing a Horse64 special keyword or not.
+## @returns bool @{Yes|yes} if keyword, otherwise @{no}.
+func is_special_word(value) {
+    if has_attr(value, "str") {
+        return value.kind == T_KEYWORD or
+            value.kind == T_BOOL or
+            value.kind == T_NONE or
+            value.kind == T_BOOLCOMP
+    }
+    return special_words.has(value)
+}
+
+## Check if the given @{str} or @{token|Token} is
 ## valid in Horse64 for representing a user-defined
 ## identifier or a built-in keyword.
 ## @returns bool @{Yes|yes} if valid as identifier or
 ##   keyword, otherwise @{no}.
 func is_identifier_or_keyword(value, internal_labels=no) {
+    if has_attr(value, "str") {
+        return (value.kind == T_IDENT)
+    }
     if value.len == 0 {
         return no
     }
@@ -164,6 +185,27 @@ func reverse_brackets(value) {
     return valuenew
 }
 
+## Possible values for @{Token.kind}.
+enum TokenKind {
+    T_COMMENT
+    T_WSPACE
+    T_BRACKET
+    T_STR
+    T_BYTES
+    T_NUM
+    T_KEYWORD
+    T_BOOL
+    T_IDENT
+    T_NONE
+    T_MATH
+    T_UNARYMATH
+    T_BOOLCOMP
+    T_COMPARE
+    T_ASSIGN
+    T_MATHASSIGN
+    T_MAPASSIGN
+}
+
 type Token {
     ## @type num
     var line
@@ -173,6 +215,9 @@ type Token {
 
     ## @type str
     var str
+
+    ## @type TokenKind
+    var kind
 }
 
 func Token.as_str {
@@ -186,20 +231,20 @@ func Token.as_str {
     return t + ")"
 }
 
-func Token.init(str, line, col) {
+func Token.init(str, type, line, col) {
     self.str = str
     self.line = line
     self.col = col
 }
 
 type TokenizeResult {
-    ## @type [compiler.msg.FileMsg]
+    ## @type [msg.FileMsg]
     var msgs = []
 
     ## @type [Token]
     var tokens = []
 
-    ## @types (compiler.project.ProjectFile, none)
+    ## @types (project.ProjectFile, none)
     var project_file
 }
 
@@ -233,7 +278,7 @@ func describe_token_str(s) {
         return s
     }
     if is_identifier_or_keyword(s) or math_assign_ops.has(s) or
-            math_ops.has(s) or s == "=" or comparison_ops.has(s) {
+            math_ops.has(s) or s == "=" or compare_ops.has(s) {
         return "'" + s + "'"
     }
     return "<unprintable token>"
@@ -325,7 +370,7 @@ func as_escaped_code_string(s, quote_type='"') {
 ## repair the input and carry on anyway.
 ##
 ## @param str str The Horse64 code string to be tokenized.
-## @param project_file compiler.project.ProjectFile The associated
+## @param project_file project.ProjectFile The associated
 ##     code file for this code string, if any.
 ## @param auto_recovery bool Whether to try to auto repair after
 ##     errors to maybe still return a meaningful result. This may
@@ -373,7 +418,9 @@ func tokenize_str(
         if i + 1 < strlen and c == "-" and
                 str[i + 1] == ">" {
             # -> map operator
-            result.tokens.add(new Token("->", line, col))
+            result.tokens.add(new Token(
+                "->", T_MAPASSIGN, line, col
+            ))
             i += 1
             col += 1
             continue
@@ -393,15 +440,18 @@ func tokenize_str(
                 col += 1
             }
             if k + 1 > strlen {
-                result.msgs.add(compiler.msg.FileMsg(
+                result.msgs.add(msg.FileMsg(
                     "Unterminated " +
                     if is_bytes ("bytes") else ("string") +
                     " literal.",
                     source_file=project_file,
                     line=start_line, col=start_col
                 ))
-                result.tokens.add(new Token(end_marker +
-                    end_marker, start_line, start_col))
+                result.tokens.add(new Token(
+                    if is_bytes ("b") else ("") +
+                    end_marker + end_marker,
+                    if is_bytes (T_BYTES) else (T_STR),
+                    start_line, start_col))
                 continue
             }
 
@@ -436,7 +486,7 @@ func tokenize_str(
                     if k + 1 < strlen and
                             not known_string_escapes.has(
                             str[k + 1]) {
-                        result.msgs.add(compiler.msg.FileMsg(
+                        result.msgs.add(msg.FileMsg(
                             "Invalid string escape '\\' + " +
                             describe_char_at(str, k,
                                 maybe_cutoff_glyph=no) + ".",
@@ -454,7 +504,7 @@ func tokenize_str(
             var cutoff = no
             if k > strlen or str[k] != end_marker {
                 cutoff = yes
-                result.msgs.add(compiler.msg.FileMsg(
+                result.msgs.add(msg.FileMsg(
                     "Unterminated " +
                     if is_bytes ("bytes") else ("string") +
                     " literal.",
@@ -478,7 +528,7 @@ func tokenize_str(
                 while j < inner_tokens.len {
                     j += 1
                     var stroffset = none
-                    if maybe_statement_tokens.has(
+                    if _maybe_statement_tokens.has(
                             inner_tokens[j].str) {
                         # Might be a new statement. Terminate here.
                         recover_str_offset =
@@ -523,9 +573,11 @@ func tokenize_str(
                     }
                 }
             }
-            result.tokens.add(
-                new Token(str.sub(i, k), start_line, start_col)
-            )
+            result.tokens.add(new Token(
+                str.sub(i, k),
+                if is_bytes (T_BYTES) else (T_STR),
+                start_line, start_col
+            ))
             i = k
             continue
         } elseif c == "#" {
@@ -545,7 +597,7 @@ func tokenize_str(
             if keep_comments {
                 var comment = str.sub(start_pos, i)
                 result.tokens.add(new Token(
-                    comment, start_line, start_col
+                    comment, T_COMMENT, start_line, start_col
                 ))
             }
             continue
@@ -576,7 +628,7 @@ func tokenize_str(
             if keep_whitespace {
                 var wspace = str.sub(whitespace_start, i)
                 result.tokens.add(new Token(
-                    wspace, start_line, start_col
+                    wspace, T_WSPACE, start_line, start_col
                 ))
             }
             continue
@@ -586,7 +638,9 @@ func tokenize_str(
                 guessed_expr_bracket_nesting.add(c)
             }
             bracket_nesting.add([c, line, col])
-            result.tokens.add(new Token(c, line, col))
+            result.tokens.add(new Token(
+                c, T_BRACKET, line, col
+            ))
             continue
         } elseif c == ")" or c == "]" or c == "}" {
             # Closing brackets:
@@ -595,7 +649,7 @@ func tokenize_str(
                 guessed_expr_bracket_nesting.pop()
             }
             if bracket_nesting.len == 0 {
-                result.msgs.add(compiler.msg.FileMsg(
+                result.msgs.add(msg.FileMsg(
                     "Invalid unexpected closing bracket '" +
                     c + "', no brackets left open",
                     source_file=project_file,
@@ -606,7 +660,7 @@ func tokenize_str(
                 assert(reversec != c)
                 var openinfo = bracket_nesting.last()
                 if openinfo[1] != reversec {
-                    result.msgs.add(compiler.msg.FileMsg(
+                    result.msgs.add(msg.FileMsg(
                         "Invalid unexpected closing bracket '" +
                         c + "', expected match for '" +
                         openinfo[1] + "' in line " +
@@ -618,11 +672,13 @@ func tokenize_str(
                 }
                 bracket_nesting.pop()
             }
-            result.tokens.add(new Token(c, line, col))
+            result.tokens.add(new Token(
+                c, T_BRACKET, line, col
+            ))
             continue
         } elseif c == "=" or (i + 1 <= strlen and
-                math_or_comp_starter_chars.has(c) and (
-                comparison_ops.has(str.sub(i, i + 1)) or
+                _math_or_comp_starter_chars.has(c) and (
+                compare_ops.has(str.sub(i, i + 1)) or
                 math_ops.has(str.sub(i, i + 1)) or
                 math_assign_ops.has(str.sub(i, i + 1)))) {
             # A 2 chars long math, arithmetic math, or assign op!
@@ -632,22 +688,35 @@ func tokenize_str(
                     str[i + 1] != "=") {
                 oplen = 1
             }
-            result.tokens.add(
-                new Token(str.sub(i, i + oplen - 1), line, col)
-            )
+            var opstr = str.sub(i, i + oplen - 1)
+
+            # Determine exact token kind
+            var kind = T_ASSIGN
+            if math_ops.has(opstr) {
+                kind = T_MATH
+            } elseif compare_ops.has(opstr) {
+                kind = T_COMPARE
+            } elseif math_assign_ops.has(opstr) {
+                kind = T_MATHASSIGN
+            }
+            result.tokens.add(new Token(
+                str.sub(i, i + oplen - 1), kind, line, col
+            ))
             col += (oplen - 1)
             i += (oplen - 1)
             continue
         } elseif c == "*" and i + 2 <= strlen and
                 str.sub(i, i + 3) == "**=" {
             # Special handling of 3 chars arithmetic assign "**=":
-            result.tokens.add(new Token("**=", line, col))
+            result.tokens.add(new Token(
+                "**=", T_MATHASSIGN, line, col
+            ))
             i += 2
             col += 2
             continue
         } elseif math_ops.has(c) {
             # A 1 char math op.
-            result.tokens.add(new Token(c, line, col))
+            result.tokens.add(new Token(c, T_MATH, line, col))
             continue
         } elseif c == "_" or text.code(c) > 127 or
                 (text.code(c) >= code_a and
@@ -655,7 +724,7 @@ func tokenize_str(
                 (text.code(c) >= code_cap_a and
                 text.code(c) <= code_cap_z) or
                 (internal_labels and c == '$') {
-            # That's an identifier or keyword.
+            # That's an identifier, or keyword, or 'none'.
             var had_nondollar = (c != '$')
             var start_idx = i
             i += 1
@@ -680,14 +749,14 @@ func tokenize_str(
             i -= 1
             const name = str.sub(start_idx, i)
             if auto_recovery and
-                    maybe_statement_tokens.has(
+                    _maybe_statement_tokens.has(
                     name) {
                 guessed_expr_bracket_nesting = []
             }
             if bracket_nesting.len > 0 and
-                    guaranteed_outer_scope_tokens.has(name) {
+                    _guaranteed_outer_scope_tokens.has(name) {
                 var openinfo = bracket_nesting.last()
-                result.msgs.add(compiler.msg.FileMsg(
+                result.msgs.add(msg.FileMsg(
                     "Invalid unexpected keyword '" +
                     c + "', not allowed inside any nesting "
                     "like after unclosed '" +
@@ -700,15 +769,30 @@ func tokenize_str(
                 # Adjust to allow auto-recovery to work from here:
                 bracket_nesting = []
             }
-            result.tokens.add(new Token(name, line, col))
+            # Block identifiers that are just '$':
             if not had_nondollar {
-                result.msgs.add(compiler.msg.FileMsg(
+                result.msgs.add(msg.FileMsg(
                     "Invalid unexpected internal identifier '" +
                     c + "', can't just consist of '$'",
                     source_file=project_file,
                     line=line, col=col
                 ))
             }
+            # Determine what exactly it is:
+            var kind = T_IDENT
+            if name == "none" {
+                kind = T_NONE
+            } elseif name == "yes" or name == "no" {
+                kind = T_BOOL
+            } elseif bool_compare_ops.has(name) {
+                kind = T_BOOLCOMP
+            } elseif is_special_word(name) {
+                kind = T_KEYWORD
+            }
+            result.tokens.add(new Token(
+                name, kind, line, col
+            ))
+
             col += name.len - 1
             continue
         } elseif (text.code(c) >= code_0 and
@@ -740,35 +824,37 @@ func tokenize_str(
             k -= 1
             var numtoken = str.sub(i, k)
             if bignum.compare_nums(
-                    compiler.limit.num_max_str,
+                    limit.num_max_str,
                     numtoken) < 0 {
-                result.msgs.add(compiler.msg.FileMsg(
+                result.msgs.add(msg.FileMsg(
                     "Invalid unexpected number literal " +
                     numtoken + " exceeds maximum value " +
-                    compiler.limit.num_max_str + " that "
+                    limit.num_max_str + " that "
                     "a Horse64 num can hold",
                     source_file=project_file,
                     line=line, col=col
                 ))
             } elseif bignum.compare_nums(
-                    compiler.limit.num_min_str,
+                    limit.num_min_str,
                     numtoken) > 0 {
-                result.msgs.add(compiler.msg.FileMsg(
+                result.msgs.add(msg.FileMsg(
                     "Invalid unexpected number literal " +
                     numtoken + " is below minimum value " +
-                    compiler.limit.num_min_str + " that "
+                    limit.num_min_str + " that "
                     "a Horse64 num can hold",
                     source_file=project_file,
                     line=line, col=col
                 ))
             }
-            result.tokens.add(new Token(numtoken, line, col))
+            result.tokens.add(new Token(
+                numtoken, T_NUM, line, col
+            ))
             col += (k - i)
             i = k
             continue
         } else {
             # Oops, we don't know what that is.
-            result.msgs.add(compiler.msg.FileMsg(
+            result.msgs.add(msg.FileMsg(
                 "Invalid unexpected character " +
                 describe_char_at(str, i,
                     maybe_cutoff_glyph=no),
@@ -787,15 +873,15 @@ func tokenize_from_fileobj (
         keep_whitespace=no) {
     var result = new TokenizeResult()
     var contents = fobj.read(
-        compiler.limit.max_project_file_size + 1)
+        limit.max_project_file_size + 1)
     later:
     await contents
     if contents.len >= max_project_file_size + 1 {
-        result.msgs.add(compiler.msg.FileMsg(
+        result.msgs.add(msg.FileMsg(
             "file exceeds maximum size limit of " +
-            compiler.limit.max_project_file_size +
+            limit.max_project_file_size +
             " characters",
-            variant="error", project_file=project_file
+            project_file=project_file
         ))
         return result
     }
@@ -822,7 +908,7 @@ func tokenize_file_by_uri(source_uri, project_file=none) {
     var resource = _uri_to_file_or_vfs_path(source_uri)
     var is_vfs = source_uri.lower().startswith("vfs://")
     if project_file == none {
-        project_file = compiler.project.ProjectFile(
+        project_file = project.ProjectFile(
             source_uri=source_uri
         )
     }

@@ -52,7 +52,7 @@ def is_keyword(x):
             "return", "await", "throw", "repeat",
             "var", "const", "elseif", "while",
             "any", "ignore", "with", "later",
-            "new",
+            "new", "enum",
             "for", "in", "not", "and", "or"}:
         return True
     return False
@@ -1125,7 +1125,8 @@ def get_next_statement(s):
         "elseif", "throw", "var", "const",
         "func", "if", "while", "for", "do",
         ",", "else", "as", "in", "from",
-        "rescue", "finally", "elseif"}
+        "rescue", "finally", "elseif",
+        "enum", "await"}
     must_continue_before_toks = {
         "->", "(", "[", ":", "later",
         "repeat", "elseif",
@@ -1135,8 +1136,8 @@ def get_next_statement(s):
     must_stop_before_toks = {
         # XXX: does NOT include "func" or "if"! (Can be inline!)
         "var", "const", "throw", "return",
-        "while", "with", "do", "type", "import",
-        "for"
+        "while", "with", "do", "enum", "type", "import",
+        "for", "await",
     }
     last_nonwhitespace_token = ""
     token_count = 0

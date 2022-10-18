@@ -27,7 +27,7 @@
 
 import text from core.horse64.org
 
-import compiler.token
+import compiler.token as token
 
 
 func verify_tokens_with_list(tokens, str_list, code_str=none) {
@@ -43,7 +43,7 @@ func verify_tokens_with_list(tokens, str_list, code_str=none) {
             entry = [tokens[i].str, str_list[i]]
             throw new ValueError(
                 "Given tokens have wrong entry, expected " +
-                compiler.token.as_escaped_code_string(
+                token.as_escaped_code_string(
                 str_list[i]) + " but got entry #" +
                 i.as_str() + " -> " +
                 tokens[i].as_str() + "\nEntire list is: " +
@@ -63,7 +63,7 @@ func helper_for_tokenizer_test_and_verify(
         inputcode, expected, with_whitespace=no
         ) {
     # Call tokenizer:
-    var result = compiler.token.tokenize_str(
+    var result = token.tokenize_str(
         inputcode, keep_whitespace=with_whitespace,
     )
 
@@ -86,7 +86,7 @@ func helper_for_tokenizer_test_and_verify(
                 "," + tok.col.as_str() + " but the original "
                 "code string, that maps to " + if pos != None
                 ("the differing character " +
-                compiler.token.describe_char_at(inputcode, pos)) else
+                token.describe_char_at(inputcode, pos)) else
                 ("nowhere") + " and not to this -> " + tok.as_str())
         }
     }
@@ -120,7 +120,7 @@ func test_tokenize {
         with_whitespace=yes)
 
     # Test wrong brackets:
-    var result = compiler.token.tokenize_str(
+    var result = token.tokenize_str(
         'func main {(\nprint(b"Hello! \\" \\nTest")}'
         )
     assert(result.msgs.len > 0)

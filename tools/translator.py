@@ -776,7 +776,8 @@ def translate_expression_tokens(s, sc,
             s = s[:i] + ["_translator_runtime_helpers",
                 ".", "_is_num"] + s[i + 1:]
         elif s[i] == "has_attr" and previous_token != ".":
-            s[i] = "hasattr"
+            s = s[:i] + ["_translator_runtime_helpers",
+                ".", "_has_attr"] + s[i + 1:]
         if (s[i] == "{" and nextnonblank(s, i) == "}" and
                 (previous_token in {"(", "[", "{", "="} or
                 (previous_token != None and
@@ -996,6 +997,12 @@ def queue_module_neighbors(
     module_source_file_path = os.path.normpath(
         os.path.abspath(module_source_file_path))
     assert(module_source_file_path.endswith(".h64"))
+    if not os.path.exists(os.path.dirname(module_source_file_path)):
+        raise ValueError("somehow failed to access module "
+            "base directory for module '" + module_name + "'" +
+            (" @ '" + str(package_name) + "'" if
+             package_name != None else "") + " with module file: " +
+            module_source_file_path)
     for otherfile in os.listdir(os.path.dirname(
             module_source_file_path
             )):
@@ -1110,9 +1117,10 @@ def translate(s, sc):
             assert(type(sc.orig_h64_imports) == list)
             for import_entry in sc.orig_h64_imports:
                 assert(type(import_entry) == list and
-                        len(import_entry) == 2 and
+                        len(import_entry) == 3 and
                         type(import_entry[0]) == str and
-                        type(import_entry[1]) in {type(None), str}), (
+                        type(import_entry[1]) in {type(None), str} and
+                        type(import_entry[2]) in {type(None), str}), (
                     "invalid import result: " + str(import_entry) +
                     " when processing module: " + str(sc.module_name)
                 )
@@ -1684,6 +1692,13 @@ def translate(s, sc):
             i += 1
             while i < len(statement) and statement[i].strip() == "":
                 i += 1
+            import_rename = None
+            if i < len(statement) and statement[i] == "as":
+                nexti = nextnonblankidx(statement, i)
+                assert(nexti < len(statement) and
+                       is_identifier(statement[nexti]))
+                import_rename = statement[nexti]
+                i = nextnonblankidx(statement, nexti, no=2)
             if i < len(statement) and statement[i] == "from":
                 i += 1
                 while i < len(statement) and statement[i].strip() == "":
@@ -1694,7 +1709,7 @@ def translate(s, sc):
                     i += 2
             in_orig_imports = False
             for orig_h64_import in sc.orig_h64_imports:
-                if (orig_h64_import[0] == import_module and
+                if (orig_h64_import[2] == import_module and
                         (orig_h64_import[1] == import_package or
                         import_package ==
                             sc.project_info.package_name)):
@@ -1721,16 +1736,21 @@ def translate(s, sc):
                         package_python_subfolder[:-1])
                 python_module = mpath(package_python_subfolder +
                     "/" + python_module).replace("/", ".")
-                module_part = import_module.split(".")[0]
-                append_code += ("; ((" + module_part +
+                module_basename = import_module.split(".")[0]
+                rename_pair = None
+                if import_rename != None:
+                    module_basename = import_rename
+                    rename_pair = (import_module, import_rename)
+                append_code += ("; ((" + module_basename +
                     " := _translator_runtime_helpers." +
                     "_ModuleObject(" +
-                    as_escaped_code_string(module_part) + "," +
+                    as_escaped_code_string(
+                        import_module.split(".")[0]) + "," +
                     (as_escaped_code_string(import_package) if
                      import_package != None else "None") +
-                    ")) if (\"" +
-                    module_part + "\" not in locals() and \"" +
-                    module_part + "\" not in globals()) else None)")
+                    ", renamed=" + str(rename_pair) + ")) if (\"" +
+                    module_basename + "\" not in locals() and \"" +
+                    module_basename + "\" not in globals()) else None)")
             if len(package_source_subfolder) > 0:
                 target_path = os.path.normpath(
                     os.path.join(os.path.abspath(
@@ -1817,6 +1837,7 @@ def translate(s, sc):
 
             # Add import:
             sc.processed_imports[import_module] = {
+                "rename": import_rename,
                 "package": import_package,
                 "module": import_module,
                 "python-module": mpath(python_module, sep="."),
@@ -1851,6 +1872,79 @@ def translate(s, sc):
             queue_module_neighbors(
                 sc.translate_file_queue, target_path,
                 import_module, import_package)
+            continue
+        elif statement[0] == "enum":
+            statement_cpy = list(statement)
+            nameidx = nextnonblankidx(statement, 0)
+            assert(nameidx >= 0)
+            enumname = statement[nameidx]
+            assert(is_identifier(enumname))
+            i = nameidx + 1
+            while i < len(statement) and statement[i] != "{":
+                i += 1
+            assert(i < len(statement) and statement[i] == "{")
+            i += 1  # Go past '{'.
+
+            used_values = set()
+            enum_map = dict()
+            enum_list = []
+            while i < len(statement) and statement[i] != "}":
+                nexti = nextnonblankidx(statement, i)
+                if nexti < 0:
+                    break
+                i = nexti
+                enum_valname = None
+                enum_valnum = None
+                if is_identifier(statement[i]):
+                    enum_valname = statement[i]
+                    nexti = nextnonblankidx(statement, i)
+                    if nexti >= 0 and statement[nexti] == "=":
+                        i = nexti
+                        nexti = nextnonblankidx(statement, i)
+                        if is_number_token(statement[i]):
+                            enum_valnum = int(statement[i])
+                        i = nexti + 1
+                    else:
+                        i += 1
+                else:
+                    continue
+                assert(enum_valname not in enum_map)
+                assert(enum_valnum is None or
+                    enum_valnum not in used_values)
+                enum_map[enum_valname] = enum_valnum
+                if enum_valnum is not None:
+                    used_values.add(enum_valnum)
+                enum_list.append([enum_valname, enum_valnum])
+                continue
+            assert(i < len(statement) and statement[i] == "}")
+            count_from = 0
+            i = 0
+            while i < len(enum_list):
+                if enum_list[i][1] == None:
+                    count_from += 1
+                    while count_from in used_values:
+                        count_from += 1
+                    enum_list[i][1] = count_from
+                    enum_map[enum_list[i][0]] = count_from
+                    used_values.add(count_from)
+                else:
+                    count_from = enum_list[i][1]
+                i += 1
+            result += ("class " +
+                enumname + ":\n")
+            result += ("    @staticmethod\n")
+            result += ("    def label(x):\n")
+            for enum_entry in enum_list:
+                result += ("        " +
+                    "if (x == " + str(enum_entry[1]) + "):\n")
+                result += ("        " +
+                    "    return \"" + str(enum_entry[0]) + "\"\n")
+            result += (inner_indent + "        raise " +
+                "_translator_runtime_helpers._ValueError(\"" +
+                "Not a known enum value.\")\n")
+            for enum_entry in enum_list:
+                result += (enum_entry[0] + " = " +
+                    str(enum_entry[1]) + "\n")
             continue
         elif statement[0] == "func":
             statement_cpy = list(statement)
@@ -1934,7 +2028,14 @@ def translate(s, sc):
                     i2 += 2
                 start_arguments_idx = i2 + 1
                 for import_mod_name in sc.processed_imports:
-                    if type_name.startswith(import_mod_name + "."):
+                    effective_name = import_mod_name
+                    if (sc.processed_imports
+                            [import_mod_name]["rename"] != None):
+                        effective_name = (
+                            sc.processed_imports
+                                [import_mod_name]["rename"]
+                        )
+                    if type_name.startswith(effective_name + "."):
                         type_module = import_mod_name
                         type_name = type_name[len(type_module) + 1:]
                         type_package = sc.processed_imports\
@@ -2561,6 +2662,7 @@ def run_translator_main():
                 "import sys as _remapped_sys;"
                 "import shutil as _remapped_shutil;"
                 "import os as _remapped_os;"
+                "import enum as _remapped_enum;"
                 "import tempfile as _remapped_tempfile;"
                 "_remapped_sys.path.insert(1, " +
                     as_escaped_code_string(os.path.join(

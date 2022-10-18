@@ -1124,14 +1124,13 @@ def _textformat_outdent(s):
 
 
 class _ModuleObject:
-    def __init__(self, base_module, base_library):
+    def __init__(self, base_module, base_library,
+            renamed=None):
         self._base_module = base_module
         self._base_library = base_library
+        self._rename_pair = renamed
 
-    def __getattr__(self, name):
-        if (name == "" or "." in name or
-                name.startswith("__")):
-            raise AttributeError("nope: " + str(name))
+    def _get_base_module(self):
         folder = __translated_output_root_path__
         if folder not in sys.path:
             sys.path.insert(1, folder)
@@ -1141,10 +1140,21 @@ class _ModuleObject:
         result = getattr(result,
             ("_h64mod_" if self._base_library != "main"
             else "") + self._base_module)
-        if (not hasattr(result, name) and
+        if self._rename_pair != None:
+            rename_parts = self._rename_pair[0].split(".")[1:]
+            for part in rename_parts:
+                result = getattr(result, "_h64mod_" + part)
+        return result
+
+    def __getattr__(self, name):
+        if (name == "" or "." in name or
+                name.startswith("__")):
+            raise AttributeError("nope: " + str(name))
+        basemod = self._get_base_module()
+        if (not hasattr(basemod, name) and
                 not name.startswith("_h64mod_")):
             name = "_h64mod_" + name
-        return getattr(result, name)
+        return getattr(basemod, name)
 
 
 def _wildcard_match(pattern, value,
@@ -1302,4 +1312,10 @@ def _bignum_compare_nums(v1, v2):
     elif int(v1) < int(v2):
         return -1
     return 0
+
+
+def _has_attr(v, name):
+    if name == "str":
+        name = "_translator_renamed_str"
+    return hasattr(v, name)
 

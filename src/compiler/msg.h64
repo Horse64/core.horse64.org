@@ -31,20 +31,20 @@ import compiler.token
 type FileMsg {
     ## @types (compiler.project.ProjectFile, none)
     var source_file
-    var variant = "error"
+    var kind = "error"
     var line = -1
     var col = -1
     var message = ""
 }
 
-func FileMsg.init(message, variant="error",
+func FileMsg.init(message, kind="error",
         source_file=none,
         line=-1, col=-1) {
     self.message = message + ""
     self.source_file = source_file
     self.line = line
     self.col = col
-    self.variant = variant + ""
+    self.kind = kind + ""
 }
 
 func FileMsg.as_str {

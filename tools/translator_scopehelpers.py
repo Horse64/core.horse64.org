@@ -176,8 +176,21 @@ def extract_all_imports(s):
             i = nextnonblankidx(statement, i, no=2)
             import_module.append(statement[i])
         assert(is_identifier(statement[i]))
+        import_rename = None
+        if nextnonblank(statement, i) == "as":
+            nexti = nextnonblankidx(statement, i, no=2)
+            assert(i < len(statement) and is_identifier(statement[i]))
+            import_rename = statement[nexti]
+            i = nexti
         if nextnonblank(statement, i) != "from":
-            result.append([".".join(import_module), None])
+            if import_rename != None:
+                result.append([
+                    import_rename, None, ".".join(import_module)
+                ])
+            else:
+                result.append([
+                    ".".join(import_module), None,
+                    ".".join(import_module)])
             continue
         i = nextnonblankidx(statement, i, no=2)
         import_package = statement[i]
@@ -187,8 +200,12 @@ def extract_all_imports(s):
                     statement, i, no=2))):
             i = nextnonblankidx(statement, i, no=2)
             import_package += ("." + statement[i])
-        result.append([".".join(import_module),
-            import_package])
+        if import_rename != None:
+            result.append([import_rename, import_package,
+                ".".join(import_module)])
+        else:
+            result.append([".".join(import_module),
+                import_package, ".".join(import_module)])
         continue
     return result
 
