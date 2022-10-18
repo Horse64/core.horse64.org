@@ -76,4 +76,13 @@ func test_tokenize {
         "5", "+", "3", "**", "4", ")", ">=", "2",
         ")"])
     assert(result.msgs.len == 0)
+
+    var result = compiler.token.tokenize_str(
+        'func main {print(b"Hello! \\" \\nTest")}',
+        keep_whitespace=no, auto_recovery=yes
+        )
+    verify_tokens_with_list(result.tokens,
+        ["func", "main", "{", "print", "(",
+        'b"Hello! \\" \\nTest"', ")", "}"])
+    assert(result.msgs.len == 0)
 }
