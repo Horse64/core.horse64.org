@@ -1933,13 +1933,13 @@ def translate(s, sc):
             result += ("class " +
                 enumname + ":\n")
             result += ("    @staticmethod\n")
-            result += ("    def label(x):\n")
+            result += ("    def num_label(x):\n")
             for enum_entry in enum_list:
                 result += ("        " +
                     "if (x == " + str(enum_entry[1]) + "):\n")
                 result += ("        " +
                     "    return \"" + str(enum_entry[0]) + "\"\n")
-            result += (inner_indent + "        raise " +
+            result += (inner_indent + "    raise " +
                 "_translator_runtime_helpers._ValueError(\"" +
                 "Not a known enum value.\")\n")
             for enum_entry in enum_list:
