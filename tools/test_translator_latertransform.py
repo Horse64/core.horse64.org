@@ -217,6 +217,45 @@ class TestTranslatorLaterTransform(unittest.TestCase):
         ), any_match_value="__ANYTOK__",
         pair_match_prefix="__ANYPAIR")
 
+        # Test that 'later ignore' works:
+        do_test(textwrap.dedent("""\
+        func xyz(args, thing=no) {
+            return later "test"
+        }
+        func main {
+            xyz([1, 2], thing=yes) later ignore
+            print("Continuing, ignoring")
+        }"""), textwrap.dedent(
+        """\
+        func xyz(args, __ANYPAIR1__, thing=no) {
+            do {
+                func __ANYPAIR3__ {
+                    __ANYPAIR1__(none, "test")
+                }
+                _translator_runtime_helpers._async_delay_call(
+                    __ANYPAIR3__, []
+                )
+                return
+            } rescue any as e {
+                if __ANYPAIR1 != none {
+                    __ANYPAIR1__(e, none)
+                    return
+                }
+                throw e
+            }
+        }
+        func main {
+            func __ANYTOK__(__ANYPAIR4__, __ANYTOK__) {
+                if __ANYPAIR4__ != none {
+                    print(__ANYTOK__ + __ANYPAIR4__)
+                }
+            }
+            xyz([1, 2], thing=yes, __ANYTOK__)
+            print("Continuing, ignoring")
+        }"""), any_match_value="__ANYTOK__",
+        pair_match_prefix="__ANYPAIR")
+
+
         # Ensure arguments aren't in wrong order:
         do_test(textwrap.dedent("""\
         func xyz(args, thing=no) {

@@ -51,7 +51,8 @@ def is_keyword(x):
             "from", "as", "extends", "protect",
             "return", "await", "throw", "repeat",
             "var", "const", "elseif", "while",
-            "any",
+            "any", "ignore", "with", "later",
+            "new",
             "for", "in", "not", "and", "or"}:
         return True
     return False

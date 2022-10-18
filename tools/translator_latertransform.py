@@ -289,8 +289,10 @@ def transform_later_to_closure_funccontents(
         cleanup_code_insert_info=None,
         ignore_erroneous_code=True,
         ):
-    assert(outer_callback_name != None)
-    assert(callback_delayed_func_name != None)
+    # XXX: outer_callback_name and callback_delayed_func_name
+    # are None if we're inside a func only using 'later ignore'.
+    # Otherwise they must be set.
+
     new_sts = []
     st_idx = -1
     for st in sts:
@@ -301,7 +303,11 @@ def transform_later_to_closure_funccontents(
         st_orig = list(st)
 
         # First, handle any 'return'/'return later':
-        if firstnonblank(st) == "return":
+        if (firstnonblank(st) == "return" and
+                outer_callback_name != None):
+            # (outer_callback_name set when we're in a function
+            # with true 'later' use, not just 'later ignore'!)
+
             # Extact all needed info first:
             wrap_in_delay = False
             i = firstnonblankidx(st)
@@ -406,10 +412,11 @@ def transform_later_to_closure_funccontents(
                 st, "finally", startidx=firstnonblankidx(st) + 1
             )
             if ((rescueidx < 0 and finallyidx < 0) or
-                    not stmt_inner_blocks_use_later(st)):
+                    not stmt_inner_blocks_use_later(st,
+                        including_later_ignore=False)):
                 # Good, not much to do. However, we still have to
                 # transform our insides (they might still contain
-                # 'await'):
+                # 'await' or 'later ignore'):
                 ranges = reversed(get_statement_block_ranges(st))
                 for brange in ranges:
                     st = (st[:brange[0]] + flatten(
@@ -653,7 +660,8 @@ def transform_later_to_closure_funccontents(
         # Now we should have just one 'later' left if the
         # code is valid in the first place:
         later_index = later_indexes[0]
-        if (not nextnonblank(st, later_index) in {":", "repeat"} or
+        if (not nextnonblank(st, later_index) in {
+                ":", "repeat", "ignore"} or
                 nextnonblank(st, later_index, no=2) != ""):
             if not ignore_erroneous_code:
                 raise ValueError("Found invalid 'later' "
@@ -661,6 +669,7 @@ def transform_later_to_closure_funccontents(
             new_sts.append(st)
             continue
         is_a_repeat = (nextnonblank(st, later_index) == "repeat")
+        is_an_ignore = (nextnonblank(st, later_index) == "ignore")
 
         # Store info we will need later:
         rescue_disablers_OUTERCALL_len = None
@@ -712,6 +721,14 @@ def transform_later_to_closure_funccontents(
         vardef_past_eq_idx = None
         arg_name = None
         if firstnonblank(st) in {"var", "const"}:
+            # First, this isn't allowed with 'later ignore':
+            if is_an_ignore:
+                if not ignore_erroneous_code:
+                    raise ValueError("Found 'later ignore' with "
+                        "return value assignment, this is "
+                        "forbidden.")
+                new_sts.append(st)
+                continue
             # Extract name and then get index where to cut it off:
             i2 = firstnonblankidx(st)
             vardef_at_start_idx = i2
@@ -757,7 +774,7 @@ def transform_later_to_closure_funccontents(
                 func_inner_content_str.split("\n")
             ))
         func_inner_content = None
-        if not is_a_repeat:
+        if not is_a_repeat and not is_an_ignore:
             has_await = (stmt_list_uses_await_before_later(
                 sts[st_idx + 1:]
             ) is True)  # (can return True, False, None)
@@ -871,7 +888,8 @@ def transform_later_to_closure_funccontents(
             # Done assembling function code!
         # Assemble callback statement and add it in:
         new_sts_inserted = 0
-        if not is_a_repeat:
+        if not is_a_repeat and not is_an_ignore:
+            # Add the closure based on all follow-up code:
             insert_st = ([indent, "func", " ",
                 funcname, " ", "(", await_error_name])
             if arg_name != None:
@@ -886,6 +904,26 @@ def transform_later_to_closure_funccontents(
                     indent != None and len(indent) > 0 else
                     []) +
                 ["}", "\n"])
+            new_sts_inserted += 1
+            new_sts.append(insert_st)
+        elif is_an_ignore:
+            # Add a closure that takes & ignores the error:
+            assert(arg_name is None)
+            insert_st = ([indent, "func", " ",
+                funcname, " ", "(", await_error_name])
+            insert_st += [",", "_unused" +
+                str(uuid.uuid4()).replace("-", "")]
+            insert_st += [")", " ", "{", "\n"]
+            insert_st += [indent + h64_indent,
+                "if", " ", await_error_name, " ",
+                "!=", " ", "none", " ", "{"]
+            insert_st += [indent + h64_indent + h64_indent,
+                "print", "(", '"Unhandled error in '
+                '\'later ignore\': "', " ", "+", " ",
+                await_error_name, ".", "as_str", "(", ")",
+                ")"]
+            insert_st += [indent + h64_indent, "}"]
+            insert_st += [indent, "}"]
             new_sts_inserted += 1
             new_sts.append(insert_st)
 
@@ -934,7 +972,13 @@ def transform_later_to_closure_funccontents(
         #    str(later_preceding_call_close))
         #print("ARG START:ARG_END FOR 'later': " +
         #    str(orig_st[arg_start:arg_end]))
-        break
+
+        # If this wasn't 'later ignore', don't keep going:
+        if not is_an_ignore:
+            break
+
+        # Otherwise, keep processing follow-up contents normally:
+        continue
 
     # Make sure we have a proper bail call at the end:
     first_st_indent = None
@@ -1001,7 +1045,9 @@ def stmt_list_uses_await_before_later(sts):
     return None
 
 
-def stmt_inner_blocks_use_later(st):
+def stmt_inner_blocks_use_later(
+        st, including_later_ignore=True
+        ):
     sts = []
     ranges = get_statement_block_ranges(st)
     for block_range in ranges:
@@ -1026,18 +1072,26 @@ def stmt_inner_blocks_use_later(st):
                     elif st[i] in {")", "}", "]"}:
                         bracket_depth -= 1
                     if (bracket_depth == 0 and
-                            st[i] == "later"):
+                            (st[i] == "later" and
+                            (including_later_ignore or
+                            nextnonblank(st, i + 1)
+                            != "ignore"))):
                         return True
                     i += 1
                 continue
             assert(type(st) == list)
             assert(len(st) == 0 or type(st[0]) == str)
-            if stmt_inner_blocks_use_later(st):
+            if stmt_inner_blocks_use_later(
+                    st, including_later_ignore=
+                        including_later_ignore
+                    ):
                 return True
     return False
 
  
-def is_func_a_later_func(st):
+def is_func_a_later_func(
+        st, including_later_ignore=False
+        ):
     if type(st) == str:
         st = tokenize(St)
     assert(type(st) in {tuple, list})
@@ -1046,7 +1100,10 @@ def is_func_a_later_func(st):
     if (firstnonblank(st) != "func" or
             not "later" in st):
         return False
-    return stmt_inner_blocks_use_later(st)
+    return stmt_inner_blocks_use_later(
+        st, including_later_ignore=
+            including_later_ignore
+    )
 
 
 def transform_later_to_closure_unnested(
@@ -1061,11 +1118,16 @@ def transform_later_to_closure_unnested(
         st = list(st)
         st_orig = list(st)
 
-        if not is_func_a_later_func(st):
+        if not is_func_a_later_func(st,
+                including_later_ignore=True):
             new_sts.append(st)
             continue
         callback_name = ("_later_cb" +
             str(uuid.uuid4()).replace("-", ""))
+
+        is_true_later_func = (
+            is_func_a_later_func(st,
+                including_later_ignore=False))
 
         # Go from 'func' past until arg or code block start:
         i = firstnonblankidx(st)
@@ -1160,14 +1222,19 @@ def transform_later_to_closure_unnested(
                 continue
             code_block_open_bracket = i
         assert(code_block_open_bracket != None)
-        if last_nonkw_arg_end != None:
-            st = (st[:last_nonkw_arg_end] + [",",
-                callback_name] +
-                st[last_nonkw_arg_end:])
-        else:
-            st = (st[:code_block_open_bracket] +
-                ["(", callback_name, ")", " "] +
-                st[code_block_open_bracket:])
+        if is_true_later_func:
+            # This actually behaves async on its own, so we need
+            # callback parameter:
+            if last_nonkw_arg_end != None:
+                # Put it before the keyword args.
+                st = (st[:last_nonkw_arg_end] + [",",
+                    callback_name] +
+                    st[last_nonkw_arg_end:])
+            else:
+                # No keyword args, just bolt on at the end.
+                st = (st[:code_block_open_bracket] +
+                    ["(", callback_name, ")", " "] +
+                    st[code_block_open_bracket:])
 
         # Get the block ranges, to transform our code contents:
         ranges = get_statement_block_ranges(st)
@@ -1194,7 +1261,9 @@ def transform_later_to_closure_unnested(
                 h64_indent=h64_indent,
                 callback_delayed_func_name=
                     callback_delayed_func_name,
-                outer_callback_name=callback_name,
+                outer_callback_name=(
+                    callback_name if is_true_later_func else
+                    None),
                 cleanup_code_insert_info=None,
                 ignore_erroneous_code=
                     ignore_erroneous_code,
@@ -1211,10 +1280,11 @@ def transform_later_to_closure_unnested(
                 ends_in_return = True
 
         # Wrap all func code for global error handling:
-        inner_code_flat = wrap_later_func_for_global_rescue(
-            flatten(inner_code_lines), callback_name,
-            h64_indent=h64_indent,
-        )
+        if is_true_later_func:
+            inner_code_flat = wrap_later_func_for_global_rescue(
+                flatten(inner_code_lines), callback_name,
+                h64_indent=h64_indent,
+            )
 
         # Put together a new statement around the code:
         outer_indent = get_indent(st)
