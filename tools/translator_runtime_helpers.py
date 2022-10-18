@@ -1222,6 +1222,42 @@ def _value_copy(v, *args, **kwargs):
     return v.copy(*args, **kwargs)
 
 
+def _text_pos_from_line_col(s, line, col):
+    # XXX: The translator implementation of this intentionally
+    # ignores glyphs for simplicity. Only HVM will do this properly.
+    if type(s) == bytes:
+        s = s.decode("utf-8", "surrogateescape")
+    if type(s) != str:
+        raise _TypeError("must be used on str or bytes")
+    slen = len(s)
+    atcol = 1
+    atline = 1
+    i = 0
+    while i < slen:
+        if line == atline and col == atcol:
+            return i + 1  # 1-based indexing.
+        elif s[i] == "\r" or s[i] == "\n":
+            atline += 1
+            atcol = 1
+            if (s[i] == "\r" and
+                    i + 1 < slen and s[i + 1] == "\n"):
+                i += 1
+            i += 1
+            continue
+        atcol += 1
+        i += 1
+    return None
+
+
+def _as_hex(v, *args, **kwargs):
+    if type(v) != int and type(v) != float:
+        return v.as_hex(*args, **kwargs)
+    if type(v) == float:
+        v = int(round(v))
+    vstr = '{:x}'.format(v)
+    return vstr
+
+
 def _to_num(v):
     if type(v) in {int, float}:
         return v

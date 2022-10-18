@@ -137,7 +137,8 @@ def transform_h64_misc_inline_to_python(s):
             cmd = None
             if (prevnonblank(s, i) == "." and (
                     s[i] in ("len", "glyph_len") or (
-                    s[i] in ("as_str", "as_bytes", "to_num") and
+                    s[i] in ("as_str", "as_bytes", "to_num",
+                            "as_hex") and
                         nextnonblank(s, i) == "(" and
                         nextnonblank(s, i, no=2) == ")") or (
                     s[i] in ("add", "sort", "trim", "find",
@@ -163,6 +164,9 @@ def transform_h64_misc_inline_to_python(s):
             elif cmd == "as_bytes":
                 insert_call = ["_translator_runtime_helpers",
                     ".", "_value_to_bytes"]
+            elif cmd == "as_hex":
+                insert_call = ["_translator_runtime_helpers",
+                    ".", "_as_hex"]
             elif cmd == "copy":
                 insert_call = ["_translator_runtime_helpers",
                     ".", "_value_copy"]

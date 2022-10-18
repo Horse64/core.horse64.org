@@ -253,6 +253,9 @@ remapped_uses = {
             "rpartition(\".h64\")[0])",
     },
     "text@core.horse64.org": {
+        "text.pos_from_line_col":
+            "_translator_runtime_helpers."
+                "_text_pos_from_line_col",
         "text.glyph_codepoint_len":
             "(lambda s, index=1: max(0, len(s) - (index - 1)))",
         "text.full_glyphs_in_sub":

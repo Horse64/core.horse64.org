@@ -1406,7 +1406,8 @@ def sanity_check_h64_codestring(s, filename="", modname=""):
     i = -1
     for token in tokens:
         i += 1
-        if ((is_identifier(tokens[i]) and
+        assert(tokens[i] == token)
+        if ((is_identifier(token) and
                 nextnonblanksameline(tokens, i)
                     in {"'", '"'}) or (
                 bracket_nesting[-1:] == ["("] and
@@ -1476,8 +1477,9 @@ def sanity_check_h64_codestring(s, filename="", modname=""):
             bracket_nesting = bracket_nesting[:-1]
             bracket_nesting_orig_loc = (
                 bracket_nesting_orig_loc[:-1])
-        if "\n" in token:
-            token_per_line = token.split("\n")
+        if "\n" in token or "\r" in token:
+            token_per_line = (token.replace("\r\n", "\n").
+                replace("\r", "\n").split("\n"))
             line += len(token_per_line) - 1
             col = 1 + len(token_per_line[-1])
         else:
@@ -1556,6 +1558,7 @@ def make_kwargs_in_call_tailing(s):
         if is_fdef:
             i += 1
             continue
+
         bracket_depth = 0
         arg_indexes = []
         assert(s[i] == "(")
@@ -1579,10 +1582,15 @@ def make_kwargs_in_call_tailing(s):
                 break
             if (bracket_depth == 0 and
                     k + 1 < len(s) and
-                    s[k + 1] == ")"):
+                    (s[k + 1] == ")" or (s[k + 1] == "," and
+                    nextnonblank(s, k + 1) == ")"))):
                 arg_indexes.append((
                     current_arg_start,
                     current_arg_eq, k + 1))
+                k += 1
+                while (k < len(s) and s[k] != ")"):
+                    k += 1
+                break
             elif s[k] == "," and bracket_depth == 0:
                 arg_indexes.append((
                     current_arg_start,
