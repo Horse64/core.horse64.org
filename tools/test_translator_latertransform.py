@@ -247,7 +247,7 @@ class TestTranslatorLaterTransform(unittest.TestCase):
         func main {
             func __ANYTOK__(__ANYPAIR4__, __ANYTOK__) {
                 if __ANYPAIR4__ != none {
-                    print(__ANYTOK__ + __ANYPAIR4__)
+                    print(__ANYTOK__ + __ANYPAIR4__.as_str())
                 }
             }
             xyz([1, 2], thing=yes, __ANYTOK__)

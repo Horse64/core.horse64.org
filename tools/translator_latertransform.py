@@ -215,6 +215,7 @@ def add_wrapped_later_call_for_rescue(
         call_result_expr=None,
         cleanup_code_insert_info=None,
         let_finally_run=False,
+        is_later_ignore=False,
         ):
     assert(type(indent) == str)
     sts = []
@@ -239,15 +240,18 @@ def add_wrapped_later_call_for_rescue(
 
     # Add the actual call:
     return_stmt = [indent, "return", "\n"]
+    if is_later_ignore:
+        return_stmt = None
     if call_stmt != None:
         if _func_sts_end_in_return(call_stmt):
-            # Our call already has a return. Extact it:
+            assert(not is_later_ignore)
+            # Our call already has a return. Extract it:
             i = len(call_stmt) - 1
             while i > 0 and call_stmt[i] != "return":
                 i -= 1
             if call_stmt[i] == "return":
                 return_stmt = [indent] + call_stmt[i:]
-                i -= 1  # To before 'return'.
+                i -= 1  # Go to before 'return'.
                 while i > 0 and is_whitespace_token(call_stmt[i]):
                     i -= 1
                 call_stmt = call_stmt[:i + 1] + ["\n"]
@@ -276,7 +280,8 @@ def add_wrapped_later_call_for_rescue(
                     cleanup_var, " ", "=", " ",
                     "yes", "\n"])
     # Add final return after call:
-    sts.append(return_stmt)
+    if return_stmt != None:
+        sts.append(return_stmt)
     return sts
 
 
@@ -916,14 +921,14 @@ def transform_later_to_closure_funccontents(
             insert_st += [")", " ", "{", "\n"]
             insert_st += [indent + h64_indent,
                 "if", " ", await_error_name, " ",
-                "!=", " ", "none", " ", "{"]
+                "!=", " ", "none", " ", "{", "\n"]
             insert_st += [indent + h64_indent + h64_indent,
                 "print", "(", '"Unhandled error in '
                 '\'later ignore\': "', " ", "+", " ",
                 await_error_name, ".", "as_str", "(", ")",
-                ")"]
-            insert_st += [indent + h64_indent, "}"]
-            insert_st += [indent, "}"]
+                ")", "\n"]
+            insert_st += [indent + h64_indent, "}", "\n"]
+            insert_st += [indent, "}", "\n"]
             new_sts_inserted += 1
             new_sts.append(insert_st)
 
@@ -954,7 +959,8 @@ def transform_later_to_closure_funccontents(
                 finally_disablers_pre_descent_len=
                     finally_disablers_OUTERCALL_len,
                 cleanup_code_insert_info=
-                    cleanup_code_insert_info))
+                    cleanup_code_insert_info,
+                is_later_ignore=is_an_ignore))
         new_sts_inserted = len(new_sts_added)
         assert(type(new_sts_added) == list and
             (len(new_sts_added) == 0 or
@@ -1285,6 +1291,9 @@ def transform_later_to_closure_unnested(
                 flatten(inner_code_lines), callback_name,
                 h64_indent=h64_indent,
             )
+        else:
+            # We're only using 'later ignore', no error handling.
+            inner_code_flat = flatten(inner_code_lines)
 
         # Put together a new statement around the code:
         outer_indent = get_indent(st)
@@ -1292,7 +1301,7 @@ def transform_later_to_closure_unnested(
             outer_indent = ""
         newst = (st[:block_range[0]] +
             inner_code_flat)  # Old "header" + inner code
-        if not ends_in_return:
+        if not ends_in_return and is_true_later_func:
             # If new function doesn't have return at the end,
             # add a callback and return to make sure we bail:
             newst += ([inner_indent,
