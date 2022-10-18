@@ -192,6 +192,10 @@ remapped_uses = {
             "path == '' else path)))",
         "io.list_dir":
             "_translator_runtime_helpers._io_ls_dir",
+        "io.make_or_get_appcache":
+            "_translator_runtime_helpers._wrap_io("
+            "_translator_runtime_helpers."
+                "_make_or_get_appcache)",
         "io.remove_file":
             "_translator_runtime_helpers._wrap_io("
             "_remapped_os.remove)",
@@ -677,7 +681,8 @@ def translate_expression_tokens(s, sc,
         if (is_identifier(s[i]) and
                 is_problematic_identifier_name(s[i],
                 python_problematic_only=True)) and (
-                (s[i] != "len" and s[i] != "del") or
+                (s[i] != "len" and s[i] != "del" and
+                s[i] != "copy") or
                 previous_token != "."):
             s[i] = "_translator_renamed_" + s[i]
         if (s[i] == "typename" and
@@ -1088,7 +1093,7 @@ class TranslateInfoScope:
         self.orig_h64_globals = None
         self.paranoid = False
 
-    def duplicate(self):
+    def copy(self):
         sc = TranslateInfoScope()
         sc.paranoid = self.paranoid
         sc.module_name = self.module_name
@@ -1233,7 +1238,7 @@ def translate(s, sc):
                     i += 1
 
                 # Translate it over:
-                new_sc = sc.duplicate()
+                new_sc = sc.copy()
                 new_sc.parent_statements += [statement_cpy]
                 value_exprs.append(
                     translate_expression_tokens(
@@ -1286,7 +1291,7 @@ def translate(s, sc):
                 z += 1
                 value_expr = (value_exprs[z] if
                     len(value_exprs) > 0 else None)
-                new_sc = sc.duplicate()
+                new_sc = sc.copy()
                 new_sc.parent_statements += [statement_cpy]
                 pstatement = ([idf + "="] + ["("] + (
                     value_expr if value_expr != None else ["None"]) +
@@ -1423,7 +1428,7 @@ def translate(s, sc):
             assert(j >= len(statement))  # Require no trailing data.
             rescued_errors_expr = None
             rescue_block_code = None
-            new_sc = sc.duplicate()
+            new_sc = sc.copy()
             new_sc.parent_statements += [statement_cpy]
             do_block_code = translate(
                     untokenize(statement[
@@ -1432,7 +1437,7 @@ def translate(s, sc):
                     ]), new_sc
                 )
             if rescue_block_content_first >= 0:
-                new_sc = sc.duplicate()
+                new_sc = sc.copy()
                 new_sc.parent_statements += [statement_cpy]
                 rescue_block_code = translate(
                     untokenize(statement[
@@ -1457,7 +1462,7 @@ def translate(s, sc):
                 if rescued_errors_tokens[0] != "(":
                     rescued_errors_tokens = (["("] +
                         rescued_errors_tokens + [")"])
-                new_sc = sc.duplicate()
+                new_sc = sc.copy()
                 new_sc.parent_statements += [statement_cpy]
                 rescued_errors_expr = translate_expression_tokens(
                     rescued_errors_tokens,
@@ -1465,7 +1470,7 @@ def translate(s, sc):
                 assert(rescued_errors_expr != None)
             finally_block_code = None
             if finally_block_content_first >= 0:
-                new_sc = sc.duplicate()
+                new_sc = sc.copy()
                 new_sc.parent_statements += [statement_cpy]
                 finally_block_code = translate(
                     untokenize(statement[
@@ -1540,13 +1545,13 @@ def translate(s, sc):
                      statement[j].strip(" \t\r\n") == ""):
                 j += 1
             assert(j >= len(statement))
-            new_sc = sc.duplicate()
+            new_sc = sc.copy()
             new_sc.parent_statements += [statement_cpy]
             assigned_expr = translate_expression_tokens(
                 statement[assign_obj_first:
                     assign_obj_last+1],
                 new_sc)
-            new_sc = sc.duplicate()
+            new_sc = sc.copy()
             new_sc.parent_statements += [statement_cpy]
             with_block_code = translate(
                 untokenize(statement[
@@ -1623,7 +1628,7 @@ def translate(s, sc):
                     str(statement))
                 statement[i] = ":"
                 begin_content_idx = i + 1
-                new_sc = sc.duplicate()
+                new_sc = sc.copy()
                 new_sc.parent_statements += [statement_cpy]
                 condition = (
                     translate_expression_tokens(statement[j + 1:i],
@@ -1643,7 +1648,7 @@ def translate(s, sc):
                 content = statement[
                     begin_content_idx:i
                 ]
-                new_sc = sc.duplicate()
+                new_sc = sc.copy()
                 new_sc.parent_statements += [statement_cpy]
                 content_code = translate(
                     untokenize(content), new_sc)
@@ -2061,7 +2066,7 @@ def translate(s, sc):
                         bdepth -= 1
                     k += 1
                 assert(statement[k] == ")")
-                new_sc = sc.duplicate()
+                new_sc = sc.copy()
                 new_sc.parent_statements += [statement_cpy]
                 argument_tokens = translate_expression_tokens(
                     statement[start_arguments_idx:k + 1],
@@ -2069,7 +2074,7 @@ def translate(s, sc):
             assert("_remapped_os" not in contents)
 
             # Prepare the final args and code to be spit out:
-            new_sc = sc.duplicate()
+            new_sc = sc.copy()
             new_sc.parent_statements += [statement_cpy]
             new_sc.extra_indent += ("    "
                 if type_name is not None else "")
@@ -2142,7 +2147,7 @@ def translate(s, sc):
                         bracket_depth -= 1
                     i += 1
                 if i < len(statement):
-                    new_sc = sc.duplicate()
+                    new_sc = sc.copy()
                     new_sc.parent_statements += [statement_cpy]
                     extends_tokens = translate_expression_tokens(
                         statement[start_idx:i],
@@ -2155,7 +2160,7 @@ def translate(s, sc):
             register_type(statement[nameidx],
                 sc.module_name, sc.package_name,
                 extends_tokens=(extends_tokens))
-            new_sc = sc.duplicate()
+            new_sc = sc.copy()
             new_sc.parent_statements += [statement_cpy]
             new_sc.extra_indent += "    "
             translated_contents = translate(
@@ -2180,7 +2185,7 @@ def translate(s, sc):
             if statement[k] not in {"==", ">=", "<="}:
                 assign_token_idx = k
         # Process as generic unknown statement:
-        new_sc = sc.duplicate()
+        new_sc = sc.copy()
         new_sc.parent_statements += [list(statement)]
         result += indent + untokenize(translate_expression_tokens(
             statement, new_sc, is_assign_stmt=(assign_token_idx >= 0),
@@ -2766,7 +2771,8 @@ def run_translator_main():
                     "\n    ")
                 for (tfname, tfislater) in test_funcs:
                     contents_result += (tfname + "(" +
-                        ("lambda x, y: None" if
+                        ("_translator_runtime_helpers."
+                        "_async_final_bail_handler" if
                         tfislater else "") + "); ")
 
                 # Insert actual main to call our test main:
@@ -2805,7 +2811,9 @@ def run_translator_main():
                 contents_result += ("\ndef " + innermain + "():" +
                     "\n    ")
                 if main_is_later_func:
-                    contents_result += ("main(lambda x, y: None); ")
+                    contents_result += ("main("
+                        "_translator_runtime_helpers."
+                        "_async_final_bail_handler); ")
                 else:
                     contents_result += ("main();")
 

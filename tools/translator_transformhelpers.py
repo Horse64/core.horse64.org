@@ -69,7 +69,7 @@ def is_problematic_identifier_name(s,
         "sorted", "reversed", "len", "def",
         "yield", "async", "elif", "lambda",
         "pass", "await", "global", "globals",
-        "locals", "del", "raise", "True", "False",
+        "locals", "copy", "del", "raise", "True", "False",
         "nonlocal", "str", "dict", "set",
         "object"}
     if not h64_problematic_only and s in python_nope:
@@ -167,12 +167,12 @@ def transform_h64_misc_inline_to_python(s):
             elif cmd == "as_hex":
                 insert_call = ["_translator_runtime_helpers",
                     ".", "_as_hex"]
-            elif cmd == "copy":
-                insert_call = ["_translator_runtime_helpers",
-                    ".", "_value_copy"]
             elif cmd == "insert":
                 insert_call = ["_translator_runtime_helpers",
                     ".", "_container_insert"]
+            elif cmd == "copy":
+                insert_call = ["_translator_runtime_helpers",
+                    ".", "_container_copy"]
             elif cmd == "del":
                 insert_call = ["_translator_runtime_helpers",
                     ".", "_container_del"]

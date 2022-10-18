@@ -36,6 +36,7 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 import urllib
 import urllib.parse
 
@@ -1203,6 +1204,18 @@ def _is_num(v):
     return digitseen
 
 
+def _container_copy(v, *args, **kwargs):
+    if type(v) in {dict, list, set} and len(args) == 0:
+        if type(v) == dict:
+            return dict(v)
+        if type(v) == set:
+            return set(v)
+        return list(v)
+    if hasattr(v, "_translator_renamed_copy"):
+        return v._translator_renamed_copy(*args, **kwargs)
+    return v.copy(*args, **kwargs)
+
+
 def _container_insert(v, *args, **kwargs):
     if type(v) == list:
         idx = int(args[0])
@@ -1220,16 +1233,6 @@ def _container_del(v, *args, **kwargs):
         return
     if hasattr(v, "_translator_renamed_del"):
         return v._translator_renamed_del(*args, **kwargs)
-
-
-def _value_copy(v, *args, **kwargs):
-    if type(v) == list:
-        return list(v)
-    elif type(v) == dict:
-        return dict(v)
-    elif type(v) == set:
-        return set(v)
-    return v.copy(*args, **kwargs)
 
 
 def _text_pos_from_line_col(s, line, col):
@@ -1314,8 +1317,37 @@ def _bignum_compare_nums(v1, v2):
     return 0
 
 
+def _make_or_get_appcache(v):
+    forbidden_chars = {"/", "\\", "*", ":",
+        "\"", "~", "?", "|", "<", ">", "\0"}
+    if v.strip() != v:
+        raise _ValueError("Invalid folder name.")
+    for c in v:
+        if c in forbidden_chars:
+            raise _ValueError("Invalid folder name.")
+    if platform.system().lower() == "windows":
+        appdata = os.path.expandvars(r'%APPDATA%')
+        if not os.path.exists(appdata):
+            raise _ResourceError("AppData dir doesn't exist.")
+        os.makedirs(os.path.join(appdata, v))
+        return os.path.join(appdata, v)
+    else:
+        home_dir = os.path.abspath(os.path.expanduser("~"))
+        if not os.path.exists(home_dir):
+            raise _ResourceError("Home dir doesn't exist.")
+        os.makedirs(os.path.join(home_dir, ".cache", v))
+        return os.path.join(home_dir, ".cache", v)
+
+
 def _has_attr(v, name):
     if name == "str":
         name = "_translator_renamed_str"
     return hasattr(v, name)
+
+def _async_final_bail_handler(err, result, funcname="main"):
+    if err != None:
+        print("Unhandled error in 'later' function: " + str(err))
+        print(''.join(traceback.format_exception(
+            type(err), err, err.__traceback__)))
+        sys.exit(1)
 
