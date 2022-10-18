@@ -223,7 +223,7 @@ func TokenizeResult.as_str {
 
 func describe_token_str(s) {
     if s.glyph_len <= 1 {
-        return describe_char_in_str(s, 1, maybe_cutoff_glyph=no)
+        return describe_char_at(s, 1, maybe_cutoff_glyph=no)
     }
     if s.startswith("'") or s.startswith('"') or
             s.startswith("b'") or s.startswith('b"') {
@@ -239,7 +239,7 @@ func describe_token_str(s) {
     return "<unprintable token>"
 }
 
-func describe_char_in_str(
+func describe_char_at(
         s, i, maybe_cutoff_glyph=no
         ) {
     if s == "" or i > s.len or i < 1 {
@@ -364,7 +364,7 @@ func tokenize_str(
         c = str[i]
 
         #print("LOOKING AT #" + i.as_str() +
-        #    ": " + describe_char_in_str(
+        #    ": " + describe_char_at(
         #    c, 1, maybe_cutoff_glyph=yes) +
         #    " || " + [bracket_nesting,
         #    guessed_expr_bracket_nesting,
@@ -438,7 +438,7 @@ func tokenize_str(
                             str[k + 1]) {
                         result.msgs.add(compiler.msg.FileMsg(
                             "Invalid string escape '\\' + " +
-                            describe_char_in_str(str, k,
+                            describe_char_at(str, k,
                                 maybe_cutoff_glyph=no) + ".",
                             source_file=project_file,
                             line=line, col=col
@@ -523,7 +523,9 @@ func tokenize_str(
                     }
                 }
             }
-            result.tokens.add(new Token(str.sub(i, k), line, col))
+            result.tokens.add(
+                new Token(str.sub(i, k), start_line, start_col)
+            )
             i = k
             continue
         } elseif c == "#" {
@@ -768,7 +770,7 @@ func tokenize_str(
             # Oops, we don't know what that is.
             result.msgs.add(compiler.msg.FileMsg(
                 "Invalid unexpected character " +
-                describe_char_in_str(str, i,
+                describe_char_at(str, i,
                     maybe_cutoff_glyph=no),
                 source_file=project_file,
                 line=line, col=col

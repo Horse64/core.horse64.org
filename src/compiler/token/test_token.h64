@@ -74,12 +74,21 @@ func helper_for_tokenizer_test_and_verify(
     assert(result.msgs.len == 0)
 
     # Verify token line/col positioning:
+    var n = 0
     for tok in result.tokens {
+        n += 1
         var pos = text.pos_from_line_col(
             inputcode, tok.line, tok.col
         )
-        assert(pos != none and
-               inputcode[pos] == tok.str[1])
+        if pos == none or inputcode[pos] != tok.str[1] {
+            throw new ValueError("token #" + n.as_str() +
+                " has line,col " + tok.line.as_str() +
+                "," + tok.col.as_str() + " but the original "
+                "code string, that maps to " + if pos != None
+                ("the differing character " +
+                compiler.token.describe_char_at(inputcode, pos)) else
+                ("nowhere") + " and not to this -> " + tok.as_str())
+        }
     }
 }
 
