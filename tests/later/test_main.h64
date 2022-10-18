@@ -174,3 +174,29 @@ func test_later_dorescue_3 {
     print("[test_later_dorescue_3 (9/9)] Done!")
 }
 
+var my_counter = 0
+var my_finally_counter = 0
+
+func pretend_async_func(v) {
+    my_Counter += v
+    return later
+}
+
+func _test_later_repeat_with_finally_do {
+    do {
+        pretend_async_func(2) later:
+
+        if my_counter < 4 {
+            pretend_async_func(2) later repeat
+        }
+    } finally {
+        my_finally_counter += 1
+    }
+}
+
+func test_later_repeat_with_finally {
+    _test_later_repeat_with_finally_do() later:
+
+    assert(my_finally_counter == 1)
+}
+
