@@ -74,7 +74,7 @@ const keywords = {
     "finally", "as", "in", "extends",
     "throw", "new", "any", "from", "protect",
     "repeat", "elseif", "else", "and", "or",
-    "not",
+    "not", "ignore"
 }
 
 ## Check if the given string represents a label that is
