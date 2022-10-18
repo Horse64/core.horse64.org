@@ -102,10 +102,13 @@ def apply_hacks_on_file(
             hacks_for_this_file.append(hack)
     for hack in hacks_for_this_file:
         i = -1
-        for t in toks:
+        while i + 1 < len(toks):
             i += 1
+            t = toks[i]
             if hack.start_t[0] != t:
                 continue
+
+            # See if the full start sequence of our hack matches:
             match = True
             i3 = 1
             endofstart = i + 1
@@ -121,6 +124,8 @@ def apply_hacks_on_file(
                 i3 += 1
             if not match:
                 continue
+
+            # Try to find the ending for our hack:
             endbegin = endofstart - 1
             endmatch = False
             while endbegin < len(toks):
@@ -167,6 +172,7 @@ def apply_hacks_on_file(
                         continue
                     i2 += 1
             toks = toks[:i] + in_between + toks[actualend:]
+            i = (i + len(in_between)) - 1
     if was_flattened:
         return split_toplevel_statements(toks)
     elif was_tokenized:

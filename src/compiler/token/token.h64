@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 
+import bignum from core.horse64.org
 import uri from core.horse64.org
 import text from core.horse64.org
 
@@ -34,10 +35,14 @@ import compiler.msg
 import compiler.project
 
 
-const math_ops = {
+const math_ops_single_char = {
     "+", "/", "*", "-", "^", "&",
-    "|", "**", "~",
+    "|", "~",
 }
+
+const math_ops = (
+    math_ops_single_char + {"**"}
+)
 
 const math_assign_ops = {
     "+=", "/=", "*=", "-=", "^=", "&=",
@@ -49,7 +54,7 @@ const comparison_ops = {
 }
 
 const math_or_comp_starter_chars = (
-    math_ops + {">", "<", "!"}
+    math_ops_single_char + {">", "<", "!"}
 )
 
 const maybe_statement_tokens = {
@@ -93,7 +98,7 @@ func is_identifier_or_keyword(value, internal_labels=no) {
             text.code(c) >= code_z) or
             (text.code(c) >= code_cap_a and
             text.code(c) <= code_cap_z) or
-            (allow_dollar_name and c == "$") {
+            (internal_labels and c == "$") {
         # That's an identifier or keyword.
         var hadnondollar = (c != '$')
         var i = 2
@@ -227,7 +232,8 @@ func describe_token_str(s) {
     if is_num(s) {
         return s
     }
-    if is_identifier_or_keyword(s) {
+    if is_identifier_or_keyword(s) or math_assign_ops.has(s) or
+            math_ops.has(s) or s == "=" or comparison_ops.has(s) {
         return "'" + s + "'"
     }
     return "<unprintable token>"
@@ -587,22 +593,27 @@ func tokenize_str(
                 comparison_ops.has(str.sub(i, i + 1)) or
                 math_ops.has(str.sub(i, i + 1)) or
                 math_assign_ops.has(str.sub(i, i + 1)))) {
-            # A math, arithmetic math, or assign operator!
+            # A 2 chars long math, arithmetic math, or assign op!
             # (excluding exponential arithmetic assign "**=")
             var oplen = 2
             if c == "=" and (i + 1 > strlen or
                     str[i + 1] != "=") {
                 oplen = 1
             }
+            result.tokens.add(
+                new Token(str.sub(i, i + oplen - 1), line, col)
+            )
             i += (oplen - 1)
-            result.tokens.add(new Token(c, line, col))
             continue
         } elseif c == "*" and i + 2 <= strlen and
                 str.sub(i, i + 3) == "**=" {
-            # Special handling of arithmetic assign "**=",
-            # since it's the only one three characters long.
-            i += 2
+            # Special handling of 3 chars arithmetic assign "**=":
             result.tokens.add(new Token("**=", line, col))
+            i += 2
+            continue
+        } elseif math_ops.has(c) {
+            # A 1 char math op.
+            result.tokens.add(new Token(c, line, col))
             continue
         } elseif c == "_" or text.code(c) > 127 or
                 (text.code(c) >= code_a and
@@ -694,24 +705,24 @@ func tokenize_str(
             }
             k -= 1
             var numtoken = str.sub(i, k)
-            if bigint.compare_nums(
-                    compiler.token.num_max_str,
+            if bignum.compare_nums(
+                    compiler.limit.num_max_str,
                     numtoken) < 0 {
                 result.msgs.add(compiler.msg.FileMsg(
                     "Invalid unexpected number literal " +
                     numtoken + " exceeds maximum value " +
-                    compiler.token.num_max_str + " that "
+                    compiler.limit.num_max_str + " that "
                     "a Horse64 num can hold",
                     source_file=project_file,
                     line=line, col=col
                 ))
-            } elseif bigint.compare_nums(
-                    compiler.token.num_min_str,
+            } elseif bignum.compare_nums(
+                    compiler.limit.num_min_str,
                     numtoken) > 0 {
                 result.msgs.add(compiler.msg.FileMsg(
                     "Invalid unexpected number literal " +
                     numtoken + " is below minimum value " +
-                    compiler.token.num_min_str + " that "
+                    compiler.limit.num_min_str + " that "
                     "a Horse64 num can hold",
                     source_file=project_file,
                     line=line, col=col

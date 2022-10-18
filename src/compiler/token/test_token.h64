@@ -39,13 +39,13 @@ func verify_tokens_with_list(tokens, str_list) {
         }
         if tokens[i].str != str_list[i] {
             entry = [tokens[i].str, str_list[i]]
-            print([entry.as_str(), entry[1] == entry[2]])
             throw new ValueError(
                 "Given tokens have wrong entry, expected " +
                 compiler.token.as_escaped_code_string(
                 str_list[i]) + " but got entry #" +
                 i.as_str() + " -> " +
-                tokens[i].as_str())
+                tokens[i].as_str() + "\nEntire list is: " +
+                tokens.as_str())
         }
         i += 1
     }
@@ -65,5 +65,15 @@ func test_tokenize {
     verify_tokens_with_list(result.tokens,
         ["func", "main", "{", "print", "(",
         '"Hello! \\nTest"', ")", "}"])
+    assert(result.msgs.len == 0)
+
+    var result = compiler.token.tokenize_str(
+        'var x = ((5 + 3 ** 4) >= 2)',
+        keep_whitespace=no, auto_recovery=yes
+        )
+    verify_tokens_with_list(result.tokens,
+        ["var", "x", "=", "(", "(",
+        "5", "+", "3", "**", "4", ")", ">=", "2",
+        ")"])
     assert(result.msgs.len == 0)
 }

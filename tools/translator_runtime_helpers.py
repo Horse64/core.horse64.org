@@ -1244,14 +1244,17 @@ def _to_num(v):
 def _bignum_compare_nums(v1, v2):
     def conv(v):
         if type(v) == str:
-            return float(v)
+            return v
         elif type(v) == bytes:
-            return float(v.decode("utf-8", "surrogateescape"))
+            return v.decode("utf-8", "surrogateescape")
         if type(v) not in {float, int}:
             raise _TypeError("parameters must be num or str")
         return str(v)
-    v1 = conv(v)
-    v2 = conv(v)
+    v1 = conv(v1)
+    v2 = conv(v2)
+    if not _is_num(v1) or not _is_num(v2):
+        raise _TypeError("parameters must contain "
+            "properly formatted numbers")
     if "." in v1 or "." in v2:
         if float(v1) > float(v2):
             return 1
