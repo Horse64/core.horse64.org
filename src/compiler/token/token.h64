@@ -333,6 +333,7 @@ func as_escaped_code_string(s, quote_type='"') {
 func tokenize_str(
         str, project_file=none,
         keep_whitespace=no,
+        keep_comments=no,
         auto_recovery=yes,
         internal_labels=no,
         ) {
@@ -512,7 +513,7 @@ func tokenize_str(
                     # Set ourselves to the new point and resume:
                     strlen = str.len
                     line = inner_tokens[j].line
-                    col = inner_tokens[j].col
+                    col = inner_tokens[j].col - 1
                     col += close_brackets_str.len
                     for bracket in
                             guessed_expr_bracket_nesting {
@@ -527,26 +528,55 @@ func tokenize_str(
             continue
         } elseif c == "#" {
             # A line comment:
-            col += 2
+            start_line = line
+            start_col = col
+            col += 1
+            start_pos = i
             i += 1
             while i < strlen and str[i] != "\n" and
                     str[i] != "\r" {
                 col += 1
                 i += 1
             }
+            col -= 1
+            i -= 1
+            if keep_comments {
+                var comment = str.sub(start_pos, i)
+                result.tokens.add(new Token(
+                    comment, start_line, start_col
+                ))
+            }
             continue
         } elseif c == " " or c == "\t" or c == "\r" or c == "\n" {
             # Handle whitespace:
-            if not keep_whitespace {
-                continue
-            }
-            while i < strlen and (
+            var start_line = line
+            var start_col = col
+            var whitespace_start = i
+            while i <= strlen and (
                     str[i] == " " or str[i] == "\t" or
-                    str[i] == "\r") {
-                col += 1
-                i += 1
+                    str[i] == "\r" or str[i] == "\n") {
+                if str[i] != "\r" and str[i] != "\n" {
+                    col += 1
+                    i += 1
+                } else {
+                    col = 1
+                    line += 1
+                    if str[i] == "\r" and i + 1 <= strlen and
+                            str[i + 1] == "\n" {
+                        i += 2
+                    } else {
+                        i += 1
+                    }
+                }
             }
+            col -= 1
             i -= 1
+            if keep_whitespace {
+                var wspace = str.sub(whitespace_start, i)
+                result.tokens.add(new Token(
+                    wspace, start_line, start_col
+                ))
+            }
             continue
         } elseif c == "(" or c == "[" or c == "{" {
             # Opening brackets:
@@ -603,6 +633,7 @@ func tokenize_str(
             result.tokens.add(
                 new Token(str.sub(i, i + oplen - 1), line, col)
             )
+            col += (oplen - 1)
             i += (oplen - 1)
             continue
         } elseif c == "*" and i + 2 <= strlen and
@@ -610,6 +641,7 @@ func tokenize_str(
             # Special handling of 3 chars arithmetic assign "**=":
             result.tokens.add(new Token("**=", line, col))
             i += 2
+            col += 2
             continue
         } elseif math_ops.has(c) {
             # A 1 char math op.
@@ -729,6 +761,8 @@ func tokenize_str(
                 ))
             }
             result.tokens.add(new Token(numtoken, line, col))
+            col += (k - i)
+            i = k
             continue
         } else {
             # Oops, we don't know what that is.

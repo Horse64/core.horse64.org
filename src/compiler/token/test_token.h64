@@ -25,10 +25,12 @@
 # license, see accompanied LICENSE.md.
 
 
+import text from core.horse64.org
+
 import compiler.token
 
 
-func verify_tokens_with_list(tokens, str_list) {
+func verify_tokens_with_list(tokens, str_list, code_str=none) {
     i = 1
     while i <= tokens.len {
         if i > str_list.len {
@@ -57,32 +59,60 @@ func verify_tokens_with_list(tokens, str_list) {
     }
 }
 
-func test_tokenize {
+func helper_for_tokenizer_test_and_verify(
+        inputcode, expected, with_whitespace=no
+        ) {
+    # Call tokenizer:
     var result = compiler.token.tokenize_str(
-        'func main {print("Hello! \\nTest")}',
-        keep_whitespace=no, auto_recovery=yes
+        inputcode, keep_whitespace=with_whitespace,
+    )
+
+    # Verify token text contents and no error:
+    verify_tokens_with_list(
+        result.tokens, expected, code_str=inputcode
+    )
+    assert(result.msgs.len == 0)
+
+    # Verify token line/col positioning:
+    for tok in result.tokens {
+        var pos = text.pos_from_line_col(
+            inputcode, tok.line, tok.col
         )
-    verify_tokens_with_list(result.tokens,
+        assert(pos != none and
+               inputcode[pos] == tok.str[1])
+    }
+}
+
+func test_tokenize {
+    # Basic test example:
+    helper_for_tokenizer_test_and_verify(
+        'func main {print("Hello! \\nTest")}',
         ["func", "main", "{", "print", "(",
         '"Hello! \\nTest"', ")", "}"])
-    assert(result.msgs.len == 0)
 
-    var result = compiler.token.tokenize_str(
-        'var x = ((5 + 3 ** 4) >= 2)',
-        keep_whitespace=no, auto_recovery=yes
-        )
-    verify_tokens_with_list(result.tokens,
+    # Test some numbers thing:
+    helper_for_tokenizer_test_and_verify(
+        'var x = ((5 + 3 ** 4.3) >= 2)',
         ["var", "x", "=", "(", "(",
-        "5", "+", "3", "**", "4", ")", ">=", "2",
+        "5", "+", "3", "**", "4.3", ")", ">=", "2",
         ")"])
-    assert(result.msgs.len == 0)
 
-    var result = compiler.token.tokenize_str(
+    # Test escapes in a string literal:
+    helper_for_tokenizer_test_and_verify(
         'func main {print(b"Hello! \\" \\nTest")}',
-        keep_whitespace=no, auto_recovery=yes
-        )
-    verify_tokens_with_list(result.tokens,
         ["func", "main", "{", "print", "(",
         'b"Hello! \\" \\nTest"', ")", "}"])
-    assert(result.msgs.len == 0)
+
+    # Test whitespace:
+    helper_for_tokenizer_test_and_verify(
+        'func main {\nprint(b"Hello! \\" \\nTest")}',
+        ["func", " ", "main", " ", "{", "\n", "print", "(",
+        'b"Hello! \\" \\nTest"', ")", "}"],
+        with_whitespace=yes)
+
+    # Test wrong brackets:
+    var result = compiler.token.tokenize_str(
+        'func main {(\nprint(b"Hello! \\" \\nTest")}'
+        )
+    assert(result.msgs.len > 0)
 }
