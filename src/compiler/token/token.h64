@@ -221,7 +221,9 @@ type Token {
 }
 
 func Token.as_str {
-    var t = "Token(" + describe_token_str(self.str)
+    var t = "Token("
+    t += "str=" + describe_token_str(self.str)
+    t += ",kind=" + TokenKind.num_label(self.kind)
     if self.line != none {
         t += ",line=" + self.line.as_str()
         if self.col != none {
@@ -231,7 +233,8 @@ func Token.as_str {
     return t + ")"
 }
 
-func Token.init(str, type, line, col) {
+func Token.init(str, kind, line, col) {
+    self.kind = kind
     self.str = str
     self.line = line
     self.col = col

@@ -60,7 +60,7 @@ func verify_tokens_with_list(tokens, str_list, code_str=none) {
 }
 
 func helper_for_tokenizer_test_and_verify(
-        inputcode, expected, with_whitespace=no
+        inputcode, expected_strs, with_whitespace=no
         ) {
     # Call tokenizer:
     var result = token.tokenize_str(
@@ -69,7 +69,7 @@ func helper_for_tokenizer_test_and_verify(
 
     # Verify token text contents and no error:
     verify_tokens_with_list(
-        result.tokens, expected, code_str=inputcode
+        result.tokens, expected_strs, code_str=inputcode
     )
     assert(result.msgs.len == 0)
 
