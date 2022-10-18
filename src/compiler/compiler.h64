@@ -26,9 +26,22 @@
 # license, see accompanied LICENSE.md.
 
 
-import compiler.token
+import compiler.msg as msg
+import compiler.token as token
 
 
-func reformat_horserun_oneliner_code(s) {
-
+func reformat_standalone_snippet_code(s) {
+    var result = token.tokenize_str(auto_recovery=no)
+    for m in result.msgs {
+        if m.kind == msg.M_ERROR {
+            var t = "Error parsing "
+                "snippet"
+            if m.line != none and m.col != none {
+                t += " in line " + m.line.as_str()
+                t += ", col " + m.col.as_str()
+            }
+            t += m.message
+            throw new ValueError(t)
+        }
+    }
 }

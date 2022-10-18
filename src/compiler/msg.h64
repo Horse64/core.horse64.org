@@ -25,31 +25,38 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-import compiler.token
+import compiler.token as token
 
+
+enum MsgKind {
+    M_ERROR
+    M_WARNING
+    M_INFO
+    M_DEBUG
+}
 
 type FileMsg {
     ## @types (compiler.project.ProjectFile, none)
     var source_file
-    var kind = "error"
+    var kind = M_ERROR
     var line = -1
     var col = -1
     var message = ""
 }
 
-func FileMsg.init(message, kind="error",
+func FileMsg.init(message, kind=M_ERROR,
         source_file=none,
         line=-1, col=-1) {
     self.message = message + ""
     self.source_file = source_file
     self.line = line
     self.col = col
-    self.kind = kind + ""
+    self.kind = kind
 }
 
 func FileMsg.as_str {
     var t = "FileMsg(msg=" +
-        compiler.token.as_escaped_code_string(self.message) +
+        token.as_escaped_code_string(self.message) +
         ",file=" + self.source_file.as_str()
     if self.line != none {
         t += ",line=" + self.line.as_str()
