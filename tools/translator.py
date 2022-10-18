@@ -1939,7 +1939,7 @@ def translate(s, sc):
                     "if (x == " + str(enum_entry[1]) + "):\n")
                 result += ("        " +
                     "    return \"" + str(enum_entry[0]) + "\"\n")
-            result += (inner_indent + "    raise " +
+            result += ("        raise " +
                 "_translator_runtime_helpers._ValueError(\"" +
                 "Not a known enum value.\")\n")
             for enum_entry in enum_list:
