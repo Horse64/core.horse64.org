@@ -51,9 +51,14 @@ func _ArgumentInfo.init(
         repeatable=no,
         description=none, action_func=none
         ) {
+    # Clean up and process arguments:
     self.description = (
         if description != none (description + "") else (none)
     )
+    if self.description != none {
+        self.description = self.description.
+            replace("\r\n", "\n").replace("\r", "\n")
+    }
     self.name = name + ""
     for alias in aliases {
         self.aliases.add(alias + "")
@@ -139,7 +144,7 @@ type ArgumentDefs {
 ##   line program, should match what the actual name of the binary
 ##   is that the user would write to run the command.
 ##   If unspecified, it will be auto-detected.
-func ArgumentDefs.init(program_name=none) {
+func ArgumentDefs.init(program_name=none, description=none) {
     # Sanitize and guess the program name for this arguments set:
     if program_name != none and typename(program_name) != "str" {
         throw new TypeError("program_name must be none or string")
@@ -151,6 +156,13 @@ func ArgumentDefs.init(program_name=none) {
         }
     }
     self.program_name = program_name
+    if description != none and typename(description) != "str" {
+        throw new TypeError("description must be none or string")
+    }
+    if description != none and description.trim().len > 0 {
+        self.description = description.replace("\r\n", "\n").
+            replace("\r", "\n").trim()
+    }
 }
 
 
@@ -433,6 +445,13 @@ func get_usage_text(options) {
         ) + (if arg.catchall ("..") else ("")) + ""
     }
     output += "\n\n"
+
+    # Output program description if any:
+    if options.description != none {
+        output += textformat.wrap(
+            options.description, 79
+        ) + "\n\n"
+    }
 
     # Output info on all positional args:
     var got_positional = no
