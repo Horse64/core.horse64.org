@@ -52,6 +52,9 @@ translator_py_script_dir = (
 )
 translator_py_script_path = os.path.abspath(__file__)
 
+sys.path.insert(1, os.path.join(translator_py_script_dir,
+    "translator_modules"))
+
 import translator_debugvars
 from translator_debugvars import DEBUGV
 import translator_hacks_registry
@@ -2990,7 +2993,8 @@ def translate_do_func(
             print("tools/translator.py: debug: writing temporary " +
                 "result to (will be deleted): " +
                 output_folder)
-        for helper_file in os.listdir(translator_py_script_dir):
+        for helper_file in os.listdir(os.path.join(
+                translator_py_script_dir, "translator_modules")):
             if (not helper_file.startswith("translator_runtime") or
                     not helper_file.endswith(".py")):
                 continue
@@ -3000,6 +3004,7 @@ def translate_do_func(
                     "_translator_runtime"))
             t = None
             with open(os.path.join(translator_py_script_dir,
+                    "translator_modules",
                     helper_file), "r", encoding="utf-8") as f:
                 t = f.read()
                 t = (translator_debugvars.

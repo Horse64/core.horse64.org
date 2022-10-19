@@ -31,7 +31,8 @@ import subprocess
 import sys
 import textwrap
 
-from translator_runtime_helpers import _process_run
+from translator_modules.\
+    translator_runtime_helpers import _process_run
 
 my_dir = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
 
