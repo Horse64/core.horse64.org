@@ -242,7 +242,7 @@ remapped_uses = {
     "process@core.horse64.org": {
         "process.args": "(_remapped_sys.argv[1:])",
         "process.run":
-            "_translator_runtime_helpers._process_run",
+            "_translator_runtime_helpers._process_run_async",
     },
     "system@core.horse64.org": {
         "system.exit" : "_remapped_sys.exit",
