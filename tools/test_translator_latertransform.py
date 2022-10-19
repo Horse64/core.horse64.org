@@ -152,7 +152,10 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                             print("Oops")
                         }
                         print("Bla")
-                        __ANYTOK__(none, none)
+                        func __ANYPAIRFDELAY__ {
+                            __ANYTOK__(none, none)
+                        }
+                        __ANYTOK__.__ANYTOK__(__ANYPAIRFDELAY__, [])
                         return
                     } rescue any as e {
                         if __ANYPAIR1__ != none {
@@ -193,7 +196,10 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                             throw __ANYPAIR2__
                         }
                         print("Bla")
-                        __ANYPAIR1__(none, 5)
+                        func __ANYPAIRDELAYF__ {
+                            __ANYPAIR1__(none, 5)
+                        }
+                        __ANYTOK__.__ANYTOK__(__ANYPAIRDELAYF__, [])
                         return
                     } rescue any as e {
                         if __ANYPAIR1__ != none {
@@ -255,7 +261,6 @@ class TestTranslatorLaterTransform(unittest.TestCase):
         }"""), any_match_value="__ANYTOK__",
         pair_match_prefix="__ANYPAIR")
 
-
         # Ensure arguments aren't in wrong order:
         do_test(textwrap.dedent("""\
         func xyz(args, thing=no) {
@@ -290,7 +295,10 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                         if __ANYPAIR4__ != none {
                             throw __ANYPAIR4__
                         }
-                        __ANYPAIR2__(none, none)
+                        func __ANYPAIRFDELAY__ {
+                            __ANYPAIR2__(none, none)
+                        }
+                        __ANYTOK__.__ANYTOK__(__ANYPAIRFDELAY__, [])
                         return
                     } rescue any as e {
                         if __ANYPAIR2 != none {
@@ -322,7 +330,6 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                 var x = mycall2(abc) later:
                 print("test")
                 await x
-                return 5
             } rescue any {
                 print("Rescued!")
             } finally {
@@ -372,13 +379,13 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                                             if __ANYTOK__ != none {
                                                 throw __ANYTOK__
                                             }
-                                            # Final return:
+                                            # Final end of function:
                                             func __ANYPAIRFINALRET__ {
-                                                __ANYTOK__(none, 5)
+                                                __ANYTOK__(none, none)
                                             }
                                             _translator_runtime_helpers.
                                                 _async_delay_call(
-                                                    __ANYPAIRFINALRET__)
+                                                    __ANYPAIRFINALRET__, [])
                                             # Disables 'rescue': ...
                                             __ANYTOK__ = yes
                                                 # ...'finally' runs now.

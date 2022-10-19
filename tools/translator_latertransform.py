@@ -289,6 +289,56 @@ def add_wrapped_later_call_for_rescue(
     return sts
 
 
+def return_style_call_as_call_stmts(
+        name, return_arg_tokens=None, delayed=True,
+        indent="", h64_indent="    ",
+        callback_delayed_func_name=None,
+        ):
+    assert(callback_delayed_func_name != None)
+    assert(return_arg_tokens != None)
+    return_arg_tokens = list(return_arg_tokens)
+    while (len(return_arg_tokens) > 0 and
+            return_arg_tokens[-1].strip(" \r\t\n") == ""):
+        return_arg_tokens = return_arg_tokens[-1]
+    if "".join(return_arg_tokens).strip(" \t\r\n") == "":
+        return_arg_tokens = ["none"]
+
+    # Now, insert the call:
+    call_stmts = []
+    if delayed:
+        _delayfuncname = "_fdelay" + (
+            str(uuid.uuid4()).replace("-", "")
+        )
+        call_stmts.append(
+            [indent] + ["func", " ", _delayfuncname,
+            " ", "{", "\n"] +
+            [indent] + [h64_indent] + [
+            name, "(", "none", ","] +
+            return_arg_tokens + [")", "\n"] +
+            [indent] + ["}", "\n"]
+        )
+        delayed_call_tokens = callback_delayed_func_name
+        if type(delayed_call_tokens) == str:
+            delayed_call_tokens = tokenize(
+                delayed_call_tokens
+            )
+        call_stmts.append(
+            [indent] +
+            delayed_call_tokens +
+            ["(", _delayfuncname, ",", "[", "]", ")", "\n"]
+        )
+        call_stmts.append(
+            [indent] + ["return", "\n"])
+    else:
+        call_stmts.append([indent] +
+            [name, "("] +
+            ["none", ","] + return_arg_tokens + [")", "\n"])
+        call_stmts.append(
+            [indent] + ["return", "\n"]
+        )
+    return call_stmts
+
+
 def transform_later_to_closure_funccontents(
         sts, h64_indent="    ",
         outer_callback_name=None,
@@ -324,49 +374,25 @@ def transform_later_to_closure_funccontents(
             if nextnonblank(st, i) == "later":
                 wrap_in_delay = True
                 i = nextnonblankidx(st, i)
+            if outer_callback_name != None:
+                wrap_in_delay = True
             i += 1
             return_arg = st[i:]
             while (len(return_arg) > 0 and
                     return_arg[-1].strip(" \r\t\n") == ""):
                 return_arg = return_arg[:-1]
             indent_tokens = st[:returnidx]
+            indent = "".join(indent_tokens)
             _delayfuncname = None
 
             # Now, insert the call:
-            call_stmts = []
-            if wrap_in_delay:
-                _delayfuncname = "_fdelay" + (
-                    str(uuid.uuid4()).replace("-", "")
-                )
-                if "".join(return_arg).strip(" \t\r\n") == "":
-                    return_arg = ["none"]
-                call_stmts.append(
-                    indent_tokens + ["func", " ", _delayfuncname,
-                    " ", "{", "\n"] +
-                    indent_tokens + [h64_indent] + [
-                    outer_callback_name, "(", "none", ","] +
-                    return_arg + [")", "\n"] + indent_tokens +
-                    ["}", "\n"]
-                )
-                delayed_call_tokens = callback_delayed_func_name
-                if type(delayed_call_tokens) == str:
-                    delayed_call_tokens = tokenize(
-                        delayed_call_tokens
-                    )
-                call_stmts.append(
-                    indent_tokens +
-                    delayed_call_tokens +
-                    ["(", _delayfuncname, ",", "[", "]", ")", "\n"]
-                )
-                call_stmts.append(
-                    indent_tokens + ["return", "\n"])
-            else:
-                call_stmts.append(indent_tokens +
-                    [outer_callback_name, "("] +
-                    ["none", ","] + return_arg + [")", "\n"])
-                call_stmts.append(
-                    indent_tokens + ["return", "\n"]
-                )
+            call_stmts = return_style_call_as_call_stmts(
+                outer_callback_name,
+                return_arg_tokens=return_arg,
+                delayed=wrap_in_delay,
+                indent=indent, h64_indent=h64_indent,
+                callback_delayed_func_name=
+                    callback_delayed_func_name)
             if cleanup_code_insert_info:
                 # Nothing special here, just add the call:
                 new_sts += call_stmts
@@ -854,10 +880,17 @@ def transform_later_to_closure_funccontents(
             # If new function doesn't have return at the end,
             # add a callback and return to make sure we bail:
             if not ends_in_return:
+                call_stmts = return_style_call_as_call_stmts(
+                    outer_callback_name,
+                    return_arg_tokens=["none"],
+                    delayed=True,
+                    indent=indent, h64_indent=h64_indent,
+                    callback_delayed_func_name=
+                        callback_delayed_func_name)
                 func_inner_content += flatten(
                     add_wrapped_later_call_for_rescue(
                         inner_indent,
-                        call_name=outer_callback_name,
+                        call_stmt=call_stmts,
                         h64_indent=h64_indent,
                         rescue_disablers_pre_descent_len=
                             rescue_disablers_INNERFUNC_len,
