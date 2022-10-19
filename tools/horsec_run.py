@@ -29,6 +29,9 @@
 import os
 import sys
 
+from translator_modules.\
+    translator_runtime_helpers import _process_run
+
 translator_py_script_dir = (
     os.path.abspath(os.path.dirname(__file__))
 )
@@ -52,7 +55,7 @@ if __name__ == "__main__":
             if args[i] == "--tl-opt":
                 if (i + 1 > len(args) or
                         args[i + 1].startswith("-")):
-                    print("tools/horserun_translated.py: "
+                    print("tools/horsec_run.py: "
                         "error: missing argument " +
                         "for --tl-opt")
                     sys.exit(1)
@@ -60,7 +63,7 @@ if __name__ == "__main__":
                 i += 2
                 continue
             elif args[i] == "--help" or args[i] == "-h":
-                print("Usage: tools/horserun_translated.py "
+                print("Usage: tools/horsec_run.py "
                       "[..options..] target_file(optional)")
                 print("")
                 print("Runs the given Horse64 code directly.")
@@ -73,13 +76,13 @@ if __name__ == "__main__":
                       "Display this help text.")
                 sys.exit(0)
             else:
-                print("tools/horserun_translated.py: "
+                print("tools/horsec_run.py: "
                     "error: unknown option: " + args[i])
                 sys.exit(1)
         elif args[i].startswith("-c"):
             if (i + 1 > len(args) or
                     args[i + 1].startswith("-")):
-                print("tools/horserun_translated.py: "
+                print("tools/horsec_run.py: "
                     "error: missing argument " +
                     "for -c")
             run_code = args[i + 1]
@@ -91,20 +94,49 @@ if __name__ == "__main__":
             break
         i += 1
     if target_file is None and run_code is None:
-        print("tools/horserun_translated.py: error: "
+        print("tools/horsec_run.py: error: "
             "must specify either .h64 file or "
             "code line to run")
         sys.exit(1)
-    elif target_file !+ None and run_code != None:
-        print("tools/horserun_translated.py: error: "
+    elif target_file != None and run_code != None:
+        print("tools/horsec_run.py: error: "
             "cannot specify both .h64 file and "
             "code line to run")
         sys.exit(1)
     if target_file != None and (
             not target_file.endswith(".h64") or
             not os.path.exists(target_file)):
-        print("tools/horserun_translated.py: error: "
+        print("tools/horsec_run.py: error: "
             "target file must exist and end "
             "with .h64 file extension")
         sys.exit(1)
 
+    if target_file != None:
+        extra_opts = []
+        contents = None
+        with open(target_file, "r", encoding="utf-8") as f:
+            contents = f.read()
+        doc_comments = [l.partition("##")[2].strip()
+            for l in contents.splitlines()
+            if l.strip().startswith("##")]
+        doc_comments = [l for l in doc_comments if l.strip() != ""]
+        for doc_comment in doc_comments:
+            while "  " in doc_comment:
+                doc_comment = doc_comment.replace("  ", " ")
+            if ("@" in doc_comment and
+                    "@option horsec-run" not in doc_comment and
+                    "@module" not in doc_comment):
+                # Bail out once we reach any doc gen instructions
+                # past initial @module and @option for horsec running.
+                # (Since we mandate these run options come first.)
+                break
+            if "@option horsec-run --single-file" in doc_comment:
+                extra_opts += ["--single-file"]
+        cmd = os.path.join(translator_py_script_dir, "translator.py")
+        cmd_args = extra_opts + ["--"] + [target_file] + target_args
+        result = _process_run(
+            cmd, args=cmd_args,
+            print_output=True)
+        sys.stdout.flush()
+        sys.stderr.flush()
+        sys.exit(0)

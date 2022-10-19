@@ -2310,8 +2310,12 @@ def get_interesting_nonlocals(st, parent_sts):
     return result
 
 
-def locate_repo_folder(startpath):
-    startpath = os.path.abspath(startpath)
+def locate_repo_folder(startpath, repo_dir_override=None):
+    if repo_dir_override != None:
+        repo_dir_override = os.path.normpath(os.path.abspath(
+            repo_dir_override
+        ))
+    startpath = os.path.normpath(os.path.abspath(startpath))
     if (not os.path.isfile(startpath) or
             not startpath.endswith(".h64")):
         raise ValueError("invalid start path")
@@ -2322,13 +2326,19 @@ def locate_repo_folder(startpath):
 
     repo_dir = startpath
     while True:
+        if (repo_dir_override != None and
+                repo_dir_override ==
+                os.path.normpath(repo_dir)):
+            break
         repo_folder_files = os.listdir(repo_dir)
         if ("horse_modules" in repo_folder_files or
-                ".git" in repo_folder_files):
+                ".git" in repo_folder_files) and \
+                repo_dir_override is None:
             break
         if ("horp.ini" in repo_folder_files and
                 not os.path.isdir(os.path.join(
-                repo_dir, "horp.ini"))):
+                repo_dir, "horp.ini"))) and \
+                repo_dir_override is None:
             contents = ""
             with open(os.path.join(project_info.repo_folder,
                     "horp.ini"), "r", encoding='utf-8') as f:
@@ -2367,6 +2377,7 @@ def locate_repo_folder(startpath):
 
 def run_translator_main():
     args = sys.argv[1:]
+    single_file = False
     output_h64_file = False
     horse_mod_dir = None
     stdlib_dir = None
@@ -2411,15 +2422,15 @@ def run_translator_main():
                 print("    --horse-modules        "
                       "Load horse modules from different folder.")
                 print("    --keep-files           "
-                      "Keep translated files and ")
-                print("                           "
-                      "print out path to them.")
-                print("    --output-h64-file          "
+                      "Keep folder with translated files to look at.")
+                print("    --output-h64-file      "
                       "Don't run, just output half-translated .h64 file.")
-                print("    --output-py-file          "
+                print("    --output-py-file       "
                       "Don't run, just output final translated Python.")
-                print("    --stdlib     "
-                      "Use and override core.horse64.org from given folder.")
+                print("    --single-file          "
+                      "Don't treat as project but one-shot single file.")
+                print("    --stdlib               "
+                      "Override 'core.horse64.org' with given folder.")
                 print("    --paranoid             "
                       "Do extra checking of internal operations.")
                 print("    --version              "
@@ -2427,6 +2438,8 @@ def run_translator_main():
                 sys.exit(0)
             elif args[i] == "--as-test":
                 run_as_test = True
+            elif args[i] == "--single-file":
+                single_file = True
             elif args[i] == "--horse-modules":
                 if (i + 1 >= len(args) or
                         args[i + 1].startswith("-")):
@@ -2504,14 +2517,31 @@ def run_translator_main():
     if target_file is None:
         raise RuntimeError("please provide target file argument")
 
+    # Locate code repository:
+    repo_dir_override = None
+    if single_file:
+        # Always treat the folder the file is in as repo.
+        repo_dir_override = os.path.normpath(
+            os.path.abspath(os.path.dirname(target_file))
+        )
+        if not os.path.exists(os.path.join(
+                repo_dir_override, "horse_modules")) and \
+                horse_mod_dir is None:
+            horse_mod_dir = os.path.normpath(os.path.join(
+                translator_py_script_dir, ".."
+            ))
     (repo_dir, _) = locate_repo_folder(
-        target_file
+        target_file, repo_dir_override=repo_dir_override
     )
     assert(os.path.exists(repo_dir))
+
+    # See where we'll take horse_modules from:
     if (horse_mod_dir is None and
             os.path.exists(os.path.join(repo_dir,
             "horse_modules"))):
         horse_mod_dir = os.path.join(repo_dir, "horse_modules")
+
+    # Assemble everything:
     assembled_dir = tempfile.mkdtemp(prefix="h64-project-run-copy-")
     try:
         if DEBUGV.ENABLE:

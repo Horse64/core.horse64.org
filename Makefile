@@ -5,7 +5,7 @@ intro-message:
 	@echo -e "\033[95;40mWelcome to core.horse64.org.\033[0m"
 	@echo "To test horsec right away in hacky Python mode, type:"
 	@echo ""
-	@echo "    tools/horsec_translated.py ...args..."
+	@echo "    tools/horsec.py ...args..."
 	@echo ""
 	@echo "To build it all properly and get standalone binaries,"
 	@echo "check the README.md file. But in short, use: make bootstrap"
