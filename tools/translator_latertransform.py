@@ -193,11 +193,15 @@ def wrap_later_func_for_user_rescue(
 
     # Second, prepend the new rescue/finally disablers for this level:
     if had_any_rescue:
+        assert(cinfo.rescue_disablers[
+            rescue_disbl_len - 1] != None)
         s = [old_indent, "var", " ",
             cinfo.rescue_disablers[
             rescue_disbl_len - 1],
             " ", "=", " ", "no", "\n"] + s
     if had_any_finally:
+        assert(cinfo.finally_disablers[
+            finally_disbl_len - 1] != None)
         s = [old_indent, "var", " ",
             cinfo.finally_disablers[
             finally_disbl_len - 1],
@@ -482,7 +486,7 @@ def transform_later_to_closure_funccontents(
                     cinfo_range[1] = brange
             if cinfo_insert[0] == None:
                 disable_rescue_name = None
-            elif cinfo_insert[0] == None:
+            elif cinfo_insert[1] == None:
                 disable_finally_name = None
             cinfo.cleanup_blocks.append(cinfo_insert)
             if disable_rescue_name != None:
@@ -497,6 +501,7 @@ def transform_later_to_closure_funccontents(
             if cinfo_insert[1] != None:
                 # 'finally' first, since it's later and this shifts
                 # indexes:
+                assert(disable_finally_name != None)
                 _st = (st[:cinfo_range[1][0]])
                 _st += [indent_inner, "if",
                     " ", "not", disable_finally_name, " ", "{",
@@ -508,6 +513,7 @@ def transform_later_to_closure_funccontents(
                 st = _st
             if cinfo_insert[0] != None:
                 # Now 'rescue':
+                assert(disable_rescue_name != None)
                 _st = (st[:cinfo_range[0][0]])
                 _st += [indent_inner, "if",
                     " ", "not", disable_rescue_name, " ", "{",
@@ -599,10 +605,12 @@ def transform_later_to_closure_funccontents(
             if cinfo_insert[1] != None:
                 new_sts.append([indent_outer, "var", " ",
                     cinfo_insert[1][0], "\n"])
-            new_sts.append([indent_outer, "var", " ",
-                disable_rescue_name, " ", "=", " ", "no", "\n"])
-            new_sts.append([indent_outer, "var", " ",
-                disable_finally_name, " ", "=", " ", "no", "\n"])
+            if disable_rescue_name != None:
+                new_sts.append([indent_outer, "var", " ",
+                    disable_rescue_name, " ", "=", " ", "no", "\n"])
+            if disable_finally_name != None:
+                new_sts.append([indent_outer, "var", " ",
+                    disable_finally_name, " ", "=", " ", "no", "\n"])
             new_sts.append(st)
             continue
 
