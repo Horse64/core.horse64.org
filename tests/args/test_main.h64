@@ -35,9 +35,12 @@ func test_args_things {
     var output = compiler.run_file(
         "args_program_main.h64", args=["--help"],
         run_in_dir=path.dirname(system.self_exec_path())
-    )
+    ) later:
+
+    await output
     assert(output.lower().has("usage") and
         output.lower().has("available options"))
+    print("Launching program with --help worked!")
 
     # Test a basic scenario with optional and catchall args:
     var defs = argparse.ArgumentDefs()

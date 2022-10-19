@@ -149,6 +149,45 @@ def _return_licenses():
     return __translator_licenses_list
 
 
+def _process_run_async(cmd, callback,
+        args=[], run_in_dir=None,
+        print_output=False):
+    global _async_ops_lock, _async_ops
+    info = {"cmd": cmd, "callback": callback,
+        "args": args, "run_in_dir": run_in_dir,
+        "print_output": print_output}
+    def run_do(op):
+        global _async_ops_lock
+        info = op.userdata
+        output = None
+        err = None
+        try:
+            output = _process_run(
+                info["cmd"],
+                args=info["args"],
+                run_in_dir=info["run_in_dir"],
+                print_output=info["print_output"])
+        except subprocess.CalledProcessError as e:
+            err = e
+        _async_ops_lock.acquire()
+        op.userdata2 = [err, output]
+        op.done = True
+        _async_ops_lock.release()
+    def done_cb(op):
+        result = op.userdata2
+        assert(result != None)
+        f = op.userdata["callback"]
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        op.callback_func = None
+        return f(result[0], result[1])
+    op = _AsyncOperation(info, run_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
+
+
 def _process_run(cmd, args=[], run_in_dir=None,
         print_output=False):
     assert(type(cmd) == str)
@@ -159,11 +198,15 @@ def _process_run(cmd, args=[], run_in_dir=None,
         cwd=run_in_dir)
     output = [b""]
     def output_thread_func(output, process, print_output):
-        while process.poll() == None:
+        read_something_last = time.monotonic()
+        while (process.poll() == None or
+                read_something_last + 0.5 > time.monotonic()):
             try:
+                process.stdout.flush()
                 char = process.stdout.read(1)
             except (IOError, BrokenPipeError, ValueError):
                 return
+            read_something_last = time.monotonic()
             output[0] += char
             if print_output:
                 sys.stdout.buffer.write(char)
@@ -186,13 +229,15 @@ def _process_run(cmd, args=[], run_in_dir=None,
     return output
 
 
-def _compiler_run_file(cmd, args=[], run_in_dir=None,
+def _compiler_run_file(cmd, callback,
+        args=[], run_in_dir=None,
         print_output=False):
     assert(type(cmd) == str)
     run_cmd = sys.executable
     run_args = [__translator_py_path__,
         "--", cmd] + args
-    return _process_run(run_cmd, args=run_args,
+    return _process_run_async(run_cmd, callback,
+        args=run_args,
         run_in_dir=run_in_dir, print_output=print_output)
 
 
