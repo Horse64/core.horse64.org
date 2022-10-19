@@ -140,10 +140,18 @@ type ArgumentDefs {
 }
 
 
+## A @{type} to represent argument definitions that describe
+## how to parse command line arguments. Use this to specify what
+## sort of arguments your program takes, then use @{parse} to
+## actually get the values specified by the user.
+##
 ## @param program_name str (Optional) The name of your command
 ##   line program, should match what the actual name of the binary
 ##   is that the user would write to run the command.
 ##   If unspecified, it will be auto-detected.
+## @param description str (Optional) Describe what your program
+##   does, e.g. "A tool to do task XYZ." which will be printed out
+##   for the `--help` text.
 func ArgumentDefs.init(program_name=none, description=none) {
     # Sanitize and guess the program name for this arguments set:
     if program_name != none and typename(program_name) != "str" {
