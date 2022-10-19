@@ -2569,6 +2569,7 @@ def run_translator_main():
         )
     finally:
         shutil.rmtree(assembled_dir)
+        pass
 
 
 def translate_do_func(
@@ -2606,7 +2607,8 @@ def translate_do_func(
             "detected repository folder: " +
             project_info.repo_folder)
     project_info.code_relpath = ""
-    if os.path.exists(os.path.join(project_info.repo_folder, "src")):
+    if os.path.exists(os.path.join(project_info.repo_folder,
+            "src")):
         project_info.code_relpath = "src/"
         assert(modname.startswith("src."))
         modname = modname[len("src."):]
