@@ -1740,3 +1740,51 @@ def cut_tokens_after_lineend(st, i):
     return st[:i]
 
 
+def stmt_uses_banned_things(
+        st, nestings=[]
+        ):
+    startkw = firstnonblank(st)
+    nestingtracked = {"func", "do",
+        "with", "while", "for", "if",
+        "type"
+    }
+    add_nesting = None
+    if startkw in nestingtracked:
+        add_nesting = startkw
+    ranges = get_statement_block_ranges(st)
+    for block_range in ranges:
+        add_nesting = None
+        if startkw in nestingtracked:
+            add_nesting = startkw
+        sts = split_toplevel_statements(
+            st[block_range[0]:block_range[1]]
+        )
+        if add_nesting == "do":
+            add_nesting = block_range[2]
+        result = stmt_list_uses_banned_things(
+            sts, nestings + [add_nesting]
+        )
+        if result != None:
+            return result
+    return None
+
+
+def stmt_list_uses_banned_things(sts, nestings=[]):
+    if (type(sts) == list and len(sts) > 0 and
+            type(sts[0]) == str):
+        sts = split_toplevel_statements(
+            sts
+        )
+    assert(type(sts) == list and (
+           len(sts) == 0 or (type(sts[0]) == list and (
+           len(sts[0]) == 0 or type(sts[0][0]) == str))))
+    for st in sts:
+        assert(type(st) == list and
+            (len(st) == 0 or type(st[0]) == str))
+        assert(type(st) == list)
+        assert(len(st) == 0 or type(st[0]) == str)
+        result = stmt_list_uses_banned_things(st)
+        if result != None:
+            return result
+    return None
+

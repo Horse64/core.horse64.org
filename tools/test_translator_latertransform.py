@@ -322,6 +322,7 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                 var x = mycall2(abc) later:
                 print("test")
                 await x
+                return 5
             } rescue any {
                 print("Rescued!")
             } finally {
@@ -372,7 +373,12 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                                                 throw __ANYTOK__
                                             }
                                             # Final return:
-                                            __ANYTOK__(none, none)
+                                            func __ANYPAIRFINALRET__ {
+                                                __ANYTOK__(none, 5)
+                                            }
+                                            _translator_runtime_helpers.
+                                                _async_delay_call(
+                                                    __ANYPAIRFINALRET__)
                                             # Disables 'rescue': ...
                                             __ANYTOK__ = yes
                                                 # ...'finally' runs now.
