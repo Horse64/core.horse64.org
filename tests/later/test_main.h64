@@ -178,25 +178,31 @@ var my_counter = 0
 var my_finally_counter = 0
 
 func pretend_async_func(v) {
-    my_Counter += v
+    my_counter += v
     return later
 }
 
 func _test_later_repeat_with_finally_do {
     do {
+        print("test_later_repeat_with_finally (2/): before jump")
         pretend_async_func(2) later:
 
         if my_counter < 4 {
+            print("test_later_repeat_with_finally (3/6): 2nd jump now...")
             pretend_async_func(2) later repeat
         }
+        print("test_later_repeat_with_finally (4/6): exiting later loop")
     } finally {
+        print("test_later_repeat_with_finally (5/6): finally")
         my_finally_counter += 1
     }
 }
 
 func test_later_repeat_with_finally {
+    print("test_later_repeat_with_finally (1/6): start")
     _test_later_repeat_with_finally_do() later:
 
+    print("test_later_repeat_with_finally (6/6): reached end")
     assert(my_finally_counter == 1)
 }
 

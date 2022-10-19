@@ -1969,14 +1969,10 @@ def translate(s, sc):
                         if sc.package_name != None else "") + ": " +
                         "found invalid \"func\" nested in \"type\"")
 
-            # Make sure the name of the func is valid:
-            statement[nameidx] = make_valid_identifier(
-                statement[nameidx], sc=sc)
-
             # First, see what globals Python might need a hint:
             function_outer_scope_names = (
                 get_names_defined_in_func(statement_cpy,
-                    is_anonymous_inline=True))
+                    is_anonymous_inline=False))
             tell_python_about_globals = []
             for entry in sc.orig_h64_globals:
                 if (sc.orig_h64_globals[entry]["type"]
@@ -1986,6 +1982,10 @@ def translate(s, sc):
                     # won't believe us we're using a global
                     # unless we explicitly list it:
                     tell_python_about_globals.append(entry)
+
+            # Make sure the name of the func is valid:
+            statement[nameidx] = make_valid_identifier(
+                statement[nameidx], sc=sc)
 
             # Transform to "def" and see where content begins:
             statement[0] = "def"
