@@ -72,7 +72,14 @@ if __name__ == "__main__":
                         "error: missing argument " +
                         "for --tl-opt")
                     sys.exit(1)
-                translator_options.append("--" + args[i + 1])
+                switch = args[i + 1]
+                switch_option = None
+                if "," in switch:
+                    switch_option = switch.partition(",")[2]
+                    switch = switch.partition(",")[0]
+                translator_options.append("--" + switch)
+                if switch_option != None:
+                    translator_options.append(switch_option)
                 i += 1
                 continue
             else:
@@ -124,8 +131,8 @@ if __name__ == "__main__":
                 str((cmd, cmd_args)))
         failed = False
         try:
-            result = _process_run(cmd, args=cmd_args,
-                run_in_dir=os.path.dirname(test_path),
+            result = _process_run(
+                cmd, args=cmd_args,
                 print_output=True)
         except Exception as e:
             failed = True
