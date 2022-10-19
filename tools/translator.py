@@ -1060,12 +1060,13 @@ def queue_file_if_not_queued(
         translate_file_queue, entry,
         reason=None
         ):
+    assert(entry[2] != None and entry[2] != "")
     for queue_item in translate_file_queue:
         if (os.path.normpath(queue_item[0]) ==
                 os.path.normpath(entry[0])):
             return
     if DEBUGV.ENABLE and DEBUGV.ENABLE_QUEUE:
-        print("tools/translator.py: debug: queueing item: " +
+        print("tools/translator.py: debug: queuing item: " +
             str(entry) + (
             " due to reason: " + str(reason) if
             reason != None and len(reason) > 0 else
@@ -1146,6 +1147,7 @@ def translate(s, sc):
 
     if (len(sc.parent_statements) == 0 and DEBUGV.ENABLE and
             DEBUGV.ENABLE_FILE_PATHS):
+        assert(sc.module_name != "")
         print("tools/translator.py: debug: translating " +
             "module \"" + sc.module_name + "\" in folder: " +
             sc.folder_path +
@@ -2301,9 +2303,66 @@ def get_interesting_nonlocals(st, parent_sts):
     return result
 
 
+def locate_repo_folder(startpath):
+    startpath = os.path.abspath(startpath)
+    if (not os.path.isfile(startpath) or
+            not startpath.endswith(".h64")):
+        raise ValueError("invalid start path")
+    modname = (os.path.basename(startpath).
+        rpartition(".h64")[0].strip())
+    assert(modname != "")
+    startpath = os.path.dirname(startpath)
+
+    repo_dir = startpath
+    while True:
+        repo_folder_files = os.listdir(repo_dir)
+        if ("horse_modules" in repo_folder_files or
+                ".git" in repo_folder_files):
+            break
+        if ("horp.ini" in repo_folder_files and
+                not os.path.isdir(os.path.join(
+                repo_dir, "horp.ini"))):
+            contents = ""
+            with open(os.path.join(project_info.repo_folder,
+                    "horp.ini"), "r", encoding='utf-8') as f:
+                contents = f.read()
+            pkg_name = horp_ini_string_get_package_name(contents)
+            if pkg_name != None:
+                break
+        # Normalize and make to absolute path, and clean it up:
+        repo_dir = os.path.normpath(
+            os.path.abspath(repo_dir)
+        )
+        if "windows" in platform.system().lower():
+            repo_dir = repo_dir.replace("\\", "/")
+        while "//" in repo_dir:
+            repo_dir = repo_dir.replace("//", "/")
+        if repo_dir.endswith("/") and (
+                "windows" not in platform.system().lower() or
+                len(repo_dir) > 3) and \
+                repo_dir != "/":
+            repo_dir = repo_dir[:-1]
+        # Detect if we hit the root folder, and hence found nothing:
+        if (("windows" in platform.system().lower() and
+                len(repo_dir) == 3) or
+                "windows" not in platform.system().lower() and
+                repo_dir == "/"):
+            raise RuntimeError("failed to detect repository folder")
+        # Go up by one:
+        modname = os.path.basename(
+            os.path.normpath(os.path.normpath(
+            repo_dir))) + "." + modname
+        repo_dir = os.path.normpath(
+            os.path.abspath(
+            os.path.join(repo_dir, "..")))
+    return (repo_dir, modname)
+
+
 def run_translator_main():
     args = sys.argv[1:]
     output_h64_file = False
+    horse_mod_dir = None
+    stdlib_dir = None
     output_py_file = False
     output_file_linenos = True
     target_file = None
@@ -2342,6 +2401,8 @@ def run_translator_main():
                       "Show info about queueing files.")
                 print("    --help                 "
                       "Show this help text")
+                print("    --horse-modules        "
+                      "Load horse modules from different folder.")
                 print("    --keep-files           "
                       "Keep translated files and ")
                 print("                           "
@@ -2350,6 +2411,8 @@ def run_translator_main():
                       "Don't run, just output half-translated .h64 file.")
                 print("    --output-py-file          "
                       "Don't run, just output final translated Python.")
+                print("    --stdlib     "
+                      "Use and override core.horse64.org from given folder.")
                 print("    --paranoid             "
                       "Do extra checking of internal operations.")
                 print("    --version              "
@@ -2357,6 +2420,25 @@ def run_translator_main():
                 sys.exit(0)
             elif args[i] == "--as-test":
                 run_as_test = True
+            elif args[i] == "--horse-modules":
+                if (i + 1 >= len(args) or
+                        args[i + 1].startswith("-")):
+                    print("tools/translator.py: error: " +
+                        "missing argument for --horse-modules")
+                    sys.exit(1)
+                horse_mod_dir = args[i + 1]
+                i += 2
+                continue
+            elif args[i] == "--stdlib":
+                if (i + 1 >= len(args) or
+                        args[i + 1].startswith("-")):
+                    print("tools/translator.py: error: " +
+                        "missing argument for "
+                        "--stdlib")
+                    sys.exit(1)
+                stdlib_dir = args[i + 1]
+                i += 2
+                continue
             elif args[i] == "--paranoid":
                 paranoid = True
             elif args[i] == "--output-h64-file":
@@ -2414,65 +2496,111 @@ def run_translator_main():
         i += 1
     if target_file is None:
         raise RuntimeError("please provide target file argument")
-    modname = (os.path.basename(target_file).
-        rpartition(".h64")[0].strip())
-    project_info = TranslatedProjectInfo()
-    project_info.package_name = overridden_package_name
-    modfolder = os.path.abspath(os.path.dirname(target_file))
+
+    (repo_dir, _) = locate_repo_folder(
+        target_file
+    )
+    assert(os.path.exists(repo_dir))
+    if (horse_mod_dir is None and
+            os.path.exists(os.path.join(repo_dir,
+            "horse_modules"))):
+        horse_mod_dir = os.path.join(repo_dir, "horse_modules")
+    assembled_dir = tempfile.mkdtemp(prefix="h64-project-run-copy-")
+    try:
+        if DEBUGV.ENABLE:
+            print("tools/translator.py: debug: " +
+                "path configuration: " + str({"repo dir":
+                repo_dir,
+                "horse_modules dir": horse_mod_dir,
+                "stdlib override dir: ": stdlib_dir,
+                "project copy temp dir": assembled_dir}))
+
+        # Copy entire project into temp folder, so we can e.g.
+        # add in a different horse_modules folder:
+        target_file = os.path.normpath(os.path.abspath(
+            target_file
+        ))
+        assert(target_file.startswith(repo_dir))
+        target_file_rel = target_file[len(repo_dir):]
+        while target_file_rel.startswith(os.path.sep):
+            target_file_rel = target_file_rel[1:]
+        target_file = os.path.join(assembled_dir, "project",
+            target_file_rel)
+        shutil.copytree(repo_dir, os.path.join(
+            assembled_dir, "project"))
+        assert(os.path.exists(target_file))
+
+        # Copy in chosen horse_modules:
+        if os.path.exists(os.path.join(assembled_dir,
+                "project", "horse_modules")):
+            shutil.rmtree(os.path.join(
+                assembled_dir, "project", "horse_modules"))
+        if horse_mod_dir != None:
+            shutil.copytree(horse_mod_dir, os.path.join(
+                assembled_dir, "project", "horse_modules"))
+        else:
+            os.mkdir(os.path.join(
+                assembled_dir, "project", "horse_modules"))
+
+        # Copy in chosen stdlib:
+        if stdlib_dir != None:
+            if os.path.exists(os.path.join(assembled_dir,
+                    "project", "horse_modules",
+                    "core.horse64.org")):
+                shutil.rmtree(os.path.join(assembled_dir,
+                    "project", "horse_modules",
+                    "core.horse64.org"))
+            shutil.copytree(stdlib_dir,
+                    os.path.join(assembled_dir,
+                    "project", "horse_modules",
+                    "core.horse64.org"))
+
+        # Now translate and run the actual program:
+        translate_do_func(
+            output_h64_file=output_h64_file,
+            output_py_file=output_py_file,
+            output_file_linenos=output_file_linenos,
+            target_file=target_file,
+            target_file_args=target_file_args,
+            keep_files=keep_files,
+            paranoid=paranoid,
+            run_as_test=run_as_test,
+            overridden_package_name=overridden_package_name,
+        )
+    finally:
+        shutil.rmtree(assembled_dir)
+
+
+def translate_do_func(
+        output_h64_file=False,
+        output_py_file=False,
+        output_file_linenos=True,
+        target_file=None,
+        target_file_args=[],
+        keep_files=False,
+        paranoid=False,
+        run_as_test=False,
+        overridden_package_name=None):
+
     if (not os.path.exists(target_file) or
             os.path.isdir(target_file) or
             not target_file.endswith(".h64") or
-            len(modname) == 0 or "-" in modname or
-            "." in modname):
+            "-" in os.path.basename(target_file) or
+            "." in os.path.basename(target_file).
+                rpartition(".")[0]):
         raise IOError("missing target file, " +
             "or target file not a .h64 file with proper " +
             "module name: " + str(target_file))
-    project_info.repo_folder = modfolder
-    while True:
-        repo_folder_files = os.listdir(project_info.repo_folder)
-        if ("horse_modules" in repo_folder_files or
-                ".git" in repo_folder_files):
-            break
-        if ("horp.ini" in repo_folder_files and
-                not os.path.isdir(os.path.join(
-                project_info.repo_folder,
-                "horp.ini"))):
-            contents = ""
-            with open(os.path.join(project_info.repo_folder,
-                    "horp.ini"), "r", encoding='utf-8') as f:
-                contents = f.read()
-            pkg_name = horp_ini_string_get_package_name(contents)
-            if pkg_name != None:
-                if project_info.package_name is None:
-                    project_info.package_name = pkg_name
-                break
-        # Normalize and make to absolute path, and clean it up:
-        project_info.repo_folder = os.path.normpath(
-            os.path.abspath(project_info.repo_folder))
-        if "windows" in platform.system().lower():
-            project_info.repo_folder = (
-                project_info.repo_folder.replace("\\", "/"))
-        while "//" in project_info.repo_folder:
-            project_info.repo_folder = (
-                project_info.repo_folder.replace("//", "/"))
-        if project_info.repo_folder.endswith("/") and (
-                "windows" not in platform.system().lower() or
-                len(project_info.repo_folder) > 3) and \
-                project_info.repo_folder != "/":
-            project_info.repo_folder = project_info.repo_folder[:-1]
-        # Detect if we hit the root folder, and hence found nothing:
-        if (("windows" in platform.system().lower() and
-                len(project_info.repo_folder) == 3) or
-                "windows" not in platform.system().lower() and
-                project_info.repo_folder == "/"):
-            raise RuntimeError("failed to detect repository folder")
-        # Go up by one:
-        modname = os.path.basename(
-            os.path.normpath(os.path.normpath(
-            project_info.repo_folder))) + "." + modname
-        project_info.repo_folder = os.path.normpath(
-            os.path.abspath(
-            os.path.join(project_info.repo_folder, "..")))
+
+    # Detect basic project info:
+    project_info = TranslatedProjectInfo()
+    project_info.package_name = overridden_package_name
+    (project_info.repo_folder, modname) = locate_repo_folder(
+        target_file
+    )
+    assert(project_info.repo_folder != None)
+    assert(modname != None and modname != "")
+    modfolder = os.path.abspath(os.path.dirname(target_file))
     if DEBUGV.ENABLE:
         print("tools/translator.py: debug: " +
             "detected repository folder: " +
@@ -2517,11 +2645,14 @@ def run_translator_main():
             else:
                 print("tools/translator.py: warning: " +
                     "failed to get package name from horp.ini: " +
-                    str(os.path.join(repo_folder, "horp.ini")))
+                    str(os.path.join(project_info.repo_folder,
+                    "horp.ini")))
     if DEBUGV.ENABLE:
         print("tools/translator.py: debug: " +
             "detected package name: " +
             str(project_info.package_name))
+
+    # Queue up first item and begin translating the program:
     translate_file_queue = []
     queue_file_if_not_queued(translate_file_queue,
         (os.path.normpath(os.path.abspath(target_file)),
@@ -2627,6 +2758,7 @@ def run_translator_main():
             sys.exit(0)
 
         sc = TranslateInfoScope()
+        assert(modname != None and modname.strip() != "")
         sc.module_name = modname
         sc.package_name = package_name
         sc.folder_path = modfolder
