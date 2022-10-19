@@ -886,31 +886,35 @@ def translate_expression_tokens(s, sc,
             s = s[:i] + s[i + 1:]
             continue
         i += 1
-    # Translate {->} dict constructor:
+    # Translate {->} map constructor:
     i = 0
     while i < len(s):
         if s[i] != "{":
             i += 1
             continue
+        # Special case of empty map first:
+        if nextnonblank(s, i) == "->":
+            assert(nextnonblank(s, i, no=2) == "}")
+            s = (s[:i] +
+                ["(", "dict", "(", ")", ")"] +
+                s[nextnonblankidx(s, i, no=2) + 1:])
+            i += 1
+            continue
+        # Okay we're maybe in a map now. We'll see by checking
+        # if we find any -> outside of brackets:
         start_idx = i
+        bdepth = 0
         i += 1
-        while i < len(s) and s[i].strip(" \t\r\n") == "":
+        while i < len(s) and (s[i] != "}" or
+                bdepth > 0):
+            if s[i] in {"(", "{", "["}:
+                bdepth += 1
+            elif s[i] in {")", "}", "]"}:
+                bdepth -= 1
+            if bdepth == 0 and s[i] == "->":
+                # We're in a map!
+                s[i] = ":"  # Translate to python syntax.
             i += 1
-            continue
-        if s[i] != "->":
-            i += 1
-            continue
-        i += 1
-        while i < len(s) and s[i].strip(" \t\r\n") == "":
-            i += 1
-            continue
-        if s[i] != "}":
-            i += 1
-            continue
-        s = (s[:start_idx] +
-            ["(", "dict", "(", ")", ")"] +
-            s[i + 1:])
-        i += 1
     # Translate inline "if":
     i = 0
     while i < len(s):

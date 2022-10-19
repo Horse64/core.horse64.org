@@ -80,6 +80,10 @@ func test_basic_things {
     mymap.del(5)
     assert(not mymap.has(5))
 
+    var mymap2 = {2 -> 3}
+    assert(typename(mymap2) == "map")
+    assert(mymap2.has(2) and mymap2[2] == 3)
+
     func some_func(a=[], b={}) {
         assert(typename(a) == "list")
         assert(typename(b) == "set")
