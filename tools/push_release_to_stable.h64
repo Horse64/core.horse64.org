@@ -1,0 +1,66 @@
+# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+## push_release_to_stable
+## ======================
+##
+## This is a REPOSITORY-SPECIFIC script (=not made for use for any
+## project out there, just for the Horse64 core team) to add the
+## currently  checked out commit to the "stable" branch as a release
+## and tag it.
+##
+## The tag is based on the horp.ini version with the -dev suffix
+## removed, and release- prefixed.
+##
+## DON'T remove the -dev suffix manually with a commit on a non-stable
+## branch, it should be present for all -dev commits!
+
+## @option horsec-run --single-file
+
+
+import process from core.horse64.org
+
+
+func get_branch(folder=none) {
+    var output = process.run("git",
+        args=["symbolic-ref", "--short", "-q", "HEAD"],
+        run_in_dir=none)
+    later:
+
+    await output
+    output = output.trim()
+    return output
+}
+
+func main {
+    print("Hello World! Args: " + process.args.as_str())
+    var branch = get_branch(folder=none)
+    later:
+
+    await branch
+    print("RESULT: " + branch)
+}
+
