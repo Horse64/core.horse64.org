@@ -1141,6 +1141,9 @@ def is_func_a_later_func(
         ):
     if type(st) == str:
         st = tokenize(St)
+    if (type(st) == list and
+            len(st) > 0 and type(st[0]) == list):
+        st = flatten(st)
     assert(type(st) in {tuple, list})
     assert(len(st) == 0 or type(st[0]) == str)
 

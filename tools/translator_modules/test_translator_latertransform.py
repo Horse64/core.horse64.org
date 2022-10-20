@@ -34,12 +34,13 @@ from translator_syntaxhelpers import (
 )
 
 from translator_transformhelpers import (
-    indent_sanity_check
+    indent_sanity_check,
 )
 
 from translator_latertransform import (
     transform_later_to_closure_unnested,
     transform_later_to_closures,
+    is_func_a_later_func,
 )
 
 
@@ -462,6 +463,36 @@ class TestTranslatorLaterTransform(unittest.TestCase):
         }
         """), any_match_value="__ANYTOK__",
         pair_match_prefix="__ANYPAIR")
+
+    def test_is_func_a_later_func(self):
+        testcode = tokenize(textwrap.dedent("""\
+        func get_branch(folder=none) {
+            var output = process.run("git",
+                args=["symbolic-ref", "--short", "-q", "HEAD"],
+                run_in_dir=none)
+            later:
+
+            await output
+            output = output.trim()
+            return output
+        }"""))
+        self.assertTrue(is_func_a_later_func(testcode))
+
+        testcode = tokenize(textwrap.dedent("""\
+        func get_branch(folder=none) {
+            var output = process.run("git",
+                args=["symbolic-ref", "--short", "-q", "HEAD"],
+                run_in_dir=none)
+            later ignore
+
+            print("Test")
+        }"""))
+        self.assertTrue(is_func_a_later_func(
+            testcode, including_later_ignore=True
+        ))
+        self.assertFalse(is_func_a_later_func(
+            testcode, including_later_ignore=False
+        ))
 
 
 if __name__ == '__main__':
