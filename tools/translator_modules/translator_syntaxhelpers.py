@@ -1283,7 +1283,9 @@ def untokenize(tokens):
     return result
 
 
-def tree_transform_statements(code, callback_statement_list):
+def tree_transform_statements(
+        code, callback_statement_list, inside_out=False
+        ):
     if (type(code) != str and (
             type(code) not in {list, tuple} or
             (len(code) > 0 and type(code[0]) != str))):
@@ -1293,10 +1295,11 @@ def tree_transform_statements(code, callback_statement_list):
     if type(code) == str:
         code = tokenize(code)
         was_string = True
+    new_statements = []
     statements = split_toplevel_statements(
         code, skip_whitespace=False
     )
-    if callback_statement_list != None:
+    if callback_statement_list != None and not inside_out:
         statements = callback_statement_list(statements)
         assert(type(statements) == list)
         assert(len(statements) == 0 or (
@@ -1319,6 +1322,17 @@ def tree_transform_statements(code, callback_statement_list):
             statement = (statement[:block_range[0]] +
                 replacement +
                 statement[block_range[1]:])
+        new_statements.append(statement)
+    if callback_statement_list != None and inside_out:
+        new_statements = callback_statement_list(
+            new_statements
+        )
+        assert(type(new_statements) == list)
+        assert(len(new_statements) == 0 or (
+            type(new_statements[0]) == list and
+            (len(new_statements[0]) == 0 or
+            type(new_statements[0][0]) == str)))
+    for statement in new_statements:
         final_tokens += statement
         if ("".join(final_tokens) ==
                 "".join(final_tokens).strip("\r\n")):

@@ -799,7 +799,7 @@ def transform_later_to_closure_funccontents(
         funcname = None
         await_error_name = None
         if not is_a_repeat:
-            funcname = "_" + str(uuid.uuid4()).replace("-", "")
+            funcname = "_latersection" + str(uuid.uuid4()).replace("-", "")
             await_error_name = ("_awerr" +
                 str(uuid.uuid4()).replace("-", ""))
         indent = get_indent(st)
@@ -1103,6 +1103,7 @@ def stmt_inner_blocks_use_later(
         )
         for st in sts:
             if firstnonblank(st) == "func":
+                name = nextnonblank(st, firstnonblankidx(st))
                 continue
             if firstnonblank(st) == "return":
                 if (nextnonblank(st, firstnonblankidx(st)) ==
@@ -1392,6 +1393,7 @@ def transform_later_to_closures(
             sts, callback_delayed_func_name=
                 callback_delayed_func_name,
             ignore_erroneous_code=ignore_erroneous_code)
-    s = tree_transform_statements(s, do_transform_later)
+    s = tree_transform_statements(s, do_transform_later,
+        inside_out=True)
     return s
 
