@@ -1241,7 +1241,11 @@ def tokens_need_spacing(v1, v2):
     if (is_whitespace_token(v1) or
             is_whitespace_token(v2)):
         return False
-    if v1 == "@" and identifier_or_keyword(v2):
+    if (v1 in {"@", "=", ","}) and (
+            identifier_or_keyword(v2) or is_number_token(v2)):
+        return False
+    if (v2 in {"@", "=", ","}) and (
+            identifier_or_keyword(v1) or is_number_token(v1)):
         return False
     if (is_bracket(v1) or is_bracket(v2) or
             v1 == ":" or v2 == ":"):

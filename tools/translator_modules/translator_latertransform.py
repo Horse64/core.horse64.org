@@ -61,7 +61,7 @@ translator_py_script_dir = (
 translator_py_script_path = os.path.abspath(__file__)
 
 
-DEBUG_LATER_TRANSFORM_INSERT = False
+DEBUG_LATER_TRANSFORM_INSERT = True
 
 
 class CleanupCodeInsertInfo:
@@ -1011,8 +1011,8 @@ def transform_later_to_closure_funccontents(
         # Output some debug info:
         if DEBUG_LATER_TRANSFORM_INSERT:
             print("transform_later_to_closure_funccontents(): " +
-                "DID REPLACEMENT FOR STATEMENT:\n" + str(st_orig) +
-                "\nINSERTED:\n" +
+                "  DID REPLACEMENT FOR STATEMENT:\n  " + str(st_orig) +
+                "\n  INSERTED:\n  " +
                 str(new_sts[-new_sts_inserted:]))
         #print("ORIGINAL ONE: " + str(orig_st))
         #print("TOKEN WHERE ORIG CALL ENDED: " +

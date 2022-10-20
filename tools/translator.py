@@ -2561,10 +2561,17 @@ def run_translator_main():
         target_file_rel = target_file[len(repo_dir):]
         while target_file_rel.startswith(os.path.sep):
             target_file_rel = target_file_rel[1:]
+        old_target_file = target_file
         target_file = os.path.join(assembled_dir, "project",
             target_file_rel)
-        shutil.copytree(repo_dir, os.path.join(
-            assembled_dir, "project"))
+        if not single_file:
+            shutil.copytree(repo_dir, os.path.join(
+                assembled_dir, "project"))
+        else:
+            os.mkdir(os.path.join(assembled_dir, "project"))
+            shutil.copyfile(old_target_file,
+                os.path.join(assembled_dir, "project",
+                    os.path.basename(target_file)))
         assert(os.path.exists(target_file))
 
         # Copy in chosen horse_modules:

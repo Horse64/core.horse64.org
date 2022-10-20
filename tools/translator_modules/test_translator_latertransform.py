@@ -321,6 +321,30 @@ class TestTranslatorLaterTransform(unittest.TestCase):
         }"""), any_match_value="__ANYTOK__",
         pair_match_prefix="__ANYPAIR")
 
+        # This test led in the problems to the past:
+        do_test(textwrap.dedent("""\
+        func bla(a=5) {
+            return later
+        }"""), textwrap.dedent("""\
+        func bla(__ANYPAIR1__, bla=5) {
+            do {
+                func __ANYPAIR2__ {
+                    __ANYPAIR1__(none , none)
+                }
+                _translator_runtime_helpers._async_delay_call(
+                    __ANYPAIR2__, []
+                )
+                return
+            } rescue any as e {
+                if __ANYPAIR1__ != none {
+                    __ANYPAIR__1(e , none)
+                    return
+                }
+                throw e
+            }
+
+        }""")
+
         # Ensure do/rescue/finally is factored in correctly:
         do_test(textwrap.dedent("""\
         func f {
