@@ -42,6 +42,8 @@
 
 
 import process from core.horse64.org
+import system from core.horse64.org
+import terminal from core.horse64.org
 
 
 func get_branch(folder=none) {
@@ -61,6 +63,26 @@ func main {
     later:
 
     await branch
-    print("RESULT: " + branch)
+    if branch == "stable" or
+            branch.startswith("release-") {
+        print("You seem to be on a release branch "
+            "or tag already. "
+            "Aborting.")
+        sys.exit(1)
+    }
+    func confirm_not_main {
+        if not {"main", "master", "develop"}.has(branch) {
+            print("You're not on a commonly named develop branch.")
+            var v = terminal.yesno("Continue anyway? [yes/NO]", default=no)
+            later:
+
+            await v
+            if not v {
+                print("Aborting (by user request).")
+                system.exit(1)
+            }
+        }
+    }
+    confirm_not_main() later:
 }
 
