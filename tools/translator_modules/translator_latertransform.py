@@ -61,7 +61,7 @@ translator_py_script_dir = (
 translator_py_script_path = os.path.abspath(__file__)
 
 
-DEBUG_LATER_TRANSFORM_INSERT = True
+DEBUG_LATER_TRANSFORM_INSERT = False
 
 
 class CleanupCodeInsertInfo:
@@ -1212,6 +1212,7 @@ def transform_later_to_closure_unnested(
         code_block_open_bracket = None
         arg_list_start = None
         last_nonkw_arg_end = None
+        had_any_positional_arg = False
         if st[i] == "{":
             code_block_open_bracket = i
         elif st[i] == "(":
@@ -1220,6 +1221,7 @@ def transform_later_to_closure_unnested(
             arg_list_start = i
             current_arg_start = i
             current_arg_had_assign = False
+            last_nonkw_arg_end = i
             bracket_depth = 1
             while i < len(st) and (
                     bracket_depth > 0 or
@@ -1244,12 +1246,14 @@ def transform_later_to_closure_unnested(
                         i = inext
                     if not current_arg_had_assign:
                         last_nonkw_arg_end = i
+                        had_any_positional_arg = True
                     break
                 elif st[i] == "=" and bracket_depth <= 1:
                     current_arg_had_assign = True
                 elif st[i] == "," and bracket_depth <= 1:
                     if not current_arg_had_assign:
                         last_nonkw_arg_end = i
+                        had_any_positional_arg = True
                     current_arg_start = i + 1
                     current_arg_had_assign = False
                 i += 1
@@ -1277,8 +1281,14 @@ def transform_later_to_closure_unnested(
             # callback parameter:
             if last_nonkw_arg_end != None:
                 # Put it before the keyword args.
-                st = (st[:last_nonkw_arg_end] + [",",
-                    callback_name] +
+                trailingcomma = (
+                    firstnonblank(st[last_nonkw_arg_end:])
+                        not in [")", ","])
+                leadingcomma = had_any_positional_arg
+                st = (st[:last_nonkw_arg_end] +
+                    ([","] if leadingcomma else []) +
+                    [callback_name] +
+                    ([","] if trailingcomma else []) +
                     st[last_nonkw_arg_end:])
             else:
                 # No keyword args, just bolt on at the end.

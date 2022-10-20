@@ -326,7 +326,7 @@ class TestTranslatorLaterTransform(unittest.TestCase):
         func bla(a=5) {
             return later
         }"""), textwrap.dedent("""\
-        func bla(__ANYPAIR1__, bla=5) {
+        func bla(__ANYPAIR1__, a=5) {
             do {
                 func __ANYPAIR2__ {
                     __ANYPAIR1__(none , none)
@@ -343,7 +343,8 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                 throw e
             }
 
-        }""")
+        }"""), any_match_value="__ANYTOK__",
+        pair_match_prefix="__ANYPAIR")
 
         # Ensure do/rescue/finally is factored in correctly:
         do_test(textwrap.dedent("""\
