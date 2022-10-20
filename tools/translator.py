@@ -259,6 +259,10 @@ remapped_uses = {
             "(lambda: _translated_program_main_script_file." +
             "rpartition(\".h64\")[0])",
     },
+    "terminal@core.horse64.org": {
+        "terminal.get_line":
+            "_translator_runtime_helpers._terminal_get_line",
+    },
     "text@core.horse64.org": {
         "text.pos_from_line_col":
             "_translator_runtime_helpers."
@@ -1009,15 +1013,15 @@ def queue_module_neighbors(
     module_source_file_path = os.path.normpath(
         os.path.abspath(module_source_file_path))
     assert(module_source_file_path.endswith(".h64"))
-    if not os.path.exists(os.path.dirname(module_source_file_path)):
+    mod_base_dir = os.path.dirname(module_source_file_path)
+    if not os.path.exists(mod_base_dir):
         raise ValueError("somehow failed to access module "
             "base directory for module '" + module_name + "'" +
             (" @ '" + str(package_name) + "'" if
              package_name != None else "") + " with module file: " +
-            module_source_file_path)
-    for otherfile in os.listdir(os.path.dirname(
-            module_source_file_path
-            )):
+            module_source_file_path + " and base directory: " +
+            mod_base_dir)
+    for otherfile in os.listdir(mod_base_dir):
         otherfilepath = os.path.normpath(os.path.join(
             os.path.dirname(module_source_file_path), otherfile
         ))
@@ -2585,6 +2589,15 @@ def run_translator_main():
         else:
             os.mkdir(os.path.join(
                 assembled_dir, "project", "horse_modules"))
+
+        # Default to taking our repo as stdlib if there's none:
+        if (not os.path.exists(os.path.join(
+                assembled_dir, "project",
+                "horse_modules", "core.horse64.org")) and
+                stdlib_dir is None):
+            stdlib_dir = os.path.normpath(
+                os.path.join(translator_py_script_dir,
+                ".."))
 
         # Copy in chosen stdlib:
         if stdlib_dir != None:

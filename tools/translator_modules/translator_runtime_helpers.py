@@ -149,6 +149,38 @@ def _return_licenses():
     return __translator_licenses_list
 
 
+def _terminal_get_line(callback):
+    global _async_ops_lock, _async_ops
+    info = {"callback": callback}
+    def run_do(op):
+        global _async_ops_lock
+        info = op.userdata
+        err = None
+        try:
+            output = input()
+        except Exception as e:
+            err = e
+        if err != None:
+            output = None
+        _async_ops_lock.acquire()
+        op.userdata2 = [err, output]
+        op.done = True
+        _async_ops_lock.release()
+    def done_cb(op):
+        result = op.userdata2
+        assert(result != None)
+        f = op.userdata["callback"]
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        op.callback_func = None
+        return f(result[0], result[1])
+    op = _AsyncOperation(info, run_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
+
+
 def _process_run_async(cmd, callback,
         args=[], run_in_dir=None,
         print_output=False):
