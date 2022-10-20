@@ -2382,7 +2382,7 @@ def run_translator_main():
     horse_mod_dir = None
     stdlib_dir = None
     output_py_file = False
-    output_file_linenos = True
+    output_file_linenos = False
     target_file = None
     target_file_args = []
     keep_files = False
