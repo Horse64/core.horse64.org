@@ -29,14 +29,14 @@
 ##
 ## This is a REPOSITORY-SPECIFIC script (=not made for use for any
 ## project out there, just for the Horse64 core team) to add the
-## currently  checked out commit to the "stable" branch as a release
-## and tag it.
+## currently checked out commit to the "stable" branch as a release
+## and tag it. The branch names are hardcoded for Horse64 projects!
 ##
 ## The tag is based on the horp.ini version with the -dev suffix
-## removed, and release- prefixed.
+## removed and release- prefix added.
 ##
 ## DON'T remove the -dev suffix manually with a commit on a non-stable
-## branch, it should be present for all -dev commits!
+## branch, it should be present on all dev branches!
 
 ## @option horsec-run --single-file
 
