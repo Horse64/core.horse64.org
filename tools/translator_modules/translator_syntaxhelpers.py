@@ -1539,16 +1539,17 @@ def make_kwargs_in_call_tailing(s):
     if type(s) == str:
         s = tokenize(s)
         was_str = True
-    i = 0
+    i = 1
     while i < len(s):
         if s[i] != "(":
             i += 1
             continue
+
         # Check if this is a function definition (which
         # we don't want to touch):
         is_fdef = False
         k = i - 1
-        while k >= 0 and s[k].strip(" \t\r\n") == "":
+        while k >= 0 and s[k].strip(" \t") == "":
             k -= 1
         if k >= 0 and s[k] == "func":
             is_fdef = True
@@ -1571,7 +1572,9 @@ def make_kwargs_in_call_tailing(s):
                         break
                 if prevnonblank(s, k) == "func":
                     break
-                if s[k] in notdef_kw:
+                if (s[k] in notdef_kw or (s[k].strip(" \t") != "" and
+                        s[k].strip("\r\n") == "") or s[k] == "=" or
+                        (len(s[k]) == 2 and s[k][1] == "=")):
                     break
                 k -= 1
             if (k >= 0 and s[k] not in notdef_kw and
