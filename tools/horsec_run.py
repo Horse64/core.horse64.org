@@ -136,7 +136,7 @@ if __name__ == "__main__":
         cmd_args = extra_opts + ["--"] + [target_file] + target_args
         result = _process_run(
             cmd, args=cmd_args,
-            print_output=True)
+            print_output=True, with_input=True)
         sys.stdout.flush()
         sys.stderr.flush()
         sys.exit(0)

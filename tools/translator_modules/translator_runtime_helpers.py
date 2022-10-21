@@ -157,6 +157,7 @@ def _terminal_get_line(callback):
         info = op.userdata
         err = None
         try:
+            sys.stdout.flush()
             output = input()
         except Exception as e:
             err = e
@@ -221,12 +222,14 @@ def _process_run_async(cmd, callback,
 
 
 def _process_run(cmd, args=[], run_in_dir=None,
-        print_output=False):
+        print_output=False, with_input=False):
     assert(type(cmd) == str)
     cmdlist = [cmd] + args
     process = subprocess.Popen(cmdlist,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
+        stdin=(None if with_input else
+               subprocess.PIPE),
         cwd=run_in_dir)
     output = [b""]
     def output_thread_func(output, process, print_output):
@@ -234,6 +237,8 @@ def _process_run(cmd, args=[], run_in_dir=None,
         while (process.poll() == None or
                 read_something_last + 0.5 > time.monotonic()):
             try:
+                if not with_input:
+                    process.stdin.flush()
                 process.stdout.flush()
                 char = process.stdout.read(1)
             except (IOError, BrokenPipeError, ValueError):
@@ -242,6 +247,7 @@ def _process_run(cmd, args=[], run_in_dir=None,
             output[0] += char
             if print_output:
                 sys.stdout.buffer.write(char)
+                sys.stdout.flush()
         sys.stdout.flush()
     output_thread = threading.Thread(
         target=output_thread_func,
@@ -1422,7 +1428,7 @@ def _has_attr(v, name):
     return hasattr(v, name)
 
 def _async_final_bail_handler(err, result, funcname="main"):
-    if err != None:
+    if err != None and not isinstance(err, SystemExit):
         print("Unhandled error in 'later' function: " + str(err))
         print(''.join(traceback.format_exception(
             type(err), err, err.__traceback__)))
