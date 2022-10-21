@@ -56,6 +56,71 @@ from translator_scopehelpers import (
 )
 
 
+## This is a helper function to work on a Horse64 func arg list,
+## where it'll go to past the last non-positional argument.
+## It's meant for the Horse64 subset for Python translation
+## where positional args all come before keyword args, which
+## isn't required in normal Horse64.
+def func_args_find_last_positional(st, i):
+    bracketless_args = True  # For inline funcs
+    if i < len(st) and st[i] == "(":
+        bracketless_args = False
+        i += 1
+    had_any_positional_arg = False
+    current_arg_nonempty = False
+    current_arg_had_assign = False
+    current_arg_start = i
+    last_nonkw_arg_end = i
+    bracket_depth = 0
+    while True:
+        are_at_bail_bracket = False
+        if i >= len(st):
+            are_at_bail_bracket = True
+        else:
+            if st[i] in {"(", "{", "["}:
+                bracket_depth += 1
+                if (st[i] == "{" and bracket_depth == 1 and
+                        i > 0 and
+                        not is_h64op_with_righthand(
+                            prevnonblank(st, i)) and
+                        prevnonblank(st, i) not in {"=", ","}):
+                    are_at_bail_bracket = True
+            elif st[i] in {")", "}", "]"}:
+                bracket_depth -= 1
+                if st[i] == ")" and bracket_depth < 0:
+                    are_at_bail_bracket = True
+        # See if we reached end of arg list, or end of arg:
+        if are_at_bail_bracket or (st[i] == "," and
+                nextnonblank(st, i) == ")" and
+                bracket_depth <= 0):
+            if i < len(st) and st[i] == ",":
+                inext = nextnonblank(st, i)
+                st[i] == " "
+                i = inext
+            if not current_arg_had_assign:
+                last_nonkw_arg_end = i
+                if current_arg_nonempty:
+                    had_any_positional_arg = True
+            break
+        elif st[i] == "=" and bracket_depth <= 1:
+            current_arg_had_assign = True
+            current_arg_nonempty = True
+        elif st[i] == "," and bracket_depth <= 1:
+            if not current_arg_had_assign:
+                last_nonkw_arg_end = i
+                had_any_positional_arg = True
+            current_arg_start = i + 1
+            current_arg_had_assign = False
+            current_arg_nonempty = False
+        elif is_identifier(st[i]):
+            current_arg_nonempty = True
+        i += 1
+    if (i < len(st) and st[i] == ")" and
+            not bracketless_args):
+        i += 1
+    return (last_nonkw_arg_end, had_any_positional_arg, i)
+
+
 def is_problematic_identifier_name(s,
         h64_problematic_only=False,
         python_problematic_only=False):

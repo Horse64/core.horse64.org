@@ -54,6 +54,10 @@ from translator_syntaxhelpers import (
     tree_transform_statements,
 )
 
+from translator_transformhelpers import (
+    func_args_find_last_positional,
+)
+
 
 translator_py_script_dir = (
     os.path.abspath(os.path.dirname(__file__))
@@ -1217,56 +1221,17 @@ def transform_later_to_closure_unnested(
         if st[i] == "{":
             code_block_open_bracket = i
         elif st[i] == "(":
-            # We got function arguments! Find our insert point:
-            i += 1  # Past the '('.
             arg_list_start = i
-            current_arg_start = i
-            current_arg_had_assign = False
-            last_nonkw_arg_end = i
-            bracket_depth = 1
-            while i < len(st) and (
-                    bracket_depth > 0 or
-                    is_h64op_with_righthand(
-                        prevnonblank(st, i)) or
-                    prevnonblank(st, i) == "," or
-                    prevnonblank(st, i) == "("):
-                are_at_bail_bracket = False
-                if st[i] in {"(", "{", "["}:
-                    bracket_depth += 1
-                elif st[i] in {")", "}", "]"}:
-                    bracket_depth -= 1
-                    if st[i] == ")" and bracket_depth <= 0:
-                        are_at_bail_bracket = True
-                # See if we reached end of arg list, or end of arg:
-                if are_at_bail_bracket or (st[i] == "," and
-                        nextnonblank(st, i) == ")" and
-                        bracket_depth <= 1):
-                    if st[i] == ",":
-                        inext = nextnonblank(st, i)
-                        st[i] == " "
-                        i = inext
-                    if not current_arg_had_assign:
-                        last_nonkw_arg_end = i
-                        had_any_positional_arg = True
-                    break
-                elif st[i] == "=" and bracket_depth <= 1:
-                    current_arg_had_assign = True
-                elif st[i] == "," and bracket_depth <= 1:
-                    if not current_arg_had_assign:
-                        last_nonkw_arg_end = i
-                        had_any_positional_arg = True
-                    current_arg_start = i + 1
-                    current_arg_had_assign = False
-                i += 1
+            (last_nonkw_arg_end, had_any_positional_arg, i) = \
+                func_args_find_last_positional(st, i)
 
             # We're at the end of the arguments. Go to code block:
-            if i >= len(st) or st[i] != ")":
+            if i >= len(st):
                 if not ignore_erroneous_code:
                     raise ValueError("Didn't find ')' after "
                         "function arguments.")
                 new_sts.append(st)
                 continue
-            i += 1  # Past closing ')'.
             while i < len(st) and st[i].strip(" \r\t\n") == "":
                 i += 1
             if i >= len(st) or st[i] != "{":

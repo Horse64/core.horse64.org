@@ -36,6 +36,7 @@ from translator_transformhelpers import (
     indent_sanity_check,
     transform_h64_misc_inline_to_python,
     make_string_literal_python_friendly,
+    func_args_find_last_positional,
 )
 
 
@@ -46,6 +47,38 @@ class TestTranslatorTransformHelpers(unittest.TestCase):
         self.assertEqual(make_string_literal_python_friendly(
             ["1", "2", '"a\nb"']), ["1", "2", '"a\\nb"']
         )
+
+    def test_func_args_find_last_positional(self):
+        (last_nonkw_arg_end, had_any_positional_arg, i) = (
+            func_args_find_last_positional(["(", ")"], 0))
+        assert(last_nonkw_arg_end == 1)
+        assert(not had_any_positional_arg)
+        assert(i == 2)
+        (last_nonkw_arg_end, had_any_positional_arg, i) = (
+            func_args_find_last_positional(["test", "(", ")"], 1))
+        assert(last_nonkw_arg_end == 2)
+        assert(not had_any_positional_arg)
+        assert(i == 3)
+        (last_nonkw_arg_end, had_any_positional_arg, i) = (
+            func_args_find_last_positional(["(", "test", ")"], 0))
+        assert(last_nonkw_arg_end == 2)
+        assert(had_any_positional_arg)
+        assert(i == 3)
+        (last_nonkw_arg_end, had_any_positional_arg, i) = (
+            func_args_find_last_positional(["(", "a", "=", "5", ")"], 0))
+        assert(last_nonkw_arg_end == 1)
+        assert(not had_any_positional_arg)
+        assert(i == 5)
+        (last_nonkw_arg_end, had_any_positional_arg, i) = (
+            func_args_find_last_positional(["a", "=", "5"], 0))
+        assert(last_nonkw_arg_end == 0)
+        assert(not had_any_positional_arg)
+        assert(i == 3)
+        (last_nonkw_arg_end, had_any_positional_arg, i) = (
+            func_args_find_last_positional(["a", "=", "5", "{"], 0))
+        assert(last_nonkw_arg_end == 0)
+        assert(not had_any_positional_arg)
+        assert(i == 3)
 
     def test_indent_sanity_check(self):
         def do_test(s, should_fail=False):
