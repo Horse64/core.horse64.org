@@ -31,6 +31,7 @@ import unittest
 from translator_syntaxhelpers import (
     tokenize, untokenize, split_toplevel_statements,
     get_statement_expr_ranges, get_statement_block_ranges,
+    stmt_list_uses_banned_things,
     increase_indent,
     get_statement_inline_funcs, tree_transform_statements,
     firstnonblank, firstnonblankidx,
@@ -120,6 +121,23 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         self.assertFalse(is_identifier("5f"))
         self.assertTrue(is_identifier("f5"))
         self.assertFalse(is_identifier("and"))
+
+    def test_stmt_list_uses_banned_things(self):
+        def do_test(code, expected_banned):
+            had_error = False
+            try:
+                stmt_list_uses_banned_things(textwrap.dedent(code))
+            except ValueError:
+                had_error = True
+            self.assertEqual(had_error, expected_banned)
+
+        do_test("""\
+                func main {
+                    while true {
+                        somefunc() later:
+                    }
+                }
+            """, True)
 
     def test_find_start_of_call_index_chain(self):
         t = "5 + abc[\"def\"].flurb[5][2].acke()()"

@@ -489,6 +489,68 @@ class TestTranslatorLaterTransform(unittest.TestCase):
         """), any_match_value="__ANYTOK__",
         pair_match_prefix="__ANYPAIR")
 
+    def transform_nested_later_if_to_closures(self):
+        # A helper function to test the later transform for us:
+        def do_test(
+                testcode, texpected, any_match_value=None,
+                pair_match_prefix=None,
+                ):
+            if texpected is None:  # That means no change expected.
+                texpected = testcode
+            indent_sanity_check(
+                texpected,
+                what_in="test_transform_nested_later_if_to_closure() "
+                "test input which must be indented right")
+
+            # Get test code into expected format first:
+            resultstmts = None
+            resulttokens = []
+
+            # Run the recursive func to transform everything:
+            resulttokens = transform_later_to_closures(
+                tokenize(testcode) if type(testcode) == str else
+                testcode,
+                callback_delayed_func_name=[
+                    "_translator_runtime_helpers", ".",
+                    "_async_delay_call"])
+
+            # Check that the result is indented right:
+            try:
+                indent_sanity_check(
+                    resulttokens,
+                    what_in="test_transform_nested_later_" +
+                        "if_to_closures() "
+                    "test result after applying the tested func")
+            except ValueError:
+                print('== WRONGLY INDENTED TEST OUTPUT: """\n' +
+                      untokenize(resulttokens) +
+                    '"""\n== GIVEN INPUT: """\n' +
+                    (untokenize(testcode) if
+                    type(testcode) != str else testcode) + '"""')
+                raise
+
+            # Check the result matches what we expected:
+            mismatch_error = None
+            try:
+                expr_nonblank_equals(
+                    resulttokens,
+                    (tokenize(texpected) if type(texpected) == str else
+                     texpected), throw_error_with_details=True,
+                    any_match_value=any_match_value,
+                    pair_match_prefix=pair_match_prefix
+                )
+            except ValueError as e:
+                mismatch_error = e
+            self.assertEqual(mismatch_error, None,
+                'HAD A MISMATCH ERROR: ' + str(mismatch_error) + '\n'
+                'Got: """' + str(untokenize(resulttokens)) +
+                '""",\nexpected: """' + (
+                texpected if type(texpected) == str else
+                untokenize(texpected)) + '""",\noriginal '
+                'test input: """' + (untokenize(testcode) if
+                type(testcode) != str else testcode) + '"""')
+
+
     def test_is_func_a_later_func(self):
         testcode = tokenize(textwrap.dedent("""\
         func get_branch(folder=none) {

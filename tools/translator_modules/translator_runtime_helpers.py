@@ -224,6 +224,8 @@ def _process_run_async(cmd, callback,
 def _process_run(cmd, args=[], run_in_dir=None,
         print_output=False, with_input=False):
     assert(type(cmd) == str)
+
+    # Launch the process:
     cmdlist = [cmd] + args
     process = subprocess.Popen(cmdlist,
         stdout=subprocess.PIPE,
@@ -231,6 +233,8 @@ def _process_run(cmd, args=[], run_in_dir=None,
         stdin=(None if with_input else
                subprocess.PIPE),
         cwd=run_in_dir)
+
+    # An output thread to read while process is running:
     output = [b""]
     def output_thread_func(output, process, print_output):
         read_something_last = time.monotonic()
@@ -241,7 +245,8 @@ def _process_run(cmd, args=[], run_in_dir=None,
                     process.stdin.flush()
                 process.stdout.flush()
                 char = process.stdout.read(1)
-            except (IOError, BrokenPipeError, ValueError):
+            except (IOError, BrokenPipeError, ValueError) as e:
+                sys.stdout.flush()
                 return
             read_something_last = time.monotonic()
             output[0] += char
@@ -249,17 +254,27 @@ def _process_run(cmd, args=[], run_in_dir=None,
                 sys.stdout.buffer.write(char)
                 sys.stdout.flush()
         sys.stdout.flush()
+    # Launch our thread:
     output_thread = threading.Thread(
         target=output_thread_func,
         args=(output, process, print_output))
     output_thread.daemon = True
     output_thread.start()
+
+    # Wait for process to finish and then shut down things:
     process.wait()
+    try:
+        process.stdout.flush()
+    except (IOError, BrokenPipeError):
+        pass
+    time.sleep(0.2)  # Is this needed due to a subprocess.PIPE bug?
     try:
         process.stdout.close()
     except (IOError, BrokenPipeError):
         pass
     output_thread.join()
+
+    # Return result:
     return_code = process.wait()
     if return_code:
         raise subprocess.CalledProcessError(return_code, cmd)

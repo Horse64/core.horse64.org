@@ -1763,10 +1763,47 @@ def cut_tokens_after_lineend(st, i):
     return st[:i]
 
 
+def stmt_is_later_call(st, include_later_ignore=False):
+    if type(st) == str:
+        st = tokenize(st)
+    bdepth = 0
+    i = 0
+    while i < len(st):
+        if st[i] in {"(", "[", "{"}:
+            bdepth += 1
+        elif st[i] in {")", "]", "}"}:
+            bdepth -= 1
+        if st[i] == "later":
+            if (include_later_ignore or
+                    nextnonblank(st, i) != "ignore"):
+                return True
+        i += 1
+    return False
+
 def stmt_uses_banned_things(
         st, nestings=[]
         ):
     startkw = firstnonblank(st)
+
+    # Figure out if this is banned:
+    if stmt_is_later_call(st, include_later_ignore=False):
+        i = len(nestings) - 1
+        while i >= 0:
+            if nestings[i] in {"rescue", "finally", "while",
+                    "for"}:
+                raise ValueError("Use of 'later' inside '" +
+                    str(nestings[i]) + "' blocks not "
+                    "allowed. (Other than 'later ignore'.)")
+            i -= 1
+    elif startkw in {"continue", "break", "return"}:
+        i = len(nestings) - 1
+        while i >= 0:
+            if nestings[i] in {"finally"}:
+                raise ValueError("Use of '" + str(startkw) +
+                    "inside 'finally' blocks not allowed.")
+            i -= 1
+
+    # Okay, recurse deeper:
     nestingtracked = {"func", "do",
         "with", "while", "for", "if",
         "type"
@@ -1785,7 +1822,10 @@ def stmt_uses_banned_things(
         if add_nesting == "do":
             add_nesting = block_range[2]
         result = stmt_list_uses_banned_things(
-            sts, nestings + [add_nesting]
+            sts, nestings=nestings + (
+                [] if add_nesting is None else
+                [add_nesting]
+            )
         )
         if result != None:
             return result
@@ -1793,6 +1833,8 @@ def stmt_uses_banned_things(
 
 
 def stmt_list_uses_banned_things(sts, nestings=[]):
+    if type(sts) == str:
+        sts = split_toplevel_statements(tokenize(sts))
     if (type(sts) == list and len(sts) > 0 and
             type(sts[0]) == str):
         sts = split_toplevel_statements(
@@ -1806,7 +1848,9 @@ def stmt_list_uses_banned_things(sts, nestings=[]):
             (len(st) == 0 or type(st[0]) == str))
         assert(type(st) == list)
         assert(len(st) == 0 or type(st[0]) == str)
-        result = stmt_list_uses_banned_things(st)
+        result = stmt_uses_banned_things(
+            st, nestings=nestings
+        )
         if result != None:
             return result
     return None

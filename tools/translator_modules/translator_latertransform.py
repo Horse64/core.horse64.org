@@ -86,7 +86,8 @@ def _func_sts_end_in_return(sts):
     while (i > 0 and
             is_whitespace_statement(sts[i])):
         i -= 1
-    if firstnonblank(sts[i]) == "return":
+    if firstnonblank(sts[i]) in {
+            "return", "_later_unremoved_return"}:
         return True
     return False
 
@@ -366,6 +367,10 @@ def transform_later_to_closure_funccontents(
         st_orig = list(st)
 
         # First, handle any 'return'/'return later':
+        if firstnonblank(st) == "_later_unremoved_return":
+            st[firstnonblankidx(st)] = "return"
+            new_sts.append(st)
+            continue
         if (firstnonblank(st) == "return" and
                 outer_callback_name != None):
             # (outer_callback_name set when we're in a function
@@ -1357,6 +1362,103 @@ def transform_later_to_closures(
         return transform_later_to_closure_unnested(
             sts, callback_delayed_func_name=
                 callback_delayed_func_name,
+            ignore_erroneous_code=ignore_erroneous_code)
+    s = tree_transform_statements(s, do_transform_later,
+        inside_out=True)
+    return s
+
+
+def transform_nested_later_to_closures_inner(
+        sts, h64_indent="    ",
+        callback_delayed_func_name=None,
+        ignore_erroneous_code=True,
+        ):
+    if type(callback_delayed_func_name) == str:
+        callback_delayed_func_name = [
+            callback_delayed_func_name
+        ]
+    indent = None
+    new_sts = []
+    st_idx = -1
+    for st in sts:
+        st_idx += 1
+        st = list(st)
+        st_orig = list(st)
+
+        if indent is None:
+            indent = get_indent(st)
+        i = firstnonblankidx(st)
+        if i < 0 or st[i] != "if":
+            new_sts.append(st)
+            continue
+        if not stmt_inner_blocks_use_later(
+                st, including_later_ignore=False
+                ):
+            new_sts.append(st)
+            continue
+        print("LOOKIGN AT: " + str(st))
+        afterward_sts = st[st_idx + 1:]
+        if untokenize(flatten(afterward_sts)).strip("\r\n \t") == "":
+            print("NOTHING FOLLOWING, NOT TRANSFORMING")
+            new_sts.append(st)
+            continue
+
+        inserted_func_name = (
+            "_afterif" + str(uuid.uuid4()).replace("-", "")
+        )
+        trigger_call_func_name = (
+            "_triggerafterif" + str(uuid.uuid4()).replace("-", "")
+        )
+        assert(indent != None)
+        new_sts.append([indent, "var", " ", inserted_func_name, "\n"])
+        new_sts.append([indent, "func", " ", inserted_func_name,
+            "(", ")", "\n", indent, "}", "\n"])
+        ranges = get_statement_block_ranges(st)
+        assert(len(ranges) > 0)
+        for brange in reversed(ranges):  # Backward since we shift things.
+            content = st[brange[0]:brange[1]]
+            innersts = split_toplevel_statements(content)
+            inner_uses_later = False
+            inner_indent = None
+            for innerst in innersts:
+                if inner_indent is None:
+                    inner_indent = get_indent(innerst)
+                if stmt_inner_blocks_use_later(
+                        innerst, including_later_ignore=False
+                        ):
+                    inner_uses_later = True
+                    break
+            if not inner_uses_later:
+                continue
+            if _func_sts_end_in_return(innersts):
+                continue
+            assert(inner_indent != None)
+            innersts.append([inner_indent] +
+                trigger_call_func_name, "(", ")", "\n")
+            innersts.append([inner_indent, "_later_unremoved_return"])
+            st = (st[:brange[0]] + flatten(inenrsts) +
+                st[brange[1]:])
+        new_sts.append(st)
+        temp_reassign_name = ("_reassignme" +
+            str(uuid.uuid4()).replace("-", ""))
+        newst = ([indent] + ["func", " ",
+            temp_reassign_name, " ", "{", "\n"])
+        newst += adjust_to_absolute_indent(
+            flatten(afterward_sts),
+            indent=indent + h64_indent
+        )
+        newst += [indent, "}", "\n"]
+        break  # We 'consumed' all follow-up statements anyway
+    return new_sts
+
+
+def transform_nested_later_if_to_closures(
+        s, ignore_erroneous_code=True,
+        callback_delayed_func_name=None):
+    assert(type(callback_delayed_func_name) in {str, list})
+    def do_transform_later(sts, parent_stmts=[]):
+        return transform_nested_later_if_to_closures_inner(
+            sts,
             ignore_erroneous_code=ignore_erroneous_code)
     s = tree_transform_statements(s, do_transform_later,
         inside_out=True)

@@ -44,6 +44,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 import traceback
 import uuid
 
@@ -87,6 +88,7 @@ from translator_syntaxhelpers import (
     split_toplevel_statements, nextnonblank,
     nextnonblankidx,
     firstnonblank, firstnonblankidx,
+    stmt_list_uses_banned_things,
     get_next_statement, prevnonblank, prevnonblankidx,
     sanity_check_h64_codestring,
     separate_out_inline_funcs,
@@ -2747,6 +2749,7 @@ def translate_do_func(
         original_contents = contents
         sanity_check_h64_codestring(contents, modname=modname,
             filename=target_file)
+        stmt_list_uses_banned_things(contents)
         indent_sanity_check(contents, "module '" + str(modname) +
             "'" + (" in '" + str(package_name) + "'" if
             package_name != None else ""))
