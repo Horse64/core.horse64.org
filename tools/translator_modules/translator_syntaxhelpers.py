@@ -1551,7 +1551,9 @@ def make_kwargs_in_call_tailing(s):
         k = i - 1
         while k >= 0 and s[k].strip(" \t") == "":
             k -= 1
-        if k >= 0 and s[k] == "func":
+        if k >= 0 and (s[k] == "func" or (
+                s[k].strip(" \t\r\n") == "" and
+                prevnonblank(s, k) == "func")):
             is_fdef = True
         elif (k >= 0 and s[k] != "=" and
                 (len(s[k]) != 2 or s[k][1] != "=") and
