@@ -99,6 +99,7 @@ from translator_syntaxhelpers import (
 
 from translator_latertransform import (
     transform_later_to_closures,
+    transform_later_ifs_to_closures,
 )
 
 
@@ -2767,8 +2768,27 @@ def translate_do_func(
                     "FULL BROKEN FILE DUMP:\n" +
                     untokenize(contents) + "\nEND OF DUMP.")
         try:
+            # FIXME: Disabling this transformation for now, not working.
+            contents = (
+                make_string_literal_python_friendly(tokenize(contents))
+            )  # Hack, correct transformation is one line below:
+            #contents = transform_later_ifs_to_closures(
+            #    make_string_literal_python_friendly(tokenize(contents)),
+            #    callback_delayed_func_name=[
+            #        "_translator_runtime_helpers", ".",
+            #        "_async_delay_call"],
+            #    ignore_erroneous_code=False)
+        except Exception as e:
+            raise ValueError("in module '" + str(modname)
+                + "'" + (" in package '" +
+                    str(package_name) + "'" if
+                    package_name != None else "") + ", "
+                "encountered transform_later_ifs_to_closures() error: " +
+                str(e))
+        assert(type(contents) == list)
+        try:
             contents = transform_later_to_closures(
-                make_string_literal_python_friendly(tokenize(contents)),
+                contents,
                 callback_delayed_func_name=[
                     "_translator_runtime_helpers", ".",
                     "_async_delay_call"],

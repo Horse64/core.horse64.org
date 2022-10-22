@@ -40,6 +40,7 @@ from translator_transformhelpers import (
 from translator_latertransform import (
     transform_later_to_closure_unnested,
     transform_later_to_closures,
+    transform_later_ifs_to_closures,
     is_func_a_later_func,
 )
 
@@ -489,7 +490,7 @@ class TestTranslatorLaterTransform(unittest.TestCase):
         """), any_match_value="__ANYTOK__",
         pair_match_prefix="__ANYPAIR")
 
-    def transform_nested_later_if_to_closures(self):
+    def test_transform_later_ifs_to_closures(self):
         # A helper function to test the later transform for us:
         def do_test(
                 testcode, texpected, any_match_value=None,
@@ -499,7 +500,8 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                 texpected = testcode
             indent_sanity_check(
                 texpected,
-                what_in="test_transform_nested_later_if_to_closure() "
+                what_in="test_transform_"
+                    "later_ifs_to_closures() "
                 "test input which must be indented right")
 
             # Get test code into expected format first:
@@ -507,7 +509,7 @@ class TestTranslatorLaterTransform(unittest.TestCase):
             resulttokens = []
 
             # Run the recursive func to transform everything:
-            resulttokens = transform_later_to_closures(
+            resulttokens = transform_later_ifs_to_closures(
                 tokenize(testcode) if type(testcode) == str else
                 testcode,
                 callback_delayed_func_name=[
@@ -518,8 +520,8 @@ class TestTranslatorLaterTransform(unittest.TestCase):
             try:
                 indent_sanity_check(
                     resulttokens,
-                    what_in="test_transform_nested_later_" +
-                        "if_to_closures() "
+                    what_in="test_transform_later_" +
+                        "ifs_to_closures() "
                     "test result after applying the tested func")
             except ValueError:
                 print('== WRONGLY INDENTED TEST OUTPUT: """\n' +
@@ -550,6 +552,40 @@ class TestTranslatorLaterTransform(unittest.TestCase):
                 'test input: """' + (untokenize(testcode) if
                 type(testcode) != str else testcode) + '"""')
 
+        do_test(textwrap.dedent("""\
+        func main {
+            if otherfunc() {
+                somefunc() later:
+                print("test")
+            }
+        }"""), textwrap.dedent("""\
+        func main {
+            if otherfunc() {
+                somefunc() later:
+                print("test")
+            }
+        }"""), any_match_value="__ANYTOK__",
+        pair_match_prefix="__ANYPAIR")
+        do_test(textwrap.dedent("""\
+        func main {
+            if otherfunc() {
+                somefunc() later:
+                print("test")
+            }
+            print("Hello")
+        }"""), textwrap.dedent("""\
+        func main {
+            func __ANYPAIR1__ {
+                print("Hello")
+            }
+            if otherfunc() {
+                somefunc() later:
+                print("test")
+                __ANYPAIR1__()
+                _later_unremoved_return
+            }
+        }"""), any_match_value="__ANYTOK__",
+        pair_match_prefix="__ANYPAIR")
 
     def test_is_func_a_later_func(self):
         testcode = tokenize(textwrap.dedent("""\
