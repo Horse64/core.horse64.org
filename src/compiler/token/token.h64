@@ -27,8 +27,9 @@
 
 
 import bignum from core.horse64.org
-import uri from core.horse64.org
+import io from core.horse64.org
 import text from core.horse64.org
+import uri from core.horse64.org
 
 import compiler.limit as limit
 import compiler.msg as msg
@@ -876,10 +877,11 @@ func tokenize_from_fileobj (
         keep_whitespace=no) {
     var result = new TokenizeResult()
     var contents = fobj.read(
-        limit.max_project_file_size + 1)
+        amount=limit.max_source_file_size + 1
+    )
     later:
     await contents
-    if contents.len >= max_project_file_size + 1 {
+    if contents.len >= limit.max_source_file_size + 1 {
         result.msgs.add(msg.FileMsg(
             "file exceeds maximum size limit of " +
             limit.max_project_file_size +
@@ -897,26 +899,38 @@ func tokenize_from_fileobj (
 
 func tokenize_file(
         path, project_file=none,
-        keep_whitespae=no
-        ) {
-    return tokenize_file_by_uri(
-        uri.from_disk_path(path), project_file=project_file,
         keep_whitespace=no
-    )
+        ) {
+    var result = tokenize_file_by_uri(
+        uri.from_disk_path(path), project_file=project_file,
+        keep_whitespace=keep_whitespace
+    ) later:
+
+    await result
+    return later
 }
 
 
-func tokenize_file_by_uri(source_uri, project_file=none) {
+func tokenize_file_by_uri(
+        source_uri, project_file=none, keep_whitespace=no
+        ) {
     source_uri = uri.normalize(source_uri)
-    var resource = _uri_to_file_or_vfs_path(source_uri)
+    var resource = uri.to_file_or_vfs_path(source_uri)
     var is_vfs = source_uri.lower().startswith("vfs://")
     if project_file == none {
         project_file = project.ProjectFile(
             source_uri=source_uri
         )
     }
-    with io.open(resource, "r") as fileobj {
-        return tokenize_from_fileobj(fileobj,
-            project_file=project_file)
+    var fileobj = io.open(resource, "r")
+    do {
+        var result = tokenize_from_fileobj(fileobj,
+            project_file=project_file,
+            keep_whitespace=keep_whitespace) later:
+
+        await result
+        return later
+    } finally {
+        fileobj.close()
     }
 }

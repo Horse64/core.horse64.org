@@ -37,18 +37,16 @@ func version_output_for_terminal {
         "Copyright (c) 2020-2022, ellie/@ell1e & Horse64 Team."
 }
 
-
 func license_output_for_terminal {
     return "All horsec license info, no guarantee of "
         "completeness or accuracy:\n" +
         system.program_license_text(layout_width=79)
 }
 
-
 func actionparser_compile(args) {
     var defs = argparse.ArgumentDefs(program_name="horsec compile")
     defs.add_arg(
-        "source_file", description="The target file to compile, "
+        "source file", description="The target file to compile, "
         "must have a .h64 file extension.")
     defs.add_switch(
         "--stage", takes_arg=yes,
@@ -65,8 +63,20 @@ func actionparser_compile(args) {
         print(result.output)
         return result.exit_code
     }
-}
 
+    if result.args["--stage"] == "tokens" {
+        var src_path = result.args["source file"]
+        print("Will be tokenized: " + src_path.as_str())
+
+        var result = compiler.token.tokenize_file(
+            src_path, project_file=none,
+            keep_whitespace=no
+        ) later:
+
+        await result
+        print(result)
+    }
+}
 
 func main {
     var defs = argparse.ArgumentDefs(program_name="horsec")
@@ -91,10 +101,16 @@ func main {
         return result.exit_code
     }
     if result.args["action"] == "compile" {
-        return actionparser_compile(result.args["action args"])
+        var result = actionparser_compile(
+            result.args["action args"]
+        ) later:
+
+        await result
+        return result
     } else {
         print("horsec: error: unknown action: " + result.args["action"])
         print("Use horsec --help to show usage.")
         return 1
     }
 }
+
