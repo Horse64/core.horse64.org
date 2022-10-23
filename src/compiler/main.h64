@@ -26,9 +26,11 @@
 # license, see accompanied LICENSE.md.
 
 import argparse from core.horse64.org
+import json from core.horse64.org
 import system from core.horse64.org
 
 import compiler.token
+import compiler.msg as msg
 
 
 func version_output_for_terminal {
@@ -58,23 +60,61 @@ func actionparser_compile(args) {
         description="Where to write the resulting binary, or "
             "json file in case of --stage tokens, "
             "--stage ast-local, --stage ast, or --stage bytecode.")
+    defs.add_switch(
+        "--for-script",
+        description="This switch formats horsec's terminal output (like"
+            "e.g. the errors when compiling) as JSON")
     var result = argparse.parse(defs, args)
     if result.output != "" {
+        if result.args["--for-script"] and result.exit_code != 0 {
+            print(json.dump({
+                "error": "aborted due to arguments error",
+                "description": result.output
+            }))
+            return result.exit_code
+        }
         print(result.output)
         return result.exit_code
     }
 
     if result.args["--stage"] == "tokens" {
         var src_path = result.args["source file"]
-        print("Will be tokenized: " + src_path.as_str())
 
-        var result = compiler.token.tokenize_file(
+        var tresult = compiler.token.tokenize_file(
             src_path, project_file=none,
             keep_whitespace=no
         ) later:
 
-        await result
-        print(result)
+        await tresult
+        if result.args["--for-script"] {
+            var output = {
+                "error": none,
+                "result": tresult.as_json_obj(),
+            }
+            print(json.dump(output))
+            system.exit(0)
+        } else {
+            var had_error = no
+            for m in tresult.msgs {
+                if m.kind == msg.M_ERROR {
+                    had_error = yes
+                }
+                print(m.as_terminal_str(prefix="horsec"))
+            }
+            if not had_error {
+                var output = ""
+                for t in tresult.tokens {
+                    if output.len > 0 {
+                        output += ", "
+                    }
+                    output += compiler.token.
+                        describe_token_str(t.str)
+                }
+                print(output)
+                system.exit(0)
+            }
+            system.exit(1)
+        }
     }
 }
 

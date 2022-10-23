@@ -51,7 +51,7 @@ const math_assign_ops = {
 }
 
 const compare_ops = {
-    ">", "<", ">=", "<=", "!=",
+    ">", "<", ">=", "<=", "!=", "=="
 }
 
 const bool_compare_ops = {
@@ -117,7 +117,7 @@ func is_identifier_or_keyword(value, internal_labels=no) {
     var c = value[1]
     if c == "_" or text.code(c) > 127 or
             (text.code(c) >= code_a and
-            text.code(c) >= code_z) or
+            text.code(c) <= code_z) or
             (text.code(c) >= code_cap_a and
             text.code(c) <= code_cap_z) or
             (internal_labels and c == "$") {
@@ -128,7 +128,7 @@ func is_identifier_or_keyword(value, internal_labels=no) {
             c = value[i]
             if (c == "_" or text.code(c) > 127 or
                     (text.code(c) >= code_a and
-                    text.code(c) >= code_z) or
+                    text.code(c) <= code_z) or
                     (text.code(c) >= code_cap_a and
                     text.code(c) <= code_cap_z) or
                     (text.code(c) >= code_0 and
@@ -205,6 +205,9 @@ enum TokenKind {
     T_ASSIGN
     T_MATHASSIGN
     T_MAPASSIGN
+    T_COMMA
+    T_DOT
+    T_COLON
 }
 
 type Token {
@@ -250,6 +253,35 @@ type TokenizeResult {
 
     ## @types (project.ProjectFile, none)
     var project_file
+}
+
+func TokenizeResult.as_json_obj {
+    var output = {
+        "messages"-> [],
+        "tokens"-> [],
+    }
+    for m in self.msgs {
+        var mjson = {
+            "message"-> m.message,
+            "kind"-> msg.MsgKind.num_label(m.kind),
+            "line"-> m.line,
+            "col"-> m.col,
+            "file"-> none,
+        }
+        if m.source_file != none {
+            mjson["file"] = m.source_file.source_uri
+        }
+        output["messages"].add(mjson)
+    }
+    for t in self.tokens {
+        output["tokens"].add({
+            "str"-> t.str,
+            "kind"-> TokenKind.num_label(t.kind),
+            "line"-> t.line,
+            "col"-> t.col,
+        })
+    }
+    return output
 }
 
 func TokenizeResult.as_str {
@@ -396,8 +428,8 @@ func tokenize_str(
 
     const code_a = text.code("a")
     const code_z = text.code("z")
-    const code_cap_a = text.code("a")
-    const code_cap_z = text.code("z")
+    const code_cap_a = text.code("A")
+    const code_cap_z = text.code("Z")
     const code_0 = text.code("0")
     const code_9 = text.code("9")
     var bracket_nesting = []
@@ -427,6 +459,24 @@ func tokenize_str(
             ))
             i += 1
             col += 1
+            continue
+        } elseif c == "." {
+            # Dot.
+            result.tokens.add(new Token(
+                ".", T_DOT, line, col
+            ))
+            continue
+        } elseif c == "," {
+            # Comma.
+            result.tokens.add(new Token(
+                ".", T_COMMA, line, col
+            ))
+            continue
+        } elseif c == ":" {
+            # Colon.
+            result.tokens.add(new Token(
+                ".", T_COLON, line, col
+            ))
             continue
         } elseif c == "'" or c == '"' or
                 (c == "b" and i + 1 < strlen and
@@ -718,13 +768,17 @@ func tokenize_str(
             i += 2
             col += 2
             continue
+        } elseif compare_ops.has(c) {
+            # A 1 char compare op.
+            result.tokens.add(new Token(c, T_COMPARE, line, col))
+            continue
         } elseif math_ops.has(c) {
             # A 1 char math op.
             result.tokens.add(new Token(c, T_MATH, line, col))
             continue
         } elseif c == "_" or text.code(c) > 127 or
                 (text.code(c) >= code_a and
-                text.code(c) >= code_z) or
+                text.code(c) <= code_z) or
                 (text.code(c) >= code_cap_a and
                 text.code(c) <= code_cap_z) or
                 (internal_labels and c == '$') {
@@ -736,7 +790,7 @@ func tokenize_str(
                 c = str[i]
                 if c == "_" or text.code(c) > 127 or
                         (text.code(c) >= code_a and
-                        text.code(c) >= code_z) or
+                        text.code(c) <= code_z) or
                         (text.code(c) >= code_cap_a and
                         text.code(c) <= code_cap_z) or
                         (text.code(c) >= code_0 and

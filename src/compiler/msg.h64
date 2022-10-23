@@ -25,6 +25,9 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+
+import textformat
+
 import compiler.token as token
 
 
@@ -65,5 +68,42 @@ func FileMsg.as_str {
         }
     }
     return t + ")"
+}
+
+func FileMsg.as_terminal_str(prefix="", wrap_width=none) {
+    var next_line_prefix = ""
+    var t = ""
+    if prefix != "" {
+        t += prefix + ": "
+    }
+    if self.kind == M_ERROR {
+        t += "error: "
+    } elseif self.kind == M_WARNING {
+        t += "warning: "
+    } elseif self.kind == M_INFO {
+        t += "info: "
+    } elseif self.kind == M_DEBUG {
+        t += "debug: "
+    }
+    if self.line != none or self.source_file != none {
+        t += "in "
+        if self.source_file != none {
+            t += self.source_file.source_uri + ":"
+        }
+        if self.line != none {
+            t += self.line.as_str() + ":"
+            if self.col != none {
+                t += self.col.as_str() + ":"
+            }
+        }
+        t += " "
+    }
+    next_line_prefix = " ".repeat(t.len)
+    t += self.message
+    if wrap_width != none {
+        t = textwrap.wrap(t, wrap_width,
+            later_lines_prefix=next_line_prefix)
+    }
+    return t
 }
 
