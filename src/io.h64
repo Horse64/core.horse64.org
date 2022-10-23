@@ -49,7 +49,7 @@ func read_from_write_to(
         close_on_error=no
         ) {
     # First, read:
-    var data = obj.read(amount=1024)
+    var data = src_obj.read(amount=1024)
     later:
 
     # Ensure files are closed on error:
