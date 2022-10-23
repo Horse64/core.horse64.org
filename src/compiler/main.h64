@@ -45,11 +45,36 @@ func license_output_for_terminal {
         system.program_license_text(layout_width=79)
 }
 
+func tokenize_target_from_args(args) {
+    if result.args["--code"] != none {
+        var tresult = compiler.token.tokenize_str(
+            result.args["--code"], keep_whitespace=no
+        )
+        return tresult
+    } else {
+        var src_path = result.args["source file"]
+
+        var tresult = compiler.token.tokenize_file(
+            src_path, project_file=none,
+            keep_whitespace=no
+        ) later:
+
+        await tresult
+        return tresult
+    }
+}
+
 func actionparser_compile(args) {
-    var defs = argparse.ArgumentDefs(program_name="horsec compile")
+    var program_name = "horsec compile"
+    var defs = argparse.ArgumentDefs(program_name=program_name)
     defs.add_arg(
-        "source file", description="The target file to compile, "
-        "must have a .h64 file extension.")
+        "source file", optional=yes,
+        description="The target file to compile, "
+            "must have a .h64 file extension.")
+    defs.add_switch(
+        "--code", aliases=["-c"], takes_arg=yes,
+        description="A code line which to compile instead of "
+            "a file on disk.")
     defs.add_switch(
         "--stage", takes_arg=yes,
         description="At which stage to stop. The default is "
@@ -66,40 +91,43 @@ func actionparser_compile(args) {
             "e.g. the errors when compiling) as JSON")
     var result = argparse.parse(defs, args)
     if result.output != "" {
-        if result.args["--for-script"] and result.exit_code != 0 {
-            print(json.dump({
-                "error": "aborted due to arguments error",
-                "description": result.output
-            }))
-            return result.exit_code
-        }
         print(result.output)
         return result.exit_code
     }
+    if result.args["--code"] == none and
+            result.args["source file"] == none {
+        print(program_name + ": error: Must specify "
+            "source file or --code option.")
+        print("Use " + program_name + " --help to show usage.")
+        return 1
+    }
 
     if result.args["--stage"] == "tokens" {
-        var src_path = result.args["source file"]
-
-        var tresult = compiler.token.tokenize_file(
-            src_path, project_file=none,
-            keep_whitespace=no
-        ) later:
+        var tresult = tokenize_target_from_args(args)
+        later:
 
         await tresult
+        var had_error = no
+        for m in tresult.msgs {
+            if m.kind == msg.M_ERROR {
+                had_error = yes
+            }
+        }
         if result.args["--for-script"] {
             var output = {
                 "error": none,
                 "result": tresult.as_json_obj(),
             }
+            if had_error {
+                output["error"] = "Code has errors."
+                print(json.dump(output))
+                return 1
+            }
             print(json.dump(output))
-            system.exit(0)
+            return 0
         } else {
-            var had_error = no
             for m in tresult.msgs {
-                if m.kind == msg.M_ERROR {
-                    had_error = yes
-                }
-                print(m.as_terminal_str(prefix="horsec"))
+                print(m.as_terminal_str(prefix=program_name))
             }
             if not had_error {
                 var output = ""
@@ -111,9 +139,9 @@ func actionparser_compile(args) {
                         describe_token_str(t.str)
                 }
                 print(output)
-                system.exit(0)
+                return 0
             }
-            system.exit(1)
+            return 1
         }
     }
 }
