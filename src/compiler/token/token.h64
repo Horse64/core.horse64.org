@@ -110,8 +110,8 @@ func is_identifier_or_keyword(value, internal_labels=no) {
     }
     const code_a = text.code("a")
     const code_z = text.code("z")
-    const code_cap_a = text.code("a")
-    const code_cap_z = text.code("z")
+    const code_cap_a = text.code("A")
+    const code_cap_z = text.code("Z")
     const code_0 = text.code("0")
     const code_9 = text.code("9")
     var c = value[1]
@@ -303,14 +303,14 @@ func TokenizeResult.as_str {
 }
 
 func describe_token_str(s) {
+    if is_num(s) {
+        return s
+    }
     if s.glyph_len <= 1 {
         return describe_char_at(s, 1, maybe_cutoff_glyph=no)
     }
     if s.startswith("'") or s.startswith('"') or
             s.startswith("b'") or s.startswith('b"') {
-        return s
-    }
-    if is_num(s) {
         return s
     }
     if is_identifier_or_keyword(s) or math_assign_ops.has(s) or
@@ -469,13 +469,13 @@ func tokenize_str(
         } elseif c == "," {
             # Comma.
             result.tokens.add(new Token(
-                ".", T_COMMA, line, col
+                ",", T_COMMA, line, col
             ))
             continue
         } elseif c == ":" {
             # Colon.
             result.tokens.add(new Token(
-                ".", T_COLON, line, col
+                ":", T_COLON, line, col
             ))
             continue
         } elseif c == "'" or c == '"' or
