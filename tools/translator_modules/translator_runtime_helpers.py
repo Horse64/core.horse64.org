@@ -25,8 +25,9 @@
 # license, see accompanied LICENSE.md.
 
 
-import ipaddress
 import fnmatch
+import ipaddress
+import json
 import math
 import os
 import platform
@@ -633,6 +634,14 @@ def _uri_normalize(v):
         resource = "/" + resource
     result += resource
     return resource
+
+
+def _json_create(obj):
+    return json.dumps(obj)
+
+
+def _json_parse(s):
+    return json.loads(s)
 
 
 def _uri_to_file_or_vfs_path(v):

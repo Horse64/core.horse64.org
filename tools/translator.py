@@ -217,6 +217,12 @@ remapped_uses = {
             "_remapped_tempfile.mkdtemp(suffix=suffix,"
             "prefix=prefix))",
     },
+    "json@core.horse64.org": {
+        "json.create":
+            "_translator_runtime_helpers._json_create",
+        "json.parse":
+            "_translator_runtime_helpers._json_parse",
+    },
     "math@core.horse64.org": {
         "math.min": "_translator_runtime_helpers._math_min",
         "math.max": "_translator_runtime_helpers._math_max",
