@@ -636,7 +636,7 @@ def _uri_normalize(v):
     return resource
 
 
-def _json_create(obj):
+def _json_dump(obj):
     return json.dumps(obj)
 
 

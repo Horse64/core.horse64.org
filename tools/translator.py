@@ -218,8 +218,8 @@ remapped_uses = {
             "prefix=prefix))",
     },
     "json@core.horse64.org": {
-        "json.create":
-            "_translator_runtime_helpers._json_create",
+        "json.dump":
+            "_translator_runtime_helpers._json_dump",
         "json.parse":
             "_translator_runtime_helpers._json_parse",
     },
@@ -881,6 +881,7 @@ def translate_expression_tokens(s, sc,
                 "%", "|", "^", "&", "~", ".", "in",
                 "and", "or", "not", ","} or
                 s[i].endswith("=") or s[i] == "->") and (
+                i + 1 < len(s) and
                 s[i + 1].strip(" \t\r\n") == "" and
                 s[i + 1].strip(" \t") != ""):
             s = (s[:i + 1] + ["\\"] + [s[i + 1].lstrip(" \t")] +
