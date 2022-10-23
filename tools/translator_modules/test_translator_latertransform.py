@@ -602,6 +602,27 @@ class TestTranslatorLaterTransform(unittest.TestCase):
         self.assertTrue(is_func_a_later_func(testcode))
 
         testcode = tokenize(textwrap.dedent("""\
+        func tokenize_target_from_args(args) {
+            if result.args["--code"] != none {
+                var tresult = compiler.token.tokenize_str(
+                    result.args["--code"], keep_whitespace=no
+                )
+                return tresult
+            } else {
+                var src_path = result.args["source file"]
+
+                var tresult = compiler.token.tokenize_file(
+                    src_path, project_file=none,
+                    keep_whitespace=no
+                ) later:
+
+                await tresult
+                return tresult
+            }
+        }"""))
+        self.assertTrue(is_func_a_later_func(testcode))
+
+        testcode = tokenize(textwrap.dedent("""\
         func get_branch(folder=none) {
             var output = process.run("git",
                 args=["symbolic-ref", "--short", "-q", "HEAD"],
