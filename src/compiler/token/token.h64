@@ -871,7 +871,6 @@ func tokenize_str(
     return result
 }
 
-
 func tokenize_from_fileobj (
         fobj, project_file=none,
         keep_whitespace=no) {
@@ -880,6 +879,7 @@ func tokenize_from_fileobj (
         amount=limit.max_source_file_size + 1
     )
     later:
+
     await contents
     if contents.len >= limit.max_source_file_size + 1 {
         result.msgs.add(msg.FileMsg(
@@ -890,12 +890,12 @@ func tokenize_from_fileobj (
         ))
         return result
     }
-    return tokenize_str(
+    var result = tokenize_str(
         contents, project_file=project_file,
         keep_whitespace=keep_whitespace
     )
+    return result
 }
-
 
 func tokenize_file(
         path, project_file=none,
@@ -907,9 +907,8 @@ func tokenize_file(
     ) later:
 
     await result
-    return later
+    return result
 }
-
 
 func tokenize_file_by_uri(
         source_uri, project_file=none, keep_whitespace=no
@@ -929,8 +928,9 @@ func tokenize_file_by_uri(
             keep_whitespace=keep_whitespace) later:
 
         await result
-        return later
+        return result
     } finally {
         fileobj.close()
     }
 }
+
