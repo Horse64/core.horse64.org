@@ -1108,39 +1108,41 @@ def stmt_inner_blocks_use_later(
     sts = []
     ranges = get_statement_block_ranges(st)
     for block_range in ranges:
-        sts = split_toplevel_statements(
-            st[block_range[0]:block_range[1]]
-        )
-        for st in sts:
-            if firstnonblank(st) == "func":
-                name = nextnonblank(st, firstnonblankidx(st))
+        sts_toks = st[block_range[0]:block_range[1]]
+        sts = split_toplevel_statements(sts_toks)
+        for innerst in sts:
+            if firstnonblank(innerst) == "func":
+                name = nextnonblank(innerst,
+                    firstnonblankidx(innerst))
                 continue
-            if firstnonblank(st) == "return":
-                if (nextnonblank(st, firstnonblankidx(st)) ==
+            if firstnonblank(innerst) == "return":
+                if (nextnonblank(innerst,
+                        firstnonblankidx(innerst)) ==
                         "later"):
                     return True
                 continue
-            elif (is_identifier(firstnonblank(st)) or
-                    firstnonblank(st) in {"var", "const"}):
-                i = firstnonblankidx(st) + 1
+            elif (is_identifier(firstnonblank(innerst)) or
+                    firstnonblank(innerst) in {"var", "const"}):
+                i = firstnonblankidx(innerst) + 1
                 bracket_depth = 0
-                while i < len(st):
-                    if st[i] in {"(", "{", "["}:
+                while i < len(innerst):
+                    if innerst[i] in {"(", "{", "["}:
                         bracket_depth += 1
-                    elif st[i] in {")", "}", "]"}:
+                    elif innerst[i] in {")", "}", "]"}:
                         bracket_depth -= 1
                     if (bracket_depth == 0 and
-                            (st[i] == "later" and
+                            (innerst[i] == "later" and
                             (including_later_ignore or
-                            nextnonblank(st, i + 1)
+                            nextnonblank(innerst, i + 1)
                             != "ignore"))):
                         return True
                     i += 1
                 continue
-            assert(type(st) == list)
-            assert(len(st) == 0 or type(st[0]) == str)
+            assert(type(innerst) == list)
+            assert(len(innerst) == 0 or
+                   type(innerst[0]) == str)
             if stmt_inner_blocks_use_later(
-                    st, including_later_ignore=
+                    innerst, including_later_ignore=
                         including_later_ignore
                     ):
                 return True
@@ -1163,8 +1165,7 @@ def is_func_a_later_func(
         return False
     return stmt_inner_blocks_use_later(
         st, including_later_ignore=
-            including_later_ignore
-    )
+            including_later_ignore)
 
 
 def transform_later_to_closure_unnested(
