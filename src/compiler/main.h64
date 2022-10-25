@@ -46,13 +46,13 @@ func license_output_for_terminal {
 }
 
 func tokenize_target_from_args(args) {
-    if result.args["--code"] != none {
+    if args["--code"] != none {
         var tresult = compiler.token.tokenize_str(
-            result.args["--code"], keep_whitespace=no
+            args["--code"], keep_whitespace=no
         )
         return tresult
     } else {
-        var src_path = result.args["source file"]
+        var src_path = args["source file"]
 
         var tresult = compiler.token.tokenize_file(
             src_path, project_file=none,
@@ -103,7 +103,7 @@ func actionparser_compile(args) {
     }
 
     if result.args["--stage"] == "tokens" {
-        var tresult = tokenize_target_from_args(args)
+        var tresult = tokenize_target_from_args(result.args)
         later:
 
         await tresult
