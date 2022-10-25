@@ -29,6 +29,7 @@ import argparse from core.horse64.org
 import json from core.horse64.org
 import system from core.horse64.org
 
+import compiler.ast
 import compiler.token
 import compiler.msg as msg
 
