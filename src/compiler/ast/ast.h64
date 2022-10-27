@@ -52,3 +52,9 @@ type ASTResult {
     var project_file
 }
 
+func parse_to_ast(
+        tokens, project_file=none
+        ) {
+
+}
+

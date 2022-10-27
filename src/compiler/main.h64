@@ -30,8 +30,8 @@ import json from core.horse64.org
 import system from core.horse64.org
 
 import compiler.ast
-import compiler.token
 import compiler.msg as msg
+import compiler.token
 
 
 func version_output_for_terminal {
@@ -80,7 +80,8 @@ func actionparser_compile(args) {
         "--stage", takes_arg=yes,
         description="At which stage to stop. The default is "
             "\"binary\" which means full compilation, other "
-            "available stages are: tokens, ast-local, ast, bytecode.")
+            "available stages are: "
+            "tokens, ast, ast-scope, bytecode.")
     defs.add_switch(
         "--output-file", takes_arg=yes,
         description="Where to write the resulting binary, or "
@@ -138,6 +139,62 @@ func actionparser_compile(args) {
                     }
                     output += compiler.token.
                         describe_token_str(t.str)
+                }
+                print(output)
+                return 0
+            }
+            return 1
+        }
+    } elseif result.args["--stage"] == "ast" {
+        var had_error = no
+        var tresult = tokenize_target_from_args(result.args)
+        later:
+
+        await tresult
+        for m in tresult.msgs {
+            if m.kind == msg.M_ERROR {
+                had_error = yes
+            }
+        }
+        var aresult = none
+        var total_msgs = tresult.msgs
+        if not had_error {
+            aresult = compiler.ast.parse_to_ast(
+                tresult.tokens,
+                project_file=tresult.project_file
+            )
+            for m in aresult.msgs {
+                if m.kind == msg.M_ERROR {
+                    had_error = yes
+                }
+            }
+            total_msgs += aresult.msgs
+        }
+        if result.args["--for-script"] {
+            var output = {
+                "error": none,
+                "result": if aresult != none
+                    (aresult.as_json_obj()) else
+                    (tresult.as_json_obj()),
+            }
+            if had_error {
+                output["error"] = "Code has errors."
+                print(json.dump(output))
+                return 1
+            }
+            print(json.dump(output))
+            return 0
+        } else {
+            for m in total_msgs {
+                print(m.as_terminal_str(prefix=program_name))
+            }
+            if not had_error {
+                var output = ""
+                for node in aresult.nodes {
+                    if output.len > 0 {
+                        output += ", "
+                    }
+                    output += node.as_str()
                 }
                 print(output)
                 return 0

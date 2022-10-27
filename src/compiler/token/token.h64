@@ -419,6 +419,7 @@ func tokenize_str(
         internal_labels=no,
         ) {
     var result = TokenizeResult()
+    result.project_file = project_file
     var strlen = str.len
 
     var known_string_escapes = {
