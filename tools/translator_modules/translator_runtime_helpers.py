@@ -728,14 +728,15 @@ class _FileObjFromDisk:
         except (FileNotFoundError, IsADirectoryError,
                 IOError, OSError) as e:
             if isinstance(e, FileNotFoundError):
-                raise _PathNotFoundError()
+                raise _PathNotFoundError("Path not found.")
             if isinstance(e, IsADirectoryError):
                 raise _ResourceMisuseError("Target is a directory.")
             if isinstance(e, PermissionError):
-                raise _PermissionError()
+                raise _PermissionError("Permission denied.")
             if isinstance(e, OSError):
-                raise _ResourceMisuseError()
-            raise _IOError()
+                raise _ResourceMisuseError("Resource can't be "
+                    "used that way.")
+            raise _IOError("Temporary IO failure.")
 
     def read(self, callback, amount=None):
         if amount != None:
