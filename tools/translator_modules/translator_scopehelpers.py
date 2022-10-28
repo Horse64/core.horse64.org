@@ -93,39 +93,11 @@ def statement_declared_identifiers(
         return inner_result
     result = []
     if firstnonblank(st) == "func":
-        # Extract name, advance to parameters:
-        i = nextnonblankidx(st, firstnonblankidx(st))
-        if i >= len(st) or not is_identifier(st[i]):
-            return result + do_recurse()
-        if not exclude_direct_func_name:
-            result.append(st[i])  # Name of function itself.
-        i += 1  # Past identifier.
-        while i < len(st) and st[i].strip(" \t\r\n") == "":
-            i += 1
-        if i >= len(st) or st[i] != "(" or not recurse:
-            return result + do_recurse()
-        i += 1  # Past opening '('.
-
-        # Now parse the parameters:
-        bracket_depth = 1
-        while i < len(st):
-            assert(bracket_depth == 1)
-            while i < len(st) and st[i].strip(" \t\r\n") == "":
-                i += 1
-            if i < len(st) and is_identifier(st[i]):
-                result.append(st[i])
-            i += 1  # Past main name identifier.
-            while i < len(st) and (
-                    st[i] not in {",", ")"} or
-                    bracket_depth > 1):
-                if st[i] in {"(", "[", "{"}:
-                    bracket_depth += 1
-                elif st[i] in {")", "]", "}"}:
-                    bracket_depth -= 1
-                i += 1
-            if i >= len(st) or st[i] != ",":
-                break
-            i += 1  # Past ',', and to next param.
+        result = get_names_defined_in_func(
+            st, is_anonymous_inline=False,
+            exclude_inner=(not recurse),
+            exclude_direct_func_name=
+                exclude_direct_func_name)
         return result + do_recurse()
     elif firstnonblank(st) in {"for", "const", "var"}:
         idf = nextnonblank(st,
@@ -222,7 +194,9 @@ def get_global_standalone_func_names(s,
 
 
 def get_names_defined_in_func(
-        st, is_anonymous_inline=False
+        st, is_anonymous_inline=False,
+        exclude_inner=False,
+        exclude_direct_func_name=False
         ):
     """ Get all identifiers that are present in the most
         outer scope of the given function statement."""
@@ -243,7 +217,8 @@ def get_names_defined_in_func(
         # Skip the function name.
         if k < 0 or not is_identifier(st[k]):
             return []
-        if not st[k] in names:
+        if (not st[k] in names and
+                not exclude_direct_func_name):
             names.append(st[k])
         k = nextnonblankidx(st, k)
     else:
@@ -258,6 +233,9 @@ def get_names_defined_in_func(
             "_f" + str(uuid.uuid4()).replace("-", ""),
             " "] + st[k:]
         k = nextnonblankidx(st, k)  # Skip past our insert.
+    if exclude_inner:
+        # No need for argument names or contents, just stop.
+        return names
     if st[k] == "(" or is_identifier(st[k]):
         # Argument list start!
         k += 1  # Past opening "(" of argument list.
