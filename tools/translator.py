@@ -1980,7 +1980,7 @@ def translate(s, sc):
         elif statement[0] == "func":
             statement_cpy = list(statement)
             interesting_nonlocals = (
-                get_interesting_nonlocals(
+                get_func_interesting_nonlocals(
                     statement, sc.parent_statements
                 ))
             nameidx = nextnonblankidx(statement, 0)
@@ -2303,7 +2303,7 @@ def separate_func_keyword_arg_code(
     return result
 
 
-def get_interesting_nonlocals(st, parent_sts):
+def get_func_interesting_nonlocals(st, parent_sts):
     if firstnonblank(st) != "func":
         raise ValueError("meant to be used on funcs")
     current_inner_vars = statement_declared_identifiers(st)
@@ -2320,10 +2320,23 @@ def get_interesting_nonlocals(st, parent_sts):
     for varname in list(collect):
         if not varname in current_inner_vars:
             result.append(varname)
-    #print("get_interesting_nonlocals(): on: " + str(st))
-    #print("INNER: " + str(current_inner_vars))
-    #print("OUTER: " + str(collect))
-    #print("RESULT: " + str(result))
+
+    if False:
+        # Extensive debug info:
+        print("get_interesting_nonlocals(): on: " + str(st))
+        print("INNER: " + str(current_inner_vars))
+        print("OUTER: " + str(collect))
+        print("PARENTS:\n")
+        parent_no = 0
+        for p in parent_sts:
+            parent_no += 1
+            print("PARENT #" + str(parent_no) +
+                  "/" + str(len(parent_sts)))
+            print(untokenize(p))
+            print("PARENT IDENTIFIERS: " + str(
+                statement_declared_identifiers(
+                p, exclude_direct_func_name=True)))
+        print("RESULT: " + str(result))
     return result
 
 

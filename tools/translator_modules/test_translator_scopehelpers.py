@@ -131,6 +131,9 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         self.assertEqual(set(statement_declared_identifiers(
             "func x(y) {\nvar z = 1\nfunc j{var u}\n}",
             recurse=True)), {"x", "y", "z", "j"})
+        self.assertEqual(set(statement_declared_identifiers(
+            "if true {\nvar z = 1\n} else {var u}\n}",
+            recurse=True)), {"z", "u"})
 
     def test_extract_all_imports(self):
         testcode = textwrap.dedent("""\

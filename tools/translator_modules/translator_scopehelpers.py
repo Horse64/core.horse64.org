@@ -121,7 +121,7 @@ def statement_declared_identifiers(
             if is_identifier(idf):
                 result.append(idf)
         return result + do_recurse()
-    return result
+    return result + do_recurse()
 
 
 def extract_all_imports(s):
