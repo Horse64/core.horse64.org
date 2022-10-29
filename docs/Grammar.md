@@ -57,7 +57,7 @@ ending given Horse64's [lack of significant whitespace](
 #no-significant-whitespace).
 
 
-### (Pitfall) `return` Statements Not At Block Ends
+### (Pitfall) `return` Statements That Aren't At Block Ends
 
 A `return` statement may have an expression following to be
 returned but it's optional.
