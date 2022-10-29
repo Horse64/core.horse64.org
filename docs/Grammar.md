@@ -36,7 +36,7 @@ In some other languages like the [Python programming
 language](https://python.org), indent via space or
 tabulator characters or line breaks
 play a role in where statements start or end. This is usually
-called "significant whitespace"
+called "significant whitespace".
 
 Horse64 doesn't have such significant whitespace, all code
 can technically be written with whatever
