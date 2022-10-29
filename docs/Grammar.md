@@ -67,14 +67,14 @@ with this advice:
 > **(Advice)** You shouldn't put a `return` statement anywhere
   but right before the closing `}` bracket of a code block.
 
-An example follows where not following this advice is confusing:
+An example follows where ignoring this advice is confusing:
 
 ```Horse64
 func main {
     return
 
-    # ...not heeding advice, after a `return` you don't let the
-    # block end, but try to put another call statement:
+    # ...not heeding above advice, this is an example of not ending
+    # the block after a `return`, but instead adding another call:
     call_my_func()
 
     # This is misleading, since here's what the compiler sees:
