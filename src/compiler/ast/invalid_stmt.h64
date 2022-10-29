@@ -1,4 +1,4 @@
-# @module compiler.ast
+# @module compiler.ast.invalid_stmt
 # Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -26,40 +26,11 @@
 # license, see accompanied LICENSE.md.
 
 
-import compiler.msg as msg
-
-
-type TreeNode {
-    ## @type [TreeNode]
-    var children = []
-
-    ## types (TreeNode, none)
-    var parent = none
-
-    var sibling_pos = 1
-
-    var line, col
-
-    var token_len
+type InvalidStmt extends TreeNode {
 }
 
-type ASTResult {
-    ## @type [TreeNode]
-    var nodes = []
 
-    ## @type [msg.FileMsg]
-    var msgs = []
-
-    ## @types (project.ProjectFile, none)
-    var project_file
-}
-
-func parse_to_ast(
-        tokens, project_file=none
-        ) {
-    var result = new ASTResult()
-    result.project_file = project_file
-
-    return result
+func InvalidStmt.init(token_len) {
+    self.token_len = token_len
 }
 

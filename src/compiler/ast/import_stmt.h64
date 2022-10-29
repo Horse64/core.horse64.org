@@ -1,4 +1,4 @@
-# @module compiler.ast
+# @module compiler.ast.import_stmt
 # Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -26,40 +26,36 @@
 # license, see accompanied LICENSE.md.
 
 
+import compiler.ast.invalid_stmt as invalid_stmt
 import compiler.msg as msg
+import compiler.token as token
 
 
-type TreeNode {
-    ## @type [TreeNode]
-    var children = []
-
-    ## types (TreeNode, none)
-    var parent = none
-
-    var sibling_pos = 1
-
-    var line, col
-
-    var token_len
+type ImportStmt extends TreeNode {
+    var module_path
+    var library
+    var renamed_as
 }
 
-type ASTResult {
-    ## @type [TreeNode]
-    var nodes = []
+func parse(tokens, pos, msgs, project_file=none) {
+    var node = new ImportStmt()
+    var tokens_len = tokens.len
 
-    ## @type [msg.FileMsg]
-    var msgs = []
-
-    ## @types (project.ProjectFile, none)
-    var project_file
-}
-
-func parse_to_ast(
-        tokens, project_file=none
-        ) {
-    var result = new ASTResult()
-    result.project_file = project_file
-
-    return result
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_KEYWORD or
+            tokens[pos].str != "import" {
+        return later none
+    }
+    if pos + 1 > tokens_len or
+            tokens[pos + 1].kind != token.T_IDENT {
+        msgs.add(new msg.FileMsg(
+            source_file=project_file,
+            line=token.get_line(tokens, pos + 1),
+            col=token.get_col(tokens, pos + 1),
+        ))
+        return later new invalid_stmt.InvalidStmt(
+            1
+        ) 
+    }
 }
 

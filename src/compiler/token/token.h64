@@ -80,7 +80,127 @@ const special_words = {
     "throw", "new", "any", "from", "protect",
     "repeat", "elseif", "else", "and", "or",
     "not", "ignore", "none", "yes", "no",
-    "enum"
+    "enum",
+}
+
+## Get the length of the statement starting at the given token position.
+func get_statement_len(tokens, start_pos) {
+    var bracket_depth = 0
+    var i = start_pos
+    while i + 1 <= tokens.len and (
+            bracket_depth > 0 or
+            not can_statement_end_before_token(
+            tokens, i + 1
+            )) {
+        if {"(", "{", "["}.has(tokens[i + 1]) {
+            bracket_depth += 1
+        } elseif {")", "}", "]"}.has(tokens[i + 1]) {
+            bracket_depth -= 1
+        }
+        i += 1
+    }
+    return i
+}
+
+## Check if a statement starts somewhere earlier in the given
+## `tokens` token list, this statement possibly ends before the
+## token found at `tok_pos` given there is no bracket left open.
+## The `tok_pos` may be past the ending of the list, in which case
+## the result is always @{yes}.
+## @returns bool @{yes} If statement ends before specified token,
+##   @{no} if it continues further and includes the specified token.
+func can_statement_end_before_token(tokens, tok_pos) {
+    if tok_pos > tokens.len {
+        return yes
+    }
+    if token_has_righthand(tokens[tok_pos - 1]) {
+        return no
+    }
+    if token_has_lefthand(tokens[tok_pos]) {
+        return no
+    }
+    if tokens[tok_pos - 1].kind == T_STR and
+            tokens[tok_pos].kind == T_STR {
+        return no
+    }
+    if tokens[tok_pos - 1].kind == T_BYTES and
+            tokens[tok_pos].kind == T_BYTES {
+        return no
+    }
+    if tokens[tok_pos - 1].kind == T_KEYWORD and
+            tokens[tok_pos - 1].str == "return" {
+        if tokens[tok_pos].kind != T_KEYWORD or
+                not _maybe_statement_tokens.has(
+                tokens[tok_pos].str) or
+                tokens[tok_pos].str == "func" {
+            return no
+        }
+        return yes
+    }
+    if tokens[tok_pos - 1].kind == T_KEYWORD and
+            tokens[tok_pos - 1].str == "later" {
+        if (tokens[tok_pos].kind == T_KEYWORD and
+                {"ignore", "repeat"}.has(
+                    tokens[tok_pos].str
+                )) or
+                tokens[tok_pos].kind == T_COLON {
+            return no
+        }
+        return yes
+    }
+    if tokens[tok_pos].kind == T_KEYWORD and
+            tokens[tok_pos].str == "new" {
+        return no
+    }
+    return yes
+}
+
+## Check if the given token is a syntatic element like a binary
+## operator that necessarily requires a follow-up right-hand side.
+func token_has_righthand(t) {
+    if {T_MATH, T_UNARYMATH,
+            T_BOOLCOMP, T_COMPARE,
+            T_ASSIGN, T_MATHASSIGN,
+            T_MAPASSIGN, T_COMMA,
+            T_DOT}.has(t.kind) {
+        return yes
+    }
+    if t.kind == T_KEYWORD and {"func", "import",
+            "type", "extends", "in",
+            "as", "from", "with", "for", "if",
+            "elseif", "else", "do", "rescue",
+            "finally", "await",
+            "var", "const", "throw", "new",
+            "enum"}.has(t.str) {
+        return yes
+    }
+    return no
+}
+
+## Check if the given token is a syntatic element like a binary
+## operator that necessarily requires a leading left-hand side.
+func token_has_lefthand(t) {
+    if {T_MATH, T_COMPARE,
+            T_ASSIGN, T_MATHASSIGN,
+            T_MAPASSIGN, T_COMMA,
+            T_DOT}.has(t.kind) {
+        return yes
+    }
+    if tokens[tok_pos].kind == T_BRACKET and
+            {"[", "("}.has(tokens[tok_pos].str) {
+        return yes
+    }
+    if t.kind == T_BOOLCOMP and t.str != "not" {
+        return yes
+    }
+    if t.kind == T_KEYWORD and {"extends",
+            "as", "from", "in",
+            "elseif", "else", "rescue",
+            "finally", "later",
+            "protect"}.has(t.str) {
+        return yes
+    }
+    return no
 }
 
 ## Check if the given @{str} or @{token|Token} is a label
@@ -987,5 +1107,29 @@ func tokenize_file_by_uri(
     } finally {
         fileobj.close()
     }
+}
+
+## Helper function to get the line pos of a token in a given list.
+## It is used in token lists by the AST parser to not need
+## to use as many boundary checks.
+## @returns (num, none) The token's line number if the position
+##   is inside the list, @{none} if the position is outside of it.
+func get_line(tokens, pos) {
+    if pos < 1 or pos > tokens.len {
+        return none
+    }
+    return tokens[pos].line
+}
+
+## Helper function to get the column pos of a token in a given list.
+## It is used in token lists by the AST parser to not need
+## to use as many boundary checks.
+## @returns (num, none) The token's column number if the position
+##   is inside the list, @{none} if the position is outside of it.
+func get_col(tokens, pos) {
+    if pos < 1 or pos > tokens.len {
+        return none
+    }
+    return tokens[pos].col
 }
 
