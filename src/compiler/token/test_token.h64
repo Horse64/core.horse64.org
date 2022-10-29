@@ -92,6 +92,29 @@ func helper_for_tokenizer_test_and_verify(
     }
 }
 
+func test_token_list_from_str_list {
+    var result
+    result = token.token_list_from_str_list([
+        "func", "bla", ".", "main", "{", "}"
+    ])
+    assert(result.len == 6)
+    assert(result[1].kind == token.T_KEYWORD)
+    assert(result[2].kind == token.T_IDENT)
+    assert(result[2].str == "bla")
+}
+
+func test_get_statement_len {
+    var result
+    result = token.get_naive_statement_len([
+        "func", "bla", ".", "main", "{", "}", "+", "a", "b"
+    ], 1)
+    assert(result == 4)
+    result = token.get_naive_statement_len([
+        "func", "bla", ".", "main", "+", "{", "}", "+", "a", "b"
+    ], 1)
+    assert(result == 9)
+}
+
 func test_tokenize {
     # Basic test example:
     helper_for_tokenizer_test_and_verify(

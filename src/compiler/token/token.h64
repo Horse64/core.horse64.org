@@ -83,23 +83,61 @@ const special_words = {
     "enum",
 }
 
+## Turn a list of strings, like ["func", "main", "{", "}"],
+## into the associated list of @{tokens|Token}. Throws a
+## @{ValueError} if any string entry doesn't correspond to a
+## singular known token.
+## @param internal_labels bool Whether to allow internal identifier
+##   labels starting with a `$` character or not. (Default: no.)
+## @returns [@Token] Resulting list of tokens
+func token_list_from_str_list(strlist, internal_labels=no) {
+    var resultlist = []
+    token_no = 0
+    for str in strlist {
+        token_no += 1
+        var result = tokenize_str(
+            str, keep_whitespace=no,
+            keep_comments=no,
+            auto_recovery=no,
+            internal_labels=internal_labels,
+        )
+        if result.tokens.len != 1 {
+            throw new ValueError("Str item #" + token_no.as_str() +
+                " doesn't translate to singular token")
+        }
+        resultlist.add(result.tokens[1])
+    }
+    return resultlist
+}
+
 ## Get the length of the statement starting at the given token position.
-func get_statement_len(tokens, start_pos) {
+## Since this doesn't rely on the proper AST parser, it may return
+## a length that is too short (but never one that is too long).
+## @returns num The length of the next statement as a naive guess
+##   that may be too short.
+func get_naive_statement_len(tokens, start_pos) {
+    if tokens.len > 0 and typename(tokens[1]) == "str" {
+        tokens = token_list_from_str_list(tokens)
+    }
+
     var bracket_depth = 0
-    var i = start_pos
-    while i + 1 <= tokens.len and (
+    var i = start_pos + 1
+    while i <= tokens.len and (
             bracket_depth > 0 or
             not can_statement_end_before_token(
-            tokens, i + 1
+            tokens, i
             )) {
-        if {"(", "{", "["}.has(tokens[i + 1]) {
-            bracket_depth += 1
-        } elseif {")", "}", "]"}.has(tokens[i + 1]) {
-            bracket_depth -= 1
+        if tokens[i].kind == T_BRACKET {
+            if {"(", "{", "["}.has(tokens[i].str) {
+                bracket_depth += 1
+            } elseif {")", "}", "]"}.has(tokens[i].str) {
+                bracket_depth -= 1
+            }
         }
         i += 1
     }
-    return i
+    assert(can_statement_end_before_token(tokens, i))
+    return i - 1
 }
 
 ## Check if a statement starts somewhere earlier in the given
@@ -113,6 +151,11 @@ func can_statement_end_before_token(tokens, tok_pos) {
     if tok_pos > tokens.len {
         return yes
     }
+    if tok_pos <= 1 {
+        return no
+    }
+    assert(tokens[tok_pos - 1].str != "+" or
+           token_has_righthand(tokens[tok_pos - 1]))
     if token_has_righthand(tokens[tok_pos - 1]) {
         return no
     }
@@ -186,8 +229,8 @@ func token_has_lefthand(t) {
             T_DOT}.has(t.kind) {
         return yes
     }
-    if tokens[tok_pos].kind == T_BRACKET and
-            {"[", "("}.has(tokens[tok_pos].str) {
+    if t.kind == T_BRACKET and
+            {"[", "("}.has(t.str) {
         return yes
     }
     if t.kind == T_BOOLCOMP and t.str != "not" {
