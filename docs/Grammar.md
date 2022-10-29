@@ -5,11 +5,11 @@
 ## Overview
 
 Horse64's grammar is inspired by the [Go](https://golang.org),
-[Lua](https://lua.org), and [Pythton](https://python.org)
-languages. It's meant to be verbose enough to be
+[Lua](https://lua.org), and [Python programming
+language](https://python.org)s. It's meant to be verbose enough to be
 beginner-friendly while still minimal:
 
-```
+```Horse64
 func main {
     print("Hello World!")
 }
