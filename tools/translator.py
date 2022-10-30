@@ -71,6 +71,7 @@ from translator_transformhelpers import (
     make_string_literal_python_friendly,
     is_problematic_identifier_name,
     indent_sanity_check,
+    is_isolated_pure_assign,
 )
 
 from translator_scopehelpers import (
@@ -1085,6 +1086,13 @@ def queue_file_if_not_queued(
         reason=None
         ):
     assert(entry[2] != None and entry[2] != "")
+    # Brief sanity check:
+    source_path_parts = entry[0].replace("\\", "/").split("/")
+    if (len(source_path_parts) >= 2 and
+            source_path_parts[-1].rpartition(".h64")[0] ==
+            source_path_parts[-2]):
+        assert("__init__" in entry[1])
+    # Abort if already queued:
     for queue_item in translate_file_queue:
         if (os.path.normpath(queue_item[0]) ==
                 os.path.normpath(entry[0])):
@@ -1117,6 +1125,7 @@ class TranslateInfoScope:
         self.orig_h64_imports = None
         self.orig_h64_globals = None
         self.paranoid = False
+        self.global_init_func_code = dict()
 
     def copy(self):
         sc = TranslateInfoScope()
@@ -1131,6 +1140,7 @@ class TranslateInfoScope:
         sc.translate_file_queue = self.translate_file_queue
         sc.orig_h64_imports = self.orig_h64_imports
         sc.orig_h64_globals = self.orig_h64_globals
+        sc.global_init_func_code = self.global_init_func_code
         return sc
 
 
@@ -1201,12 +1211,19 @@ def translate(s, sc):
         if statement[0] == "var" or statement[0] == "const":
             statement_cpy = list(statement)
 
+            # Check if this is a global var declaration:
+            is_global = (len(sc.parent_statements) == 0)
+            is_nonisolated_or_nonpure = (
+                is_isolated_pure_assign(statement)
+            )
+
             # Hack: for various reasons, easiest to just nuke
             # unbracketed line breaks after commas:
             bdepth = 0
             j = 0
             while j < len(statement):
                 if statement[j] == "," and bdepth == 0:
+                    # Nuke all whitespace after this comma:
                     while (j + 1 < len(statement) and
                             statement[j + 1].strip(" \r\n\t") == ""):
                         statement = (statement[:j + 1] +
@@ -1334,7 +1351,25 @@ def translate(s, sc):
                                 untokenize(pstatement)
                             ).splitlines()))
                     continue
-                result += indent + untokenize(pstatement) + "\n"
+                if not is_global or is_nonisolated_or_nonpure:
+                    result += indent + untokenize(pstatement) + "\n"
+                else:
+                    # This might access something that accesses a
+                    # different module (e.g. indirectly via call, too).
+                    # Python may explode unless we defer this until after
+                    # all import processing of python is done:
+                    key = (sc.module_name, sc.package_name)
+                    assert(key[0] != None)
+                    if not key in sc.global_init_func_code:
+                        sc.global_init_func_code[key] = ""
+                    sc.global_init_func_code[key] += ("    " +
+                        "global " + idf + "\n")
+                    sc.global_init_func_code[key] += ("    " +
+                        "\n    ".join(untokenize(pstatement).
+                            splitlines()) + "\n")
+                    # We still should reserve the names as globals,
+                    # so in the original spot, assign 'None':
+                    result += indent + idf + " = None\n"
             continue
         elif statement[0] == "do":
             statement_cpy = list(statement)
@@ -2402,6 +2437,14 @@ def locate_repo_folder(startpath, repo_dir_override=None):
         repo_dir = os.path.normpath(
             os.path.abspath(
             os.path.join(repo_dir, "..")))
+
+    # Handle special case of mod/mod.h64:
+    modname_parts = modname.split(".")
+    if (len(modname_parts) >= 2 and
+            modname_parts[-1] == modname_parts[-2]):
+        # For 'bla/mod/mod.h64', the correct module is 'bla.mod'
+        # (without the last component repeated):
+        modname = modname.rpartition(".")[0]
     return (repo_dir, modname)
 
 
@@ -2677,6 +2720,7 @@ def translate_do_func(
             "module name: " + str(target_file))
 
     # Detect basic project info:
+    global_init_func_code_store = dict()
     project_info = TranslatedProjectInfo()
     project_info.package_name = overridden_package_name
     (project_info.repo_folder, modname) = locate_repo_folder(
@@ -2739,9 +2783,19 @@ def translate_do_func(
 
     # Queue up first item and begin translating the program:
     translate_file_queue = []
+    source_filepath = os.path.normpath(os.path.abspath(target_file))
+    output_filename = (
+        os.path.basename(target_file.rpartition(".h64")[0]) + ".py"
+    )
+    source_filepath_parts = (
+        source_filepath.replace("/", os.path.sep).split(os.path.sep)
+    )
+    if (len(source_filepath_parts) >= 2 and
+            source_filepath_parts[-1] ==
+            source_filepath_parts[-2] + ".h64"):
+        output_filename = "__init__.py"
     queue_file_if_not_queued(translate_file_queue,
-        (os.path.normpath(os.path.abspath(target_file)),
-        os.path.basename(target_file.rpartition(".h64")[0]) + ".py",
+        (source_filepath, output_filename,
         modname, modfolder, project_info.package_name))
     mainfilepath = translate_file_queue[0][0]
     while len(translate_file_queue) > 0:
@@ -2865,6 +2919,7 @@ def translate_do_func(
         sc = TranslateInfoScope()
         assert(modname != None and modname.strip() != "")
         sc.module_name = modname
+        sc.global_init_func_code = global_init_func_code_store
         sc.package_name = package_name
         sc.folder_path = modfolder
         sc.project_info = project_info
@@ -2921,23 +2976,36 @@ def translate_do_func(
                 as_escaped_code_string(mainfilepath) + ";" +
                 "import _translator_runtime_helpers;\n"
                 ) + translated_files[translated_file]["output"]
+            _modname = (translated_files
+                        [translated_file]["module-name"])
+            _pkgname = (translated_files
+                        [translated_file]["package-name"])
+            # Output all the types as Python "class" defs at the end:
             for regtype in known_types.values():
-                if (regtype.module != translated_files
-                        [translated_file]["module-name"] or
-                        regtype.pkgname != translated_files
-                        [translated_file]["package-name"]):
+                if (regtype.module != _modname or
+                        regtype.pkgname != _pkgname):
                     continue
+                gencode_nameprefix = ""
+                maybe_extends_nonlocal = False
+                if (regtype.extends_tokens != None and
+                        "." in regtype.extends_tokens and
+                        firstnonblank(regtype.extends_tokens) !=
+                        "_translator_runtime_helpers"):
+                    # Likely referring to some imported class symbol
+                    # (that originates in a different module).
+                    maybe_extends_nonlocal = True
+                    gencode_nameprefix = "_translated_delayed_"
                 contents_result += "\n"
-                contents_result += "class " + regtype.name
+                append_t = "class " + gencode_nameprefix + regtype.name
                 if regtype.extends_tokens != None:
-                    contents_result += ("(" +
+                    append_t += ("(" +
                         untokenize(regtype.extends_tokens) + ")")
-                contents_result += ":\n"
-                contents_result += ("    def __repr__(self, *args):\n")
-                contents_result += ("        if hasattr(self, \"as_str\") "
-                                    "and len(args) == 0:\n")
-                contents_result += ("            return self.as_str()\n")
-                contents_result += ("        return super()."
+                append_t += ":\n"
+                append_t += ("    def __repr__(self, *args):\n")
+                append_t += ("        if hasattr(self, \"as_str\") "
+                                "and len(args) == 0:\n")
+                append_t += ("            return self.as_str()\n")
+                append_t += ("        return super()."
                                     "__repr__(*args)\n")
                 if "init" in regtype.funcs:
                     assert(regtype.funcs["init"]["arguments"][0] == "(")
@@ -2946,31 +3014,31 @@ def translate_do_func(
                         ["self", ",", " "] +
                         regtype.funcs["init"]["arguments"][1:]
                     )
-                    contents_result += ("    def __init__" +
+                    append_t += ("    def __init__" +
                         untokenize(regtype.funcs
                             ["init"]["arguments"]) + ":\n")
                     if regtype.init_code != None:
-                        contents_result += regtype.init_code + "\n"
-                    contents_result += regtype.funcs["init"]["code"] + "\n"
-                    contents_result += ("        pass\n")
+                        append_t += regtype.init_code + "\n"
+                    append_t += regtype.funcs["init"]["code"] + "\n"
+                    append_t += ("        pass\n")
                 elif regtype.init_code != None:
                     inner_indent = (get_indent(
                         regtype.init_code))
                     if inner_indent is None:
                         inner_indent = "        "
-                    contents_result += ("    def __init__(self, " +
+                    append_t += ("    def __init__(self, " +
                         "*args, **kwargs):\n")
                     # First, make sure to call super type constructor:
                     super_result_var = (
                         "_v" + str(uuid.uuid4()).replace("-", "")
                     )
-                    contents_result += (inner_indent +
+                    append_t += (inner_indent +
                         super_result_var + " = " +
                         "super().__init__(*args, **kwargs)")
                     # Now initialize all variables:
-                    contents_result += regtype.init_code + "\n"
+                    append_t += regtype.init_code + "\n"
                     # Then return whatever super type constructor gave:
-                    contents_result + (inner_indent + "pass\n")
+                    append_t + (inner_indent + "pass\n")
                 for funcname in regtype.funcs:
                     if funcname == "init":
                         continue
@@ -2980,12 +3048,45 @@ def translate_do_func(
                         ["self", ",", " "] +
                         regtype.funcs[funcname]["arguments"][1:]
                     )
-                    contents_result += ("    def " + funcname +
+                    append_t += ("    def " + funcname +
                         untokenize(regtype.funcs
                             [funcname]["arguments"]) + ":\n")
-                    contents_result += (
+                    append_t += (
                         regtype.funcs[funcname]["code"] + "\n")
+                if not maybe_extends_nonlocal:
+                    contents_result += "\n" + append_t
+                else:
+                    # Since the extended module is external, we need to
+                    # do this in our delayed module init since due to
+                    # Python's hate of cyclic imports, we shouldn't access
+                    # other modules just yet.
+                    contents_result += ("\n" + regtype.name +
+                        " = None\n")
+                    key = (_modname, _pkgname)
+                    assert(key[0] != None)
+                    if not key in sc.global_init_func_code:
+                        sc.global_init_func_code[key] = ""
+                    sc.global_init_func_code[key] += ("\n    " +
+                        "global " + regtype.name)
+                    sc.global_init_func_code[key] += ("\n    " + (
+                        "\n    ".join(append_t.splitlines())) +
+                        "\n    " + regtype.name + " = " +
+                        "_translated_delayed_" +
+                        regtype.name + "\n")
 
+            # Write out all the delayed init code to an appended func:
+            key = (_modname, _pkgname)
+            contents_result += "\ndef _translator_delayed_modinit():\n"
+            if key in sc.global_init_func_code:
+                contents_result += (
+                    sc.global_init_func_code[key].rstrip() + "\n"
+                )
+            contents_result += "    pass\n"
+            contents_result += ("_translator_runtime_helpers."
+                "_delayed_modinit_funclist.append("
+                "_translator_delayed_modinit)\n")
+
+            # Now append our startup code if this is the main file:
             is_main_file = (translated_files\
                 [translated_file]["path"] == mainfilepath)
             if is_main_file and run_as_test:

@@ -755,7 +755,8 @@ def transform_later_to_closure_funccontents(
             if not ignore_erroneous_code:
                 raise ValueError("Found invalid 'later' "
                     "placed somewhere else than after a ')' of "
-                    "a call.")
+                    "a call. Token surroundings: " +
+                    str(st[max(0, later_index - 10):later_index+10]))
             new_sts.append(st)
             continue
         later_preceding_call_noargs = False

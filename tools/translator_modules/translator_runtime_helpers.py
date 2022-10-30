@@ -47,6 +47,13 @@ _async_ops = []
 _async_ops_stop_threads = False
 _async_delayed_calls = []
 
+_delayed_modinit_funclist = []
+
+
+def _run_delayed_modinit():
+    for f in _delayed_modinit_funclist:
+        f()
+
 
 class _LicenseObj:
     def __init__(self, file_name, text=""):
@@ -990,6 +997,7 @@ def _run_main(main_func):
     global DEBUGV, _async_ops_stop_threads,\
         _async_ops_lock, _async_ops, \
         _async_delayed_calls
+    _run_delayed_modinit()
     def async_jobs_worker():
         global _async_ops_stop_threads,\
             _async_ops_lock, _async_ops

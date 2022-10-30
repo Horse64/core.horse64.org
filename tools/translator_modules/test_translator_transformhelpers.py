@@ -37,6 +37,7 @@ from translator_transformhelpers import (
     transform_h64_misc_inline_to_python,
     make_string_literal_python_friendly,
     func_args_find_last_positional,
+    is_isolated_pure_assign,
 )
 
 
@@ -46,6 +47,44 @@ class TestTranslatorTransformHelpers(unittest.TestCase):
             "\"test\""), "\"test\"")
         self.assertEqual(make_string_literal_python_friendly(
             ["1", "2", '"a\nb"']), ["1", "2", '"a\\nb"']
+        )
+
+    def test_is_isolated_pure_assign(self):
+        self.assertTrue(
+            is_isolated_pure_assign("var _my_var")
+        )
+        self.assertFalse(
+            is_isolated_pure_assign("var bla = test()")
+        )
+        self.assertTrue(
+            is_isolated_pure_assign("var _my_var = (\n5\n) \n")
+        )
+        self.assertFalse(
+            is_isolated_pure_assign("var bla = [test()]")
+        )
+        self.assertFalse(
+            is_isolated_pure_assign("var bla = [test(), 2,]")
+        )
+        self.assertTrue(
+            is_isolated_pure_assign("var bla = [, \n2,]")
+        )
+        self.assertTrue(
+            is_isolated_pure_assign("var bla = []")
+        )
+        self.assertTrue(
+            is_isolated_pure_assign("var bla, bla2 = [], []")
+        )
+        self.assertTrue(
+            is_isolated_pure_assign("var bla = 2 * (not ((5)))")
+        )
+        self.assertTrue(
+            is_isolated_pure_assign("var bla = 2 * (5)")
+        )
+        self.assertFalse(
+            is_isolated_pure_assign("var bla = 2 * (5 + bla())")
+        )
+        self.assertTrue(
+            is_isolated_pure_assign("var bla = {'test' + 'bla', 'blu'}")
         )
 
     def test_func_args_find_last_positional(self):

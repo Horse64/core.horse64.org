@@ -142,6 +142,130 @@ def is_problematic_identifier_name(s,
     return False
 
 
+def is_isolated_pure_assign(t):
+    if type(t) == str:
+        t = tokenize(t)
+    assert(type(t) == list and (
+        len(t) == 0 or type(t[0]) == str))
+    if not "=" in t:
+        return True
+    eqidx = t.index("=")
+    assert(eqidx > 0)
+    bdepth = 0
+    i = eqidx + 1
+    starti = i
+    while i <= len(t):
+        if i >= len(t) or (bdepth == 0 and t[i] == ","):
+            if not is_isolated_pure_expression(t[starti:i]):
+                return False
+            starti = i + 1
+            i += 1
+            continue
+        if t[i] in {"(", "[", "{"}:
+            bdepth += 1
+        elif t[i] in {")", "]", "}"}:
+            bdepth -= 1
+        i += 1
+    return True
+
+
+def is_isolated_pure_expression(t):
+    known_ops = ["+", "*", "/", "&", "|", "~",
+        "and", "or", "-", "not", "^", "**"]
+
+    # Isolate actual expression without whitespace or brackets:
+    start_idx = 0
+    end_idx = len(t)
+    while True:
+        while (start_idx < len(t) and
+                t[start_idx].strip(" \t\r\n") == ""):
+            start_idx += 1
+        if start_idx >= end_idx:
+            return True
+        while (end_idx > 0 and
+                end_idx > start_idx and
+                t[end_idx - 1].strip(" \t\r\n") == ""):
+            end_idx -= 1
+        removed_bracket = False
+        while (start_idx < len(t) and
+                end_idx > start_idx + 1 and
+                t[start_idx] == "(" and
+                t[end_idx - 1] == ")"):
+            start_idx += 1
+            end_idx -= 1
+            removed_bracket = True
+        if not removed_bracket:
+            break
+    assigned_expr = t[start_idx:end_idx]
+
+    # Handle trailing ops like `-(x)` or `not x`:
+    for op in known_ops:
+        if assigned_expr[:1] == [op]:
+            return is_isolated_pure_expression(
+                assigned_expr[1:]
+            )
+
+    # Handle combining ops like `x + y`:
+    bdepth = 0
+    k = 0
+    while k < len(assigned_expr):
+        if (bdepth == 0 and
+                assigned_expr[k] in known_ops):
+            return is_isolated_pure_expression(
+                assigned_expr[:k]
+            ) and is_isolated_pure_expression(
+                assigned_expr[k + 1:]
+            )
+        if assigned_expr[k] in {"(", "[", "{"}:
+            bdepth += 1
+        elif assigned_expr[k] in {")", "]", "}"}:
+            bdepth -= 1
+        k += 1
+
+    # Handle all the other things we know to be without side
+    # effects or dependency:
+    if (len(assigned_expr) == 1 and
+            len(assigned_expr[0]) >= 1):
+        if assigned_expr[0] in {"yes", "no", "none"}:
+            return True
+        if (ord(assigned_expr[0][0]) >= ord('0') and
+                ord(assigned_expr[0][0]) <= ord('9')):
+            return True
+        if (assigned_expr[0][0] == '-' and
+                len(assigned_expr[0]) > 1 and
+                ord(assigned_expr[0][1]) >= ord('0') and
+                ord(assigned_expr[0][1]) <= ord('9')):
+            return True
+        if assigned_expr[0][0] in {'"', "'"}:
+            return True
+    elif (len(assigned_expr) > 1 and
+            ((assigned_expr[0] == "[" and
+            assigned_expr[-1] == "]") or
+            (assigned_expr[0] == "{" and
+            assigned_expr[-1] == "}"))):
+        bdepth = 0
+        item_start = 1
+        i = 1
+        while i < len(assigned_expr):
+            if bdepth == 0 and (assigned_expr[i] == "," or
+                    assigned_expr[i] in {"]", "}"}):
+                if not is_isolated_pure_expression(
+                        assigned_expr[item_start:i]):
+                    return False
+                item_start = i + 1
+                if assigned_expr[i] != ",":
+                    return True
+                i += 1
+                continue
+            if assigned_expr[i] in {"(", "[", "{"}:
+                bdepth += 1
+            elif assigned_expr[i] in {")", "]", "}"}:
+                bdepth -= 1
+            i += 1
+        raise ValueError("expression has nesting error")
+    return False
+
+
 def make_string_literal_python_friendly(t):
     was_str = False
     if type(t) == str:
