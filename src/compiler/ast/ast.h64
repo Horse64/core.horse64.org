@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 
+import compiler.ast.import_stmt as import_stmt
 import compiler.msg as msg
 
 
@@ -54,12 +55,59 @@ type ASTResult {
     var project_file
 }
 
+var parse_funcs = [
+    import_stmt.parse
+]
+
+func parse_statement(
+        tokens, pos, msgs, project_file=none
+        ) {
+    var remaining_funcs = parse_funcs.copy()
+
+    var next_func = remaining_funcs.pop()
+    var stmt = next_func(tokens, pos, msgs, project_file=project_file)
+    later:
+
+    await stmt
+    if stmt != none {
+        return stmt
+    }
+    if remaining_funcs.len == 0 {
+        return none
+    }
+
+    next_func = remaining_funcs.pop()
+    later repeat
+}
+
 func parse_to_ast(
         tokens, project_file=none
         ) {
     var result = new ASTResult()
     result.project_file = project_file
 
-    return result
+    if tokens.len == 0 {
+        return result
+    }
+    var pos = 1
+    var stmt = parse_statement(
+        tokens, pos, result.msgs,
+        project_file=project_file
+    ) later:
+
+    await stmt
+    if stmt == none {
+        # We completely failed to parse it.
+        assert(result.msgs.len > 0)
+        return result
+    }
+    result.nodes.add(stmt)
+    pos += stmt.tokens_len
+
+    if pos > tokens.len {
+        # We reached the end!
+        return result
+    }
+    later repeat
 }
 
