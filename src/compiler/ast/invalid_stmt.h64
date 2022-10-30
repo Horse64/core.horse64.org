@@ -26,7 +26,9 @@
 # license, see accompanied LICENSE.md.
 
 
-type InvalidStmt extends TreeNode {
+import compiler.ast as ast
+
+type InvalidStmt extends ast.TreeNode {
 }
 
 

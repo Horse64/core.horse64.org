@@ -26,12 +26,13 @@
 # license, see accompanied LICENSE.md.
 
 
+import compiler.ast as ast
 import compiler.ast.invalid_stmt as invalid_stmt
 import compiler.msg as msg
 import compiler.token as token
 
 
-type ImportStmt extends TreeNode {
+type ImportStmt extends ast.TreeNode {
     var module_path
     var library
     var renamed_as
