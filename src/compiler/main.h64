@@ -65,6 +65,52 @@ func tokenize_target_from_args(args) {
     }
 }
 
+func show_ast_result_to_terminal(
+        tresult, aresult, for_script=no
+        ) {
+    var total_msgs = tresult.copy()
+    if aresult != none {
+        total_msgs += aresult.msgs
+    }
+    var had_error = no
+    for m in total_msgs {
+        if m.kind == msg.M_ERROR {
+            had_error = yes
+        }
+    }
+    if for_script {
+        var output = {
+            "error": none,
+            "result": if aresult != none
+                (aresult.as_json_obj()) else
+                (tresult.as_json_obj()),
+        }
+        if had_error {
+            output["error"] = "Code has errors."
+            print(json.dump(output))
+            return 1
+        }
+        print(json.dump(output))
+        return 0
+    } else {
+        for m in total_msgs {
+            print(m.as_terminal_str(prefix=program_name))
+        }
+        if not had_error {
+            var output = ""
+            for node in aresult.nodes {
+                if output.len > 0 {
+                    output += ", "
+                }
+                output += node.as_str()
+            }
+            print(output)
+            return 0
+        }
+        return 1
+    }
+}
+
 func actionparser_compile(args) {
     var program_name = "horsec compile"
     var defs = argparse.ArgumentDefs(program_name=program_name)
@@ -156,51 +202,22 @@ func actionparser_compile(args) {
                 had_error = yes
             }
         }
-        var aresult = none
-        var total_msgs = tresult.msgs
-        if not had_error {
-            aresult = compiler.ast.parse_to_ast(
-                tresult.tokens,
-                project_file=tresult.project_file
-            )
-            for m in aresult.msgs {
-                if m.kind == msg.M_ERROR {
-                    had_error = yes
-                }
-            }
-            total_msgs += aresult.msgs
+        if had_error {
+            return show_ast_result_to_terminal(
+                tresult, none,
+                for_script=
+                    result.args["--for-script"])
         }
-        if result.args["--for-script"] {
-            var output = {
-                "error": none,
-                "result": if aresult != none
-                    (aresult.as_json_obj()) else
-                    (tresult.as_json_obj()),
-            }
-            if had_error {
-                output["error"] = "Code has errors."
-                print(json.dump(output))
-                return 1
-            }
-            print(json.dump(output))
-            return 0
-        } else {
-            for m in total_msgs {
-                print(m.as_terminal_str(prefix=program_name))
-            }
-            if not had_error {
-                var output = ""
-                for node in aresult.nodes {
-                    if output.len > 0 {
-                        output += ", "
-                    }
-                    output += node.as_str()
-                }
-                print(output)
-                return 0
-            }
-            return 1
-        }
+        var aresult = compiler.ast.parse_to_ast(
+            tresult.tokens,
+            project_file=tresult.project_file
+        ) later:
+
+        await aresult
+        return show_ast_result_to_terminal(
+            tresult, aresult,
+            for_script=
+                result.args["--for-script"])
     }
 }
 
