@@ -109,12 +109,22 @@ func parse_to_ast(
 
     await stmt
     if stmt == none {
-        # We completely failed to parse it.
-        assert(result.msgs.len > 0)
-        return result
+        # We completely failed to parse the next statement.
+        # Skip to the next one:
+        var skiplen = token.get_naive_statement_len(
+            tokens, pos
+        )
+        pos += skiplen
+        if pos > tokens.len {
+            # We reached the end!
+            return result
+        }
+        # Continue trying to find next statement below.
+    } else {
+        # Extracted a new statement.
+        result.nodes.add(stmt)
+        pos += stmt.tokens_len
     }
-    result.nodes.add(stmt)
-    pos += stmt.tokens_len
 
     if pos > tokens.len {
         # We reached the end!

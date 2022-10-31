@@ -28,6 +28,7 @@
 
 import bignum from core.horse64.org
 import io from core.horse64.org
+import math from core.horse64.org
 import text from core.horse64.org
 import uri from core.horse64.org
 
@@ -73,6 +74,8 @@ const _guaranteed_outer_scope_tokens = {
 }
 
 const special_words = {
+    # (=all keywords, as well as literals that happen to be
+    # special identifiers like yes/no/none.)
     "while", "do", "func", "for", "with",
     "var", "const", "type", "import", "if",
     "return", "await", "later", "rescue",
@@ -83,7 +86,64 @@ const special_words = {
     "enum",
 }
 
-## Turn a list of strings, like ["func", "main", "{", "}"],
+## @func surely_starts_stmt_even_in_bad_code
+## Check whether a given token at the given position looks like
+## it absolutely is intended to start a new statement, even in code
+## that is assumed to be super broken. This function tries to model
+## user intent, and only returns @{yes} on a subset of super clear
+## situations when the grammar would otherwise mandate a new statement
+## starting in more cases than recognized here.
+##
+## @param tokens ([Token], [str]) List of tokens to check a new
+##   statement start in.
+## @param start_pos num Token position to check for a new statement
+##   starting.
+## @param break_out_of_code_blocks bool Whether to return @{yes} on
+##   statement starts that if found inside nested code block
+##   `{...}` brackets, would not end the code block.
+## @returns bool Returns @{yes} if this function is extremely certain
+##   that a new statement was intended to start at the given position.
+func surely_starts_stmt_even_in_bad_code(
+        tokens, start_pos, break_out_of_code_blocks=yes
+        ) {
+    if tokens.len > 0 and typename(tokens[1]) == "str" {
+        tokens = token_list_from_str_list(tokens)
+    }
+    if start_pos >= tokens.len or start_pos < 1 {
+        return yes
+    }
+    if (tokens[start_pos].kind == T_KEYWORD and
+            {"type", "import", "enum"}.has(tokens[start_pos].str) and
+            start_pos + 1 <= tokens.len and
+            tokens[start_pos + 1].kind == T_IDENT) {
+        return yes
+    }
+    if break_out_of_code_blocks {
+        if tokens[start_pos].kind == T_KEYWORD and
+                {"var", "const"}.has(
+                    tokens[start_pos].str
+                ) and
+                start_pos + 1 <= tokens.len and
+                tokens[start_pos + 1].kind == T_IDENT {
+            return yes
+        }
+        if tokens[start_pos].kind == T_KEYWORD and
+                {"while", "await", "for", "with", "do",
+                "return"}.has(
+                    tokens[start_pos].str
+                ) {
+            return yes
+        }
+        if tokens[start_pos].kind == T_IDENT and
+                start_pos + 1 <= tokens.len and
+                tokens[start_pos + 1].kind == T_MATHASSIGN {
+            return yes
+        }
+    }
+    return no
+}
+
+## Turn a list of strings, like `["func", "main", "{", "}"]`,
 ## into the associated list of @{tokens|Token}. Throws a
 ## @{ValueError} if any string entry doesn't correspond to a
 ## singular known token.
@@ -137,23 +197,42 @@ func get_naive_statement_len(
         tokens = token_list_from_str_list(tokens)
     }
 
-    var i = start_pos + 1
+    var possible_code_block_brackets = bracket_depth
+    var i = start_pos
     while i <= tokens.len and (
             bracket_depth > 0 or
+            i == start_pos or
             not can_statement_end_before_token(
             tokens, i
             )) {
         if tokens[i].kind == T_BRACKET {
             if {"(", "{", "["}.has(tokens[i].str) {
                 bracket_depth += 1
+                if tokens[i].str == "{" {
+                    possible_code_block_brackets += 1
+                }
             } elseif {")", "}", "]"}.has(tokens[i].str) {
                 bracket_depth -= 1
+                if tokens[i].str == "}" {
+                    possible_code_block_brackets =
+                        math.max(possible_code_block_brackets - 1, 0)
+                }
+                if bracket_depth < 0 and i > start_pos {
+                    break
+                }
+            }
+        } else {
+            if i > start_pos and
+                    surely_starts_stmt_even_in_bad_code(
+                        tokens, i, break_out_of_code_blocks=
+                            (possible_code_block_brackets == 0)
+                    ) {
+                break
             }
         }
         i += 1
     }
-    assert(can_statement_end_before_token(tokens, i))
-    return i - 1
+    return (i - start_pos)
 }
 
 ## Check if a statement starts somewhere earlier in the given

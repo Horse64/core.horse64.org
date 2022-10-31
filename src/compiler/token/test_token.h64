@@ -103,6 +103,22 @@ func test_token_list_from_str_list {
     assert(result[2].str == "bla")
 }
 
+func test_surely_starts_stmt_even_in_bad_code {
+    var result
+    result = token.surely_starts_stmt_even_in_bad_code(
+        ["(", "var", "x"], 1, break_out_of_code_blocks=yes
+    )
+    assert(result == no)
+    result = token.surely_starts_stmt_even_in_bad_code(
+        ["(", "var", "x"], 2, break_out_of_code_blocks=yes
+    )
+    assert(result == yes)
+    result = token.surely_starts_stmt_even_in_bad_code(
+        ["(", "var", "x"], 2, break_out_of_code_blocks=no
+    )
+    assert(result == no)
+}
+
 func test_get_statement_len {
     var result
     result = token.get_naive_statement_len([
@@ -113,6 +129,24 @@ func test_get_statement_len {
         "func", "bla", ".", "main", "+", "{", "}", "+", "a", "b"
     ], 1)
     assert(result == 9)
+    result = token.get_naive_statement_len([
+        "import", "compiler", ".", "msg", "as", "msg",
+        "import", "compiler", ".", "token", "as", "token",
+    ], 1)
+    assert(result == 6)
+    result = token.get_naive_statement_len([
+        "{", "var", "x", "=", "5", "print", "(", "none", ")", "}",
+        "print", "(", "y", ")"
+    ], 1)
+    assert(result == 10)
+    result = token.get_naive_statement_len([
+        "var", "x", "+", "}",
+    ], 1)
+    assert(result == 3)
+    result = token.get_naive_statement_len([
+        "(", "var", "x", "+", "}",
+    ], 1)
+    assert(result == 1)
 }
 
 func test_tokenize {
