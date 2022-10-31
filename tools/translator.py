@@ -278,7 +278,7 @@ remapped_uses = {
             "_translator_runtime_helpers."
                 "_text_pos_from_line_col",
         "text.glyph_codepoint_len":
-            "(lambda s, index=1: max(0, len(s) - (index - 1)))",
+            "(lambda s, pos=1: max(0, len(s) - (pos - 1)))",
         "text.full_glyphs_in_sub":
             "(lambda a, b, c: _translator_runtime_helpers."
             "_container_sub(a, b, c))",
