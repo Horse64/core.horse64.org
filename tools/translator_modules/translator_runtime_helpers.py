@@ -1243,7 +1243,10 @@ def _textformat_outdent(s):
 class _ModuleObject:
     def __init__(self, base_module, base_library,
             renamed=None):
+        assert(base_module != None)
         self._base_module = base_module
+        if base_library is None:
+            base_library = "main"
         self._base_library = base_library
         self._rename_pair = renamed
 
