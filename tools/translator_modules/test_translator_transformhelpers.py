@@ -34,6 +34,7 @@ from translator_syntaxhelpers import (
 
 from translator_transformhelpers import (
     indent_sanity_check,
+    line_has_multi_stmts_for_sure,
     transform_h64_misc_inline_to_python,
     make_string_literal_python_friendly,
     func_args_find_last_positional,
@@ -48,6 +49,12 @@ class TestTranslatorTransformHelpers(unittest.TestCase):
         self.assertEqual(make_string_literal_python_friendly(
             ["1", "2", '"a\nb"']), ["1", "2", '"a\\nb"']
         )
+
+    def test_line_has_multiple_statements(self):
+        self.assertTrue(line_has_multi_stmts_for_sure("var x var y"))
+        self.assertFalse(line_has_multi_stmts_for_sure(
+            "tokens[start_pos + 1].kind == T_IDENTIFIER) {"
+        ))
 
     def test_is_isolated_pure_assign(self):
         self.assertTrue(

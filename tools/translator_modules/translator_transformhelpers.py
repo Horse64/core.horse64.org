@@ -495,6 +495,28 @@ def transform_h64_misc_inline_to_python(s):
     return s
 
 
+def line_has_multi_stmts_for_sure(s):
+    s = tokenize(s)
+    hadnonblank = False
+    bdepth = 0
+    i = 0
+    while i < len(s):
+        if s[i] in {"(", "[", "{"}:
+            bdepth += 1
+        elif s[i] in {")", "]", "}"}:
+            bdepth -= 1
+        if (bdepth == 0 and hadnonblank and
+                s[i] in {"var", "const",
+                "return",
+                "do", "while", "for", "type",
+                "import", "with", "await"}):
+            return True
+        if s[i].strip(" \r\n\t") != "":
+            hadnonblank = True
+        i += 1
+    return False
+
+
 def indent_sanity_check(s, what_in="unknown code"):
     if type(s) == list:
         s = untokenize(s)
@@ -545,27 +567,6 @@ def indent_sanity_check(s, what_in="unknown code"):
             return -1
         return None
 
-    def line_has_multi_stmts_for_sure(s):
-        s = tokenize(s)
-        hadnonblank = False
-        bdepth = 0
-        i = 0
-        while i < len(s):
-            if s[i] in {"(", "[", "{"}:
-                bdepth += 1
-            elif s[i] in {")", "]", "}"}:
-                bdepth -= 1
-            if (bdepth == 0 and hadnonblank and
-                    s[i] in {"var", "const",
-                    "return",
-                    "do", "while", "for", "type",
-                    "import", "with", "await"}):
-                return True
-            if s[i].strip(" \r\n\t") != "":
-                hadnonblank = True
-            i += 1
-        return False
-
     slines = s.splitlines()
     prev_line = ""
     prev_prev_s = ""
@@ -614,7 +615,7 @@ def indent_sanity_check(s, what_in="unknown code"):
                 "line " + str(i + 1) + ": " +
                 "indentation error, please write multiple "
                 "statements with same indentation in multiple "
-                "lines"
+                "lines. affected line: " + str(s)
             )
         if not starts_with_statement_for_sure(s, prev_s):
             continue
