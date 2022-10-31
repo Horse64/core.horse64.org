@@ -29,5 +29,7 @@ import typefile2
 
 func test_cyclic_types {
     print("Blob")
+    assert(typefile1.oops1 == yes)
+    assert(typefile2.oops2 == yes)
 }
 

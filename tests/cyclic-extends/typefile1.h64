@@ -30,7 +30,13 @@ type Banana1 extends typefile2.Banana2 {
 
 }
 
+func Banana1.v {
+    return yes
+}
+
 type Apple1 {
 
 }
+
+var oops1 = (new Banana1()).v()
 

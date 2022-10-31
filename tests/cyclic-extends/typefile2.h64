@@ -30,7 +30,17 @@ type Apple2 extends typefile1.Apple1 {
 
 }
 
-type Banana1 {
+func Apple2.v {
+    return yes
+}
+
+type Banana2 {
 
 }
+
+type Banana2_2 extends typefile1.Banana1 {
+
+}
+
+var oops2 = (new Apple2()).v()
 
