@@ -73,6 +73,9 @@ func FileMsg.as_str {
 func FileMsg.as_terminal_str(prefix="", wrap_width=none) {
     var next_line_prefix = ""
     var t = ""
+    if prefix == none {
+        prefix = ""
+    }
     if prefix != "" {
         t += prefix + ": "
     }

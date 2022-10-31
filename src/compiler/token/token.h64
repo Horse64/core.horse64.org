@@ -482,6 +482,11 @@ func TokenizeResult.as_str {
     return t + ")"
 }
 
+func describe_token(t) {
+    return describe_token_str(t.str) + " (" +
+        TokenKind.num_label(t.kind) + ")"
+}
+
 func describe_token_str(s) {
     if is_num(s) {
         return s
@@ -532,7 +537,7 @@ func describe_char_at(
     # If we arrive here it's a multibyte char.
 
     # See if this is a complete glyph:
-    var glyph_indexes = text.glyph_codepoint_len(s, index=i)
+    var glyph_indexes = text.glyph_codepoint_len(s, pos=i)
     if glyph_indexes <= s.len - i or not maybe_cutoff_glyph {
         # We guaranteed got the full glyph.
         return "'" + s.sub(i, i + 10).glyph_sub(1, 1) + "'"
@@ -675,7 +680,7 @@ func tokenize_str(
                 col += 1
             }
             if k + 1 > strlen {
-                result.msgs.add(msg.FileMsg(
+                result.msgs.add(new msg.FileMsg(
                     "Unterminated " +
                     if is_bytes ("bytes") else ("string") +
                     " literal.",
@@ -721,7 +726,7 @@ func tokenize_str(
                     if k + 1 < strlen and
                             not known_string_escapes.has(
                             str[k + 1]) {
-                        result.msgs.add(msg.FileMsg(
+                        result.msgs.add(new msg.FileMsg(
                             "Invalid string escape '\\' + " +
                             describe_char_at(str, k,
                                 maybe_cutoff_glyph=no) + ".",
@@ -739,7 +744,7 @@ func tokenize_str(
             var cutoff = no
             if k > strlen or str[k] != end_marker {
                 cutoff = yes
-                result.msgs.add(msg.FileMsg(
+                result.msgs.add(new msg.FileMsg(
                     "Unterminated " +
                     if is_bytes ("bytes") else ("string") +
                     " literal.",
@@ -884,7 +889,7 @@ func tokenize_str(
                 guessed_expr_bracket_nesting.pop()
             }
             if bracket_nesting.len == 0 {
-                result.msgs.add(msg.FileMsg(
+                result.msgs.add(new msg.FileMsg(
                     "Invalid unexpected closing bracket '" +
                     c + "', no brackets left open",
                     source_file=project_file,
@@ -895,7 +900,7 @@ func tokenize_str(
                 assert(reversec != c)
                 var openinfo = bracket_nesting.last()
                 if openinfo[1] != reversec {
-                    result.msgs.add(msg.FileMsg(
+                    result.msgs.add(new msg.FileMsg(
                         "Invalid unexpected closing bracket '" +
                         c + "', expected match for '" +
                         openinfo[1] + "' in line " +
@@ -995,7 +1000,7 @@ func tokenize_str(
             if bracket_nesting.len > 0 and
                     _guaranteed_outer_scope_tokens.has(name) {
                 var openinfo = bracket_nesting.last()
-                result.msgs.add(msg.FileMsg(
+                result.msgs.add(new msg.FileMsg(
                     "Invalid unexpected keyword '" +
                     c + "', not allowed inside any nesting "
                     "like after unclosed '" +
@@ -1010,7 +1015,7 @@ func tokenize_str(
             }
             # Block identifiers that are just '$':
             if not had_nondollar {
-                result.msgs.add(msg.FileMsg(
+                result.msgs.add(new msg.FileMsg(
                     "Invalid unexpected internal identifier '" +
                     c + "', can't just consist of '$'",
                     source_file=project_file,
@@ -1065,7 +1070,7 @@ func tokenize_str(
             if bignum.compare_nums(
                     limit.num_max_str,
                     numtoken) < 0 {
-                result.msgs.add(msg.FileMsg(
+                result.msgs.add(new msg.FileMsg(
                     "Invalid unexpected number literal " +
                     numtoken + " exceeds maximum value " +
                     limit.num_max_str + " that "
@@ -1076,7 +1081,7 @@ func tokenize_str(
             } elseif bignum.compare_nums(
                     limit.num_min_str,
                     numtoken) > 0 {
-                result.msgs.add(msg.FileMsg(
+                result.msgs.add(new msg.FileMsg(
                     "Invalid unexpected number literal " +
                     numtoken + " is below minimum value " +
                     limit.num_min_str + " that "
@@ -1093,7 +1098,7 @@ func tokenize_str(
             continue
         } else {
             # Oops, we don't know what that is.
-            result.msgs.add(msg.FileMsg(
+            result.msgs.add(new msg.FileMsg(
                 "Invalid unexpected character " +
                 describe_char_at(str, i,
                     maybe_cutoff_glyph=no),
@@ -1117,7 +1122,7 @@ func tokenize_from_fileobj (
 
     await contents
     if contents.len >= limit.max_source_file_size + 1 {
-        result.msgs.add(msg.FileMsg(
+        result.msgs.add(new msg.FileMsg(
             "file exceeds maximum size limit of " +
             limit.max_project_file_size +
             " characters",

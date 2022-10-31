@@ -28,6 +28,7 @@
 
 import compiler.ast.import_stmt as import_stmt
 import compiler.msg as msg
+import compiler.token as token
 
 
 type TreeNode {
@@ -73,6 +74,15 @@ func parse_statement(
         return stmt
     }
     if remaining_funcs.len == 0 {
+        var line = tokens[pos].line
+        var col = tokens[pos].col
+        msgs.add(new msg.FileMsg(
+            "Unexpected token " +
+            token.describe_token(tokens[pos]) +
+            ", expected start of any recognized statement.",
+            kind=msg.M_ERROR, source_file=project_file,
+            line=line, col=col)
+        )
         return none
     }
 

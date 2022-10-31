@@ -66,9 +66,9 @@ func tokenize_target_from_args(args) {
 }
 
 func show_ast_result_to_terminal(
-        tresult, aresult, for_script=no
+        tresult, aresult, program_name=none, for_script=no
         ) {
-    var total_msgs = tresult.copy()
+    var total_msgs = tresult.msgs.copy()
     if aresult != none {
         total_msgs += aresult.msgs
     }
@@ -204,9 +204,9 @@ func actionparser_compile(args) {
         }
         if had_error {
             return show_ast_result_to_terminal(
-                tresult, none,
-                for_script=
-                    result.args["--for-script"])
+                tresult, none, program_name=program_name,
+                for_script=result.args["--for-script"],
+            )
         }
         var aresult = compiler.ast.parse_to_ast(
             tresult.tokens,
@@ -216,8 +216,9 @@ func actionparser_compile(args) {
         await aresult
         return show_ast_result_to_terminal(
             tresult, aresult,
-            for_script=
-                result.args["--for-script"])
+            program_name=program_name,
+            for_script=result.args["--for-script"]
+        )
     }
 }
 
