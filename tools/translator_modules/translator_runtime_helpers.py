@@ -51,8 +51,16 @@ _delayed_modinit_funclist = []
 
 
 def _run_delayed_modinit():
+    failed_runs = []
     for f in _delayed_modinit_funclist:
-        f()
+        if f() == False:
+            failed_runs.append(f)
+    while len(failed_runs) > 0:
+        new_failed_runs = []
+        for f in _delayed_modinit_funclist:
+            if f() == False:
+                new_failed_runs.append(f)
+        failed_runs = new_failed_runs
 
 
 class _LicenseObj:
@@ -1257,9 +1265,11 @@ class _ModuleObject:
         import horse_modules
         result = getattr(horse_modules,
             self._base_library.replace(".", "_"))
-        result = getattr(result,
-            ("_h64mod_" if self._base_library != "main"
-            else "") + self._base_module)
+        if hasattr(result, "_h64mod_" + self._base_module):
+            result = getattr(result,
+                ("_h64mod_" + self._base_module))
+        else:
+            result = getattr(result, self._base_module)
         if self._rename_pair != None:
             rename_parts = self._rename_pair[0].split(".")[1:]
             for part in rename_parts:

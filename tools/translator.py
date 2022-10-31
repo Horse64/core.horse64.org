@@ -2958,6 +2958,7 @@ def translate_do_func(
             contents_result = (
                 "import sys as _remapped_sys;"
                 "import shutil as _remapped_shutil;"
+                "import traceback as _remapped_traceback;"
                 "import os as _remapped_os;"
                 "import enum as _remapped_enum;"
                 "import tempfile as _remapped_tempfile;"
@@ -2980,7 +2981,8 @@ def translate_do_func(
                         [translated_file]["module-name"])
             _pkgname = (translated_files
                         [translated_file]["package-name"])
-            # Output all the types as Python "class" defs at the end:
+            # Output all the types as Python "class" defs:
+            first_externaltype_extends = True
             for regtype in known_types.values():
                 if (regtype.module != _modname or
                         regtype.pkgname != _pkgname):
@@ -3066,17 +3068,34 @@ def translate_do_func(
                     assert(key[0] != None)
                     if not key in sc.global_init_func_code:
                         sc.global_init_func_code[key] = ""
-                    sc.global_init_func_code[key] += ("\n    " +
+                    prepend_t = ("\n    " +
                         "global " + regtype.name)
-                    sc.global_init_func_code[key] += ("\n    " + (
-                        "\n    ".join(append_t.splitlines())) +
-                        "\n    " + regtype.name + " = " +
+                    prepend_t += ("\n    " +
+                        "try:")
+                    prepend_t += ("\n        " + (
+                        "\n        ".join(append_t.splitlines())) +
+                        "\n        " + regtype.name + " = " +
                         "_translated_delayed_" +
                         regtype.name + "\n")
+                    prepend_t += ("\n    " +
+                        "except TypeError as e:")
+                    #prepend_t += ("\n        " +
+                    #    "_remapped_traceback.print_exc()")
+                    prepend_t += ("\n        " +
+                        "_translated_extendtype_fail = True")
+                    if first_externaltype_extends:
+                        prepend_t += ("\n    "
+                            "if _translated_extendtype_fail:")
+                        prepend_t += ("\n        return False\n")
+                    sc.global_init_func_code[key] = (prepend_t +
+                        sc.global_init_func_code[key])
+                    first_externaltype_extends = False
 
             # Write out all the delayed init code to an appended func:
             key = (_modname, _pkgname)
             contents_result += "\ndef _translator_delayed_modinit():\n"
+            contents_result += ("    _translated_extendtype_fail" +
+                " = False\n")
             if key in sc.global_init_func_code:
                 contents_result += (
                     sc.global_init_func_code[key].rstrip() + "\n"
