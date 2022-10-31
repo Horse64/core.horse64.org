@@ -71,7 +71,7 @@ const _maybe_stmt_token_strs = {
 }
 
 const _guaranteed_outer_scope_tokens = {
-    "type", "import",
+    "type", "import", "enum",
 }
 
 const special_words = {
@@ -882,8 +882,9 @@ func tokenize_str(
                 while j < inner_tokens.len {
                     j += 1
                     var stroffset = none
-                    if _maybe_stmt_token_strs.has(
-                            inner_tokens[j].str) {
+                    if surely_starts_stmt_even_in_bad_code(
+                            inner_tokens, j,
+                            break_out_of_code_blocks=yes) {
                         # Might be a new statement. Terminate here.
                         recover_str_offset =
                             get_str_offset_from_line_col(
@@ -1107,8 +1108,8 @@ func tokenize_str(
             i -= 1
             const name = str.sub(start_idx, i)
             if auto_recovery and
-                    _maybe_stmt_token_strs.has(
-                    name) {
+                    _maybe_stmt_token_strs.has(name) and
+                    not {"func", "if"}.has(name) {
                 guessed_expr_bracket_nesting = []
             }
             if bracket_nesting.len > 0 and
