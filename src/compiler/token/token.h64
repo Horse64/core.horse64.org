@@ -110,17 +110,33 @@ func token_list_from_str_list(strlist, internal_labels=no) {
     return resultlist
 }
 
+## @func get_naive_statement_len
 ## Get the length of the statement starting at the given token position.
+## Can also be used mid-statement if you give the current bracket nesting
+## depth inside the statement.
 ## Since this doesn't rely on the proper AST parser, it may return
 ## a length that is too short (but never one that is too long).
-## @returns num The length of the next statement as a naive guess
-##   that may be too short.
-func get_naive_statement_len(tokens, start_pos) {
+##
+## @param tokens ([Token], [str]) The list of tokens supplied either as
+##   @{Token} instances or @{str}s.
+## @param start_pos num From where to advance forward to compute the
+##   remaining statement length (or, strictly speaking, a lower boundary).
+## @param bracket_depth num The bracket nesting depth inside the statement
+##   if `start_pos` isn't the very start of the statement to find the
+##   ending of.
+## @returns num The remaining length of the next statement from the given
+##   `start_pos`.
+func get_naive_statement_len(
+        tokens, start_pos, bracket_depth=0
+        ) {
+    if bracket_depth < 0 {
+        throw new ValueError("initial bracket_depth must "
+            "be a non-negative number")
+    }
     if tokens.len > 0 and typename(tokens[1]) == "str" {
         tokens = token_list_from_str_list(tokens)
     }
 
-    var bracket_depth = 0
     var i = start_pos + 1
     while i <= tokens.len and (
             bracket_depth > 0 or
@@ -145,6 +161,7 @@ func get_naive_statement_len(tokens, start_pos) {
 ## token found at `tok_pos` given there is no bracket left open.
 ## The `tok_pos` may be past the ending of the list, in which case
 ## the result is always @{yes}.
+##
 ## @returns bool @{yes} If statement ends before specified token,
 ##   @{no} if it continues further and includes the specified token.
 func can_statement_end_before_token(tokens, tok_pos) {
