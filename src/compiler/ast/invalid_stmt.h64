@@ -33,6 +33,8 @@ type InvalidStmt extends ast.TreeNode {
 
 
 func InvalidStmt.init(token_len) {
+    base.init()
+    self.kind = ast.N_STMT_INVALID
     self.token_len = token_len
 }
 

@@ -33,30 +33,134 @@ import compiler.token as token
 
 
 type ImportStmt extends ast.TreeNode {
-    var module_path
-    var library
+    var module_path = []
+    var library_name
     var renamed_as
 }
 
+func ImportStmt.init {
+    base.init()
+    self.kind = ast.N_STMT_IMPORT
+}
+
+func ImportStmt.as_json_obj {
+    var output = base.as_json_obj()
+    output["module_path"] = self.module_path
+    output["library_name"] = self.library_name
+    output["renamed_as"] = self.renamed_as
+    return output
+}
+
 func parse(tokens, pos, msgs, project_file=none) {
-    var node = new ImportStmt()
+    var stmt = new ImportStmt()
     var tokens_len = tokens.len
+    var startpos = pos
 
     if pos > tokens_len or
             tokens[pos].kind != token.T_KEYWORD or
             tokens[pos].str != "import" {
         return later none
     }
+
+    # Bail with error if no module path follows at all:
     if pos + 1 > tokens_len or
             tokens[pos + 1].kind != token.T_IDENT {
         msgs.add(new msg.FileMsg(
+            "Unexpected " + token.describe_token_at(tokens, pos + 1) +
+            ", expected identifier (T_IDENT) specifying "
+            "imported module",
             source_file=project_file,
             line=token.get_line(tokens, pos + 1),
             col=token.get_col(tokens, pos + 1),
         ))
-        return later new invalid_stmt.InvalidStmt(
-            1
-        ) 
+        var skiplen = get_naive_statement_len(
+            tokens, pos, bracket_depth=0
+        )
+        assert(skiplen > 0)
+        var invalid_st = new invalid_stmt.InvalidStmt(skiplen)
+        invalid_st.line = token.get_line(tokens, startpos)
+        invalid_st.col = token.get_col(tokens, startpos)
+        return invalid_st
     }
+    stmt.module_path.add(tokens[pos + 1].str)
+    pos += 2
+
+    # Extract further components of import path:
+    while pos + 1 <= tokens_len and
+            tokens[pos].kind == token.T_DOT and
+            tokens[pos + 1].kind == token.T_IDENT {
+        stmt.module_path.add(tokens[pos + 1].str)
+        pos += 2
+    }
+
+    # Extract 'from' clause if any:
+    if pos <= tokens_len and
+            tokens[pos].kind == token.T_KEYWORD and
+            tokens[pos].str == "from" {
+        pos += 1
+        if pos <= tokens_len and
+                tokens[pos].kind == token.T_IDENT {
+            stmt.library_name = tokens[pos].str
+            pos += 1
+            while pos + 1 <= tokens_len and
+                    tokens[pos].kind == token.T_DOT and
+                    tokens[pos + 1].kind == token.T_IDENT {
+                stmt.library_name += "." + tokens[pos + 1].str
+                pos += 2
+            }
+        } else {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(tokens, pos) +
+                ", expected identifier (T_IDENT) specifying "
+                "library name for 'from' clause",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+            var skiplen = get_naive_statement_len(
+                tokens, pos - 1, bracket_depth=0
+            )
+            assert(skiplen > 0)
+            var invalid_st = new invalid_stmt.InvalidStmt(
+                (pos - 1 - startpos) + skiplen
+            )
+            invalid_st.line = token.get_line(tokens, startpos)
+            invalid_st.col = token.get_col(tokens, startpos)
+            return invalid_st
+        }
+    }
+
+    # Extract 'as' clause, if any:
+    if pos <= tokens_len and
+            tokens[pos].kind == token.T_KEYWORD and
+            tokens[pos].str == "as" {
+        pos += 1
+        if pos <= tokens_len and
+                tokens[pos].kind == token.T_IDENT {
+            stmt.renamed_as = tokens[pos].str
+        } else {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(tokens, pos) +
+                ", expected identifier (T_IDENT) specifying "
+                "name for 'as' clause",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+            var skiplen = get_naive_statement_len(
+                tokens, pos - 1, bracket_depth=0
+            )
+            assert(skiplen > 0)
+            var invalid_st = new invalid_stmt.InvalidStmt(
+                (pos - 1 - startpos) + skiplen
+            )
+            invalid_st.line = token.get_line(tokens, startpos)
+            invalid_st.col = token.get_col(tokens, startpos)
+            return invalid_st
+        }
+    }
+
+    stmt.tokens_len = (pos - startpos)
+    return stmt
 }
 

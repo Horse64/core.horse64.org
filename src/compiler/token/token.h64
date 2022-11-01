@@ -538,7 +538,7 @@ func Token.init(str, kind, line, col) {
     self.col = col
 }
 
-type TokenizeResult {
+type TokensResult {
     ## @type [msg.FileMsg]
     var msgs = []
 
@@ -549,7 +549,7 @@ type TokenizeResult {
     var project_file
 }
 
-func TokenizeResult.as_json_obj {
+func TokensResult.as_json_obj {
     var output = {
         "messages"-> [],
         "tokens"-> [],
@@ -578,8 +578,8 @@ func TokenizeResult.as_json_obj {
     return output
 }
 
-func TokenizeResult.as_str {
-    var t = "TokenizeResult(tokens=["
+func TokensResult.as_str {
+    var t = "TokensResult(tokens=["
     var max_print_tokens = 10
     var i = 1
     while i <= self.tokens.len and i <= max_print_tokens {
@@ -594,6 +594,16 @@ func TokenizeResult.as_str {
     }
     t += "]),msgs=#" + self.msgs.len.as_str()
     return t + ")"
+}
+
+func describe_token_at(tokens, i) {
+    if i > tokens.len {
+        return "end of code"
+    } elseif i < 1 {
+        return "start of code"
+    } else {
+        return describe_token(tokens[i])
+    }
 }
 
 func describe_token(t) {
@@ -730,7 +740,7 @@ func tokenize_str(
         auto_recovery=yes,
         internal_labels=no,
         ) {
-    var result = TokenizeResult()
+    var result = TokensResult()
     result.project_file = project_file
     var strlen = str.len
 
@@ -1244,7 +1254,7 @@ func tokenize_from_fileobj (
         keep_whitespace=no,
         keep_comments=no
         ) {
-    var result = new TokenizeResult()
+    var result = new TokensResult()
     var contents = fobj.read(
         amount=limit.max_source_file_size + 1
     )
@@ -1269,7 +1279,8 @@ func tokenize_from_fileobj (
 }
 
 ## @func tokenize_file_by_uri
-## Parse the file referenced to by the URI to a @{token result|TokenResult}.
+## Parse the file referenced to by the URI to a
+## @{tokens result|TokensResult}.
 ##
 ## @param source_uri str The URI of the target file.
 ## @param keep_whitespace bool Whether to keep whitespace tokens
@@ -1286,7 +1297,7 @@ func tokenize_from_fileobj (
 ##   guessed as either remote or disk path and converted to a full URI.
 ##   If set to @{yes}, anything not clearly an URI will always be
 ##   considered a disk path and converted to a `file://` URI.
-## @returns TokenResult The resulting tokens and diagnostic messages,
+## @returns TokensResult The resulting tokens and diagnostic messages,
 ##   like parse errors or warnings.
 func tokenize_file_by_uri(
         source_uri, project_file=none, keep_whitespace=no,

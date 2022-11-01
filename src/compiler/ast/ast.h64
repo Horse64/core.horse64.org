@@ -27,12 +27,15 @@
 
 import uri from core.horse64.org
 
+import compiler.ast.invalid_stmt as invalid_stmt
 import compiler.ast.import_stmt as import_stmt
 import compiler.msg as msg
 import compiler.token as token
 
 
 type TreeNode {
+    var kind
+
     ## @type [TreeNode]
     var children = []
 
@@ -46,6 +49,24 @@ type TreeNode {
     var token_len
 }
 
+enum NodeKind {
+    N_STMT_INVALID,
+    N_STMT_IMPORT,
+}
+
+func TreeNode.as_json_obj {
+    var output = {
+        "children"-> [],
+        "kind"-> NodeKind.num_label(self.kind),
+        "line"-> self.line,
+        "col"-> self.col,
+    }
+    for child in self.children {
+        output["children"].add(child.as_json_obj())
+    }
+    return output
+}
+
 type ASTResult {
     ## @type [TreeNode]
     var nodes = []
@@ -55,6 +76,30 @@ type ASTResult {
 
     ## @types (project.ProjectFile, none)
     var project_file
+}
+
+func ASTResult.as_json_obj {
+    var output = {
+        "messages"-> [],
+        "nodes"-> [],
+    }
+    for m in self.msgs {
+        var mjson = {
+            "message"-> m.message,
+            "kind"-> msg.MsgKind.num_label(m.kind),
+            "line"-> m.line,
+            "col"-> m.col,
+            "file"-> none,
+        }
+        if m.source_file != none {
+            mjson["file"] = m.source_file.source_uri
+        }
+        output["messages"].add(mjson)
+    }
+    for node in self.nodes {
+        output["nodes"].append(node.as_json_obj())
+    }
+    return output
 }
 
 var parse_funcs = [
@@ -115,6 +160,10 @@ func parse_to_ast(
         var skiplen = token.get_naive_statement_len(
             tokens, pos
         )
+        var invalid_st = new invalid_stmt.InvalidStmt(skiplen)
+        invalid_st.line = token.get_line(tokens, pos)
+        invalid_st.col = token.get_col(tokens, pos)
+        result.nodes.add(invalid_st)
         pos += skiplen
         if pos > tokens.len {
             # We reached the end!
@@ -166,14 +215,6 @@ func _parse_tokens_to_ast_ex(
     later:
 
     await tresult
-    for m in tresult.msgs {
-        if m.kind == msg.M_ERROR {
-            var aresult = new ASTResult()
-            aresult.project_file = tresult.project_file
-            aresult.msgs = tresult.msgs
-            return aresult
-        }
-    }
     var aresult = parse_to_ast(
         tresult.tokens,
         project_file=tresult.project_file
