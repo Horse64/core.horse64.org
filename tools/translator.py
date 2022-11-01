@@ -749,14 +749,21 @@ def translate_expression_tokens(s, sc,
                 if sc.package_name != None else "") + ": "
                 "found \"contains\" identifier, if you meant to "
                 "check a container for an item please use \"has\".")
-        elif (s[i] == "base" and
-                i + 1 < len(s) and s[i + 1] == "("):
-            raise ValueError("The expression base() in " +
-                sc.module_name + (" in " + sc.package_name
-                if sc.package_name != None else "") +
-                " is invalid, "
-                "a base type cannot be called. Did you mean to "
-                "use it without call brackets?")
+        elif s[i] == "base":
+            if i + 1 < len(s) and s[i + 1] == "(":
+                raise ValueError("The expression base() in " +
+                    sc.module_name + (" in " + sc.package_name
+                    if sc.package_name != None else "") +
+                    " is invalid, "
+                    "a base type cannot be called. Did you mean to "
+                    "use it without call brackets?")
+            if (i + 2 < len(s) and s[i + 1] == "." and
+                    s[i + 2] == "init"):
+                s = s[:i] + ["super", "(", ")",
+                    ".", "__init__"] + s[i + 3:]
+                i += 3
+                continue
+            s = s[:i] + ["super", "(", ")"] + s[i + 1:]
         elif s[i] == "ValueError" and previous_token != ".":
             s = s[:i] + ["_translator_runtime_helpers",
                 ".", "_ValueError"] + s[i + 1:]
