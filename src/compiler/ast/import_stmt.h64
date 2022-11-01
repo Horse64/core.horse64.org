@@ -61,20 +61,21 @@ func parse(tokens, pos, msgs, project_file=none) {
             tokens[pos].str != "import" {
         return later none
     }
+    pos += 1
 
     # Bail with error if no module path follows at all:
-    if pos + 1 > tokens_len or
-            tokens[pos + 1].kind != token.T_IDENT {
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_IDENT {
         msgs.add(new msg.FileMsg(
-            "Unexpected " + token.describe_token_at(tokens, pos + 1) +
+            "Unexpected " + token.describe_token_at(tokens, pos) +
             ", expected identifier (T_IDENT) specifying "
-            "imported module",
+            "imported module.",
             source_file=project_file,
-            line=token.get_line(tokens, pos + 1),
-            col=token.get_col(tokens, pos + 1),
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
         ))
-        var skiplen = get_naive_statement_len(
-            tokens, pos, bracket_depth=0
+        var skiplen = token.get_naive_statement_len(
+            tokens, startpos, bracket_depth=0
         )
         assert(skiplen > 0)
         var invalid_st = new invalid_stmt.InvalidStmt(skiplen)
@@ -82,8 +83,8 @@ func parse(tokens, pos, msgs, project_file=none) {
         invalid_st.col = token.get_col(tokens, startpos)
         return invalid_st
     }
-    stmt.module_path.add(tokens[pos + 1].str)
-    pos += 2
+    stmt.module_path.add(tokens[pos].str)
+    pos += 1
 
     # Extract further components of import path:
     while pos + 1 <= tokens_len and
@@ -112,12 +113,12 @@ func parse(tokens, pos, msgs, project_file=none) {
             msgs.add(new msg.FileMsg(
                 "Unexpected " + token.describe_token_at(tokens, pos) +
                 ", expected identifier (T_IDENT) specifying "
-                "library name for 'from' clause",
+                "library name for 'from' clause.",
                 source_file=project_file,
                 line=token.get_line(tokens, pos),
                 col=token.get_col(tokens, pos),
             ))
-            var skiplen = get_naive_statement_len(
+            var skiplen = token.get_naive_statement_len(
                 tokens, pos - 1, bracket_depth=0
             )
             assert(skiplen > 0)
@@ -138,21 +139,22 @@ func parse(tokens, pos, msgs, project_file=none) {
         if pos <= tokens_len and
                 tokens[pos].kind == token.T_IDENT {
             stmt.renamed_as = tokens[pos].str
+            pos += 1
         } else {
             msgs.add(new msg.FileMsg(
                 "Unexpected " + token.describe_token_at(tokens, pos) +
                 ", expected identifier (T_IDENT) specifying "
-                "name for 'as' clause",
+                "name for 'as' clause.",
                 source_file=project_file,
                 line=token.get_line(tokens, pos),
                 col=token.get_col(tokens, pos),
             ))
-            var skiplen = get_naive_statement_len(
+            var skiplen = token.get_naive_statement_len(
                 tokens, pos - 1, bracket_depth=0
             )
             assert(skiplen > 0)
             var invalid_st = new invalid_stmt.InvalidStmt(
-                (pos - 1 - startpos) + skiplen
+                (pos - startpos) + skiplen
             )
             invalid_st.line = token.get_line(tokens, startpos)
             invalid_st.col = token.get_col(tokens, startpos)
@@ -160,7 +162,7 @@ func parse(tokens, pos, msgs, project_file=none) {
         }
     }
 
-    stmt.tokens_len = (pos - startpos)
+    stmt.token_len = (pos - startpos)
     return stmt
 }
 

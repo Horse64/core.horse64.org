@@ -1,0 +1,136 @@
+# @module compiler.ast.func_stmt
+# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+
+import compiler.ast as ast
+import compiler.ast.invalid_stmt as invalid_stmt
+import compiler.msg as msg
+import compiler.token as token
+
+
+type FuncStmt extends ast.TreeNode {
+    var name
+    var type_path = none
+    var arg_names = []
+    var arg_kw_values = []
+    var body_nodes = []
+}
+
+func FuncStmt.init {
+    base.init()
+    self.kind = ast.N_STMT_FUNC
+}
+
+func FuncStmt.as_json_obj {
+    var output = base.as_json_obj()
+    output["name"] = self.name
+    output["type_path"] = self.type_path
+    output["arg_names"] = self.arg_names
+    output["arg_kw_values"] = []
+    for arg_kw_value in self.arg_kw_values {
+        output["arg_kw_values"].add(arg_kw_value.as_json_obj())
+    }
+    return output
+}
+
+func parse(tokens, pos, msgs, project_file=none) {
+    var stmt = new FuncStmt()
+    var tokens_len = tokens.len
+    var startpos = pos
+
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_KEYWORD or
+            tokens[pos].str != "func" {
+        return later none
+    }
+    pos += 1
+
+    # Bail with error if no module path follows at all:
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_IDENT {
+        msgs.add(new msg.FileMsg(
+            "Unexpected " + token.describe_token_at(tokens, pos) +
+            ", expected identifier (T_IDENT) specifying "
+            "'func' name.",
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+        var skiplen = token.get_naive_statement_len(
+            tokens, startpos, bracket_depth=0
+        )
+        assert(skiplen > 0)
+        var invalid_st = new invalid_stmt.InvalidStmt(
+            skiplen
+        )
+        invalid_st.line = token.get_line(tokens, startpos)
+        invalid_st.col = token.get_col(tokens, startpos)
+        return invalid_st
+    }
+    stmt.name = tokens[pos + 1].str
+    pos += 1
+
+    # Extract components of type prefix, if any:
+    while pos + 1 <= tokens_len and
+            tokens[pos].kind == token.T_DOT and
+            tokens[pos + 1].kind == token.T_IDENT {
+        if stmt.type_path == none {
+            stmt.type_path = []
+        }
+        stmt.type_path.add(stmt.name)
+        stmt.name = tokens[pos + 1].str
+        pos += 2
+    }
+
+    # Now we must have either '(' for arguments, or '{' for code block:
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_BRACKET or
+            {"(", "{"}.has(tokens[pos].str) {
+        msgs.add(new msg.FileMsg(
+            "Unexpected " + token.describe_token_at(tokens, pos) +
+            ", expected identifier (T_IDENT) specifying "
+            "'func' name.",
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+        var skiplen = token.get_naive_statement_len(
+            tokens, pos, bracket_depth=0
+        )
+        assert(skiplen > 0)
+        var invalid_st = new invalid_stmt.InvalidStmt(
+            (pos - startpos) + skiplen
+        )
+        invalid_st.line = token.get_line(tokens, startpos)
+        invalid_st.col = token.get_col(tokens, startpos)
+        return invalid_st
+    }
+
+    stmt.token_len = (pos - startpos)
+    return stmt
+}
+

@@ -27,8 +27,9 @@
 
 import uri from core.horse64.org
 
-import compiler.ast.invalid_stmt as invalid_stmt
+import compiler.ast.func_stmt as func_stmt
 import compiler.ast.import_stmt as import_stmt
+import compiler.ast.invalid_stmt as invalid_stmt
 import compiler.msg as msg
 import compiler.token as token
 
@@ -50,8 +51,9 @@ type TreeNode {
 }
 
 enum NodeKind {
-    N_STMT_INVALID,
+    N_STMT_FUNC,
     N_STMT_IMPORT,
+    N_STMT_INVALID,
 }
 
 func TreeNode.as_json_obj {
@@ -103,7 +105,8 @@ func ASTResult.as_json_obj {
 }
 
 var parse_funcs = [
-    import_stmt.parse
+    func_stmt.parse,
+    import_stmt.parse,
 ]
 
 func parse_statement(
@@ -173,7 +176,7 @@ func parse_to_ast(
     } else {
         # Extracted a new statement.
         result.nodes.add(stmt)
-        pos += stmt.tokens_len
+        pos += stmt.token_len
     }
 
     if pos > tokens.len {
