@@ -62,6 +62,7 @@ func TreeNode.as_json_obj {
         "kind"-> NodeKind.num_label(self.kind),
         "line"-> self.line,
         "col"-> self.col,
+        "token_len"-> self.token_len,
     }
     for child in self.children {
         output["children"].add(child.as_json_obj())
