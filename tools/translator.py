@@ -1705,14 +1705,20 @@ def translate(s, sc):
                 assert(sublist_index(condition, [".", "len"]) < 0)
                 bracket_depth = 0
                 while (i < len(statement) and
-                        statement[i] != "}" or bracket_depth > 0):
+                        (statement[i] != "}" or bracket_depth > 0)):
                     if statement[i] in {"{", "(", "["}:
                         bracket_depth += 1
                     elif statement[i] in {"}", ")", "]"}:
                         bracket_depth -= 1
                     i += 1
-                assert(i < len(statement) and
-                    statement[i] == "}")
+                if (i >= len(statement) or
+                        statement[i] != "}"):
+                    raise ValueError("broken " +
+                        str(statement[j]) +
+                        " in module " +
+                        sc.module_name + ("" if sc.package_name is None
+                        else " (pkg: " + sc.package_name + ")") +
+                        " without properly closing code block")
                 content = statement[
                     begin_content_idx:i
                 ]
