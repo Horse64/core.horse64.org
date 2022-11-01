@@ -26,7 +26,7 @@
 
 
 import confparse from core.horse64.org
-import textformat from core.horse64.org
+import textfmt from core.horse64.org
 
 
 func test_configs {
@@ -34,7 +34,7 @@ func test_configs {
 
     result = confparse.parse_conf_str(
                 allow_multiline=yes, allow_multiassign=yes,
-                error_on_mistakes=yes, textformat.outdent("
+                error_on_mistakes=yes, ("
         # This is a test config file
         [mysection]
         abc.cde = 1 2 3 4
@@ -46,13 +46,13 @@ func test_configs {
 
     result = confparse.parse_conf_str(
         allow_multiline=yes, allow_multiassign=yes,
-        error_on_mistakes=yes, textformat.outdent("
+        error_on_mistakes=yes, "
             # This is a test config file
             [mysection]
             abc.cde = 1 2 3 4
                 aciaeojre
             "
-    ))
+    )
     assert(result.has("mysection"))
     assert(result["mysection"].has("abc.cde"))
     assert(result["mysection"]["abc.cde"] == "1 2 3 4 aciaeojre")
@@ -62,14 +62,14 @@ func test_configs {
         # Expected to error since...
         result = confparse.parse_conf_str(
             allow_multiline=yes, allow_multiassign=yes,
-            error_on_mistakes=yes, textformat.outdent("
+            error_on_mistakes=yes, "
                 [mysection]
                 abc.cde = 1 2 3 4
 
                     aciaeojre
                     # (...the blank line above breaks multiline)
                 "
-        ))
+        )
     } rescue confparse.ConfParseError {
         haderror = yes
     }
@@ -80,13 +80,13 @@ func test_configs {
         # Should also error since...
         result = confparse.parse_conf_str(
             allow_multiline=yes, allow_multiassign=yes,
-            error_on_mistakes=yes, textformat.outdent("
+            error_on_mistakes=yes, "
                 [mysection]
                 abc.cde = 1 2 3 4
                 # (...this outdented line stops multiline too.)
                     aciaeojre
                 "
-        ))
+        )
     } rescue confparse.ConfParseError {
         haderror = yes
     }
@@ -94,13 +94,13 @@ func test_configs {
 
     result = confparse.parse_conf_str(
         allow_multiline=yes, allow_multiassign=yes,
-        error_on_mistakes=yes, textformat.outdent("
+        error_on_mistakes=yes, "
             [mysection]
             abc.cde = 1 2 3 4
                 # Should work, same indent! Good multiline!
                 aciaeojre
             "
-    ))
+    )
     assert(result.has("mysection"))
     assert(result["mysection"].has("abc.cde"))
     assert(result["mysection"]["abc.cde"] == "1 2 3 4 aciaeojre")
@@ -110,14 +110,14 @@ func test_configs {
         # This should error since...
         result = confparse.parse_conf_str(
             allow_multiline=yes, allow_multiassign=yes,
-            error_on_mistakes=yes, textformat.outdent("
+            error_on_mistakes=yes, "
                 [mysection]
                 abc.cde = 1 2 3 4
                     aciaeojre
                   earijoaeri
                   # (...we changed the indent!)
                 "
-        ))
+        )
     } rescue confparse.ConfParseError {
         haderror = yes
     }
@@ -125,13 +125,13 @@ func test_configs {
 
     result = confparse.parse_conf_str(
         allow_multiline=yes, allow_multiassign=yes,
-        error_on_mistakes=yes, textformat.outdent("
+        error_on_mistakes=yes, "
             [mysection]
             abc.cde = 1 2 3 4
                 def = hello=
             # The equals assign should make this not multiline.
             "
-    ))
+    )
     assert(result.has("mysection"))
     assert(result["mysection"].has("abc.cde"))
     assert(result["mysection"]["abc.cde"] == "1 2 3 4")
@@ -139,13 +139,13 @@ func test_configs {
 
     result = confparse.parse_conf_str(
         allow_multiline=yes, allow_multiassign=yes,
-        error_on_mistakes=yes, textformat.outdent("
+        error_on_mistakes=yes, "
             [mysection]
             abc.cdkk = 1 2 3 4
                 def == a = b
             # A double equals doesn't count! Multiline!
             "
-    ))
+    )
     assert(result.has("mysection"))
     assert(result["mysection"].has("abc.cdkk"))
     assert(result["mysection"]["abc.cdkk"] ==

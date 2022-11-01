@@ -29,7 +29,7 @@ import math from core.horse64.org
 import path from core.horse64.org
 import process from core.horse64.org
 import system from core.horse64.org
-import textformat from core.horse64.org
+import textfmt from core.horse64.org
 
 
 type _ArgumentInfo {
@@ -456,7 +456,7 @@ func get_usage_text(options) {
 
     # Output program description if any:
     if options.description != none {
-        output += textformat.wrap(
+        output += textfmt.wrap(
             options.description, 79
         ) + "\n\n"
     }
@@ -487,7 +487,7 @@ func get_usage_text(options) {
                     2, indent_target_len - arg.name.len
                 ))
                 var spaces_after_wrap = " ".repeat(indent_target_len)
-                var wrapped = textformat.wrap(
+                var wrapped = textfmt.wrap(
                     "   " + arg.name.replace(" ", "_") +
                     (if arg.description != none (spaces + arg.description)
                     else ("")), 79,
@@ -535,7 +535,7 @@ func get_usage_text(options) {
         if switch_desc_map.has(switch_name) {
             switch_description = switch_desc_map[switch_name]
         }
-        var wrapped = textformat.wrap(
+        var wrapped = textfmt.wrap(
             "   " + switch_name +
             (if switch_description != none
                 (spaces + switch_description)

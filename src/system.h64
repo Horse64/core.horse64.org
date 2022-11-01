@@ -26,7 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import math from core.horse64.org
-import textformat from core.horse64.org
+import textfmt from core.horse64.org
 
 
 func program_license_text(
@@ -47,7 +47,7 @@ func program_license_text(
         }
         output += side_dashes + " " + license.file_name +
             " " + side_dashes + "\n"
-        output += textformat.wrap(license.text.trim(" \r\n\t"),
+        output += textfmt.wrap(license.text.trim(" \r\n\t"),
             layout_width) + "\n"
     }
     return output
