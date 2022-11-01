@@ -613,18 +613,19 @@ def _uri_escape_path(v):
     return urllib.parse.quote(v)
 
 
-def _uri_normalize(v):
+def _uri_normalize(v, guess_nonfiles=True):
     v = str(v + "")
-    if _looks_like_uri(v):
-        if "://" not in v:
-            target_part = v
-            resource_part = "/"
-            if "/" in v:
-                resource_part = "/" + v.partition("/")[2]
-                target_part = v.partition("/")[0]
-            v = ("https://" + target_part +
-                urllib.parse.quote(resource_part))
-    else:
+    if (guess_nonfiles and
+            _looks_like_uri(v) and
+            "://" not in v):
+        target_part = v
+        resource_part = "/"
+        if "/" in v:
+            resource_part = "/" + v.partition("/")[2]
+            target_part = v.partition("/")[0]
+        v = ("https://" + target_part +
+            urllib.parse.quote(resource_part))
+    elif "://" not in v or not _looks_like_uri(v):
         if platform.system().lower() == "windows":
             v = (os.path.normpath(v.replace("\\", "/")).
                 replace("\\", "/"))

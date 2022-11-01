@@ -296,11 +296,11 @@ remapped_uses = {
         "uri.escape_path":
             "_translator_runtime_helpers._uri_escape_path",
         "uri.normalize":
-            "(lambda v: _translator_runtime_helpers." +
-            "_uri_normalize(v))",
+            "_translator_runtime_helpers." +
+            "_uri_normalize",
         "uri.from_disk_path":
-            "(lambda v: _translator_runtime_helpers." +
-            "_file_uri_from_path(v))"
+            "_translator_runtime_helpers." +
+            "_file_uri_from_path"
     },
     "wildcard@core.horse64.org": {
         "wildcard.match":
