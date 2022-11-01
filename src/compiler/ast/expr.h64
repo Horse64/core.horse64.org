@@ -1,0 +1,406 @@
+# @module compiler.ast.expr
+# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import compiler.ast as ast
+import compiler.msg as msg
+import compiler.token as token
+
+
+enum ContainerKind {
+    C_SET,
+    C_MAP,
+    C_VEC,
+    C_LIST,
+}
+
+func container_kind_to_name(k) {
+    if k == C_SET {
+        return "set"
+    } elseif k == C_MAP {
+        return "map"
+    } elseif k == C_VEC {
+        return "vec"
+    } elseif k == C_LIST {
+        return "list"
+    }
+    throw new ValueError("Unexpected container kind.")
+}
+
+type ContainerExpr extends ast.TreeNode {
+    ## @type ContainerKind
+    var kind
+    var values
+}
+
+func ContainerExpr.init {
+    base.init()
+    self.value = ast.N_EXPR_CONTAINER
+}
+
+type InvalidExpr extends ast.TreeNode {
+}
+
+func InvalidExpr.init(tlen) {
+    base.init()
+    self.value = ast.N_EXPR_INVALID
+    self.tokens_len = tlen
+}
+
+type IdentExpr extends ast.TreeNode {
+    var label
+}
+
+func IdentExpr.init {
+    base.init()
+    self.kind = ast.N_EXPR_IDENT
+}
+
+type LiteralExpr extends ast.TreeNode {
+    var value
+}
+
+func LiteralExpr.init {
+    base.init()
+    self.kind = ast.N_EXPR_LIT
+}
+
+func token_continues_expr(t) {
+    if t.kind == T_BRACKET {
+        return (t.str == "(" or t.str == "[")
+    }
+    if {T_MATH, T_COMPARE, T_DOT}.has(t.kind) {
+        return yes
+    }
+    if t.kind == T_BOOLCOMP and t.str != "not" {
+        return yes
+    }
+    return no
+}
+
+func parse_container_entry(
+        tokens, pos, msgs, container_kind,
+        container_start_line=none, container_start_col=none,
+        project_file=none
+        ) {
+    var expr_1 = parse_expression(
+        tokens, pos, msgs, project_file=project_file
+    ) later:
+
+    await expr_1
+    if expr1 == none {
+        return none
+    }
+    if container_kind != C_MAP and container_kind != C_VEC {
+        return [expr1, none]
+    }
+    pos += expr_1.tokens_len
+    if pos >= tokens.len or (container_type == C_MAP and
+            tokens[pos].kind != C_MAPARROW) or
+            (container_type == C_VEC and
+            tokens[pos].kind != C_COLON) {
+        var expected = "'->' (T_MAPARROW) for map"
+        if container_type == C_VEC {
+            expected = "':' (T_COLON) for vector"
+        }
+        msgs.add(new FileMsg(
+            "Unexpected " + token.describe_token_at(
+                tokens, pos) +
+            ", expected " + expected + " "
+            "in line " +
+            container_start_line.as_str() +
+            ", col " +
+            container_start_col.as_str() + ".",
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+        return none
+    }
+    pos += 1
+    var expr2 = parse_expression(
+        tokens, pos, msgs, project_file=project_file
+    ) later:
+
+    await expr2
+    return [expr1, expr2]
+}
+
+func parse_expression(
+        tokens, pos, msgs, project_file=none
+        ) {
+    var inner_expr = parse_expression_unwrapped(
+        tokens, pos, msgs, project_file=project_file
+    ) later:
+
+    await inner_expr
+    if inner_expr == none {
+        return inner_expr
+    }
+    pos += inner_expr.tokens_len
+    if pos <= tokens.len and token_continues_expr(tokens[pos]) {
+        var wrapped_expr = parse_expression_unwrapped(
+            tokens, pos, msgs, project_file=project_file,
+            left_hand=inner_expr
+        ) later:
+
+        await wrapped_expr
+        return wrapped_expr
+    }
+}
+
+func parse_expression_unwrapped(
+        tokens, pos, msgs, project_file=none,
+        left_hand=none
+        ) {
+    var startpos = pos
+    var startline = token.get_line(line, pos)
+    var startcol = token.get_col(line, startpos)
+    var tokens_len = tokens.len
+    if pos > tokens_len {
+        return none
+    }
+    if left_hand == none {
+        # Try to parse it as a single standalone expression
+        # (which isn't combined by operators).
+
+        # First, handle the most trivial literals:
+        if tokens[pos].kind == T_STR {
+            var node = LiteralExpr()
+            node.value = token.parse_value(tokens[pos])
+            node.tokens_len = 1
+            node.line = startline
+            node.col = startcol
+            while pos + 1 <= tokens_len and
+                    tokens[pos + 1].kind == T_STR {
+                node.value += token.parse_value(tokens[pos + 1])
+                node.tokens_len += 1
+            }
+            return node
+        } elseif tokens[pos].kind == T_BYTES {
+            var node = LiteralExpr()
+            node.value = token.parse_value(tokens[pos])
+            node.tokens_len = 1
+            node.line = startline
+            node.col = startcol
+            while pos + 1 <= tokens_len and
+                    tokens[pos + 1].kind == T_BYTES {
+                node.value += token.parse_value(tokens[pos + 1])
+                node.tokens_len += 1
+            }
+            return node
+        } elseif {T_NUM, T_BOOL, T_NONE}.has(tokens[pos].kind) {
+            var node = LiteralExpr()
+            node.value = token.parse_value(tokens[pos])
+            node.tokens_len = 1
+            node.line = startline
+            node.col = startcol
+            return node
+        } elseif tokens[pos].kind == T_IDENT {
+            var node = IdentExpr()
+            node.label = tokens[pos].str
+            node.tokens_len = 1
+            node.line = startline
+            node.col = startcol
+            return node
+        }
+        # Handle bracketed expressions, like `(1 + 2)`:
+        if tokens[pos].kind == T_BRACKET and
+                tokens[pos].str == "(" {
+            pos += 1
+            var inner_expr = parse_expression(
+                tokens, pos, msgs, project_file=none,
+                left_hand=none
+            ) later:
+
+            await inner_expr
+            if inner_expr == none {
+                msgs.add(new FileMsg(
+                    "Unexpected " + token.describe_token_at(
+                        tokens, pos) +
+                    ", expected any inner nested expression "
+                    "following '(' in line " +
+                    startline.as_str() +
+                    ", col " +
+                    startcol.as_str() + ".",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+                inner_expr = new InvalidExpression(1)
+                inner_expr.line = startline
+                inner_expr.col = startcol
+            }
+            pos += inner_expr.tokens_len
+            if pos >= tokens_len or
+                    tokens[pos].kind != T_BRACKET or
+                    tokens[pos].str != ")" {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected " + token.describe_token_at(
+                        tokens, pos) +
+                    ", expected ')' (T_BRACKET) closing the "
+                    "opening bracket '(' in line " +
+                    startline.as_str() + 
+                    ", col " +
+                    startcol.as_str() + ".",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+            } else {
+                pos += 1
+            }
+            inner_expr.tokens_len = (pos - start_pos)
+            return inner_expr
+        }
+        # Handle container constructors (map, list, set, vector):
+        if tokens[pos].kind == T_BRACKET and
+                {"{", "["}.has(tokens[pos].str) {
+            var openbracket = tokens[pos].str
+            pos += 1
+            var node = ContainerExpr()
+            node.line = startline
+            node.col = startcol
+
+            var ckind = C_LIST
+            if openbracket == "{" {
+                ckind = C_SET
+            }
+            var closebracket = reverse_brackets(tokens[pos].str)
+
+            # Handle special cases: [], {}, [,], {,}, {->}
+            if pos <= tokens.len and (
+                    tokens[pos].kind == T_COMMA or
+                    (tokens[pos].kind == T_BRACKET and
+                     tokens[pos].str == closebracket) or
+                    (openbracket == "{" and
+                     tokens[pos].kind == T_MAPASSIGN)) {
+                if openbracket == "{" {
+                    if (tokens[pos].kind != T_MAPASSIGN) {
+                        node.kind = C_SET
+                    } else {
+                        node.kind = C_MAP
+                    }
+                } else {
+                    node.kind = C_LIST
+                }
+                pos += 1
+                if pos > tokens.len or
+                        tokens[pos].kind != T_BRACKET or
+                        tokens[pos].str != closebracket {
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected " + token.describe_token_at(
+                            tokens, pos) +
+                        ", expected ')' (T_BRACKET) closing the "
+                        "opening bracket '" +
+                        openbracket + "' in line " +
+                        startline.as_str() +
+                        ", col " +
+                        startcol.as_str() + ".",
+                        source_file=project_file,
+                        line=token.get_line(tokens, pos),
+                        col=token.get_col(tokens, pos),
+                    ))
+                } else {
+                    pos += 1
+                }
+                if node.is_set {
+                    node.value = {}
+                } elseif node.is_map {
+                    node.value = {->}
+                } else {
+                    node.value = []
+                }
+                return node
+            }
+
+            # First, determine what type of container this is:
+            var bdepth = 0
+            var i = pos
+            while i <= tokens_len and
+                    (bdepth > 0 or
+                    tokens[i].kind != T_BRACKET or
+                    tokens[i].str != closebracket) {
+                if tokens[i].kind == T_BRACKET {
+                    if {"(", "[", "{"}.has(tokens[i].str) {
+                        bdepth += 1
+                    } else {
+                        bdepth = math.max(0, bdepth - 1)
+                    }
+                }
+                if bdepth > 0 {
+                    i += 1
+                    continue
+                }
+                if tokens[i].kind == T_MAPARROW and
+                        openbracket == "{" {
+                    ckind = C_MAP
+                    break
+                } elseif tokens[i].kind == T_COLON and
+                        openbracket == "[" {
+                    ckind = C_VEC
+                    break
+                } elseif tokens[i].kind == T_COMMA {
+                    break
+                }
+                i += 1
+            }
+
+            var next_expr = parse_container_entry(
+                tokens, pos, msgs, ckind,
+                container_start_line=startline,
+                container_start_col=startcol,
+                project_file=project_file
+            ) later:
+
+            await next_expr
+            if next_expr == none {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected " + token.describe_token_at(
+                        tokens, pos) +
+                    ", expected next entry for " +
+                    container_kind_to_name(c_kind) +
+                    " in line " +
+                    startline.as_str() +
+                    ", col " +
+                    startcol.as_str() + ".",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+                return none
+            }
+            if ckind == C_MAP or ckind == C_VEC {
+                node.subexprs.add(next_expr[1])
+                node.subexprs.add(next_expr[2])
+            } else {
+                node.subexprs.add(next_expr[1])
+            }
+        }
+        return none
+    }
+}
+

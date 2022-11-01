@@ -37,20 +37,29 @@ import compiler.token as token
 type TreeNode {
     var kind
 
-    ## @type [TreeNode]
-    var children = []
+    var sibling_pos = 1
 
-    ## types (TreeNode, none)
+    ## @types (TreeNode, none)
     var parent = none
 
-    var sibling_pos = 1
+    ## @type [TreeNode]
+    var subexprs = []
 
     var line, col
 
     var token_len
 }
 
+type StmtNode extends TreeNode {
+    ## @type [[StmtNode]]
+    var subblocks = []
+}
+
 enum NodeKind {
+    N_EXPR_CONTAINER,
+    N_EXPR_IDENT,
+    N_EXPR_INVALID,
+    N_EXPR_LIT,
     N_STMT_FUNC,
     N_STMT_IMPORT,
     N_STMT_INVALID,
@@ -105,7 +114,7 @@ func ASTResult.as_json_obj {
     return output
 }
 
-var parse_funcs = [
+var stmt_parse_funcs = [
     func_stmt.parse,
     import_stmt.parse,
 ]
@@ -113,7 +122,7 @@ var parse_funcs = [
 func parse_statement(
         tokens, pos, msgs, project_file=none
         ) {
-    var remaining_funcs = parse_funcs.copy()
+    var remaining_funcs = stmt_parse_funcs.copy()
 
     var next_func = remaining_funcs.pop()
     var stmt = next_func(tokens, pos, msgs, project_file=project_file)
