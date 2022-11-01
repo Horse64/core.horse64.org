@@ -710,6 +710,19 @@ func as_escaped_code_string(s, quote_type='"') {
 ## @param auto_recovery bool Whether to try to auto repair after
 ##     errors to maybe still return a meaningful result. This may
 ##     improve error output but risks false positive later errors.
+##     You should leave this enabled/set to @{yes} unless you
+##     have a good reason not to, since it will improve error
+##     message diagnostics as well.
+## @param keep_whitespace bool Whether to keep whitespace tokens
+##     (when set to @{yes})
+##     or whether to discard them (set to @{no}, the default).
+## @param keep_comments bool Whether to keep comment tokens
+##     (when set to @{yes})
+##     or whether to discard them (set to @{no}, the default).
+## @param internal_labels bool If set to @{yes}, identifiers may
+##     start with a `$` which is invalid syntax except for
+##     intermediate code transforms used internally. Defaults to
+##     no, don't change this unless you're certain.
 func tokenize_str(
         str, project_file=none,
         keep_whitespace=no,
@@ -1228,7 +1241,9 @@ func tokenize_str(
 
 func tokenize_from_fileobj (
         fobj, project_file=none,
-        keep_whitespace=no) {
+        keep_whitespace=no,
+        keep_comments=no
+        ) {
     var result = new TokenizeResult()
     var contents = fobj.read(
         amount=limit.max_source_file_size + 1
@@ -1247,28 +1262,40 @@ func tokenize_from_fileobj (
     }
     var result = tokenize_str(
         contents, project_file=project_file,
-        keep_whitespace=keep_whitespace
+        keep_whitespace=keep_whitespace,
+        keep_comments=keep_comments
     )
     return result
 }
 
-func tokenize_file(
-        path, project_file=none,
-        keep_whitespace=no
-        ) {
-    var result = tokenize_file_by_uri(
-        uri.from_disk_path(path), project_file=project_file,
-        keep_whitespace=keep_whitespace
-    ) later:
-
-    await result
-    return result
-}
-
+## @func tokenize_file_by_uri
+## Parse the file referenced to by the URI to a @{token result|TokenResult}.
+##
+## @param source_uri str The URI of the target file.
+## @param keep_whitespace bool Whether to keep whitespace tokens
+##     (when set to @{yes})
+##     or whether to discard them (set to @{no}, the default).
+## @param keep_comments bool Whether to keep comment tokens
+##     (when set to @{yes})
+##     or whether to discard them (set to @{no}, the default).
+## @param project_file (none, project.ProjectFile) If the string
+##   originates from a known @{project file|project.ProjectFile},
+##   specify it here to be set in the resulting diagnostic messages.
+## @param default_to_diskpath bool If set to @{no} (default), a string
+##   that isn't clearly an URI like `"example.com:443"` will be smartly
+##   guessed as either remote or disk path and converted to a full URI.
+##   If set to @{yes}, anything not clearly an URI will always be
+##   considered a disk path and converted to a `file://` URI.
+## @returns TokenResult The resulting tokens and diagnostic messages,
+##   like parse errors or warnings.
 func tokenize_file_by_uri(
-        source_uri, project_file=none, keep_whitespace=no
+        source_uri, project_file=none, keep_whitespace=no,
+        keep_comments=no,
+        default_to_diskpath=no
         ) {
-    source_uri = uri.normalize(source_uri)
+    source_uri = uri.normalize(
+        source_uri, guess_nonfiles=(not default_to_diskpath)
+    )
     var resource = uri.to_file_or_vfs_path(source_uri)
     var is_vfs = source_uri.lower().startswith("vfs://")
     if project_file == none {
@@ -1280,7 +1307,8 @@ func tokenize_file_by_uri(
     do {
         var result = tokenize_from_fileobj(fileobj,
             project_file=project_file,
-            keep_whitespace=keep_whitespace) later:
+            keep_whitespace=keep_whitespace,
+            keep_comments=keep_comments) later:
 
         await result
         return result

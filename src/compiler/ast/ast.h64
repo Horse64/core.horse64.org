@@ -25,6 +25,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import uri from core.horse64.org
 
 import compiler.ast.import_stmt as import_stmt
 import compiler.msg as msg
@@ -134,5 +135,102 @@ func parse_to_ast(
         tokens, pos, result.msgs,
         project_file=project_file
     ) later repeat
+}
+
+func _tokenize_this_for_ast(
+        source, project_file=none, source_is_uri=no
+        ) {
+    if not source_is_uri {
+        var tresult = token.tokenize_str(
+            source, project_file=project_file, keep_whitespace=no
+        )
+        return tresult
+    } else {
+        var tresult = token.tokenize_file_by_uri(
+            source, project_file=project_file,
+            keep_whitespace=no
+        ) later:
+
+        await tresult
+        return tresult
+    }
+}
+
+func _parse_tokens_to_ast_ex(
+        tokens_source, project_file=project_file, source_is_uri=no
+        ) {
+    var tresult = _tokenize_this_for_ast(
+        tokens_source, project_file=project_file,
+        source_is_uri=source_is_uri
+    )
+    later:
+
+    await tresult
+    for m in tresult.msgs {
+        if m.kind == msg.M_ERROR {
+            var aresult = new ASTResult()
+            aresult.project_file = tresult.project_file
+            aresult.msgs = tresult.msgs
+            return aresult
+        }
+    }
+    var aresult = parse_to_ast(
+        tresult.tokens,
+        project_file=tresult.project_file
+    ) later:
+
+    await aresult
+    aresult.msgs = tresult.msgs + aresult.msgs
+    return aresult
+}
+
+## @func parse_str_to_ast
+## Parse the given code string to an @{Abstract Syntax
+## Tree result|ASTResult}.
+##
+## @param codestr str The code @{str} containing Horse64 code.
+## @param project_file (none, project.ProjectFile) If the string
+##   originates from a known @{project file|project.ProjectFile},
+##   specify it here to be set in the resulting diagnostic messages.
+## @returns ASTResult The resulting syntax tree and diagnostic messages,
+##   like parse errors or warnings.
+func parse_str_to_ast(
+        codestr, project_file=none
+        ) {
+    var result = _parse_tokens_to_ast_ex(
+        codestr, project_file=project_file, source_is_uri=no
+    ) later:
+
+    await result
+    return result
+}
+
+## @func parse_file_to_ast_by_uri
+## Parse the file referenced to by the URI to an @{Abstract Syntax
+## Tree result|ASTResult}.
+##
+## @param fileuri str The URI of the target file.
+## @param project_file (none, project.ProjectFile) If the string
+##   originates from a known @{project file|project.ProjectFile},
+##   specify it here to be set in the resulting diagnostic messages.
+## @param default_to_diskpath bool If set to @{no} (default), a string
+##   that isn't clearly an URI like `"example.com:443"` will be smartly
+##   guessed as either remote or disk path and converted to a full URI.
+##   If set to @{yes}, anything not clearly an URI will always be
+##   considered a disk path and converted to a `file://` URI.
+## @returns ASTResult The resulting syntax tree and diagnostic messages,
+##   like parse errors or warnings.
+func parse_file_to_ast_by_uri(
+        fileuri, project_file=none, default_to_diskpath=no
+        ) {
+    var result = _parse_tokens_to_ast_ex(
+        uri.normalize(fileuri,
+        guess_nonfiles=(not default_to_diskpath)),
+        project_file=project_file,
+        source_is_uri=yes
+    ) later:
+
+    await result
+    return result
 }
 

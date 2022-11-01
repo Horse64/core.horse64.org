@@ -55,9 +55,28 @@ func tokenize_target_from_args(args) {
     } else {
         var src_path = args["source file"]
 
-        var tresult = compiler.token.tokenize_file(
+        var tresult = compiler.token.tokenize_file_by_uri(
             src_path, project_file=none,
-            keep_whitespace=no
+            keep_whitespace=no,
+            default_to_diskpath=yes,
+        ) later:
+
+        await tresult
+        return tresult
+    }
+}
+
+func parse_ast_target_from_args(args) {
+    if args["--code"] != none {
+        var tresult = compiler.ast.parse_str_to_ast(
+            args["--code"]
+        )
+        return tresult
+    } else {
+        var src_path = args["source file"]
+
+        var tresult = compiler.ast.parse_file_to_ast_by_uri(
+            src_path, default_to_diskpath=yes
         ) later:
 
         await tresult
@@ -66,14 +85,10 @@ func tokenize_target_from_args(args) {
 }
 
 func show_ast_result_to_terminal(
-        tresult, aresult, program_name=none, for_script=no
+        aresult, program_name=none, for_script=no
         ) {
-    var total_msgs = tresult.msgs.copy()
-    if aresult != none {
-        total_msgs += aresult.msgs
-    }
     var had_error = no
-    for m in total_msgs {
+    for m in aresult.msgs {
         if m.kind == msg.M_ERROR {
             had_error = yes
         }
@@ -81,9 +96,7 @@ func show_ast_result_to_terminal(
     if for_script {
         var output = {
             "error": none,
-            "result": if aresult != none
-                (aresult.as_json_obj()) else
-                (tresult.as_json_obj()),
+            "result": aresult.as_json_obj(),
         }
         if had_error {
             output["error"] = "Code has errors."
@@ -93,7 +106,7 @@ func show_ast_result_to_terminal(
         print(json.dump(output))
         return 0
     } else {
-        for m in total_msgs {
+        for m in aresult.msgs {
             print(m.as_terminal_str(prefix=program_name))
         }
         if not had_error {
@@ -193,29 +206,12 @@ func actionparser_compile(args) {
         }
     } elseif result.args["--stage"] == "ast" {
         var had_error = no
-        var tresult = tokenize_target_from_args(result.args)
+        var aresult = parse_ast_target_from_args(result.args)
         later:
-
-        await tresult
-        for m in tresult.msgs {
-            if m.kind == msg.M_ERROR {
-                had_error = yes
-            }
-        }
-        if had_error {
-            return show_ast_result_to_terminal(
-                tresult, none, program_name=program_name,
-                for_script=result.args["--for-script"],
-            )
-        }
-        var aresult = compiler.ast.parse_to_ast(
-            tresult.tokens,
-            project_file=tresult.project_file
-        ) later:
 
         await aresult
         return show_ast_result_to_terminal(
-            tresult, aresult,
+            aresult,
             program_name=program_name,
             for_script=result.args["--for-script"]
         )
