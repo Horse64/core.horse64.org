@@ -91,7 +91,7 @@ func parse(tokens, pos, msgs, project_file=none) {
         invalid_st.col = token.get_col(tokens, startpos)
         return invalid_st
     }
-    stmt.name = tokens[pos + 1].str
+    stmt.name = tokens[pos].str
     pos += 1
 
     # Extract components of type prefix, if any:
@@ -109,11 +109,11 @@ func parse(tokens, pos, msgs, project_file=none) {
     # Now we must have either '(' for arguments, or '{' for code block:
     if pos > tokens_len or
             tokens[pos].kind != token.T_BRACKET or
-            {"(", "{"}.has(tokens[pos].str) {
+            not {"(", "{"}.has(tokens[pos].str) {
         msgs.add(new msg.FileMsg(
             "Unexpected " + token.describe_token_at(tokens, pos) +
-            ", expected identifier (T_IDENT) specifying "
-            "'func' name.",
+            ", expected '(' or '{' (T_BRACKET) for "
+            "arguments or code block.",
             source_file=project_file,
             line=token.get_line(tokens, pos),
             col=token.get_col(tokens, pos),
