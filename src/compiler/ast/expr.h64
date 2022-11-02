@@ -70,6 +70,24 @@ func InvalidExpr.init(tlen) {
     self.tokens_len = tlen
 }
 
+type UnopExpr extends ast.TreeNode {
+    var optoken
+}
+
+func UnopExpr.init {
+    base.init()
+    self.kind = ast.N_EXPR_UNOP
+}
+
+type BinopExpr extends ast.TreeNode {
+    var optoken
+}
+
+func UnopExpr.init {
+    base.init()
+    self.kind = ast.N_EXPR_BINOP
+}
+
 type IdentExpr extends ast.TreeNode {
     var label
 }
@@ -174,12 +192,15 @@ func parse_expression(
 
 func parse_expression_unwrapped(
         tokens, pos, msgs, project_file=none,
-        left_hand=none
+        left_hand=none, max_pos=none
         ) {
     var startpos = pos
     var startline = token.get_line(line, pos)
     var startcol = token.get_col(line, startpos)
     var tokens_len = tokens.len
+    if max_pos != none {
+        tokens_len = math.min(max_pos, tokens_len)
+    }
     if pos > tokens_len {
         return none
     }
@@ -197,32 +218,32 @@ func parse_expression_unwrapped(
             while pos + 1 <= tokens_len and
                     tokens[pos + 1].kind == T_STR {
                 node.value += token.parse_value(tokens[pos + 1])
-                node.tokens_len += 1
+                node.token_len += 1
             }
             return node
         } elseif tokens[pos].kind == T_BYTES {
             var node = LiteralExpr()
             node.value = token.parse_value(tokens[pos])
-            node.tokens_len = 1
+            node.token_len = 1
             node.line = startline
             node.col = startcol
             while pos + 1 <= tokens_len and
                     tokens[pos + 1].kind == T_BYTES {
                 node.value += token.parse_value(tokens[pos + 1])
-                node.tokens_len += 1
+                node.token_len += 1
             }
             return node
         } elseif {T_NUM, T_BOOL, T_NONE}.has(tokens[pos].kind) {
             var node = LiteralExpr()
             node.value = token.parse_value(tokens[pos])
-            node.tokens_len = 1
+            node.token_len = 1
             node.line = startline
             node.col = startcol
             return node
         } elseif tokens[pos].kind == T_IDENT {
             var node = IdentExpr()
             node.label = tokens[pos].str
-            node.tokens_len = 1
+            node.token_len = 1
             node.line = startline
             node.col = startcol
             return node
@@ -254,7 +275,7 @@ func parse_expression_unwrapped(
                 inner_expr.line = startline
                 inner_expr.col = startcol
             }
-            pos += inner_expr.tokens_len
+            pos += inner_expr.token_len
             if pos >= tokens_len or
                     tokens[pos].kind != T_BRACKET or
                     tokens[pos].str != ")" {
@@ -273,7 +294,7 @@ func parse_expression_unwrapped(
             } else {
                 pos += 1
             }
-            inner_expr.tokens_len = (pos - start_pos)
+            inner_expr.token_len = (pos - start_pos)
             return inner_expr
         }
         # Handle container constructors (map, list, set, vector):
@@ -292,7 +313,7 @@ func parse_expression_unwrapped(
             var closebracket = reverse_brackets(tokens[pos].str)
 
             # Handle special cases: [], {}, [,], {,}, {->}
-            if pos <= tokens.len and (
+            if pos <= tokens_len and (
                     tokens[pos].kind == T_COMMA or
                     (tokens[pos].kind == T_BRACKET and
                      tokens[pos].str == closebracket) or
@@ -308,7 +329,7 @@ func parse_expression_unwrapped(
                     node.kind = C_LIST
                 }
                 pos += 1
-                if pos > tokens.len or
+                if pos > tokens_len or
                         tokens[pos].kind != T_BRACKET or
                         tokens[pos].str != closebracket {
                     msgs.add(new msg.FileMsg(
@@ -478,6 +499,111 @@ func parse_expression_unwrapped(
             ) later repeat
         }
         return none
+    }
+    # Handle call, member access, and indexing operators:
+    if lefthand != none and
+            (tokens[pos].kind == T_DOT or
+             (tokens[pos].kind == T_BRACKET and
+              {"(", "["}.has(tokens[pos].str))) {
+        pos += 1  # Go past opening bracket.
+        var node = new BinopExpr()
+        node.line = startline
+        node.col = startcol
+        var inner_expr = parse_expression(
+            tokens, pos, msgs, project_file=none,
+            left_hand=none
+        ) later:
+
+        await inner_expr
+        if inner_expr == none {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(
+                    tokens, pos) +
+                ", expected operand expression following "
+                "binary operator " + token.describe_token_at(
+                    tokens, startpos) + " "
+                "found in line " +
+                startline.as_str() +
+                ", col " +
+                startcol.as_str() + ".",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+        } else {
+            node.subexprs.add(inner_expr)
+            pos += inner_expr.token_len
+            # FIXME: closing bracket handling.
+        }
+        node.token_len = (pos - startpos)
+        return node
+    }
+    # Handle expressions prefixed by unary operators:
+    if lefthand == none and
+            (tokens[pos].kind == T_UNARYMATH or (
+             tokens[pos].kind == T_BOOLCOMP and
+             tokens[pos].str == "not")) {
+        pos += 1  # Go past the unary operator itself.
+        var node = new UnopExpr()
+        node.line = startline
+        node.col = startcol
+        var inner_expr = parse_expression(
+            tokens, pos, msgs, project_file=none,
+            left_hand=none
+        ) later:
+
+        await inner_expr
+        if inner_expr == none {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(
+                    tokens, pos) +
+                ", expected operand expression following "
+                "unary operator " + token.describe_token_at(
+                    tokens, startpos) + " "
+                "found in line " +
+                startline.as_str() +
+                ", col " +
+                startcol.as_str() + ".",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+        } else {
+            node.subexprs.add(inner_expr)
+            pos += inner_expr.token_len
+        }
+        node.token_len = (pos - startpos)
+        return node
+    }
+    # Handle expressions combined by binary operators:
+    if (lefthand != none and (
+             {T_MATH, T_COMPARE}.has(tokens[pos].kind) or
+             (tokens[pos].kind == T_BOOLCOMP and
+              tokens[pos].str != "not"))) {
+        var outer_level_ops_operands = []
+        if lefthand != none {
+            outer_level_ops_operands.add(lefthand)
+        }
+        var outer_level_ops_at = [pos]
+        var bdepth = 0
+        var i = pos + 1
+        while i <= tokens_len {
+            if tokens[i].kind == T_BRACKET {
+                if {"{", "(", "["}.has(tokens[i].str) {
+                    bdepth += 1
+                } else {
+                    bdepth -= 1
+                }
+            } elseif {T_MATH, T_COMPARE, T_BOOLCOMP,
+                    T_UNARYMATH}.has(tokens[i].kind) and
+                    (tokens[i].kind != T_UNARYMATH and
+                     (tokens[i].kind != T_BOOLCOMP or
+                      tokens[i].str != "not")) {
+                outer_level_ops_at.add(i)
+            }
+            i += 1
+        }
+        # FIXME: finish this.
     }
 }
 
