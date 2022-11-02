@@ -138,7 +138,7 @@ func parse_container_entry(
             line=token.get_line(tokens, pos),
             col=token.get_col(tokens, pos),
         ))
-        return none
+        return [expr1, none]
     }
     pos += 1
     var expr2 = parse_expression(
@@ -377,6 +377,7 @@ func parse_expression_unwrapped(
             ) later:
 
             await next_expr
+            var had_fatal_error = yes
             if next_expr == none {
                 msgs.add(new msg.FileMsg(
                     "Unexpected " + token.describe_token_at(
@@ -391,22 +392,29 @@ func parse_expression_unwrapped(
                     line=token.get_line(tokens, pos),
                     col=token.get_col(tokens, pos),
                 ))
-                return none
+                had_fatal_error = yes
             }
-            if ckind == C_MAP or ckind == C_VEC {
-                node.subexprs.add(next_expr[1])
-                node.subexprs.add(next_expr[2])
-                pos += next_expr[1].token_len
-                pos += 1  # -> or : separator
-                pos += next_expr[2].token_len
-            } else {
-                node.subexprs.add(next_expr[1])
-                pos += next_expr[1].token_len
+            if not had_fatal_error {
+                if ckind == C_MAP or ckind == C_VEC {
+                    node.subexprs.add(next_expr[1])
+                    pos += next_expr[1].token_len
+                    pos += 1  # -> or : separator
+                    if next_expr[2] == none {
+                        # Means we had an inner parse error!
+                        had_fatal_error = yes
+                    } else {
+                        node.subexprs.add(next_expr[2])
+                        pos += next_expr[2].token_len
+                    }
+                } else {
+                    node.subexprs.add(next_expr[1])
+                    pos += next_expr[1].token_len
+                }
             }
-            if pos > tokens_len or
+            if not had_fatal_error and (pos > tokens_len or
                     ((tokens[pos].kind != T_BRACKET or
                       tokens[pos].str != close_bracket) and
-                     tokens[pos].kind != T_COMMA) {
+                     tokens[pos].kind != T_COMMA)) {
                 msgs.add(new msg.FileMsg(
                     "Unexpected " + token.describe_token_at(
                         tokens, pos) +
@@ -423,8 +431,40 @@ func parse_expression_unwrapped(
                 ))
                 node.token_len = (pos - startpos)
                 return node
-            } elseif tokens[pos].kind != T_COMMA {
-                node.token_len = (pos - startpos) + 1
+            }
+            if had_fatal_error {
+                # Forward to final closing bracket and abort.
+                bdepth = 0
+                while pos <= tokens_len and
+                        (bdepth > 0 or
+                        tokens[pos].kind != T_BRACKET or
+                        not {")", "]", "}"}.has(tokens[pos].str)) {
+                    if tokens[pos].kind == T_BRACKET {
+                        if {")", "]", "}"}.has(tokens[pos].str) {
+                            bdepth -= 1
+                        } else {
+                            bdepth += 1
+                        }
+                    }
+                    pos += 1
+                }
+                if pos <= tokens_len {
+                    pos += 1  # Go past closing bracket.
+                }
+                node.token_len = (pos - startpos)
+                return node
+            }
+            if tokens[pos].kind != T_COMMA or
+                    (pos + 1 <= tokens_len and
+                    tokens[pos + 1].kind == T_BRACKET and
+                    tokens[pos + 1].str == closingbracket) {
+                # We're at the closing bracket.
+                if tokens[pos].kind == T_COMMA {
+                    pos += 2  # Past ',' and past '}'/']'.
+                } else {
+                    pos += 1  # Past '}'/']'.
+                }
+                node.token_len = (pos - startpos)
                 return node
             }
             pos += 1  # Go past ',' to next entry.
