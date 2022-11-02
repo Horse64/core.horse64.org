@@ -396,9 +396,46 @@ func parse_expression_unwrapped(
             if ckind == C_MAP or ckind == C_VEC {
                 node.subexprs.add(next_expr[1])
                 node.subexprs.add(next_expr[2])
+                pos += next_expr[1].token_len
+                pos += 1  # -> or : separator
+                pos += next_expr[2].token_len
             } else {
                 node.subexprs.add(next_expr[1])
+                pos += next_expr[1].token_len
             }
+            if pos > tokens_len or
+                    ((tokens[pos].kind != T_BRACKET or
+                      tokens[pos].str != close_bracket) and
+                     tokens[pos].kind != T_COMMA) {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected " + token.describe_token_at(
+                        tokens, pos) +
+                    ", expected ',' (T_COMMA) or '" +
+                    close_bracket + "' to resume or end " +
+                    container_kind_to_name(c_kind) +
+                    " started in line " +
+                    startline.as_str() +
+                    ", col " +
+                    startcol.as_str() + ".",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+                node.token_len = (pos - startpos)
+                return node
+            } elseif tokens[pos].kind != T_COMMA {
+                node.token_len = (pos - startpos) + 1
+                return node
+            }
+            pos += 1  # Go past ',' to next entry.
+
+            # Resume with next entry:
+            next_expr = parse_container_entry(
+                tokens, pos, msgs, ckind,
+                container_start_line=startline,
+                container_start_col=startcol,
+                project_file=project_file
+            ) later repeat
         }
         return none
     }
