@@ -530,6 +530,7 @@ func parse_expression_unwrapped(
                 line=token.get_line(tokens, pos),
                 col=token.get_col(tokens, pos),
             ))
+            # FIXME: for '[', '(', advance to closing bracket!
         } else {
             node.subexprs.add(inner_expr)
             pos += inner_expr.token_len
