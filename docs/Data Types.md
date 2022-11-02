@@ -15,5 +15,4 @@ These are the data types available in Horse64:
 | map              | `{"price"-> 5.0}`, `{->}`   | yes     | yes     |
 | set              | `{}`, `{1, 2}`              | yes     | yes     |
 | type             | `new MyCustomType()`        | yes     | yes     |
-|------------------|-----------------------------|---------|---------|
 
