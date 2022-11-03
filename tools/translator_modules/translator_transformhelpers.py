@@ -517,6 +517,54 @@ def line_has_multi_stmts_for_sure(s):
     return False
 
 
+def vec_expr_len_if_any(toks, i):
+    starti = i
+    while i < len(toks) and toks[i].strip(" \t\r\n") == "":
+        i += 1
+    if i >= len(toks) or toks[i] != "[":
+        return None
+    found_colon = False
+    bdepth = 0
+    i += 1
+    while i < len(toks) and (
+            bdepth > 0 or
+            toks[i] != "]"):
+        if bdepth == 0 and toks[i] == "->":
+            return None
+        if bdepth == 0 and toks[i] == ":":
+            found_colon = True
+        if toks[i] in {"(", "[", "{"}:
+            bdepth += 1
+        elif toks[i] in {"(", "[", "{"}:
+            bdepth -= 1
+            if bdepth < 0:
+                return None
+        i += 1
+    if i >= len(toks) or toks[i] != "]" or not found_colon:
+        return None
+    return i - starti + 1
+
+
+def apply_make_vec_call(expr):
+    vec_len = vec_expr_len_if_any(expr, 0)
+    if vec_len is None:
+        return list(expr)
+    expr = list(expr)
+    i = firstnonblankidx(expr)
+    assert(expr[i] == "[" and expr[vec_len - 1] == "]")
+    expr[i] = "{"
+    expr[vec_len - 1] = "}"
+    named_entry = ["x", "y", "z", "w"]
+    k = i + 1
+    while k < vec_len - 1:
+        if expr[k] in named_entry:
+            expr[k] = str(1 + named_entry.index(expr[k]))
+        k += 1
+    return (["_translator_runtime_helpers",
+        ".", "_make_vec", "(", "{"] +
+        expr[i + 1:vec_len - 1] + ["}", ")"])
+
+
 def set_expr_len_if_any(toks, i):
     starti = i
     while i < len(toks) and toks[i].strip(" \t\r\n") == "":
@@ -536,6 +584,8 @@ def set_expr_len_if_any(toks, i):
             bdepth += 1
         elif toks[i] in {"(", "[", "{"}:
             bdepth -= 1
+            if bdepth < 0:
+                return None
         i += 1
     if i >= len(toks) or toks[i] != "}":
         return None

@@ -74,6 +74,8 @@ from translator_transformhelpers import (
     is_problematic_identifier_name,
     indent_sanity_check,
     is_isolated_pure_assign,
+    vec_expr_len_if_any,
+    apply_make_vec_call,
 )
 
 from translator_scopehelpers import (
@@ -812,14 +814,16 @@ def translate_expression_tokens(s, sc,
         elif s[i] == "has_attr" and previous_token != ".":
             s = s[:i] + ["_translator_runtime_helpers",
                 ".", "_has_attr"] + s[i + 1:]
-        if (s[i] == "{" and nextnonblank(s, i) == "}" and
-                (previous_token in {"(", "[", "{", "="} or
-                (previous_token != None and
-                len(previous_token) == 2 and
-                previous_token[1] == "="))):
-            s = s[:i] + ["_translator_runtime_helpers",
-                ".", "_make_set", "(", "[", "]", ")"] + s[
-                nextnonblankidx(s, i) + 1:]
+        if s[i] == "[":
+            vlen = vec_expr_len_if_any(s, i)
+            if vlen != None:
+                s = (s[:i] + apply_make_vec_call(s[i:i+vlen]) +
+                    s[i + vlen:])
+        if s[i] == "{":
+            vlen = set_expr_len_if_any(s, i)
+            if vlen != None:
+                s = (s[:i] + apply_make_set_call(s[i:i+vlen]) +
+                    s[i + vlen:])
         if s[i].strip("\r\n\t ") != "":
             previous_token = s[i]
         i += 1

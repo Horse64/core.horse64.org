@@ -25,6 +25,7 @@
 # license, see accompanied LICENSE.md.
 
 
+import collections.abc
 import fnmatch
 import ipaddress
 import json
@@ -314,6 +315,8 @@ def h64_type(v):
     result = type(v)
     if result == str:
         return "str"
+    elif result == _TranslatedVec:
+        return "vec"
     elif result == _TranslatedSet:
         return "set"
     elif result == bytes:
@@ -1125,7 +1128,7 @@ def _run_main(main_func):
 def _container_squarebracketaccess(container, index):
     if type(container) == dict:
         return container[index]
-    elif type(container) in {str, bytes, list}:
+    elif type(container) in {str, bytes, list, _TranslatedVec}:
         if type(index) not in {float, int}:
             raise _TypeError("Index isn't a num.")
         index = round(index)
@@ -1133,7 +1136,7 @@ def _container_squarebracketaccess(container, index):
             raise IndexError("Out of range.")
         return container[index - 1]
     raise NotImplementedError("container type "
-        "not imlemented for '[' indexing: " +
+        "not implemented for '[' indexing: " +
         str(type(container)))
 
 
@@ -1471,12 +1474,109 @@ def _make_or_get_appcache(v):
         return os.path.join(home_dir, ".cache", v)
 
 
-import collections.abc
+class _TranslatedVec(collections.abc.Sequence):
+    def __init__(self, v):
+        self.contents = list()
+        assert(len(v) in {2, 3, 4})
+        if type(v) == dict:
+            idx = 1
+            while idx <= len(v):
+                self.contents.append(v[idx])
+                idx += 1
+        else:
+            for i in v:
+                self.contents.append(i)
+
+    @property
+    def x(self):
+        return self.contents[0]
+
+    @property
+    def y(self):
+        return self.contents[1]
+
+    @property
+    def z(self):
+        return self.contents[2]
+
+    @property
+    def w(self):
+        return self.contents[3]
+
+    def __iadd__(self, v):
+        raise _TypeError("Vecs are immutable.")
+
+    def __isub(self, v):
+        raise _TypeError("Vecs are immutable.")
+
+    def __imul(self, v):
+        raise _TypeError("Vecs are immutable.")
+
+    def __add__(self, otherv):
+        if len(otherv) != len(self.contents):
+            raise _TypeError("Can only add to vec with same dimensions.")
+        values = []
+        idx = -1
+        for v in self.contents:
+            idx += 1
+            values.append(v + otherv[idx])
+        return _TranslatedVec(values)
+
+    def __sub__(self, otherv):
+        if len(otherv) != len(self.contents):
+            raise _TypeError("Can only add to vec with same dimensions.")
+        values = []
+        idx = -1
+        for v in self.contents:
+            idx += 1
+            values.append(v - otherv[idx])
+        return _TranslatedVec(values)
+
+    def __mul__(self, otherv):
+        otherv = float(otherv)
+        values = []
+        for v in self.contents:
+            values.append(v * otherv)
+        return _TranslatedVec(values)
+
+    def __setitem__(self, no, v):
+        raise _TypeError("Vecs are immutable.")
+
+    def __len__(self):
+        return len(self.contents)
+
+    def __getitem__(self, i):
+        return self.contents[i]
+
+    def __iter__(self):
+        for v in self.contents:
+            yield v
+
+    def __contains__(self, v):
+        return (v in self.contents)
+
+    def __reversed__(self):
+        for v in reversed(self.contents):
+            yield v
+
+    def count(self):
+        return len(self.contents)
+
+    def index(self, v):
+        idx = -1
+        for i in self.contents:
+            idx += 1
+            if i == v:
+                return idx
+        raise ValueError("value not found in vec")
+
+
 class _TranslatedSet(collections.abc.MutableSet):
     def __init__(self, v=None):
         self.contents = set()
         if v != None:
-            self.__add__(v)
+            for i in v:
+                self.contents.add(i)
 
     def __len__(self):
         return len(self.contents)
@@ -1506,6 +1606,10 @@ class _TranslatedSet(collections.abc.MutableSet):
         for value in otherv:
             self.contents.add(value)
         return self
+
+
+def _make_vec(v):
+    return _TranslatedVec(v)
 
 
 def _make_set(v):

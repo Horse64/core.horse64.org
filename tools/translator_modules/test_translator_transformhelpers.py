@@ -39,6 +39,8 @@ from translator_transformhelpers import (
     make_string_literal_python_friendly,
     func_args_find_last_positional,
     is_isolated_pure_assign,
+    apply_make_vec_call, vec_expr_len_if_any,
+    apply_make_set_call, set_expr_len_if_any,
 )
 
 
@@ -55,6 +57,14 @@ class TestTranslatorTransformHelpers(unittest.TestCase):
         self.assertFalse(line_has_multi_stmts_for_sure(
             "tokens[start_pos + 1].kind == T_IDENTIFIER) {"
         ))
+
+    def test_vec_expr_len_if_any(self):
+        self.assertEqual(
+            vec_expr_len_if_any(["abc", "[", "x",
+                ":", "1", "]", "b"], 1), 5)
+        self.assertEqual(
+            vec_expr_len_if_any(["abc", "[", "x",
+                ",", "1", "]", "b"], 1), None)
 
     def test_is_isolated_pure_assign(self):
         self.assertTrue(
