@@ -284,7 +284,7 @@ remapped_uses = {
         "text.pos_from_line_col":
             "_translator_runtime_helpers."
                 "_text_pos_from_line_col",
-        "text.code_to_byte":
+        "text.code_to_bytes":
             "(lambda x: chr(x).encode('utf-8', 'surrogateescape'))",
         "text.from_code":
             "(lambda x: chr(x))",
