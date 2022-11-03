@@ -567,7 +567,6 @@ func parse_expression_unwrapped(
         } else {
             node.subexprs.add(inner_expr)
             pos += inner_expr.token_len
-            # FIXME: closing bracket handling.
             if openbracket != none and
                     (pos >= tokens_len or
                     tokens[pos].kind != T_BRACKET or
@@ -594,7 +593,8 @@ func parse_expression_unwrapped(
     }
     # Handle expressions prefixed by unary operators:
     if lefthand == none and
-            (tokens[pos].kind == T_UNARYMATH or (
+            (tokens[pos].kind == T_UNARYMATH or
+             tokens[pos].kind == T_NEWOP or (
              tokens[pos].kind == T_BOOLCOMP and
              tokens[pos].str == "not")) {
         pos += 1  # Go past the unary operator itself.
@@ -663,8 +663,8 @@ func parse_expression_unwrapped(
                 } else {
                     bdepth -= 1
                 }
-            } elseif {T_MATH, T_COMPARE, T_BOOLCOMP,
-                    T_UNARYMATH}.has(tokens[i].kind) and
+            } elseif {T_MATH, T_COMPARE,
+                    T_BOOLCOMP}.has(tokens[i].kind) and
                     (tokens[i].kind != T_UNARYMATH and
                      (tokens[i].kind != T_BOOLCOMP or
                       tokens[i].str != "not")) {
@@ -672,7 +672,8 @@ func parse_expression_unwrapped(
             }
             i += 1
         }
-        # FIXME: finish this.
+
+        # 
     }
 }
 

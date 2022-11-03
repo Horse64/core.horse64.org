@@ -39,16 +39,16 @@ import compiler.project as project
 
 const _math_ops_single_char = {
     "+", "/", "*", "-", "^", "&",
-    "|", "~",
+    "|", "~", "%",
 }
 
 const math_ops = (
-    _math_ops_single_char + {"**"}
+    _math_ops_single_char + {"**", "<<", ">>"}
 )
 
 const math_assign_ops = {
     "+=", "/=", "*=", "-=", "^=", "&=",
-    "|=", "**=", "~="
+    "|=", "**=", "~=", "<<=", ">>=",
 }
 
 const compare_ops = {
@@ -85,6 +85,36 @@ const special_words = {
     "repeat", "elseif", "else", "and", "or",
     "not", "ignore", "none", "yes", "no",
     "enum",
+}
+
+## @func op_str_to_token_kind
+## Return the @{TokenKind} enum value of the corresponding operator
+## that has the given string representation. **Warning:** for the
+## T_MATH operator `-`, this will always return T_MATH even though
+## it might be T_UNARYMATH depending on context.
+##
+## @param opstr str The string representation of any operator to
+##   convert back to the token type.
+## @returns TokenKind The corresponding @{TokenKind} value.
+func op_str_to_token_kind(opstr) {
+    if opstr == "new" {
+        return T_NEWOP
+    }
+    if math_ops.has(opstr) {
+        return T_MATH
+    }
+    if math_assign_ops.has(opstr) {
+        return T_MATHASSIGN
+    }
+    if compare_ops.has(opstr) {
+        return T_COMPARE
+    }
+    if bool_compare_ops .has(opstr) {
+        return T_BOOLCOMP
+    }
+    throw new ValueError("Unknown op str: " +
+        as_escaped_code_string(opstr)
+    )
 }
 
 ## @func surely_starts_stmt_even_in_bad_code
@@ -362,8 +392,7 @@ func can_statement_end_before_token(tokens, tok_pos) {
         }
         return yes
     }
-    if tokens[tok_pos].kind == T_KEYWORD and
-            tokens[tok_pos].str == "new" {
+    if tokens[tok_pos].kind == T_NEWOP {
         return no
     }
     return yes
@@ -379,13 +408,14 @@ func token_has_righthand(t) {
             T_DOT}.has(t.kind) {
         return yes
     }
-    if t.kind == T_KEYWORD and {"func", "import",
+    if (t.kind == T_KEYWORD and {"func", "import",
             "type", "later", "extends", "in",
             "as", "from", "with", "for", "if",
             "elseif", "else", "do", "rescue",
             "finally", "await",
-            "var", "const", "throw", "new",
-            "enum"}.has(t.str) {
+            "var", "const", "throw",
+            "enum"}.has(t.str)) or
+            t.kind == T_NEWOP {
         return yes
     }
     return no
@@ -533,6 +563,7 @@ enum TokenKind {
     T_IDENT
     T_NONE
     T_MATH
+    T_NEWOP
     T_UNARYMATH
     T_BOOLCOMP
     T_COMPARE
@@ -1123,11 +1154,11 @@ func tokenize_str(
             col += (oplen - 1)
             i += (oplen - 1)
             continue
-        } elseif c == "*" and i + 2 <= strlen and
-                str.sub(i, i + 3) == "**=" {
-            # Special handling of 3 chars arithmetic assign "**=":
+        } elseif {"*", "<", ">"}.has(str) and i + 2 <= strlen and
+                math_assign_ops.has(str.sub(i, i + 3)) {
+            # Special handling of 3 chars arithmetic assigns:
             result.tokens.add(new Token(
-                "**=", T_MATHASSIGN, line, col
+                str.sub(i, i + 3), T_MATHASSIGN, line, col
             ))
             i += 2
             col += 2
@@ -1208,6 +1239,8 @@ func tokenize_str(
                 kind = T_BOOL
             } elseif bool_compare_ops.has(name) {
                 kind = T_BOOLCOMP
+            } elseif name == "new" {
+                kind = T_NEWOP
             } elseif is_special_word(name) {
                 kind = T_KEYWORD
             }

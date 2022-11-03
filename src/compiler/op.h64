@@ -1,0 +1,74 @@
+# @module compiler.op
+# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import compiler.token as token
+
+
+var precedence_table = [  # From closest-binding to loosest:
+    ["new"],
+    [["-", token.T_UNARYMATH]],
+    ["~", "&"],
+    ["|"],
+    ["^"],
+    ["/", "*", "%", "**"],
+    ["+", ["-", token.T_MATH]],
+    ["<<", ">>"],
+    ["==", "!="],
+    [">=", "<="],
+    [">", "<"],
+    ["not"],
+    ["and"],
+    ["or"],
+]
+
+func build_precedence_map {
+    # Build op_str_to_precedence_map for faster access:
+    var possible_names = []
+    var fast_map = {->}
+    var precedence = 0
+    for entries_line in precedence_table {
+        precedence += 1
+        for entry in entries_line {
+            if typename(entry) == "list" {
+                assert(entry.len == 2)
+                if not fast_map.has(entry[1]) {
+                    fast_map[entry[1]] = {entry[2]-> precedence}
+                } else {
+                    fast_map[entry[1]][entry[2]] = precedence
+                }
+            } else {
+                assert(typename(entry) == "str")
+                fast_map[entry] = {
+                    token.op_str_to_token_kind(entry)-> precedence
+                }
+            }
+        }
+    }
+}
+
+var op_str_to_precedence_map = build_precedence_map()
+
