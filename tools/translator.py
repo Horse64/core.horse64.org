@@ -2183,7 +2183,9 @@ def translate(s, sc):
             if len(interesting_nonlocals) > 0:
                 inner_code = (inner_indent +
                     "nonlocal " + ",".join(
-                    interesting_nonlocals) + "\n" + inner_code)
+                    [make_valid_identifier(nl)
+                    for nl in interesting_nonlocals]) +
+                    "\n" + inner_code)
             inner_code += (inner_indent + "pass\n")
             if type_name is None:
                 result += (indent + "def " + name +
