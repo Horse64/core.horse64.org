@@ -235,6 +235,8 @@ remapped_uses = {
         "math.floor": "_translator_runtime_helpers._math_floor",
         "math.ceil": "_translator_runtime_helpers.math_ceil",
         "math.round": "_translator_runtime_helpers._math_round",
+        "math.parse_hex":
+            "_translator_runtime_helpers._math_parse_hex",
     },
     "net@core.horse64.org": {
         "net.lookup_name":
@@ -282,6 +284,10 @@ remapped_uses = {
         "text.pos_from_line_col":
             "_translator_runtime_helpers."
                 "_text_pos_from_line_col",
+        "text.code_to_byte":
+            "(lambda x: chr(x).encode('utf-8', 'surrogateescape'))",
+        "text.from_code":
+            "(lambda x: chr(x))",
         "text.glyph_codepoint_len":
             "(lambda s, pos=1: max(0, len(s) - (pos - 1)))",
         "text.full_glyphs_in_sub":

@@ -1132,8 +1132,10 @@ def _container_squarebracketaccess(container, index):
         if type(index) not in {float, int}:
             raise _TypeError("Index isn't a num.")
         index = round(index)
-        if index <= 0 or index > len(container):
+        if index < 1 or index > len(container):
             raise IndexError("Out of range.")
+        if type(container) == bytes:
+            return container[index - 1:index]
         return container[index - 1]
     raise NotImplementedError("container type "
         "not implemented for '[' indexing: " +
@@ -1668,6 +1670,30 @@ def _ensure_all_mods_load(output_dir, mainfilepath, debug=False):
             m = importlib.util.module_from_spec(spec)
             sys.modules[modname] = m
             spec.loader.exec_module(m)
+
+
+def _math_parse_hex(v):
+    if type(v) not in {bytes, str}:
+        raise _TypeError("Not an str or bytes.")
+    if type(v) == bytes:
+        v = v.decode("utf-8", "surrogateescape")
+    if v.startswith("0x"):
+        v = v[2:]
+    elif v.startswith("x"):
+        v = v[1:]
+    if len(v) == 0:
+        raise _ValueError("Not a valid hex number.")
+    i = 0
+    while i < len(v):
+        if ((ord(v[i]) < ord('0') or
+                ord(v[i]) > ord('9')) and
+                (ord(v[i]) < ord('a') or
+                ord(v[i]) > ord('f')) and
+                (ord(v[i]) < ord('A') or
+                ord(v[i]) > ord('F'))):
+            raise _ValueError("Not a valid hex number.")
+        i += 1
+    return int("0x" + v, 0)
 
 
 def _async_final_bail_handler(err, result, funcname="main"):

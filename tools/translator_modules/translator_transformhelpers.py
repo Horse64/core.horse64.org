@@ -340,7 +340,9 @@ def transform_h64_misc_inline_to_python(s):
                 cmd = s[i]
             elif (s[i] == "[" and (
                     prevnonblank(s, i) in {")", "]", "}"} or
-                    is_identifier(prevnonblank(s, i)))):
+                    is_identifier(prevnonblank(s, i)) or
+                    prevnonblank(s, i)[:1] in {"'", '"'} or
+                    prevnonblank(s, i)[:2] in {"b'", 'b"'})):
                 cmd = "["
             else:
                 i += 1
@@ -352,7 +354,7 @@ def transform_h64_misc_inline_to_python(s):
                 insert_call = ["len"]
             elif cmd == "as_bytes":
                 insert_call = ["_translator_runtime_helpers",
-                    ".", "_value_to_bytes"]
+                    ".", "_value_as_bytes"]
             elif cmd == "as_hex":
                 insert_call = ["_translator_runtime_helpers",
                     ".", "_as_hex"]
@@ -608,22 +610,19 @@ def indent_sanity_check(s, what_in="unknown code"):
         s = untokenize(s)
     assert(type(s) == str)
 
-    def no_line_comments(s):
-        if "#" in s:
-            return (s.rpartition("#")[0] +
-                (len(s.rpartition("#")[2]) + 1) * " ")
-        return s
+    def maybe_line_comment(s):
+        return ("#" in s)
 
     # Dumb helper function for at least obvious cases:
     def starts_with_statement_for_sure(s, prev_s):
+        if maybe_line_comment(s) or maybe_line_comment(prev_s):
+            return False
         s = s.replace("\t", " ")
         s = s.replace("\n", " ")
         s = s.replace("\t", " ")
-        s = no_line_comments(s)
         prev_s = prev_s.replace("\t", " ")
         prev_s = prev_s.replace("\n", " ")
         prev_s = prev_s.replace("\t", " ")
-        prev_s = no_line_comments(prev_s)
         if (s.startswith(")") or s.startswith("}") or
                 s.startswith("]")):
             return False
@@ -708,7 +707,7 @@ def indent_sanity_check(s, what_in="unknown code"):
             raise ValueError("in " + str(what_in) + ", " +
                 "line " + str(i + 1) + ": " +
                 "indentation error, please write multiple "
-                "statements with same indentation in multiple "
+                "statements separated in multiple "
                 "lines. affected line: " + str(s)
             )
         if not starts_with_statement_for_sure(s, prev_s):
