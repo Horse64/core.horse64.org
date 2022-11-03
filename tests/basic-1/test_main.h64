@@ -95,6 +95,9 @@ func test_basic_things {
     assert(myvec2.len == 4)
     assert(myvec2.z == -3)
 
+    assert(b"a"[1] == b"a")
+    assert(typename(b"abc"[1]) == "bytes")
+
     func some_func(a=[], b={}) {
         assert(typename(a) == "list")
         assert(typename(b) == "set")
