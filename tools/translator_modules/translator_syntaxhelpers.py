@@ -125,6 +125,18 @@ def get_next_token(s):
 
     if s[:2] == "->":
         return "->"
+    if (s[0] == "0" and len(s) >= 3 and
+             s[1] == "x"):
+        i = 1
+        while (i + 1 < len(s) and (
+                (ord(s[i + 1]) >= ord('0') and
+                ord(s[i + 1]) <= ord('9')) or
+                (ord(s[i + 1]) >= ord('a') and
+                ord(s[i + 1]) <= ord('f')) or
+                (ord(s[i + 1]) >= ord('A') and
+                ord(s[i + 1]) <= ord('F')))):
+            i += 1
+        return s[:i + 1]
     if (s[0] == "'" or s[0] == '"' or
             (s[0] == 'b' and len_s > 1 and (
             s[1] == "'" or s[1] == '"'))):
