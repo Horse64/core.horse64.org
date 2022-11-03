@@ -608,14 +608,22 @@ def indent_sanity_check(s, what_in="unknown code"):
         s = untokenize(s)
     assert(type(s) == str)
 
+    def no_line_comments(s):
+        if "#" in s:
+            return (s.rpartition("#")[0] +
+                (len(s.rpartition("#")[2]) + 1) * " ")
+        return s
+
     # Dumb helper function for at least obvious cases:
     def starts_with_statement_for_sure(s, prev_s):
         s = s.replace("\t", " ")
         s = s.replace("\n", " ")
         s = s.replace("\t", " ")
+        s = no_line_comments(s)
         prev_s = prev_s.replace("\t", " ")
         prev_s = prev_s.replace("\n", " ")
         prev_s = prev_s.replace("\t", " ")
+        prev_s = no_line_comments(prev_s)
         if (s.startswith(")") or s.startswith("}") or
                 s.startswith("]")):
             return False

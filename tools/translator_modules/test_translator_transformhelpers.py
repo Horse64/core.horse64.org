@@ -155,6 +155,11 @@ class TestTranslatorTransformHelpers(unittest.TestCase):
         }
         """), should_fail=True)
         do_test(textwrap.dedent("""\
+        var bla = [  # Test:
+            ["new"]
+        ]
+        """), should_fail=False)
+        do_test(textwrap.dedent("""\
         func test {
             var a
             var b
