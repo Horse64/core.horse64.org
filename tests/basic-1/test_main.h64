@@ -84,6 +84,17 @@ func test_basic_things {
     assert(typename(mymap2) == "map")
     assert(mymap2.has(2) and mymap2[2] == 3)
 
+    var myvec = [x: 0.2, y: -5]
+    assert(typename(myvec) == "vec")
+    assert(myvec.len == 2)
+    assert(myvec.x == 0.2)
+    assert(myvec[2] == -5)
+
+    var myvec2 = [1: 2, 2: 1.2, 3: -3, 4: 555]
+    assert(typename(myvec2) == "vec")
+    assert(myvec2.len == 4)
+    assert(myvec2.z == -3)
+
     func some_func(a=[], b={}) {
         assert(typename(a) == "list")
         assert(typename(b) == "set")
