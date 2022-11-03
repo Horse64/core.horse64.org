@@ -171,6 +171,40 @@ func token_list_from_str_list(strlist, internal_labels=no) {
     return resultlist
 }
 
+## @func go_to_expr_end
+## Advance from the given spot in some expression to the end
+## of the expression (e.g. surrounding closing bracket or end
+## of statement). This uses heuristics so it's meant for error
+## recovery and not always fully accurate.
+##
+## @param tokens ([Token], [str]) The list of tokens supplied either as
+##   @{Token} instances or @{str}s.
+## @param start_pos num From where to advance forward to compute the
+##   remaining guessed expression length.
+## @param max_len num If specified, the maximum length returned is the
+##   specified value here.
+## @returns num The guessed remaining expression length from the given
+##   `start_pos`.
+func go_to_expr_end(
+        tokens, start_pos, max_len=none
+        ) {
+    var tokens_len = tokens.len
+    if max_len != none {
+        tokens_len = math.min(max_len, tokens_len)
+    }
+    if tokens.len > 0 and typename(tokens[1]) == "str" {
+        tokens = token_list_from_str_list(tokens)
+    }
+    if start_pos > tokens_len or
+            (tokens[start_pos].kind == T_BRACKET and
+             {")", "]", "}"}.has(tokens[start_pos])) {
+        return 1
+    }
+    return get_naive_statement_len(
+        tokens, start_pos, bracket_depth=0, max_len=max_len
+    )
+}
+
 ## @func get_naive_statement_len
 ## Get the length of the statement starting at the given token position.
 ## Can also be used mid-statement if you give the current bracket nesting
@@ -185,10 +219,12 @@ func token_list_from_str_list(strlist, internal_labels=no) {
 ## @param bracket_depth num The bracket nesting depth inside the statement
 ##   if `start_pos` isn't the very start of the statement to find the
 ##   ending of.
+## @param max_len num If specified, the maximum length returned is the
+##   specified value here.
 ## @returns num The remaining length of the next statement from the given
 ##   `start_pos`.
 func get_naive_statement_len(
-        tokens, start_pos, bracket_depth=0
+        tokens, start_pos, bracket_depth=0, max_len=none
         ) {
     if bracket_depth < 0 {
         throw new ValueError("initial bracket_depth must "
@@ -197,10 +233,14 @@ func get_naive_statement_len(
     if tokens.len > 0 and typename(tokens[1]) == "str" {
         tokens = token_list_from_str_list(tokens)
     }
+    var tokens_len = tokens.len
+    if max_len != none {
+        tokens_len = math.min(tokens_len, max_len)
+    }
 
     var possible_code_block_brackets = bracket_depth
     var i = start_pos
-    while i <= tokens.len and (
+    while i <= tokens_len and (
             bracket_depth > 0 or
             i == start_pos or
             not can_statement_end_before_token(

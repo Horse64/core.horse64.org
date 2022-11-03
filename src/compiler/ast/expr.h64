@@ -192,14 +192,14 @@ func parse_expression(
 
 func parse_expression_unwrapped(
         tokens, pos, msgs, project_file=none,
-        left_hand=none, max_pos=none
+        left_hand=none, max_len=none
         ) {
     var startpos = pos
     var startline = token.get_line(line, pos)
     var startcol = token.get_col(line, startpos)
     var tokens_len = tokens.len
-    if max_pos != none {
-        tokens_len = math.min(max_pos, tokens_len)
+    if max_len != none {
+        tokens_len = math.min(max_len, tokens_len)
     }
     if pos > tokens_len {
         return none
@@ -254,7 +254,7 @@ func parse_expression_unwrapped(
             pos += 1
             var inner_expr = parse_expression(
                 tokens, pos, msgs, project_file=none,
-                left_hand=none
+                left_hand=none, max_len=tokens_len
             ) later:
 
             await inner_expr
@@ -271,9 +271,17 @@ func parse_expression_unwrapped(
                     line=token.get_line(tokens, pos),
                     col=token.get_col(tokens, pos),
                 ))
-                inner_expr = new InvalidExpression(1)
-                inner_expr.line = startline
-                inner_expr.col = startcol
+                var preskippos = pos
+                var skiplen = token.go_to_expr_end(
+                    tokens, pos, max_len=tokens_len
+                )
+                inner_expr = new InvalidExpr(skiplen)
+                inner_expr.line = token.get_line(
+                    tokens, preskippos
+                )
+                inner_expr.col = token.get_col(
+                    tokens, preskippos
+                )
             }
             pos += inner_expr.token_len
             if pos >= tokens_len or
@@ -297,7 +305,7 @@ func parse_expression_unwrapped(
             inner_expr.token_len = (pos - start_pos)
             return inner_expr
         }
-        # Handle container constructors (map, list, set, vector):
+        # Handle container constructors for map, list, set, vector:
         if tokens[pos].kind == T_BRACKET and
                 {"{", "["}.has(tokens[pos].str) {
             var openbracket = tokens[pos].str
@@ -394,7 +402,8 @@ func parse_expression_unwrapped(
                 tokens, pos, msgs, ckind,
                 container_start_line=startline,
                 container_start_col=startcol,
-                project_file=project_file
+                project_file=project_file,
+                max_len=tokens_len
             ) later:
 
             await next_expr
@@ -495,7 +504,8 @@ func parse_expression_unwrapped(
                 tokens, pos, msgs, ckind,
                 container_start_line=startline,
                 container_start_col=startcol,
-                project_file=project_file
+                project_file=project_file,
+                max_len=tokens_len,
             ) later repeat
         }
         return none
@@ -505,13 +515,16 @@ func parse_expression_unwrapped(
             (tokens[pos].kind == T_DOT or
              (tokens[pos].kind == T_BRACKET and
               {"(", "["}.has(tokens[pos].str))) {
+        var openbracket =
+            if tokens[pos].kind == T_BRACKET
+            (tokens[pos].str) else (none)
         pos += 1  # Go past opening bracket.
         var node = new BinopExpr()
         node.line = startline
         node.col = startcol
         var inner_expr = parse_expression(
             tokens, pos, msgs, project_file=none,
-            left_hand=none
+            left_hand=none, max_len=tokens_len
         ) later:
 
         await inner_expr
@@ -530,11 +543,51 @@ func parse_expression_unwrapped(
                 line=token.get_line(tokens, pos),
                 col=token.get_col(tokens, pos),
             ))
-            # FIXME: for '[', '(', advance to closing bracket!
+            # Go past whatever nonsense we can't parse:
+            var preskippos = pos
+            var skiplen = token.go_to_expr_end(
+                tokens, pos, max_len=tokens_len
+            )
+            if pos + skiplen <= tokens_len and
+                    openbracket != none and
+                    tokens[pos + skiplen].kind == T_BRACKET and
+                    token.reverse_brackets(
+                        tokens[pos + skiplen].str
+                    ) == openbracket {
+                # Include the closing bracket to our '['/'(' too:
+                skiplen += 1
+            }
+            node.subexprs.add(new InvalidExpr(skiplen))
+            node.subexprs.last().line = token.get_line(
+                tokens, preskippos
+            )
+            node.subexprs.last().col = token.get_col(
+                tokens, preskippos
+            )
         } else {
             node.subexprs.add(inner_expr)
             pos += inner_expr.token_len
             # FIXME: closing bracket handling.
+            if openbracket != none and
+                    (pos >= tokens_len or
+                    tokens[pos].kind != T_BRACKET or
+                    reverse_bracket(openbracket) != tokens[pos].str) {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected " + token.describe_token_at(
+                        tokens, pos) +
+                    ", expected '" + reverse_bracket(openbracket) +
+                    "' to close '" + openbracket + "' "
+                    "found in line " +
+                    startline.as_str() +
+                    ", col " +
+                    startcol.as_str() + ".",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+            } elseif openbracket != none {
+                pos += 1  # Go past closing bracket.
+            }
         }
         node.token_len = (pos - startpos)
         return node
@@ -550,7 +603,7 @@ func parse_expression_unwrapped(
         node.col = startcol
         var inner_expr = parse_expression(
             tokens, pos, msgs, project_file=none,
-            left_hand=none
+            left_hand=none, max_len=tokens_len
         ) later:
 
         await inner_expr
@@ -569,6 +622,19 @@ func parse_expression_unwrapped(
                 line=token.get_line(tokens, pos),
                 col=token.get_col(tokens, pos),
             ))
+            # Skip past whatever we can't parse:
+            var preskippos = pos
+            var skiplen = token.go_to_expr_end(
+                tokens, pos, max_len=tokens_len
+            )
+            node.subexprs.add(new InvalidExpr(skiplen))
+            node.subexprs.last().line = token.get_line(
+                tokens, preskippos
+            )
+            node.subexprs.last().col = token.get_col(
+                tokens, preskippos
+            )
+            pos += skiplen
         } else {
             node.subexprs.add(inner_expr)
             pos += inner_expr.token_len
@@ -586,6 +652,8 @@ func parse_expression_unwrapped(
             outer_level_ops_operands.add(lefthand)
         }
         var outer_level_ops_at = [pos]
+
+        # First, collect all operators for precedence ordering:
         var bdepth = 0
         var i = pos + 1
         while i <= tokens_len {
