@@ -92,6 +92,12 @@ func helper_for_tokenizer_test_and_verify(
     }
 }
 
+func test_get_str_widechar_escaping_len {
+    assert(token.get_str_widechar_escaping_len(
+        "x\\u0001f3c6", 2
+    ) == 10)
+}
+
 func test_parse_token_value {
     var t
     t = token.Token("5", token.T_NUM, none, none)
@@ -102,6 +108,8 @@ func test_parse_token_value {
     assert(token.parse_token_value(t) == " !")
     t = token.Token('b"\\x20\\x21\0"', token.T_BYTES, none, none)
     assert(token.parse_token_value(t) == b" !\0")
+    t = token.Token('b"\\u0001f3c6"', token.T_BYTES, none, none)
+    assert(token.parse_token_value(t) == "🏆".as_bytes())
 }
 
 func test_token_list_from_str_list {

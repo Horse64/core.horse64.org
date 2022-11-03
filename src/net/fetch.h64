@@ -139,7 +139,7 @@ func write_to_file(uri, path, max_size=(100 * 1024  * 1024)) {
     later repeat
 }
 
-## Get an internet resource and download it as a unicode string.
+## Get an internet resource and download it as a widechar string.
 ## Can also get a list of resources at once.
 ##
 ## @param uri (str or list) A single URI as an @{str}, or

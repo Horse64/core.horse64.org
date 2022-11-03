@@ -117,6 +117,86 @@ func op_str_to_token_kind(opstr) {
     )
 }
 
+func get_str_widechar_escaping_len(str, pos) {
+    func is_hex_digit(c) {
+        if c.len < 1 {
+            return no
+        }
+        return (text.code(c) >= text.code("0") and
+            text.code(c) <= text.code("9")) or
+            (text.code(c) >= text.code("A") and
+            text.code(c) <= text.code("F")) or
+            (text.code(c) >= text.code("a") and
+            text.code(c) <= text.code("f"))
+    }
+    if pos < 1 or pos + 5 > str.len {
+        return none
+    }
+    if str.sub(pos, pos + 1) != "\\u" {
+        return none
+    }
+    # Determine where the hex digits stop:
+    var past_pos = 2
+    while past_pos < 10 {
+        if past_pos > str.len or
+                not is_hex_digit(str.sub(
+                    pos + past_pos, pos + past_pos
+                )) {
+            if past_pos <= 5 {  # Index 2 to 5 must be hex numbers, minimum.
+                # (The escape format is \uHHHH to \uHHHHHHHH with all
+                # digit amounts in between allowed.)
+                return none
+            }
+            break
+        }
+        past_pos += 1
+    }
+    return past_pos
+}
+
+func parse_str_widechar_escaping(str, pos) {
+    var escape_len = get_str_widechar_escaping_len(str, pos)
+    if escape_len == none {
+        # It's not a valid escaping.
+        return none
+    }
+    hex_part = str.sub(pos + 2, pos + (escape_len - 1))
+    assert(hex_part.len >= 4 and hex_part.len <= 8)
+    var value = math.parse_hex(hex_part)
+    if value > 0x10FFFF {
+        return none  # Not a valid code point.
+    }
+    return value
+}
+
+func parse_str_hex_escaping(str, pos) {
+    func is_hex_digit(c) {
+        if c.len < 1 {
+            return no
+        }
+        return (text.code(c) >= text.code("0") and
+            text.code(c) <= text.code("9")) or
+            (text.code(c) >= text.code("A") and
+            text.code(c) <= text.code("F")) or
+            (text.code(c) >= text.code("a") and
+            text.code(c) <= text.code("f"))
+    }
+    if pos < 1 or pos + 3 > str.len {
+        return none
+    }
+    if str.sub(pos, pos + 1) != "\\x" {
+        return none
+    }
+    if not is_hex_digit(str.sub(pos + 2, pos + 2)) or
+            not is_hex_digit(str.sub(pos + 3, pos + 3)) {
+        return none
+    }
+    var value = math.parse_hex(
+        str.sub(pos + 2, pos + 3)
+    )
+    return value
+}
+
 ## @func parse_token_value
 ## Parse and return the actual value of a token literal as
 ## a Horse64 data type. E.g. a T_STR @{token|Token} with its
@@ -156,6 +236,7 @@ func parse_token_value(tok) {
         i = 2
         while i <= toklen - 1 {
             if escaped {
+                escaped = no
                 if tok.str[i] == "t" {
                     result += "\t"
                 } elseif tok.str[i] == "n" {
@@ -163,28 +244,36 @@ func parse_token_value(tok) {
                 } elseif tok.str[i] == "r" {
                     result += "\r"
                 } elseif tok.str[i] == "x" {
-                    if i + 2 > toklen or
-                            not is_hex_digit(
-                                tok.str.sub(i + 1, i + 1)
-                            ) or
-                            not is_hex_digit(
-                                tok.str.sub(i + 2, i + 2)
-                            ) {
+                    var value = parse_str_hex_escaping(
+                        tok.str, i - 1
+                    )
+                    if value == none {
                         # This is invalid, just skip it.
-                        i += 3
+                        i += 1
                         continue
                     }
-                    var value = math.parse_hex(
-                        tok.str.sub(i, i + 2)
-                    )
                     result += text.from_code(value)
-                    i += 2
+                    i += 3
+                    continue
+                } elseif tok.str[i] == "u" {
+                    var value = parse_str_widechar_escaping(
+                        tok.str, i - 1
+                    )
+                    if value == none {
+                        # This is invalid, just skip it.
+                        i += 1
+                        continue
+                    }
+                    result += text.from_code(value)
+                    i += get_str_widechar_escaping_len(
+                        tok.str, i - 1
+                    ) - 1
+                    continue
                 } elseif tok.str[i] == "0" {
                     result += "\0"
                 } else {
                     result += tok.str[i]
                 }
-                escaped = no
             } elseif tok.str[i] == "\\" {
                 escaped = yes
             } else {
@@ -205,6 +294,7 @@ func parse_token_value(tok) {
         i = 3
         while i <= toklen - 1 {
             if escaped {
+                escaped = no
                 if tok.str[i] == "t" {
                     result += b"\t"
                 } elseif tok.str[i] == "n" {
@@ -212,28 +302,36 @@ func parse_token_value(tok) {
                 } elseif tok.str[i] == "r" {
                     result += b"\r"
                 } elseif tok.str[i] == "x" {
-                    if i + 2 > toklen or
-                            not is_hex_digit(
-                                tok.str.sub(i + 1, i + 1)
-                            ) or 
-                            not is_hex_digit(
-                                tok.str.sub(i + 2, i + 2)
-                            ) {
+                    var value = parse_str_hex_escaping(
+                        tok.str, i - 1
+                    )
+                    if value == none {
                         # This is invalid, just skip it.
-                        i += 3
+                        i += 1
                         continue
                     }
-                    var value = math.parse_hex(
-                        tok.str.sub(i, i + 2)
+                    result += text.code_to_bytes(value)
+                    i += 3
+                    continue
+                } elseif tok.str[i] == "u" {
+                    var value = parse_str_widechar_escaping(
+                        tok.str, i - 1
                     )
-                    result += text.code_to_byte(value)
-                    i += 2
+                    if value == none {
+                        # This is invalid, just skip it.
+                        i += 1
+                        continue
+                    }
+                    result += text.code_to_bytes(value)
+                    i += get_str_widechar_escaping_len(
+                        tok.str, i - 1
+                    ) - 1
+                    continue
                 } elseif tok.str[i] == "0" {
                     result += b"\0"
                 } else {
                     result += tok.str[i].as_bytes()
                 }
-                escaped = no
             } elseif tok.str[i] == "\\" {
                 escaped = yes
             } else {
@@ -1067,13 +1165,24 @@ func tokenize_str(
                         continue
                     }
                     next_escaped = yes
-                    if k + 1 < strlen and
+                    if k + 1 > strlen or
                             not known_string_escapes.has(
                             str[k + 1]) {
                         result.msgs.add(new msg.FileMsg(
                             "Invalid string escape '\\' + " +
                             describe_char_at(str, k,
                                 maybe_cutoff_glyph=no) + ".",
+                            source_file=project_file,
+                            line=line, col=col
+                        ))
+                    } elseif str[k + 1] == "x" and
+                            parse_str_hex_escaping(
+                                str, k
+                            ) == none {
+                        result.msgs.add(new msg.FileMsg(
+                            "Invalid hex escape, needs to be "
+                            "'\\' + 'x' + two hex digits, "
+                            "e.g. \"\\x05\".",
                             source_file=project_file,
                             line=line, col=col
                         ))
