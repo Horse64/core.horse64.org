@@ -785,12 +785,12 @@ class _FileObjFromDisk:
     def write(self, callback, value):
         if not self.binary and type(value) != str:
             _async_delay_call(callback, [
-                _TypeError("value must be unicode string")
+                _TypeError("Value must be widechar string.")
             ])
             return
         elif self.binary and type(value) != bytes:
             _async_delay_call(callback, [
-                _TypeError("value must be bytes value")
+                _TypeError("Value must be bytes value.")
             ])
             return
         self.fobj.write(value)
