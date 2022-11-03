@@ -34,6 +34,7 @@ class _DebugVars:
         self.ENABLE_REMAPPED_USES = False
         self.ENABLE_FILE_PATHS = False
         self.ENABLE_ASYNC_OPS = False
+        self.ENABLE_MODLOAD = False
 
 DEBUGV = _DebugVars()
 

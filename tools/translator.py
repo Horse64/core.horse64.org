@@ -172,6 +172,7 @@ DEBUGV.ENABLE_QUEUE = False
 DEBUGV.ENABLE_TYPES = False
 DEBUGV.ENABLE_REMAPPED_USES = False
 DEBUGV.ENABLE_FILE_PATHS = False
+DEBUGV.ENABLE_MODLOAD = False
 
 remapped_uses = {
     "bignum@core.horse64.org": {
@@ -2502,6 +2503,8 @@ def run_translator_main():
                       "Show debug output.")
                 print("    --debug-async          "
                       "Show info on async operations.")
+                print("    --debug-modload        "
+                      "Show info on modules being loaded.")
                 print("    --debug-python-output  "
                       "Show the generated python.")
                 print("    --debug-queue          "
@@ -2582,6 +2585,9 @@ def run_translator_main():
             elif args[i] == "--debug-async":
                 DEBUGV.ENABLE = True
                 DEBUGV.ENABLE_ASYNC_OPS = True
+            elif args[i] == "--debug-modload":
+                DEBUGV.ENABLE = True
+                DEBUGV.ENABLE_MODLOAD = True
             elif args[i] == "--debug":
                 DEBUGV.ENABLE = True
                 DEBUGV.ENABLE_FILE_PATHS = True
@@ -3110,6 +3116,13 @@ def translate_do_func(
             # Write out all the delayed init code to an appended func:
             key = (_modname, _pkgname)
             contents_result += "\ndef _translator_delayed_modinit():\n"
+            if DEBUGV.ENABLE_MODLOAD:
+                contents_result += ("    print('Delayed mod "
+                    "init for ' + " +
+                    as_escaped_code_string(_modname) + " + '@' + " +
+                    (as_escaped_code_string(_pkgname) if
+                     _pkgname != None else "'main'") + " + ' (' +"
+                     "(__name__) + ')')\n")
             contents_result += ("    _translated_extendtype_fail" +
                 " = False\n")
             if key in sc.global_init_func_code:
@@ -3120,6 +3133,21 @@ def translate_do_func(
             contents_result += ("_translator_runtime_helpers."
                 "_delayed_modinit_funclist.append("
                 "_translator_delayed_modinit)\n")
+
+            # Compute output path:
+            targetfilename = os.path.basename(
+                translated_files[translated_file]["target-filename"]
+            )
+            contents = translated_files[translated_file]["output"]
+            subfolder = (translated_files[translated_file]
+                ["disk-fake-folder"])
+            targetpath = os.path.normpath(os.path.join(
+                output_folder, mpath(os.path.join(subfolder,
+                    targetfilename))
+            ))
+            translated_files[translated_file]["target-filepath"] = (
+                targetpath
+            )
 
             # Now append our startup code if this is the main file:
             is_main_file = (translated_files\
@@ -3150,6 +3178,13 @@ def translate_do_func(
 
                 # Insert actual main to call our test main:
                 contents_result += ("\nif __name__ == '__main__':"
+                    "\n    _translator_runtime_helpers."
+                            "_ensure_all_mods_load(" +
+                            as_escaped_code_string(output_folder) +
+                            "," +
+                            as_escaped_code_string(targetpath) +
+                            ", debug=" +
+                            str(DEBUGV.ENABLE_MODLOAD) + ")"
                     "\n    v = ("
                     "\n        _translator_runtime_helpers."
                                 "_run_main(" + testmain + "))"
@@ -3183,23 +3218,32 @@ def translate_do_func(
                     str(uuid.uuid4()).replace("-", ""))
                 contents_result += ("\ndef " + innermain + "():" +
                     "\n    ")
-                if main_is_later_func:
-                    contents_result += ("main("
-                        "_translator_runtime_helpers."
-                        "_async_final_bail_handler); ")
+                if has_main:
+                    if main_is_later_func:
+                        contents_result += ("main("
+                            "_translator_runtime_helpers."
+                            "_async_final_bail_handler); ")
+                    else:
+                        contents_result += ("main();")
                 else:
-                    contents_result += ("main();")
+                    contents_result += ("return 0;")
 
                 # Add actual main call:
-                if has_main:
-                    contents_result += (
-                        "\nif __name__ == '__main__':"
-                        "\n    v = ("
-                        "\n        _translator_runtime_helpers."
-                                    "_run_main(" + innermain + "))"
-                        "\n    _remapped_sys.stdout.flush()"
-                        "\n    _remapped_sys.stderr.flush()"
-                        "\n    _remapped_sys.exit(v)\n")
+                contents_result += (
+                    "\nif __name__ == '__main__':"
+                    "\n    _translator_runtime_helpers."
+                            "_ensure_all_mods_load(" +
+                            as_escaped_code_string(output_folder) +
+                            "," +
+                            as_escaped_code_string(targetpath) +
+                            ", debug=" +
+                            str(DEBUGV.ENABLE_MODLOAD) + ")"
+                    "\n    v = ("
+                    "\n        _translator_runtime_helpers."
+                                "_run_main(" + innermain + "))"
+                    "\n    _remapped_sys.stdout.flush()"
+                    "\n    _remapped_sys.stderr.flush()"
+                    "\n    _remapped_sys.exit(v)\n")
             if is_main_file and output_py_file:
                 print(mainfilepath)
                 output_file_result = (
@@ -3210,9 +3254,11 @@ def translate_do_func(
 
             if DEBUGV.ENABLE and DEBUGV.ENABLE_CONTENTS:
                 print("tools/translator.py: debug: have output of " +
-                    str(len(contents_result.splitlines())) + " lines for: " +
+                    str(len(contents_result.splitlines())) +
+                    " lines for: " +
                     translated_file + " (module: " +
-                    translated_files[translated_file]["module-name"] + ")")
+                    translated_files[translated_file]
+                        ["module-name"] + ")")
                 print(contents_result)
             translated_files[translated_file]["output"] = contents_result
             #print(tokenize(b" \n\r test".decode("utf-8")))
@@ -3269,30 +3315,22 @@ def translate_do_func(
             name = os.path.basename(
                 translated_files[translated_file]["path"]
             ).rpartition(".h64")[0].strip()
-            targetfilename = os.path.basename(
-                translated_files[translated_file]["target-filename"]
-            )
             contents = translated_files[translated_file]["output"]
-            subfolder = translated_files[translated_file]["disk-fake-folder"]
-            assert(not os.path.isabs(subfolder) and ".." not in subfolder)
-            subfolder_abs = os.path.join(
-                output_folder, mpath(subfolder)
+            target_filepath = (translated_files[translated_file]
+                ["target-filepath"])
+            subfolder_abs = os.path.dirname(
+                target_filepath
             )
             if not os.path.exists(subfolder_abs):
                 os.makedirs(subfolder_abs)
-            with open(os.path.join(output_folder, mpath(os.path.join(
-                    subfolder,
-                    targetfilename))), "w", encoding="utf-8") as f:
+            with open(target_filepath, "w", encoding="utf-8") as f:
                 f.write(contents)
             if DEBUGV.ENABLE and DEBUGV.ENABLE_FILE_PATHS:
                 print("tools/translator.py: debug: wrote file: " +
-                    os.path.join(output_folder, mpath(os.path.join(
-                    subfolder,
-                    targetfilename))) + " (module: " +
+                    target_filepath + " (module: " +
                     translated_files[translated_file]["module-name"] + ")")
             if translated_files[translated_file]["path"] == mainfilepath:
-                run_py_path = os.path.join(output_folder, mpath(
-                    os.path.join(subfolder, targetfilename)))
+                run_py_path = target_filepath
         launch_cmd = [
             sys.executable, run_py_path
         ] + target_file_args

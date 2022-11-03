@@ -1628,6 +1628,48 @@ def _has_attr(v, name):
     return hasattr(v, name)
 
 
+def _ensure_all_mods_load(output_dir, mainfilepath, debug=False):
+    output_dir = os.path.normpath(os.path.abspath(output_dir))
+    for abs_root, dirs, filenames in os.walk(
+            output_dir, topdown=False
+            ):
+        assert(abs_root.startswith(output_dir))
+        root = abs_root[len(output_dir):]
+        while root.startswith(os.path.sep):
+            root = root[1:]
+
+        if "__pycache__" in os.path.normpath(root).split(os.path.sep):
+            continue
+
+        modbase = root.replace(os.path.sep, ".")
+        for name in filenames:
+            if not name.endswith(".py"):
+                continue
+            modfpath = os.path.normpath(os.path.abspath(
+                os.path.join(output_dir, root, name)
+            ))
+            if (os.path.normpath(os.path.abspath(modfpath)) ==
+                    mainfilepath):
+                continue
+            modname = (modbase + ("." +
+                name.rpartition(".py")[0]) if
+                name != "__init__.py" else "")
+            if (modname == "_translator_runtime."
+                    "_translator_runtime_helpers"):
+                continue
+            if debug:
+                print("translator_runtime_helpers.py: debug: "
+                    "pre-loading module: " + str((
+                    modname, modfpath)))
+            import importlib.util
+            import sys
+            spec = importlib.util.spec_from_file_location(
+                modname, modfpath)
+            m = importlib.util.module_from_spec(spec)
+            sys.modules[modname] = m
+            spec.loader.exec_module(m)
+
+
 def _async_final_bail_handler(err, result, funcname="main"):
     if err != None and not isinstance(err, SystemExit):
         print("Unhandled error in 'later' function: " + str(err))
