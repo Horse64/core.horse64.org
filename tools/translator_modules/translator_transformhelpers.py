@@ -517,6 +517,42 @@ def line_has_multi_stmts_for_sure(s):
     return False
 
 
+def set_expr_len_if_any(toks, i):
+    starti = i
+    while i < len(toks) and toks[i].strip(" \t\r\n") == "":
+        i += 1
+    if i >= len(toks) and toks[i] != "{":
+        return None
+    bdepth = 0
+    i += 1
+    while i < len(toks) and (
+            bdepth > 0 or
+            toks[i] != "}"):
+        if bdepth == 0 and (
+                toks[i] == "->" or toks[i] == ":"
+                ):
+            return None
+        if toks[i] in {"(", "[", "{"}:
+            bdepth += 1
+        elif toks[i] in {"(", "[", "{"}:
+            bdepth -= 1
+        i += 1
+    if i >= len(toks) or toks[i] != "}":
+        return None
+    return i - starti + 1
+
+
+def apply_make_set_call(expr):
+    set_len = set_expr_len_if_any(expr, 0)
+    if set_len is None:
+        return list(expr)
+    i = firstnonblankidx(expr)
+    assert(expr[i] == "{")
+    return (["_translator_runtime_helpers",
+        ".", "_make_set", "(", "["] +
+        expr[i + 1:set_len - 1] + ["]", ")"])
+
+
 def indent_sanity_check(s, what_in="unknown code"):
     if type(s) == list:
         s = untokenize(s)

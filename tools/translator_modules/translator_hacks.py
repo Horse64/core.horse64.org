@@ -28,10 +28,10 @@
 from translator_hacks_registry import register_hack
 
 
-register_hack(module="compiler.token", package="core.horse64.org",
-    start_t=["_math_ops_single_char", "+", "{"], end_t=["}"],
-    apply_after_python_translate=True,
-    insert_replacers={
-        "+": [".", "union", "("], "}":["}",")"],
-    })
+#register_hack(module="compiler.token", package="core.horse64.org",
+#    start_t=["_math_ops_single_char", "+", "{"], end_t=["}"],
+#    apply_after_python_translate=True,
+#    insert_replacers={
+#        "+": [".", "union", "("], "}":["}",")"],
+#    })
 

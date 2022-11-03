@@ -68,6 +68,8 @@ from translator_horphelpers import (
 
 from translator_transformhelpers import (
     transform_h64_misc_inline_to_python,
+    apply_make_set_call,
+    set_expr_len_if_any,
     make_string_literal_python_friendly,
     is_problematic_identifier_name,
     indent_sanity_check,
@@ -815,7 +817,8 @@ def translate_expression_tokens(s, sc,
                 (previous_token != None and
                 len(previous_token) == 2 and
                 previous_token[1] == "="))):
-            s = s[:i] + ["set", "(", ")"] + s[
+            s = s[:i] + ["_translator_runtime_helpers",
+                ".", "_make_set", "(", "[", "]", ")"] + s[
                 nextnonblankidx(s, i) + 1:]
         if s[i].strip("\r\n\t ") != "":
             previous_token = s[i]
@@ -1303,13 +1306,9 @@ def translate(s, sc):
                 # Hack to make assigned sets work:
                 if (len(value_exprs[-1]) > 0 and
                         firstnonblank(value_exprs[-1]) == "{"):
-                    next_idx = nextnonblankidx(value_exprs[-1],
-                        firstnonblankidx(value_exprs[-1]))
-                    if (next_idx >= 0 and
-                            value_exprs[-1][next_idx] == "}"):
-                        value_exprs[-1] = (
-                            ["set", "(", ")"] +
-                            value_exprs[-1][next_idx + 1:])
+                    value_exprs[-1] = apply_make_set_call(
+                        value_exprs[-1]
+                    )
 
                 z += 1  # Go to next assigned value.
                 if i >= len(statement):

@@ -314,6 +314,8 @@ def h64_type(v):
     result = type(v)
     if result == str:
         return "str"
+    elif result == _TranslatedSet:
+        return "set"
     elif result == bytes:
         return "bytes"
     elif result in {int, float}:
@@ -1469,10 +1471,58 @@ def _make_or_get_appcache(v):
         return os.path.join(home_dir, ".cache", v)
 
 
+import collections.abc
+class _TranslatedSet(collections.abc.MutableSet):
+    def __init__(self, v=None):
+        self.contents = set()
+        if v != None:
+            self.__add__(v)
+
+    def __len__(self):
+        return len(self.contents)
+
+    def discard(self, v):
+        self.contents.remove(v)
+
+    def __contains__(self, v):
+        return (v in self.contents)
+
+    def __iter__(self):
+        for v in self.contents:
+            yield v
+
+    def add(self, v):
+        self.contents.add(v)
+
+    def __add__(self, otherv):
+        new_set = _TranslatedSet()
+        for value in self.contents:
+            new_set.add(value)
+        for value in otherv:
+            new_set.add(value)
+        return new_set
+
+    def __iadd__(self, otherv):
+        for value in otherv:
+            self.contents.add(value)
+        return self
+
+
+def _make_set(v):
+    t = _TranslatedSet()
+    oldid = id(t)
+    assert(t != None)
+    t += v
+    assert(t != None)
+    assert(oldid == id(t))
+    return t
+
+
 def _has_attr(v, name):
     if name == "str":
         name = "_translator_renamed_str"
     return hasattr(v, name)
+
 
 def _async_final_bail_handler(err, result, funcname="main"):
     if err != None and not isinstance(err, SystemExit):
