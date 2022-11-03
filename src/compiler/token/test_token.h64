@@ -92,6 +92,18 @@ func helper_for_tokenizer_test_and_verify(
     }
 }
 
+func test_parse_token_value {
+    var t
+    t = token.Token("5", token.T_NUM, none, none)
+    assert(token.parse_token_value(t) == 5)
+    t = token.Token("0xfe", token.T_NUM, none, none)
+    assert(token.parse_token_value(t) == 254)
+    t = token.Token("'\\x20\\x21'", token.T_STR, none, none)
+    assert(token.parse_token_value(t) == " !")
+    t = token.Token('b"\\x20\\x21\0"', token.T_BYTES, none, none)
+    assert(token.parse_token_value(t) == b" !\0")
+}
+
 func test_token_list_from_str_list {
     var result
     result = token.token_list_from_str_list([

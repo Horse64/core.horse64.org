@@ -117,6 +117,142 @@ func op_str_to_token_kind(opstr) {
     )
 }
 
+## @func parse_token_value
+## Parse and return the actual value of a token literal as
+## a Horse64 data type. E.g. a T_STR @{token|Token} with its
+## @{str attribute|Token.str} set to `'"test\\n"'` will return
+## the actual string value `"test\n"`, or for a T_NUM token
+## with str attribute `"5"` it will return the @{num value} `5`.
+##
+## @param tok Token The token to return the value of.
+## @returns any The value, with the data type depending on what sort
+##   of token it is.
+func parse_token_value(tok) {
+    func is_hex_digit(c) {
+        if c.len < 1 {
+            return no
+        }
+        return (text.code(c) >= text.code("0") and
+            text.code(c) <= text.code("9")) or
+            (text.code(c) >= text.code("A") and
+            text.code(c) <= text.code("F")) or
+            (text.code(c) >= text.code("a") and
+            text.code(c) <= text.code("f"))
+    }
+    if tok.kind == T_NUM {
+        if tok.str.startswith("0x") {
+            return math.parse_hex(tok.str)
+        }
+        return tok.str.to_num()
+    } elseif tok.kind == T_STR {
+        if tok.str.len == 0 or
+                not {"'", '"'}.has(tok.str[1]) {
+            # Invalid literal. Just return empty value.
+            return ""
+        }
+        var toklen = tok.str.len
+        var escaped = no
+        var result = ""
+        i = 2
+        while i <= toklen - 1 {
+            if escaped {
+                if tok.str[i] == "t" {
+                    result += "\t"
+                } elseif tok.str[i] == "n" {
+                    result += "\n"
+                } elseif tok.str[i] == "r" {
+                    result += "\r"
+                } elseif tok.str[i] == "x" {
+                    if i + 2 > toklen or
+                            not is_hex_digit(
+                                tok.str.sub(i + 1, i + 1)
+                            ) or
+                            not is_hex_digit(
+                                tok.str.sub(i + 2, i + 2)
+                            ) {
+                        # This is invalid, just skip it.
+                        i += 3
+                        continue
+                    }
+                    var value = math.parse_hex(
+                        tok.str.sub(i, i + 2)
+                    )
+                    result += text.from_code(value)
+                    i += 2
+                } elseif tok.str[i] == "0" {
+                    result += "\0"
+                } else {
+                    result += tok.str[i]
+                }
+                escaped = no
+            } elseif tok.str[i] == "\\" {
+                escaped = yes
+            } else {
+                result += tok.str[i]
+            }
+            i += 1
+        }
+        return result
+    } elseif tok.kind == T_BYTES {
+        if tok.str.len < 2 or
+                not {"'", '"'}.has(tok.str[2]) {
+            # Invalid literal. Just return empty value.
+            return b""
+        }
+        var toklen = tok.str.len
+        var escaped = no
+        var result = b""
+        i = 3
+        while i <= toklen - 1 {
+            if escaped {
+                if tok.str[i] == "t" {
+                    result += b"\t"
+                } elseif tok.str[i] == "n" {
+                    result += b"\n"
+                } elseif tok.str[i] == "r" {
+                    result += b"\r"
+                } elseif tok.str[i] == "x" {
+                    if i + 2 > toklen or
+                            not is_hex_digit(
+                                tok.str.sub(i + 1, i + 1)
+                            ) or 
+                            not is_hex_digit(
+                                tok.str.sub(i + 2, i + 2)
+                            ) {
+                        # This is invalid, just skip it.
+                        i += 3
+                        continue
+                    }
+                    var value = math.parse_hex(
+                        tok.str.sub(i, i + 2)
+                    )
+                    result += text.code_to_byte(value)
+                    i += 2
+                } elseif tok.str[i] == "0" {
+                    result += b"\0"
+                } else {
+                    result += tok.str[i].as_bytes()
+                }
+                escaped = no
+            } elseif tok.str[i] == "\\" {
+                escaped = yes
+            } else {
+                escaped = no
+                result += tok.str[i].as_bytes()
+            }
+            i += 1
+        }
+        return result
+    } elseif tok.kind == T_BOOL {
+        return (tok.str == "yes")
+    } elseif tok.kind == T_NONE {
+        return none
+    } else {
+        throw new TypeError("Not a basic literal token "
+            "with a corresponding Horse64 value.")
+    }
+}
+
 ## @func surely_starts_stmt_even_in_bad_code
 ## Check whether a given token at the given position looks like
 ## it absolutely is intended to start a new statement, even in code
