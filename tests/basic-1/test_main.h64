@@ -90,3 +90,4 @@ func test_basic_things {
     }
     some_func()
 }
+
