@@ -1114,7 +1114,9 @@ def queue_file_if_not_queued(
     if (len(source_path_parts) >= 2 and
             source_path_parts[-1].rpartition(".h64")[0] ==
             source_path_parts[-2]):
-        assert("__init__" in entry[1])
+        assert("__init__" in entry[1]), ("invalid "
+            "queued entry that is main module file, "
+            "but python file isn't __init__.py: " + str(entry))
     # Abort if already queued:
     for queue_item in translate_file_queue:
         if (os.path.normpath(queue_item[0]) ==
@@ -1810,7 +1812,7 @@ def translate(s, sc):
                     "encountered import statement for " +
                     str((import_module, import_package)) +
                     ", but it's not listed in orig_h64_imports???")
-            target_path = import_module.replace(".", "/") + ".h64"
+            target_path = import_module.replace(".", os.path.sep) + ".h64"
             target_filename = import_module.split(".")[-1] + ".py"
             append_code = ""
             python_module = mpath(import_module, sep=".")
@@ -1820,6 +1822,19 @@ def translate(s, sc):
             package_source_subfolder = sc.project_info.\
                 get_package_subfolder(import_package,
                 for_output=False)
+            if (len(import_module.split(".")) >= 2 and
+                    import_module.split(".")[-1] ==
+                    import_module.split(".")[-2]):
+                # Suspicious, something like mod.mod. This is only valid
+                # if there's a folder mod/mod/, NOT for mod/mod.h64.
+                assert(os.path.exists(
+                    os.path.join(os.path.abspath(
+                    sc.project_info.repo_folder),
+                    package_source_subfolder,
+                    import_module.replace(".", os.path.sep) +
+                    os.path.sep))), (
+                    "module import seems invalid and doesn't reflect "
+                    "folder structure: " + str(import_module))
             if (package_python_subfolder != None and
                     len(package_python_subfolder) > 0):
                 if package_python_subfolder.endswith("/"):
