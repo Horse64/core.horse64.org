@@ -383,7 +383,7 @@ def _container_reverse(container, *args, **kwargs):
         while i < len(sorted_container):
             container[i] = sorted_container[i]
             i += 1
-        return container
+        return
     elif type(container) in {tuple, set}:
         return _TypeError("cannot reverse this container")
     return container.sort(*args, **kwargs)
