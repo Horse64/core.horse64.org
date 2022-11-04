@@ -7,7 +7,7 @@ Here's cool stuff Horse64 can do:
 Concurrency
 -----------
 
-Use effortlessly concurrent network and disk I/O:
+Use effortlessly **concurrent networking** and disk I/O:
 
 ```Horse64
 import net.fetch from core.horse64.org
@@ -47,4 +47,24 @@ func check_config {
     print("Got remote config!")
 }
 ```
+
+Comparison to Python
+--------------------
+
+Horse64 is a dynamically typed, high-level language. Here is
+how it compares to the [Python programming language](
+https://python.org):
+
+|Horse64|Python|                                                       |
+|-------|------|-------------------------------------------------------|
+|✓      |✓     | A dynamically-typed approachable design               |
+|✓      |✓     | Large standard library with high-level features       |
+|✓      |      | Syntax both simple and familiar to C/C++/Java devs    |
+|✓      |      | AOT-compiled by dev with in-depth compiler checks     |
+|✓      |      | Portable program binaries by default                  |
+|       |✓     | Designed to run small, uncompiled scripts             |
+|✓      |      | No runtime preinstall needed on user machine          |
+|✓      |✓     | Bytecode interpreter handles basic execution          |
+|✓      |      | Concurrency in all basic I/O and net functions        |
+|✓      |      | Static name resolution to catch typos in advance      |
 
