@@ -62,7 +62,7 @@ https://python.org):
 |✓      |      | Syntax both simple and familiar to C/C++/Java devs    |
 |✓      |      | AOT-compiled by dev with in-depth compiler checks     |
 |✓      |      | Portable program binaries by default                  |
-|       |✓     | Designed to run small, uncompiled scripts             |
+|       |✓     | Made to run small, not-precompiled scripts fast       |
 |✓      |      | No runtime preinstall needed on user machine          |
 |✓      |✓     | Bytecode interpreter handles basic execution          |
 |✓      |      | Concurrency in all basic I/O and net functions        |
