@@ -21,7 +21,7 @@ func download_my_page {  # This won't block your entire program!
 }
 ```
 
-*This allows designing programs that are very scalable and
+*This helps with designing programs that are scalable and
 can handle many remote resources at once without freezing.*
 
 Batteries included
