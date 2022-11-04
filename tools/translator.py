@@ -258,6 +258,11 @@ remapped_uses = {
         "process.run":
             "_translator_runtime_helpers._process_run_async",
     },
+    "random@core.horse64.org": {
+        "random.gen_id":
+            "(lambda: str(_remapped_uuid."
+                "uuid4()).replace('-', ''))"
+    },
     "system@core.horse64.org": {
         "system.exit" : "_remapped_sys.exit",
         "system.osname":
@@ -3007,6 +3012,7 @@ def translate_do_func(
                 "import shutil as _remapped_shutil;"
                 "import traceback as _remapped_traceback;"
                 "import os as _remapped_os;"
+                "import uuid as _remapped_uuid;"
                 "import enum as _remapped_enum;"
                 "import tempfile as _remapped_tempfile;"
                 "_remapped_sys.path.insert(1, " +
