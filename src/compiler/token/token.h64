@@ -455,6 +455,8 @@ func token_list_from_str_list(strlist, internal_labels=no) {
             keep_comments=no,
             auto_recovery=no,
             internal_labels=internal_labels,
+            _assume_previous_token=
+                if token_no > 1 (resultlist.last()) else (none)
         )
         if result.tokens.len != 1 {
             throw new ValueError("Str item #" + token_no.as_str() +
@@ -1068,12 +1070,17 @@ func as_escaped_code_string(s, quote_type='"') {
 ##     start with a `$` which is invalid syntax except for
 ##     intermediate code transforms used internally. Defaults to
 ##     no, don't change this unless you're certain.
+## @param _assume_previous_token (Token, none) For internal use
+##     by @{token_list_from_str_list}. Can be set to a single
+##     @{token|Token} to be assumed to be *before* the parsed
+##     stream. Probably not something you'll need to use.
 func tokenize_str(
         str, project_file=none,
         keep_whitespace=no,
         keep_comments=no,
         auto_recovery=yes,
         internal_labels=no,
+        _assume_previous_token=none,
         ) {
     var result = TokensResult()
     result.project_file = project_file
@@ -1097,10 +1104,17 @@ func tokenize_str(
     var line = 1
     var col = 0
     var i = 0
+    var last_nonspace_token = _assume_previous_token
     while i < strlen {
         i += 1
         col += 1
         c = str[i]
+        if result.tokens.len > 0 and
+                not {T_WSPACE, T_COMMENT}.has(
+                    result.tokens.last().kind
+                ) {
+            last_nonspace_token = result.tokens.last()
+        }
 
         #print("LOOKING AT #" + i.as_str() +
         #    ": " + describe_char_at(
@@ -1444,9 +1458,9 @@ func tokenize_str(
             continue
         } elseif math_ops.has(c) {
             # A 1 char math op.
-            if c == "-" and (result.tokens.len == 0 or
+            if c == "-" and (last_nonspace_token == none or
                     is_minus_after_this_token_unary(
-                        result.tokens.last()
+                        last_nonspace_token
                     )) {  # Special case of unary '-' operator:
                 result.tokens.add(new Token("-", T_UNARYMATH, line, col))
             } else {

@@ -127,16 +127,32 @@ func test_token_list_from_str_list {
         "var", "x", "=", "-", "y", "}"
     ])
     assert(result.len == 11)
-    assert(result[8].str == "-")
-    assert(result[8].kind == token.T_UNARYMATH)
+    assert(result[9].str == "-")
+    assert(result[9].kind == token.T_UNARYMATH)
 
     result = token.token_list_from_str_list([
         "func", "bla", ".", "main", "{",
         "var", "x", "=", "u", "-", "y", "}"
     ])
     assert(result.len == 12)
-    assert(result[8].str == "-")
-    assert(result[8].kind == token.T_MATH)
+    assert(result[9].kind == token.T_IDENT)
+    assert(result[10].str == "-")
+    assert(result[10].kind == token.T_MATH)
+}
+
+func test_unary_op {
+    var result = token.tokenize_str(
+        'v = (\n # Hello\n-(5)\n}',
+        keep_comments=yes)
+    assert(result.tokens.len > 5)
+    assert(result.tokens[5].kind == token.T_UNARYMATH)
+    assert(result.tokens[5].str == "-")
+    var result = token.tokenize_str(
+        'v = (1\n # Hello\n-(5)\n}',
+        keep_comments=yes)
+    assert(result.tokens.len > 6)
+    assert(result.tokens[6].kind == token.T_MATH)
+    assert(result.tokens[6].str == "-")
 }
 
 func test_surely_starts_stmt_even_in_bad_code {
