@@ -242,8 +242,8 @@ remapped_uses = {
             "_translator_runtime_helpers._NetworkIOError",
     },
     "net.fetch@core.horse64.org": {
-        "net.fetch.get":
-            "_translator_runtime_helpers._net_fetch_get",
+        "net.fetch.open":
+            "_translator_runtime_helpers._net_fetch_open",
     },
     "path@core.horse64.org": {
         "path.normalize":

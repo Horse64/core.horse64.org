@@ -27,6 +27,7 @@
 
 import collections.abc
 import fnmatch
+import functools
 import ipaddress
 import json
 import math
@@ -345,7 +346,22 @@ def _container_add(container, item):
 
 def _container_sort(container, *args, **kwargs):
     if (type(container) in {list}):
-        sorted_container = list(sorted(container))
+        sorted_container = None
+        if "cmp" in kwargs:
+            cmp_func = kwargs["cmp"]
+            def do_cmp():
+                v = cmp_func()
+                if v == True:
+                    return 1
+                elif v == False:
+                    return -1
+                raise ValueError("Given 'cmp' func returned "
+                    "invalid value.")
+            sorted_container = list(sorted(
+                container, key=functools.cmp_to_key(do_cmp)
+            ))
+        else:
+            sorted_container = list(sorted(container))
         i = 0
         while i < len(sorted_container):
             container[i] = sorted_container[i]
@@ -571,7 +587,7 @@ def _is_digits(v):
 
 
 def _looks_like_uri(v):
-    if (v.find("://") >= 1 and
+    if (v.find("://") >= 2 and
             len(v.partition("://")[0].strip()) > 1
             ):
         return True
@@ -1025,7 +1041,7 @@ def _net_lookup_name(name, cb, retries=0, retry_delay=0.5):
     _async_ops_lock.release()
 
 
-def _net_fetch_get(uri, extra_headers=None,
+def _net_fetch_open(uri, extra_headers=None,
         user_agent="core.horse64.org net.fetch/0.1 (translator)",
         allow_disk=False, allow_vfs=False):
     if extra_headers is None:
