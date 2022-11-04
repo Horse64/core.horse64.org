@@ -36,7 +36,7 @@ import confparse from core.horse64.org
 func check_config {
     # Read an ini file:
     var contents = confparse.parse_from_file("myconf.ini")
-    print(contents["mysection"]["myvalue"]
+    print(contents["mysection"]["myvalue"])
 
     # ...or read it from the web?
     var remote_contents = confparse.parse_from_uri(
