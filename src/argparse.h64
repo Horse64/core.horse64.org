@@ -517,7 +517,8 @@ func get_usage_text(options) {
         switch_desc_map["--help"] =
             "Show this help text."
     }
-    var sorted_names = unsorted_names.sort()
+    var sorted_names = unsorted_names.copy()
+    sorted_names.sort()
     var longest_switch_len = 0
     for switch_name in sorted_names {
         longest_switch_len = math.max(
@@ -842,7 +843,7 @@ func parse(argument_defs, args=none) {
         }
     }
     # Get each action_func to be run in alphabetical switch order:
-    action_switch_names = action_switch_names.sort()
+    action_switch_names.sort()
     var action_funcs_in_order = []
     for action_switch_name in action_switch_names {
         for arg in argument_defs.args {
