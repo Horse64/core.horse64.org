@@ -836,7 +836,9 @@ class _RequestsFetchObj:
     def __init__(self, uri,
             extra_headers={},
             retries=0, retry_delay=0.5):
-        self.rawobj = None
+        self.iterobj = None
+        self.request = None
+        self.buffer = b""
         self.uri = uri
         self.extra_headers = extra_headers
         self.request = None
@@ -850,13 +852,24 @@ class _RequestsFetchObj:
         def recv_sync(op):
             global _async_ops_lock
             self = op.userdata[0]
+            def read_chunk():
+                try:
+                    chunk = next(self.iterobj)
+                    if len(chunk) == 0:
+                        return False
+                    self.buffer += chunk
+                    return True
+                except StopIteration:
+                    return False
             if self.request is None:
                 try:
                     self.request = (
                         requests.get(self.uri,
                         headers=self.extra_headers,
                         stream=True))
-                    self.rawobj = self.request.raw
+                    self.iterobj = self.request.iter_content(
+                        chunk_size=1024
+                    )
                 except (OSError, requests.RequestException,
                         requests.HTTPError):
                     _async_ops_lock.acquire()
@@ -869,7 +882,15 @@ class _RequestsFetchObj:
             result = b""
             if amount is None or amount > 0:
                 try:
-                    result = self.rawobj.read(amount)
+                    while amount is None or len(self.buffer) < amount:
+                        if not read_chunk():
+                            break
+                    if amount is None:
+                        result = self.buffer
+                        self.buffer = b""
+                    else:
+                        result = self.buffer[:amount]
+                        self.buffer = self.buffer[amount:]
                 except (OSError, IOError):
                     _async_ops_lock.acquire()
                     op.userdata2 = [
@@ -896,10 +917,10 @@ class _RequestsFetchObj:
         _async_ops_lock.release()
 
     def close(self):
-        if self.rawobj is None:
+        if self.request is None:
             return
         try:
-            self.rawobj.close()
+            self.request.close()
         except (IOError, OSError):
             pass
         self.rawobj = None
