@@ -147,17 +147,26 @@ func write_to_file(uri, path, max_size=(100 * 1024  * 1024)) {
 ##   `["https://site2.org"]`.
 ## @param max_size num Since the string will be fully loaded
 ##   into memory, for security reasons there must be a maximum
-##   size. It defaults to 4KB. Use @{net.fetch.get} if you want
-##   to avoid any limit.
+##   size. It defaults to 100KB. Use @{net.fetch.get} if you want
+##   to avoid limits entirely.
 ## @param one_or_more bool If set to @{yes}, ignore if some of the
 ##   URIs (if you supplied a @{list}) fail, as long as at least
 ##   one succeeds. The default is @{no}, and any @{error|Error}
 ##   will always abort.
+## @param allow_disk bool Defaults to @{no}. If set to @{yes},
+##   `file://` paths are allowed. **Only use if you want the URI
+##   to possibly cause any file on the entire machine unrestricted.**
+## @param allow_vfs bool Defaults to @{no}. If set to @{yes},
+##   `vfs://` paths are allowed. **Only use if you want the URI
+##   to possibly access any sort of internal resource unrestricted.**
 ## @returns (str or list) If the `uri` parameter was a
 ##   an @{str} and not a @{list}, returns a single @{str} of
 ##   the contents. Otherwise, a @{list} of @{str}s, with
 ##   failed entries @{none} if `one_or_more` is @{yes}.
-func get_str(uri, max_size=(4 * 1024), one_or_more=no) {
+func get_str(
+        uri, max_size=(1024 * 100), one_or_more=no,
+        allow_vfs=no, allow_disk=no
+        ) {
     # Validate input:
     var was_single_uri = {"bytes", "str"}.has(typename(uri))
     var uris = _validate_uri_list(uri)
@@ -170,8 +179,10 @@ func get_str(uri, max_size=(4 * 1024), one_or_more=no) {
     var result = []
     var remain_unfailed = uris.len
     var next_uri = uris.pop()
-    var obj = net.fetch.get(next_uri)
-    var data = obj.read(max_size)
+    var obj = net.fetch.get(
+        next_uri, allow_vfs=allow_vfs, allow_disk=allow_disk
+    )
+    var data = obj.read(amount=max_size)
     later:
 
     # Collect result with last item we got:
@@ -203,7 +214,9 @@ func get_str(uri, max_size=(4 * 1024), one_or_more=no) {
 
     # We're not done yet, repeat with the next one:
     next_uri = uris.pop()
-    obj = net.fetch.get(next_uri)
-    data = obj.read(max_size) later repeat
+    obj = net.fetch.get(
+        next_uri, allow_vfs=allow_vfs, allow_disk=allow_disk
+    )
+    data = obj.read(amount=max_size) later repeat
 }
 

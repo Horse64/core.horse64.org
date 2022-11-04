@@ -25,10 +25,16 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import net from core.horse64.org
+import net.fetch from core.horse64.org
+import uri from core.horse64.org
 
+
+## The error returned by @{parse_conf_str},
+## @{parse_conf_by_file}, and @{parse_conf_by_uri} when an
+## invalid config is found with `error_on_mistakes` set to @{yes}.
 type ConfParseError extends ValueError {
 }
-
 
 ## @func parse_conf_str
 ## Parse the contents of a config file using the INI format,
@@ -36,6 +42,10 @@ type ConfParseError extends ValueError {
 ## @param string str The contents of the config file.
 ## @param allow_multiline bool Whether an indent after an assignment
 ##     line allows continuing the assigned value on the next line.
+## @param allow_multiassign bool Whether to allow a value to be assigned
+##     multiple times with different values. If set to @{yes}, values
+##     assigned multiple times will be stored as a list of all
+##     encountered values.
 ## @param error_on_mistakes bool Whether to throw a
 ##     @{ConfParseError} when encountering a line that is obviously
 ##     invalid.
@@ -236,6 +246,85 @@ func parse_conf_str(
         multiline_exact_indent = none
     }
 
+    return result
+}
+
+## @func parse_conf_by_uri
+## Parse the contents of a config file pointed to by the
+## given URI. The URI must point to a local resource, that is
+## have the protocol `file://` or `vfs://`.
+##
+## @param uri str The URI pointing to the config file to be loaded.
+## @param allow_multiline @alike{parse_conf_str}
+## @param allow_multiassign @alike{parse_conf_str}
+## @param error_on_mistakes @alike{parse_conf_str}
+## @param max_size num The size limit in bytes for how large the config
+##   file can be, defaults to 100KB. This limit exists for security
+##   reasons.
+## @returns @alike{parse_conf_str}
+func parse_conf_by_uri(
+        conf_uri, allow_multiline=yes,
+        allow_multiassign=yes,
+        error_on_mistakes=yes,
+        allow_remote=yes,
+        max_size=(1024 * 100),
+        ) {
+    if net.is_uri_remote(conf_uri) and not allow_remote {
+        throw new PermissionError("Remote URIs not allowed.")
+    }
+    var contents = get_str(
+        uri, max_size=max_size, one_or_more=no,
+        allow_vfs=yes, allow_disk=yes
+    ) later:
+
+    await contents
+    return parse_conf_str(
+        contents, allow_multiline=allow_multiline,
+        allow_multiassign=allow_multiassign,
+        error_on_mistake=error_on_mistake
+    )
+}
+
+## @func parse_conf_by_file
+## Parse the contents of a config file found at the given path
+##
+## @param path str The file path to the config file to be loaded.
+## @param allow_multiline @alike{parse_conf_str}
+## @param allow_multiassign @alike{parse_conf_str}
+## @param error_on_mistakes @alike{parse_conf_str}
+## @param max_size @alike{parse_conf_by_uri}
+## @param allow_vfs bool Whether the path may refer to a file
+##   in the VFS. Defaults to @{yes}.
+## @param allow_disk bool Whether the path may refer to a file
+##   on disk and not the VFS. Defaults to @{yes}.
+## @returns @alike{parse_conf_str}
+func parse_conf_by_file(
+        path, allow_multiline=yes,
+        allow_multiassign=yes,
+        error_on_mistakes=yes,
+        max_size=(1024 * 100),
+        allow_vfs=yes,
+        allow_disk=yes
+        ) {
+    if not allow_vfs and not allow_vfs {
+        throw new PathNotFoundError("File not found.")
+    }
+    var is_vfs = (not allow_disk) or
+        (allow_vfs and io.exists(path, allow_disk=no))
+    var conf_uri
+    if is_vfs {
+        conf_uri = uri.from_vfs_path(path)
+    } else {
+        conf_uri = uri.from_disk_path(path)
+    }
+    var result = parse_conf_by_uri(uri,
+        allow_multiline=allow_multiline,
+        allow_multiassign=allow_multiassign,
+        error_on_mistakes=error_on_mistakes,
+        max_size=max_size)
+    later:
+
+    await result
     return result
 }
 
