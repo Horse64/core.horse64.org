@@ -210,7 +210,7 @@ func _tokenize_this_for_ast(
         )
         return tresult
     } else {
-        var tresult = token.tokenize_file_by_uri(
+        var tresult = token.tokenize_from_uri(
             source, project_file=project_file,
             keep_whitespace=no
         ) later:
@@ -261,7 +261,7 @@ func parse_str_to_ast(
     return result
 }
 
-## @func parse_file_to_ast_by_uri
+## @func parse_to_ast_from_uri
 ## Parse the file referenced to by the URI to an @{Abstract Syntax
 ## Tree result|ASTResult}.
 ##
@@ -276,7 +276,7 @@ func parse_str_to_ast(
 ##   considered a disk path and converted to a `file://` URI.
 ## @returns ASTResult The resulting syntax tree and diagnostic messages,
 ##   like parse errors or warnings.
-func parse_file_to_ast_by_uri(
+func parse_to_ast_from_uri(
         fileuri, project_file=none, default_to_diskpath=no
         ) {
     var result = _parse_tokens_to_ast_ex(

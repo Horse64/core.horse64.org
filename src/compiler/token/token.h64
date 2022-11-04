@@ -1569,7 +1569,7 @@ func tokenize_str(
     return result
 }
 
-func tokenize_by_fileobj (
+func tokenize_from_fileobj (
         fobj, project_file=none,
         keep_whitespace=no,
         keep_comments=no
@@ -1601,7 +1601,7 @@ func tokenize_by_fileobj (
     return result
 }
 
-## @func tokenize_file_by_uri
+## @func tokenize_file_from_uri
 ## Parse the file referenced to by the URI to a
 ## @{tokens result|TokensResult}.
 ##
@@ -1622,7 +1622,7 @@ func tokenize_by_fileobj (
 ##   considered a disk path and converted to a `file://` URI.
 ## @returns TokensResult The resulting tokens and diagnostic messages,
 ##   like parse errors or warnings.
-func tokenize_file_by_uri(
+func tokenize_from_uri(
         source_uri, project_file=none, keep_whitespace=no,
         keep_comments=no,
         allow_remote=yes,
@@ -1643,7 +1643,7 @@ func tokenize_file_by_uri(
         source_uri, allow_vfs=yes, allow_disk=yes
     )
     do {
-        var result = tokenize_by_fileobj(fileobj,
+        var result = tokenize_from_fileobj(fileobj,
             project_file=project_file,
             keep_whitespace=keep_whitespace,
             keep_comments=keep_comments) later:
