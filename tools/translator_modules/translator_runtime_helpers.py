@@ -602,6 +602,17 @@ def _looks_like_uri(v):
     return False
 
 
+def _file_uri_from_vfs_path(v):
+    v = _file_uri_from_path(v)
+    return "vfs://" + v.partition("://")[2]
+
+
+def _uri_get_protocol(v):
+    if not "://" in v:
+        return None
+    return v.partition("://")[0].lower()
+
+
 def _file_uri_from_path(v):
     if v == "" or v == ".":
         v = "./"
@@ -654,7 +665,7 @@ def _uri_normalize(v, guess_nonfiles=True):
     if not resource.startswith("/"):
         resource = "/" + resource
     result += resource
-    return resource
+    return result
 
 
 def _json_dump(obj):
@@ -674,8 +685,16 @@ def _uri_to_file_or_vfs_path(v):
     return resource
 
 
-def _io_ls_dir(v, allow_vfs=True, force_vfs=False):
-    if force_vfs:
+def _io_exists(v, allow_vfs=True, allow_disk=True):
+    if v == "":
+        v = "."
+    if not allow_disk:
+        return (v == ".")
+    return _wrap_io(os.path.exists)(v)
+
+
+def _io_ls_dir(v, allow_vfs=True, allow_disk=True):
+    if not allow_disk:
         if os.path.normpath(v) in {"", "."}:
             return []
         raise _PathNotFoundError(
@@ -734,8 +753,8 @@ def _async_delay_call(f, args):
 class _FileObjFromDisk:
     def __init__(self, path, mode,
             allow_vfs=True,
-            force_vfs=False):
-        if force_vfs:
+            allow_disk=True):
+        if not allow_disk:
             raise _ResourceMisuseError(
                 "no VFS support available in this runtime"
             )
@@ -817,13 +836,14 @@ class _RequestsFetchObj:
     def __init__(self, uri,
             extra_headers={},
             retries=0, retry_delay=0.5):
+        self.rawobj = None
         self.uri = uri
         self.extra_headers = extra_headers
         self.request = None
         self.retries = retries
         self.retry_delay = retry_delay
 
-    def read(self, amount, cb):
+    def read(self, cb, amount=None):
         if amount != None:
             amount = int(amount)
         global _async_ops_lock, _async_ops
@@ -981,18 +1001,21 @@ def _net_lookup_name(name, cb, retries=0, retry_delay=0.5):
 
 
 def _net_fetch_get(uri, extra_headers=None,
-        user_agent="core.horse64.org net.fetch/0.1 (translator)"):
+        user_agent="core.horse64.org net.fetch/0.1 (translator)",
+        allow_disk=False, allow_vfs=False):
     if extra_headers is None:
         extra_headers = {}
     if not "://" in uri:
-        raise ValueError("need web url to fetch from")
+        raise ValueError("Need web URI to fetch from.")
     if uri.lower().startswith("file://"):
+        if not allow_disk:
+            raise _PermissionError("Disk access disabled.")
         fpath = _uri_to_file_or_vfs_path(uri)
         return _FileObjFromDisk(fpath, "rb")
     if (not uri.lower().startswith("https://") and
             not uri.lower().startswith("http://")):
-        raise ValueError("unsupported protocol, "
-            "supported protocols are http, https, file")
+        raise ValueError("Unsupported protocol, "
+            "supported protocols are: http, https, file.")
     if extra_headers != None:
         extra_headers = dict(extra_headers)
     clean_keys = []
@@ -1372,7 +1395,7 @@ def _container_del(v, *args, **kwargs):
         return v._translator_renamed_del(*args, **kwargs)
 
 
-def _text_pos_from_line_col(s, line, col):
+def _text_pos_from_line_col(s, line, col, start_line=1, start_col=1):
     # XXX: The translator implementation of this intentionally
     # ignores glyphs for simplicity. Only HVM will do this properly.
     if type(s) == bytes:
@@ -1380,8 +1403,8 @@ def _text_pos_from_line_col(s, line, col):
     if type(s) != str:
         raise _TypeError("must be used on str or bytes")
     slen = len(s)
-    atcol = 1
-    atline = 1
+    atline = start_line
+    atcol = start_col
     i = 0
     while i < slen:
         if line == atline and col == atcol:

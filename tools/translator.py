@@ -116,9 +116,9 @@ translated_files = {}
 
 # Set version:
 if os.path.exists(os.path.join(translator_py_script_dir,
-        "..", "horp.ini")):
+        "..", "horp.conf")):
     with open(os.path.join(translator_py_script_dir,
-            "..", "horp.ini")) as f:
+            "..", "horp.conf")) as f:
         _get_version = horp_ini_string_get_package_version(
             f.read()
         )
@@ -188,15 +188,12 @@ remapped_uses = {
     },
     "io@core.horse64.org": {
         "io.open":
-            "(lambda path, mode, allow_vfs=True," +
-            "force_vfs=False: _translator_runtime_helpers." +
+            "(lambda path, mode, allow_disk=True," +
+            "allow_vfs=False: _translator_runtime_helpers." +
             "_FileObjFromDisk(path, mode," +
-            "allow_vfs=allow_vfs,force_vfs=force_vfs))",
+            "allow_vfs=allow_vfs, allow_disk=allow_disk))",
         "io.exists":
-            "(lambda path: " +
-            "_translator_runtime_helpers._wrap_io("
-            "_remapped_os.path.exists('.' if" +
-            "path == '' else path)))",
+            "_translator_runtime_helpers._io_exists",
         "io.is_dir":
             "(lambda path: " +
             "_translator_runtime_helpers._wrap_io("
@@ -301,6 +298,8 @@ remapped_uses = {
             "_translator_runtime_helpers._textformat_outdent",
     },
     "uri@core.horse64.org": {
+        "uri.get_protocol":
+            "_translator_runtime_helpers._uri_get_protocol",
         "uri.to_file_or_vfs_path":
             "_translator_runtime_helpers."
                 "_uri_to_file_or_vfs_path",
@@ -311,7 +310,10 @@ remapped_uses = {
             "_uri_normalize",
         "uri.from_disk_path":
             "_translator_runtime_helpers." +
-            "_file_uri_from_path"
+            "_file_uri_from_path",
+        "uri.from_vfs_path":
+            "_translator_runtime_helpers." +
+            "_file_uri_from_vfs_path",
     },
     "wildcard@core.horse64.org": {
         "wildcard.match":
@@ -2425,13 +2427,13 @@ def locate_repo_folder(startpath, repo_dir_override=None):
                 ".git" in repo_folder_files) and \
                 repo_dir_override is None:
             break
-        if ("horp.ini" in repo_folder_files and
+        if ("horp.conf" in repo_folder_files and
                 not os.path.isdir(os.path.join(
-                repo_dir, "horp.ini"))) and \
+                repo_dir, "horp.conf"))) and \
                 repo_dir_override is None:
             contents = ""
             with open(os.path.join(project_info.repo_folder,
-                    "horp.ini"), "r", encoding='utf-8') as f:
+                    "horp.conf"), "r", encoding='utf-8') as f:
                 contents = f.read()
             pkg_name = horp_ini_string_get_package_name(contents)
             if pkg_name != None:
@@ -2773,9 +2775,9 @@ def translate_do_func(
         project_info.repo_folder, project_info.code_relpath)
     if (project_info.package_name is None and
             os.path.exists(os.path.join(
-            project_info.repo_folder, "horp.ini"))):
+            project_info.repo_folder, "horp.conf"))):
         with open(os.path.join(project_info.repo_folder,
-                "horp.ini"), "r", encoding='utf-8') as f:
+                "horp.conf"), "r", encoding='utf-8') as f:
             contents = f.read()
             pkg_name = horp_ini_string_get_package_name(contents)
             if pkg_name != None:
@@ -2803,9 +2805,9 @@ def translate_do_func(
                                     (fname, text))
             else:
                 print("tools/translator.py: warning: " +
-                    "failed to get package name from horp.ini: " +
+                    "failed to get package name from horp.conf: " +
                     str(os.path.join(project_info.repo_folder,
-                    "horp.ini")))
+                    "horp.conf")))
     if DEBUGV.ENABLE:
         print("tools/translator.py: debug: " +
             "detected package name: " +
