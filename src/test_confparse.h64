@@ -32,7 +32,7 @@ import textfmt from core.horse64.org
 func test_configs {
     var result, haderror
 
-    result = confparse.parse_conf_str(
+    result = confparse.parse_str(
                 allow_multiline=yes, allow_multiassign=yes,
                 error_on_mistakes=yes, ("
         # This is a test config file
@@ -44,7 +44,7 @@ func test_configs {
     assert(result["mysection"].has("abc.cde"))
     assert(result["mysection"]["abc.cde"] == "1 2 3 4")
 
-    result = confparse.parse_conf_str(
+    result = confparse.parse_str(
         allow_multiline=yes, allow_multiassign=yes,
         error_on_mistakes=yes, "
             # This is a test config file
@@ -60,7 +60,7 @@ func test_configs {
     haderror = no
     do {
         # Expected to error since...
-        result = confparse.parse_conf_str(
+        result = confparse.parse_str(
             allow_multiline=yes, allow_multiassign=yes,
             error_on_mistakes=yes, "
                 [mysection]
@@ -78,7 +78,7 @@ func test_configs {
     haderror = no
     do {
         # Should also error since...
-        result = confparse.parse_conf_str(
+        result = confparse.parse_str(
             allow_multiline=yes, allow_multiassign=yes,
             error_on_mistakes=yes, "
                 [mysection]
@@ -92,7 +92,7 @@ func test_configs {
     }
     assert(haderror)
 
-    result = confparse.parse_conf_str(
+    result = confparse.parse_str(
         allow_multiline=yes, allow_multiassign=yes,
         error_on_mistakes=yes, "
             [mysection]
@@ -108,7 +108,7 @@ func test_configs {
     haderror = no
     do {
         # This should error since...
-        result = confparse.parse_conf_str(
+        result = confparse.parse_str(
             allow_multiline=yes, allow_multiassign=yes,
             error_on_mistakes=yes, "
                 [mysection]
@@ -123,7 +123,7 @@ func test_configs {
     }
     assert(haderror)
 
-    result = confparse.parse_conf_str(
+    result = confparse.parse_str(
         allow_multiline=yes, allow_multiassign=yes,
         error_on_mistakes=yes, "
             [mysection]
@@ -137,7 +137,7 @@ func test_configs {
     assert(result["mysection"]["abc.cde"] == "1 2 3 4")
     assert(result["mysection"]["def"] == "hello=")
 
-    result = confparse.parse_conf_str(
+    result = confparse.parse_str(
         allow_multiline=yes, allow_multiassign=yes,
         error_on_mistakes=yes, "
             [mysection]
