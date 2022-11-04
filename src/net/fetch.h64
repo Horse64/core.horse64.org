@@ -58,7 +58,6 @@ func _validate_uri_list(uri) {
     return uris
 }
 
-
 ## Get an internet resource and write it to a disk file.
 ##
 ## @param uri (str or list) A single URI as an @{str}, or
@@ -95,7 +94,7 @@ func write_to_file(uri, path, max_size=(100 * 1024  * 1024)) {
     var target_obj, src_obj
     do {
         target_obj, src_obj = io.open(next_path, "wb"),
-            net.fetch.get(next_uri)
+            net.fetch.open(next_uri)
     } rescue any {
         target_obj.close()
         src_obj.close()
@@ -103,7 +102,7 @@ func write_to_file(uri, path, max_size=(100 * 1024  * 1024)) {
     }
 
     # Do first chunk of read & write:
-    var done = io.read_and_write(
+    var done = io.read_write_transfer(
         src_obj, target_obj_next_uri,
         error_prefix="Error on URI '" + next_uri + "':",
         close_on_error=yes
@@ -123,7 +122,7 @@ func write_to_file(uri, path, max_size=(100 * 1024  * 1024)) {
         src_obj.close()
         do {
             target_obj, src_obj = io.open(next_path, "wb"),
-                net.fetch.get(next_uri)
+                net.fetch.open(next_uri)
         } rescue any {
             target_obj.close()
             src_obj.close()
@@ -179,7 +178,7 @@ func get_str(
     var result = []
     var remain_unfailed = uris.len
     var next_uri = uris.pop()
-    var obj = net.fetch.get(
+    var obj = net.fetch.open(
         next_uri, allow_vfs=allow_vfs, allow_disk=allow_disk
     )
     var data = obj.read(amount=max_size)
@@ -214,7 +213,7 @@ func get_str(
 
     # We're not done yet, repeat with the next one:
     next_uri = uris.pop()
-    obj = net.fetch.get(
+    obj = net.fetch.open(
         next_uri, allow_vfs=allow_vfs, allow_disk=allow_disk
     )
     data = obj.read(amount=max_size) later repeat

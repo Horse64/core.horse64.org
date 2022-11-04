@@ -26,7 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 
-
+## @func read_write_transfer
 ## Helper function to read one chunk from a source file,
 ## and write it to a target one.
 ##
@@ -43,7 +43,7 @@
 ##   and nothing was written, @{no} if something was written.
 ##   Any IO @{errors|Error} otherwise encountered will bubble
 ##   up for you to handle.
-func read_from_write_to(
+func read_write_transfer(
         src_obj, target_obj, amount=none,
         error_prefix="",
         close_on_error=no

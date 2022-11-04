@@ -24,16 +24,32 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+#import compiler.ast.ast as ast
 import compiler.ast.expr as expr
+
 
 func test_parse_expression {
     var msgs = []
-    var result = expr.parse_expression(
+
+    var v1 = expr.parse_expression(
         ["5"], 1, msgs, project_file=none,
         debug=yes
     ) later:
-
-    await result
+    await v1
     assert(msgs.len == 0)
-    assert(result != none)
+    assert(v1 != none)
+    #assert(v1.kind == ast.N_EXPR_LIT)
+    #assert(v1.value == 5)
+
+    var v2 = expr.parse_expression(
+        ["not", "5"], 1, msgs, project_file=none,
+        debug=yes
+    ) later:
+    await v2
+    assert(msgs.len == 0)
+    #assert(v2 != none)
+    #assert(v2.kind == ast.N_EXPR_UNOP)
+    #assert(v2.subexprs.len == 1)
+    #assert(v2.subexprs[1].kind == ast.N_EXPR_LIT)
+    #assert(v2.subexprs[1].value == 5)
 }

@@ -189,7 +189,7 @@ func parse_expression(
     if debug {
         print("compiler.ast.expr: parse_expression() on " +
             tokens.sub(1, math.min(10, tokens_len)).as_str() +
-            if tokens_len > 10 ("...") else (""))
+            "...")
     }
 
     var inner_expr = parse_expression_unwrapped(
@@ -201,8 +201,7 @@ func parse_expression(
     if debug {
         print("compiler.ast.expr: parse_expression() on " +
             tokens.sub(1, math.min(10, tokens_len)).as_str() +
-            if tokens_len > 10 ("...") else ("") +
-            " fetched inner_expr -> " + inner_expr.as_str() +
+            "... fetched inner_expr -> " + inner_expr.as_str() +
             " (with token after: " + token.describe_token_at(
                 tokens, pos + if inner_expr != none
                 (inner_expr.token_len) else (0)
@@ -240,8 +239,7 @@ func parse_expression_unwrapped(
     if debug {
         print("compiler.ast.expr: parse_expression_unwrapped() on " +
             tokens.sub(pos, math.min(pos + 10, tokens_len)).as_str() +
-            if pos + 10 > tokens_len ("...") else ("") +
-            " with left_hand=" + left_hand.as_str())
+            "...  with left_hand=" + left_hand.as_str())
     }
 
     if pos > tokens_len {

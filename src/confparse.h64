@@ -272,7 +272,7 @@ func parse_from_uri(
     if net.is_uri_remote(conf_uri) and not allow_remote {
         throw new PermissionError("Remote URIs not allowed.")
     }
-    var contents = get_str(
+    var contents = net.fetch.get_str(
         uri, max_size=max_size, one_or_more=no,
         allow_vfs=yes, allow_disk=yes
     ) later:
