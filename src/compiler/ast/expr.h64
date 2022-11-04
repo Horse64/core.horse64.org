@@ -25,6 +25,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import math from core.horse64.org
+
 import compiler.ast as ast
 import compiler.msg as msg
 import compiler.token as token
@@ -122,10 +124,15 @@ func token_continues_expr(t) {
 func parse_container_entry(
         tokens, pos, msgs, container_kind,
         container_start_line=none, container_start_col=none,
-        project_file=none
+        project_file=none, max_len=none, debug=no
         ) {
+    var tokens_len = tokens.len
+    if max_len != none {
+        tokens_len = math.min(tokens_len, max_len)
+    }
     var expr_1 = parse_expression(
-        tokens, pos, msgs, project_file=project_file
+        tokens, pos, msgs, project_file=project_file,
+        max_len=tokens_len, debug=debug
     ) later:
 
     await expr_1
@@ -136,7 +143,7 @@ func parse_container_entry(
         return [expr1, none]
     }
     pos += expr_1.token_len
-    if pos >= tokens.len or (container_type == C_MAP and
+    if pos >= tokens_len or (container_type == C_MAP and
             tokens[pos].kind != C_MAPARROW) or
             (container_type == C_VEC and
             tokens[pos].kind != C_COLON) {
@@ -160,7 +167,8 @@ func parse_container_entry(
     }
     pos += 1
     var expr2 = parse_expression(
-        tokens, pos, msgs, project_file=project_file
+        tokens, pos, msgs, project_file=project_file,
+        max_len=tokens_len, debug=debug
     ) later:
 
     await expr2
@@ -168,35 +176,58 @@ func parse_container_entry(
 }
 
 func parse_expression(
-        tokens, pos, msgs, project_file=none
+        tokens, pos, msgs, project_file=none,
+        max_len=none, debug=no
         ) {
     if tokens.len > 0 and typename(tokens[1]) == "str" {
         tokens = token.token_list_from_str_list(tokens)
     }
+    var tokens_len = tokens.len
+    if max_len != none {
+        tokens_len = math.min(max_len, tokens_len)
+    }
+    if debug {
+        print("compiler.ast.expr: parse_expression() on " +
+            tokens.sub(1, math.min(10, tokens_len)).as_str() +
+            if tokens_len > 10 ("...") else (""))
+    }
 
     var inner_expr = parse_expression_unwrapped(
-        tokens, pos, msgs, project_file=project_file
+        tokens, pos, msgs, project_file=project_file,
+        max_len=tokens_len, debug=debug
     ) later:
 
     await inner_expr
+    if debug {
+        print("compiler.ast.expr: parse_expression() on " +
+            tokens.sub(1, math.min(10, tokens_len)).as_str() +
+            if tokens_len > 10 ("...") else ("") +
+            " fetched inner_expr -> " + inner_expr.as_str() +
+            " (with token after: " + token.describe_token_at(
+                tokens, pos + if inner_expr != none
+                (inner_expr.token_len) else (0)
+            ) + ")")
+    }
     if inner_expr == none {
         return inner_expr
     }
     pos += inner_expr.token_len
-    if pos <= tokens.len and token_continues_expr(tokens[pos]) {
+    if pos <= tokens_len and token_continues_expr(tokens[pos]) {
         var wrapped_expr = parse_expression_unwrapped(
             tokens, pos, msgs, project_file=project_file,
-            left_hand=inner_expr
+            left_hand=inner_expr,
+            max_len=tokens_len, debug=debug,
         ) later:
 
         await wrapped_expr
         return wrapped_expr
     }
+    return inner_expr
 }
 
 func parse_expression_unwrapped(
         tokens, pos, msgs, project_file=none,
-        left_hand=none, max_len=none
+        left_hand=none, max_len=none, debug=no
         ) {
     var startpos = pos
     var startline = token.get_line(tokens, startpos)
@@ -205,6 +236,14 @@ func parse_expression_unwrapped(
     if max_len != none {
         tokens_len = math.min(max_len, tokens_len)
     }
+
+    if debug {
+        print("compiler.ast.expr: parse_expression_unwrapped() on " +
+            tokens.sub(pos, math.min(pos + 10, tokens_len)).as_str() +
+            if pos + 10 > tokens_len ("...") else ("") +
+            " with left_hand=" + left_hand.as_str())
+    }
+
     if pos > tokens_len {
         return none
     }
@@ -259,7 +298,8 @@ func parse_expression_unwrapped(
             pos += 1
             var inner_expr = parse_expression(
                 tokens, pos, msgs, project_file=none,
-                left_hand=none, max_len=tokens_len
+                left_hand=none, max_len=tokens_len,
+                debug=debug,
             ) later:
 
             await inner_expr
@@ -408,7 +448,8 @@ func parse_expression_unwrapped(
                 container_start_line=startline,
                 container_start_col=startcol,
                 project_file=project_file,
-                max_len=tokens_len
+                max_len=tokens_len,
+                debug=debug
             ) later:
 
             await next_expr
@@ -511,6 +552,7 @@ func parse_expression_unwrapped(
                 container_start_col=startcol,
                 project_file=project_file,
                 max_len=tokens_len,
+                debug=debug,
             ) later repeat
         }
         return none
@@ -529,7 +571,8 @@ func parse_expression_unwrapped(
         node.col = startcol
         var inner_expr = parse_expression(
             tokens, pos, msgs, project_file=none,
-            left_hand=none, max_len=tokens_len
+            left_hand=none, max_len=tokens_len,
+            debug=debug,
         ) later:
 
         await inner_expr
@@ -609,7 +652,8 @@ func parse_expression_unwrapped(
         node.col = startcol
         var inner_expr = parse_expression(
             tokens, pos, msgs, project_file=none,
-            left_hand=none, max_len=tokens_len
+            left_hand=none, max_len=tokens_len,
+            debug=debug,
         ) later:
 
         await inner_expr

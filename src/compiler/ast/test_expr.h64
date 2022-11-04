@@ -29,7 +29,8 @@ import compiler.ast.expr as expr
 func test_parse_expression {
     var msgs = []
     var result = expr.parse_expression(
-        ["5"], 1, msgs, project_file=none
+        ["5"], 1, msgs, project_file=none,
+        debug=yes
     ) later:
 
     await result
