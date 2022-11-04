@@ -57,14 +57,14 @@ https://python.org):
 
 |Horse64|Python|                                                       |
 |-------|------|-------------------------------------------------------|
-|✓      |✓     | **Dynamically-typed** approachable design             |
-|✓      |✓     | **Large standard library** with high-level features   |
-|✓      |      | **Syntax clean but familiar** to devs of C/C++/Java   |
-|✓      |      | **AOT-compiled** by dev for in-depth error checks     |
-|✓      |      | **Portable program binaries** by default              |
-|       |✓     | **Fast launch** of small, not-precompiled scripts     |
-|✓      |      | **No runtime preinstall** needed on user machine      |
-|✓      |✓     | **Bytecode interpreter** handles basic execution      |
-|✓      |      | **Concurrency** in all basic I/O and net APIs         |
-|✓      |      | **Static name resolution** to catch typos early       |
+|✓      |✓     | **Dynamically-typed** approachable design.            |
+|✓      |✓     | **Large standard library** with high-level features.  |
+|✓      |      | **No indent forced,** a clean but flexible syntax.    |
+|✓      |      | **AOT-compiled** by dev for in-depth error checks.    |
+|✓      |      | **Portable program binaries** as default output.      |
+|       |✓     | **Fast launch** of small, not-precompiled scripts.    |
+|✓      |      | **No runtime preinstall** needed on user machine.     |
+|✓      |✓     | **Bytecode interpreter** handles basic execution.     |
+|✓      |      | **Concurrency** in all basic I/O and net APIs.        |
+|✓      |      | **Static name resolution** to catch typos early.      |
 
