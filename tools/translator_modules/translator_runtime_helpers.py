@@ -357,7 +357,8 @@ def _container_sort(container, *args, **kwargs):
                     return -1
                 elif v == False:
                     return 1
-                print("V: " + str(v))
+                elif v == None:
+                    return None
                 raise ValueError("Given 'cmp' func returned "
                     "invalid value.")
             sorted_container = list(sorted(
