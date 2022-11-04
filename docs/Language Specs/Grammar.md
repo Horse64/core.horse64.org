@@ -1,6 +1,9 @@
 
 # Grammar
 
+This section describes the grammar of the Horse64 programming
+language.
+
 
 ## Overview
 
