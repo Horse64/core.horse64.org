@@ -346,15 +346,18 @@ def _container_add(container, item):
 
 def _container_sort(container, *args, **kwargs):
     if (type(container) in {list}):
+        if len(container) <= 1:
+            return None
         sorted_container = None
         if "cmp" in kwargs:
             cmp_func = kwargs["cmp"]
-            def do_cmp():
-                v = cmp_func()
+            def do_cmp(a, b):
+                v = cmp_func(a, b)
                 if v == True:
                     return 1
                 elif v == False:
                     return -1
+                print("V: " + str(v))
                 raise ValueError("Given 'cmp' func returned "
                     "invalid value.")
             sorted_container = list(sorted(
@@ -366,7 +369,7 @@ def _container_sort(container, *args, **kwargs):
         while i < len(sorted_container):
             container[i] = sorted_container[i]
             i += 1
-        return container
+        return None
     elif type(container) in {tuple, set}:
         return _TypeError("cannot sort this container")
     return container.sort(*args, **kwargs)

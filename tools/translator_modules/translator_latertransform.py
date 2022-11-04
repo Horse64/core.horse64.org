@@ -682,7 +682,12 @@ def transform_later_to_closure_funccontents(
                 later_indexes.append(i)
 
         if len(later_indexes) != 1:
-            # Okay, just transform the inner blocks and be done:
+            # Okay, not a 'later' thing. If a 'func, skip it:
+            if firstnonblank(st) == "func":
+                new_sts.append(st)
+                continue
+
+            # Otherwise, transforms the inner blocks and be done:
             ranges = reversed(get_statement_block_ranges(st))
             for brange in ranges:
                 st = (st[:brange[0]] + flatten(
@@ -1164,9 +1169,11 @@ def is_func_a_later_func(
     if (firstnonblank(st) != "func" or
             not "later" in st):
         return False
-    return stmt_inner_blocks_use_later(
+    result = stmt_inner_blocks_use_later(
         st, including_later_ignore=
             including_later_ignore)
+    #func_name = nextnonblank(st, firstnonblankidx(st))
+    return result
 
 
 def transform_later_to_closure_unnested(
