@@ -94,7 +94,7 @@ def func_args_find_last_positional(st, i):
                 nextnonblank(st, i) == ")" and
                 bracket_depth <= 0):
             if i < len(st) and st[i] == ",":
-                inext = nextnonblank(st, i)
+                inext = nextnonblankidx(st, i)
                 st[i] == " "
                 i = inext
             if not current_arg_had_assign:
