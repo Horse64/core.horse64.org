@@ -841,6 +841,80 @@ def translate_expression_tokens(s, sc,
         if s[i].strip("\r\n\t ") != "":
             previous_token = s[i]
         i += 1
+    # Translate inline "if":
+    i = 0
+    while i < len(s):
+        if s[i] != "if":
+            i += 1
+            continue
+        prev_nonblank_token = None
+        had_nonwhitespace_token = False
+        z = i + 1
+        condition_start_idx = z
+        condition_end_idx = -1
+        value_1_start_idx = -1
+        value_1_end_idx = -1
+        value_2_start_idx = -1
+        value_2_end_idx = -1
+        bracket_depth = 0
+        while z < len(s):
+            if (had_nonwhitespace_token and s[z] in {"("} and
+                    bracket_depth == 0 and
+                    not is_h64op_with_righthand(prev_nonblank_token)
+                    ):
+                condition_end_idx = z - 1
+                break
+            if s[z] in {"[", "(", "{"}:
+                bracket_depth += 1
+            if s[z] in {"]", ")", "}"}:
+                bracket_depth -= 1
+            if s[z].strip(" \t\r\n") != "":
+                prev_nonblank_token = s[z]
+                had_nonwhitespace_token = True
+            z += 1
+        if z >= len(s) or s[z] != "(":
+            # Not an inline if.
+            i += 1
+            continue
+        value_1_start_idx = z
+        while z < len(s):
+            if (z > value_1_start_idx and
+                    bracket_depth == 0 and
+                    s[z] == "else"):
+                value_1_end_idx = z - 1
+                break
+            if s[z] in {"[", "(", "{"}:
+                bracket_depth += 1
+            if s[z] in {"]", ")", "}"}:
+                bracket_depth -= 1
+            z += 1
+        assert(s[z] == "else")
+        value_2_start_idx = z + 1
+        while z < len(s):
+            if (z > value_2_start_idx and
+                    bracket_depth <= 1 and
+                    s[z] == ")"):
+                value_2_end_idx = z
+                bracket_depth = 0
+                break
+            if s[z] in {"[", "(", "{"}:
+                bracket_depth += 1
+            if s[z] in {"]", ")", "}"}:
+                bracket_depth -= 1
+            z += 1
+        #print("IF INLINE: " + str((
+        #    s[condition_start_idx:condition_end_idx + 1],
+        #    s[value_1_start_idx:value_1_end_idx + 1],
+        #    s[value_2_start_idx:value_2_end_idx + 1])))
+        transformed_tokens = (["("] + (["("] +
+            s[value_1_start_idx:value_1_end_idx + 1] +
+            [")"] + ["if"] +
+            s[condition_start_idx:condition_end_idx + 1] +
+            ["else"] +
+            s[value_2_start_idx:value_2_end_idx + 1]
+        ) + [")"])
+        s = s[:i] + transformed_tokens + s[value_2_end_idx + 1:]
+        i = i + len(transformed_tokens) + 1
 
     # Translate XYZ.as_str()/XYZ.len to str(XYZ)/len(XYZ),
     # XXX: important (!!!) this needs to be BEFORE remapping functions
@@ -964,76 +1038,6 @@ def translate_expression_tokens(s, sc,
                 # We're in a map!
                 s[i] = ":"  # Translate to python syntax.
             i += 1
-    # Translate inline "if":
-    i = 0
-    while i < len(s):
-        if s[i] != "if":
-            i += 1
-            continue
-        had_nonwhitespace_token = False
-        z = i + 1
-        condition_start_idx = z
-        condition_end_idx = -1
-        value_1_start_idx = -1
-        value_1_end_idx = -1
-        value_2_start_idx = -1
-        value_2_end_idx = -1
-        bracket_depth = 0
-        while z < len(s):
-            if (had_nonwhitespace_token and s[z] in {"(", "{"} and
-                    bracket_depth == 0):
-                condition_end_idx = z - 1
-                break
-            if s[z] in {"[", "(", "{"}:
-                bracket_depth += 1
-            if s[z] in {"]", ")", "}"}:
-                bracket_depth -= 1
-            if s[z].strip(" \t\r\n") != "":
-                had_nonwhitespace_token = True
-            z += 1
-        if z >= len(s) or s[z] != "(":
-            # Not an inline if.
-            i += 1
-            continue
-        value_1_start_idx = z
-        while z < len(s):
-            if (z > value_1_start_idx and
-                    bracket_depth == 0 and
-                    s[z] == "else"):
-                value_1_end_idx = z - 1
-                break
-            if s[z] in {"[", "(", "{"}:
-                bracket_depth += 1
-            if s[z] in {"]", ")", "}"}:
-                bracket_depth -= 1
-            z += 1
-        assert(s[z] == "else")
-        value_2_start_idx = z + 1
-        while z < len(s):
-            if (z > value_2_start_idx and
-                    bracket_depth <= 1 and
-                    s[z] == ")"):
-                value_2_end_idx = z
-                bracket_depth = 0
-                break
-            if s[z] in {"[", "(", "{"}:
-                bracket_depth += 1
-            if s[z] in {"]", ")", "}"}:
-                bracket_depth -= 1
-            z += 1
-        #print("IF INLINE: " + str((
-        #    s[condition_start_idx:condition_end_idx + 1],
-        #    s[value_1_start_idx:value_1_end_idx + 1],
-        #    s[value_2_start_idx:value_2_end_idx + 1])))
-        transformed_tokens = (["("] + (["("] +
-            s[value_1_start_idx:value_1_end_idx + 1] +
-            [")"] + ["if"] +
-            s[condition_start_idx:condition_end_idx + 1] +
-            ["else"] +
-            s[value_2_start_idx:value_2_end_idx + 1]
-        ) + [")"])
-        s = s[:i] + transformed_tokens + s[value_2_end_idx + 1:]
-        i = i + len(transformed_tokens) + 1
     # Translate some keywords:
     i = 0
     while i < len(s):
