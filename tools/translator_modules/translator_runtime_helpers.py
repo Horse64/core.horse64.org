@@ -375,6 +375,10 @@ def _value_to_str(value):
             errors="surrogateescape")
     if type(value) == str:
         return value
+    if type(value) == bool:
+        return ("yes" if value else "no")
+    if value is None:
+        return "none"
     if (hasattr(value, "as_str") and
             callable(value.as_str)):
         return str(value.as_str())
