@@ -25,6 +25,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import json from core.horse64.org
 import uri from core.horse64.org
 
 import compiler.ast.func_stmt as func_stmt
@@ -50,9 +51,36 @@ type TreeNode {
     var token_len
 }
 
+func TreeNode.as_str {
+    return "TreeNode" + json.dump(self.as_json_obj())
+}
+
+func TreeNode.as_json_obj {
+    var output = {
+        "subexprs"-> [],
+        "kind"-> NodeKind.num_label(self.kind),
+        "line"-> self.line,
+        "col"-> self.col,
+        "token_len"-> self.token_len,
+    }
+    for child in self.subexprs {
+        output["subexprs"].add(child.as_json_obj())
+    }
+    return output
+}
+
 type StmtNode extends TreeNode {
     ## @type [[StmtNode]]
     var subblocks = []
+}
+
+func StmtNode.as_json_obj {
+    var output = base.as_json_obj()
+    output["subblocks"] = []
+    for block in self.subblocks {
+        output["subblocks"].add(child.as_json_obj())
+    }
+    return output
 }
 
 enum NodeKind {
@@ -65,20 +93,6 @@ enum NodeKind {
     N_STMT_FUNC,
     N_STMT_IMPORT,
     N_STMT_INVALID,
-}
-
-func TreeNode.as_json_obj {
-    var output = {
-        "children"-> [],
-        "kind"-> NodeKind.num_label(self.kind),
-        "line"-> self.line,
-        "col"-> self.col,
-        "token_len"-> self.token_len,
-    }
-    for child in self.children {
-        output["children"].add(child.as_json_obj())
-    }
-    return output
 }
 
 type ASTResult {

@@ -77,16 +77,34 @@ const _guaranteed_outer_scope_tokens = {
 }
 
 const special_words = {
-    # (=all keywords, as well as literals that happen to be
-    # special identifiers like yes/no/none.)
+    # All keywords returned as T_KEYWORD:
     "while", "do", "func", "for", "with",
     "var", "const", "type", "import", "if",
     "return", "await", "later", "rescue",
     "finally", "as", "in", "extends",
-    "throw", "new", "any", "from", "protect",
-    "repeat", "elseif", "else", "and", "or",
-    "not", "ignore", "none", "yes", "no",
-    "enum",
+    "throw", "any", "from", "protect",
+    "repeat", "elseif", "else", "ignore", "enum",
+    # These are not returned as keywords, but still special words:
+    "none", "yes", "no", "and", "or", "not", "new",
+}
+
+func is_minus_after_this_token_unary(t) {
+    if t == none or t == "" {
+        return yes
+    }
+    if typename(t) != "str" {
+        t = t.str
+    }
+    if ({"(", "=", "[", "{"}.has(t) or
+            (special_words.has(t) and
+            not {"yes", "no", "none"}.has(t)) or
+            math_assign_ops.has(t) or
+            compare_ops.has(t) or
+            bool_compare_ops.has(t) or
+            math_ops.has(t)) {
+        return yes
+    }
+    return no
 }
 
 ## @func op_str_to_token_kind
@@ -119,6 +137,9 @@ func op_str_to_token_kind(opstr) {
     )
 }
 
+## Get the length of a \uHHHH... escaping starting at the
+## given offset position in a string literal, or @{none} if
+## there isn't one at the given position.
 func get_str_widechar_escaping_len(str, pos) {
     func is_hex_digit(c) {
         if c.len < 1 {
@@ -156,6 +177,10 @@ func get_str_widechar_escaping_len(str, pos) {
     return past_pos
 }
 
+## Parse a \uHHHH... escaping starting at the given offset
+## position and return the code point as a @{num}, or
+## return @{none} if there isn't a valid one starting at
+## the given position.
 func parse_str_widechar_escaping(str, pos) {
     var escape_len = get_str_widechar_escaping_len(str, pos)
     if escape_len == none {
@@ -171,6 +196,9 @@ func parse_str_widechar_escaping(str, pos) {
     return value
 }
 
+## Parse the \xHH escaping at the given string literal offset
+## position, and return the byte value. Returns @{none} if
+## there is no valid escaping at the given position.
 func parse_str_hex_escaping(str, pos) {
     func is_hex_digit(c) {
         if c.len < 1 {
@@ -1416,7 +1444,15 @@ func tokenize_str(
             continue
         } elseif math_ops.has(c) {
             # A 1 char math op.
-            result.tokens.add(new Token(c, T_MATH, line, col))
+            if c == "-" and (result.tokens.len == 0 or
+                    is_minus_after_this_token_unary(
+                        result.tokens.last()
+                    )) {  # Special case of unary '-' operator:
+                result.tokens.add(new Token("-", T_UNARYMATH, line, col))
+            } else {
+                # Regular binary math operator.
+                result.tokens.add(new Token(c, T_MATH, line, col))
+            }
             continue
         } elseif c == "_" or text.code(c) > 127 or
                 (text.code(c) >= code_a and

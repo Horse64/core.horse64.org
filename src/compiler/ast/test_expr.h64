@@ -24,7 +24,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-#import compiler.ast.ast as ast
+import compiler.ast as ast
 import compiler.ast.expr as expr
 
 
@@ -32,24 +32,30 @@ func test_parse_expression {
     var msgs = []
 
     var v1 = expr.parse_expression(
-        ["5"], 1, msgs, project_file=none,
-        debug=yes
+        ["5"],
+        1, msgs, project_file=none, debug=no
     ) later:
     await v1
     assert(msgs.len == 0)
     assert(v1 != none)
-    #assert(v1.kind == ast.N_EXPR_LIT)
-    #assert(v1.value == 5)
+    assert(v1.token_len == 1)
+    assert(v1.kind == ast.N_EXPR_LIT)
+    assert(v1.value == 5)
 
     var v2 = expr.parse_expression(
-        ["not", "5"], 1, msgs, project_file=none,
-        debug=yes
+        ["not", "5", "*", "3", "+", "-", "(",
+        "23", ")", "ignored_10th_token"],
+        1, msgs, project_file=none, debug=no
     ) later:
     await v2
     assert(msgs.len == 0)
-    #assert(v2 != none)
-    #assert(v2.kind == ast.N_EXPR_UNOP)
-    #assert(v2.subexprs.len == 1)
-    #assert(v2.subexprs[1].kind == ast.N_EXPR_LIT)
-    #assert(v2.subexprs[1].value == 5)
+    assert(v2 != none)
+    assert(v2.kind == ast.N_EXPR_UNOP)
+    assert(v2.optoken.str == "not")
+    assert(v2.token_len == 9)
+    assert(v2.subexprs.len == 1)
+    assert(v2.subexprs[1].kind == ast.N_EXPR_BINOP)
+    assert(v2.subexprs[1].optoken.str == "*")
+    assert(v2.subexprs[1].subexprs.len == 2)
+    assert(v2.subexprs[1].subexprs[1].kind == ast.N_EXPR_LIT)
 }

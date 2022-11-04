@@ -26,9 +26,11 @@
 # license, see accompanied LICENSE.md.
 
 import math from core.horse64.org
+import random from core.horse64.org
 
 import compiler.ast as ast
 import compiler.msg as msg
+import compiler.operator as operator
 import compiler.token as token
 
 
@@ -76,18 +78,20 @@ type UnopExpr extends ast.TreeNode {
     var optoken
 }
 
-func UnopExpr.init {
+func UnopExpr.init(optoken) {
     base.init()
     self.kind = ast.N_EXPR_UNOP
+    self.optoken = optoken
 }
 
 type BinopExpr extends ast.TreeNode {
     var optoken
 }
 
-func UnopExpr.init {
+func BinopExpr.init(optoken) {
     base.init()
     self.kind = ast.N_EXPR_BINOP
+    self.optoken = optoken
 }
 
 type IdentExpr extends ast.TreeNode {
@@ -108,14 +112,20 @@ func LiteralExpr.init {
     self.kind = ast.N_EXPR_LIT
 }
 
+func LiteralExpr.as_json_obj {
+    var output = base.as_json_obj()
+    output["value"] = self.value
+    return output
+}
+
 func token_continues_expr(t) {
-    if t.kind == T_BRACKET {
+    if t.kind == token.T_BRACKET {
         return (t.str == "(" or t.str == "[")
     }
-    if {T_MATH, T_COMPARE, T_DOT}.has(t.kind) {
+    if {token.T_MATH, token.T_COMPARE, token.T_DOT}.has(t.kind) {
         return yes
     }
-    if t.kind == T_BOOLCOMP and t.str != "not" {
+    if t.kind == token.T_BOOLCOMP and t.str != "not" {
         return yes
     }
     return no
@@ -188,8 +198,10 @@ func parse_expression(
     }
     if debug {
         print("compiler.ast.expr: parse_expression() on " +
-            tokens.sub(1, math.min(10, tokens_len)).as_str() +
-            "...")
+            tokens.sub(pos, math.min(pos + 10, tokens_len)).as_str() +
+            "... with pos=" + pos.as_str() + ", "
+            "tokens.len=" + tokens.len.as_str() + ", "
+            "max_len=" + max_len.as_str())
     }
 
     var inner_expr = parse_expression_unwrapped(
@@ -200,7 +212,7 @@ func parse_expression(
     await inner_expr
     if debug {
         print("compiler.ast.expr: parse_expression() on " +
-            tokens.sub(1, math.min(10, tokens_len)).as_str() +
+            tokens.sub(pos, math.min(pos + 10, tokens_len)).as_str() +
             "... fetched inner_expr -> " + inner_expr.as_str() +
             " (with token after: " + token.describe_token_at(
                 tokens, pos + if inner_expr != none
@@ -236,8 +248,11 @@ func parse_expression_unwrapped(
         tokens_len = math.min(max_len, tokens_len)
     }
 
+    var debug_id = none
     if debug {
-        print("compiler.ast.expr: parse_expression_unwrapped() on " +
+        debug_id = random.gen_id()
+        print("compiler.ast.expr: parse_expression_unwrapped() " +
+            debug_id + " on " +
             tokens.sub(pos, math.min(pos + 10, tokens_len)).as_str() +
             "...  with left_hand=" + left_hand.as_str())
     }
@@ -251,6 +266,7 @@ func parse_expression_unwrapped(
 
         # First, handle the most trivial literals:
         if tokens[pos].kind == token.T_STR {
+            # A string literal, e.g. "'test''
             var node = LiteralExpr()
             node.value = token.parse_token_value(tokens[pos])
             node.token_len = 1
@@ -263,6 +279,7 @@ func parse_expression_unwrapped(
             }
             return node
         } elseif tokens[pos].kind == token.T_BYTES {
+            # A bytes literal, e.g. "b'test'"
             var node = LiteralExpr()
             node.value = token.parse_token_value(tokens[pos])
             node.token_len = 1
@@ -276,6 +293,7 @@ func parse_expression_unwrapped(
             return node
         } elseif {token.T_NUM, token.T_BOOL,
                   token.T_NONE}.has(tokens[pos].kind) {
+            # Bool, number, and none literals.
             var node = LiteralExpr()
             node.value = token.parse_token_value(tokens[pos])
             node.token_len = 1
@@ -283,6 +301,7 @@ func parse_expression_unwrapped(
             node.col = startcol
             return node
         } elseif tokens[pos].kind == token.T_IDENT {
+            # An identifier expression.
             var node = IdentExpr()
             node.label = tokens[pos].str
             node.token_len = 1
@@ -296,8 +315,7 @@ func parse_expression_unwrapped(
             pos += 1
             var inner_expr = parse_expression(
                 tokens, pos, msgs, project_file=none,
-                left_hand=none, max_len=tokens_len,
-                debug=debug,
+                 max_len=tokens_len, debug=debug,
             ) later:
 
             await inner_expr
@@ -327,7 +345,7 @@ func parse_expression_unwrapped(
                 )
             }
             pos += inner_expr.token_len
-            if pos >= tokens_len or
+            if pos > tokens_len or
                     tokens[pos].kind != token.T_BRACKET or
                     tokens[pos].str != ")" {
                 msgs.add(new msg.FileMsg(
@@ -342,10 +360,51 @@ func parse_expression_unwrapped(
                     line=token.get_line(tokens, pos),
                     col=token.get_col(tokens, pos),
                 ))
+                # Try to find actual closing bracket:
+                var possible_code_brackets = 0
+                bdepth = 0
+                while pos <= tokens_len and
+                        (bdepth > 0 or
+                         tokens[pos].kind != token.T_BRACKET or
+                         not {")", "]", "}"}.has(tokens[pos].str)) {
+                    # Track inner nestings:
+                    if tokens[pos].kind == token.T_BRACKET {
+                        if {"(", "[", "{"}.has(tokens[pos].str) {
+                            bdepth += 1
+                            if tokens[pos].str == "{" {
+                                possible_code_brackets += 1
+                            }
+                        } else {
+                            bdepth = math.max(0, bdepth - 1)
+                            if tokens[pos].str == "}" {
+                                possible_code_brackets = math.max(
+                                    0, possible_code_brackets - 1
+                                )
+                            }
+                        }
+                    }
+                    # If we run into obviously the next statement,
+                    # bail out early:
+                    if bdepth == 0 and
+                            surely_starts_stmt_even_in_bad_code(
+                            tokens, i, break_out_of_code_blocks=
+                            (possible_code_block_brackets == 0)) {
+                        break
+                    }
+                    pos += 1
+                }
+                # If we're at a proper closing bracket, consume it:
+                if pos <= tokens_len and
+                        tokens[pos].kind == T_BRACKET and
+                        {")", "]", "}"}.has(token[pos].str) {
+                    pos += 1  # Past whatever closing thing we found.
+                }
             } else {
-                pos += 1
+                pos += 1  # Past closing ')'.
+                assert(tokens[startpos].str == "(")
+                assert(tokens[pos - 1].str == ")")
             }
-            inner_expr.token_len = (pos - start_pos)
+            inner_expr.token_len = (pos - startpos)
             return inner_expr
         }
         # Handle container constructors for map, list, set, vector:
@@ -553,10 +612,9 @@ func parse_expression_unwrapped(
                 debug=debug,
             ) later repeat
         }
-        return none
     }
     # Handle call, member access, and indexing operators:
-    if lefthand != none and
+    if left_hand != none and
             (tokens[pos].kind == token.T_DOT or
              (tokens[pos].kind == token.T_BRACKET and
               {"(", "["}.has(tokens[pos].str))) {
@@ -564,13 +622,13 @@ func parse_expression_unwrapped(
             if tokens[pos].kind == token.T_BRACKET
             (tokens[pos].str) else (none)
         pos += 1  # Go past opening bracket.
-        var node = new BinopExpr()
+        var node = new BinopExpr(tokens[pos])
         node.line = startline
         node.col = startcol
+        node.subexprs.add(left_hand)
         var inner_expr = parse_expression(
             tokens, pos, msgs, project_file=none,
-            left_hand=none, max_len=tokens_len,
-            debug=debug,
+            max_len=tokens_len, debug=debug,
         ) later:
 
         await inner_expr
@@ -635,74 +693,40 @@ func parse_expression_unwrapped(
                 pos += 1  # Go past closing bracket.
             }
         }
-        node.token_len = (pos - startpos)
+        node.token_len = left_hand.token_len + (pos - startpos)
         return node
     }
-    # Handle expressions prefixed by unary operators:
-    if lefthand == none and
-            (tokens[pos].kind == token.T_UNARYMATH or
-             tokens[pos].kind == token.T_NEWOP or (
-             tokens[pos].kind == token.T_BOOLCOMP and
-             tokens[pos].str == "not")) {
-        pos += 1  # Go past the unary operator itself.
-        var node = new UnopExpr()
-        node.line = startline
-        node.col = startcol
-        var inner_expr = parse_expression(
-            tokens, pos, msgs, project_file=none,
-            left_hand=none, max_len=tokens_len,
-            debug=debug,
-        ) later:
-
-        await inner_expr
-        if inner_expr == none {
-            msgs.add(new msg.FileMsg(
-                "Unexpected " + token.describe_token_at(
-                    tokens, pos) +
-                ", expected operand expression following "
-                "unary operator " + token.describe_token_at(
-                    tokens, startpos) + " "
-                "found in line " +
-                startline.as_str() +
-                ", col " +
-                startcol.as_str() + ".",
-                source_file=project_file,
-                line=token.get_line(tokens, pos),
-                col=token.get_col(tokens, pos),
-            ))
-            # Skip past whatever we can't parse:
-            var preskippos = pos
-            var skiplen = token.go_to_expr_end(
-                tokens, pos, max_len=tokens_len
-            )
-            node.subexprs.add(new InvalidExpr(skiplen))
-            node.subexprs.last().line = token.get_line(
-                tokens, preskippos
-            )
-            node.subexprs.last().col = token.get_col(
-                tokens, preskippos
-            )
-            pos += skiplen
-        } else {
-            node.subexprs.add(inner_expr)
-            pos += inner_expr.token_len
-        }
-        node.token_len = (pos - startpos)
-        return node
-    }
-    # Handle expressions combined by binary operators:
-    if (lefthand != none and (
-             {T_MATH, T_COMPARE}.has(tokens[pos].kind) or
-             (tokens[pos].kind == token.T_BOOLCOMP and
-              tokens[pos].str != "not"))) {
-        var outer_level_ops_operands = []
-        if lefthand != none {
-            outer_level_ops_operands.add(lefthand)
-        }
-        var outer_level_ops_at = [pos]
+    # Handle expressions combined by unary or binary operators:
+    if (left_hand != none and (
+            {T_MATH, T_COMPARE}.has(tokens[pos].kind) or
+            (tokens[pos].kind == token.T_BOOLCOMP and
+             tokens[pos].str != "not"))) or
+            (left_hand == none and
+             (tokens[pos].kind == token.T_UNARYMATH or
+              tokens[pos].kind == token.T_NEWOP or (
+              tokens[pos].kind == token.T_BOOLCOMP and
+              tokens[pos].str == "not"))) {
+        # This is an expression with 1+ operators that needs untangling.
+        # Our goal is to nest all operators with right order in a tree.
+        var precedence_map = operator.op_str_to_precedence_map
+        var outer_level_ops_operands = []  # Parsed in-between operands.
+        var outer_level_ops_at = []  # Positions of all ops in this expr.
+        var outer_level_ops_exprs = {->}  # Map of op pos to expr node.
+        var expr_len = token.go_to_expr_end(
+            tokens, pos, max_len=tokens_len
+        )
+        tokens_len = pos + expr_len - 1
 
         # First, collect all operators for precedence ordering:
+        outer_level_ops_operands.add(left_hand)
+        outer_level_ops_at.add([
+            pos,  # The position.
+            precedence_map[tokens[pos].str]
+                [tokens[pos].kind],  # The precedence.
+            1  # The left operand index.
+        ])
         var bdepth = 0
+        var operandstart = pos + 1
         var i = pos + 1
         while i <= tokens_len {
             if tokens[i].kind == token.T_BRACKET {
@@ -711,17 +735,192 @@ func parse_expression_unwrapped(
                 } else {
                     bdepth -= 1
                 }
-            } elseif {T_MATH, T_COMPARE,
-                    T_BOOLCOMP}.has(tokens[i].kind) and
-                    (tokens[i].kind != token.T_UNARYMATH and
-                     (tokens[i].kind != token.T_BOOLCOMP or
-                      tokens[i].str != "not")) {
-                outer_level_ops_at.add(i)
+            } elseif {token.T_MATH, token.T_UNARYMATH, token.T_COMPARE,
+                    token.T_BOOLCOMP}.has(tokens[i].kind) {
+                # Found a relevant operator!
+                outer_level_ops_at.add([
+                    i,  # The position.
+                    precedence_map[tokens[i].str]
+                        [tokens[i].kind],  # The precedence.
+                    outer_level_ops_operands.len + 1,  # Left operand index.
+                ])
+                if i > operandstart {  # Collect range of operand:
+                    outer_level_ops_operands.add([
+                        operandstart, i - 1
+                    ])
+                } else {
+                    outer_level_ops_operands.add(none)
+                }
+                operandstart = i + 1
             }
             i += 1
         }
+        if i > operandstart {  # Collect final trailing operand:
+            outer_level_ops_operands.add([
+                operandstart, i - 1
+            ])
+        } else {
+            outer_level_ops_operands.add(none)
+        }
 
-        # 
+        # For each operator collected, add positions of neighbors:
+        i = 1
+        while i <= outer_level_ops_at.len {
+            var prev = none
+            if i > 1 {
+                prev = outer_level_ops_at[i - 1][1]
+            }
+            var next = none
+            if i < outer_level_ops_at.len {
+                next = outer_level_ops_at[i + 1][1]
+            }
+            # After the next code line, each entry will look like this:
+            # [operator token pos, operator precd.,
+            # left-hand operand idx,
+            # previous op token pos, next operator token pos]
+            assert(outer_level_ops_at[i].len == 3)
+            outer_level_ops_at[i] += [prev, next]
+            assert(outer_level_ops_at[i].len == 5)
+            i += 1
+        }
+
+        # Sort operators by precedence (and secondarily the position):
+        func sort_op_positions(a, b) {
+            if a[2] > b[2] {  # Precedence comp.
+                return yes
+            } elseif a[2] == b[2] and a[1] > b[1] {  # Tok. pos comp.
+                return yes
+            }
+            return no
+        }
+        outer_level_ops_at.sort(cmp=sort_op_positions)
+        if debug {
+            print("compiler.ast.expr: parse_expression_unwrapped() " +
+                debug_id + " parsing operand expression " +
+                tokens.sub(pos, tokens_len).as_str() +
+                " with outer_level_ops_at=" +
+                outer_level_ops_at.as_str())
+        }
+
+        # Convert all the in-between operands into expressions:
+        var operand_pos = outer_level_ops_operands.len
+        var operands_queue = outer_level_ops_operands.copy()
+        func parse_operand_if_needed(operand) {
+            if typename(operand) != "list" {
+                # Either 'none' or already transformed.
+                return later operand
+            }
+            # Get expression node for this operand's range:
+            var operand_parsed = parse_expression(
+                tokens, operand[1], msgs, project_file=project_file,
+                max_len=operand[2], debug=debug
+            ) later:
+
+            await operand_parsed
+            return operand_parsed
+        }
+        assert(operands_queue.len > 0)
+        var next_operand = operands_queue.pop()
+        var operand_parsed = parse_operand_if_needed(next_operand)
+        later:
+
+        await operand_parsed  # Get operand conversion result.
+        outer_level_ops_operands[operand_pos] = operand_parsed
+        if operands_queue.len == 0 {
+            # We're done converting operands.
+            if debug {
+                print("compiler.ast.expr: parse_expression_unwrapped() " +
+                    debug_id + " parsed operands RESULT: " +
+                    outer_level_ops_operands.as_str())
+            }
+
+            # Now, assemble the actual final expression tree:
+            var resulting_node = none
+            var op_assemble_queue = outer_level_ops_at.copy()
+            while op_assemble_queue.len > 0 {  # Iterate in nesting order.
+                var op_entry = op_assemble_queue.pop()
+                var op_has_lefthand = token.token_has_lefthand(
+                    tokens[op_entry[1]]
+                )
+                var op_left_child = none
+                var op_right_child = none
+                if op_has_lefthand {
+                    # A binary operator. Get left-hand subtree:
+                    var prev_op_pos = op_entry[4]
+                    if outer_level_ops_exprs.has(prev_op_pos) {
+                        # The left-hand child is a nested operator:
+                        op_left_child = outer_level_ops_exprs[
+                            prev_op_pos
+                        ]
+                    } else {
+                        # The left-hand child is a bare operand:
+                        var left_operand_idx = op_entry[3]
+                        op_left_child = outer_level_ops_operands[
+                            left_operand_idx
+                        ]
+                    }
+                }
+                if op_has_lefthand and op_left_child == none {
+                    # Example for this error: '+', '+' in a row.
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected " + token.describe_token_at(
+                            tokens, op_entry[1] - 1) +
+                        ", expected valid left-hand operand "
+                        "for operator " + token.describe_token_at(
+                            tokens, op_entry[1]) +
+                        "found in line " +
+                        token.get_line(tokens, op_entry[1]
+                                      ).as_str() + ", col " +
+                        token.get_col(tokens, op_entry[1]
+                                     ).as_str() + ".",
+                        source_file=project_file,
+                        line=token.get_line(tokens, pos),
+                        col=token.get_col(tokens, pos),
+                    ))
+                }
+                # Now, get right-hand subtree:
+                var next_op_pos = op_entry[5]
+                if outer_level_ops_exprs.has(next_op_pos) {
+                    # The right-hand child is a nested operator:
+                    op_right_child = outer_level_ops_exprs[
+                        next_op_pos
+                    ]
+                } else {
+                    # The right-hand child is a bare operand:
+                    var right_operand_idx = op_entry[3]
+                    op_right_child = outer_level_ops_operands[
+                        right_operand_idx
+                    ]
+                }
+                # Create the operator's expression node:
+                var op_node
+                if op_has_lefthand {
+                    op_node = BinopExpr(tokens[op_entry[1]])
+                    op_node.subexprs.add(op_left_child)
+                } else {
+                    op_node = UnopExpr(tokens[op_entry[1]])
+                }
+                op_node.subexprs.add(op_right_child)
+                op_node.line = token.get_line(tokens, op_entry[1])
+                op_node.col = token.get_line(tokens, op_entry[2])
+                # If this is the last one, bail here:
+                if op_assemble_queue.len == 0 {
+                    resulting_node = op_node
+                    break
+                }
+                # If not the last one, store intermediate result:
+                outer_level_ops_exprs[op_entry[1]] = op_node
+            }
+            assert(resulting_node != none)
+            resulting_node.token_len = (tokens_len - pos) + 1
+            return resulting_node
+        }
+        # If we arrive here, we got operands left to convert:
+        operand_pos -= 1
+        next_operand = operands_queue.pop()
+        operand_parsed = parse_operand_if_needed(
+            next_operand
+        ) later repeat  # Jump back up to contineu conversion.
     }
 }
 

@@ -121,6 +121,22 @@ func test_token_list_from_str_list {
     assert(result[1].kind == token.T_KEYWORD)
     assert(result[2].kind == token.T_IDENT)
     assert(result[2].str == "bla")
+
+    result = token.token_list_from_str_list([
+        "func", "bla", ".", "main", "{",
+        "var", "x", "=", "-", "y", "}"
+    ])
+    assert(result.len == 11)
+    assert(result[8].str == "-")
+    assert(result[8].kind == token.T_UNARYMATH)
+
+    result = token.token_list_from_str_list([
+        "func", "bla", ".", "main", "{",
+        "var", "x", "=", "u", "-", "y", "}"
+    ])
+    assert(result.len == 12)
+    assert(result[8].str == "-")
+    assert(result[8].kind == token.T_MATH)
 }
 
 func test_surely_starts_stmt_even_in_bad_code {
