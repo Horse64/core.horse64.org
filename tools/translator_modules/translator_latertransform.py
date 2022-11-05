@@ -688,7 +688,7 @@ def transform_later_to_closure_funccontents(
                 continue
 
             # Otherwise, transforms the inner blocks and be done:
-            ranges = reversed(get_statement_block_ranges(st))
+            ranges = list(reversed(get_statement_block_ranges(st)))
             for brange in ranges:
                 st = (st[:brange[0]] + flatten(
                     transform_later_to_closure_funccontents(
@@ -775,7 +775,9 @@ def transform_later_to_closure_funccontents(
         vardef_at_start_idx = None
         vardef_past_eq_idx = None
         arg_name = None
-        if firstnonblank(st) in {"var", "const"}:
+        if (firstnonblank(st) in {"var", "const"} or
+                (is_identifier(firstnonblank(st)) and
+                 nextnonblank(st, firstnonblankidx(st)) == "=")):
             # First, this isn't allowed with 'later ignore':
             if is_an_ignore:
                 if not ignore_erroneous_code:
@@ -787,8 +789,15 @@ def transform_later_to_closure_funccontents(
             # Extract name and then get index where to cut it off:
             i2 = firstnonblankidx(st)
             vardef_at_start_idx = i2
-            if is_identifier(nextnonblank(st, i2)):
-                arg_name = nextnonblank(st, i2)
+            if st[i2] in {"var", "const"}:
+                i2 = nextnonblankidx(st, i2)
+            if not is_identifier(st[i2]):
+                if not ignore_erroneous_code:
+                    raise ValueError("Failed to extract 'var' name "
+                        "for later call.")
+                new_sts.append(st)
+                continue
+            arg_name = st[i2]
             i2 += 1  # Go past identifier.
             while i2 < len(st) and st[i2] != '=':
                 i2 += 1
