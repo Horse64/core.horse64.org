@@ -51,9 +51,11 @@ that begin with `#` and always end at the next line break.
 
 A statement can't ever begin with:
 
-* `(` or `[` opening brackets (`{` opening bracket is allowed)
+* `(` or `[` opening brackets (`{` opening bracket is allowed),
 
-* a `new` operator
+* a `new` operator,
+
+* an inline `if` (a standalone `if` statement is allowed).
 
 This is forbidden to avoid ambiguity with the previous statement's
 ending given Horse64's [lack of significant whitespace](
