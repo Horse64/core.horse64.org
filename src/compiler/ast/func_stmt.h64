@@ -27,6 +27,7 @@
 
 
 import compiler.ast as ast
+import compiler.ast.expr as expr
 import compiler.ast.invalid_stmt as invalid_stmt
 import compiler.msg as msg
 import compiler.token as token

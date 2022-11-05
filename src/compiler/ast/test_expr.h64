@@ -59,3 +59,15 @@ func test_parse_expression {
     assert(v2.subexprs[1].subexprs.len == 2)
     assert(v2.subexprs[1].subexprs[1].kind == ast.N_EXPR_LIT)
 }
+
+func test_parse_call_or_funcdef_args {
+    var msgs = []
+    var v1 = expr.parse_call_or_funcdef_args(
+        ["(", "a", "b", "=", "2", "+", "3",
+        "new", "z", "(", ")"],
+        1, msgs, is_call=yes, project_file=none
+    ) later:
+
+    await v1
+}
+

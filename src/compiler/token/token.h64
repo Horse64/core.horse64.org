@@ -697,12 +697,12 @@ func skip_garbage_to_closing_item(
     var bdepth = 0
     while pos <= tokens_len and
             (bdepth > 0 or
-             ((tokens[pos].kind != token.T_BRACKET or
+             ((tokens[pos].kind != T_BRACKET or
                not {")", "]", "}"}.has(tokens[pos].str)) and
               (tokens[pos].kind != closing_kind or
                tokens[pos].str != closing_str))) {
         # Track inner nestings:
-        if tokens[pos].kind == token.T_BRACKET {
+        if tokens[pos].kind == T_BRACKET {
             if {"(", "[", "{"}.has(tokens[pos].str) {
                 bdepth += 1
                 if tokens[pos].str == "{" {
@@ -721,8 +721,8 @@ func skip_garbage_to_closing_item(
         # bail out early:
         if bdepth == 0 and
                 surely_starts_stmt_even_in_bad_code(
-                tokens, i, break_out_of_code_blocks=
-                (possible_code_block_brackets == 0)) {
+                tokens, pos, break_out_of_code_blocks=
+                (possible_code_brackets == 0)) {
             break
         }
         pos += 1
@@ -854,7 +854,7 @@ func is_identifier_or_keyword(value, internal_labels=no) {
 func reverse_brackets(value) {
     if typename(value) == "list" and (
             value.len == 0 or
-            typename(value[0]) == "str") {
+            typename(value[1]) == "str") {
         var result = []
         for bracket in value {
             result.add(reverse_brackets(bracket))
