@@ -90,6 +90,7 @@ from translator_syntaxhelpers import (
     tokenize, untokenize, get_indent,
     is_identifier, as_escaped_code_string,
     is_whitespace_token, get_next_token,
+    is_h64op_with_lefthand,
     split_toplevel_statements, nextnonblank,
     nextnonblankidx,
     firstnonblank, firstnonblankidx,
@@ -847,6 +848,20 @@ def translate_expression_tokens(s, sc,
         if s[i] != "if":
             i += 1
             continue
+        def paired_roundbracket_close_has_else(s, z):
+            assert(s[z] == "(")
+            bdepth = 0
+            z += 1
+            while z < len(s) and (bdepth > 0 or s[z] != ")"):
+                if s[z] in {"(", "{", "["}:
+                    bdepth += 1
+                elif s[z] in {")", "}", "]"}:
+                    bdepth -= 1
+                z += 1
+            if (z > len(s) or s[z] != ")" or
+                    nextnonblank(s, z) != "else"):
+                return False
+            return True
         prev_nonblank_token = None
         had_nonwhitespace_token = False
         z = i + 1
@@ -858,9 +873,12 @@ def translate_expression_tokens(s, sc,
         value_2_end_idx = -1
         bracket_depth = 0
         while z < len(s):
-            if (had_nonwhitespace_token and s[z] in {"("} and
+            if (had_nonwhitespace_token and s[z] in {
+                        "else", "{", "("} and
                     bracket_depth == 0 and
-                    not is_h64op_with_righthand(prev_nonblank_token)
+                    not is_h64op_with_righthand(prev_nonblank_token) and
+                    (s[z] != "(" or
+                     paired_roundbracket_close_has_else(s, z))
                     ):
                 condition_end_idx = z - 1
                 break
@@ -874,13 +892,19 @@ def translate_expression_tokens(s, sc,
             z += 1
         if z >= len(s) or s[z] != "(":
             # Not an inline if.
+            if s[z] == "{" or s[z] == "else":
+                raise ValueError("Syntax error with 'if' in module " +
+                    sc.module_name + ("" if sc.package_name is None else
+                    " in " + sc.package_name))
             i += 1
             continue
-        value_1_start_idx = z
+        bracket_depth = 0
+        value_1_start_idx = z + 1
         while z < len(s):
             if (z > value_1_start_idx and
-                    bracket_depth == 0 and
-                    s[z] == "else"):
+                    bracket_depth == 1 and
+                    s[z] == ")" and
+                    nextnonblank(s, z) == "else"):
                 value_1_end_idx = z - 1
                 break
             if s[z] in {"[", "(", "{"}:
@@ -888,32 +912,55 @@ def translate_expression_tokens(s, sc,
             if s[z] in {"]", ")", "}"}:
                 bracket_depth -= 1
             z += 1
-        assert(s[z] == "else")
+        assert(s[z] == ")")
+        z += 1  # Go past ')'.
+        while z < len(s) and s[z] != "else":
+            z += 1
+        z += 1  # Go past 'else'.
+        while z < len(s) and s[z].strip(" \t\r\n") == "":
+            z += 1
+        if z >= len(s) or s[z] != "(":
+            raise ValueError("Syntax error with 'if' in module " +
+                sc.module_name + ("" if sc.package_name is None else
+                " in " + sc.package_name))
+        bracket_depth = 0
+        full_end_idx = None
+        had_value2_nonblank = False
         value_2_start_idx = z + 1
+        value_2_end_idx = None
         while z < len(s):
             if (z > value_2_start_idx and
+                    had_value2_nonblank and
                     bracket_depth <= 1 and
                     s[z] == ")"):
-                value_2_end_idx = z
+                value_2_end_idx = z - 1
+                full_end_idx = z
                 bracket_depth = 0
                 break
             if s[z] in {"[", "(", "{"}:
                 bracket_depth += 1
             if s[z] in {"]", ")", "}"}:
                 bracket_depth -= 1
+            if s[z].strip("\r\t\n ") != "":
+                had_value2_nonblank = True
             z += 1
+        if value_2_end_idx is None:
+            raise ValueError("Syntax error with 'if' in module " +
+                sc.module_name + ("" if sc.package_name is None else
+                " in " + sc.package_name))
+        assert(value_2_end_idx > value_1_start_idx)
         #print("IF INLINE: " + str((
         #    s[condition_start_idx:condition_end_idx + 1],
         #    s[value_1_start_idx:value_1_end_idx + 1],
         #    s[value_2_start_idx:value_2_end_idx + 1])))
         transformed_tokens = (["("] + (["("] +
             s[value_1_start_idx:value_1_end_idx + 1] +
-            [")"] + ["if"] +
+            [")"] + ["if", "("] +
             s[condition_start_idx:condition_end_idx + 1] +
-            ["else"] +
-            s[value_2_start_idx:value_2_end_idx + 1]
+            [")", "else", "("] +
+            s[value_2_start_idx:value_2_end_idx + 1] + [")"]
         ) + [")"])
-        s = s[:i] + transformed_tokens + s[value_2_end_idx + 1:]
+        s = s[:i] + transformed_tokens + s[full_end_idx + 1:]
         i = i + len(transformed_tokens) + 1
 
     # Translate XYZ.as_str()/XYZ.len to str(XYZ)/len(XYZ),

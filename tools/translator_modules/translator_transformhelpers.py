@@ -573,6 +573,8 @@ def set_expr_len_if_any(toks, i):
         i += 1
     if i >= len(toks) and toks[i] != "{":
         return None
+    if prevnonblank(toks, i) == "else":
+        return None
     bdepth = 0
     i += 1
     while i < len(toks) and (
@@ -589,7 +591,8 @@ def set_expr_len_if_any(toks, i):
             if bdepth < 0:
                 return None
         i += 1
-    if i >= len(toks) or toks[i] != "}":
+    if i >= len(toks) or toks[i] != "}" or (
+            nextnonblank(toks, i) == "else"):
         return None
     return i - starti + 1
 
