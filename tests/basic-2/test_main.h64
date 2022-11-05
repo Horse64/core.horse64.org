@@ -31,7 +31,10 @@ func test_more_basic_things {
     assert(value == 8)
 
     # Test ternary operator:
-    var value = if 1 == 2 (yes) else (no)
+    func my_func {
+        return 2
+    }
+    var value = if 1 == my_func() (yes) else (no)
     assert(typename(value) == "bool")
     assert(value == no)
 
@@ -74,7 +77,7 @@ func test_more_basic_things {
 }
 
 func test_weird_kwarg_order_and_nesting {
-    # Test kw args before positionals, but also inline multiline func:
+    # Test kw args before positionals and inline multiline func:
     var result2 = (func (a, must_be_random, b=2) {
         assert(must_be_random == "random")
         return a + b * 2
