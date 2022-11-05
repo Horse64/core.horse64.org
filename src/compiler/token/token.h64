@@ -664,6 +664,77 @@ func can_statement_end_before_token(tokens, tok_pos) {
     return yes
 }
 
+## @func skip_garbage_to_closing_item
+## Skip past invalid malformed inner nested expression that
+## is supposedly terminated by something, to find that terminating
+## item. Will bail out early if we clearly ran into a follow-up
+## statement instead.
+## @params tokens [Tokens] The tokens stream to skip forward in
+##   to the closing position.
+## @params pos num The starting position to skip forward from.
+## @params closing_kind TokenKind The token kind of the expected
+##   closing or ending @{token|Token}.
+## @params closing_str str The `.str` attribute of the expected
+##   closing or ending @{token|Token}.
+## @params max_len (none, num) The maximum length of the tokens
+##   stream we are allowed to forward in, or @{none} if unrestricted.
+## @params skip_closing_item_itself bool If set to @{yes}, skips
+##   to the position *past* the closing item at the end if found.
+##   Defaults to @{none}, returning the closing item itself instead.
+## @returns num The new position in the token stream after skipping
+##   to the closing item.
+func skip_garbage_to_closing_item(
+        tokens, pos, closing_kind, closing_str, max_len=none,
+        skip_closing_item_itself=yes,
+        ) {
+    var tokens_len = tokens.len
+    if max_len != none {
+        tokens_len = math.min(tokens_len, max_len)
+    }
+
+    # Try to find actual closing bracket:
+    var possible_code_brackets = 0
+    var bdepth = 0
+    while pos <= tokens_len and
+            (bdepth > 0 or
+             ((tokens[pos].kind != token.T_BRACKET or
+               not {")", "]", "}"}.has(tokens[pos].str)) and
+              (tokens[pos].kind != closing_kind or
+               tokens[pos].str != closing_str))) {
+        # Track inner nestings:
+        if tokens[pos].kind == token.T_BRACKET {
+            if {"(", "[", "{"}.has(tokens[pos].str) {
+                bdepth += 1
+                if tokens[pos].str == "{" {
+                    possible_code_brackets += 1
+                }
+            } else {
+                bdepth = math.max(0, bdepth - 1)
+                if tokens[pos].str == "}" {
+                    possible_code_brackets = math.max(
+                        0, possible_code_brackets - 1
+                    )
+                }
+            }
+        }
+        # If we run into obviously the next statement,
+        # bail out early:
+        if bdepth == 0 and
+                surely_starts_stmt_even_in_bad_code(
+                tokens, i, break_out_of_code_blocks=
+                (possible_code_block_brackets == 0)) {
+            break
+        }
+        pos += 1
+    }
+    if skip_closing_item_itself {
+        if pos <= tokens_len {
+            pos += 1
+        }
+    }
+    return pos
+}
+
 ## Check if the given token is a syntatic element like a binary
 ## operator that necessarily requires a follow-up right-hand side.
 func token_has_righthand(t) {

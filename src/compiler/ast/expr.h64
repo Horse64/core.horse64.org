@@ -361,38 +361,10 @@ func parse_expression_unwrapped(
                     col=token.get_col(tokens, pos),
                 ))
                 # Try to find actual closing bracket:
-                var possible_code_brackets = 0
-                bdepth = 0
-                while pos <= tokens_len and
-                        (bdepth > 0 or
-                         tokens[pos].kind != token.T_BRACKET or
-                         not {")", "]", "}"}.has(tokens[pos].str)) {
-                    # Track inner nestings:
-                    if tokens[pos].kind == token.T_BRACKET {
-                        if {"(", "[", "{"}.has(tokens[pos].str) {
-                            bdepth += 1
-                            if tokens[pos].str == "{" {
-                                possible_code_brackets += 1
-                            }
-                        } else {
-                            bdepth = math.max(0, bdepth - 1)
-                            if tokens[pos].str == "}" {
-                                possible_code_brackets = math.max(
-                                    0, possible_code_brackets - 1
-                                )
-                            }
-                        }
-                    }
-                    # If we run into obviously the next statement,
-                    # bail out early:
-                    if bdepth == 0 and
-                            surely_starts_stmt_even_in_bad_code(
-                            tokens, i, break_out_of_code_blocks=
-                            (possible_code_block_brackets == 0)) {
-                        break
-                    }
-                    pos += 1
-                }
+                pos = skip_garbage_to_closing_item(
+                    tokens, pos, token.T_BRACKET, "(",
+                    max_len=tokens_len,
+                )
                 # If we're at a proper closing bracket, consume it:
                 if pos <= tokens_len and
                         tokens[pos].kind == T_BRACKET and
@@ -420,7 +392,7 @@ func parse_expression_unwrapped(
             if openbracket == "{" {
                 ckind = C_SET
             }
-            var closebracket = reverse_brackets(tokens[pos].str)
+            var closebracket = token.reverse_brackets(tokens[pos].str)
 
             # Handle special cases: [], {}, [,], {,}, {->}
             if pos <= tokens_len and (
@@ -613,6 +585,23 @@ func parse_expression_unwrapped(
             ) later repeat
         }
     }
+    # Handle 'new' operator:
+    if left_hand == none and
+            tokens[pos].kind == token.T_NEWOP {
+        pos += 1  # Go past opening bracket.
+        var node = new BinopExpr(tokens[pos - 1])
+        node.line = startline
+        node.col = startcol
+
+        var inner_expr = parse_expression(
+            tokens, pos, msgs, project_file=none,
+            max_len=tokens_len, debug=debug,
+        ) later:
+
+        await inner_expr
+        node.subexprs.add(inner_expr)
+        return node
+    }
     # Handle call, member access, and indexing operators:
     if left_hand != none and
             (tokens[pos].kind == token.T_DOT or
@@ -622,10 +611,11 @@ func parse_expression_unwrapped(
             if tokens[pos].kind == token.T_BRACKET
             (tokens[pos].str) else (none)
         pos += 1  # Go past opening bracket.
-        var node = new BinopExpr(tokens[pos])
+        var node = new BinopExpr(tokens[pos - 1])
         node.line = startline
         node.col = startcol
         node.subexprs.add(left_hand)
+
         var inner_expr = parse_expression(
             tokens, pos, msgs, project_file=none,
             max_len=tokens_len, debug=debug,
@@ -647,22 +637,30 @@ func parse_expression_unwrapped(
                 line=token.get_line(tokens, pos),
                 col=token.get_col(tokens, pos),
             ))
-            # Go past whatever nonsense we can't parse:
             var preskippos = pos
-            var skiplen = token.go_to_expr_end(
-                tokens, pos, max_len=tokens_len
-            )
-            if pos + skiplen <= tokens_len and
-                    openbracket != none and
-                    tokens[pos + skiplen].kind ==
-                        token.T_BRACKET and
-                    token.reverse_brackets(
-                        tokens[pos + skiplen].str
-                    ) == openbracket {
-                # Include the closing bracket to our '['/'(' too:
-                skiplen += 1
+            if openbracket != none {
+                # Try to find actual closing bracket:
+                pos = skip_garbage_to_closing_item(
+                    tokens, pos, token.T_BRACKET,
+                    token.reverse_brackets(openbracket),
+                    max_len=tokens_len,
+                    skip_closing_item_itself=yes,
+                )
+                # If we're at a proper closing bracket, consume it:
+                if pos <= tokens_len and
+                        tokens[pos].kind == T_BRACKET and
+                        {")", "]", "}"}.has(token[pos].str) {
+                    pos += 1  # Past whatever closing thing we found.
+                }
+                node.subexprs.add(new InvalidExpr(pos - preskippos))
+            } else {
+                # Go past whatever nonsense we can't parse:
+                var skiplen = token.go_to_expr_end(
+                    tokens, pos, max_len=tokens_len
+                )
+                node.subexprs.add(new InvalidExpr(skiplen))
+                pos += skiplen
             }
-            node.subexprs.add(new InvalidExpr(skiplen))
             node.subexprs.last().line = token.get_line(
                 tokens, preskippos
             )
@@ -675,11 +673,14 @@ func parse_expression_unwrapped(
             if openbracket != none and
                     (pos >= tokens_len or
                     tokens[pos].kind != token.T_BRACKET or
-                    reverse_bracket(openbracket) != tokens[pos].str) {
+                    token.reverse_bracket(openbracket) !=
+                        tokens[pos].str) {
                 msgs.add(new msg.FileMsg(
                     "Unexpected " + token.describe_token_at(
                         tokens, pos) +
-                    ", expected '" + reverse_bracket(openbracket) +
+                    ", expected '" + token.reverse_brackets(
+                        openbracket
+                    ) +
                     "' to close '" + openbracket + "' "
                     "found in line " +
                     startline.as_str() +
@@ -689,12 +690,36 @@ func parse_expression_unwrapped(
                     line=token.get_line(tokens, pos),
                     col=token.get_col(tokens, pos),
                 ))
+                pos = skip_garbage_to_closing_item(
+                    tokens, pos, token.T_BRACKET,
+                    token.reverse_brackets(openbracket),
+                    max_len=tokens_len,
+                    skip_closing_item_itself=yes
+                )
             } elseif openbracket != none {
                 pos += 1  # Go past closing bracket.
             }
         }
         node.token_len = left_hand.token_len + (pos - startpos)
-        return node
+        if pos >= tokens_len or (
+                tokens[pos].kind != T_DOT and
+                (tokens[pos].kind != T_BRACKET or
+                 not {"(", "["}.has(tokens[pos].str))) {
+            # End of call/member access/index chain!
+            return node
+        }
+        # More things are chained, continue:
+        left_hand = node
+        node = new BinopExpr(tokens[pos])
+        node.line = startline
+        node.col = startcol
+        node.subexprs.add(left_hand)
+
+        # Parse and jump back to handle next chained item:
+        inner_expr = parse_expression(
+            tokens, pos, msgs, project_file=none,
+            max_len=tokens_len, debug=debug,
+        ) later repeat
     }
     # Handle expressions combined by unary or binary operators:
     if (left_hand != none and (
