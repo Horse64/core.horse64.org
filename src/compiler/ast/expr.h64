@@ -1077,7 +1077,7 @@ func parse_single_call_or_funcdef_arg(
         var node = new InvalidExpr(pos - startpos)
         node.line = token.get_line(tokens, startpos)
         node.col = token.get_col(tokens, startpos)
-        node.token_len = startpos - pos
+        node.token_len = pos - startpos
         return node
     }
 
@@ -1110,6 +1110,7 @@ func parse_single_call_or_funcdef_arg(
             assigned_expr.line = token.get_line(tokens, pos)
             assigned_expr.col = token.get_col(tokens, pos)
         } else {
+            assert(assigned_expr.token_len >= 0)
             pos += assigned_expr.token_len
         }
     }
@@ -1136,6 +1137,7 @@ func parse_single_call_or_funcdef_arg(
                 tokens, pos, token.T_COMMA, ",",
                 skip_closing_item_itself=yes,
             )
+            assert(pos >= startpos)
         }
     }
     # If we're at a closing ',' + ')' then forward to final ')':
