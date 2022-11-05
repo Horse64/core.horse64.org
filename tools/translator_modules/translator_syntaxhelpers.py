@@ -1441,6 +1441,10 @@ def sanity_check_h64_codestring(s, filename="", modname=""):
     for token in tokens:
         i += 1
         assert(tokens[i] == token)
+        if (token == "else" and
+                nextnonblank(tokens, i) == "if"):
+            raise ValueError("found invalid 'else if'" + (
+                " in " + modname if modname != None else ""))
         if ((is_identifier(token) and
                 nextnonblanksameline(tokens, i)
                     in {"'", '"'}) or (
