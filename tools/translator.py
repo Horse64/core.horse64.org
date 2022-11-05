@@ -892,7 +892,7 @@ def translate_expression_tokens(s, sc,
             z += 1
         if z >= len(s) or s[z] != "(":
             # Not an inline if.
-            if s[z] == "{" or s[z] == "else":
+            if z < len(s) and (s[z] == "{" or s[z] == "else"):
                 raise ValueError("Syntax error with 'if' in module " +
                     sc.module_name + ("" if sc.package_name is None else
                     " in " + sc.package_name))
