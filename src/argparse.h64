@@ -44,7 +44,6 @@ type _ArgumentInfo {
     var description = none
 }
 
-
 func _ArgumentInfo.init(
         name, aliases=[],
         is_switch=no, takes_arg="default",
@@ -270,7 +269,7 @@ func ArgumentDefs.add_arg(name, optional=no, description=none) {
     }
     self.args.add(new _ArgumentInfo(
         name, is_switch=no, description=description,
-        takes_arg=(if optional ("optional") else (yes))
+        takes_arg=if optional ("optional") else (yes)
     ))
     if self.args[self.args.len].positional {
         self.max_positional_args += 1
@@ -450,7 +449,7 @@ func get_usage_text(options) {
         }
         output += " " + arg.name.replace(" ", "_") + (
             if arg.optional ("[optional]") else ("")
-        ) + (if arg.catchall ("..") else ("")) + ""
+        ) + if arg.catchall ("..") else ("") + ""
     }
     output += "\n\n"
 
@@ -489,8 +488,8 @@ func get_usage_text(options) {
                 var spaces_after_wrap = " ".repeat(indent_target_len)
                 var wrapped = textfmt.wrap(
                     "   " + arg.name.replace(" ", "_") +
-                    (if arg.description != none (spaces + arg.description)
-                    else ("")), 79,
+                    if arg.description != none (spaces + arg.description)
+                    else (""), 79,
                     later_lines_prefix="   " + spaces_after_wrap)
                 output += wrapped + "\n"
             }
@@ -538,9 +537,9 @@ func get_usage_text(options) {
         }
         var wrapped = textfmt.wrap(
             "   " + switch_name +
-            (if switch_description != none
+            if switch_description != none
                 (spaces + switch_description)
-                else ("")),
+                else (""),
             79,
             later_lines_prefix="   " + spaces_after_wrap)
         output += wrapped + "\n"
