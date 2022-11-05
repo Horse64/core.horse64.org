@@ -1222,6 +1222,8 @@ func parse_call_or_funcdef_args(
     await arg
     assert(arg != none)
     node.subexprs.add(arg)
+    assert(pos >= 1)
+    assert(arg.token_len >= 1)
     pos += arg.token_len
     if pos > tokens.len or tokens[pos].kind != token.T_COMMA {
         # We reached the end. If this isn't ')', then
