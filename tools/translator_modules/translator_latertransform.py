@@ -774,6 +774,7 @@ def transform_later_to_closure_funccontents(
         # Get argument name from var/const declaration if any:
         vardef_at_start_idx = None
         vardef_past_eq_idx = None
+        did_explicit_assign = False
         arg_name = None
         if (firstnonblank(st) in {"var", "const"} or
                 (is_identifier(firstnonblank(st)) and
@@ -791,6 +792,12 @@ def transform_later_to_closure_funccontents(
             vardef_at_start_idx = i2
             if st[i2] in {"var", "const"}:
                 i2 = nextnonblankidx(st, i2)
+            else:
+                # Since this might be a closure captured var, we must
+                # actually assign back the value to the actual var
+                # (rather than just use it as parameter name for our
+                # 'later' closure).
+                did_explicit_assign = True
             if not is_identifier(st[i2]):
                 if not ignore_erroneous_code:
                     raise ValueError("Failed to extract 'var' name "
@@ -959,13 +966,18 @@ def transform_later_to_closure_funccontents(
             # Done assembling function code!
         # Assemble callback statement and add it in:
         new_sts_inserted = 0
+        explicit_assign_wrapped_func_name = None
         if not is_a_repeat and not is_an_ignore:
             # Add the closure based on all follow-up code:
             insert_st = ([indent, "func", " ",
                 funcname, " ", "(", await_error_name])
-            if arg_name != None:
+            if arg_name != None and not did_explicit_assign:
                 insert_st += [",", arg_name]
             else:
+                # If we don't assign to a var, or we assigned without
+                # a direct 'var' def (did_explicit_assign=False),
+                # we instead want to not have the name as a parameter.
+                # If used, we want the var to be a closure capture.
                 insert_st += [",", "_unused" +
                     str(uuid.uuid4()).replace("-", "")]
             insert_st += [")", " "]
@@ -995,6 +1007,31 @@ def transform_later_to_closure_funccontents(
                 ")", "\n"]
             insert_st += [indent + h64_indent, "}", "\n"]
             insert_st += [indent, "}", "\n"]
+            new_sts_inserted += 1
+            new_sts.append(insert_st)
+        if did_explicit_assign and not is_a_repeat:
+            # Add an extra closure that first assigns a var,
+            # before calling the proper 'later' contents or above
+            # 'later ignore' func.
+            assert(arg_name != None)
+            explicit_assign_wrapped_func_name = funcname
+            funcname = (
+                "_explicitassignwrap" +
+                str(uuid.uuid4()).replace("-", "")
+            )
+            insert_st = ([indent, "func", " ",
+                funcname, " ", "(", "_err", ",", " ",
+                 "_result", ")", "{", "\n"])
+            insert_st += ([indent, "    ",
+                "if", " ", "_err", " ", "==", " ", "none", " ",
+                "{", "\n"])
+            insert_st += ([indent, "        ",
+                arg_name, " ", "=", " ", "_result", "\n"])
+            insert_st += ([indent, "    ", "}", "\n"])
+            insert_st += ([indent, "    ", "return", " ",
+                explicit_assign_wrapped_func_name,
+                "(", "_err", ",", " ", "_result", ")", "\n"])
+            insert_st += ([indent, "}", "\n"])
             new_sts_inserted += 1
             new_sts.append(insert_st)
 
