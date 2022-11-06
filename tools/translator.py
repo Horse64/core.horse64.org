@@ -189,37 +189,23 @@ remapped_uses = {
     },
     "io@core.horse64.org": {
         "io.open":
-            "(lambda path, mode, allow_disk=True," +
-            "allow_vfs=False: _translator_runtime_helpers." +
-            "_FileObjFromDisk(path, mode," +
-            "allow_vfs=allow_vfs, allow_disk=allow_disk))",
+            "_translator_runtime_helpers._io_open",
         "io.exists":
             "_translator_runtime_helpers._io_exists",
         "io.is_dir":
-            "(lambda path: " +
-            "_translator_runtime_helpers._wrap_io("
-            "_remapped_os.path.isdir('.' if" +
-            "path == '' else path)))",
+            "_translator_runtime_helpers._io_is_dir",
         "io.list_dir":
             "_translator_runtime_helpers._io_ls_dir",
         "io.make_or_get_appcache":
-            "_translator_runtime_helpers._wrap_io("
-            "_translator_runtime_helpers."
-                "_make_or_get_appcache)",
+            "_translator_runtime_helpers._make_or_get_appcache",
         "io.remove_file":
-            "_translator_runtime_helpers._wrap_io("
-            "_remapped_os.remove)",
+            "_translator_runtime_helpers._io_remove_file",
         "io.remove_dir":
-            "_translator_runtime_helpers._wrap_io("
-            "_remapped_shutil.rmtree)",
+            "_translator_runtime_helpers._io_remove_dir",
         "io.rename":
-            "_translator_runtime_helpers._wrap_io("
-            "_remapped_shutil.move)",
+            "_translator_runtime_helpers._io_rename_dir",
         "io.make_tmpdir":
-            "_translator_runtime_helpers._wrap_io("
-            "lambda suffix='', prefix='': "
-            "_remapped_tempfile.mkdtemp(suffix=suffix,"
-            "prefix=prefix))",
+            "_translator_runtime_helpers._make_tmpdir",
     },
     "json@core.horse64.org": {
         "json.dump":
@@ -302,6 +288,10 @@ remapped_uses = {
     "textformat@core.horse64.org": {
         "textformat.outdent":
             "_translator_runtime_helpers._textformat_outdent",
+    },
+    "threading@core.horse64.org": {
+        "threading.make_lock":
+            "_translator_runtime_helpers._make_lock",
     },
     "time@core.horse64.org": {
         "time.sleep":

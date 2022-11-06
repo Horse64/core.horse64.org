@@ -26,9 +26,11 @@
 # license, see accompanied LICENSE.md.
 
 import io from core.horse64.org
+import threading from core.horse64.org
 
 
 var terminal_output_enabled protect = yes
+var file_output_lock protect = threading.make_lock()
 var file_output_path protect = none
 var program_prefix protect = none
 
@@ -40,14 +42,19 @@ enum LogKind {
 }
 
 func write_line_to_log_file(raw_line) {
-    var f = io.open(file_output_path, "a")
+    file_output_lock.lock() later:
     do {
-        var result = f.write(raw_line + "\n") later:
-        await result
+        var f = io.open(file_output_path, "a") later:
+        await f
+        do {
+            var result = f.write(raw_line + "\n") later:
+            await result
+        } finally {
+            f.close()
+        }
     } finally {
-        f.close()
+        file_output_lock.unlock()
     }
-    return later
 }
 
 func l(msg, kind=L_INFO) {
@@ -72,11 +79,21 @@ func l(msg, kind=L_INFO) {
     }
 }
 
+func set_file_output_async(path) {
+    file_output_lock.lock() later:
+    do {
+        file_output_path = none
+        var f = io.open(path, "w") later:
+        await f
+        f.close()
+        file_output_path = path
+    } finally {
+        file_output_lock.unlock()
+    }
+}
+
 func set_file_output(path) {
-    file_output_path = none
-    var f = io.open(path, "w")
-    f.close()
-    file_output_path = path
+    set_file_output_async(path) later ignore
 }
 
 func set_terminal_output(yesno) {

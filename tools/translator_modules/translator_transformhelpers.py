@@ -198,6 +198,10 @@ def is_isolated_pure_expression(t):
             break
     assigned_expr = t[start_idx:end_idx]
 
+    # Creating locks can be done early & isolated no problem:
+    if "".join(assigned_expr).strip() == "threading.make_lock()":
+        return True
+
     # Handle trailing ops like `-(x)` or `not x`:
     for op in known_ops:
         if assigned_expr[:1] == [op]:

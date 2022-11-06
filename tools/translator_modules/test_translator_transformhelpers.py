@@ -103,6 +103,9 @@ class TestTranslatorTransformHelpers(unittest.TestCase):
         self.assertTrue(
             is_isolated_pure_assign("var bla = {'test' + 'bla', 'blu'}")
         )
+        self.assertTrue(
+            is_isolated_pure_assign("var bla =  (threading.make_lock())")
+        )
 
     def test_func_args_find_last_positional(self):
         (last_nonkw_arg_end, had_any_positional_arg, i) = (

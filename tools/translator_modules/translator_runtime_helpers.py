@@ -37,6 +37,7 @@ import requests
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import traceback
@@ -170,7 +171,7 @@ def _return_licenses():
 def _terminal_get_char(callback):
     global _async_ops_lock, _async_ops
     info = {"callback": callback}
-    def run_do(op):
+    def get_char_do(op):
         global _async_ops_lock
         info = op.userdata
         err = None
@@ -194,7 +195,7 @@ def _terminal_get_char(callback):
         op.do_func = None
         op.callback_func = None
         return f(result[0], result[1])
-    op = _AsyncOperation(info, run_do, done_cb)
+    op = _AsyncOperation(info, get_char_do, done_cb)
     _async_ops_lock.acquire()
     _async_ops.append(op)
     _async_ops_lock.release()
@@ -203,7 +204,7 @@ def _terminal_get_char(callback):
 def _terminal_get_line(callback):
     global _async_ops_lock, _async_ops
     info = {"callback": callback}
-    def run_do(op):
+    def get_line_do(op):
         global _async_ops_lock
         info = op.userdata
         err = None
@@ -227,7 +228,7 @@ def _terminal_get_line(callback):
         op.do_func = None
         op.callback_func = None
         return f(result[0], result[1])
-    op = _AsyncOperation(info, run_do, done_cb)
+    op = _AsyncOperation(info, get_line_do, done_cb)
     _async_ops_lock.acquire()
     _async_ops.append(op)
     _async_ops_lock.release()
@@ -742,35 +743,348 @@ def _uri_to_file_or_vfs_path(v):
     return resource
 
 
-def _io_exists(v, allow_vfs=True, allow_disk=True):
-    if v == "":
-        v = "."
-    if not allow_disk:
-        return (v == ".")
-    return _wrap_io(os.path.exists)(v)
+def _io_open(fpath, mode, cb, allow_vfs=True, allow_disk=True):
+    assert(type(duration) in {float, int})
+    def async_open_do(job):
+        v = job.userdata["v"]
+        mode = job.userdata["mode"]
+        allow_vfs = job.userdata["allow_vfs"]
+        allow_disk = job.userdata["allow_disk"]
+        if v == "":
+            v = "."
+        if not allow_disk:
+            if v == ".":
+                result = [
+                    _PathIsWrongTypeError("Target is a directory."), None
+                ]
+            else:
+                result = [
+                    _PathNotFoundError("Path doesn't exist"), None
+                ]
+        else:
+            result = [None, None]
+            try:
+                result[1] = _FileObjFromDisk(v, mode,
+                    allow_vfs=allow_vfs, allow_disk=allow_disk)
+            except Exception as e:
+                result[0] = e
+                result[1] = None
+        job.userdata2 = result
+        job.done = True
+    def done_cb(op):
+        result = op.userdata2
+        f = op.userdata["usercb"]
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        op.callback_func = None
+        return f(result[0], result[1])
+    op = _AsyncOperation({
+        "v": fpath,
+        "mode": mode,
+        "allow_disk": allow_disk,
+        "allow_vfs": allow_vfs,
+        "usercb": cb},
+        async_open_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
 
 
-def _io_ls_dir(v, allow_vfs=True, allow_disk=True):
-    if not allow_disk:
-        if os.path.normpath(v) in {"", "."}:
-            return []
-        raise _PathNotFoundError(
-            "path not found"
-        )
-    result = None
-    try:
-        result = v.listdir(v)
-    except (FileNotFoundError, OSError, IOError) as e:
-        if isinstance(e, FileNotFoundError):
-            raise _PathNotFoundError()
-        if isinstance(e, NotADirectoryError):
-            raise _PathIsWrongTypeError(
-                "Target isn't a directory."
-            )
-        if isinstance(e, PermissionError):
-            raise _PermissionError()
-        raise _IOError(str(e))
-    return result
+def _io_rename(v1, v2, cb, allow_vfs=True, allow_disk=True):
+    assert(type(duration) in {float, int})
+    def async_rename_do(job):
+        v1 = job.userdata["v1"]
+        v2 = job.userdata["v2"]
+        allow_vfs = job.userdata["allow_vfs"]
+        allow_disk = job.userdata["allow_disk"]
+        if v1 == "":
+            v1 = "."
+        if v2 == "":
+            v2 = "."
+        if not allow_disk:
+            if v1 == "." or v2 == ".":
+                result = [
+                    _PermissionDeniedError("Read-only target."), None
+                ]
+            else:
+                result = [
+                    _PathNotFoundError("Path doesn't exist"), None
+                ]
+        else:
+            result = [None, None]
+            try:
+                result[1] = _wrap_io(shutil.move)(v1, v2)
+            except Exception as e:
+                result[0] = e
+                result[1] = None
+        job.userdata2 = result
+        job.done = True
+    def done_cb(op):
+        result = op.userdata2
+        f = op.userdata["usercb"]
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        op.callback_func = None
+        return f(result[0], result[1])
+    op = _AsyncOperation({
+        "v1": v1,
+        "v2": v2,
+        "allow_disk": allow_disk,
+        "allow_vfs": allow_vfs,
+        "usercb": cb},
+        async_rename_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
+
+
+def _io_remove_file(v, cb, allow_vfs=True, allow_disk=True):
+    assert(type(duration) in {float, int})
+    def async_remove_file_do(job):
+        v = job.userdata["v"]
+        allow_vfs = job.userdata["allow_vfs"]
+        allow_disk = job.userdata["allow_disk"]
+        if v == "":
+            v = "."
+        if not allow_disk:
+            if v == ".":
+                result = [
+                    _PermissionDeniedError("Read-only target."), None
+                ]
+            else:
+                result = [
+                    _PathNotFoundError("Path doesn't exist"), None
+                ]
+        else:
+            result = [None, None]
+            try:
+                result[1] = _wrap_io(os.remove)(v)
+            except Exception as e:
+                result[0] = e
+                result[1] = None
+        job.userdata2 = result
+        job.done = True
+    def done_cb(op):
+        result = op.userdata2
+        f = op.userdata["usercb"]
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        op.callback_func = None
+        return f(result[0], result[1])
+    op = _AsyncOperation({
+        "v": v,
+        "allow_disk": allow_disk,
+        "allow_vfs": allow_vfs,
+        "usercb": cb},
+        async_remove_file_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
+
+
+def _io_remove_dir(v, cb, allow_vfs=True, allow_disk=True):
+    def async_remove_dir_do(job):
+        v = job.userdata["v"]
+        allow_vfs = job.userdata["allow_vfs"]
+        allow_disk = job.userdata["allow_disk"]
+        if v == "":
+            v = "."
+        if not allow_disk:
+            if v == ".":
+                result = [
+                    _PermissionDeniedError("Read-only target."), None
+                ]
+            else:
+                result = [
+                    _PathNotFoundError("Path doesn't exist"), None
+                ]
+        else:
+            result = [None, None]
+            try:
+                result[1] = _wrap_io(shutil.rmtree)(v)
+            except Exception as e:
+                result[0] = e
+                result[1] = None
+        job.userdata2 = result
+        job.done = True
+    def done_cb(op):
+        result = op.userdata2
+        f = op.userdata["usercb"]
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        op.callback_func = None
+        return f(result[0], result[1])
+    op = _AsyncOperation({
+        "v": v,
+        "allow_disk": allow_disk,
+        "allow_vfs": allow_vfs,
+        "usercb": cb},
+        async_remove_dir_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
+
+
+def _io_ls_dir(v, cb, allow_vfs=True, allow_disk=True):
+    def async_ls_dir_do(job):
+        v = job.userdata["v"]
+        allow_vfs = job.userdata["allow_vfs"]
+        allow_disk = job.userdata["allow_disk"]
+        if v == "":
+            v = "."
+        if not allow_disk:
+            if v == ".":
+                result = [None, []]
+            else:
+                result = [
+                    _PathNotFoundError("Path doesn't exist"), None
+                ]
+        else:
+            result = [None, None]
+            try:
+                result[1] = _wrap_io(os.listdir)(v)
+            except Exception as e:
+                result[0] = e
+                result[1] = None
+        job.userdata2 = result
+        job.done = True
+    def done_cb(op):
+        result = op.userdata2
+        f = op.userdata["usercb"]
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        op.callback_func = None
+        return f(result[0], result[1])
+    op = _AsyncOperation({
+        "v": v,
+        "allow_disk": allow_disk,
+        "allow_vfs": allow_vfs,
+        "usercb": cb},
+        async_ls_dir_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
+
+
+def _io_is_dir(v, cb, allow_vfs=True, allow_disk=True):
+    def async_is_dir_do(job):
+        v = job.userdata["v"]
+        allow_vfs = job.userdata["allow_vfs"]
+        allow_disk = job.userdata["allow_disk"]
+        if v == "":
+            v = "."
+        if not allow_disk:
+            if v == ".":
+                result = [None, True]
+            else:
+                result = [
+                    _PathNotFoundError("Path doesn't exist"), None
+                ]
+        else:
+            result = [None, None]
+            try:
+                result[1] = _wrap_io(os.path.is_dir)(v)
+            except Exception as e:
+                result[0] = e
+                result[1] = None
+        job.userdata2 = result
+        job.done = True
+    def done_cb(op):
+        result = op.userdata2
+        f = op.userdata["usercb"]
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        op.callback_func = None
+        return f(result[0], result[1])
+    op = _AsyncOperation({
+        "v": v,
+        "allow_disk": allow_disk,
+        "allow_vfs": allow_vfs,
+        "usercb": cb},
+        async_is_dir_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
+
+
+def _make_lock():
+    class _TranslatorLock:
+        def __init__(self):
+            self.lock = threading.Lock()
+
+        def lock(self, cb):
+            def async_lock_do(job):
+                self = job.userdata["self"]
+                result = [None, None]
+                try:
+                    result[1] = self.lock()
+                except Exception as e:
+                    result[0] = e
+                    result[1] = None
+                job.userdata2 = result
+                job.done = True
+            def done_cb(op):
+                result = op.userdata2
+                f = op.userdata["usercb"]
+                op.userdata = None
+                op.userdata2 = None
+                op.do_func = None
+                op.callback_func = None
+                return f(result[0], result[1])
+            op = _AsyncOperation({
+                "self": self,
+                "usercb": cb},
+                async_lock_do, done_cb)
+            _async_ops_lock.acquire()
+            _async_ops.append(op)
+            _async_ops_lock.release()
+
+        def release(self):
+            self.lock.release()
+    return _TranslatorLock()
+
+
+def _io_exists(v, cb, allow_vfs=True, allow_disk=True):
+    def async_exists_do(job):
+        v = job.userdata["v"]
+        allow_vfs = job.userdata["allow_vfs"]
+        allow_disk = job.userdata["allow_disk"]
+        if v == "":
+            v = "."
+        if not allow_disk:
+            result = [None, (v == ".")]
+        else:
+            result = [None, None]
+            try:
+                result[1] = _wrap_io(os.path.exists)(v)
+            except Exception as e:
+                result[0] = e
+                result[1] = None
+        job.userdata2 = result
+        job.done = True
+    def done_cb(op):
+        result = op.userdata2
+        f = op.userdata["usercb"]
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        op.callback_func = None
+        return f(result[0], result[1])
+    op = _AsyncOperation({
+        "v": v,
+        "allow_disk": allow_disk,
+        "allow_vfs": allow_vfs,
+        "usercb": cb},
+        async_exists_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
 
 
 def _wrap_io(f):
@@ -780,7 +1094,7 @@ def _wrap_io(f):
             result = f(*args, **kwargs)
         except (FileNotFoundError, OSError, IOError) as e:
             if isinstance(e, FileNotFoundError):
-                raise _PathNotFoundError()
+                raise _PathNotFoundError("Path not found.")
             if isinstance(e, IsADirectoryError):
                 raise _PathIsWrongTypeError("Target is a directory.")
             if isinstance(e, NotADirectoryError):
@@ -788,13 +1102,13 @@ def _wrap_io(f):
                     "Target isn't a directory."
                 )
             if isinstance(e, FileExistsError):
-                raise _PathAlreadyExistsError()
-            if isinstance(e, shutil.Error):
-                raise _ResourceMisuseError()
+                raise _PathAlreadyExistsError("Path already exists.")
+            if isinstance(e, shutil.Error) or \
+                    isinstance(e, OSError):
+                raise _ResourceMisuseError("Resource can't be used "
+                    "that way.")
             if isinstance(e, PermissionError):
-                raise _PermissionError()
-            if isinstance(e, OSError):
-                raise _ResourceMisuseError()
+                raise _PermissionError("Permission denied.")
             raise _IOError(str(e))
         return result
     return wrapped_func
@@ -835,11 +1149,48 @@ class _FileObjFromDisk:
                     "used that way.")
             raise _IOError("Temporary IO failure.")
 
-    def read(self, callback, amount=None):
+    def read(self, cb, amount=None):
+        def _read_do(op):
+            global _async_ops_lock
+            v = op.userdata["v"]
+            self = op.userdata["self"]
+            amount = op.userdata["amount"]
+            result = [None, None]
+            try:
+                result = list(self.fobj._read_sync(
+                    v, amount=amount
+                ))
+            except Exception as e:
+                result[0] = None
+                result[1] = e
+            _async_ops_lock.acquire()
+            op.userdata2 = result
+            op.done = True
+            _async_ops_lock.release()
+        def done_cb(op):
+            result = op.userdata2
+            assert(result != None)
+            f = op.userdata["usercb"]
+            op.userdata = None
+            op.userdata2 = None
+            op.do_func = None
+            op.callback_func = None
+            return f(result[0], result[1])
+        op = _AsyncOperation({
+            "v": value,
+            "self": self,
+            "amount": amount,
+            "usercb": cb,
+        }, _read_do, done_cb)
+        _async_ops_lock.acquire()
+        _async_ops.append(op)
+        _async_ops_lock.release()
+
+    def _read_sync(self, amount=None):
         if amount != None:
             amount = int(amount)
             if amount <= 0:
-                _async_delay_call(
+                return (
                     callback, [None, b"" if self.binary else ""]
                 )
                 return
@@ -856,9 +1207,10 @@ class _FileObjFromDisk:
             else:
                 err = _IOError()
             assert(data == None)
-        _async_delay_call(callback, [err, data])
+        return (err, data)
 
     def write(self, value, callback):
+        global _async_ops_lock, _async_ops
         if not self.binary and type(value) != str:
             _async_delay_call(callback, [
                 _TypeError("Value must be widechar string.")
@@ -869,8 +1221,37 @@ class _FileObjFromDisk:
                 _TypeError("Value must be bytes value.")
             ])
             return
-        self.fobj.write(value)
-        _async_delay_call(callback, [None, None])
+        def _write_do(op):
+            global _async_ops_lock
+            self = op.userdata["self"]
+            v = op.userdata["v"]
+            result = [None, None]
+            try:
+                result[1] = self.fobj.write(v)
+            except Exception as e:
+                result[0] = None
+                result[1] = e
+            _async_ops_lock.acquire()
+            op.userdata2 = result
+            op.done = True
+            _async_ops_lock.release()
+        def done_cb(op):
+            result = op.userdata2
+            assert(result != None)
+            f = op.userdata["usercb"]
+            op.userdata = None
+            op.userdata2 = None
+            op.do_func = None
+            op.callback_func = None
+            return f(result[0], result[1])
+        op = _AsyncOperation({
+            "v": value,
+            "self": self,
+            "usercb": cb,
+        }, _write_do, done_cb)
+        _async_ops_lock.acquire()
+        _async_ops.append(op)
+        _async_ops_lock.release()
 
     def close(self):
         try:
@@ -1000,7 +1381,7 @@ def _time_sleep(duration, cb):
         op.userdata2 = None
         op.do_func = None
         op.callback_func = None
-        return f()
+        return f(None, None)
     op = _AsyncOperation({
         "duration": duration,
         "usercb": cb},
@@ -1105,7 +1486,39 @@ def _net_lookup_name(name, cb, retries=0, retry_delay=0.5):
     _async_ops_lock.release()
 
 
-def _net_fetch_open(uri, extra_headers=None,
+def _net_fetch_open(*args, **kwargs):
+    def async_net_fetch_open_do(job):
+        _args = job.userdata["args"]
+        _kwargs = job.userdata["kwargs"]
+        result = [None, None]
+        try:
+            result[1] = _net_fetch_open_sync(
+                *_args, **_kwargs
+            )
+        except Exception as e:
+            result[0] = e
+            result[1] = None
+        job.userdata2 = result
+        job.done = True
+    def done_cb(op):
+        result = op.userdata2
+        f = op.userdata["usercb"]
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        op.callback_func = None
+        return f(result[0], result[1])
+    op = _AsyncOperation({
+        "args": args,
+        "kwargs": kwargs,
+        "usercb": cb},
+        async_net_fetch_open_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
+
+
+def _net_fetch_open_sync(uri, extra_headers=None,
         user_agent="core.horse64.org net.fetch/0.1 (translator)",
         allow_disk=False, allow_vfs=False):
     if extra_headers is None:
@@ -1583,6 +1996,67 @@ def _bignum_compare_nums(v1, v2):
 
 
 def _make_or_get_appcache(v):
+    def async_make_or_get_appcache_do(job):
+        v = job.userdata["v"]
+        result = [None, None]
+        try:
+            result[1] = _make_or_get_appcache_sync(v)
+        except Exception as e:
+            result[0] = e
+            result[1] = None
+        job.userdata2 = result
+        job.done = True
+    def done_cb(op):
+        result = op.userdata2
+        f = op.userdata["usercb"]
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        op.callback_func = None
+        return f(result[0], result[1])
+    op = _AsyncOperation({
+        "v": v,
+        "usercb": cb},
+        async_make_or_get_appcache_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
+
+
+def _make_tmpdir(cb, suffix="", prefix=""):
+    def async_make_tmpdir_do(job):
+        suffix = job.userdata["suffix"]
+        prefix = job.userdata["prefix"]
+        result = [None, None]
+        try:
+            result[1] = _wrap_io(tempfile.mkdtemp)(
+                suffix=suffix, prefix=prefix
+            )
+        except Exception as e:
+            result[0] = e
+            result[1] = None
+        assert(result != None)
+        job.userdata2 = result
+        job.done = True
+    def done_cb(op):
+        result = op.userdata2
+        f = op.userdata["usercb"]
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        op.callback_func = None
+        return f(result[0], result[1])
+    op = _AsyncOperation({
+        "suffix": suffix,
+        "prefix": prefix,
+        "usercb": cb},
+        async_make_tmpdir_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
+
+
+def _make_or_get_appcache_sync(v):
     forbidden_chars = {"/", "\\", "*", ":",
         "\"", "~", "?", "|", "<", ">", "\0"}
     if v.strip() != v:
