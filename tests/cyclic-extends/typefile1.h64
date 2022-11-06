@@ -26,7 +26,7 @@
 
 import typefile2
 
-type Banana1 extends typefile2.Banana2 {
+type Banana1 base typefile2.Banana2 {
 
 }
 
