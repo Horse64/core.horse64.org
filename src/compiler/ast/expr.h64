@@ -54,7 +54,7 @@ func container_kind_to_name(k) {
     throw new ValueError("Unexpected container kind.")
 }
 
-type ContainerExpr extends ast.TreeNode {
+type ContainerExpr base ast.TreeNode {
     ## @type ContainerKind
     var kind
     var values
@@ -65,7 +65,7 @@ func ContainerExpr.init {
     self.kind = ast.N_EXPR_CONTAINER
 }
 
-type InvalidExpr extends ast.TreeNode {
+type InvalidExpr base ast.TreeNode {
 }
 
 func InvalidExpr.init(tlen) {
@@ -74,7 +74,7 @@ func InvalidExpr.init(tlen) {
     self.token_len = tlen
 }
 
-type UnopExpr extends ast.TreeNode {
+type UnopExpr base ast.TreeNode {
     var optoken
 }
 
@@ -84,7 +84,7 @@ func UnopExpr.init(optoken) {
     self.optoken = optoken
 }
 
-type BinopExpr extends ast.TreeNode {
+type BinopExpr base ast.TreeNode {
     var optoken
 }
 
@@ -100,7 +100,7 @@ func BinopExpr.as_json_obj {
     return output
 }
 
-type IdRefExpr extends ast.TreeNode {
+type IdRefExpr base ast.TreeNode {
     var label
 }
 
@@ -115,7 +115,7 @@ func IdRefExpr.as_json_obj {
     return output
 }
 
-type LiteralExpr extends ast.TreeNode {
+type LiteralExpr base ast.TreeNode {
     var value
 }
 
@@ -1047,7 +1047,7 @@ func parse_expression_unwrapped(
     }
 }
 
-type CallKWArgExpr extends ast.TreeNode {
+type CallKWArgExpr base ast.TreeNode {
     var label
 }
 
@@ -1056,7 +1056,7 @@ func CallKWArgExpr.init {
     self.kind = ast.N_EXPR_CALLKWARG
 }
 
-type CallArgExpr extends ast.TreeNode {
+type CallArgExpr base ast.TreeNode {
 }
 
 func CallArgExpr.init {
@@ -1064,7 +1064,7 @@ func CallArgExpr.init {
     self.kind = ast.N_EXPR_CALLARG
 }
 
-type ArgNameExpr extends ast.TreeNode {
+type ArgNameExpr base ast.TreeNode {
     var label
 }
 
@@ -1073,7 +1073,7 @@ func ArgNameExpr.init {
     self.kind = ast.N_EXPR_ARGNAME
 }
 
-type CallOrDefArgsExpr extends ast.TreeNode {
+type CallOrDefArgsExpr base ast.TreeNode {
 }
 
 func CallOrDefArgsExpr.init {

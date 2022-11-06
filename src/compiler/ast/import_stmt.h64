@@ -32,7 +32,7 @@ import compiler.msg as msg
 import compiler.token as token
 
 
-type ImportStmt extends ast.StmtNode {
+type ImportStmt base ast.StmtNode {
     var module_path = []
     var library_name
     var renamed_as

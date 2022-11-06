@@ -33,7 +33,7 @@ import compiler.msg as msg
 import compiler.token as token
 
 
-type FuncStmt extends ast.StmtNode {
+type FuncStmt base ast.StmtNode {
     var name
     var type_path = none
     var arg_names = []

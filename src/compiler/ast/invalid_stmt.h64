@@ -28,7 +28,7 @@
 
 import compiler.ast as ast
 
-type InvalidStmt extends ast.TreeNode {
+type InvalidStmt base ast.TreeNode {
 }
 
 

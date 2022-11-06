@@ -69,7 +69,7 @@ func TreeNode.as_json_obj {
     return output
 }
 
-type StmtNode extends TreeNode {
+type StmtNode base TreeNode {
     ## @type [[StmtNode]]
     var subblocks = []
 }

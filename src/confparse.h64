@@ -33,7 +33,7 @@ import uri from core.horse64.org
 ## The error returned by @{parse_str}, @{parse_from_file}, and
 ## @{parse_from_uri} when an invalid config is found with
 ## `error_on_mistakes` set to @{yes}.
-type ConfParseError extends ValueError {
+type ConfParseError base ValueError {
 }
 
 ## @func parse_str
