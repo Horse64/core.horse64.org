@@ -1368,7 +1368,7 @@ def _time_ts():
 def _time_sleep(duration, cb):
     assert(type(duration) in {float, int})
     def async_sleep_do(job):
-        delay = job.userdata["delay"]
+        delay = job.userdata["duration"]
         if delay > 0:
             time.sleep(delay)
         job.done = True
