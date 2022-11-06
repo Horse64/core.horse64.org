@@ -31,7 +31,7 @@ extend main_type.MyType {
     var count2 = 2
 }
 
-func main_type.get_count2_double {
+func main_type.MyType.get_count2_double {
     return self.count2 * 2
 }
 

@@ -1,0 +1,23 @@
+
+
+import time from core.horse64.org
+
+
+func get_val_after_pause {
+    var x = 5
+    time.sleep(0.2) later:
+    return x
+}
+
+func test_assigned_later_to_existing_var {
+    var f
+    do {
+        f = get_val_after_pause() later:
+        await f
+    } finally {
+        print("Winding down now! The 'f' variable "
+            "needs to be set to 5, it is: f=" + f.as_str())
+        assert(f == 5)
+    }
+}
+
