@@ -43,19 +43,19 @@ enum LogKind {
 
 func write_to_file_if_needed(raw_line) {
     file_output_lock.lock() later:
+    var f
     do {
         if file_output_path == none {
             return
         }
-        var f = io.open(file_output_path, "a") later:
+        f = io.open(file_output_path, "a") later:
         await f
-        do {
-            var result = f.write(raw_line + "\n") later:
-            await result
-        } finally {
+        var result = f.write(raw_line + "\n") later:
+        await result
+    } finally {
+        if f != none {
             f.close()
         }
-    } finally {
         file_output_lock.unlock()
     }
 }
