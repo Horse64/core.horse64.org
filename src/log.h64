@@ -41,9 +41,12 @@ enum LogKind {
     L_ERROR,
 }
 
-func write_line_to_log_file(raw_line) {
+func write_to_file_if_needed(raw_line) {
     file_output_lock.lock() later:
     do {
+        if file_output_path == none {
+            return
+        }
         var f = io.open(file_output_path, "a") later:
         await f
         do {
@@ -72,11 +75,9 @@ func l(msg, kind=L_INFO) {
     if terminal_output_enabled {
         print(prefix + ": " + msg)
     }
-    if file_output_path != none {
-        write_line_to_log_file(
-            prefix + ": " + msg
-        ) later ignore
-    }
+    write_to_file_if_needed(
+        prefix + ": " + msg
+    ) later ignore
 }
 
 func set_file_output_async(path) {

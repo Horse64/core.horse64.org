@@ -744,7 +744,6 @@ def _uri_to_file_or_vfs_path(v):
 
 
 def _io_open(fpath, mode, cb, allow_vfs=True, allow_disk=True):
-    assert(type(duration) in {float, int})
     def async_open_do(job):
         v = job.userdata["v"]
         mode = job.userdata["mode"]
@@ -792,7 +791,6 @@ def _io_open(fpath, mode, cb, allow_vfs=True, allow_disk=True):
 
 
 def _io_rename(v1, v2, cb, allow_vfs=True, allow_disk=True):
-    assert(type(duration) in {float, int})
     def async_rename_do(job):
         v1 = job.userdata["v1"]
         v2 = job.userdata["v2"]
@@ -841,7 +839,6 @@ def _io_rename(v1, v2, cb, allow_vfs=True, allow_disk=True):
 
 
 def _io_remove_file(v, cb, allow_vfs=True, allow_disk=True):
-    assert(type(duration) in {float, int})
     def async_remove_file_do(job):
         v = job.userdata["v"]
         allow_vfs = job.userdata["allow_vfs"]
@@ -1016,14 +1013,14 @@ def _io_is_dir(v, cb, allow_vfs=True, allow_disk=True):
 def _make_lock():
     class _TranslatorLock:
         def __init__(self):
-            self.lock = threading.Lock()
+            self._lock = threading.Lock()
 
         def lock(self, cb):
             def async_lock_do(job):
                 self = job.userdata["self"]
                 result = [None, None]
                 try:
-                    result[1] = self.lock()
+                    result[1] = self._lock.acquire()
                 except Exception as e:
                     result[0] = e
                     result[1] = None
@@ -1045,8 +1042,8 @@ def _make_lock():
             _async_ops.append(op)
             _async_ops_lock.release()
 
-        def release(self):
-            self.lock.release()
+        def unlock(self):
+            self._lock.release()
     return _TranslatorLock()
 
 
@@ -1209,7 +1206,7 @@ class _FileObjFromDisk:
             assert(data == None)
         return (err, data)
 
-    def write(self, value, callback):
+    def write(self, value, cb):
         global _async_ops_lock, _async_ops
         if not self.binary and type(value) != str:
             _async_delay_call(callback, [
