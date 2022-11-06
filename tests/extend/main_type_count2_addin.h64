@@ -27,14 +27,11 @@
 import main_type
 
 
-func test_type_vars {
-    var m = new main_type.MyType()
-    assert(has_attr(m, "count1"))
-    assert(m.count1 == 1)
-    assert(has_attr(m, "count2"))
-    assert(m.count2 == 2)
-    assert(has_attr(m, "count3"))
-    assert(m.count3 == 3)
-    print("Done!")
+extend main_type.MyType {
+    var count2 = 2
+}
+
+func main_type.get_count2_double {
+    return self.count2 * 2
 }
 

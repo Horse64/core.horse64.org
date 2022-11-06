@@ -24,10 +24,12 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-import main_type
 
+type BaseType {
+    var count0 = 0
+}
 
-extend main_type.MyType {
-    var count2 = 2
+type MyType base BaseType {
+    var count1 = 1
 }
 

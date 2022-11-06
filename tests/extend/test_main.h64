@@ -24,12 +24,18 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import main_type
 
-type BaseType {
-    var count3 = 3
-}
 
-type MyType base BaseType {
-    var count1 = 1
+func test_type_vars {
+    var m = new main_type.MyType()
+    assert(has_attr(m, "count0"))
+    assert(m.count0 == 0)
+    assert(has_attr(m, "count2"))
+    assert(m.count2 == 2)
+    assert(has_attr(m, "count3"))
+    assert(m.count3 == 3)
+    assert(m.get_count2_double() == 4)
+    print("Done!")
 }
 
