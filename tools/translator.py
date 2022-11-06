@@ -303,6 +303,12 @@ remapped_uses = {
         "textformat.outdent":
             "_translator_runtime_helpers._textformat_outdent",
     },
+    "time@core.horse64.org": {
+        "time.sleep":
+            "_translator_runtime_helpers._time_sleep",
+        "time.ts":
+            "_translator_runtime_helpers._ts",
+    },
     "uri@core.horse64.org": {
         "uri.get_protocol":
             "_translator_runtime_helpers._uri_get_protocol",

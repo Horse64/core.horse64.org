@@ -167,6 +167,39 @@ def _return_licenses():
     return __translator_licenses_list
 
 
+def _terminal_get_char(callback):
+    global _async_ops_lock, _async_ops
+    info = {"callback": callback}
+    def run_do(op):
+        global _async_ops_lock
+        info = op.userdata
+        err = None
+        try:
+            sys.stdin.flush()
+            output = sys.stdin.read(1)
+        except Exception as e:
+            err = e
+        if err != None:
+            output = None
+        _async_ops_lock.acquire()
+        op.userdata2 = [err, output]
+        op.done = True
+        _async_ops_lock.release()
+    def done_cb(op):
+        result = op.userdata2
+        assert(result != None)
+        f = op.userdata["callback"]
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        op.callback_func = None
+        return f(result[0], result[1])
+    op = _AsyncOperation(info, run_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
+
+
 def _terminal_get_line(callback):
     global _async_ops_lock, _async_ops
     info = {"callback": callback}
@@ -175,8 +208,8 @@ def _terminal_get_line(callback):
         info = op.userdata
         err = None
         try:
-            sys.stdout.flush()
-            output = input()
+            sys.stdin.flush()
+            output = sys.stdin.readline()
         except Exception as e:
             err = e
         if err != None:
@@ -825,7 +858,7 @@ class _FileObjFromDisk:
             assert(data == None)
         _async_delay_call(callback, [err, data])
 
-    def write(self, callback, value):
+    def write(self, value, callback):
         if not self.binary and type(value) != str:
             _async_delay_call(callback, [
                 _TypeError("Value must be widechar string.")
@@ -837,7 +870,7 @@ class _FileObjFromDisk:
             ])
             return
         self.fobj.write(value)
-        _async_delay_call(callback, [None])
+        _async_delay_call(callback, [None, None])
 
     def close(self):
         try:
@@ -948,6 +981,33 @@ class _RequestsFetchObj:
         except (IOError, OSError):
             pass
         self.rawobj = None
+
+
+def _time_ts():
+    return time.monotonic()
+
+
+def _time_sleep(duration, cb):
+    assert(type(duration) in {float, int})
+    def async_sleep_do(job):
+        delay = job.userdata["delay"]
+        if delay > 0:
+            time.sleep(delay)
+        job.done = True
+    def done_cb(op):
+        f = op.userdata["usercb"]
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        op.callback_func = None
+        return f()
+    op = _AsyncOperation({
+        "duration": duration,
+        "usercb": cb},
+        async_sleep_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
 
 
 def _net_lookup_name(name, cb, retries=0, retry_delay=0.5):
