@@ -812,6 +812,7 @@ def _io_rename(v1, v2, cb, allow_vfs=True, allow_disk=True):
         else:
             result = [None, None]
             try:
+                import shutil
                 result[1] = _wrap_io(shutil.move)(v1, v2)
             except Exception as e:
                 result[0] = e
@@ -901,6 +902,7 @@ def _io_remove_dir(v, cb, allow_vfs=True, allow_disk=True):
         else:
             result = [None, None]
             try:
+                import shutil
                 result[1] = _wrap_io(shutil.rmtree)(v)
             except Exception as e:
                 result[0] = e
@@ -1086,6 +1088,7 @@ def _io_exists(v, cb, allow_vfs=True, allow_disk=True):
 
 def _wrap_io(f):
     def wrapped_func(*args, **kwargs):
+        import shutil
         result = None
         try:
             result = f(*args, **kwargs)

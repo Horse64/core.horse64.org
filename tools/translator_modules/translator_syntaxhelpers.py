@@ -48,7 +48,7 @@ translator_py_script_path = os.path.abspath(__file__)
 def is_keyword(x):
     if x in {"if", "func", "import", "else",
             "type", "do", "rescue", "finally",
-            "from", "as", "extends", "protect",
+            "from", "as", "extend", "base", "protect",
             "return", "await", "throw", "repeat",
             "var", "const", "elseif", "while",
             "any", "ignore", "with", "later",
@@ -413,11 +413,11 @@ def get_statement_ranges_ex_with_confused_linebreaks(t,
         elif range_type == "expr":
             while (i < len(t) and
                     t[i] != "{" and
-                    t[i] != "extends"):
+                    t[i] != "base"):
                 i += 1
-            if i >= len(t) or t[i] != "extends":
+            if i >= len(t) or t[i] != "base":
                 return []
-            i += 1  # Past 'extends' kw.
+            i += 1  # Past 'base' kw.
             while i < len(t) and t[i].strip(" \r\n\t") == "":
                 i += 1
             had_nonwhitespace = False

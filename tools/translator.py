@@ -333,38 +333,127 @@ class RegisteredType:
         self.init_code = ""
         self.extends_tokens = extends_tokens
         self.funcs = {}
+        self.seen_in_type_stmt = False
 
 
 known_types = {}
 
 
-def register_type(
+def ensure_type(
         type_name, module_path, package_name,
-        extends_tokens=None):
+        extends_tokens=None,
+        from_type_stmt=True):
     global known_types
+    assert(not type_name.startswith("test_"))
+    assert(type_name != None and module_path != None)
+    if not from_type_stmt:
+        extends_tokens = None
     package_name_part = ""
     if package_name is not None:
         package_name_part = "@" + package_name
     if (module_path + "." + type_name +
-            package_name_part in known_types):
-        raise ValueError("Found duplicate type " +
-            module_path + "." + type_name)
-    known_types[module_path + "." + type_name + package_name_part] = (
-        RegisteredType(type_name, module_path, package_name,
-            extends_tokens=extends_tokens)
+            package_name_part not in known_types):
+        known_types[module_path + "." + type_name +
+                package_name_part] = (
+            RegisteredType(type_name, module_path, package_name)
+        )
+        if DEBUGV.ENABLE and DEBUGV.ENABLE_TYPES:
+            print("tools/translator.py: debug: registered type " +
+                module_path + "." + type_name + package_name_part)
+    if from_type_stmt:
+        if known_types[module_path + "." +
+                type_name + package_name_part].seen_in_type_stmt:
+            raise ValueError("duplicate 'type' definition for " +
+                (module_path + "." + type_name + package_name_part))
+        known_types[module_path + "." +
+            type_name + package_name_part].seen_in_type_stmt = True
+        known_types[module_path + "." +
+                type_name + package_name_part].extends_tokens = (
+            extends_tokens
+        )
+    return known_types[module_path + "." +
+        type_name + package_name_part]
+
+
+def parse_type_import_ref(
+        ref, i, sc=None, is_func=False
+        ):
+    assert(sc != None)
+    assert(i >= 0)
+    while (i < len(ref) and
+            ref[i].strip(" \r\t\n") == ""):
+        i += 1
+    assert(i < len(ref) and is_identifier(ref[i])), (
+        "expected ref[" + str(i) + " to be identifier: " +
+        "i=" + str(i) + ",ref=" + str(ref)
     )
-    if DEBUGV.ENABLE and DEBUGV.ENABLE_TYPES:
-        print("tools/translator.py: debug: registered type " +
-            module_path + "." + type_name + package_name_part)
-
-
-def get_type(type_name, module_path, package_name):
-    if package_name is None:
-        return known_types[module_path + "." + type_name]
-    return known_types[module_path + "." + type_name + "@" +
-        package_name]
-
-
+    type_modpath = ""
+    type_package = None
+    type_python_module = None
+    type_name = None
+    func_name = None
+    raw_tokens = [ref[i]]
+    if not is_func:
+        type_name = ref[i]
+    else:
+        func_name = ref[i]
+    index_after = i + 1
+    if ref[i + 1] == ".":
+        i2 = i
+        while (i2 + 2 < len(ref) and
+                ref[i2 + 1] == "."):
+            if type_name is None and is_func:
+                type_name = func_name
+                func_name = ref[i2 + 2]
+            else:
+                if len(type_modpath) > 0:
+                    type_modpath += "."
+                if is_func:
+                    type_modpath += type_name
+                    type_name = ref[i2]
+                    func_name = ref[i2 + 2]
+                else:
+                    type_modpath += ref[i2]
+                    type_name = ref[i2 + 2]
+            raw_tokens += ref[i2 + 1:i2 + 3]
+            i2 += 2
+            index_after += 2
+        past_idx = i2 + 1
+        for import_mod_name in sc.processed_imports:
+            effective_name = import_mod_name
+            if (sc.processed_imports
+                    [import_mod_name]["rename"] != None):
+                effective_name = (
+                    sc.processed_imports
+                        [import_mod_name]["rename"]
+                )
+            if type_modpath == effective_name:
+                type_modpath = import_mod_name
+                type_package = sc.processed_imports\
+                    [type_modpath]["package"]
+                type_python_module = sc.processed_imports[
+                    type_modpath]["python-module"]
+                break
+    if type_modpath == "":
+        type_modpath = None
+    if type_name != None and type_modpath is None:
+        type_modpath = sc.module_name
+        assert(type_modpath != None)
+    if type_name != None and type_package is None:
+        type_package = sc.package_name
+    while (index_after < len(ref) and
+            ref[index_after].strip(" \r\n\t") == ""):
+        index_after += 1
+    return {
+        "index-after": index_after,
+        "modpath": type_modpath,
+        "type-name": type_name,
+        "func-name": func_name,
+        "python-module": type_python_module,
+        "package": type_package,
+        "raw-tokens": raw_tokens,
+    }
+ 
 class TranslatedProjectInfo:
     def __init__(self):
         self.code_folder = None
@@ -1412,12 +1501,28 @@ def translate(s, sc):
                 pstatement = ([idf + "="] + ["("] + (
                     value_expr if value_expr != None else ["None"]) +
                     [")", "\n"])
-                if (len(sc.parent_statements) > 0 and
-                        "".join(sc.parent_statements[0][:1])
-                            == "type"):
-                    type_name = sc.parent_statements[0][2]
-                    get_type(type_name, sc.module_name,
-                            sc.package_name).\
+                direct_parent_first_tok = None
+                if len(sc.parent_statements) > 0:
+                    direct_parent_first_tok = (
+                        "".join(sc.parent_statements[0][:1]))
+                type_name = None
+                type_module = None
+                type_package = None
+                if direct_parent_first_tok == "type":
+                    type_name = nextnonblank(sc.parent_statements[0], 0)
+                    type_module = sc.module_name
+                    type_package = sc.package_name
+                elif direct_parent_first_tok == "extend":
+                    type_info = parse_type_import_ref(
+                        sc.parent_statements[0],
+                        nextnonblankidx(sc.parent_statements[0], 0),
+                        sc=sc, is_func=False)
+                    type_name = type_info["type-name"]
+                    type_module = type_info["modpath"]
+                    type_package = type_info["package"]
+                if type_name != None:
+                    ensure_type(type_name, type_module,
+                            type_package, from_type_stmt=False).\
                         init_code += ("\n" + indent +
                             ("\n" + indent).join((
                                 "self." +
@@ -2172,41 +2277,19 @@ def translate(s, sc):
             type_package = None
             type_python_module = None
             start_arguments_idx = 3
-            name = statement[nameidx]
-            if statement[nameidx + 1] == ".":
-                type_name = ""
-                name = ""
-                i2 = nameidx
-                while (i2 + 2 < len(statement) and
-                        statement[i2 + 1] == "."):
-                    if len(type_name) > 0:
-                        type_name += "."
-                    type_name += statement[i2]
-                    name = statement[i2 + 2]
-                    i2 += 2
-                start_arguments_idx = i2 + 1
-                for import_mod_name in sc.processed_imports:
-                    effective_name = import_mod_name
-                    if (sc.processed_imports
-                            [import_mod_name]["rename"] != None):
-                        effective_name = (
-                            sc.processed_imports
-                                [import_mod_name]["rename"]
-                        )
-                    if type_name.startswith(effective_name + "."):
-                        type_module = import_mod_name
-                        type_name = type_name[len(type_module) + 1:]
-                        type_package = sc.processed_imports\
-                            [type_module]["package"]
-                        type_python_module = sc.processed_imports[
-                            type_module]["python-module"]
+            type_info = parse_type_import_ref(
+                statement, nameidx, sc=sc, is_func=True
+            )
+            type_module = type_info["modpath"]
+            type_python_module = type_info["python-module"]
+            type_package = type_info["package"]
+            type_name = type_info["type-name"]
+            name = type_info["func-name"]
+            start_arguments_idx = type_info["index-after"]
             while (start_arguments_idx < len(statement) and
                     statement[start_arguments_idx].
                         strip(" \t\r\n") == ""):
                 start_arguments_idx += 1
-            if type_module is None:
-                type_module = sc.module_name
-                type_package = sc.package_name
             argument_tokens = ["(", ")"]
             if statement[start_arguments_idx] == "(":
                 # Extract the arguments:
@@ -2261,8 +2344,10 @@ def translate(s, sc):
                     untokenize(cleaned_argument_tokens) + ":\n")
                 result += inner_code
             else:
-                regtype = get_type(
-                    type_name, type_module, type_package
+                assert(type_module != None)
+                regtype = ensure_type(
+                    type_name, type_module, type_package,
+                    from_type_stmt=False
                 )
                 regtype.funcs[name] = {
                     "arguments": cleaned_argument_tokens,
@@ -2270,51 +2355,65 @@ def translate(s, sc):
                     "code": inner_code,
                 }
             continue
-        elif statement[0] == "type":
+        elif statement[0] == "type" or statement[0] == "extend":
             statement_cpy = list(statement)
-            nameidx = nextnonblankidx(statement, 0)
+            namelbl = None
+            is_extend = (statement[0] == "extend")
 
-            # Make sure the name of the type is valid:
-            statement[nameidx] = make_valid_identifier(
-                statement[nameidx], sc=sc)
+            i = 0
+            if not is_extend:
+                nameidx = nextnonblankidx(statement, 0)
 
-            # Find inner code block start:
-            i = 1
-            while (statement[i] != "{" and
-                    statement[i] != "extends"):
-                i += 1
-            extends_tokens = None
-            if statement[i] == "extends":
-                extends_tokens = []
-                i += 1  # Past 'extends' keyword.
-                start_idx = i
-                bracket_depth = 0
-                hadnonblank = False
-                while (i < len(statement) and (
-                        statement[i] != "{" or
-                        not hadnonblank or
-                        bracket_depth > 0)):
-                    if statement[i].strip(" \t\r\n") != "":
-                        hadnonblank = True
-                    if statement[i] in {"{", "(", "["}:
-                        bracket_depth += 1
-                    elif statement[i] in {"}", ")", "]"}:
-                        bracket_depth -= 1
+                # Make sure the name of the type is valid:
+                statement[nameidx] = make_valid_identifier(
+                    statement[nameidx], sc=sc)
+                namelbl = statement[nameidx]
+
+                # Forward past name:
+                i = nameidx
+                while i < len(statement) and (
+                        statement[i] != "{" and
+                        statement[i] != "base"):
                     i += 1
-                if i < len(statement):
-                    new_sc = sc.copy()
-                    new_sc.parent_statements += [statement_cpy]
-                    extends_tokens = translate_expression_tokens(
-                        statement[start_idx:i],
-                        new_sc)
+            type_package = sc.package_name
+            type_module = sc.module_name
+            ext_tokens = None
+            if is_extend or (i < len(statement) and
+                    statement[i] == "base"):
+                ext_tokens = []
+                i += 1  # Past 'base' or 'extend' keyword.
+                assert(i < len(statement))
+                start_idx = i
+                type_info = parse_type_import_ref(statement, i, sc=sc)
+                if is_extend:
+                    type_module = type_info["modpath"]
+                    type_python_module = type_info["python-module"]
+                    type_package = type_info["package"]
+                    namelbl = type_info["type-name"]
+                i = type_info["index-after"]
+                ext_tokens = type_info["raw-tokens"]
+                ext_clean = []
+                for ew in ext_tokens:
+                    if ew.strip(" \r\n\t") == "":
+                        continue
+                    ext_clean.append(ew.strip(" \r\n\t"))
+                new_sc = sc.copy()
+                new_sc.parent_statements += [statement_cpy]
+                if is_extend:
+                    assert(len(ext_clean) >= 1)
+                    namelbl = make_valid_identifier(
+                        ext_clean[-1], sc=sc)
+                ext_tokens = translate_expression_tokens(
+                    ext_clean, new_sc)
             i += 1  # Go past '{' token.
             assert(statement[-1] == "}")
             contents = (
                 statement[i:-1]
             )
-            register_type(statement[nameidx],
-                sc.module_name, sc.package_name,
-                extends_tokens=(extends_tokens))
+            ensure_type(
+                namelbl, type_module, type_package,
+                extends_tokens=(ext_tokens),
+                from_type_stmt=(not is_extend))
             new_sc = sc.copy()
             new_sc.parent_statements += [statement_cpy]
             new_sc.extra_indent += "    "

@@ -173,7 +173,7 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         self.assertFalse(is_number_token("1.2.3"))
 
     def test_get_statement_expr_ranges(self):
-        t = ["type", " ", "abc", " ", "extends", " ",
+        t = ["type", " ", "abc", " ", "base", " ",
             "def", ".", "bla", "{", "}"]
         ranges = get_statement_expr_ranges(t)
         self.assertEqual(len(ranges), 1)
