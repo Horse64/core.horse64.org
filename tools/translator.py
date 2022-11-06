@@ -331,6 +331,7 @@ class RegisteredType:
         self.pkgname = package_name
         self.name = type_name
         self.init_code = ""
+        self.order_no = 0
         self.extends_tokens = extends_tokens
         self.funcs = {}
         self.seen_in_type_stmt = False
@@ -339,11 +340,23 @@ class RegisteredType:
 known_types = {}
 
 
+ensure_type_order_no = 0
+
+def ordered_known_types():
+    global known_types
+    names = known_types.keys()
+    def cmp_names(a, b):
+        return (known_types[a].order_no -
+            known_types[b].order_no)
+    return sorted(
+        names, key=functools.cmp_to_key(cmp_names)
+    )
+
 def ensure_type(
         type_name, module_path, package_name,
         extends_tokens=None,
         from_type_stmt=True):
-    global known_types
+    global known_types, ensure_type_order_no
     assert(not type_name.startswith("test_"))
     assert(type_name != None and module_path != None)
     if not from_type_stmt:
@@ -371,6 +384,15 @@ def ensure_type(
                 type_name + package_name_part].extends_tokens = (
             extends_tokens
         )
+        ensure_type_order_no += 1
+        known_types[module_path + "." +
+                type_name + package_name_part].order_no = (
+            ensure_type_order_no
+        )
+        if DEBUGV.ENABLE and DEBUGV.ENABLE_TYPES:
+            print("tools/translator.py: debug: assigned order no. " +
+                str(ensure_type_order_no) + " to type: " +
+                module_path + "." + type_name + package_name_part)
     return known_types[module_path + "." +
         type_name + package_name_part]
 
@@ -444,7 +466,7 @@ def parse_type_import_ref(
     while (index_after < len(ref) and
             ref[index_after].strip(" \r\n\t") == ""):
         index_after += 1
-    return {
+    result = {
         "index-after": index_after,
         "modpath": type_modpath,
         "type-name": type_name,
@@ -453,6 +475,8 @@ def parse_type_import_ref(
         "package": type_package,
         "raw-tokens": raw_tokens,
     }
+    return result
+
  
 class TranslatedProjectInfo:
     def __init__(self):
@@ -3182,7 +3206,8 @@ def translate_do_func(
                         [translated_file]["package-name"])
             # Output all the types as Python "class" defs:
             first_externaltype_extends = True
-            for regtype in known_types.values():
+            for regtype_key in ordered_known_types():
+                regtype = known_types[regtype_key]
                 if (regtype.module != _modname or
                         regtype.pkgname != _pkgname):
                     continue
