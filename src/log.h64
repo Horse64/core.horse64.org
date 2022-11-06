@@ -1,0 +1,89 @@
+# @module log
+# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import io from core.horse64.org
+
+
+var terminal_output_enabled protect = yes
+var file_output_path protect = none
+var program_prefix protect = none
+
+enum LogKind {
+    L_DEBUG,
+    L_INFO,
+    L_WARNING,
+    L_ERROR,
+}
+
+func write_line_to_log_file(raw_line) {
+    var f = io.open(file_output_path, "a")
+    do {
+        var result = f.write(raw_line + "\n") later:
+        await result
+    } finally {
+        f.close()
+    }
+    return later
+}
+
+func l(msg, kind=L_INFO) {
+    var prefix = "debug"
+    if kind == L_INFO {
+        prefix = "info"
+    } elseif kind == L_WARNING {
+        prefix = "warning"
+    } elseif kind == L_ERROR {
+        prefix = "error"
+    }
+    if program_prefix != none {
+        prefix = program_prefix + ": " + prefix
+    }
+    if terminal_output_enabled {
+        print(prefix + ": " + msg)
+    }
+    if file_output_path != none {
+        write_line_to_log_file(
+            prefix + ": " + msg
+        ) later ignore
+    }
+}
+
+func set_file_output(path) {
+    file_output_path = none
+    var f = io.open(path, "w")
+    f.close()
+    file_output_path = path
+}
+
+func set_terminal_output(yesno) {
+    if typename(yesno) != "bool" {
+        throw new TypeError("Terminal output must be "
+            "set to yes or no.")
+    }
+    terminal_output_enabled = yesno
+}
+
