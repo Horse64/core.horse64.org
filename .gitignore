@@ -11,3 +11,5 @@ __pycache__/
 /tests/inlinefunc/horse_modules/core.horse64.org/
 /tests/later/horse_modules/core.horse64.org/
 /tests/network/horse_modules/core.horse64.org/
+/tests/vars/horse_modules/core.horse64.org/
+/tests/cyclic-base/horse_modules/core.horse64.org/
