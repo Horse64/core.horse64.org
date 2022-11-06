@@ -171,34 +171,40 @@ func test_surely_starts_stmt_even_in_bad_code {
     assert(result == no)
 }
 
-func test_get_statement_len {
+func test_get_naive_stmt_or_expr_len {
     var result
-    result = token.get_naive_statement_len([
+    result = token.get_naive_stmt_or_expr_len([
         "func", "bla", ".", "main", "{", "}", "+", "a", "b"
-    ], 1)
+    ], 1, for_expr=no)
     assert(result == 4)
-    result = token.get_naive_statement_len([
+    result = token.get_naive_stmt_or_expr_len([
         "func", "bla", ".", "main", "+", "{", "}", "+", "a", "b"
-    ], 1)
+    ], 1, for_expr=no)
     assert(result == 9)
-    result = token.get_naive_statement_len([
+    result = token.get_naive_stmt_or_expr_len([
         "import", "compiler", ".", "msg", "as", "msg",
         "import", "compiler", ".", "token", "as", "token",
-    ], 1)
+    ], 1, for_expr=no)
     assert(result == 6)
-    result = token.get_naive_statement_len([
+    result = token.get_naive_stmt_or_expr_len([
         "{", "var", "x", "=", "5", "print", "(", "none", ")", "}",
         "print", "(", "y", ")"
-    ], 1)
+    ], 1, for_expr=no)
     assert(result == 10)
-    result = token.get_naive_statement_len([
+    result = token.get_naive_stmt_or_expr_len([
         "var", "x", "+", "}",
-    ], 1)
+    ], 1, for_expr=no)
     assert(result == 3)
-    result = token.get_naive_statement_len([
-        "(", "var", "x", "+", "}",
-    ], 1)
+    result = token.get_naive_stmt_or_expr_len([
+        "(", "var", "x", "+", "}"
+    ], 1, for_expr=no)
     assert(result == 1)
+
+    # Special case that is different for expressions:
+    var expr_len = token.get_naive_stmt_or_expr_len(
+        ["2", "+", "3",
+        "new", "z", "(", ")", "x"], 1, for_expr=yes)
+    assert(expr_len == 3)
 }
 
 func test_tokenize {

@@ -44,13 +44,13 @@ type FileMsg {
     var kind = M_ERROR
     var line = -1
     var col = -1
-    var message = ""
+    var content = ""
 }
 
 func FileMsg.init(message, kind=M_ERROR,
         source_file=none,
         line=-1, col=-1) {
-    self.message = message + ""
+    self.content = message + ""
     self.source_file = source_file
     self.line = line
     self.col = col
@@ -58,8 +58,8 @@ func FileMsg.init(message, kind=M_ERROR,
 }
 
 func FileMsg.as_str {
-    var t = "FileMsg(msg=" +
-        token.as_escaped_code_string(self.message) +
+    var t = "FileMsg(content=" +
+        token.as_escaped_code_string(self.content) +
         ",file=" + self.source_file.as_str()
     if self.line != none {
         t += ",line=" + self.line.as_str()
@@ -102,7 +102,7 @@ func FileMsg.as_terminal_str(prefix="", wrap_width=none) {
         t += " "
     }
     next_line_prefix = " ".repeat(t.len)
-    t += self.message
+    t += self.content
     if wrap_width != none {
         t = textwrap.wrap(t, wrap_width,
             later_lines_prefix=next_line_prefix)

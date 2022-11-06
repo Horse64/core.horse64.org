@@ -61,13 +61,31 @@ func test_parse_expression {
 }
 
 func test_parse_call_or_funcdef_args {
-    var msgs = []
+    var msgs
+
+    msgs = []
     var v1 = expr.parse_call_or_funcdef_args(
-        ["(", "a", "b", "=", "2", "+", "3",
-        "new", "z", "(", ")"],
+        ["(", "a", ",", "b", "=", "2", "+", "3",
+        "new", "z", "(", ")", ")"],
         1, msgs, is_call=yes, project_file=none
     ) later:
-
     await v1
+    assert(v1 != none)
+    assert(msgs.len == 1)
+    assert(msgs[1].content.find("'new'") != none)
+    assert(v1.subexprs.len == 2)
+    assert(v1.token_len == 13)
+
+    msgs = []
+    var v2 = expr.parse_call_or_funcdef_args(
+        ["(", "a", ",", "b", "=", "2", "+", "3", ",",
+        "new", "z", "(", ")", ")"],
+        1, msgs, is_call=yes, project_file=none
+    ) later:
+    await v2
+    assert(v2 != none)
+    assert(msgs.len == 0)
+    assert(v2.subexprs.len == 3)
+    assert(v2.token_len == 14)
 }
 

@@ -467,41 +467,7 @@ func token_list_from_str_list(strlist, internal_labels=no) {
     return resultlist
 }
 
-## @func go_to_expr_end
-## Advance from the given spot in some expression to the end
-## of the expression (e.g. surrounding closing bracket or end
-## of statement). This uses heuristics so it's meant for error
-## recovery and not always fully accurate.
-##
-## @param tokens ([Token], [str]) The list of tokens supplied either as
-##   @{Token} instances or @{str}s.
-## @param start_pos num From where to advance forward to compute the
-##   remaining guessed expression length.
-## @param max_len num If specified, the maximum length returned is the
-##   specified value here.
-## @returns num The guessed remaining expression length from the given
-##   `start_pos`.
-func go_to_expr_end(
-        tokens, start_pos, max_len=none
-        ) {
-    var tokens_len = tokens.len
-    if max_len != none {
-        tokens_len = math.min(max_len, tokens_len)
-    }
-    if tokens.len > 0 and typename(tokens[1]) == "str" {
-        tokens = token_list_from_str_list(tokens)
-    }
-    if start_pos > tokens_len or
-            (tokens[start_pos].kind == T_BRACKET and
-             {")", "]", "}"}.has(tokens[start_pos])) {
-        return 1
-    }
-    return get_naive_statement_len(
-        tokens, start_pos, bracket_depth=0, max_len=max_len
-    )
-}
-
-## @func get_naive_statement_len
+## @func get_naive_stmt_or_expr_len
 ## Get the length of the statement starting at the given token position.
 ## Can also be used mid-statement if you give the current bracket nesting
 ## depth inside the statement.
@@ -519,8 +485,9 @@ func go_to_expr_end(
 ##   specified value here.
 ## @returns num The remaining length of the next statement from the given
 ##   `start_pos`.
-func get_naive_statement_len(
-        tokens, start_pos, bracket_depth=0, max_len=none
+func get_naive_stmt_or_expr_len(
+        tokens, start_pos, bracket_depth=0, max_len=none,
+        for_expr=no
         ) {
     if bracket_depth < 0 {
         throw new ValueError("initial bracket_depth must "
@@ -534,14 +501,24 @@ func get_naive_statement_len(
         tokens_len = math.min(tokens_len, max_len)
     }
 
+    if start_pos > tokens_len or (for_expr and
+            bracket_depth == 0 and
+            (tokens[start_pos].kind == T_BRACKET and
+             {")", "]", "}"}.has(tokens[start_pos]))) {
+        return 1
+    }
     var possible_code_block_brackets = bracket_depth
     var i = start_pos
     while i <= tokens_len and (
             bracket_depth > 0 or
             i == start_pos or
-            not can_statement_end_before_token(
-            tokens, i
+            not can_stmt_or_expr_end_before_token(
+            tokens, i, for_expr=for_expr
             )) {
+        if tokens[i].kind == T_COMMA and
+                bracket_depth == 0 and for_expr {
+            break
+        }
         if tokens[i].kind == T_BRACKET {
             if {"(", "{", "["}.has(tokens[i].str) {
                 bracket_depth += 1
@@ -604,6 +581,7 @@ func token_is_consumed_by_return(t) {
     return yes
 }
 
+## @func can_stmt_or_expr_end_before_token
 ## Check if a statement starts somewhere earlier in the given
 ## `tokens` token list, this statement possibly ends before the
 ## token found at `tok_pos` given there is no bracket left open.
@@ -612,7 +590,9 @@ func token_is_consumed_by_return(t) {
 ##
 ## @returns bool @{yes} If statement ends before specified token,
 ##   @{no} if it continues further and includes the specified token.
-func can_statement_end_before_token(tokens, tok_pos) {
+func can_stmt_or_expr_end_before_token(
+        tokens, tok_pos, for_expr=no
+        ) {
     if tok_pos > tokens.len {
         return yes
     }
@@ -658,7 +638,8 @@ func can_statement_end_before_token(tokens, tok_pos) {
         }
         return yes
     }
-    if tokens[tok_pos].kind == T_NEWOP {
+    if not for_expr and
+            tokens[tok_pos].kind == T_NEWOP {
         return no
     }
     return yes
