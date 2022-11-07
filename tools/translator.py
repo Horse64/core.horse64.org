@@ -2931,6 +2931,7 @@ def translate_do_func(
         keep_files=False,
         paranoid=False,
         run_as_test=False,
+        force_separate_process=True,
         overridden_package_name=None):
 
     if (not os.path.exists(target_file) or
@@ -3381,7 +3382,13 @@ def translate_do_func(
                         tfislater else "") + "); ")
 
                 # Insert actual main to call our test main:
-                contents_result += ("\nif __name__ == '__main__':"
+                if force_separate_process:
+                    contents_result += (
+                        "\nif __name__ == '__main__':")
+                else:
+                    contents_result += (
+                        "\ndef _generated_main():")
+                contents_result += (
                     "\n    _translator_runtime_helpers."
                             "_ensure_all_mods_load(" +
                             as_escaped_code_string(output_folder) +
@@ -3433,8 +3440,13 @@ def translate_do_func(
                     contents_result += ("return 0;")
 
                 # Add actual main call:
+                if force_separate_process:
+                    contents_result += (
+                        "\nif __name__ == '__main__':")
+                else:
+                    contents_result += (
+                        "\ndef _generated_main():")
                 contents_result += (
-                    "\nif __name__ == '__main__':"
                     "\n    _translator_runtime_helpers."
                             "_ensure_all_mods_load(" +
                             as_escaped_code_string(output_folder) +
@@ -3535,17 +3547,43 @@ def translate_do_func(
                     translated_files[translated_file]["module-name"] + ")")
             if translated_files[translated_file]["path"] == mainfilepath:
                 run_py_path = target_filepath
-        launch_cmd = [
-            sys.executable, run_py_path
-        ] + target_file_args
-        if DEBUGV.ENABLE:
-            print("tools/translator.py: debug: launching program: " +
-                str(launch_cmd))
-        sys.stdout.flush()
-        sys.stderr.flush()
-        returncode = None
-        result = subprocess.run(launch_cmd)
-        returncode = result.returncode
+
+        # Now, execute the actual module:
+        relpath = os.path.normpath(os.path.abspath(run_py_path))[
+            len(os.path.normpath(os.path.abspath(output_folder))):]
+        while relpath.startswith("/") or relpath.startswith(os.path.sep):
+            relpath = relpath[1:]
+        modname = relpath.rpartition(".py")[0]
+        if modname.endswith("__init__"):
+            modname = modname[:-len("__init__")]
+        while modname.endswith("/") or modname.endswith(os.path.sep):
+            modname = relpath[:-1]
+        modname = modname.replace(os.path.sep, ".").replace("/", ".")
+        returncode = 0
+        if not force_separate_process:
+            import importlib.util
+            import sys
+            sys.path = [output_folder] + sys.path
+            sys.argv = [run_py_path] + target_file_args
+            spec = importlib.util.spec_from_file_location(
+                modname, run_py_path)
+            m = importlib.util.module_from_spec(spec)
+            sys.modules[modname] = m
+            spec.loader.exec_module(m)
+            returncode = m._generated_main()
+        else:
+            import sys
+            launch_cmd = [
+                sys.executable, run_py_path
+            ] + target_file_args
+            if DEBUGV.ENABLE:
+                print("tools/translator.py: debug: launching program: " +
+                    str(launch_cmd))
+            sys.stdout.flush()
+            sys.stderr.flush()
+            returncode = None
+            result = subprocess.run(launch_cmd)
+            returncode = result.returncode
         sys.stdout.flush()
         sys.stderr.flush()
     finally:
