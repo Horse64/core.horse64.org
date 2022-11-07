@@ -1211,7 +1211,8 @@ def translate_expression_tokens(s, sc,
 
 def queue_module_neighbors(
         translate_file_queue,
-        module_source_file_path, module_name, package_name
+        module_source_file_path, module_name, package_name,
+        reason=None
         ):
     assert(type(translate_file_queue) == list)
     module_source_file_path = os.path.normpath(
@@ -1219,12 +1220,18 @@ def queue_module_neighbors(
     assert(module_source_file_path.endswith(".h64"))
     mod_base_dir = os.path.dirname(module_source_file_path)
     if not os.path.exists(mod_base_dir):
+        def parent_dir_info(b):
+            while not os.path.exists(b):
+                b = os.path.normpath(os.path.join(b, ".."))
+            return [b, os.listdir(b)]
         raise ValueError("somehow failed to access module "
             "base directory for module '" + module_name + "'" +
             (" @ '" + str(package_name) + "'" if
              package_name != None else "") + " with module file: " +
             module_source_file_path + " and base directory: " +
-            mod_base_dir)
+            mod_base_dir + " (first found parent dir info: " +
+            str(parent_dir_info(mod_base_dir)) + ", " +
+            "queue reason: '" + str(reason) + "')")
     for otherfile in os.listdir(mod_base_dir):
         otherfilepath = os.path.normpath(os.path.join(
             os.path.dirname(module_source_file_path), otherfile
@@ -1964,7 +1971,10 @@ def translate(s, sc):
                 part.strip() for part in statement[1:i + 1]
                 if part.strip() != ""
             ])
-            import_package = sc.project_info.package_name
+            default_import_package = sc.package_name
+            if default_import_package is None:
+                default_import_package = sc.project_info.package_name
+            import_package = default_import_package
             i += 1
             while i < len(statement) and statement[i].strip() == "":
                 i += 1
@@ -1987,14 +1997,16 @@ def translate(s, sc):
             for orig_h64_import in sc.orig_h64_imports:
                 if (orig_h64_import[2] == import_module and
                         (orig_h64_import[1] == import_package or
-                        import_package ==
-                            sc.project_info.package_name)):
+                        (orig_h64_import[1] == None and
+                            import_package ==
+                            default_import_package))):
                     in_orig_imports = True
             if not in_orig_imports:
                 raise RuntimeError(
                     "encountered import statement for " +
                     str((import_module, import_package)) +
-                    ", but it's not listed in orig_h64_imports???")
+                    ", but it's not listed in orig_h64_imports??? "
+                    "here are the imports: " + str(sc.orig_h64_imports))
             target_path = import_module.replace(".", os.path.sep) + ".h64"
             target_filename = import_module.split(".")[-1] + ".py"
             append_code = ""
@@ -2150,17 +2162,18 @@ def translate(s, sc):
             # Add translated import code:
             result += ("import " + mpath(python_module, sep=".") +
                 append_code + "\n")
-            queue_file_if_not_queued(sc.translate_file_queue,
-                (target_path, target_filename,
-                import_module, os.path.dirname(target_path),
-                import_package), reason="imported from " +
+            queue_reason = ("imported from " +
                 "module " + str(sc.module_name) + (
                 "" if sc.package_name is None else
                     "@" + sc.package_name) +
                     " with non-remapped uses")
+            queue_file_if_not_queued(sc.translate_file_queue,
+                (target_path, target_filename,
+                import_module, os.path.dirname(target_path),
+                import_package), reason=queue_reason)
             queue_module_neighbors(
                 sc.translate_file_queue, target_path,
-                import_module, import_package)
+                import_module, import_package, reason=queue_reason)
             continue
         elif statement[0] == "enum":
             statement_cpy = list(statement)
