@@ -169,47 +169,46 @@ def _return_licenses():
 
 
 ever_disabled_stdin_buffer = False
+unbuffered_stdin = None
 
 def _terminal_do_read(callback, amount=None, binary=False,
-        unbuffered=False):
+        unbuffered=None):
     global _async_ops_lock, _async_ops, \
-        ever_disabled_stdin_buffer
-    if (not ever_disabled_stdin_buffer and
-            unbuffered and
-            platform.system().lower() != "windows"):
-        import termios
-        import tty
-        stdin = sys.stdin.fileno()
-        tattr = termios.tcgetattr(stdin)
-        tty.setcbreak(stdin, termios.TCSANOW)
+        unbuffered_stdin
+    if unbuffered == None:
+        unbuffered = binary
+    if unbuffered and unbuffered_stdin == None:
+        unbuffered_stdin = os.fdopen(sys.stdin.fileno(), 'rb', buffering=0)
     info = {"callback": callback, "amount": amount,
-        "binary": (binary == True)}
+        "binary": (binary == True),
+        "unbuffered": (unbuffered == True)}
     def get_char_do(op):
-        global _async_ops_lock
+        global _async_ops_lock, unbuffered_stdin
         info = op.userdata
         err = None
+        unbuffered = info["unbuffered"]
         binary = info["binary"]
         output = ("" if not binary else b"")
         try:
-            sys.stdin.flush()
+            binsource = sys.stdin.buffer
+            if unbuffered and unbuffered_stdin != None:
+                binsource = unbuffered_stdin
             if info["amount"] is None:
                 while True:
                     if binary:
-                        newly_read = sys.stdin.read(512)
+                        newly_read = binsource.read(512)
                     else:
-                        newly_read = sys.stdin.buffer.read(512)
+                        newly_read = sys.stdin.read(512)
                     if len(newly_read) == 0:
                         break
                     output += newly_read
-                    sys.stdin.flush()
             elif info["amount"] > 0:
                 if binary:
-                    output = sys.stdin.buffer.read(info["amount"])
+                    output = binsource.read(info["amount"])
                     assert(type(output) == bytes)
                 else:
                     output = sys.stdin.read(info["amount"])
                     assert(type(output) == str)
-                sys.stdin.flush()
         except Exception as e:
             err = e
         if err != None:
@@ -233,17 +232,17 @@ def _terminal_do_read(callback, amount=None, binary=False,
     _async_ops_lock.release()
 
 
-def _terminal_open_input(cb, binary=False, unbuffered=False):
+def _terminal_open_input(cb, binary=False, unbuffered=None):
     global _async_ops_lock, _async_delayed_calls
     class _TerminalFobj():
-        def __init__(self, binary=False, unbuffered=False):
+        def __init__(self, binary=False, unbuffered=None):
             self.binary = binary
             self.unbuffered = unbuffered
 
         def read(self, cb, amount=None):
             return _terminal_do_read(cb, amount=amount,
                 binary=(self.binary == True),
-                unbuffered=(self.unbuffered == True))
+                unbuffered=self.unbuffered)
 
         def close(self):
             pass
@@ -1664,6 +1663,7 @@ def _run_main(main_func):
                 len(_async_delayed_calls) == 0):
             _async_ops_lock.release()
             break
+        #print("MORE JOBS (#" + str(len(_async_ops)) + " OPS)")
 
         # If we got any operations done, process result:
         have_calls_waiting = len(_async_delayed_calls)
