@@ -135,10 +135,13 @@ func wrap(multiline_text, length,
     return result
 }
 
-func escape_like_code(s) {
+func escape_problematic(s) {
     if typename(s) == "bytes" {
         s = s.as_str()
     }
-    return compiler.token.as_escaped_code_string(s)
+    var result = compiler.token.as_escaped_code_string(
+        s, never_escape_quotes=yes
+    )
+    return result.sub(2, result.len - 1)
 }
 

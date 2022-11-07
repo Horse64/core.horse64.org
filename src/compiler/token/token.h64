@@ -1067,7 +1067,9 @@ func describe_char_at(
 
 ## Escape a string such that it could be written out into a Horse64
 ## code file again as a single token, by escaping back slashes etc.
-func as_escaped_code_string(s, quote_type='"') {
+func as_escaped_code_string(
+        s, quote_type='"', never_escape_quotes=no
+        ) {
     if quote_type != "'" and quote_type != '"' {
         throw new ValueError("unsupported quote type")
     }
@@ -1081,7 +1083,7 @@ func as_escaped_code_string(s, quote_type='"') {
             new_s += "\\n"
         } elseif c == "\\r" {
             new_s += "\\r"
-        } elseif c == quote_type {
+        } elseif c == quote_type and not never_escape_quotes {
             new_s += "\\" + quote_type
         } elseif cp < 32 {
             var hexstr = text.code(c).as_hex()
