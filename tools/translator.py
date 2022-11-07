@@ -268,6 +268,8 @@ remapped_uses = {
     "terminal@core.horse64.org": {
         "terminal.get_line":
             "_translator_runtime_helpers._terminal_get_line",
+        "terminal.open_input":
+            "_translator_runtime_helpers._terminal_open_input",
     },
     "text@core.horse64.org": {
         "text.pos_from_line_col":

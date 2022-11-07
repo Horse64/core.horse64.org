@@ -168,16 +168,48 @@ def _return_licenses():
     return __translator_licenses_list
 
 
-def _terminal_get_char(callback):
-    global _async_ops_lock, _async_ops
-    info = {"callback": callback}
+ever_disabled_stdin_buffer = False
+
+def _terminal_do_read(callback, amount=None, binary=False,
+        unbuffered=False):
+    global _async_ops_lock, _async_ops, \
+        ever_disabled_stdin_buffer
+    if (not ever_disabled_stdin_buffer and
+            unbuffered and
+            platform.system().lower() != "windows"):
+        import termios
+        import tty
+        stdin = sys.stdin.fileno()
+        tattr = termios.tcgetattr(stdin)
+        tty.setcbreak(stdin, termios.TCSANOW)
+    info = {"callback": callback, "amount": amount,
+        "binary": (binary == True)}
     def get_char_do(op):
         global _async_ops_lock
         info = op.userdata
         err = None
+        binary = info["binary"]
+        output = ("" if not binary else b"")
         try:
             sys.stdin.flush()
-            output = sys.stdin.read(1)
+            if info["amount"] is None:
+                while True:
+                    if binary:
+                        newly_read = sys.stdin.read(512)
+                    else:
+                        newly_read = sys.stdin.buffer.read(512)
+                    if len(newly_read) == 0:
+                        break
+                    output += newly_read
+                    sys.stdin.flush()
+            elif info["amount"] > 0:
+                if binary:
+                    output = sys.stdin.buffer.read(info["amount"])
+                    assert(type(output) == bytes)
+                else:
+                    output = sys.stdin.read(info["amount"])
+                    assert(type(output) == str)
+                sys.stdin.flush()
         except Exception as e:
             err = e
         if err != None:
@@ -198,6 +230,28 @@ def _terminal_get_char(callback):
     op = _AsyncOperation(info, get_char_do, done_cb)
     _async_ops_lock.acquire()
     _async_ops.append(op)
+    _async_ops_lock.release()
+
+
+def _terminal_open_input(cb, binary=False, unbuffered=False):
+    global _async_ops_lock, _async_delayed_calls
+    class _TerminalFobj():
+        def __init__(self, binary=False, unbuffered=False):
+            self.binary = binary
+            self.unbuffered = unbuffered
+
+        def read(self, cb, amount=None):
+            return _terminal_do_read(cb, amount=amount,
+                binary=(self.binary == True),
+                unbuffered=(self.unbuffered == True))
+
+        def close(self):
+            pass
+    _async_ops_lock.acquire()
+    _async_delayed_calls.append((
+        cb, [None, _TerminalFobj(binary=binary,
+            unbuffered=unbuffered)]
+    ))
     _async_ops_lock.release()
 
 
