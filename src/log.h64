@@ -60,7 +60,7 @@ func write_to_file_if_needed(raw_line) {
     }
 }
 
-func l(msg, kind=L_INFO) {
+func l(msg, kind=L_INFO, where="") {
     var prefix = "debug"
     if kind == L_INFO {
         prefix = "info"
@@ -71,6 +71,9 @@ func l(msg, kind=L_INFO) {
     }
     if program_prefix != none {
         prefix = program_prefix + ": " + prefix
+    }
+    if where != none and where.len > 0 {
+        prefix = prefix + ": " + where.trim()
     }
     if terminal_output_enabled {
         print(prefix + ": " + msg)
@@ -95,6 +98,10 @@ func set_file_output_async(path) {
 
 func set_file_output(path) {
     set_file_output_async(path) later ignore
+}
+
+func set_program_prefix(name) {
+    program_prefix = name
 }
 
 func set_terminal_output(yesno) {
