@@ -28,13 +28,14 @@
 
 import bignum from core.horse64.org
 import io from core.horse64.org
+import limit from core.horse64.org
 import math from core.horse64.org
 import net from core.horse64.org
 import net.fetch from core.horse64.org
 import text from core.horse64.org
 import uri from core.horse64.org
 
-import compiler.limit as limit
+import compiler.limit as climit
 import compiler.msg as msg
 import compiler.project as project
 
@@ -1678,7 +1679,7 @@ func tokenize_from_fileobj (
         ) {
     var result = new TokensResult()
     var contents = fobj.read(
-        amount=limit.max_source_file_size + 1
+        amount=climit.max_source_file_size + 1
     )
     later:
 
@@ -1686,7 +1687,7 @@ func tokenize_from_fileobj (
     if typename(contents) == "bytes" {
         contents = contents.as_str()
     }
-    if contents.len >= limit.max_source_file_size + 1 {
+    if contents.len >= climit.max_source_file_size + 1 {
         result.msgs.add(new msg.FileMsg(
             "file exceeds maximum size limit of " +
             limit.max_project_file_size +
