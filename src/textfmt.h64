@@ -25,6 +25,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import compiler.token from core.horse64.org
 import math from core.horse64.org
 import text from core.horse64.org
 
@@ -132,5 +133,12 @@ func wrap(multiline_text, length,
     }
     var result = final_lines.join(line_break)
     return result
+}
+
+func escape_like_code(s) {
+    if typename(s) == "bytes" {
+        s = s.as_str()
+    }
+    return compiler.token.as_escaped_code_string(s)
 }
 
