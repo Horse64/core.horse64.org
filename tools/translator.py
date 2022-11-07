@@ -2931,7 +2931,7 @@ def translate_do_func(
         keep_files=False,
         paranoid=False,
         run_as_test=False,
-        force_separate_process=True,
+        force_separate_process=False,
         overridden_package_name=None):
 
     if (not os.path.exists(target_file) or
