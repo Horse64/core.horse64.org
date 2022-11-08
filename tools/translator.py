@@ -3584,6 +3584,15 @@ def translate_do_func(
             sys.modules[modname] = m
             spec.loader.exec_module(m)
             returncode = m._generated_main()
+            if type(returncode) == bool:
+                if returncode:
+                    returncode = 0
+                else:
+                    returncode = -1
+            elif type(returncode) == float:
+                returncode = int(round(returncode))
+            elif type(returncode) != int:
+                returncode = 0
         else:
             import sys
             launch_cmd = [
