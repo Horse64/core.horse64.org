@@ -43,27 +43,40 @@ enum LogKind {
 }
 
 func write_to_file_if_needed(raw_line) {
+    # Add line to ordered queue:
     _write_lines_queue.add(raw_line)
+
+    # Then, see if we can write out the current queue:
     file_output_lock.lock() later:
     var f
     do {
         if file_output_path == none {
+            # No disk file configured, just throw things away:
+            _write_lines_queue = []
             return
         }
+
+        # Open disk file to write to:
         f = io.open(file_output_path, "a") later:
         await f
         if _write_lines_queue.len == 0 {
+            # A parallel call to this function already wrote it all.
             return
         }
+
+        # Get first line and write it here::
         var line = _write_lines_queue.pop_at(1)
         var result = f.write(line + "\n") later:
         await result
         if _write_lines_queue.len == 0 {
+            # If we have written all lines, exit.
             return
         }
+        # We have more lines, continue with next one:
         line = _write_lines_queue.pop_at(1)
         result = f.write(line + "\n") later repeat
     } finally {
+        # Once we're done, make sure to close the file.
         if f != none {
             f.close()
         }
