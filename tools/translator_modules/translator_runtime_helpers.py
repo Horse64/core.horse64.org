@@ -564,6 +564,17 @@ def _container_join(container, *args, **kwargs):
     return container.join(*args)
 
 
+def _container_pop_at(container, *args, **kwargs):
+    if (type(container) in {list} and
+            len(args) == 1):
+        if args[0] < 1 or args[0] > len(container):
+            raise IndexError("Index out of bounds.")
+        item = container[args[0] - 1]
+        del container[args[0] - 1]
+        return item
+    return container.pop_at(*args, **kwargs)
+
+
 def _container_find(container, *args, **kwargs):
     if (type(container) in {str, bytes} and
             len(args) == 1):
