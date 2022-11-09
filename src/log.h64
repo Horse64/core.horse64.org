@@ -33,6 +33,7 @@ var terminal_output_enabled protect = yes
 var file_output_lock protect = threading.make_lock()
 var file_output_path protect = none
 var program_prefix protect = none
+var _write_lines_queue = []
 
 enum LogKind {
     L_DEBUG,
@@ -42,6 +43,7 @@ enum LogKind {
 }
 
 func write_to_file_if_needed(raw_line) {
+    _write_lines_queue.add(raw_line)
     file_output_lock.lock() later:
     var f
     do {
@@ -50,8 +52,17 @@ func write_to_file_if_needed(raw_line) {
         }
         f = io.open(file_output_path, "a") later:
         await f
-        var result = f.write(raw_line + "\n") later:
+        if _write_lines_queue.len == 0 {
+            return
+        }
+        var line = _write_lines_queue.pop_at(1)
+        var result = f.write(line + "\n") later:
         await result
+        if _write_lines_queue.len == 0 {
+            return
+        }
+        line = _write_lines_queue.pop_at(1)
+        result = f.write(line + "\n") later repeat
     } finally {
         if f != none {
             f.close()
