@@ -53,15 +53,10 @@ body:
         terminal output. (Don't use backticks, will be automatically
         formatted to code.)
       render: shell
-  - type: checkboxes
-    id: duplicates
+  - type: markdown
     attributes:
-      label: I searched for duplicate issues
-      description: |
-        By submitting this issue, you confirm you searched
-        the issue list via "Search" button for whether someone
+      value: |
+        By submitting this issue, I confirm **I searched
+        the "Issues" list via "Search" button** for whether someone
         already reported this.
-      options:
-        - label: I searched for duplicate issues
-          required: true
 
