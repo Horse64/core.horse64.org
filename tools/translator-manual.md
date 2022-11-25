@@ -15,7 +15,7 @@ basic test suite:
 
 - Python 3.8+
 
-- Bash shell
+- Bash shell, GNU Make, Git
 
 - `requests`, `pywildcard` packages (from PyPI)
 
