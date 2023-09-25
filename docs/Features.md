@@ -78,6 +78,6 @@ how it compares to the other programming languages
 change, no guarantee for accuracy or fitness of this
 list for any particular purpose.** If you find a mistake or want to
 suggest an improvement, [please file a documentation issue](
-https://codeberg.org/Horse64/core.horse64.org/issues/new?
-template=.gitea%2fISSUE_TEMPLATE%2fdocs.yml).
+https://codeberg.org/Horse64/core.horse64.org/issues/
+new?template=.gitea%2fISSUE_TEMPLATE%2fdocs.yml).
 
