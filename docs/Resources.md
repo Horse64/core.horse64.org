@@ -9,7 +9,8 @@ This section has various external resources useful when using the
 SDK
 ---
 
-Get the [Software Development Kit for Horse64 here](
+If you want to get started, [**click here for
+the SDK** (Software Development Kit) for Horse64](
 https://horse64.org/download
 ).
 
