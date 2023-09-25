@@ -58,7 +58,7 @@ how it compares to the other programming languages
 [Go](https://go.dev/), and
 [C++](https://cplusplus.com/).
 
-|Horse64|Python|JavaScript|Go|C++|                                      |
+|Horse64|Python|JavaScript|Go|C++|Feature                               |
 |-------|------|----------|--|---|--------------------------------------|
 |●|●|●| | |**Dynamic types** as a beginner-friendly default.            |
 |●|●| |◒| |**Minimal, clean syntax**, no semicolons, clean keywords.    |
