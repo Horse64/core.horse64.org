@@ -8,11 +8,11 @@ What is Horse64
 *(This is a technical in-depth look,
 [go here for easy to grap features](/docs/Features.md)).*
 
-Horse64 is a [dynamically typed](
-https://medium.com/android-news/magic-lies-here-statically-typed-vs-dynamically-typed-languages-d151c7f95e2b) language with design philosophies of
-easy to read and easy to learn syntax,
-easy to install and deploy tooling and desktop apps,
-and comprehensive concurrency built-in.
+Horse64 is on the technical side a [dynamically but
+strongly typed](
+https://medium.com/android-news/magic-lies-here-statically-typed-vs-dynamically-typed-languages-d151c7f95e2b), object-oriented and imperative, bytecode executed,
+partially ahead-of-time
+[compiled (with horsec)](/docs/Resources#horsec) language.
 
 - Check the [formal grammar](/docs/Language Specs/Grammar.md) of Horse64.
 

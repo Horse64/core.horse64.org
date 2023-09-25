@@ -95,9 +95,11 @@ This is what Horse64 is intended to be good at:
 
 - Desktop apps are created and shipped self-contained automatically.
 
-- Safety runtime checks help with making your app stable.
+- Server backends are written easily due to integrated networking.
 
-- Concurrency out-of-the-box for efficient I/O and networking.
+- Safety runtime checks help with keeping your app stable.
+
+- Concurrency out-of-the-box supports efficient I/O and networking.
 
 What Horse64 is bad at
 ----------------------
@@ -115,4 +117,10 @@ This is what Horse64 is likely to be bad at:
 - Functional programming, since Horse64 is more focused on
   clean in-order imperative code and otherwise the
   organizational patterno f object-oriented code.
+
+Technical specifications
+------------------------
+
+There's also [a more technical summary that gets you to the
+formal language specifications](/docs/Language%20Specs/Overview.md).
 
