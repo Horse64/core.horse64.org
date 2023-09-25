@@ -21,8 +21,8 @@ func download_my_page {  # This won't block your entire program!
 }
 ```
 
-*This helps with designing programs that are scalable and
-can handle many remote resources at once without freezing.*
+This helps with designing programs that are scalable and
+can handle many remote resources at once without freezing.
 
 Batteries included
 ------------------
@@ -48,23 +48,36 @@ func check_config {
 }
 ```
 
-Comparison to Python
---------------------
+Comparison to other languages
+-----------------------------
 
 Horse64 is a dynamically typed, high-level language. Here is
-how it compares to the [Python programming language](
-https://python.org):
+how it compares to the other programming languages
+[Python](https://python.org),
+[JavaScript](https://www.javascript.com/),
+[Go](https://go.dev/), and
+[C++](https://cplusplus.com/).
 
-|Horse64|Python|                                                         |
-|-------|------|---------------------------------------------------------|
-|✓      |✓     | **Dynamically-typed** approachable design.              |
-|✓      |✓     | **Large standard library** with high-level features.    |
-|✓      |      | **No indent forced,** a clean but flexible syntax.      |
-|✓      |      | **AOT-compiled** by developer for great error checks.   |
-|✓      |      | **Portable program binaries** as default output.        |
-|       |✓     | **Fast launch** of small, not-precompiled scripts.      |
-|✓      |      | **No runtime preinstall** needed on user machine.       |
-|✓      |✓     | **Bytecode interpreter** handles basic execution.       |
-|✓      |      | **Concurrency** of standard I/O and net APIs.           |
-|✓      |      | **Static name resolution** to catch typos early.        |
+|Horse64|Python|JavaScript|Go|C++|                                      |
+|-------|------|----------|--|---|--------------------------------------|
+|●|●|●| | |**Dynamic types** as default, to be beginner-friendly.       |
+|●|●| |◒| |**Minimal, clean syntax**, no semicolons, clean keywords.    |
+|●|●|●|◒| |**High runtime safety** for beginners, not crash-prone.      |
+|●|●|◒|●| |**Big standard library** for all developers, no extra setup. |
+|●| |●|◒|●|**Line breaks optional** for easier versatile code layout.   |
+|●| | |●|●|**Precompiled** always, for great large project error checks.|
+|●| | |●|●|**Portable program binaries** as a default output.           |
+| |●|●| | |**Instant script use** with fast, non-precompiled launch.    |
+|●| | |●|●|**No runtime install** for desktop apps for end users.       |
+|●|●|●| | |**Bytecode interpreter** handles basic execution.            |
+|●| |◒|●| | **Concurrency** of all the I/O and network default APIs.    |
+|●| | |●|●|**Static name resolution** to catch typos early.             |
+| | | |●|●|**Outputs machine code** always, for extreme runtime speed.  |
+
+**Disclaimer: this is a subjective list and all facts are subject to
+change, no guarantee for accuracy or fitness of this
+list for any particular purpose.** If you find a mistake or want to
+suggest an improvement, [please file a documentation issue](
+https://codeberg.org/Horse64/core.horse64.org/issues/new?
+template=.gitea%2fISSUE_TEMPLATE%2fdocs.yml).
 
