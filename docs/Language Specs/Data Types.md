@@ -11,7 +11,7 @@ Overview
 | Data type name   | How to instantiate        | Mutable | GC load |
 |------------------|---------------------------|---------|---------|
 | none             | `none`                    | no      | no      |
-| num              | `1`, `1.0`, `-2.332``     | no      | no      |
+| num              | `1`, `1.0`, `-2.332`      | no      | no      |
 | str              | `"bla"`, `'bla'`, `""`    | no      | no      |
 | bytes            | `b"test"`, `b''`          | no      | no      |
 | bool             | `yes`, `no`               | no      | no      |
@@ -24,15 +24,15 @@ Overview
 
 *(Read more [here about GC load](docs/Runtime.md#garbage-collection)).*
 
-`type` Data Type / Custom Types
--------------------------------
+Custom data types with `type`
+-----------------------------
 
 So-called *custom types*, or in short just types, are declared via
 the [type keyword](
-docs/Language Specs/Overview.md#type-keyword-custom-types).
-Internally, they're basically just a struct (like in [C/C++](
-https://en.wikipedia.org/wiki/C_%28programming_language%29))
-containing a reference to the `type` definition they belong to,
+docs/Language%20Specs/Overview.md#custom-types-with-type).
+Internally, they're basically just a struct like in [C/C++](
+https://en.wikipedia.org/wiki/C_%28programming_language%29) which
+contains a reference to the `type` definition they belong to,
 as well as all the values of the var attributes they have.
 
 Since custom types can have var attributes pointing to other types

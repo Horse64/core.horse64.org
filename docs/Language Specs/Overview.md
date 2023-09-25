@@ -2,8 +2,8 @@
 Overview over Horse64
 =====================
 
-`type` Keyword / Custom Types
------------------------------
+Custom types with `type`
+------------------------
 
 The `type` keyword allows declaring the use of a so-called *custom
 type*. A custom type can be used for object-oriented programming.
