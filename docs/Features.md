@@ -121,6 +121,6 @@ This is what Horse64 is likely to be bad at:
 Technical specifications
 ------------------------
 
-There's also [a more technical summary that gets you to the
-formal language specifications](/docs/Language%20Specs/Overview.md).
+There's also [a more technical summary and specs here](
+/docs/Language%20Specs/Overview.md).
 
