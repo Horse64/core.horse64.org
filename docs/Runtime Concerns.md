@@ -16,7 +16,7 @@ programmer, it helps you out with automatic memory management
 using an approach *Garbage Collection*. This is implemented
 in [HVM](/docs/Resources.md#HVM).
 
-Generally, [data types](/docs/Language Specs/Data Types.md) that
+Generally, [data types](/docs/Language Specs/Data%20Types.md) that
 allow referencing to other values that may reference back in cycles
 need more complex cleanup. Therefore, they cause so-called
 *GC load* when created. Items that can't produce complex cyclic
