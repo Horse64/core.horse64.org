@@ -14,10 +14,11 @@ https://medium.com/android-news/magic-lies-here-statically-typed-vs-dynamically-
 partially ahead-of-time
 [compiled (with horsec)](/docs/Resources#horsec) language.
 
-- Check the [formal grammar](/docs/Language%20Specs/Grammar.md) of Horse64.
+- Check the [formal grammar](/docs/Language%20Specs/Grammar.md)
+  of Horse64.
 
-- Check the [data types](/docs/Data%20Types.md), includes
-  Garbage Collection and runtime performance behavior.
+- Check the [data types](/docs/Language%20Specs/Data%20Types.md),
+  includes Garbage Collection and runtime performance behavior.
 
 - Check below for [object-oriented programming in
   Horse64](#oop-in-horse64-using-type).
