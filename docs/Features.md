@@ -58,21 +58,23 @@ how it compares to the other programming languages
 [Go](https://go.dev/), and
 [C++](https://cplusplus.com/).
 
-|Horse64|Python|JavaScript|Go|C++|Feature                               |
-|-------|------|----------|--|---|--------------------------------------|
-|●|●|●| | |**Dynamic types** as a beginner-friendly default.            |
-|●|●| |◒| |**Minimal, clean syntax**, no semicolons, clean keywords.    |
-|●|●|●|◒| |**High runtime safety** for beginners, not crash-prone.      |
-|●|●|◒|●| |**Big standard library** for all developers, no extra setup. |
-|●| |●|◒|●|**Line breaks optional** for easier versatile code layout.   |
-|●| | |●|●|**Precompiled** always, for great large project error checks.|
-|●| | |●|●|**Portable program binaries** as a default output.           |
-| |●|●| | |**Instant script use** with fast, non-precompiled launch.    |
-|●| | |●|●|**No runtime install** for desktop apps for end users.       |
-|●|●|●| | |**Bytecode interpreter** handles basic execution.            |
-|●| |◒|●| | **Concurrency** of all the I/O and network default APIs.    |
-|●| | |●|●|**Static name resolution** to catch typos early.             |
-| | | |●|●|**Outputs machine code** always, for extreme runtime speed.  |
+|Horse64|Python|JavaScript|Go|C++|Feature                             |
+|-------|------|----------|--|---|------------------------------------|
+|●|●|●| | |**Dynamic types** as a beginner-friendly default.          |
+|●|●| |●| |**Minimal, clean syntax**, including no semicolons.        |
+|●|●|●| | |**Avoids concurrency crashes** from threading bugs.        |
+|●|●|◒|●| |**Big standard library** always, with no extra setup.      |
+|●| |●|◒|●|**Line breaks optional** for versatile code layout.        |
+|●| | |●|●|**Precompiled** always, for better large project checks.   |
+|●| | |●|●|**Portable program binaries** as a default output.         |
+|●| | |●|●|**No runtime install** for desktop apps for end users.     |
+|●|●|●| | |**Bytecode interpreter** handles basic execution.          |
+|●| |◒|●| | **Concurrency** of all the I/O and network default APIs.  |
+|●| | |●|●|**Static name resolution** to catch typos early.           |
+|●|●| |●| |**Official packaging tools** for easy project handling.    |
+| | | |●|●|**Outputs machine code** always, for extreme speed.        |
+| |●|●| | |**Instant script use** with fast, non-precompiled launch.  |
+| | |●| | |**Runs in web browser** by default for simple web use.     |
 
 **Disclaimer: this is a subjective list and all facts are subject to
 change, no guarantee for accuracy or fitness of this
