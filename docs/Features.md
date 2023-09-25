@@ -48,15 +48,18 @@ func check_config {
 }
 ```
 
-Comparison to other languages
------------------------------
+Comparison with other languages and use cases
+---------------------------------------------
 
 Horse64 is a dynamically typed, high-level language. Here is
 how it compares to the other programming languages
 [Python](https://python.org),
 [JavaScript](https://www.javascript.com/),
 [Go](https://go.dev/), and
-[C++](https://cplusplus.com/).
+[C++](https://cplusplus.com/). **Disclaimer: the
+fowolling list is subjective and all languages are subject to
+change, no guarantee provided for accuracy or fitness of this
+list for any particular purpose at all.** 
 
 |Horse64|Python|JavaScript|Go|C++|Feature                             |
 |-------|------|----------|--|---|------------------------------------|
@@ -76,10 +79,40 @@ how it compares to the other programming languages
 | |●|●| | |**Instant script use** with fast, non-precompiled launch.  |
 | | |●| | |**Runs in web browser** by default for simple web use.     |
 
-**Disclaimer: this is a subjective list and all facts are subject to
-change, no guarantee for accuracy or fitness of this
-list for any particular purpose.** If you find a mistake or want to
+If you find a mistake or want to
 suggest an improvement, [please file a documentation issue](
 https://codeberg.org/Horse64/core.horse64.org/issues/new?template=.gitea%2fISSUE_TEMPLATE%2fdocs.yml
 ).
+
+What Horse64 is good at
+-----------------------
+
+This is what Horse64 is intended to be good at:
+
+- Beginner friendly while still suitable for larger projects.
+
+- Easy to install, easy to get started.
+
+- Desktop apps are created and shipped self-contained automatically.
+
+- Safety runtime checks help with making your app stable.
+
+- Concurrency out-of-the-box for efficient I/O and networking.
+
+What Horse64 is bad at
+----------------------
+
+This is what Horse64 is likely to be bad at:
+
+- Extreme raw speed, since it uses a bytecode VM.
+
+- Complex offline code type checking, since it's dynamically typed.
+  *(The compiler will however catch more basics beyond many other
+  script languages.)*
+
+- Maximum fast compiler, since that's not a project focus.
+
+- Functional programming, since Horse64 is more focused on
+  clean in-order imperative code and otherwise the
+  organizational patterno f object-oriented code.
 

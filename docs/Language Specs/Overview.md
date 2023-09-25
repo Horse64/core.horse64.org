@@ -2,8 +2,30 @@
 Overview over Horse64
 =====================
 
-Custom types with `type`
-------------------------
+What is Horse64
+---------------
+
+*(This is a technical in-depth look,
+[go here for easy to grap features](/docs/Features.md)).*
+
+Horse64 is a [dynamically typed](
+https://medium.com/android-news/magic-lies-here-statically-typed-vs-dynamically-typed-languages-d151c7f95e2b) language with design philosophies of
+easy to read and easy to learn syntax,
+easy to install and deploy tooling and desktop apps,
+and comprehensive concurrency built-in.
+
+- Check the [formal grammar](/docs/Language Specs/Grammar.md) of Horse64.
+
+- Check the [data types](/docs/Data Types.md), includes
+  Garbage Collection and runtime performance behavior.
+
+- Check below for [object-oriented programming in
+  Horse64](#oop-in-horse64-using-type).
+
+- 
+
+OOP in Horse64 by using `type`
+------------------------------
 
 The `type` keyword allows declaring the use of a so-called *custom
 type*. A custom type can be used for object-oriented programming.
@@ -35,5 +57,5 @@ func Car.speed_up {
     self.speed *= 1.5
 }
 ```
- 
+
 

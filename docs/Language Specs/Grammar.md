@@ -8,8 +8,8 @@ language.
 ## Overview
 
 Horse64's grammar is inspired by the [Go](https://golang.org),
-[Lua](https://lua.org), and [Python programming
-language](https://python.org)s. It's meant to be verbose enough to be
+[Lua](https://lua.org), and [Python](https://python.org)
+programming languages. It's meant to be verbose enough to be
 beginner-friendly while still minimal:
 
 ```Horse64
@@ -22,7 +22,7 @@ Here's an overview of the basic differences and properties
 of Horse64's grammar compared to other programming languages:
 
 
-### No Line Terminators
+### No line terminators
 
 In some other languages like the [C programming language](
 https://en.wikipedia.org/wiki/C_%28programming_language%29),
@@ -33,7 +33,7 @@ for at least optional use. This is not the case in Horse64,
 statements just end where they naturally end.
 
 
-### No Significant Whitespace
+### No significant whitespace
 
 In some other languages like the [Python programming
 language](https://python.org), indent via space or
@@ -47,7 +47,7 @@ indent or even in one long line. The only exception are comments
 that begin with `#` and always end at the next line break.
 
 
-### Statement Start Restrictions
+### Statement start restriction
 
 A statement can't ever begin with:
 
@@ -62,14 +62,14 @@ ending given Horse64's [lack of significant whitespace](
 #no-significant-whitespace).
 
 
-### (Pitfall) `return` Statements That Aren't At Block Ends
+### Pitfall of `return` statements that aren't at block end
 
 A `return` statement may have an expression following to be
 returned but it's optional.
 This can lead to seeming ambiguity, which can be easily avoided
 with this advice:
 
-> **(Advice)** You shouldn't put a `return` statement anywhere
+> **Advice:** You shouldn't put a `return` statement anywhere
   but right before the closing `}` bracket of a code block.
 
 An example follows where ignoring this advice is confusing:

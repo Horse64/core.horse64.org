@@ -22,14 +22,15 @@ Overview
 | type             | `new MyCustomType()`      | yes     | yes     |
 | func             | `var f = func test {}`    | no      | no      |
 
-*(Read more [here about GC load](/docs/Runtime.md#garbage-collection)).*
+*(Read more [here about GC load](
+/docs/Runtime%20Concerns.md#garbage-collection)).*
 
 Custom data types with `type`
 -----------------------------
 
 So-called *custom types*, or in short just types, are declared via
 the [type keyword](
-/docs/Language%20Specs/Overview.md#custom-types-with-type).
+/docs/Language%20Specs/Overview.md#oop-in-horse64-by-using-type).
 Internally, they're basically just a struct like in [C/C++](
 https://en.wikipedia.org/wiki/C_%28programming_language%29) which
 contains a reference to the `type` definition they belong to,
@@ -37,5 +38,6 @@ as well as all the values of the var attributes they have.
 
 Since custom types can have var attributes pointing to other types
 and back in circles, they're allocated on the [
-GC heap](/docs/Runtime.md#garbage-collection) causing GC load.
+GC heap](/docs/Runtime%20Concerns.md#garbage-collection)
+causing GC load.
 
