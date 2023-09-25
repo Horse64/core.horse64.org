@@ -22,7 +22,7 @@ Overview
 | type             | `new MyCustomType()`      | yes     | yes     |
 | func             | `var f = func test {}`    | no      | no      |
 
-*(Read more [here about GC load](docs/Runtime.md#garbage-collection)).*
+*(Read more [here about GC load](/docs/Runtime.md#garbage-collection)).*
 
 Custom data types with `type`
 -----------------------------
@@ -37,5 +37,5 @@ as well as all the values of the var attributes they have.
 
 Since custom types can have var attributes pointing to other types
 and back in circles, they're allocated on the [
-GC heap](docs/Runtime.md#garbage-collection) causing GC load.
+GC heap](/docs/Runtime.md#garbage-collection) causing GC load.
 
