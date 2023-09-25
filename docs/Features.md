@@ -60,7 +60,7 @@ how it compares to the other programming languages
 
 |Horse64|Python|JavaScript|Go|C++|                                      |
 |-------|------|----------|--|---|--------------------------------------|
-|●|●|●| | |**Dynamic types** as default, to be beginner-friendly.       |
+|●|●|●| | |**Dynamic types** as a beginner-friendly default.            |
 |●|●| |◒| |**Minimal, clean syntax**, no semicolons, clean keywords.    |
 |●|●|●|◒| |**High runtime safety** for beginners, not crash-prone.      |
 |●|●|◒|●| |**Big standard library** for all developers, no extra setup. |
