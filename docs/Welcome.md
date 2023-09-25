@@ -4,19 +4,23 @@ Welcome to Horse64
 
 Welcome to Horse64's documentation!
 
-- [Get Horse64 here](https://horse64.org/download).
+- [📩 Get Horse64 here](https://horse64.org/download).
 
-- **Beginner, looking to get started?**
+- **New beginner?**
+  Try the [🦸‍♀️ startup tutorial!](/docs/FIXME)
 
-  Try the [startup tutorial!](/docs/Tutorials/Startup.md)
+- **Reference for more?**
+  Go here for [🌍 all standard library
+  functionality.](/docs/FIXME)
 
-- **Intermediate, curious if this language is for you?**
+- **Undecided still?**
+  Check the [⚖️ features comparison!](/docs/Features.md)
 
-  [Check the features overview!](/docs/Features.md)
+- **Community and reporting bugs,** see
+  [💬 here for contacts](https://horse64.org/docs#contrib).
 
-- **Expert, looking for deep specifications?**
+- **Expert, need details?**
+  There's [👩‍🔬 language specs.](/docs/Language%20Specs/Overview.md)
 
-  [Go to the language specs.](/docs/Language%20Specs/Overview.md)
-
-Or check the [list of resources and downloads](/docs/Resources).
+Or check the [list of misc resources](/docs/Resources).
 
