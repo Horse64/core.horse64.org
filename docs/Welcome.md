@@ -22,5 +22,5 @@ Welcome to Horse64's documentation!
 - **Expert, need details?**
   There's [👩‍🔬 language specs.](/docs/Language%20Specs/Overview.md)
 
-Or check the [list of misc resources](/docs/Resources).
+Or check the [list of misc resources](/docs/Resources.md).
 
