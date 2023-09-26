@@ -16,8 +16,9 @@ Welcome to Horse64's documentation!
 - **Undecided still?**
   Check the [⚖️ features comparison!](/docs/Features.md)
 
-- **Community and reporting bugs,** see
-  [💬 here for contacts](https://horse64.org/docs#contrib).
+- **For community help,** see
+  [💬 community chat](https://horse64.org/chat) and
+  [🐞 where to report bugs](/docs/Resources.md#report-bugs).
 
 - **Expert, need details?**
   There's [👩‍🔬 language specs.](/docs/Language%20Specs/Overview.md)

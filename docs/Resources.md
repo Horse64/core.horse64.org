@@ -13,6 +13,30 @@ the SDK** (Software Development Kit) for Horse64](
 https://horse64.org/download
 ).
 
+Report bugs
+-----------
+
+Before you report a bug, you might want to check the
+[standard library reference documentation](
+./docs/FIXME)
+and the [community chat](https://horse64.org/chat)
+to verify if what you found is truly a bug or rather
+a misunderstanding.
+
+To report bugs, here are the locations for core components:
+
+- [Compiler bug reports](
+  https://codeberg.org/Horse64/core.horse64.org/issues).
+
+- [Standard library bug reports](
+  https://codeberg.org/Horse64/core.horse64.org/issues).
+
+- [Horp (package manager) bug reports](
+  https://codeberg.org/Horse64/horp.horse64.org/issues).
+
+- [HVM (C runtime) bug reports](
+  https://codeberg.org/Horse64/hvm.horse64.org/issues).
+
 Documentation
 -------------
 
