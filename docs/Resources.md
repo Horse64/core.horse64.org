@@ -5,7 +5,6 @@ Resources
 This section has various external resources useful when using the
 [Horse64 programming language](https://horse64.org).
 
-
 SDK
 ---
 
@@ -18,9 +17,8 @@ Documentation
 -------------
 
 If you're reading this, you found the documentation! If you got
-some offline copy, [switch to the latest dpocumentation
+some offline copy, [switch to the latest documentation
 online copy](https://horse64.org/docs/Welcome).
-
 
 Standard library
 ----------------
@@ -34,7 +32,6 @@ the `core.horse64.org` can be found in the same location as
 - Find the [standard library code here](
   https://codeberg.org/Horse64/core.horse64.org/src/branch/main/src).
 
-
 Horsec
 ------
 
@@ -44,10 +41,8 @@ It's written primarily in Horse64.
 - Get it by fetching the **SDK**.
 
 - Find [horsec's code here](
-  https://codeberg.org/Horse/core.horse64.org)
+  https://codeberg.org/Horse64/core.horse64.org/src/branch/main/src/compiler/)
   along with the other parts of the standard library.
-
-
 
 HVM
 ---
@@ -60,7 +55,7 @@ https://en.wikipedia.org/wiki/C_%28programming_language%29).
 - Get it by fetching the **SDK**.
 
 - Find the [HVM source code here](
-  https://codeberg.org/Horse64/core.horse64.org/src/branch/main/src/compiler
+  https://codeberg.org/Horse64/hvm.horse64.org/src/branch/main/src/
   ).
 
 - Read here on [advanced technical runtime concerns](
