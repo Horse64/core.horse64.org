@@ -1,6 +1,6 @@
 # Form for a documentation issue.
 name: Documentation Issue
-about: Report a problem with the Horse64 documentation.
+about: Report a problem with the project's documentation.
 labels:
   - bug
 body:
@@ -11,9 +11,10 @@ body:
   - type: input
     id: version
     attributes:
-      label: Package version
+      label: Package version, if applicable
       description: |
-        Please enter the version (found in `horp.ini`) or the git commit
+        Please enter the version (found in the `horp.conf` file,
+        if this project has one) or the git commit
         that you found the faulty documentation in.
       placeholder: e.g. 2022.10.13-dev
     validations:
@@ -21,7 +22,7 @@ body:
   - type: textarea
     id: description
     attributes:
-      label: What was wrong or should be improved?
+      label: What documentation part was wrong, misleading, or should be improved?
       description: What document did you look at, what change do you suggest?
       placeholder: Detailed description...
     validations:

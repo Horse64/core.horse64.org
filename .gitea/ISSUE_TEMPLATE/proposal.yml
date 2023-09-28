@@ -1,6 +1,6 @@
 # Form for a bug report.
 name: Feature Proposal
-about: Suggest a new feature to be added.
+about: Suggest a new feature or functionality to be programmed.
 labels:
   - proposal
 body:
@@ -21,12 +21,13 @@ body:
   - type: textarea
     id: testprogram
     attributes:
-      label: Example code
+      label: Example code or commands
       description: |
-        Is there some example code for how you envision the
-        feature to be used, if it is code-related?
-        (Don't use backticks, will be automatically
-        formatted to code.)
+        Is there some concrete example code or terminal commands
+        that can show how you envision the
+        feature to be used?
+        **Don't use backticks,** this input field will be automatically
+        formatted as code.
       render: shell
   - type: markdown
     attributes:

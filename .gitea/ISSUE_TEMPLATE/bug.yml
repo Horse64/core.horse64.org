@@ -1,6 +1,6 @@
 # Form for a bug report.
 name: Bug Report
-about: Report a malfunction of existing functionality.
+about: Report a malfunction of existing functionality, excluding documentation issues.
 labels:
   - bug
 body:
@@ -13,7 +13,8 @@ body:
     attributes:
       label: Package version
       description: |
-        Please enter the version (found in `horp.ini`) or the git commit
+        Please enter the version (found in the `horp.conf` file, if
+        this project has one) or the git commit
         that you found the issue in.
       placeholder: e.g. 2022.10.13-dev
     validations:
@@ -39,10 +40,10 @@ body:
     attributes:
       label: Minimal test program
       description: |
-        Is there a minimal test program, which if run via
-        `horsec run --single-file path/to/testfile.h64` will reproduce
-        the problem? (Don't use backticks, will be automatically
-        formatted to code.)
+        Is there code for a minimal test program, which if
+        run or compiled, will reproduce
+        the problem? **Don't use backticks,** this field
+        will be automatically formatted as code.
       render: shell
   - type: textarea
     id: logs
@@ -50,8 +51,8 @@ body:
       label: Relevant log output
       description: |
         If you have any, please paste any relevant log or
-        terminal output. (Don't use backticks, will be automatically
-        formatted to code.)
+        terminal output. **Don't use backticks,** this field
+        will be automatically formatted as code.
       render: shell
   - type: markdown
     attributes:
