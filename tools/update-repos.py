@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import os
+import shutil
 import subprocess
 import sys
 
@@ -70,7 +71,7 @@ if __name__ == "__main__":
         new_lines = []
         for line in lines:
             if (not line.startswith("Copyright (c) ") or
-                    not "ell1e" in line):
+                    not "ell1e" in line.lower()):
                 new_lines.append(line)
                 continue
             remainder = line.partition("Copyright (c) ")[2].strip()
@@ -96,7 +97,7 @@ if __name__ == "__main__":
                 continue
             new_lines.append(insert_line)
             had_change = True
-        if dry_run and had_change:
+        if had_change:
             if not dry_run:
                 with open(os.path.join(rpath, "LICENSE.md"), "w",
                         encoding="utf-8") as f:
@@ -143,10 +144,10 @@ if __name__ == "__main__":
     # Check all repositories if they need to be updated:
     for repopath in repo_paths:
         repopath = os.path.normpath(os.path.abspath(repopath))
-        reponame = os.path.basename(os.path.isdir(repopath))
+        reponame = os.path.basename(os.path.normpath(repopath))
         print("Checking repository: " + str(reponame))
         def update_rel_path_file(rel_path):
-            if (os.path.normpath(repopath) !=
+            if (os.path.normpath(repopath) ==
                     os.path.normpath(mainrepopath)):
                 return False
             if type(rel_path) == list:
@@ -157,8 +158,9 @@ if __name__ == "__main__":
                 base_dir = (os.path.normpath(rel_path).
                     rpartition(os.path.sep)[0])
                 if not dry_run:
-                    if not os.path.exists(base_dir):
-                        os.makedirs(base_dir)
+                    if not os.path.exists(os.path.join(
+                            repopath, base_dir)):
+                        os.makedirs(os.path.join(repopath, base_dir))
                     shutil.copyfile(os.path.join(mainrepopath, rel_path),
                         os.path.join(repopath, rel_path))
                     o = subprocess.check_output(["git", "add",
@@ -168,23 +170,26 @@ if __name__ == "__main__":
                     rel_path + " (inside: " + str(base_dir) + ")")
                 return True
             return False
-        if (update_rel_path_file(
-                    [".gitea", "ISSUE_TEMPLATE", "bug.yml"]) or
-                update_rel_path_file(
-                    [".gitea", "ISSUE_TEMPLATE", "docs.yml"]) or
-                update_rel_path_file(
-                    [".gitea", "ISSUE_TEMPLATE", "proposal.yml"]) or
-                update_rel_path_file(
-                    [".git", "hooks", "commit-msg"]) or
-                update_rel_path_file(
-                    [".github", "workflows",
-                        "close-all-pull-requests.yml"]) or
-                update_misc_years(repopath)):
-            if not dry_run:
-                o = subprocess.check_output(["git", "commit",
-                    rel_path, "-m", "housekeeping: Updating "
-                    "misc repository meta files via "
-                    "tools/update-repos.py",
-                    "-m", dco_signature],
-                    cwd=repopath)
+        changed = False
+        changed = (update_rel_path_file(
+            [".gitea", "ISSUE_TEMPLATE", "bug.yml"]) or changed)
+        changed = (update_rel_path_file(
+            [".gitea", "ISSUE_TEMPLATE", "docs.yml"]) or changed)
+        changed = (update_rel_path_file(
+            [".gitea", "ISSUE_TEMPLATE", "proposal.yml"]) or changed)
+        changed = (update_rel_path_file(
+            [".git", "hooks", "commit-msg"]) or changed)
+        os.chmod(os.path.join(repopath, ".git", "hooks", "commit-msg"),
+            0o775)
+        changed = (update_rel_path_file(
+            [".github", "workflows",
+                "close-all-pull-requests.yml"]) or changed)
+        changed = (update_misc_years(repopath) or changed)
+        if not dry_run and changed:
+            o = subprocess.check_output(["git", "commit",
+                "-m", "housekeeping: Updating "
+                "misc repository meta files via "
+                "tools/update-repos.py",
+                "-m", dco_signature],
+                cwd=repopath)
 
