@@ -1,9 +1,12 @@
 
+<!-- For license of this file, see LICENSE.md in the base folder. -->
+
 Data Types
 ==========
 
 This section describes the data types available in the Horse64
 programming language.
+
 
 Overview
 --------
@@ -24,6 +27,7 @@ Overview
 
 *(Read more [here about GC load](
 /docs/Runtime%20Concerns.md#garbage-collection)).*
+
 
 Custom data types with `type`
 -----------------------------

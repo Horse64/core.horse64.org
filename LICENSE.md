@@ -1,11 +1,15 @@
-# Horse64 Licensing
+
+Horse64 Licensing
+=================
 
 *(Note: this document omits compiled-in 3rd party dependencies. Without
 guarantees of completeness or accuracy, `horp license .` run in
 this repository will attempt to output the licenses of dependencies,
 too.)*
 
-## License
+
+License
+-------
 
 Files outside of the `logo` and `vendor` folders are, unless indicated
 otherwise, licensed under the following **BSD-2-Clause license**:
@@ -245,7 +249,8 @@ following **Apache 2 License**:
 ```
 
 
-## Logo license
+Logo license
+------------
 
 This concerns the files inside `logo` folder:
 
@@ -268,7 +273,8 @@ should be unaffected. 2. If you fork Horse64 just temporarily for
 preparing pull requst, that's fine of course.)*
 
 
-## Contributions
+Contributions
+-------------
 
 If you contribute to the Horse64 project, you **permit licensing as
 described in the respective files** and agree to the
@@ -279,7 +285,8 @@ For this, sign your commit messages:
 `DCO-1.1-Signed-off-by: Your Name <your@email>`
 
 
-## Developer Certificate of Origin
+Developer Certificate of Origin
+-------------------------------
 
 This is the Developer Certificate of Origin indicated by
 `DCO-1.1-Signed-off-by: name <email>` commit messages, which all
@@ -321,3 +328,4 @@ By making a contribution to this project, I certify that:
     maintained indefinitely and may be redistributed consistent with
     this project or the open source license(s) involved.
 ```
+

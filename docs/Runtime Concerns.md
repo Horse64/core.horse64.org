@@ -1,4 +1,6 @@
 
+<!-- For license of this file, see LICENSE.md in the base folder. -->
+
 Runtime Concerns
 ================
 

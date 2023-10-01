@@ -1,8 +1,11 @@
 
+<!-- For license of this file, see LICENSE.md in the base folder. -->
+
 Features
 ========
 
 Here's cool stuff Horse64 can do:
+
 
 Concurrency
 -----------
@@ -23,6 +26,7 @@ func download_my_page {  # This won't block your entire program!
 
 This helps with designing programs that are scalable and
 can handle many remote resources at once without freezing.
+
 
 Batteries included
 ------------------
@@ -47,6 +51,7 @@ func check_config {
     print("Got remote config!")
 }
 ```
+
 
 Comparison with other languages and use cases
 ---------------------------------------------
@@ -84,6 +89,7 @@ suggest an improvement, [please file a documentation issue](
 https://codeberg.org/Horse64/core.horse64.org/issues/new?template=.gitea%2fISSUE_TEMPLATE%2fdocs.yml
 ).
 
+
 What Horse64 is good at
 -----------------------
 
@@ -101,6 +107,7 @@ This is what Horse64 is intended to be good at:
 
 - Concurrency out-of-the-box supports efficient I/O and networking.
 
+
 What Horse64 is bad at
 ----------------------
 
@@ -117,6 +124,7 @@ This is what Horse64 is likely to be bad at:
 - Functional programming, since Horse64 is more focused on
   clean in-order imperative code and otherwise the
   organizational patterno f object-oriented code.
+
 
 Technical specifications
 ------------------------

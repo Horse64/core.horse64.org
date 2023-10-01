@@ -1,11 +1,15 @@
 
-# Grammar
+<!-- For license of this file, see LICENSE.md in the base folder. -->
+
+Grammar
+=======
 
 This section describes the grammar of the Horse64 programming
 language.
 
 
-## Overview
+Overview
+--------
 
 Horse64's grammar is inspired by the [Go](https://golang.org),
 [Lua](https://lua.org), and [Python](https://python.org)
@@ -86,5 +90,4 @@ func main {
     #   return call_my_func()
 }
 ```
-
 
