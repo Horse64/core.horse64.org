@@ -122,8 +122,7 @@ This is what Horse64 is likely to be bad at:
 - Maximum fast compiler, since that's not a project focus.
 
 - Functional programming, since Horse64 is more focused on
-  clean in-order imperative code and otherwise the
-  organizational patterno f object-oriented code.
+  clean in-order imperative code and object-oriented code.
 
 
 Technical specifications

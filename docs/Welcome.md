@@ -1,8 +1,8 @@
 
 <!-- For license of this file, see LICENSE.md in the base folder. -->
 
-Welcome to Horse64
-==================
+Documentation
+=============
 
 Welcome to Horse64's documentation!
 
