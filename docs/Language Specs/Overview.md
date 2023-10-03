@@ -1,6 +1,6 @@
 
-Overview over Horse64
-=====================
+Overview on Horse64
+===================
 
 What is Horse64
 ---------------
