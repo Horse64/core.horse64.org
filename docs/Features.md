@@ -93,19 +93,16 @@ https://codeberg.org/Horse64/core.horse64.org/issues/new?template=.gitea%2fISSUE
 What Horse64 is good at
 -----------------------
 
-This is what Horse64 is intended to be good at:
+This is what Horse64 is intended to be suited for:
 
-- Beginner friendly while still suitable for larger projects.
+- Helping beginners and contributors **get started
+  🚀 quickly** while still suitable for larger projects.
 
-- Easy to install, easy to get started.
+- Desktop **apps are shipped 📦 mostly self-contained** by default.
 
-- Desktop apps are created and shipped self-contained automatically.
+- Creation and maintenance of **server backends using the 📶 integrated networking.**
 
-- Server backends are written easily due to integrated networking.
-
-- Safety runtime checks help with keeping your app stable.
-
-- Concurrency out-of-the-box supports efficient I/O and networking.
+- Concurrency out-of-the-box supports **📱 responsive, non-blocking behavior.**
 
 
 What Horse64 is bad at
@@ -113,15 +110,15 @@ What Horse64 is bad at
 
 This is what Horse64 is likely to be bad at:
 
-- Extreme raw speed, since it uses a bytecode VM.
+- 🚫 Extreme raw speed, since it uses a bytecode VM.
 
-- Complex offline code type checking, since it's dynamically typed.
+- 🚫 Complex offline code type checking, since it's dynamically typed.
   *(The compiler will however catch more basics beyond many other
   script languages.)*
 
-- Maximum fast compiler, since that's not a project focus.
+- 🚫 Maximum fast compiler, since that's not a project focus.
 
-- Functional programming, since Horse64 is more focused on
+- 🚫 Heavily functional programming, since Horse64 is more focused on
   clean in-order imperative code and object-oriented code.
 
 
