@@ -114,7 +114,7 @@ This is what Horse64 is likely to be bad at:
 
 - 🚫 Complex offline code type checking, since it's dynamically typed.
   *(The compiler will however catch more basics beyond many other
-  script languages.)*
+  scripting languages.)*
 
 - 🚫 Maximum fast compiler, since that's not a project focus.
 
