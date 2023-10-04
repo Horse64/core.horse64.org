@@ -6,7 +6,7 @@ What is Horse64
 ---------------
 
 *(This is a technical in-depth look,
-[go here for easy to grap features](/docs/Features.md)).*
+[go here for easy to grasp features](/docs/Features.md)).*
 
 Horse64 is on the technical side a [dynamically but
 strongly typed](
@@ -21,7 +21,7 @@ partially ahead-of-time
   includes Garbage Collection and runtime performance behavior.
 
 - Check below for [object-oriented programming in
-  Horse64](#oop-in-horse64-using-type).
+  Horse64](#oop-in-horse64-by-using-type).
 
 OOP in Horse64 by using `type`
 ------------------------------

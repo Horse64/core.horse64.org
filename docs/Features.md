@@ -68,21 +68,21 @@ list for any particular purpose at all.**
 
 |Horse64|Python|JavaScript|Go|C++|Feature                             |
 |-------|------|----------|--|---|------------------------------------|
-|●|●|●| | |**Dynamic types** as a beginner-friendly default.          |
-|●|●| |●| |**Minimal, clean syntax**, including no semicolons.        |
-|●|●|●| | |**Avoids concurrency crashes** from threading bugs.        |
-|●|●|◒|●| |**Big standard library** always, with no extra setup.      |
-|●| |●|◒|●|**Line breaks optional** for versatile code layout.        |
-|●| | |●|●|**Precompiled** always, for better large project checks.   |
-|●| | |●|●|**Portable program binaries** as a default output.         |
-|●| | |●|●|**No runtime install** for desktop apps for end users.     |
-|●|●|●| | |**Bytecode interpreter** handles basic execution.          |
-|●| |◒|●| | **Concurrency** of all the I/O and network default APIs.  |
-|●| | |●|●|**Static name resolution** to catch typos early.           |
-|●|●| |●| |**Official packaging tools** for easy project handling.    |
-| | | |●|●|**Outputs machine code** always, for extreme speed.        |
-| |●|●| | |**Instant script use** with fast, non-precompiled launch.  |
-| | |●| | |**Runs in web browser** by default for simple web use.     |
+|✔|✔|✔| | |**Dynamic types** as a beginner-friendly default.          |
+|✔|✔| |✔| |**Minimal, clean syntax**, including no semicolons.        |
+|✔|✔|✔| | |**Avoids concurrency crashes** from threading bugs.        |
+|✔|✔|〰|✔| |**Big standard library** always, with no extra setup.      |
+|✔| |✔|〰|✔|**Line breaks optional** for versatile code layout.        |
+|✔| | |✔|✔|**Precompiled** always, for better large project checks.   |
+|✔| | |✔|✔|**Portable program binaries** as a default output.         |
+|✔| | |✔|✔|**No runtime install** for desktop apps for end users.     |
+|✔|✔|✔| | |**Bytecode interpreter** handles basic execution.          |
+|✔| |〰|✔| | **Concurrency** of all the I/O and network default APIs.  |
+|✔| | |✔|✔|**Static name resolution** to catch typos early.           |
+|✔|✔| |✔| |**Official packaging tools** for easy project handling.    |
+| | | |✔|✔|**Outputs machine code** always, for extreme speed.        |
+| |✔|✔| | |**Instant script use** with fast, non-precompiled launch.  |
+| | |✔| | |**Runs in web browser** by default for simple web use.     |
 
 If you find a mistake or want to
 suggest an improvement, [please file a documentation issue](
