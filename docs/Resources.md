@@ -23,7 +23,7 @@ Report bugs
 Before you report a bug, you might want to check the
 [standard library reference documentation](
 ./docs/FIXME)
-and the [community chat](https://horse64.org/chat)
+and the [community chat 💬](https://horse64.org/chat)
 to verify if what you found is truly a bug or rather
 a misunderstanding.
 
@@ -59,7 +59,7 @@ the `core.horse64.org` can be found in the same location as
 
 - Get it by fetching the **SDK**.
 
-- Find the [standard library code here](
+- Find the [🧬 standard library code here](
   https://codeberg.org/Horse64/core.horse64.org/src/branch/main/src).
 
 
@@ -71,7 +71,7 @@ It's written primarily in Horse64.
 
 - Get it by fetching the **SDK**.
 
-- Find [horsec's code here](
+- Find [🧬 horsec's code here](
   https://codeberg.org/Horse64/core.horse64.org/src/branch/main/src/compiler/)
   along with the other parts of the standard library.
 
@@ -86,7 +86,7 @@ https://en.wikipedia.org/wiki/C_%28programming_language%29).
 
 - Get it by fetching the **SDK**.
 
-- Find the [HVM source code here](
+- Find the [🧬 HVM source code here](
   https://codeberg.org/Horse64/hvm.horse64.org/src/branch/main/src/
   ).
 
@@ -99,7 +99,8 @@ Spew3D
 
 **Spew3D** is the base library used for accessing operating system
 facilities, multimedia, and other base functionality, used
-by [HVM](#hvm). [Find it here.](https://codeberg.org/Spew3D/Spew3D)
+by [HVM](#hvm). [🧬 Find its code here.](
+https://codeberg.org/Spew3D/Spew3D)
 While it can be used separately for any [C program](
 https://en.wikipedia.org/wiki/C_%28programming_language%29),
 it's maintained as part of the Horse64 project.
