@@ -23,7 +23,7 @@ Report bugs
 Before you report a bug, you might want to check the
 [standard library reference documentation](
 ./docs/FIXME)
-and the [community chat 💬](https://horse64.org/chat)
+and the [💬 community chat](https://horse64.org/chat)
 to verify if what you found is truly a bug or rather
 a misunderstanding.
 
