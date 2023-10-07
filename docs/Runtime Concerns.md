@@ -25,3 +25,10 @@ need more complex cleanup. Therefore, they cause so-called
 references are cheaper to handle (in terms of computation time)
 and therefore may make your code faster if used instead.
 
+
+Multimedia, filesystem access, and else
+---------------------------------------
+
+For a lot of its base functionality HVM, and therefore by
+extension Horse64 programs, use [Spew3D](/docs/Resources.md#spew3d).
+

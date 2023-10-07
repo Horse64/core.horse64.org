@@ -94,6 +94,17 @@ https://en.wikipedia.org/wiki/C_%28programming_language%29).
   /docs/Runtime%20Concerns.md).
 
 
+Spew3D
+------
+
+**Spew3D** is the base library used for accessing operating system
+facilities, multimedia, and other base functionality, used
+by [HVM](#hvm). [Find it here.](https://codeberg.org/Spew3D/Spew3D)
+While it can be used separately for any [C program](
+https://en.wikipedia.org/wiki/C_%28programming_language%29),
+it's maintained as part of the Horse64 project.
+
+
 Creators
 --------
 
@@ -106,6 +117,6 @@ check the **contributors for the central packages:**
   https://codeberg.org/Horse64/hvm.horse64.org/src/branch/main/AUTHORS.md)
 - [Package manager authors,](
   https://codeberg.org/Horse64/horp.horse64.org/src/branch/main/AUTHORS.md)
-- [Language server authors.](
-  https://codeberg.org/Horse64/horsels.horse64.org/src/branch/main/AUTHORS.md)
+- [Runtime base library authors.](
+  https://codeberg.org/Spew3D/Spew3D/src/branch/main/AUTHORS.md)
 
