@@ -257,7 +257,7 @@ This concerns the files inside `logo` folder:
 ```
 Horse64 Logo is Copyright (C)  2020-2022, ellie/@ell1e. All Rights Reserved.
 
-The "Horse64 Logo"'s files are located in `misc/` with the filenames
+The "Horse64 Logo"'s files are located in `logo/` with the filenames
 starting with "logo".
 The Horse64 Logo and its files may only be used in the official
 unmodified "Horse64" distribution as maintained by ellie/@ell1e,
