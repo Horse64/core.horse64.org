@@ -108,6 +108,9 @@ type ASTResult {
 
     ## @types (project.ProjectFile, none)
     var project_file
+
+    ## @type num
+    var token_len
 }
 
 func ASTResult.as_json_obj {
@@ -171,16 +174,22 @@ func parse_statement(
     ) later repeat
 }
 
-func parse_to_ast(
-        tokens, project_file=none
+func parse_to_ast_ex(
+        tokens, pos, project_file=none,
+        is_inside_block=no
         ) {
     var result = new ASTResult()
+    const startpos = pos
     result.project_file = project_file
 
-    if tokens.len == 0 {
+    # See if we're already at the end of statements:
+    if pos > tokens.len or
+            (is_inside_block and
+            token.surely_to_toplevel_even_in_bad_code(tokens, pos)) {
         return result
     }
-    var pos = 1
+
+    # Get next statement:
     var stmt = parse_statement(
         tokens, pos, result.msgs,
         project_file=project_file
@@ -198,8 +207,13 @@ func parse_to_ast(
         invalid_st.col = token.get_col(tokens, pos)
         result.nodes.add(invalid_st)
         pos += skiplen
-        if pos > tokens.len {
+
+        # See if now we arrived at the end:
+        if pos > tokens.len or
+                (is_inside_block and
+                token.surely_to_toplevel_even_in_bad_code(tokens, pos)) {
             # We reached the end!
+            result.token_len = pos - startpos
             return result
         }
         # Continue trying to find next statement below.
@@ -211,12 +225,25 @@ func parse_to_ast(
 
     if pos > tokens.len {
         # We reached the end!
+        result.token_len = pos - startpos
         return result
     }
     stmt = parse_statement(
         tokens, pos, result.msgs,
         project_file=project_file
     ) later repeat
+}
+
+func parse_to_ast(
+        tokens, project_file=none
+        ) {
+    var contents = parse_to_ast_ex(
+        tokens, 1, project_file=project_file,
+        is_inside_block=no
+    ) later:
+
+    await contents
+    return contents
 }
 
 func _tokenize_this_for_ast(

@@ -25,7 +25,6 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-
 import bignum from core.horse64.org
 import io from core.horse64.org
 import limit from core.horse64.org
@@ -38,7 +37,6 @@ import uri from core.horse64.org
 import compiler.limit as climit
 import compiler.msg as msg
 import compiler.project as project
-
 
 const _math_ops_single_char = {
     "+", "/", "*", "-", "^", "&",
@@ -380,6 +378,31 @@ func parse_token_value(tok) {
         throw new TypeError("Not a basic literal token "
             "with a corresponding Horse64 value.")
     }
+}
+
+## @func surely_to_toplevel_even_in_bad_code
+## Check whether at the given position, the code should be
+## assumed to be at the top level again, the coder having
+## e.g. forgotten closing brackets leading up to it.
+## @returns bool Returns @{yes} if it's a better idea to
+##   assume this is a return to top level even if missing
+##   closing brackets, otherwise returns @{no}.
+func surely_to_toplevel_even_in_bad_code(
+        tokens, start_pos
+        ) {
+    if tokens.len > 0 and typename(tokens[1]) == "str" {
+        tokens = token_list_from_str_list(tokens)
+    }
+    if start_pos >= tokens.len or start_pos < 1 {
+        return yes
+    }
+    if (tokens[start_pos].kind == T_KEYWORD and
+            {"type", "import", "enum"}.has(tokens[start_pos].str) and
+            start_pos + 1 <= tokens.len and
+            tokens[start_pos + 1].kind == T_IDENT) {
+        return yes
+    }
+    return no
 }
 
 ## @func surely_starts_stmt_even_in_bad_code

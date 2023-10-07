@@ -1,5 +1,5 @@
 # @module compiler.ast.func_stmt
-# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2023,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -29,6 +29,7 @@
 import compiler.ast as ast
 import compiler.ast.expr as expr
 import compiler.ast.invalid_stmt as invalid_stmt
+import compiler.ast.block as block
 import compiler.msg as msg
 import compiler.token as token
 
@@ -86,7 +87,7 @@ func parse(tokens, pos, msgs, project_file=none) {
         )
         invalid_st.line = token.get_line(tokens, startpos)
         invalid_st.col = token.get_col(tokens, startpos)
-        return invalid_st
+        return later invalid_st
     }
     stmt.name = tokens[pos].str
     pos += 1
@@ -121,10 +122,23 @@ func parse(tokens, pos, msgs, project_file=none) {
         )
         assert(skiplen > 0)
         stmt.token_len = (pos - startpos) + skiplen
-        return stmt
+        return later stmt
     }
 
+    # Parse arguments if we got a '(' character:
+    if tokens[pos].kind == token.T_BRACKET and
+            tokens[pos].str == "(" {
+        throw new ValueError("Not implemented yet.")
+    }
+
+    # Now parse the required code block opening with '{' here:
+    var result = block.parse(
+        tokens, pos, msgs, project_file=project_file
+    ) later:
+
+    await result
+    pos += result.token_len
     stmt.token_len = (pos - startpos)
-    return stmt
+    return later stmt
 }
 

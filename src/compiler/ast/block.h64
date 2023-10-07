@@ -1,0 +1,94 @@
+# @module compiler.ast.block
+# Copyright (c) 2023,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import compiler.ast as ast
+import compiler.msg as msg
+import compiler.token as token
+
+type CodeBlockResult {
+    ## @type [StmtNode]
+    var stmts = []
+
+    ## @type num
+    var token_len = 0
+}
+
+func parse(tokens, pos, msgs, project_file=none) {
+    var startpos = pos
+    const tokens_len = tokens.len
+    var result = new CodeBlockResult()
+
+    # Ensure we have an opening '{' bracket:
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_BRACKET or
+            tokens[pos].str != "{" {
+        msgs.add(new msg.FileMsg(
+            "Unexpected " + token.describe_token_at(tokens, pos) +
+            ", expected '{' (T_BRACKET) for "
+            "code block.",
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+        pos -= 1
+        var skiplen = token.get_naive_stmt_or_expr_len(
+            tokens, pos, bracket_depth=0, for_expr=no
+        )
+        assert(skiplen > 0)
+        result.token_len = (pos - startpos) + skiplen
+        return result
+    }
+
+    # Get code block contents:
+    var contents = ast.parse_to_ast_ex(
+        tokens, 1, project_file=project_file,
+        is_inside_block=yes
+    ) later:
+
+    await contents
+    result.stmts = contents.nodes
+    pos += contents.token_len 
+
+    # See if we're missing a proper end:
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_BRACKET or
+            tokens[pos].str != "}" {
+        msgs.add(new msg.FileMsg(
+            "Unexpected " + token.describe_token_at(tokens, pos) +
+            ", expected '{' (T_BRACKET) for "
+            "code block.",
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+    } else {
+        pos += 1
+    }
+
+    result.token_len = pos - startpos
+    return result
+}
