@@ -26,7 +26,7 @@ Overview
 | func             | `var f = func test {}`    | no      | no      |
 
 *(Read more [here about GC load](
-/docs/Runtime%20Concerns.md#garbage-collection)).*
+/docs/Runtime%20Concerns.md#garbage-collection).)*
 
 
 Custom data types with `type`
