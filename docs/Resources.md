@@ -93,3 +93,19 @@ https://en.wikipedia.org/wiki/C_%28programming_language%29).
 - Read here on [advanced technical runtime concerns](
   /docs/Runtime%20Concerns.md).
 
+
+Creators
+--------
+
+For a full list of who worked on and created Horse64,
+check the **contributors for the central packages:**
+
+- [Core tools and stdlib authors,](
+  https://codeberg.org/Horse64/core.horse64.org/src/branch/main/AUTHORS.md)
+- [Byte code VM authors,](
+  https://codeberg.org/Horse64/hvm.horse64.org/src/branch/main/AUTHORS.md)
+- [Package manager authors,](
+  https://codeberg.org/Horse64/horp.horse64.org/src/branch/main/AUTHORS.md)
+- [Language server authors.](
+  https://codeberg.org/Horse64/horsels.horse64.org/src/branch/main/AUTHORS.md)
+
