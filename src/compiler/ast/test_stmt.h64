@@ -34,12 +34,19 @@ func test_parse_func_stmt {
         project_file=none
     ) later:
     await v1
+
     assert(v1 != none)
     if v1.msgs.len > 0 {
         for msg in v1.msgs {
             print("Test got invalid error: " + msg.as_terminal_str())
         }
     }
-    assert(v1.msgs.len == none)
+    assert(v1.msgs.len == 0)
+    assert(v1.nodes.len == 1)
+    var func_stmt = v1.nodes[1]
+    assert(func_stmt.name == "main")
+    assert(func_stmt.subblocks.len == 1)
+    assert(func_stmt.subblocks[1].len == 1)
+    #assert(func-stmt.subblocks.stmts[1].
 }
 

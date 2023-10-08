@@ -138,6 +138,7 @@ func parse(tokens, pos, msgs, project_file=none) {
 
     await result
     pos += result.token_len
+    stmt.subblocks.add(result.stmts)
     stmt.token_len = (pos - startpos)
     return later stmt
 }

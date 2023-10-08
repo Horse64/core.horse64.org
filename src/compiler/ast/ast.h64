@@ -34,7 +34,6 @@ import compiler.ast.invalid_stmt as invalid_stmt
 import compiler.msg as msg
 import compiler.token as token
 
-
 type TreeNode {
     var kind
 
@@ -202,6 +201,7 @@ func parse_to_ast_ex(
         var skiplen = token.get_naive_stmt_or_expr_len(
             tokens, pos, for_expr=no
         )
+        assert(skiplen > 0)
         var invalid_st = new invalid_stmt.InvalidStmt(skiplen)
         invalid_st.line = token.get_line(tokens, pos)
         invalid_st.col = token.get_col(tokens, pos)

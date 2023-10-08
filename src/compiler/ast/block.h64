@@ -62,10 +62,11 @@ func parse(tokens, pos, msgs, project_file=none) {
         result.token_len = (pos - startpos) + skiplen
         return result
     }
+    pos += 1  # Past opening '{'.
 
     # Get code block contents:
     var contents = ast.parse_to_ast_ex(
-        tokens, 1, project_file=project_file,
+        tokens, pos, project_file=project_file,
         is_inside_block=yes
     ) later:
 
@@ -92,3 +93,4 @@ func parse(tokens, pos, msgs, project_file=none) {
     result.token_len = pos - startpos
     return result
 }
+
