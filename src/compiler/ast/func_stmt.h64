@@ -1,5 +1,5 @@
 # @module compiler.ast.func_stmt
-# Copyright (c) 2020-2023,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -25,14 +25,12 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-
 import compiler.ast as ast
 import compiler.ast.expr as expr
 import compiler.ast.invalid_stmt as invalid_stmt
 import compiler.ast.block as block
 import compiler.msg as msg
 import compiler.token as token
-
 
 type FuncStmt base ast.StmtNode {
     var name

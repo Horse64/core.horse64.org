@@ -27,7 +27,6 @@
 import compiler.ast as ast
 import compiler.ast.expr as expr
 
-
 func test_parse_expression {
     var msgs = []
 

@@ -1,0 +1,141 @@
+# @module compiler.ast.call_stmt
+# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import compiler.ast as ast
+import compiler.ast.expr as expr
+import compiler.ast.invalid_stmt as invalid_stmt
+import compiler.ast.block as block
+import compiler.msg as msg
+import compiler.token as token
+
+type CallStmt base ast.StmtNode {
+}
+
+func CallStmt.init {
+    base.init()
+    self.kind = ast.N_STMT_FUNC
+}
+
+func CallStmt.as_json_obj {
+    var output = base.as_json_obj()
+    return output
+}
+
+func parse(tokens, pos, msgs, project_file=none) {
+    var stmt = new CallStmt()
+    var token_len = tokens.len
+    var startpos = pos
+
+    if pos > token_len or
+            tokens[pos].kind != token.T_IDENT {
+        return later none
+    }
+
+    # To confirm this is a call, find the '(' open bracket:
+    var call_open_bracket_index = -1
+    var i = pos + 1
+    while yes {
+        if i > token_len {
+            break
+        } elseif tokens[i].kind == token.T_DOT {
+            if i + 1 > token_len or
+                    tokens[i + 1].kind != token.T_IDENT {
+                break
+            }
+            i += 2
+            continue
+        } elseif tokens[i].kind == token.T_BRACKET and
+                tokens[i].str == "[" {
+            var bracket_depth = 1
+            i += 1
+            while yes {
+                if i > token_len {
+                    break
+                }
+                if tokens[i].kind == token.T_BRACKET {
+                    if tokens[i].str == "[" or
+                            tokens[i].str == "(" or
+                            tokens[i].str == "{" {
+                        bracket_depth += 1
+                    } else {
+                        bracket_depth -= 1
+                        if bracket_depth < 0 {
+                            break
+                        }
+                    }
+                }
+            }
+            i += 1
+            continue
+        } elseif tokens[i].kind == token.T_BRACKET and
+                tokens[i].str == "(" {
+            call_open_bracket_index = i
+            break
+        } else {
+            break
+        }
+    }
+    if call_open_bracket_index < 0 {
+        return later none
+    }
+
+    # Parse the call expression:
+    var v1 = expr.parse_expression(
+        ["5"],
+        1, msgs, project_file=none, debug=no
+    ) later:
+    await v1
+
+    # Check if we actually got a call expression:
+    if v1.kind != ast.N_EXPR_BINOP {
+        msgs.add(new msg.FileMsg(
+            "Unexpected expression of kind " +
+            ast.NodeKind.num_label(v1.kind) +
+            ", expected call binary op expression ("
+            "N_EXPR_BINOP) in call statement",
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+    } elseif v1.optoken != "(" {
+        msgs.add(new msg.FileMsg(
+            "Unexpected binary operator of kind " +
+            token.describe_token_str(v1.optoken) +
+            ", expected call binary op expression ("
+            "N_EXPR_BINOP) in call statement",
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+    } else {
+        stmt.subexprs.add(v1)
+    }
+    pos += v1.token_len
+    stmt.token_len = (pos - startpos)
+    return later stmt
+}
+

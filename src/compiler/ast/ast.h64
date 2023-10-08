@@ -28,6 +28,7 @@
 import json from core.horse64.org
 import uri from core.horse64.org
 
+import compiler.ast.call_stmt as call_stmt
 import compiler.ast.func_stmt as func_stmt
 import compiler.ast.import_stmt as import_stmt
 import compiler.ast.invalid_stmt as invalid_stmt
@@ -94,6 +95,7 @@ enum NodeKind {
     N_EXPR_UNOP,
     N_EXPR_IDREF,
     N_STMT_FUNC,
+    N_STMT_CALL,
     N_STMT_IMPORT,
     N_STMT_INVALID,
 }
@@ -137,6 +139,7 @@ func ASTResult.as_json_obj {
 }
 
 var stmt_parse_funcs = [
+    call_stmt.parse,
     func_stmt.parse,
     import_stmt.parse,
 ]
