@@ -119,18 +119,17 @@ func parse(tokens, pos, msgs, project_file=none) {
              ast.NodeKind.num_label(v1.kind)) else
              ("starting with token " +
               token.describe_token(tokens[pos]))) +
-            ", expected call binary op expression ("
-            "N_EXPR_BINOP) in call statement",
+            ", expected valid call expression.",
             source_file=project_file,
             line=token.get_line(tokens, pos),
             col=token.get_col(tokens, pos),
         ))
     } elseif v1.optoken != "(" {
         msgs.add(new msg.FileMsg(
-            "Unexpected binary operator of kind " +
+            "Unexpected binary operator expression " +
             token.describe_token_str(v1.optoken) +
-            ", expected call binary op expression ("
-            "N_EXPR_BINOP) in call statement",
+            ", expected call statement with no surrounding " +
+            "operator expressions.",
             source_file=project_file,
             line=token.get_line(tokens, pos),
             col=token.get_col(tokens, pos),
