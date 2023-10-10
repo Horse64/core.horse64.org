@@ -59,6 +59,30 @@ func test_parse_expression {
     assert(v2.subexprs[1].subexprs[1].kind == ast.N_EXPR_LIT)
 }
 
+func test_parse_call_expression {
+    var msgs = []
+
+    var v1 = expr.parse_expression(
+        ["print", "(", "'Hello World'", ")"],
+        1, msgs, project_file=none, debug=no
+    ) later:
+    await v1
+
+    if msgs.len > 0 {
+        for msg in msgs {
+            print("Test got invalid error: " + msg.as_terminal_str())
+        }
+    }
+    assert(msgs.len == 0)
+    assert(v1 != none)
+    assert(v1.token_len == 4)
+    assert(v1.kind == ast.N_EXPR_BINOP)
+    assert(v1.subexprs.len == 2)
+    assert(v1.subexprs[1].kind == ast.N_EXPR_IDREF)
+    assert(v1.subexprs[2].kind == ast.N_EXPR_LIT)
+    assert(v1.subexprs[2].value == "Hello World")
+}
+
 func test_parse_call_or_funcdef_args {
     var msgs
 
