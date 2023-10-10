@@ -140,15 +140,17 @@ func parse(tokens, pos, msgs, project_file=none) {
                 line=token.get_line(tokens, pos),
                 col=token.get_col(tokens, pos),
             ))
-        } elseif v1.optoken != "(" {
+        } elseif v1.optoken.str != "(" {
             msgs.add(new msg.FileMsg(
                 "Unexpected binary operator expression " +
                 token.describe_token(v1.optoken) +
                 ", expected call statement with no surrounding " +
-                "operator expressions.",
+                "operator expressions, for statement starting in " +
+                "line " + token.get_line(tokens, pos) +
+                ", column " + token.get_col(tokens, pos) + ".",
                 source_file=project_file,
-                line=token.get_line(tokens, pos),
-                col=token.get_col(tokens, pos),
+                line=v1.optoken.line,
+                col=v1.optoken.col,
             ))
         } else {
             stmt.subexprs.add(v1)

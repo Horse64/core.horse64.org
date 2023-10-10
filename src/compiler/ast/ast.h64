@@ -92,7 +92,6 @@ func StmtNode.as_json_obj {
 enum NodeKind {
     N_EXPR_ARGNAME,
     N_EXPR_BINOP,
-    N_EXPR_CALLARG,
     N_EXPR_CALLKWARG,
     N_EXPR_CALLORDEFARGS,
     N_EXPR_CONTAINER,

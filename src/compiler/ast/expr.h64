@@ -622,6 +622,13 @@ func parse_expression_unwrapped(
             (tokens[pos].kind == token.T_DOT or
              (tokens[pos].kind == token.T_BRACKET and
               {"(", "["}.has(tokens[pos].str))) {
+        if debug {
+            print("compiler.ast.expr: parse_expression_unwrapped() " +
+                debug_id + " discovered call/member/index op " +
+                token.describe_token(tokens[pos]) + " at index=" +
+                pos.as_str())
+        }
+
         var orig_left_hand_len = left_hand.token_len
         var openbracket =
             if tokens[pos].kind == token.T_BRACKET
@@ -653,10 +660,11 @@ func parse_expression_unwrapped(
                 await inner_expr
                 assert(inner_expr != none)
                 inner_expr.token_len -= 1  # Due to parse_pos = pos - 1.
-                if pos + inner_expr.token_len <= tokens_len and
-                        tokens[pos + inner_expr.token_len].kind ==
+                if inner_expr.token_len > 0 and
+                        pos + inner_expr.token_len - 1 <= tokens_len and
+                        tokens[pos + inner_expr.token_len - 1].kind ==
                             token.T_BRACKET and
-                        tokens[pos + inner_expr.token_len].str == ")" {
+                        tokens[pos + inner_expr.token_len - 1].str == ")" {
                     inner_expr.token_len -= 1  # Exclude closing ')'.
                 }
                 return inner_expr
@@ -673,6 +681,12 @@ func parse_expression_unwrapped(
         var inner_expr = get_bracketed_expression() later:
 
         await inner_expr
+        if debug {
+            print("compiler.ast.expr: parse_expression_unwrapped() " +
+                debug_id + " got call/member/index inner_expr=" +
+                if inner_expr != none (inner_expr.as_json_obj().as_str())
+                    else ("none"))
+        }
         if inner_expr == none {
             msgs.add(new msg.FileMsg(
                 "Unexpected " + token.describe_token_at(
@@ -723,7 +737,7 @@ func parse_expression_unwrapped(
             node.subexprs.add(inner_expr)
             pos += inner_expr.token_len
             if openbracket != none and
-                    (pos >= tokens_len or
+                    (pos > tokens_len or
                     tokens[pos].kind != token.T_BRACKET or
                     token.reverse_brackets(openbracket) !=
                         tokens[pos].str) {
@@ -757,6 +771,12 @@ func parse_expression_unwrapped(
                 tokens[pos].kind != token.T_DOT and
                 (tokens[pos].kind != token.T_BRACKET or
                  not {"(", "["}.has(tokens[pos].str))) {
+            if debug {
+                print("compiler.ast.expr: parse_expression_unwrapped() " +
+                    debug_id + " completed call/member/index node=" +
+                    if inner_expr != none (node.as_json_obj().as_str())
+                        else ("none"))
+            }
             # End of call/member access/index chain!
             return node
         }
@@ -1055,14 +1075,6 @@ func CallKWArgExpr.init {
     self.kind = ast.N_EXPR_CALLKWARG
 }
 
-type CallArgExpr base ast.TreeNode {
-}
-
-func CallArgExpr.init {
-    base.init()
-    self.kind = ast.N_EXPR_CALLARG
-}
-
 type ArgNameExpr base ast.TreeNode {
     var label
 }
@@ -1223,17 +1235,13 @@ func parse_single_call_or_funcdef_arg(
         result_node.token_len = (pos - startpos)
         result_node.line = token.get_line(tokens, startpos)
         result_node.col = token.get_col(tokens, startpos)
-        result_node.subexprs.add(pre_assign_expr)
+        assert(pre_assign_expr.kind == ast.N_EXPR_IDREF)
+        result_node.label = pre_assign_expr.label
         result_node.subexprs.add(assigned_expr)
         return result_node
     } else {
         if is_call {
-            var result_node = new CallArgExpr()
-            result_node.token_len = (pos - startpos)
-            result_node.line = token.get_line(tokens, startpos)
-            result_node.col = token.get_col(tokens, startpos)
-            result_node.subexprs.add(pre_assign_expr)
-            return result_node
+            return pre_assign_expr
         }
         var result_node = new ArgNameExpr()
         result_node.token_len = (pos - startpos)

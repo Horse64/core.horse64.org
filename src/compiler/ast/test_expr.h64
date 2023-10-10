@@ -79,8 +79,10 @@ func test_parse_call_expression {
     assert(v1.kind == ast.N_EXPR_BINOP)
     assert(v1.subexprs.len == 2)
     assert(v1.subexprs[1].kind == ast.N_EXPR_IDREF)
-    assert(v1.subexprs[2].kind == ast.N_EXPR_LIT)
-    assert(v1.subexprs[2].value == "Hello World")
+    assert(v1.subexprs[2].kind == ast.N_EXPR_CALLORDEFARGS)
+    assert(v1.subexprs[2].subexprs.len == 1)
+    assert(v1.subexprs[2].subexprs[1].kind == ast.N_EXPR_LIT)
+    assert(v1.subexprs[2].subexprs[1].value == "Hello World")
 }
 
 func test_parse_call_or_funcdef_args {
