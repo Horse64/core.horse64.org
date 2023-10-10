@@ -1,5 +1,5 @@
 # @module compiler.main
-# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -70,18 +70,19 @@ func parse_ast_target_from_args(args) {
     if args["--code"] != none {
         var tresult = compiler.ast.parse_str_to_ast(
             args["--code"]
-        )
-        return tresult
-    } else {
-        var src_path = args["source file"]
-
-        var tresult = compiler.ast.parse_to_ast_from_uri(
-            src_path, default_to_diskpath=yes
         ) later:
 
         await tresult
         return tresult
     }
+    var src_path = args["source file"]
+
+    var tresult = compiler.ast.parse_to_ast_from_uri(
+        src_path, default_to_diskpath=yes
+    ) later:
+
+    await tresult
+    return tresult
 }
 
 func show_ast_result_to_terminal(
