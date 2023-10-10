@@ -47,6 +47,6 @@ func test_parse_func_stmt {
     assert(func_stmt.name == "main")
     assert(func_stmt.subblocks.len == 1)
     assert(func_stmt.subblocks[1].len == 1)
-    #assert(func-stmt.subblocks.stmts[1].
+    assert(func_stmt.subblocks.stmts[1].kind == ast.N_STMT_CALL)
 }
 

@@ -1,5 +1,5 @@
 # @module compiler.ast
-# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -77,8 +77,14 @@ type StmtNode base TreeNode {
 func StmtNode.as_json_obj {
     var output = base.as_json_obj()
     output["subblocks"] = []
-    for block in self.subblocks {
-        output["subblocks"].add(child.as_json_obj())
+    for blocks in self.subblocks {
+        var inner_blocks_objs = []
+        for block in blocks {
+            inner_blocks_objs.add(
+                block.as_json_obj()
+            )
+        }
+        output["subblocks"].add(inner_blocks_objs)
     }
     return output
 }
@@ -186,8 +192,11 @@ func parse_to_ast_ex(
 
     # See if we're already at the end of statements:
     if pos > tokens.len or
-            (is_inside_block and
-            token.surely_to_toplevel_even_in_bad_code(tokens, pos)) {
+            (is_inside_block and (
+             (pos <= tokens.len and
+              tokens[pos].kind == token.T_BRACKET and
+              tokens[pos].str == "}") or
+             token.surely_to_toplevel_even_in_bad_code(tokens, pos))) {
         return result
     }
 
@@ -210,23 +219,18 @@ func parse_to_ast_ex(
         invalid_st.col = token.get_col(tokens, pos)
         result.nodes.add(invalid_st)
         pos += skiplen
-
-        # See if now we arrived at the end:
-        if pos > tokens.len or
-                (is_inside_block and
-                token.surely_to_toplevel_even_in_bad_code(tokens, pos)) {
-            # We reached the end!
-            result.token_len = pos - startpos
-            return result
-        }
-        # Continue trying to find next statement below.
     } else {
         # Extracted a new statement.
         result.nodes.add(stmt)
         pos += stmt.token_len
     }
 
-    if pos > tokens.len {
+    if pos > tokens.len or
+            (is_inside_block and (
+             (pos <= tokens.len and
+              tokens[pos].kind == token.T_BRACKET and
+              tokens[pos].str == "}") or
+             token.surely_to_toplevel_even_in_bad_code(tokens, pos))) {
         # We reached the end!
         result.token_len = pos - startpos
         return result
@@ -249,7 +253,7 @@ func parse_to_ast(
     return contents
 }
 
-func _tokenize_this_for_ast(
+func _tokenize_this_file_for_ast(
         source, project_file=none, source_is_uri=no
         ) {
     if not source_is_uri {
@@ -268,10 +272,10 @@ func _tokenize_this_for_ast(
     }
 }
 
-func _parse_tokens_to_ast_ex(
+func _parse_tokens_file_to_ast_ex(
         tokens_source, project_file=project_file, source_is_uri=no
         ) {
-    var tresult = _tokenize_this_for_ast(
+    var tresult = _tokenize_this_file_for_ast(
         tokens_source, project_file=project_file,
         source_is_uri=source_is_uri
     )
@@ -301,7 +305,7 @@ func _parse_tokens_to_ast_ex(
 func parse_str_to_ast(
         codestr, project_file=none
         ) {
-    var result = _parse_tokens_to_ast_ex(
+    var result = _parse_tokens_file_to_ast_ex(
         codestr, project_file=project_file, source_is_uri=no
     ) later:
 
@@ -327,7 +331,7 @@ func parse_str_to_ast(
 func parse_to_ast_from_uri(
         fileuri, project_file=none, default_to_diskpath=no
         ) {
-    var result = _parse_tokens_to_ast_ex(
+    var result = _parse_tokens_file_to_ast_ex(
         uri.normalize(fileuri,
         guess_nonfiles=(not default_to_diskpath)),
         project_file=project_file,

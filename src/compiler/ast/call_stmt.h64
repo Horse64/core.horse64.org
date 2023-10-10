@@ -37,7 +37,7 @@ type CallStmt base ast.StmtNode {
 
 func CallStmt.init {
     base.init()
-    self.kind = ast.N_STMT_FUNC
+    self.kind = ast.N_STMT_CALL
 }
 
 func CallStmt.as_json_obj {
@@ -105,16 +105,20 @@ func parse(tokens, pos, msgs, project_file=none) {
 
     # Parse the call expression:
     var v1 = expr.parse_expression(
-        ["5"],
-        1, msgs, project_file=none, debug=no
+        tokens.sub(pos), pos,
+        msgs,
+        project_file=none, debug=no
     ) later:
     await v1
 
     # Check if we actually got a call expression:
-    if v1.kind != ast.N_EXPR_BINOP {
+    if v1 == none or v1.kind != ast.N_EXPR_BINOP {
         msgs.add(new msg.FileMsg(
-            "Unexpected expression of kind " +
-            ast.NodeKind.num_label(v1.kind) +
+            "Unexpected expression " +
+            (if v1 != none ("of kind " +
+             ast.NodeKind.num_label(v1.kind)) else
+             ("starting with token " +
+              token.describe_token(tokens[pos]))) +
             ", expected call binary op expression ("
             "N_EXPR_BINOP) in call statement",
             source_file=project_file,
@@ -134,7 +138,14 @@ func parse(tokens, pos, msgs, project_file=none) {
     } else {
         stmt.subexprs.add(v1)
     }
-    pos += v1.token_len
+    if v1 != none {
+        pos += v1.token_len
+    } else {
+        var skiplen = token.get_naive_stmt_or_expr_len(
+            tokens, pos, for_expr=no
+        )
+        pos += skiplen
+    }
     stmt.token_len = (pos - startpos)
     return later stmt
 }
