@@ -45,6 +45,14 @@ func CallStmt.as_json_obj {
     return output
 }
 
+type AssignStmt base ast.StmtNode {
+}
+
+func AssignStmt.init {
+    base.init()
+    self.kind = ast.N_STMT_ASSIGN
+}
+
 func parse(tokens, pos, msgs, project_file=none) {
     var stmt = new CallStmt()
     var token_len = tokens.len
@@ -55,8 +63,9 @@ func parse(tokens, pos, msgs, project_file=none) {
         return later none
     }
 
-    # To confirm this is a call, find the '(' open bracket:
-    var call_open_bracket_index = -1
+    # To check this is a call or assign, find the '(' or '=':
+    var is_call = yes
+    var assign_or_call_idx = -1
     var i = pos + 1
     while yes {
         if i > token_len {
@@ -93,59 +102,81 @@ func parse(tokens, pos, msgs, project_file=none) {
             continue
         } elseif tokens[i].kind == token.T_BRACKET and
                 tokens[i].str == "(" {
-            call_open_bracket_index = i
+            assign_or_call_idx = i
+            break
+        } elseif tokens[i].kind == token.T_MATHASSIGN or
+                token[i].kind == T_ASSIGN {
+            assign_or_call_idx = i
+            is_call = no
             break
         } else {
             break
         }
     }
-    if call_open_bracket_index < 0 {
+    if assign_or_call_idx < 0 {
         return later none
     }
 
-    # Parse the call expression:
+    # Parse the call or lvalue expression:
     var v1 = expr.parse_expression(
-        tokens.sub(pos), pos,
-        msgs,
+        tokens, pos,
+        msgs, max_len=(if is_call (token_len) else
+            (assign_or_call_idx - pos)),
         project_file=none, debug=no
     ) later:
     await v1
 
-    # Check if we actually got a call expression:
-    if v1 == none or v1.kind != ast.N_EXPR_BINOP {
-        msgs.add(new msg.FileMsg(
-            "Unexpected expression " +
-            (if v1 != none ("of kind " +
-             ast.NodeKind.num_label(v1.kind)) else
-             ("starting with token " +
-              token.describe_token(tokens[pos]))) +
-            ", expected valid call expression.",
-            source_file=project_file,
-            line=token.get_line(tokens, pos),
-            col=token.get_col(tokens, pos),
-        ))
-    } elseif v1.optoken != "(" {
-        msgs.add(new msg.FileMsg(
-            "Unexpected binary operator expression " +
-            token.describe_token_str(v1.optoken) +
-            ", expected call statement with no surrounding " +
-            "operator expressions.",
-            source_file=project_file,
-            line=token.get_line(tokens, pos),
-            col=token.get_col(tokens, pos),
-        ))
-    } else {
-        stmt.subexprs.add(v1)
+    if is_call {
+        # Check if we actually got a call expression:
+        if v1 == none or v1.kind != ast.N_EXPR_BINOP {
+            msgs.add(new msg.FileMsg(
+                "Unexpected expression " +
+                (if v1 != none ("of kind " +
+                 ast.NodeKind.num_label(v1.kind)) else
+                 ("starting with token " +
+                  token.describe_token(tokens[pos]))) +
+                ", expected valid call expression.",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+        } elseif v1.optoken != "(" {
+            msgs.add(new msg.FileMsg(
+                "Unexpected binary operator expression " +
+                token.describe_token(v1.optoken) +
+                ", expected call statement with no surrounding " +
+                "operator expressions.",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+        } else {
+            stmt.subexprs.add(v1)
+        }
+        if v1 != none {
+            pos += v1.token_len
+        } else {
+            var skiplen = token.get_naive_stmt_or_expr_len(
+                tokens, pos, for_expr=no
+            )
+            pos += skiplen
+        }
+        stmt.token_len = (pos - startpos)
+        return later stmt
     }
-    if v1 != none {
-        pos += v1.token_len
-    } else {
-        var skiplen = token.get_naive_stmt_or_expr_len(
-            tokens, pos, for_expr=no
-        )
-        pos += skiplen
-    }
+    assert(not is_call)
+
+    var v2 = expr.parse_expression(
+        tokens, assign_or_call_idx + 1,
+        msgs,
+        project_file=none, debug=no
+    ) later:
+    await v2
+
+    pos += v2.token_len
     stmt.token_len = (pos - startpos)
-    return later stmt
+    stmt.subexprs.add(v1)
+    stmt.subexprs.add(v2)
+    return stmt
 }
 
