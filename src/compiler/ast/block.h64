@@ -37,7 +37,8 @@ type CodeBlockResult {
     var token_len = 0
 }
 
-func parse(tokens, pos, msgs, project_file=none, debug=no) {
+func parse(tokens, pos, msgs, project_file=none, debug=no,
+        block_purpose_name="") {
     var startpos = pos
     const tokens_len = tokens.len
     var result = new CodeBlockResult()
@@ -82,7 +83,9 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         msgs.add(new msg.FileMsg(
             "Unexpected " + token.describe_token_at(tokens, pos) +
             ", expected '{' (T_BRACKET) for "
-            "code block.",
+            "code block" +
+            if block_purpose_name.len > 0 (" ") else ("") +
+            block_purpose_name + ".",
             source_file=project_file,
             line=token.get_line(tokens, pos),
             col=token.get_col(tokens, pos),

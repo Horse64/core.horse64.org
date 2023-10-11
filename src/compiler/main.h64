@@ -66,10 +66,10 @@ func tokenize_target_from_args(args) {
     }
 }
 
-func parse_ast_target_from_args(args) {
+func parse_ast_target_from_args(args, debug=no) {
     if args["--code"] != none {
         var tresult = compiler.ast.parse_str_to_ast(
-            args["--code"]
+            args["--code"], debug=debug
         ) later:
 
         await tresult
@@ -78,7 +78,7 @@ func parse_ast_target_from_args(args) {
     var src_path = args["source file"]
 
     var tresult = compiler.ast.parse_to_ast_from_uri(
-        src_path, default_to_diskpath=yes
+        src_path, default_to_diskpath=yes, debug=debug
     ) later:
 
     await tresult
@@ -136,6 +136,10 @@ func actionparser_compile(args) {
         "--code", aliases=["-c"], takes_arg=yes,
         description="A code line which to compile instead of "
             "a file on disk.")
+    defs.add_switch(
+        "--debug-ast",
+        description="Enable debug mode for the AST parser. "
+            "Warning, this will result in a lot of output.")
     defs.add_switch(
         "--stage", takes_arg=yes,
         description="At which stage to stop. The default is "
@@ -207,7 +211,9 @@ func actionparser_compile(args) {
         }
     } elseif result.args["--stage"] == "ast" {
         var had_error = no
-        var aresult = parse_ast_target_from_args(result.args)
+        var aresult = parse_ast_target_from_args(
+            result.args, debug=result.args["--debug-ast"]
+        )
         later:
 
         await aresult

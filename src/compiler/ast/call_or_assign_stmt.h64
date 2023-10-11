@@ -35,6 +35,7 @@ import compiler.token as token
 type CallStmt base ast.StmtNode {
     var has_later = no
     var has_later_ignore = no
+    var has_later_repeat = no
 }
 
 func CallStmt.init {
@@ -173,13 +174,15 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             if pos + 1 > token_len or
                     (tokens[pos + 1].kind != token.T_COLON and
                      (tokens[pos + 1].kind != token.T_KEYWORD or
-                      tokens[pos + 1].str != "ignore")) {
+                      (tokens[pos + 1].str != "ignore" and
+                       tokens[pos + 1].str != "repeat"))) {
                 msgs.add(new msg.FileMsg(
                     "Unexpected " +
                     if pos + 1 <= token_len
                         (token.describe_token(tokens[pos + 1])) else
                         ("end of tokens") +
-                    ", expected ':' or 'ignore' following 'later'.",
+                    ", expected ':', 'repeat', or 'ignore' "
+                    "following 'later'.",
                     source_file=project_file,
                     line=token.get_line(tokens, pos),
                     col=token.get_col(tokens, pos),

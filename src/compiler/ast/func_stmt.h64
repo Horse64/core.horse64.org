@@ -25,6 +25,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import math from core.horse64.org
+
 import compiler.ast as ast
 import compiler.ast.expr as expr
 import compiler.ast.invalid_stmt as invalid_stmt
@@ -62,6 +64,12 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             tokens[pos].kind != token.T_KEYWORD or
             tokens[pos].str != "func" {
         return later none
+    }
+    if debug {
+        print("compiler.ast.func_stmt: parse() on " +
+            tokens.sub(pos, math.min(pos + 10, tokens_len)).as_str() +
+            "... with pos=" + pos.as_str() + ", "
+            "tokens.len=" + tokens.len.as_str())
     }
     stmt.pos = token.get_line(tokens, pos)
     stmt.col = token.get_col(tokens, pos)
@@ -167,7 +175,10 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     # Now parse the required code block opening with '{' here:
     var block_result = block.parse(
         tokens, pos, msgs, project_file=project_file,
-        debug=debug
+        debug=debug,
+        block_purpose_name="func statement starting in "
+            "line " + token.get_line(tokens, startpos).as_str() +
+            ", column " + token.get_col(tokens, startpos).as_str()
     ) later:
 
     await block_result
