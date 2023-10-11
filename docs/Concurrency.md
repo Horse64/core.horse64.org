@@ -95,7 +95,6 @@ The rules for creating your own later function are as follows:
 **Note on race conditions:** concurrent functions don't run
 truly in parallel. Only during the time skips, so during
 your `later` calls, can other interleaved later functions run.
-
 [See more on the formal concurrency model here.](
 /docs/Language%20Specs/Concurrency%20Model.md)
 
