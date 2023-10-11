@@ -144,7 +144,7 @@ func parse_next_ifelse_clause_header(
         return later invalid_st
     }
     pos += v.token_len
-        
+
     clause.subexprs.add(v)
     clause.token_len = pos - clausestart
     return clause
