@@ -23,9 +23,12 @@ where other code of yours may run. This happens via the `later` keyword:
   }
   ```
 
-Concurrent functions in Horse64 are also called *"later function*".
+Concurrent functions in Horse64 are also called *"later functions"*
+which is how [horsec](/docs/Resources#horsec) usually names them.
 
-The rule for calling later functions are as follows:
+## Rules for calling later functions
+
+The rules for calling later functions are as follows:
 
 1. Calls to later functions must be followed by `later`
    to indicate that there is a time skip. Such calls must be in
@@ -36,20 +39,20 @@ The rule for calling later functions are as follows:
    so you can put it into `do ... rescue` to handle them:
 
    ```Horse64
-  import net.fetch from core.horse64.org
-  func main {
-      var contents = net.fetch.get_str(
-          "https://horse64.org"
-      ) later:  # <- Execution after this runs later, after a time skip.
+   import net.fetch from core.horse64.org
+   func main {
+       var contents = net.fetch.get_str(
+           "https://horse64.org"
+       ) later:  # <- Execution after this runs later, after a time skip.
 
-      do {
-          await contents  # <- Errors bubble up here.
-          print("Obtained website contents: " + contents)
-      } rescue NetworkIOError {
-          print("Oops, our download failed!")
-      }
-  }
-  ```
+       do {
+           await contents  # <- Errors bubble up here.
+           print("Obtained website contents: " + contents)
+       } rescue NetworkIOError {
+           print("Oops, our download failed!")
+       }
+   }
+   ```
 
 3. Usually, later functions will have a return value that you
    can reasonably `await` and then use.
@@ -69,6 +72,8 @@ The rule for calling later functions are as follows:
              but we don't care.")
    }
    ```
+
+## Rules for creating later functions
 
 The rules for creating your own later function are as follows:
 
@@ -90,13 +95,8 @@ The rules for creating your own later function are as follows:
 
 **Note on race conditions:** concurrent functions don't run
 truly in parallel. Only during the time skips, so during
-your `later` calls, are other interleaving functions allowed
-to run. So for those calls, you need to consider potential
-race conditions, but not anywhere else.
+your `later` calls, can other interleaved later functions run.
 
-**Note on performance:** the Horse64 concurrency doesn't mean
-multi-threading. Therefore, it will avoid performance issues
-from getting stalled by external resources, but it won't avoid
-performance issues caused by too much computation going on
-that would benefit from multicore performance.
+[See more on the formal concurrency model here.](
+/docs/Language%20Specs/Concurrency%20Model.md)
 
