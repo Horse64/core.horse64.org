@@ -90,8 +90,7 @@ The rules for creating your own later function are as follows:
    any others stuck waiting to resume after a time skip.)
 
 3. Remember, a later function needs to be called with `later`.
-   A regular function *can't* be calld with `later`. The
-   expert term for this is a "function coloring" system.
+   A regular function *can't* ever be called with `later`.
 
 **Note on race conditions:** concurrent functions don't run
 truly in parallel. Only during the time skips, so during
