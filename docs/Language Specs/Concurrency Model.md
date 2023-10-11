@@ -4,7 +4,7 @@
 Concurrency model of Horse64
 ============================
 
-Horse64's concurrency model has the following qualities:
+Horse64's concurrency model has the following properties:
 
 - It has two types of functions, the concurrent *"later functions"*
   and the regular ones, that both need to be called differently.
