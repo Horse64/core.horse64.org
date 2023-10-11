@@ -32,6 +32,7 @@ import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
 import compiler.ast.func_stmt as func_stmt
 import compiler.ast.import_stmt as import_stmt
 import compiler.ast.invalid_stmt as invalid_stmt
+import compiler.ast.return_stmt as return_stmt
 import compiler.msg as msg
 import compiler.token as token
 
@@ -103,6 +104,7 @@ enum NodeKind {
     N_STMT_CALL,
     N_STMT_ASSIGN,
     N_STMT_IMPORT,
+    N_STMT_RETURN,
     N_STMT_INVALID,
 }
 
@@ -148,6 +150,7 @@ var stmt_parse_funcs = [
     call_or_assign_stmt.parse,
     func_stmt.parse,
     import_stmt.parse,
+    return_stmt.parse,
 ]
 
 func parse_statement(
