@@ -1769,7 +1769,8 @@ func tokenize_from_uri(
     }
     var fileobj = net.fetch.open(
         source_uri, allow_vfs=yes, allow_disk=yes
-    )
+    ) later:
+    await fileobj
     do {
         var result = tokenize_from_fileobj(fileobj,
             project_file=project_file,
