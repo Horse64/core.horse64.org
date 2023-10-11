@@ -1,0 +1,244 @@
+# @module compiler.ast.if_stmt
+# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import math from core.horse64.org
+
+import compiler.ast as ast
+import compiler.ast.expr as expr
+import compiler.ast.invalid_stmt as invalid_stmt
+import compiler.ast.block as block
+import compiler.msg as msg
+import compiler.token as token
+
+type IfStmt base ast.StmtNode {
+}
+
+func IfStmt.init {
+    base.init()
+    self.kind = ast.N_STMT_IF
+}
+
+func IfStmt.as_json_obj {
+    var output = base.as_json_obj()
+    return output
+}
+
+type IfElseClause base ast.TreeNode {
+    var is_else = no
+}
+
+func IfElseClause.init {
+    base.init()
+    self.kind = ast.N_EXPR_IFELSECLAUSE
+}
+
+func IfElseClause.as_json_obj {
+    var output = base.as_json_obj()
+    return output
+}
+
+func parse_next_ifelse_clause_header(
+        tokens, pos, msgs,
+        project_file=project_file, debug=no,
+        is_first=yes, startpos=none) {
+    var tokens_len = tokens.len
+    if startpos == none {
+        startpos = pos
+    }
+    var clausestart = pos
+    var clause = new IfElseClause()
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_KEYWORD or
+            ((not is_first or tokens[pos].str != "if") and
+            (is_first or (tokens[pos].str != "else" and
+            tokens[pos].str != "elseif"))) {
+        if is_first or token.token_has_lefthand(tokens[pos]) {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(tokens, pos) +
+                ", expected " +
+                if is_first ("'if' clause") else
+                    ("'else' or 'elseif' clause or ending") +
+                " for if statement starting in line " +
+                token.get_line(tokens, startpos).as_str() +
+                ", column " +
+                token.get_col(tokens, startpos).as_str(),
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+            var skiplen = token.get_naive_stmt_or_expr_len(
+                tokens, startpos, bracket_depth=0
+            )
+            assert(skiplen > 0)
+            var invalid_st = new expr.InvalidExpr(
+                skiplen
+            )
+            invalid_st.line = token.get_line(tokens, startpos)
+            invalid_st.col = token.get_col(tokens, startpos)
+            invalid_st.token_len = skiplen
+            return later invalid_st
+        }
+    }
+    if tokens[pos].str == "else" {
+        pos += 1
+        clause.is_else = yes
+        clause.token_len = pos - clausestart
+        return clause
+    }
+    pos += 1
+
+    var v = expr.parse_expression(
+        tokens, pos, msgs,
+        project_file=project_file
+    ) later:
+
+    await v
+    if v == none {
+        msgs.add(new msg.FileMsg(
+            "Unexpected " + token.describe_token_at(tokens, pos) +
+            ", expected conditional for " +
+            if is_first ("'if' clause") else
+                ("'elseif' clause") +
+            " for if statement starting in line " +
+            token.get_line(tokens, startpos).as_str() +
+            ", column " +
+            token.get_col(tokens, startpos).as_str(),
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+        var skiplen = token.get_naive_stmt_or_expr_len(
+            tokens, startpos, bracket_depth=0
+        )
+        assert(skiplen > 0)
+        var invalid_st = new expr.InvalidExpr(
+            skiplen
+        )
+        invalid_st.line = token.get_line(tokens, startpos)
+        invalid_st.col = token.get_col(tokens, startpos)
+        invalid_st.token_len = skiplen + (pos - clausestart)
+        return later invalid_st
+    }
+    pos += v.token_len
+        
+    clause.subexprs.add(v)
+    clause.token_len = pos - clausestart
+    return clause
+}
+
+func parse_next_ifelse_clause(
+        tokens, pos, msgs,
+        project_file=project_file, debug=no,
+        is_first=yes, startpos=none) {
+    if startpos == none {
+        startpos = pos
+    }
+    var clause = parse_next_ifelse_clause(
+        tokens, pos, msgs, project_file=project_file,
+        debug=debug, is_first=is_first, startpos=startpos
+    ) later:
+
+    await clause
+    if clause == none {
+        return clause
+    }
+    if clause.kind == ast.N_EXPR_INVALID and (
+            pos > tokens_len or
+            tokens[pos].kind != token.T_BRACKET or
+            tokens[pos].str != "{") {
+        # Don't pile on error msg for missing code block since
+        # it already spat out an error, just quietly bail:
+        return clause
+    }
+    var block_result = block.parse(
+        tokens, pos, msgs, project_file=project_file,
+        debug=debug,
+        block_purpose_name="func statement starting in "
+            "line " + token.get_line(tokens, startpos).as_str() +
+            ", column " + token.get_col(tokens, startpos).as_str()
+    ) later:
+
+    await block_result
+    assert(block_result != none)
+    clause.subblocks.add(block_result)
+    return clause
+}
+
+func parse(tokens, pos, msgs, project_file=none, debug=no) {
+    var tokens_len = tokens.len
+    var startpos = pos
+
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_KEYWORD or
+            tokens[pos].str != "if" {
+        return later none
+    }
+    var stmt = new IfStmt()
+
+    if debug {
+        print("compiler.ast.if_stmt: parse() on " +
+            tokens.sub(pos, math.min(pos + 10, tokens_len)).as_str() +
+            "... with pos=" + pos.as_str() + ", "
+            "tokens.len=" + tokens.len.as_str())
+    }
+    stmt.pos = token.get_line(tokens, pos)
+    stmt.col = token.get_col(tokens, pos)
+
+    if debug {
+        print("compiler.ast.if_stmt: parse() fetching "
+            "first clause at pos=" + pos.as_str() + "...")
+    }
+    var clause = parse_next_ifelse_clause_header(
+        tokens, pos, msgs,
+        project_file=project_file, debug=debug,
+        is_first=yes, startpos=startpos
+    ) later:
+
+    await clause
+    if clause == none {
+        stmt.token_len = (pos - startpos)
+        return stmt
+    }
+    if clause.kind == ast.N_EXPR_INVALID {
+        pos += clause.token_len
+        stmt.token_len = (pos - startpos)
+        return stmt
+    }
+    pos += clause.token_len
+    stmt.subexprs.add(clause)
+
+    if debug {
+        print("compiler.ast.if_stmt: parse() trying followup "
+            "clause at pos=" + pos.as_str() + "...")
+    }
+    clause = parse_next_ifelse_clause_header(
+        tokens, pos, msgs,
+        project_file=project_file, debug=debug,
+        is_first=no, startpos=startpos
+    ) later repeat
+}
+

@@ -30,6 +30,7 @@ import uri from core.horse64.org
 
 import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
 import compiler.ast.func_stmt as func_stmt
+import compiler.ast.if_stmt as if_stmt
 import compiler.ast.import_stmt as import_stmt
 import compiler.ast.invalid_stmt as invalid_stmt
 import compiler.ast.return_stmt as return_stmt
@@ -48,6 +49,9 @@ type TreeNode {
     ## @type [TreeNode]
     var subexprs = []
 
+    ## @type [TreeNode]
+    var subblocks = []
+
     var line, col
 
     var token_len
@@ -60,6 +64,7 @@ func TreeNode.as_str {
 func TreeNode.as_json_obj {
     var output = {
         "subexprs"-> [],
+        "subblocks"-> [],
         "kind"-> NodeKind.num_label(self.kind),
         "line"-> self.line,
         "col"-> self.col,
@@ -72,8 +77,6 @@ func TreeNode.as_json_obj {
 }
 
 type StmtNode base TreeNode {
-    ## @type [[StmtNode]]
-    var subblocks = []
 }
 
 func StmtNode.as_json_obj {
@@ -101,12 +104,14 @@ enum NodeKind {
     N_EXPR_LIT,
     N_EXPR_UNOP,
     N_EXPR_IDREF,
+    N_EXPR_IFELSECLAUSE,
     N_STMT_FUNC,
     N_STMT_CALL,
     N_STMT_ASSIGN,
     N_STMT_VAR,
     N_STMT_IMPORT,
     N_STMT_RETURN,
+    N_STMT_IF,
     N_STMT_INVALID,
 }
 
@@ -150,6 +155,7 @@ func ASTResult.as_json_obj {
 
 var stmt_parse_funcs = [
     call_or_assign_stmt.parse,
+    if_stmt.parse,
     func_stmt.parse,
     import_stmt.parse,
     return_stmt.parse,

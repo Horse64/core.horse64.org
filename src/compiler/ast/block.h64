@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import compiler.ast as ast
+import compiler.ast.invalid_stmt as invalid_stmt
 import compiler.msg as msg
 import compiler.token as token
 
@@ -72,6 +73,13 @@ func parse(tokens, pos, msgs, project_file=none, debug=no,
     ) later:
 
     await contents
+    if contents == none {
+        contents = new invalid_stmt.InvalidStmt()
+        var skiplen = token.get_naive_stmt_or_expr_len(
+            tokens, pos, bracket_depth=0, for_expr=no
+        )
+        contents.token_len = pos + skiplen
+    }
     msgs += contents.msgs
     result.stmts = contents.nodes
     pos += contents.token_len 
