@@ -1223,17 +1223,16 @@ class _FileObjFromDisk:
     def read(self, cb, amount=None):
         def _read_do(op):
             global _async_ops_lock
-            v = op.userdata["v"]
             self = op.userdata["self"]
             amount = op.userdata["amount"]
             result = [None, None]
             try:
-                result = list(self.fobj._read_sync(
-                    v, amount=amount
+                result = list(self._read_sync(
+                    amount=amount
                 ))
             except Exception as e:
-                result[0] = None
-                result[1] = e
+                result[0] = e
+                result[1] = None
             _async_ops_lock.acquire()
             op.userdata2 = result
             op.done = True
@@ -1248,7 +1247,6 @@ class _FileObjFromDisk:
             op.callback_func = None
             return f(result[0], result[1])
         op = _AsyncOperation({
-            "v": value,
             "self": self,
             "amount": amount,
             "usercb": cb,
@@ -1579,10 +1577,11 @@ def _net_fetch_open(*args, **kwargs):
         op.do_func = None
         op.callback_func = None
         return f(result[0], result[1])
+    assert(len(args) == 2)
     op = _AsyncOperation({
         "args": args,
         "kwargs": kwargs,
-        "usercb": cb},
+        "usercb": args[1]},
         async_net_fetch_open_do, done_cb)
     _async_ops_lock.acquire()
     _async_ops.append(op)
