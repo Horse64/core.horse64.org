@@ -37,7 +37,7 @@ type CodeBlockResult {
     var token_len = 0
 }
 
-func parse(tokens, pos, msgs, project_file=none) {
+func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var startpos = pos
     const tokens_len = tokens.len
     var result = new CodeBlockResult()
@@ -67,7 +67,7 @@ func parse(tokens, pos, msgs, project_file=none) {
     # Get code block contents:
     var contents = ast.parse_to_ast_ex(
         tokens, pos, project_file=project_file,
-        is_inside_block=yes
+        is_inside_block=yes, debug=debug
     ) later:
 
     await contents

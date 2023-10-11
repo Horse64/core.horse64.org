@@ -51,7 +51,7 @@ func ImportStmt.as_json_obj {
     return output
 }
 
-func parse(tokens, pos, msgs, project_file=none) {
+func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var stmt = new ImportStmt()
     var tokens_len = tokens.len
     var startpos = pos

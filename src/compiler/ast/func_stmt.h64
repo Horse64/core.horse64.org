@@ -53,7 +53,7 @@ func FuncStmt.as_json_obj {
     return output
 }
 
-func parse(tokens, pos, msgs, project_file=none) {
+func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var stmt = new FuncStmt()
     var tokens_len = tokens.len
     var startpos = pos
@@ -129,15 +129,20 @@ func parse(tokens, pos, msgs, project_file=none) {
         var args = new expr.CallOrDefArgsExpr()
         args.token_len = 0
         if tokens[pos].kind != token.T_BRACKET or
-                tokens[pos].str == "(" {
+                tokens[pos].str != "(" {
             return args
         }
         var v = expr.parse_call_or_funcdef_args(
             tokens, pos, msgs,
-            is_call=no, project_file=project_file
+            is_call=no, project_file=project_file,
+            debug=debug
         ) later:
 
         await v
+        if debug {
+            print("compiler.ast.func_stmt: parse() has "
+                "func calls argument: " + v.as_json_obj().as_str())
+        }
         return v
     }
 
@@ -152,15 +157,17 @@ func parse(tokens, pos, msgs, project_file=none) {
             } else {
                 assert(arg.kind == ast.N_EXPR_CALLKWARG)
                 stmt.arg_names.add(arg.label)
-                assert(args.subexprs.len == 1)
+                assert(arg.subexprs.len == 1)
                 stmt.arg_defaults.add(arg.subexprs[1])
             }
         }
+        pos += args.token_len
     }
 
     # Now parse the required code block opening with '{' here:
     var block_result = block.parse(
-        tokens, pos, msgs, project_file=project_file
+        tokens, pos, msgs, project_file=project_file,
+        debug=debug
     ) later:
 
     await block_result

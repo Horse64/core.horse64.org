@@ -53,7 +53,7 @@ func AssignStmt.init {
     self.kind = ast.N_STMT_ASSIGN
 }
 
-func parse(tokens, pos, msgs, project_file=none) {
+func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var stmt = new CallStmt()
     var token_len = tokens.len
     var startpos = pos

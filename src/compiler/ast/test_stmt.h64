@@ -50,3 +50,32 @@ func test_parse_func_stmt {
     assert(func_stmt.subblocks[1][1].kind == ast.N_STMT_CALL)
 }
 
+func test_parse_func_stmt_2 {
+    var msgs = []
+
+    var v1 = ast.parse_str_to_ast(
+        "func main(a, b=2) {print('Hello World')}",
+        project_file=none, debug=no
+    ) later:
+    await v1
+
+    assert(v1 != none)
+    if v1.msgs.len > 0 {
+        for msg in v1.msgs {
+            print("Test got invalid error: " + msg.as_terminal_str())
+        }
+    }
+    assert(v1.msgs.len == 0)
+    assert(v1.nodes.len == 1)
+    var func_stmt = v1.nodes[1]
+    assert(func_stmt.name == "main")
+    assert(func_stmt.arg_names.len == 2)
+    assert(func_stmt.arg_names[1] == "a")
+    assert(func_stmt.arg_names[2] == "b")
+    assert(func_stmt.arg_defaults.len == 1)
+    assert(func_stmt.arg_defaults[1].kind == ast.N_EXPR_LIT)
+    assert(func_stmt.subblocks.len == 1)
+    assert(func_stmt.subblocks[1].len == 1)
+    assert(func_stmt.subblocks[1][1].kind == ast.N_STMT_CALL)
+}
+
