@@ -33,6 +33,7 @@ import compiler.msg as msg
 import compiler.token as token
 
 type ReturnStmt base ast.StmtNode {
+    var has_later = no
 }
 
 func ReturnStmt.init {
@@ -58,6 +59,12 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     stmt.pos = token.get_line(tokens, pos)
     stmt.col = token.get_col(tokens, pos)
     pos += 1
+    if pos <= tokens_len and
+            tokens[pos].kind == token.T_KEYWORD and
+            tokens[pos].str == "later" {
+        stmt.has_later = yes
+        pos += 1
+    }
 
     # See if this return has an argument at all:
     if pos > tokens_len or
