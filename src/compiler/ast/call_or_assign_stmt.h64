@@ -146,8 +146,9 @@ func parse(tokens, pos, msgs, project_file=none) {
                 token.describe_token(v1.optoken) +
                 ", expected call statement with no surrounding " +
                 "operator expressions, for statement starting in " +
-                "line " + token.get_line(tokens, pos) +
-                ", column " + token.get_col(tokens, pos) + ".",
+                "line " + token.get_line(tokens, pos).as_str() +
+                ", column " + token.get_col(tokens, pos).as_str() +
+                ".",
                 source_file=project_file,
                 line=v1.optoken.line,
                 col=v1.optoken.col,

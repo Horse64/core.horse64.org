@@ -151,24 +151,24 @@ func parse_container_entry(
     if max_len != none {
         tokens_len = math.min(tokens_len, max_len)
     }
-    var expr_1 = parse_expression(
+    var expr1 = parse_expression(
         tokens, pos, msgs, project_file=project_file,
         max_len=tokens_len, debug=debug
     ) later:
 
-    await expr_1
+    await expr1
     if expr1 == none {
         return none
     }
     if container_kind != C_MAP and container_kind != C_VEC {
         return [expr1, none]
     }
-    pos += expr_1.token_len
+    pos += expr1.token_len
     if pos >= tokens_len or (container_type == C_MAP and
-            tokens[pos].kind != C_MAPARROW) or
+            tokens[pos].kind != T_MAPASSIGN) or
             (container_type == C_VEC and
-            tokens[pos].kind != C_COLON) {
-        var expected = "'->' (T_MAPARROW) for map"
+            tokens[pos].kind != T_COLON) {
+        var expected = "'->' (T_MAPASSIGN) for map"
         if container_type == C_VEC {
             expected = "':' (T_COLON) for vector"
         }
@@ -287,6 +287,7 @@ func parse_expression_unwrapped(
                     tokens[pos + 1].kind == token.T_STR {
                 node.value += token.parse_token_value(tokens[pos + 1])
                 node.token_len += 1
+                pos += 1
             }
             return node
         } elseif tokens[pos].kind == token.T_BYTES {
@@ -471,7 +472,7 @@ func parse_expression_unwrapped(
                     i += 1
                     continue
                 }
-                if tokens[i].kind == token.T_MAPARROW and
+                if tokens[i].kind == token.T_MAPASSIGN and
                         openbracket == "{" {
                     ckind = C_MAP
                     break

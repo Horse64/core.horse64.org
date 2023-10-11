@@ -36,7 +36,7 @@ type FuncStmt base ast.StmtNode {
     var name
     var type_path = none
     var arg_names = []
-    var arg_has_default = []
+    var arg_defaults = []
 }
 
 func FuncStmt.init {
@@ -48,8 +48,8 @@ func FuncStmt.as_json_obj {
     var output = base.as_json_obj()
     output["name"] = self.name
     output["type_path"] = self.type_path
-    output["arg_names"] = self.arg_names
-    output["arg_has_default"] = self.arg_has_default
+    output["arg_names"] = []
+    output["arg_defaults"] = []
     return output
 }
 
@@ -125,20 +125,47 @@ func parse(tokens, pos, msgs, project_file=none) {
         return later stmt
     }
 
+    func get_func_arguments {
+        var args = new expr.CallOrDefArgsExpr()
+        args.token_len = 0
+        if tokens[pos].kind != token.T_BRACKET or
+                tokens[pos].str == "(" {
+            return args
+        }
+        var v = expr.parse_call_or_funcdef_args(
+            tokens, pos, msgs,
+            is_call=no, project_file=project_file
+        ) later:
+
+        await v
+        return v
+    }
+
     # Parse arguments if we got a '(' character:
-    if tokens[pos].kind == token.T_BRACKET and
-            tokens[pos].str == "(" {
-        throw new ValueError("Not implemented yet.")
+    var args = get_func_arguments() later:
+
+    await args
+    if args != none {
+        for arg in args.subexprs {
+            if arg.kind == ast.N_EXPR_ARGNAME {
+                stmt.arg_names.add(arg.label)
+            } else {
+                assert(arg.kind == ast.N_EXPR_CALLKWARG)
+                stmt.arg_names.add(arg.label)
+                assert(args.subexprs.len == 1)
+                stmt.arg_defaults.add(arg.subexprs[1])
+            }
+        }
     }
 
     # Now parse the required code block opening with '{' here:
-    var result = block.parse(
+    var block_result = block.parse(
         tokens, pos, msgs, project_file=project_file
     ) later:
 
-    await result
-    pos += result.token_len
-    stmt.subblocks.add(result.stmts)
+    await block_result
+    pos += block_result.token_len
+    stmt.subblocks.add(block_result.stmts)
     stmt.token_len = (pos - startpos)
     return later stmt
 }
