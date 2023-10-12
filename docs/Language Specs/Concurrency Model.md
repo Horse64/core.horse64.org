@@ -83,7 +83,11 @@ The rules for calling later functions are as follows:
    a guaranteed direct return to the caller. The same applies
    for calling any later function.
 
-6. You cannot nest `later:` ... `later repeat` loops. Both
+6. Currently, later calls can't be inside a `while` or `for`
+   loop. Instead, use a `later:` ... `later repeat` loop
+   if needed.
+
+7. You cannot nest `later:` ... `later repeat` loops. Both
    paired calls must be in the same code block. Both paired
    calls must assign their return value, and they must assign
    it to the same local variable. [See here for an
