@@ -24,3 +24,31 @@ Horse64's concurrency model has the following properties:
   external resources aims to be concurrent, and so should you
   in that case.
 
+
+Formal rules for calling later `func`s
+--------------------------------------
+
+The rules for calling later functions are as follows:
+
+1. Calls to later functions must be followed by either `later:`
+   or `later ignore`, or `later repeat`.
+
+2. The call cannot be a nested inline call inside a
+   bigger expression. It needs to be a standalone call statement,
+   or right-hand to a variable definition or simple assignment.
+   A `later ignore` call's return value needs to be ignored.
+
+3. If the call's return value is assigned to a variable,
+   it needs to be `await`ed after a `later:`.
+
+4. Calling any later function with `later:` or `later repeat`
+   makes the surrounding calling function also a later function.
+
+5. Otherwise, using `return later ...` in a function will also
+   make it a later function.
+
+6. Returning anything from a later function may cause other
+   functions and program parts to run in between, rather than
+   a guaranteed direct return to the caller. The same applies
+   for calling any later function.
+
