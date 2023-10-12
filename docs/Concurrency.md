@@ -26,7 +26,9 @@ where other code of yours may run. This happens via the `later` keyword:
 Concurrent functions in Horse64 are also called *"later functions"*
 which is how [horsec](/docs/Resources#horsec) usually names them.
 
-## Rules for calling later functions
+
+Rules for calling later functions
+---------------------------------
 
 The rules for calling later functions are as follows:
 
@@ -73,7 +75,9 @@ The rules for calling later functions are as follows:
    }
    ```
 
-## Rules for creating later functions
+
+Rules for creating later functions
+----------------------------------
 
 The rules for creating your own later function are as follows:
 
