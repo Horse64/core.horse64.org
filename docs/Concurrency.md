@@ -26,9 +26,9 @@ where other code of yours may run. This happens via the `later` keyword:
 Concurrent functions in Horse64 are also called *"later functions"*
 which is how [horsec](/docs/Resources#horsec) usually names them.
 
-Calls to later functions must be followed by `later` for a time skip,
-and then `await` on their return value. This is also where errors
-bubble up:
+Calls to such later functions must always be followed by `later`
+for a time skip, and then `await` on their return value.
+Awaiting the return value is also where errors bubble up:
 
   ```Horse64
   import net.fetch from core.horse64.org
@@ -63,7 +63,7 @@ its success, you can follow the call with `later ignore`:
 
 **Note on full calling rules:** for the [formal calling rules,
 go here](
-/docs/Concurrency%20Model.md#formal-rules-for-calling-later-funcs).)
+/docs/Concurrency%20Model.md#formal-rules-for-calling-later-funcs).
 
 **Note on race conditions:** concurrent functions don't run
 truly in parallel. Only during the time skips, so during
