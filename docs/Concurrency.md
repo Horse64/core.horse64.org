@@ -7,6 +7,10 @@ Introduction to Horse64 Concurrency
 Horse64 has a built-in handing for async, or so-called concurrent
 functions. These usually depend on external I/O or networking.
 
+
+Basic concurrent call
+---------------------
+
 To have stalling external resources not freeze your program,
 you call any concurrent functions such that there's a time skip
 where other code of yours may run. This happens via the `later` keyword:
@@ -46,6 +50,10 @@ Awaiting the return value is also where errors bubble up:
   }
   ```
 
+
+`later ignore`
+--------------
+
 If you don't care about a later function's return value or
 its success, you can follow the call with `later ignore`:
 
@@ -61,8 +69,35 @@ its success, you can follow the call with `later ignore`:
   }
   ```
 
-**Note on full calling rules:** for the [formal calling rules,
-go here](
+
+`later repeat`
+--------------
+
+Since later calls aren't supported by [horsec](/docs/Resources.md#horsec),
+do loops via `later` repeat (which must assign to the same
+local variable):
+
+  ```Horse64
+  import my_line_fetch
+  func main {
+      var line = my_line_fetch.next_line(
+         "https://horse64.org"
+      ) later:
+
+      await line
+      print("Here's another line: " + line)
+
+      line = my_line_fetch.next_line(
+          "https://horse64.org"
+      ) later repeat  # Jumps back up to right after `later:`
+  }
+  ```
+
+
+Further reading
+---------------
+
+For the [formal calling rules, go here](
 /docs/Concurrency%20Model.md#formal-rules-for-calling-later-funcs).
 
 **Note on race conditions:** concurrent functions don't run

@@ -35,20 +35,58 @@ The rules for calling later functions are as follows:
 
 2. The call cannot be a nested inline call inside a
    bigger expression. It needs to be a standalone call statement,
-   or right-hand to a variable definition or simple assignment.
-   A `later ignore` call's return value needs to be ignored.
+   or right-hand to a variable definition or simple assignment to
+   a local variable. A `later ignore` call's return value must be
+   ignored. Examples:
 
-3. If the call's return value is assigned to a variable,
-   it needs to be `await`ed after a `later:`.
+     ```Horse64
+     import net.fetch from core.horse64.org
+     func main {
+         # Valid calls:
 
-4. Calling any later function with `later:` or `later repeat`
+         net.fetch.get_str(
+            "https://horse64.org"
+         ) later ignore
+
+         var value = net.fetch.get_str(
+            "https://horse64.org"
+         ) later:
+         await value  # Required.
+
+         # Invalid calls:
+
+         value["abc"] = net.fetch.get_str(
+            "https://horse64.org"
+         ) later:  # Not allowed, a complex assignment.
+         await value["abc"]
+
+         var value2 = net.fetch.get_str(
+            "https://horse64.org" 
+         ) later ignore  # Not allowed, must ignore return value.
+     }
+     ```
+
+   A `later ignore` call's return value needs to be ignored,
+   and if the return value was assigned it needs to be
+   `await`ed after a `later:`.
+
+3. Calling any later function with `later:` or `later repeat`
    makes the surrounding calling function also a later function.
 
-5. Otherwise, using `return later ...` in a function will also
-   make it a later function.
+4. Otherwise, using `return later ...` in a function will also
+   make it a later function. It's otherwise not needed, any
+   return in a later function is possibly returned later (after
+   a time skip).
 
-6. Returning anything from a later function may cause other
+5. Returning anything from a later function may cause other
    functions and program parts to run in between, rather than
    a guaranteed direct return to the caller. The same applies
    for calling any later function.
+
+6. You cannot nest `later:` ... `later repeat` loops. Both
+   paired calls must be in the same code block. Both paired
+   calls must assign their return value, and they must assign
+   it to the same local variable. [See here for an
+   example of `later repeat` loops.](
+   /docs/Concurrency.md#later-repeat)
 
