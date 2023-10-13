@@ -64,7 +64,7 @@ how it compares to the other programming languages
 [C++](https://cplusplus.com/). *Disclaimer: the
 following list is subjective and all languages are subject to
 change, **no guarantee provided for accuracy or fitness
-for any particular purpose** of this list at all.** 
+for any particular purpose** of this list at all.*
 
 |Horse64|Python|JavaScript|Go|C++|Feature                             |
 |-------|------|----------|--|---|------------------------------------|
