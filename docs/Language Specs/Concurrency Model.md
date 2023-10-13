@@ -25,8 +25,8 @@ Horse64's concurrency model has the following properties:
   in that case.
 
 
-Formal rules for calling later `func`s
---------------------------------------
+Formal rules for later `func`s
+------------------------------
 
 The rules for calling later functions are as follows:
 

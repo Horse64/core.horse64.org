@@ -98,7 +98,7 @@ Further reading
 ---------------
 
 For the [formal calling rules, go here](
-/docs/Concurrency%20Model.md#formal-rules-for-calling-later-funcs).
+/docs/Language%20Specs/Concurrency%20Model.md#formal-rules-for-later-funcs).
 
 **Note on race conditions:** concurrent functions don't run
 truly in parallel. Only during the time skips, so during
