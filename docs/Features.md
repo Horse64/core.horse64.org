@@ -59,15 +59,15 @@ Comparison with other languages and use cases
 Horse64 is a dynamically typed, high-level language. Here is
 how it compares to the other programming languages
 [Python](https://python.org),
-[JavaScript](https://www.javascript.com/),
+[JavaScript (JS)](https://www.javascript.com/),
 [Go](https://go.dev/), and
 [C++](https://cplusplus.com/). *Disclaimer: the
 following list is subjective and all languages are subject to
 change, **no guarantee provided for accuracy or fitness
 for any particular purpose** of this list at all.*
 
-|Horse64|Python|JavaScript|Go|C++|Feature                             |
-|-------|------|----------|--|---|------------------------------------|
+|Horse64|Python|JS|Go|C++|Feature                                     |
+|-------|------|--|--|---|--------------------------------------------|
 |✔|✔|✔| | |**Dynamic types** as a beginner-friendly default.          |
 |✔|✔| |✔| |**Minimal, clean syntax**, including no semicolons.        |
 |✔|✔|✔| | |**Avoids concurrency crashes** from threading bugs.        |
