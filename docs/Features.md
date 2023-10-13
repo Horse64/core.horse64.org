@@ -61,10 +61,10 @@ how it compares to the other programming languages
 [Python](https://python.org),
 [JavaScript](https://www.javascript.com/),
 [Go](https://go.dev/), and
-[C++](https://cplusplus.com/). **Disclaimer: the
-fowolling list is subjective and all languages are subject to
-change, no guarantee provided for accuracy or fitness of this
-list for any particular purpose at all.** 
+[C++](https://cplusplus.com/). *Disclaimer: the
+following list is subjective and all languages are subject to
+change, **no guarantee provided for accuracy or fitness
+for any particular purpose** of this list at all.** 
 
 |Horse64|Python|JavaScript|Go|C++|Feature                             |
 |-------|------|----------|--|---|------------------------------------|
