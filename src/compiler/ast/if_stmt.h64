@@ -62,10 +62,9 @@ func IfElseClause.as_json_obj {
 }
 
 func parse_next_ifelse_clause_header(
-        tokens, pos, msgs,
+        tokens, tokens_len, pos, msgs,
         project_file=project_file, debug=no,
         is_first=yes, startpos=none) {
-    var tokens_len = tokens.len
     if startpos == none {
         startpos = pos
     }
@@ -112,11 +111,17 @@ func parse_next_ifelse_clause_header(
     pos += 1
 
     var v = expr.parse_expression(
-        tokens, pos, msgs,
+        tokens, pos, msgs, debug=debug,
         project_file=project_file
     ) later:
 
     await v
+    if debug {
+        print("compiler.ast.if_stmt: parse_next_ifelse_clause_header() "
+            "got clause '" + tokens[clausestart].str + "' with "
+            "expression: " +
+            if v != none (v.as_json_obj().as_str()) else ("<none>"))
+    }
     if v == none {
         msgs.add(new msg.FileMsg(
             "Unexpected " + token.describe_token_at(tokens, pos) +
@@ -126,7 +131,7 @@ func parse_next_ifelse_clause_header(
             " for if statement starting in line " +
             token.get_line(tokens, startpos).as_str() +
             ", column " +
-            token.get_col(tokens, startpos).as_str(),
+            token.get_col(tokens, startpos).as_str() + ".",
             source_file=project_file,
             line=token.get_line(tokens, pos),
             col=token.get_col(tokens, pos),
@@ -151,14 +156,21 @@ func parse_next_ifelse_clause_header(
 }
 
 func parse_next_ifelse_clause(
-        tokens, pos, msgs,
+        tokens, tokens_len, pos, msgs,
         project_file=project_file, debug=no,
         is_first=yes, startpos=none) {
     if startpos == none {
         startpos = pos
     }
-    var clause = parse_next_ifelse_clause(
-        tokens, pos, msgs, project_file=project_file,
+
+    if debug {
+        print("compiler.ast.if_stmt: parse_next_ifelse_clause() " +
+            "checking new clause starting at: " +
+            token.describe_token_at(tokens, pos))
+    }
+
+    var clause = parse_next_ifelse_clause_header(
+        tokens, tokens_len, pos, msgs, project_file=project_file,
         debug=debug, is_first=is_first, startpos=startpos
     ) later:
 
@@ -184,7 +196,17 @@ func parse_next_ifelse_clause(
 
     await block_result
     assert(block_result != none)
+    if debug {
+        print("compiler.ast.if_stmt: parse_next_ifelse_clause() "
+            "got inner block of length " +
+            block_result.token_len.as_str() + " "
+            ", with token after: " +
+            token.describe_token_at(tokens,
+                pos + clause.token_len +
+                block_result.token_len))
+    }
     clause.subblocks.add(block_result)
+    clause.token_len += block_result.token_len
     return clause
 }
 
@@ -212,8 +234,8 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         print("compiler.ast.if_stmt: parse() fetching "
             "first clause at pos=" + pos.as_str() + "...")
     }
-    var clause = parse_next_ifelse_clause_header(
-        tokens, pos, msgs,
+    var clause = parse_next_ifelse_clause(
+        tokens, tokens_len, pos, msgs,
         project_file=project_file, debug=debug,
         is_first=yes, startpos=startpos
     ) later:
@@ -235,8 +257,8 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         print("compiler.ast.if_stmt: parse() trying followup "
             "clause at pos=" + pos.as_str() + "...")
     }
-    clause = parse_next_ifelse_clause_header(
-        tokens, pos, msgs,
+    clause = parse_next_ifelse_clause(
+        tokens, tokens_len, pos, msgs,
         project_file=project_file, debug=debug,
         is_first=no, startpos=startpos
     ) later repeat
