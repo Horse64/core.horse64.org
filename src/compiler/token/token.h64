@@ -1790,8 +1790,14 @@ func tokenize_from_uri(
 ## @returns (num, none) The token's line number if the position
 ##   is inside the list, @{none} if the position is outside of it.
 func get_line(tokens, pos) {
-    if pos < 1 or pos > tokens.len {
-        return none
+    if pos < 1 {
+        return 1
+    }
+    if pos > tokens.len {
+        if tokens.len == 0 {
+            return 1
+        }
+        return tokens[tokens.len].line
     }
     return tokens[pos].line
 }
@@ -1802,8 +1808,16 @@ func get_line(tokens, pos) {
 ## @returns (num, none) The token's column number if the position
 ##   is inside the list, @{none} if the position is outside of it.
 func get_col(tokens, pos) {
-    if pos < 1 or pos > tokens.len {
-        return none
+    if pos < 1 {
+        return 1
+    }
+    if pos > tokens.len {
+        if tokens.len == 0 {
+            return 1
+        }
+        var lasttoken = tokens[tokens.len]
+        assert(lasttoken.str != none and lasttoken.str.len > 0)
+        return tokens[tokens.len].col + lasttoken.str.len - 1
     }
     return tokens[pos].col
 }
