@@ -73,9 +73,10 @@ its success, you can follow the call with `later ignore`:
 `later repeat`
 --------------
 
-Since later calls aren't supported by [horsec](/docs/Resources.md#horsec),
-do loops via `later` repeat (which must assign to the same
-local variable):
+Since later calls aren't supported by [horsec](/docs/Resources.md#horsec)
+inside `for` or `while`,
+do loops via `later` repeat instead (which must assign to the same
+local variable in both calls):
 
   ```Horse64
   import my_line_fetch
