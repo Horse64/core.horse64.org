@@ -75,7 +75,8 @@ func parse_next_ifelse_clause_header(
             ((not is_first or tokens[pos].str != "if") and
             (is_first or (tokens[pos].str != "else" and
             tokens[pos].str != "elseif"))) {
-        if is_first or token.token_has_lefthand(tokens[pos]) {
+        if is_first or (pos <= tokens_len and
+                token.token_has_lefthand(tokens[pos])) {
             msgs.add(new msg.FileMsg(
                 "Unexpected " + token.describe_token_at(tokens, pos) +
                 ", expected " +
@@ -208,6 +209,9 @@ func parse_next_ifelse_clause(
             "with token after: " +
             token.describe_token_at(tokens,
                 pos + block_result.token_len))
+    }
+    if block_result.has_damage() {
+        clause.damaged = yes
     }
     clause.subblocks.add(block_result.stmts)
     clause.token_len += block_result.token_len

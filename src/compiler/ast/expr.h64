@@ -240,6 +240,7 @@ func parse_expression(
                 (wrapping_expr.token_len) else (0)
             ) + ")")
     }
+    assert(wrapping_expr == none or wrapping_expr.token_len != none)
     if wrapping_expr == none or
             origpos + wrapping_expr.token_len > tokens_len or
             not token_continues_expr(tokens[
@@ -428,7 +429,7 @@ func parse_expression_unwrapped(
             if openbracket == "{" {
                 ckind = C_SET
             }
-            var closebracket = token.reverse_brackets(tokens[pos].str)
+            var closebracket = token.reverse_brackets(tokens[pos - 1].str)
 
             # Handle special cases: [], {}, [,], {,}, {->}
             if pos <= tokens_len and (
@@ -440,13 +441,19 @@ func parse_expression_unwrapped(
                 if openbracket == "{" {
                     if (tokens[pos].kind != token.T_MAPASSIGN) {
                         node.kind = C_SET
+                        if (tokens[pos].kind == token.T_COMMA) {
+                            pos += 1
+                        }
                     } else {
-                        node.kind = C_MAP
+                        ckind = C_MAP
+                        pos += 1
                     }
                 } else {
-                    node.kind = C_LIST
+                    ckind = C_LIST
+                    if (tokens[pos].kind == token.T_COMMA) {
+                        pos += 1
+                    }
                 }
-                pos += 1
                 if pos > tokens_len or
                         tokens[pos].kind != token.T_BRACKET or
                         tokens[pos].str != closebracket {
@@ -469,13 +476,14 @@ func parse_expression_unwrapped(
                 } else {
                     pos += 1
                 }
-                if node.is_set {
+                if ckind == C_SET {
                     node.value = {}
                 } elseif node.is_map {
                     node.value = {->}
                 } else {
                     node.value = []
                 }
+                node.token_len = (pos - startpos)
                 return node
             }
 
@@ -523,22 +531,28 @@ func parse_expression_unwrapped(
             await next_expr
             var had_fatal_error = yes
             if next_expr == none {
-                msgs.add(new msg.FileMsg(
-                    "Unexpected " + token.describe_token_at(
-                        tokens, pos) +
-                    ", expected next entry for " +
-                    container_kind_to_name(c_kind) +
-                    " in line " +
-                    startline.as_str() +
-                    ", col " +
-                    startcol.as_str() + ".",
-                    source_file=project_file,
-                    line=token.get_line(tokens, pos),
-                    col=token.get_col(tokens, pos),
-                ))
-                had_fatal_error = yes
+                if pos > tokens_len or
+                        tokens[pos] != token.T_BRACKET or
+                        tokens[pos].str != closingbracket {
+                    if not node.has_damaged() {
+                        msgs.add(new msg.FileMsg(
+                            "Unexpected " + token.describe_token_at(
+                                tokens, pos) +
+                            ", expected next entry for " +
+                            container_kind_to_name(ckind) +
+                            " in line " +
+                            startline.as_str() +
+                            ", col " +
+                            startcol.as_str() + ".",
+                            source_file=project_file,
+                            line=token.get_line(tokens, pos),
+                            col=token.get_col(tokens, pos),
+                        ))
+                    }
+                    had_fatal_error = yes
+                }
             }
-            if not had_fatal_error {
+            if not had_fatal_error and next_expr != none {
                 if ckind == C_MAP or ckind == C_VEC {
                     node.subexprs.add(next_expr[1])
                     pos += next_expr[1].token_len
@@ -559,20 +573,22 @@ func parse_expression_unwrapped(
                     ((tokens[pos].kind != token.T_BRACKET or
                       tokens[pos].str != close_bracket) and
                      tokens[pos].kind != token.T_COMMA)) {
-                msgs.add(new msg.FileMsg(
-                    "Unexpected " + token.describe_token_at(
-                        tokens, pos) +
-                    ", expected ',' (T_COMMA) or '" +
-                    close_bracket + "' to resume or end " +
-                    container_kind_to_name(c_kind) +
-                    " started in line " +
-                    startline.as_str() +
-                    ", col " +
-                    startcol.as_str() + ".",
-                    source_file=project_file,
-                    line=token.get_line(tokens, pos),
-                    col=token.get_col(tokens, pos),
-                ))
+                if not node.has_damage() {
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected " + token.describe_token_at(
+                            tokens, pos) +
+                        ", expected ',' (T_COMMA) or '" +
+                        close_bracket + "' to resume or end " +
+                        container_kind_to_name(c_kind) +
+                        " started in line " +
+                        startline.as_str() +
+                        ", col " +
+                        startcol.as_str() + ".",
+                        source_file=project_file,
+                        line=token.get_line(tokens, pos),
+                        col=token.get_col(tokens, pos),
+                    ))
+                }
                 node.damaged = yes
                 node.token_len = (pos - startpos)
                 return node
@@ -1029,7 +1045,7 @@ func parse_expression_unwrapped(
                             tokens, op_entry[1] - 1) +
                         ", expected valid left-hand operand "
                         "for operator " + token.describe_token_at(
-                            tokens, op_entry[1]) +
+                            tokens, op_entry[1]) + " "
                         "found in line " +
                         token.get_line(tokens, op_entry[1]
                                       ).as_str() + ", col " +
@@ -1066,7 +1082,7 @@ func parse_expression_unwrapped(
                             tokens, op_entry[1] + 1) +
                         ", expected valid right-hand operand "
                         "for operator " + token.describe_token_at(
-                            tokens, op_entry[1]) +
+                            tokens, op_entry[1]) + " "
                         "found in line " +
                         token.get_line(tokens, op_entry[1]
                                       ).as_str() + ", col " +

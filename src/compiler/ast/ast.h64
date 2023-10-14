@@ -77,11 +77,6 @@ func TreeNode.has_damage {
             return yes
         }
     }
-    for subblock in self.subblocks {
-        if subblock.has_damage() {
-            return yes
-        }
-    }
     return no
 }
 
@@ -246,6 +241,7 @@ func parse_to_ast_ex(
               tokens[pos].kind == token.T_BRACKET and
               tokens[pos].str == "}") or
              token.surely_to_toplevel_even_in_bad_code(tokens, pos))) {
+        result.token_len = 0
         return result
     }
 

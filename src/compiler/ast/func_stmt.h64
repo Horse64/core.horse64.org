@@ -182,6 +182,9 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     ) later:
 
     await block_result
+    if block_result.has_damage() {
+        stmt.damaged = yes
+    }
     pos += block_result.token_len
     stmt.subblocks.add(block_result.stmts)
     stmt.token_len = (pos - startpos)
