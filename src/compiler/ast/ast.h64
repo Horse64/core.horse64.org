@@ -63,15 +63,26 @@ func TreeNode.as_str {
 
 func TreeNode.as_json_obj {
     var output = {
-        "subexprs"-> [],
-        "subblocks"-> [],
         "kind"-> NodeKind.num_label(self.kind),
         "line"-> self.line,
         "col"-> self.col,
         "token_len"-> self.token_len,
     }
-    for child in self.subexprs {
-        output["subexprs"].add(child.as_json_obj())
+    if self.subexprs.len > 0 {
+        output["subexprs"] = []
+        for subexpr in self.subexprs {
+            output["subexprs"].add(subexpr.as_json_obj())
+        }
+    }
+    if self.subblocks.len > 0 {
+        output["subblocks"] = []
+        for subblock in self.subblocks {
+            block_statements = []
+            for statement in subblock {
+                block_statements.add(statement.as_json_obj())
+            }
+            output["subblocks"].add(block_statements)
+        }
     }
     return output
 }
