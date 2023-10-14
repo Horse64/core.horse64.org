@@ -52,6 +52,13 @@ type TreeNode {
     ## @type [TreeNode]
     var subblocks = []
 
+    ## @attr damaged
+    ## Whether this tree node had some sort of parse error inside,
+    ## meaning that more parse errors relating to it might just be
+    ## useless indirect follow-up errors.
+    ## @type bool
+    var damaged = no
+
     var line, col
 
     var token_len
@@ -59,6 +66,23 @@ type TreeNode {
 
 func TreeNode.as_str {
     return "TreeNode" + json.dump(self.as_json_obj())
+}
+
+func TreeNode.has_damage {
+    if self.damaged {
+        return yes
+    }
+    for subexpr in self.subexprs {
+        if subexpr.has_damage() {
+            return yes
+        }
+    }
+    for subblock in self.subblocks {
+        if subblock.has_damage() {
+            return yes
+        }
+    }
+    return no
 }
 
 func TreeNode.as_json_obj {

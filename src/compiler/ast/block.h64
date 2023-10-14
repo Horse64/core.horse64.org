@@ -38,6 +38,15 @@ type CodeBlockResult {
     var token_len = 0
 }
 
+func CodeBlockResult.has_damage {
+    for stmt in self.stmts {
+        if stmt.has_damage() {
+            return yes
+        }
+    }
+    return no
+}
+
 func parse(tokens, pos, msgs, project_file=none, debug=no,
         block_purpose_name="") {
     var startpos = pos
@@ -88,16 +97,21 @@ func parse(tokens, pos, msgs, project_file=none, debug=no,
     if pos > tokens_len or
             tokens[pos].kind != token.T_BRACKET or
             tokens[pos].str != "}" {
-        msgs.add(new msg.FileMsg(
-            "Unexpected " + token.describe_token_at(tokens, pos) +
-            ", expected '}' (T_BRACKET) for "
-            "code block" +
-            if block_purpose_name.len > 0 (" ") else ("") +
-            block_purpose_name + ".",
-            source_file=project_file,
-            line=token.get_line(tokens, pos),
-            col=token.get_col(tokens, pos),
-        ))
+        if not result.has_damage() {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(tokens, pos) +
+                ", expected '}' (T_BRACKET) to end "
+                "code block starting in line " +
+                token.get_line(tokens, startpos).as_str() + ", "
+                "column " + token.get_col(tokens, startpos).as_str() +
+                if block_purpose_name.len > 0 (" (") else ("") +
+                block_purpose_name +
+                if block_purpose_name.len > 0 (")") else ("") + ".",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+        }
     } else {
         pos += 1
     }

@@ -71,7 +71,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             "... with pos=" + pos.as_str() + ", "
             "tokens.len=" + tokens.len.as_str())
     }
-    stmt.pos = token.get_line(tokens, pos)
+    stmt.line = token.get_line(tokens, pos)
     stmt.col = token.get_col(tokens, pos)
     pos += 1
 

@@ -57,7 +57,6 @@ func AssignStmt.init {
 }
 
 func parse(tokens, pos, msgs, project_file=none, debug=no) {
-    var stmt = new CallStmt()
     var token_len = tokens.len
     var startpos = pos
 
@@ -132,6 +131,9 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
 
     if is_call {
         # Check if we actually got a call expression:
+        var stmt = new CallStmt()
+        stmt.line = token.get_line(tokens, startpos)
+        stmt.col = token.get_col(tokens, startpos)
         if v1 == none or v1.kind != ast.N_EXPR_BINOP {
             msgs.add(new msg.FileMsg(
                 "Unexpected expression " +
@@ -200,6 +202,9 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     }
     assert(not is_call)
 
+    var stmt = new AssignStmt()
+    stmt.line = token.get_line(tokens, startpos)
+    stmt.col = token.get_col(tokens, startpos)
     if v1 == none {
         msgs.add(new msg.FileMsg(
             "Unexpected token " +

@@ -71,6 +71,7 @@ func InvalidExpr.init(tlen) {
     base.init()
     self.kind = ast.N_EXPR_INVALID
     self.token_len = tlen
+    self.damaged = yes
 }
 
 type UnopExpr base ast.TreeNode {
@@ -184,6 +185,7 @@ func parse_container_entry(
             line=token.get_line(tokens, pos),
             col=token.get_col(tokens, pos),
         ))
+        expr1.damaged = yes
         return [expr1, none]
     }
     pos += 1
@@ -378,18 +380,22 @@ func parse_expression_unwrapped(
             if pos > tokens_len or
                     tokens[pos].kind != token.T_BRACKET or
                     tokens[pos].str != ")" {
-                msgs.add(new msg.FileMsg(
-                    "Unexpected " + token.describe_token_at(
-                        tokens, pos) +
-                    ", expected ')' (T_BRACKET) closing the "
-                    "opening bracket '(' in line " +
-                    startline.as_str() + 
-                    ", col " +
-                    startcol.as_str() + ".",
-                    source_file=project_file,
-                    line=token.get_line(tokens, pos),
-                    col=token.get_col(tokens, pos),
-                ))
+                if not inner_expr.has_damage() {
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected " + token.describe_token_at(
+                            tokens, pos) +
+                        ", expected ')' (T_BRACKET) closing the "
+                        "opening bracket '(' in line " +
+                        startline.as_str() +
+                        ", col " +
+                        startcol.as_str() + ".",
+                        source_file=project_file,
+                        line=token.get_line(tokens, pos),
+                        col=token.get_col(tokens, pos),
+                    ))
+                }
+                inner_expr.damaged = yes
+
                 # Try to find actual closing bracket:
                 pos = token.skip_garbage_to_closing_item(
                     tokens, pos, token.T_BRACKET, "(",
@@ -444,19 +450,22 @@ func parse_expression_unwrapped(
                 if pos > tokens_len or
                         tokens[pos].kind != token.T_BRACKET or
                         tokens[pos].str != closebracket {
-                    msgs.add(new msg.FileMsg(
-                        "Unexpected " + token.describe_token_at(
-                            tokens, pos) +
-                        ", expected ')' (T_BRACKET) closing the "
-                        "opening bracket '" +
-                        openbracket + "' in line " +
-                        startline.as_str() +
-                        ", col " +
-                        startcol.as_str() + ".",
-                        source_file=project_file,
-                        line=token.get_line(tokens, pos),
-                        col=token.get_col(tokens, pos),
-                    ))
+                    if not node.has_damage() {
+                        msgs.add(new msg.FileMsg(
+                            "Unexpected " + token.describe_token_at(
+                                tokens, pos) +
+                            ", expected ')' (T_BRACKET) closing the "
+                            "opening bracket '" +
+                            openbracket + "' in line " +
+                            startline.as_str() +
+                            ", col " +
+                            startcol.as_str() + ".",
+                            source_file=project_file,
+                            line=token.get_line(tokens, pos),
+                            col=token.get_col(tokens, pos),
+                        ))
+                    }
+                    node.damaged = yes
                 } else {
                     pos += 1
                 }
@@ -564,6 +573,7 @@ func parse_expression_unwrapped(
                     line=token.get_line(tokens, pos),
                     col=token.get_col(tokens, pos),
                 ))
+                node.damaged = yes
                 node.token_len = (pos - startpos)
                 return node
             }
@@ -586,6 +596,7 @@ func parse_expression_unwrapped(
                 if pos <= tokens_len {
                     pos += 1  # Go past closing bracket.
                 }
+                node.damaged = yes
                 node.token_len = (pos - startpos)
                 return node
             }
@@ -758,21 +769,24 @@ func parse_expression_unwrapped(
                     tokens[pos].kind != token.T_BRACKET or
                     token.reverse_brackets(openbracket) !=
                         tokens[pos].str) {
-                msgs.add(new msg.FileMsg(
-                    "Unexpected " + token.describe_token_at(
-                        tokens, pos) +
-                    ", expected '" + token.reverse_brackets(
-                        openbracket
-                    ) +
-                    "' to close '" + openbracket + "' "
-                    "found in line " +
-                    token.get_line(tokens, op_pos).as_str() +
-                    ", col " +
-                    token.get_col(tokens, op_pos).as_str() + ".",
-                    source_file=project_file,
-                    line=token.get_line(tokens, pos),
-                    col=token.get_col(tokens, pos),
-                ))
+                if not node.has_damage() {
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected " + token.describe_token_at(
+                            tokens, pos) +
+                        ", expected '" + token.reverse_brackets(
+                            openbracket
+                        ) +
+                        "' to close '" + openbracket + "' "
+                        "found in line " +
+                        token.get_line(tokens, op_pos).as_str() +
+                        ", col " +
+                        token.get_col(tokens, op_pos).as_str() + ".",
+                        source_file=project_file,
+                        line=token.get_line(tokens, pos),
+                        col=token.get_col(tokens, pos),
+                    ))
+                }
+                node.damaged = yes
                 pos = token.skip_garbage_to_closing_item(
                     tokens, pos, token.T_BRACKET,
                     token.reverse_brackets(openbracket),
@@ -930,25 +944,39 @@ func parse_expression_unwrapped(
             ) later:
 
             await operand_parsed
-            if operand[1] + operand_parsed.token_len - 1 <
-                    operand[2] {
-                assert(operand_parsed.token_len > 0)
-                var after_pos = operand[1] + operand_parsed.token_len
-                msgs.add(new msg.FileMsg(
-                    "Unexpected " + token.describe_token_at(
-                        tokens, after_pos) +
-                    ", expected any valid operator to "
-                    "follow up " + token.describe_token_at(
-                        tokens, after_pos - 1) + " "
-                    "found in line " +
-                    token.get_line(tokens, after_pos - 1
-                                  ).as_str() + ", col " +
-                    token.get_col(tokens, after_pos - 1
-                                 ).as_str() + ".",
-                    source_file=project_file,
-                    line=token.get_line(tokens, pos),
-                    col=token.get_col(tokens, pos),
-                ))
+            if operand_parsed == none or
+                    (operand[1] + operand_parsed.token_len - 1 <
+                    operand[2]) {
+                assert(operand_parsed != none or
+                       operand_parsed.token_len > 0)
+                var after_pos = operand[1] + (
+                    if operand_parsed != None
+                        (operand_parsed.token_len) else (0)
+                )
+                if operand_parsed == none or
+                        not operand_parsed.has_damage() {
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected " + token.describe_token_at(
+                            tokens, after_pos) +
+                        ", expected any valid operator to "
+                        "follow up " + token.describe_token_at(
+                            tokens, after_pos - 1) + " "
+                        "found in line " +
+                        token.get_line(tokens, after_pos - 1
+                                      ).as_str() + ", col " +
+                        token.get_col(tokens, after_pos - 1
+                                     ).as_str() + ".",
+                        source_file=project_file,
+                        line=token.get_line(tokens, pos),
+                        col=token.get_col(tokens, pos),
+                    ))
+                }
+                if operand_parsed == none {
+                    operand_parsed = new InvalidExpr(
+                        after_pos - operand[1]
+                    )
+                }
+                operand_parsed.has_damage = yes
             }
             return operand_parsed
         }
@@ -1211,24 +1239,30 @@ func parse_single_call_or_funcdef_arg(
     await assigned_expr
 
     # Make sure we reached the proper ending:
+    var had_damage = no
     if pos > tokens.len or (
             tokens[pos].kind != token.T_COMMA and
             (tokens[pos].kind != token.T_BRACKET or
              tokens[pos].str != ")")) {
-        msgs.add(new msg.FileMsg(
-            "Unexpected " + token.describe_token_at(
-                tokens, pos) +
-            ", expected final ending ',' (T_COMMA) or "
-            "')' (T_BRACKET)" +
-            call_ast_error_info_suffix(
-                callordef_line, callordef_col,
-                is_call=is_call) + ".",
-            source_file=project_file,
-            line=token.get_line(tokens, pos),
-            col=token.get_col(tokens, pos),
-        ))
+        if assigned_expr == none or
+                not assigned_expr.has_damage() {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(
+                    tokens, pos) +
+                ", expected final ending ',' (T_COMMA) or "
+                "')' (T_BRACKET)" +
+                call_ast_error_info_suffix(
+                    callordef_line, callordef_col,
+                    is_call=is_call) + ".",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+        }
+        had_damage = yes
+        var preskippos = pos
         if pos < tokens.len {
-            pos = token.skip_garbage_to_closing_item(
+            var newpos = token.skip_garbage_to_closing_item(
                 tokens, pos, token.T_COMMA, ",",
                 skip_closing_item_itself=yes,
             )
@@ -1251,6 +1285,7 @@ func parse_single_call_or_funcdef_arg(
     assert(pre_assign_expr != none)
     if assigned_expr != none {
         var result_node = new CallKWArgExpr()
+        result_node.damaged = had_damage
         result_node.token_len = (pos - startpos)
         result_node.line = token.get_line(tokens, startpos)
         result_node.col = token.get_col(tokens, startpos)
@@ -1260,9 +1295,11 @@ func parse_single_call_or_funcdef_arg(
         return result_node
     } else {
         if is_call {
+            pre_assign_expr.damaged = had_damage
             return pre_assign_expr
         }
         var result_node = new ArgNameExpr()
+        result_node.damaged = had_damage
         result_node.token_len = (pos - startpos)
         result_node.line = token.get_line(tokens, startpos)
         result_node.col = token.get_col(tokens, startpos)
