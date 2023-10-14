@@ -10,7 +10,8 @@ Here's cool stuff Horse64 can do:
 Concurrency
 -----------
 
-Use effortlessly **concurrent networking** and disk I/O:
+Use effortlessly **[concurrent](
+/docs/Concurrency) networking** and disk I/O:
 
 ```Horse64
 import net.fetch from core.horse64.org
@@ -102,7 +103,8 @@ This is what Horse64 is intended to be suited for:
 
 - Creation and maintenance of **server backends using the 📶 integrated networking.**
 
-- Concurrency out-of-the-box supports **📱 responsive, non-blocking behavior.**
+- [Concurrency out-of-the-box](/docs/concurrency) supports
+  **📱 responsive, non-blocking behavior.**
 
 
 What Horse64 is bad at
