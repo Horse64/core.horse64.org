@@ -170,6 +170,7 @@ func parse_next_ifelse_clause(
             token.describe_token_at(tokens, pos))
     }
 
+    var clausestartpos = pos
     var clause = parse_next_ifelse_clause_header(
         tokens, tokens_len, pos, msgs, project_file=project_file,
         debug=debug, is_first=is_first, startpos=startpos
@@ -206,8 +207,10 @@ func parse_next_ifelse_clause(
             token.describe_token_at(tokens,
                 pos + block_result.token_len))
     }
-    clause.subblocks.add(block_result)
+    clause.subblocks.add(block_result.stmts)
     clause.token_len += block_result.token_len
+    clause.line = token.get_line(tokens, clausestartpos)
+    clause.col = token.get_col(tokens, clausestartpos)
     return clause
 }
 
@@ -228,7 +231,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             "... with pos=" + pos.as_str() + ", "
             "tokens.len=" + tokens.len.as_str())
     }
-    stmt.pos = token.get_line(tokens, pos)
+    stmt.line = token.get_line(tokens, pos)
     stmt.col = token.get_col(tokens, pos)
 
     if debug {
