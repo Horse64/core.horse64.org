@@ -84,7 +84,7 @@ func parse_next_ifelse_clause_header(
                 " for if statement starting in line " +
                 token.get_line(tokens, startpos).as_str() +
                 ", column " +
-                token.get_col(tokens, startpos).as_str(),
+                token.get_col(tokens, startpos).as_str() + ".",
                 source_file=project_file,
                 line=token.get_line(tokens, pos),
                 col=token.get_col(tokens, pos),
@@ -101,6 +101,7 @@ func parse_next_ifelse_clause_header(
             invalid_st.token_len = skiplen
             return later invalid_st
         }
+        return later none
     }
     if tokens[pos].str == "else" {
         pos += 1
@@ -178,6 +179,7 @@ func parse_next_ifelse_clause(
     if clause == none {
         return clause
     }
+    pos += clause.token_len
     if clause.kind == ast.N_EXPR_INVALID and (
             pos > tokens_len or
             tokens[pos].kind != token.T_BRACKET or
@@ -199,11 +201,10 @@ func parse_next_ifelse_clause(
     if debug {
         print("compiler.ast.if_stmt: parse_next_ifelse_clause() "
             "got inner block of length " +
-            block_result.token_len.as_str() + " "
-            ", with token after: " +
+            block_result.token_len.as_str() + ", "
+            "with token after: " +
             token.describe_token_at(tokens,
-                pos + clause.token_len +
-                block_result.token_len))
+                pos + block_result.token_len))
     }
     clause.subblocks.add(block_result)
     clause.token_len += block_result.token_len
