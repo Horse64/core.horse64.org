@@ -63,50 +63,56 @@ if __name__ == "__main__":
         print("(NOT changing anything, just a test run)")
     def update_misc_years(rpath, to_year=2023):
         contents = None
-        with open(os.path.join(rpath, "LICENSE.md"), "r",
-                encoding="utf-8") as f:
-            contents = f.read()
-        lines = contents.splitlines()
-        had_change = False
-        new_lines = []
-        for line in lines:
-            if (not line.startswith("Copyright (c) ") or
-                    not "ell1e" in line.lower()):
-                new_lines.append(line)
-                continue
-            remainder = line.partition("Copyright (c) ")[2].strip()
-            while len(remainder) > 0 and (
-                    (ord(remainder[0]) >= ord("0") and
-                    ord(remainder[0]) <= ord("9")) or
-                    remainder[0] == "-"):
-                remainder = remainder[1:]
-            first_year = line.partition("Copyright (c) ")[2].strip()
-            first_year = first_year.partition(" ")[0].strip()
-            if "-" in first_year:
-                first_year = first_year.partition("-")[0].strip()
-            if "," in first_year:
-                first_year = first_year.partition(",")[0]
-            first_year = int(first_year)
-            insert_year_str = str(first_year)
-            if first_year < to_year:
-                insert_year_str += "-" + str(to_year)
-            insert_line = ("Copyright (c) " + str(insert_year_str) +
-                remainder)
-            if line.strip().lower() == insert_line.strip().lower():
-                new_lines.append(line)
-                continue
-            new_lines.append(insert_line)
-            had_change = True
-        if had_change:
-            if not dry_run:
-                with open(os.path.join(rpath, "LICENSE.md"), "w",
-                        encoding="utf-8") as f:
-                    f.write("\n".join(new_lines))
-                o = subprocess.check_output(["git", "add",
-                    "LICENSE.md"],
-                    cwd=rpath)
-            print("Updated " + os.path.basename(os.path.normpath(
-                rpath)) + ": LICENSE.md year bumped")
+        def do_update_on_relpath(relpath):
+            if os.path.exists(os.path.join(rpath,
+                    relpath)):
+                return
+            with open(os.path.join(rpath, relpath), "r",
+                      encoding="utf-8") as f:
+                contents = f.read()
+                lines = contents.splitlines()
+                had_change = False
+                new_lines = []
+                for line in lines:
+                    if (not line.startswith("Copyright (c) ") or
+                            not "ell1e" in line.lower()):
+                        new_lines.append(line)
+                        continue
+                    remainder = line.partition("Copyright (c) ")[2].strip()
+                    while len(remainder) > 0 and (
+                            (ord(remainder[0]) >= ord("0") and
+                            ord(remainder[0]) <= ord("9")) or
+                            remainder[0] == "-"):
+                        remainder = remainder[1:]
+                    first_year = line.partition("Copyright (c) ")[2].strip()
+                    first_year = first_year.partition(" ")[0].strip()
+                    if "-" in first_year:
+                        first_year = first_year.partition("-")[0].strip()
+                    if "," in first_year:
+                        first_year = first_year.partition(",")[0]
+                    first_year = int(first_year)
+                    insert_year_str = str(first_year)
+                    if first_year < to_year:
+                        insert_year_str += "-" + str(to_year)
+                    insert_line = ("Copyright (c) " + str(insert_year_str) +
+                        remainder)
+                    if line.strip().lower() == insert_line.strip().lower():
+                        new_lines.append(line)
+                        continue
+                    new_lines.append(insert_line)
+                    had_change = True
+            if had_change:
+                if not dry_run:
+                    with open(os.path.join(rpath, relpath), "w",
+                            encoding="utf-8") as f:
+                        f.write("\n".join(new_lines))
+                    o = subprocess.check_output(["git", "add",
+                        relpath],
+                        cwd=rpath)
+                print("Updated " + os.path.basename(os.path.normpath(
+                    rpath)) + ": " + relpath + " year bumped")
+                return True
+        if do_update_on_relpath("LICENSE.md"):
             return True
         return False
 
@@ -120,7 +126,8 @@ if __name__ == "__main__":
                 "horsels.horse64.org",
                 "hstyle.horse64.org",
                 "Spew3D",
-                "Spew3D-Web"]:
+                "Spew3D-Web",
+                "Spew3D-Net"]:
             continue
         print("Found repository: " + str(reponame))
         repopath = os.path.join(mainrepopath, "..", reponame)
