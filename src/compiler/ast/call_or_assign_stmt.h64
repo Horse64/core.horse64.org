@@ -100,6 +100,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
                         }
                     }
                 }
+                i += 1
             }
             i += 1
             continue
@@ -108,7 +109,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             assign_or_call_idx = i
             break
         } elseif tokens[i].kind == token.T_MATHASSIGN or
-                token[i].kind == T_ASSIGN {
+                tokens[i].kind == token.T_ASSIGN {
             assign_or_call_idx = i
             is_call = no
             break
@@ -156,17 +157,15 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
                 line=v1.optoken.line,
                 col=v1.optoken.col,
             ))
-        } else {
-            stmt.subexprs.add(v1)
         }
-        if v1 != none {
-            pos += v1.token_len
-        } else {
+        if v1 == none {
             var skiplen = token.get_naive_stmt_or_expr_len(
                 tokens, pos, for_expr=no
             )
-            pos += skiplen
+            v1 = new expr.InvalidExpr(skiplen)
         }
+        pos += v1.token_len
+        stmt.subexprs.add(v1)
 
         if pos <= token_len and
                 tokens[pos].kind == token.T_KEYWORD and
@@ -201,6 +200,29 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     }
     assert(not is_call)
 
+    if v1 == none {
+        msgs.add(new msg.FileMsg(
+            "Unexpected token " +
+            token.describe_token_at(tokens,
+                assign_or_call_idx + 1) +
+            ", expected valid lvalue expression for " +
+            "assign operator at line " +
+            token.get_line(tokens, assign_or_call_idx).as_str() +
+            ", column " +
+            token.get_col(tokens, assign_or_call_idx).as_str() + ".",
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+        var skiplen = token.get_naive_stmt_or_expr_len(
+            tokens, pos, for_expr=no
+        )
+        if skiplen < 1 {
+            skiplen = 1
+        }
+        v1 = new expr.InvalidExpr(skiplen)
+    }
+
     var v2 = expr.parse_expression(
         tokens, assign_or_call_idx + 1,
         msgs,
@@ -208,7 +230,29 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     ) later:
     await v2
 
-    pos += v2.token_len
+    if v2 == none {
+        msgs.add(new msg.FileMsg(
+            "Unexpected token " +
+            token.describe_token_at(tokens,
+                assign_or_call_idx + 1) +
+            ", expected valid assigned expression for " +
+            "assign operator at line " +
+            token.get_line(tokens, assign_or_call_idx).as_str() +
+            ", column " +
+            token.get_col(tokens, assign_or_call_idx).as_str() + ".",
+            source_file=project_file,
+            line=token.get_line(tokens, assign_or_call_idx + 1),
+            col=token.get_col(tokens, assign_or_call_idx + 1),
+        ))
+        var skiplen = token.get_naive_stmt_or_expr_len(
+            tokens, assign_or_call_idx, for_expr=no
+        ) - 1
+        if skiplen < 1 {
+            skiplen = 1
+        }
+        v2 = new expr.InvalidExpr(skiplen)
+    }
+    pos = assign_or_call_idx + v2.token_len
     stmt.token_len = (pos - startpos)
     stmt.subexprs.add(v1)
     stmt.subexprs.add(v2)
