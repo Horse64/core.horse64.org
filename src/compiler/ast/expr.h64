@@ -207,44 +207,60 @@ func parse_expression(
     if max_len != none {
         tokens_len = math.min(max_len, tokens_len)
     }
+    var debug_id = none
     if debug {
-        print("compiler.ast.expr: parse_expression() on " +
+        debug_id = random.gen_id()
+        print("compiler.ast.expr: parse_expression() " +
+            debug_id + " on " +
             tokens.sub(pos, math.min(pos + 10, tokens_len)).as_str() +
             "... with pos=" + pos.as_str() + ", "
             "tokens.len=" + tokens.len.as_str() + ", "
             "max_len=" + max_len.as_str())
     }
+    var origpos = pos
+    var inner_expr = none
 
-    var inner_expr = parse_expression_unwrapped(
+    var wrapping_expr = parse_expression_unwrapped(
         tokens, pos, msgs, project_file=project_file,
+        left_hand=inner_expr,
         max_len=tokens_len, debug=debug
     ) later:
 
-    await inner_expr
+    await wrapping_expr
     if debug {
-        print("compiler.ast.expr: parse_expression() on " +
-            tokens.sub(pos, math.min(pos + 10, tokens_len)).as_str() +
-            "... fetched inner_expr -> " + inner_expr.as_str() +
-            " (with token after: " + token.describe_token_at(
-                tokens, pos + if inner_expr != none
-                (inner_expr.token_len) else (0)
+        print("compiler.ast.expr: parse_expression() " +
+            debug_id + " "
+            "fetched wrapping_expr -> " + wrapping_expr.as_str() + " "
+            "(with len " + if wrapping_expr != none (
+                wrapping_expr.token_len.as_str()) else ("<none>") + " "
+            "token after: " + token.describe_token_at(
+                tokens, origpos + if wrapping_expr != none
+                (wrapping_expr.token_len) else (0)
             ) + ")")
     }
-    if inner_expr == none {
-        return inner_expr
+    if wrapping_expr == none or
+            origpos + wrapping_expr.token_len > tokens_len or
+            not token_continues_expr(tokens[
+                origpos + wrapping_expr.token_len
+            ]) {
+        if debug {
+            print("compiler.ast.expr: parse_expression() " +
+                debug_id + " returning result.")
+        }
+        return wrapping_expr
     }
-    pos += inner_expr.token_len
-    if pos <= tokens_len and token_continues_expr(tokens[pos]) {
-        var wrapped_expr = parse_expression_unwrapped(
-            tokens, pos, msgs, project_file=project_file,
-            left_hand=inner_expr,
-            max_len=tokens_len, debug=debug,
-        ) later:
+    if debug {
+        print("compiler.ast.expr: parse_expression() " +
+            debug_id + " trying to wrap further...")
+    }
+    inner_expr = wrapping_expr
+    pos = origpos + inner_expr.token_len
 
-        await wrapped_expr
-        return wrapped_expr
-    }
-    return inner_expr
+    wrapped_expr = parse_expression_unwrapped(
+        tokens, pos, msgs, project_file=project_file,
+        left_hand=inner_expr,
+        max_len=tokens_len, debug=debug,
+    ) later repeat
 }
 
 func parse_expression_unwrapped(
@@ -782,6 +798,8 @@ func parse_expression_unwrapped(
             return node
         }
         # More things are chained, continue:
+        print("compiler.ast.expr: parse_expression_unwrapped() " +
+            debug_id + " continuing call/member/index chain")
         left_hand = node
         node = new BinopExpr(tokens[pos])
         node.line = left_hand.line
