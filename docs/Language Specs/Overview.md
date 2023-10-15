@@ -1,4 +1,6 @@
 
+<!-- For license of this file, see LICENSE.md in the base folder. -->
+
 Overview on Horse64
 ===================
 
@@ -24,6 +26,11 @@ partially ahead-of-time
 - Check below for [object-oriented programming in
   Horse64](#oop-in-horse64-by-using-type).
 
+- Check [the formal concurrency rules here](
+  /docs/Concurrency%20Model/Concurrency%20Model.md),
+  or read [an introduction on concurrency](
+  /docs/Concurrency%20Model/Concurrency%20Model.md).
+
 
 Design Goals
 ------------
@@ -47,10 +54,12 @@ OOP in Horse64 by using `type`
 
 The `type` keyword allows declaring the use of a so-called *custom
 type*. A custom type can be used for object-oriented programming.
+Any *object instance*, or *object* in short, will have the
+*attributes* specified on the type, which can be variables or funcs.
 
 Here is an example, where you can see `type` being used to specify
 a reusable concept of a "car", and then it can be used to create
-multiple actual *instances*:
+multiple actual *objects*:
 
 ```Horse64
 type Car {
@@ -63,22 +72,13 @@ func main {
 }
 ```
 
-A custom type has so-called *attributes*, in above example `speed`
-and `color`. These are stored separately for every single
-created instance and can be modified separately for each.
-
-A custom type can also have `func` attributes that access the
-current instance they're called on via `self`:
+A custom type's `func` attributes can access the
+current object they're called on, and its `var`
+attributes and their current values, via `self`:
 
 ```Horse64
 func Car.speed_up {
     self.speed *= 1.5
 }
 ```
-
-
-Concurrency in Horse64
-----------------------
-
-Go [here for a Horse64 concurrency introduction](/docs/Concurrency.md).
 
