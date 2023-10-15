@@ -57,6 +57,10 @@ func check_config {
 Comparison with other languages and use cases
 ---------------------------------------------
 
+⚠️⚠️⚠️ **Horse64 is currently very unfinished. The following
+information is based on the target state of a first release,
+and not reflective of the current work in progress version. ⚠️⚠️⚠️
+
 Horse64 is a dynamically typed, high-level language. Here is
 how it compares to the other programming languages
 [Python](https://python.org),
