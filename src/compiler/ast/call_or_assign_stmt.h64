@@ -28,6 +28,7 @@
 import compiler.ast as ast
 import compiler.ast.expr as expr
 import compiler.ast.invalid_stmt as invalid_stmt
+import compiler.ast.later_parse as later_parse
 import compiler.ast.block as block
 import compiler.msg as msg
 import compiler.token as token
@@ -45,15 +46,41 @@ func CallStmt.init {
 
 func CallStmt.as_json_obj {
     var output = base.as_json_obj()
+    if self.has_later {
+        output["has_later"] = yes
+    }
+    if self.has_later_ignore {
+        output["has_later_ignore"] = yes
+    }
+    if self.has_later_repeat {
+        output["has_later_repeat"] = yes
+    }
     return output
 }
 
 type AssignStmt base ast.StmtNode {
+    var has_later = no
+    var has_later_ignore = no
+    var has_later_repeat = no
 }
 
 func AssignStmt.init {
     base.init()
     self.kind = ast.N_STMT_ASSIGN
+}
+
+func AssignStmt.as_json_obj {
+    var output = base.as_json_obj()
+    if self.has_later {
+        output["has_later"] = yes
+    }
+    if self.has_later_ignore {
+        output["has_later_ignore"] = yes
+    }
+    if self.has_later_repeat {
+        output["has_later_repeat"] = yes
+    }
+    return output
 }
 
 func parse(tokens, pos, msgs, project_file=none, debug=no) {
@@ -124,8 +151,8 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var v1 = expr.parse_expression(
         tokens, pos,
         msgs, max_len=(if is_call (token_len) else
-            (assign_or_call_idx - pos)),
-        project_file=none, debug=no
+            (assign_or_call_idx)),
+        project_file=none, debug=debug
     ) later:
     await v1
 
@@ -169,35 +196,11 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         pos += v1.token_len
         stmt.subexprs.add(v1)
 
-        if pos <= token_len and
-                tokens[pos].kind == token.T_KEYWORD and
-                tokens[pos].str == "later" {
-            if pos + 1 > token_len or
-                    (tokens[pos + 1].kind != token.T_COLON and
-                     (tokens[pos + 1].kind != token.T_KEYWORD or
-                      (tokens[pos + 1].str != "ignore" and
-                       tokens[pos + 1].str != "repeat"))) {
-                msgs.add(new msg.FileMsg(
-                    "Unexpected " +
-                    if pos + 1 <= token_len
-                        (token.describe_token(tokens[pos + 1])) else
-                        ("end of tokens") +
-                    ", expected ':', 'repeat', or 'ignore' "
-                    "following 'later'.",
-                    source_file=project_file,
-                    line=token.get_line(tokens, pos),
-                    col=token.get_col(tokens, pos),
-                ))
-            } else {
-                stmt.has_later = yes
-                stmt.has_later_ignore = (
-                    tokens[pos + 1].kind == token.T_KEYWORD
-                )
-                pos += 2
-            }
-        }
-
+        pos = later_parse.
+            parse_later_postfix(tokens, pos, stmt, msgs,
+                project_file=project_file, debug=debug)
         stmt.token_len = (pos - startpos)
+
         return later stmt
     }
     assert(not is_call)
@@ -231,7 +234,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var v2 = expr.parse_expression(
         tokens, assign_or_call_idx + 1,
         msgs,
-        project_file=none, debug=no
+        project_file=none, debug=debug
     ) later:
     await v2
 
@@ -257,10 +260,48 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         }
         v2 = new expr.InvalidExpr(skiplen)
     }
-    pos = assign_or_call_idx + v2.token_len
+    pos = assign_or_call_idx + v2.token_len + 1
     stmt.token_len = (pos - startpos)
     stmt.subexprs.add(v1)
     stmt.subexprs.add(v2)
+
+    var newpos =
+        later_parse.parse_later_postfix(tokens, pos, stmt, msgs,
+            project_file=project_file, debug=debug)
+
+    if newpos > pos and not stmt.has_damage() {
+        if v2.kind != ast.N_EXPR_BINOP or
+                v2.optoken.str != "(" {
+            msgs.add(new msg.FileMsg(
+                "Unexpected use of 'later' for assigned "
+                "expression " +
+                ast.NodeKind.num_label(v2.kind) +
+                if v2.kind == ast.N_EXPR_BINOP
+                    (" (of type '" + v2.optoken.str + "')")
+                    else ("") + ", "
+                "can only use 'later' after call expression.",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+            stmt.damaged = yes
+        }
+        if v1.kind != ast.N_EXPR_IDREF {
+            msgs.add(new msg.FileMsg(
+                "Unexpected use of 'later' for lvalue "
+                "of type " +
+                ast.NodeKind.num_label(v1.kind) + ", "
+                "can only use when directly assigning a "
+                "local variable name.",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+            stmt.damaged = yes
+        }
+    }
+    pos = newpos
+    stmt.token_len = (pos - startpos)
     return stmt
 }
 

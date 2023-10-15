@@ -30,22 +30,35 @@ import math from core.horse64.org
 import compiler.ast as ast
 import compiler.ast.expr as expr
 import compiler.ast.invalid_stmt as invalid_stmt
+import compiler.ast.later_parse as later_parse
 import compiler.ast.block as block
 import compiler.msg as msg
 import compiler.token as token
 
 type VarStmt base ast.StmtNode {
     var is_const = no
-    var var_names = []
+    var has_later = no
+    var has_later_ignore = no
+    var has_later_repeat = no
 }
 
 func VarStmt.init {
     base.init()
-    self.kind = ast.N_STMT_RETURN
+    self.kind = ast.N_STMT_VAR
 }
 
 func VarStmt.as_json_obj {
     var output = base.as_json_obj()
+    output["is_const"] = self.is_const
+    if self.has_later {
+        output["has_later"] = yes
+    }
+    if self.has_later_ignore {
+        output["has_later_ignore"] = yes
+    }
+    if self.has_later_repeat {
+        output["has_later_repeat"] = yes
+    }
     return output
 }
 
@@ -73,6 +86,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     pos += 1
 
     # Parse variable names:
+    var varcount = 0
     while yes {
         if pos > tokens_len or
                 tokens[pos].kind != token.T_IDENT {
@@ -100,7 +114,10 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             invalid_st.token_len = (pos - startpos) + skiplen
             return invalid_st
         }
-        stmt.var_names.add(tokens[pos].str)
+        var idrefexpr = new expr.IdRefExpr()
+        idrefexpr.label = tokens[pos].str
+        stmt.subexprs.add(idrefexpr)
+        varcount += 1
         pos += 1
         if not token.can_stmt_or_expr_end_before_token(
                 tokens, pos, for_expr=no
@@ -134,8 +151,8 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         } elseif tokens[pos].kind != token.T_COMMA and
                 tokens[pos].kind != token.T_ASSIGN {
             i = 1
-            while i <= stmt.var_names {
-                var lexpr = new LiteralExpr()
+            while i <= varcount {
+                var lexpr = new expr.LiteralExpr()
                 lexpr.value = none
                 stmt.subexprs.add(lexpr)
                 i += 1
@@ -150,7 +167,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     pos += 1  # Past '='
 
     # Get default values for each respective variable:
-    var remaining_count = stmt.var_names.len
+    var remaining_count = varcount
     assert(remaining_count > 0)
     if debug {
         print("compiler.ast.var_stmt: parse() fetching " +
@@ -165,7 +182,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     if v == none {
         msgs.add(new msg.FileMsg(
             "Unexpected " + token.describe_token_at(tokens, pos) +
-            ", expected initial value for variable "
+            ", expected assigned value for variable "
             "following " + stmt_name +
             " statement starting in line " +
             token.get_line(tokens, startpos).as_str() +
@@ -179,14 +196,14 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         var skiplen = token.get_naive_stmt_or_expr_len(
             tokens, pos, bracket_depth=0, for_expr=no
         )
-        var invalid_st = new invalid_stmt.InvalidStmt(
-            skiplen
-        )
-        invalid_st.line = token.get_line(tokens, startpos)
-        invalid_st.col = token.get_col(tokens, startpos)
-        assert(skiplen > 0)
-        invalid_st.token_len = (pos - startpos) + skiplen
-        return invalid_st
+        pos += skiplen
+        stmt.token_len = (pos - startpos) + skiplen
+        while remaining_count > 0 {
+            stmt.subexprs.add(new expr.LiteralExpr())
+            remaining_count -= 1
+        }
+        stmt.damaged = yes
+        return stmt
     }
     if debug {
         print("compiler.ast.var_stmt: parse() obtained " +
@@ -198,10 +215,44 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     remaining_count -= 1
     if remaining_count <= 0 {
         stmt.token_len = (pos - startpos)
+
+        var newpos =
+            later_parse.
+                parse_later_postfix(tokens, pos, stmt, msgs,
+                project_file=project_file, debug=debug)
+        if newpos > pos and not stmt.damaged {
+            if stmt.subexprs.len > 2 {  # More than one name, value pair
+                msgs.add(new msg.FileMsg(
+                    "Unexpected use of 'later' for " + stmt_name + " "
+                    "statement declaring multiple variables, "
+                    "can only be used for single declared variables.",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+                stmt.damaged = yes
+            }
+            if stmt.subexprs.len == 2 and (
+                    stmt.subexprs[2].kind != ast.N_EXPR_BINOP or
+                    stmt.subexprs[2].optoken.str != "(") {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected use of 'later' for assigned "
+                    "expression " +
+                    ast.NodeKind.num_label(stmt.subexprs[2].kind) + ", "
+                    "can only use 'later' after call expression.",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+                stmt.damaged = yes
+            }
+        }
+        pos = newpos
+        stmt.token_len = (pos - startpos)
         return stmt
     }
     if pos > tokens_len or
-            tokens[pos].kind != T_COMMA {
+            tokens[pos].kind != token.T_COMMA {
         msgs.add(new msg.FileMsg(
             "Unexpected " + token.describe_token_at(tokens, pos) +
             ", expected ',' for more initial variable values "
@@ -218,15 +269,15 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         var skiplen = token.get_naive_stmt_or_expr_len(
             tokens, pos, bracket_depth=0, for_expr=no
         )
-        var invalid_st = new invalid_stmt.InvalidStmt(
-            skiplen
-        )
-        invalid_st.line = token.get_line(tokens, startpos)
-        invalid_st.col = token.get_col(tokens, startpos)
+        stmt.token_len = (pos - startpos) + skiplen
+        while remaining_count > 0 {
+            stmt.subexprs.add(new expr.LiteralExpr())
+            remaining_count -= 1
+        }
         assert(skiplen > 0)
-        invalid_st.token_len = (pos - startpos) + skiplen
-        return invalid_st
+        return stmt
     }
+    pos += 1  # Go past ','.
 
     if debug {
         print("compiler.ast.var_stmt: parse() fetching " +

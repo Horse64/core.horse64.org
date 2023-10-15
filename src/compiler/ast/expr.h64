@@ -858,7 +858,15 @@ func parse_expression_unwrapped(
         var expr_len = token.get_naive_stmt_or_expr_len(
             tokens, pos, max_len=tokens_len, for_expr=yes
         )
-        tokens_len = pos + expr_len - 1
+        tokens_len = pos + math.max(0, expr_len - 1)
+        if expr_len > 2 and tokens_len >= 2 and
+                tokens[tokens_len - 1].kind == token.T_KEYWORD and
+                tokens[tokens_len - 1].str == "later" {
+            # Stop before trailing later since that's parsed on
+            # a statement level.
+            expr_len -= 2
+            tokens_len -= 2
+        }
 
         # First, collect all operators for precedence ordering:
         outer_level_ops_operands.add(left_hand)
@@ -992,7 +1000,7 @@ func parse_expression_unwrapped(
                         after_pos - operand[1]
                     )
                 }
-                operand_parsed.has_damage = yes
+                operand_parsed.damaged = yes
             }
             return operand_parsed
         }
