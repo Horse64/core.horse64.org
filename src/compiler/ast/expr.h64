@@ -1290,7 +1290,8 @@ func parse_single_call_or_funcdef_arg(
                 tokens, pos, token.T_COMMA, ",",
                 skip_closing_item_itself=yes,
             )
-            assert(pos >= startpos)
+            assert(newpos >= pos)
+            pos = newpos
         }
     }
     #print("parse_single_call_or_funcdef_arg() past "
