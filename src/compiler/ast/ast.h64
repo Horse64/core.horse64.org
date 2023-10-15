@@ -37,6 +37,7 @@ import compiler.ast.import_stmt as import_stmt
 import compiler.ast.invalid_stmt as invalid_stmt
 import compiler.ast.return_stmt as return_stmt
 import compiler.ast.var_stmt as var_stmt
+import compiler.ast.with_stmt as with_stmt
 import compiler.msg as msg
 import compiler.token as token
 
@@ -139,6 +140,7 @@ enum NodeKind {
     N_EXPR_IFELSECLAUSE,
     N_STMT_AWAIT,
     N_STMT_FOR,
+    N_STMT_WITH,
     N_STMT_FUNC,
     N_STMT_CALL,
     N_STMT_ASSIGN,
@@ -190,6 +192,7 @@ func ASTResult.as_json_obj {
 var stmt_parse_funcs = [
     call_or_assign_stmt.parse,
     await_stmt.parse,
+    with_stmt.parse,
     for_stmt.parse,
     if_stmt.parse,
     func_stmt.parse,

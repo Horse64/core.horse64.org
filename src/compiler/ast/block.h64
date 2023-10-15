@@ -54,7 +54,7 @@ func CodeBlockResult.has_damage {
 }
 
 func parse(tokens, pos, msgs, project_file=none, debug=no,
-        block_purpose_name="") {
+        had_damage=no, block_purpose_name="") {
     var startpos = pos
     const tokens_len = tokens.len
     var result = new CodeBlockResult()
@@ -63,21 +63,24 @@ func parse(tokens, pos, msgs, project_file=none, debug=no,
     if pos > tokens_len or
             tokens[pos].kind != token.T_BRACKET or
             tokens[pos].str != "{" {
-        msgs.add(new msg.FileMsg(
-            "Unexpected " + token.describe_token_at(tokens, pos) +
-            ", expected '{' (T_BRACKET) to start "
-            "code block" +
-            if block_purpose_name.len > 0 (" ") else ("") +
-            block_purpose_name + ".",
-            source_file=project_file,
-            line=token.get_line(tokens, pos),
-            col=token.get_col(tokens, pos),
-        ))
+        if not had_damage {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(tokens, pos) +
+                ", expected '{' (T_BRACKET) to start "
+                "code block" +
+                if block_purpose_name.len > 0 (" ") else ("") +
+                block_purpose_name + ".",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+        }
         pos -= 1
         var skiplen = token.get_naive_stmt_or_expr_len(
             tokens, pos, bracket_depth=0, for_expr=no
         )
         assert(skiplen > 0)
+        result.damaged = yes
         result.token_len = (pos - startpos) + skiplen
         return result
     }
