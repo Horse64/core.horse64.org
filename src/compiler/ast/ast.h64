@@ -28,6 +28,7 @@
 import json from core.horse64.org
 import uri from core.horse64.org
 
+import compiler.ast.await_stmt as await_stmt
 import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
 import compiler.ast.func_stmt as func_stmt
 import compiler.ast.if_stmt as if_stmt
@@ -135,6 +136,7 @@ enum NodeKind {
     N_EXPR_UNOP,
     N_EXPR_IDREF,
     N_EXPR_IFELSECLAUSE,
+    N_STMT_AWAIT,
     N_STMT_FUNC,
     N_STMT_CALL,
     N_STMT_ASSIGN,
@@ -185,6 +187,7 @@ func ASTResult.as_json_obj {
 
 var stmt_parse_funcs = [
     call_or_assign_stmt.parse,
+    await_stmt.parse,
     if_stmt.parse,
     func_stmt.parse,
     import_stmt.parse,

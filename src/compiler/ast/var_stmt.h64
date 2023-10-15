@@ -238,7 +238,11 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
                 msgs.add(new msg.FileMsg(
                     "Unexpected use of 'later' for assigned "
                     "expression " +
-                    ast.NodeKind.num_label(stmt.subexprs[2].kind) + ", "
+                    ast.NodeKind.num_label(stmt.subexprs[2].kind) +
+                    if stmt.subexprs[2].kind == ast.N_EXPR_BINOP
+                        (" (of type '" +
+                         stmt.subexprs[2].optoken.str + "')")
+                        else ("") + ", "
                     "can only use 'later' after call expression.",
                     source_file=project_file,
                     line=token.get_line(tokens, pos),
