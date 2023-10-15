@@ -123,12 +123,13 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         pos += 2
     }
 
+    # Get the container expression of the for loop:
     var v = none
     func parse_container_expr() {
         if skip_to_block {
             return none
         }
-        v = expr.parse_expression(
+        var v = expr.parse_expression(
             tokens, pos, msgs,
             project_file=project_file
         ) later:
@@ -136,6 +137,9 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         await v
         return v
     }
+    v = parse_container_expr() later:
+
+    await v
     if v == none {
         if not stmt.damaged {
             msgs.add(new msg.FileMsg(
@@ -151,6 +155,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         stmt.damaged = yes
         skip_to_block = yes
     }
+    # Advance to code block (needed if there was an error):
     if skip_to_block and pos < tokens_len and
             (tokens[pos].kind != token.T_BRACKET or
             tokens[pos].str != "{") {
@@ -173,6 +178,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     }
     stmt.subexprs.add(v)
 
+    # Parse inner code block:
     var block_result = block.parse(
         tokens, pos, msgs, project_file=project_file,
         debug=debug,
