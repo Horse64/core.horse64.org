@@ -17,7 +17,7 @@ https://horse64.org/download)
 
 - [Project license.](LICENSE.md)
 
-This repository holds the standard library, compiler,
-and main documentation. It's officially on [Codeberg](
-https://codeberg.org/) with a GitHub mirror.
+This repository holds the code of the standard library, compiler,
+and main documentation. The code is officially hosted on [Codeberg](
+https://codeberg.org/Horse64/core.horse64.org) with a GitHub mirror.
 
