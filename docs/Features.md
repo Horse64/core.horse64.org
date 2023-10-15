@@ -133,13 +133,11 @@ This is what Horse64 is likely to be bad at:
 - 🚫 Extreme raw speed, since it uses a bytecode VM.
 
 - 🚫 Complex offline code type checking, since it's dynamically typed.
-  *(The compiler will however catch more basics beyond many other
-  scripting languages.)*
+  *(The compiler still catches more errors than many scripting languages.)*
 
 - 🚫 Maximum fast compiler, since that's not a project focus.
 
-- 🚫 Heavily functional programming, since Horse64 is more focused on
-  clean in-order imperative code and object-oriented code.
+- 🚫 Heavily functional programming, it aims more at OOP and imperative.
 
 
 Technical specifications

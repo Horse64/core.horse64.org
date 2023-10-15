@@ -2,6 +2,7 @@
 Overview on Horse64
 ===================
 
+
 What is Horse64
 ---------------
 
@@ -22,6 +23,24 @@ partially ahead-of-time
 
 - Check below for [object-oriented programming in
   Horse64](#oop-in-horse64-by-using-type).
+
+
+Design Goals
+------------
+
+Major design goals of Horse64 are:
+
+- As approachable as possible for beginners,
+  without sacrificing big project use.
+
+- As clean and minimal as possible,
+  without sacrificing big project use.
+
+- The basic tooling should be portable and easy to install and modify.
+  *(This is why the compiler is custom, without LLVM or bison use.)
+
+- Main focus is easy desktop and backend apps.
+
 
 OOP in Horse64 by using `type`
 ------------------------------
@@ -57,4 +76,9 @@ func Car.speed_up {
 }
 ```
 
+
+Concurrency in Horse64
+----------------------
+
+Go [here for a Horse64 concurrency introduction](/docs/Concurrency.md).
 
