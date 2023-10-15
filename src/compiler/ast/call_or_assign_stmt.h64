@@ -115,13 +115,12 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
                     break
                 }
                 if tokens[i].kind == token.T_BRACKET {
-                    if tokens[i].str == "[" or
-                            tokens[i].str == "(" or
-                            tokens[i].str == "{" {
+                    if {"(", "[", "{"}.has(tokens[i].str) {
                         bracket_depth += 1
                     } else {
+                        assert({")", "]", "}"}.has(tokens[i].str))
                         bracket_depth -= 1
-                        if bracket_depth < 0 {
+                        if bracket_depth <= 0 {
                             break
                         }
                     }
