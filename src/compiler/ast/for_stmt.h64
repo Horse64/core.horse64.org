@@ -1,0 +1,194 @@
+# @module compiler.ast.for_stmt
+# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import math from core.horse64.org
+
+import compiler.ast as ast
+import compiler.ast.block as block
+import compiler.ast.expr as expr
+import compiler.ast.invalid_stmt as invalid_stmt
+import compiler.msg as msg
+import compiler.token as token
+
+type ForStmt base ast.StmtNode {
+}
+
+func ForStmt.init {
+    base.init()
+    self.kind = ast.N_STMT_FOR
+}
+
+func ForStmt.as_json_obj {
+    var output = base.as_json_obj()
+    return output
+}
+
+func parse(tokens, pos, msgs, project_file=none, debug=no) {
+    var stmt = new ForStmt()
+    var tokens_len = tokens.len
+    var startpos = pos
+
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_KEYWORD or
+            tokens[pos].str != "for" {
+        return later none
+    }
+
+    if debug {
+        print("compiler.ast.for_stmt: parse() on " +
+            tokens.sub(pos, math.min(pos + 10, tokens_len)).as_str() +
+            "... with pos=" + pos.as_str() + ", "
+            "tokens.len=" + tokens.len.as_str())
+    }
+    stmt.pos = token.get_line(tokens, pos)
+    stmt.col = token.get_col(tokens, pos)
+    pos += 1
+
+    # Get the identifier of the for loop:
+    var skip_to_block = no
+    if pos + 1 > tokens_len or
+            tokens[pos].kind != token.T_IDENT or
+            tokens[pos + 1].kind != token.T_KEYWORD or
+            tokens[pos + 1].str != "in" {
+        skip_to_block = yes
+        if not stmt.has_damage() and (pos > tokens_len or
+                tokens[pos].kind != token.T_IDENT) {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(tokens, pos) +
+                ", expected identifier (T_IDENT) specifying "
+                "for loop iterator.",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+        } elseif not stmt.has_damage() {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(tokens, pos) +
+                ", expected 'in' (T_KEYWORD) leading to "
+                "iterated container used by for loop iterator.",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+        }
+        stmt.damaged = yes
+        var possibleskiplen = token.get_naive_stmt_or_expr_len(
+            tokens, startpos, bracket_depth=0
+        )
+        var i = pos
+        while i < possibleskiplen + pos and (
+                tokens[i].kind != token.T_BRACKET or
+                tokens[i].str != "{") {
+            i += 1
+        }
+        if i >= possibleskiplen + pos {
+            pos = i
+            var invalid_st = invalid_stmt.InvalidStmt(
+                math.max(pos - startpos, 1)
+            )
+            return invalid_st
+        }
+        stmt.subexprs.add(new expr.InvalidExpr(
+            math.max(i - pos + 1, 1)
+        ))
+        pos = i
+    } else {
+        var ep = new expr.IdRefExpr()
+        ep.label = tokens[pos].str
+        stmt.subexprs.add(ep)
+        pos += 2
+    }
+
+    var v = none
+    func parse_container_expr() {
+        if skip_to_block {
+            return none
+        }
+        v = expr.parse_expression(
+            tokens, pos, msgs,
+            project_file=project_file
+        ) later:
+
+        await v
+        return v
+    }
+    if v == none {
+        if not stmt.damaged {
+            msgs.add(new msg.FileMsg(
+                "Unexpected token " +
+                token.describe_token_at(tokens, pos) +
+                ", expected iterated container expression "
+                "used by for loop.",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+        }
+        stmt.damaged = yes
+        skip_to_block = yes
+    }
+    if skip_to_block and pos < tokens_len and
+            (tokens[pos].kind != token.T_BRACKET or
+            tokens[pos].str != "{") {
+        var beforeskippos = pos
+        var skiplen = token.get_naive_stmt_or_expr_len(
+            tokens, pos - 1, bracket_depth=0, for_expr=no
+        )
+        var skipto = pos + skiplen
+        while pos < skipto and (
+                tokens[pos].kind != token.T_BRACKET or
+                tokens[pos].str != "{") {
+            pos += 1
+        }
+        if v == none {
+            v = new expr.InvalidExpr(math.max(1, pos - beforeskippos))
+        }
+    } else {
+        assert(v != none)
+        pos += v.token_len
+    }
+    stmt.subexprs.add(v)
+
+    var block_result = block.parse(
+        tokens, pos, msgs, project_file=project_file,
+        debug=debug,
+        block_purpose_name="for the for loop statement starting in "
+            "line " + token.get_line(tokens, startpos).as_str() +
+            ", column " + token.get_col(tokens, startpos).as_str()
+    ) later:
+
+    await block_result
+    if block_result.has_damage() {
+        stmt.damaged = yes
+    }
+    pos += block_result.token_len
+    stmt.subblocks.add(block_result.stmts)
+
+    stmt.token_len = (pos - startpos)
+    return later stmt
+}
+
