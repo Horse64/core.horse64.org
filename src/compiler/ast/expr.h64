@@ -676,7 +676,7 @@ func parse_expression_unwrapped(
         var orig_left_hand_len = left_hand.token_len
         var openbracket =
             if tokens[pos].kind == token.T_BRACKET
-            (tokens[pos].str) else (none)
+            (tokens[pos].str) else (".")
         var op_pos = pos
         pos += 1  # Go past opening bracket.
         var node = new BinopExpr(tokens[pos - 1])
@@ -712,7 +712,22 @@ func parse_expression_unwrapped(
                     inner_expr.token_len -= 1  # Exclude closing ')'.
                 }
                 return inner_expr
+            } elseif openbracket == '.' {
+                # We only shall consume a following identifier, not
+                # more. Otherwise, nesting precedence is messed up.
+                if pos > tokens_len or
+                        tokens[pos].kind != token.T_IDENT {
+                    return none
+                }
+                var iep = new IdRefExpr()
+                iep.label = tokens[pos].str
+                iep.col = tokens[pos].col
+                iep.line = tokens[pos].line
+                iep.token_len = 1
+                return iep
             }
+            # Parse until the expression naturally ends for '[':
+            assert(openbracket == '[')
             var inner_expr = parse_expression(
                 tokens, pos, msgs, project_file=project_file,
                 max_len=tokens_len, debug=debug,
@@ -747,7 +762,7 @@ func parse_expression_unwrapped(
                 col=token.get_col(tokens, pos),
             ))
             var preskippos = pos
-            if openbracket != none {
+            if openbracket != "." {
                 # Try to find actual closing bracket:
                 pos = token.skip_garbage_to_closing_item(
                     tokens, pos, token.T_BRACKET,
@@ -780,7 +795,7 @@ func parse_expression_unwrapped(
         } else {
             node.subexprs.add(inner_expr)
             pos += inner_expr.token_len
-            if openbracket != none and
+            if openbracket != "." and
                     (pos > tokens_len or
                     tokens[pos].kind != token.T_BRACKET or
                     token.reverse_brackets(openbracket) !=
@@ -809,7 +824,7 @@ func parse_expression_unwrapped(
                     max_len=tokens_len,
                     skip_closing_item_itself=yes
                 )
-            } elseif openbracket != none {
+            } elseif openbracket != "." {
                 pos += 1  # Go past closing bracket.
             }
         }
@@ -828,13 +843,20 @@ func parse_expression_unwrapped(
             return node
         }
         # More things are chained, continue:
-        print("compiler.ast.expr: parse_expression_unwrapped() " +
-            debug_id + " continuing call/member/index chain")
+        if debug {
+            print("compiler.ast.expr: parse_expression_unwrapped() " +
+                debug_id + " continuing call/member/index chain")
+        }
         left_hand = node
+        openbracket =
+            if tokens[pos].kind == token.T_BRACKET
+            (tokens[pos].str) else (".")
         node = new BinopExpr(tokens[pos])
         node.line = left_hand.line
         node.col = left_hand.col
         node.subexprs.add(left_hand)
+        op_pos = pos
+        pos += 1  # Go past opening bracket.
 
         # Parse and jump back to handle next chained item:
         inner_expr = get_bracketed_expression() later repeat
@@ -947,7 +969,7 @@ func parse_expression_unwrapped(
         outer_level_ops_at.sort(cmp=sort_op_positions)
         if debug {
             print("compiler.ast.expr: parse_expression_unwrapped() " +
-                debug_id.as_str() + " parsing operators expression " +
+                debug_id + " parsing operators expression " +
                 tokens.sub(pos, tokens_len).as_str() +
                 " with outer_level_ops_at=" +
                 outer_level_ops_at.as_str())
