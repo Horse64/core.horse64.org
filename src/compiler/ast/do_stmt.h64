@@ -1,0 +1,316 @@
+# @module compiler.ast.do_stmt
+# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import math from core.horse64.org
+
+import compiler.ast as ast
+import compiler.ast.block as block
+import compiler.ast.expr as expr
+import compiler.ast.invalid_stmt as invalid_stmt
+import compiler.msg as msg
+import compiler.token as token
+
+type DoStmt base ast.StmtNode {
+    var has_rescue = no
+    var has_finally = no
+}
+
+func DoStmt.init {
+    base.init()
+    self.kind = ast.N_STMT_DO
+}
+
+func DoStmt.as_json_obj {
+    var output = base.as_json_obj()
+    return output
+}
+
+type RescueClause base ast.TreeNode {
+    var error_names = []
+}
+
+func RescueClause.init {
+    base.init()
+    self.kind = ast.N_EXPR_RESCUECLAUSE
+}
+
+func RescueClause.as_json_obj {
+    var output = base.as_json_obj()
+    output["error_names"] = self.error_names
+    return output
+}
+
+type FinallyClause base ast.TreeNode {
+}
+
+func FinallyClause.init {
+    base.init()
+    self.kind = ast.N_EXPR_FINALLYCLAUSE
+}
+
+func FinallyClause.as_json_obj {
+    var output = base.as_json_obj()
+    return output
+}
+
+func parse_rescue_clause_header(
+        stmt, tokens, tokens_len, pos, msgs,
+        project_file=none, debug=no) {
+    var clausestart = pos
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_KEYWORD or
+            tokens[pos].str != "rescue" {
+        return none
+    }
+    pos += 1
+
+    var clause = new RescueClause()
+    clause.line = token.get_line(tokens, pos - 1)
+    clause.col = token.get_col(tokens, pos - 1)
+    var errors_parsed = 0
+    while yes {
+        if pos > tokens_len or (
+                tokens[pos].kind != token.T_IDENTIFIER and
+                (token[pos].kind != token.T_KEYWORD or
+                 token[pos].str != "any")) {
+            if errors_parsed == 0 or
+                    token[pos].kind != token.T_BRACKET or
+                    token[pos].str != "{" {
+                if not stmt.has_damage() {
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected " + token.describe_token_at(tokens,
+                            pos) +
+                        ", expected valid expression for rescue "
+                        "clause" +
+                        if error_names.len > 0 (" or '{' to start "
+                            "code block") else ("") + ".",
+                        source_file=project_file,
+                        line=token.get_line(tokens, pos),
+                        col=token.get_col(tokens, pos),
+                    ))
+                }
+                stmt.damaged = yes
+                clause.damaged = yes
+                var skiplen = token.get_naive_stmt_or_expr_len(
+                    tokens, pos - 1, bracket_depth=0
+                )
+                assert(skiplen > 0)
+                pos += skiplen - 1
+            }
+            clause.token_len = (pos - clausestart)
+            return clause
+        }
+        var error_typename = tokens[pos].str
+        var error_renameto = none
+        errors_parsed += 1
+        pos += 1
+
+        # Extract components of type prefix, if any:
+        var error_typepath = none
+        while pos + 1 <= tokens_len and
+                tokens[pos].kind == token.T_DOT and
+                tokens[pos + 1].kind == token.T_IDENT {
+            if error_typepath == none {
+                error_typepath = []
+            }
+            error_typepath.add(error_typename)
+            error_typename = tokens[pos + 1].str
+            pos += 2
+        }
+
+        # Extract "as <name>" part, if present:
+        if pos <= tokens_len and
+                tokens[pos].kind == token.T_KEYWORD and
+                tokens[pos].str == "as" {
+            pos += 1
+            if pos > tokens_len or
+                    tokens[pos].kind != token.T_IDENT {
+                if not stmt.has_damage() {
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected " + token.describe_token_at(tokens,
+                            pos) +
+                        ", expected valid expression for rescue "
+                        "clause" +
+                        if error_names.len > 0 (" or '{' to start "
+                            "code block") else ("") + ".",
+                        source_file=project_file,
+                        line=token.get_line(tokens, pos),
+                        col=token.get_col(tokens, pos),
+                    ))
+                }
+                stmt.damaged = yes
+                clause.damaged = yes
+            } else {
+                error_renameto = tokens[pos].str
+                pos += 1
+            }
+        }
+        var iexp = new expr.IdRefExpr()
+        iexp.label = error_classname
+        iexp.typepath = error_typepath
+        clause.subexprs.add(iexp)
+        clause.error_names.add(error_renameto)
+    }
+}
+
+func parse_rescue_clause(
+        stmt, tokens, tokens_len, pos, msgs,
+        project_file=none, debug=no) {
+    var clausestartpos = pos
+    var clause = parse_rescue_clause_header(
+        stmt, tokens, tokens_len, pos, msgs,
+        project_file=project_file, debug=debug)
+    if clause == none {
+        return later none
+    }
+    pos += clause.token_len
+
+    # Parse inner code block:
+    var block_result = block.parse(
+        tokens, pos, msgs, project_file=project_file,
+        debug=debug, had_damage=stmt.has_damage(),
+        block_purpose_name="for rescue clause starting in "
+            "line " + token.get_line(tokens,
+            clausestartpos).as_str() +
+            ", column " + token.get_col(tokens,
+            clausestartpos).as_str()
+    ) later:
+
+    await block_result
+    if block_result.has_damage() {
+        clause.damaged = yes
+    }
+    pos += block_result.token_len
+    clause.subblocks.add(block_result.stmts)
+
+    clause.token_len = (pos - clausestartpos)
+    return later clause
+}
+
+func parse_finally_clause(
+        stmt, tokens, tokens_len, pos, msgs,
+        project_file=none, debug=no) {
+    var clausestartpos = pos
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_KEYWORD or
+            tokens[pos].str != "finally" {
+        return none
+    }
+    pos += 1
+    var clause = new FinallyClause()
+
+    # Parse inner code block:
+    var block_result = block.parse(
+        tokens, pos, msgs, project_file=project_file,
+        debug=debug, had_damage=stmt.has_damage(),
+        block_purpose_name="for finally clause starting in "
+            "line " + token.get_line(tokens,
+            clausestartpos).as_str() +
+            ", column " + token.get_col(tokens,
+            clausestartpos).as_str()
+    ) later:
+
+    await block_result
+    if block_result.has_damage() {
+        clause.damaged = yes
+    }
+    pos += block_result.token_len
+    clause.subblocks.add(block_result.stmts)
+
+    clause.token_len = (pos - clausestartpos)
+    return later clause
+}
+
+func parse(tokens, pos, msgs, project_file=none, debug=no) {
+    var stmt = new DoStmt()
+    var tokens_len = tokens.len
+    var startpos = pos
+
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_KEYWORD or
+            tokens[pos].str != "do" {
+        return later none
+    }
+
+    if debug {
+        print("compiler.ast.do_stmt: parse() on " +
+            tokens.sub(pos, math.min(pos + 10, tokens_len)).as_str() +
+            "... with pos=" + pos.as_str() + ", "
+            "tokens.len=" + tokens.len.as_str())
+    }
+    stmt.pos = token.get_line(tokens, pos)
+    stmt.col = token.get_col(tokens, pos)
+    pos += 1
+
+    # Parse inner code block:
+    var block_result = block.parse(
+        tokens, pos, msgs, project_file=project_file,
+        debug=debug, had_damage=stmt.has_damage(),
+        block_purpose_name="for the with statement starting in "
+            "line " + token.get_line(tokens, startpos).as_str() +
+            ", column " + token.get_col(tokens, startpos).as_str()
+    ) later:
+
+    await block_result
+    if block_result.has_damage() {
+        stmt.damaged = yes
+    }
+    pos += block_result.token_len
+    stmt.subblocks.add(block_result.stmts)
+
+    # Parse rescue clause, if any:
+    var rescue_clause = parse_rescue_clause(
+        stmt, tokens, tokens_len, pos, msgs,
+        project_file=none, debug=no) later:
+
+    await rescue_clause
+    if rescue_clause != none {
+        stmt.subexprs.add(rescue_clause)
+        stmt.has_rescue = yes
+        if rescue_clause.damaged {
+            stmt.damaged = yes
+        }
+    }
+
+    # Parse finally clause, if any:
+    var finally_clause = parse_finally_clause(
+        stmt, tokens, tokens_len, pos, msgs,
+        project_file=none, debug=no) later:
+
+    await finally_clause
+    if finally_clause != none {
+        stmt.subexprs.add(finally_clause)
+        stmt.has_finally = yes
+        if finally_clause.damaged {
+            stmt.damaged = yes
+        }
+    }
+
+    stmt.token_len = (pos - startpos)
+    return later stmt
+}
+

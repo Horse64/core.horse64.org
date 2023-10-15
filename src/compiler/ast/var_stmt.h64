@@ -40,6 +40,7 @@ type VarStmt base ast.StmtNode {
     var has_later = no
     var has_later_ignore = no
     var has_later_repeat = no
+    var var_names = []
 }
 
 func VarStmt.init {
@@ -50,6 +51,7 @@ func VarStmt.init {
 func VarStmt.as_json_obj {
     var output = base.as_json_obj()
     output["is_const"] = self.is_const
+    output["var_names"] = self.var_names
     if self.has_later {
         output["has_later"] = yes
     }
@@ -114,9 +116,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             invalid_st.token_len = (pos - startpos) + skiplen
             return invalid_st
         }
-        var idrefexpr = new expr.IdRefExpr()
-        idrefexpr.label = tokens[pos].str
-        stmt.subexprs.add(idrefexpr)
+        stmt.var_names.add(tokens[pos].str)
         varcount += 1
         pos += 1
         if not token.can_stmt_or_expr_end_before_token(

@@ -35,6 +35,7 @@ import compiler.msg as msg
 import compiler.token as token
 
 type WithStmt base ast.StmtNode {
+    var label
 }
 
 func WithStmt.init {
@@ -44,6 +45,7 @@ func WithStmt.init {
 
 func WithStmt.as_json_obj {
     var output = base.as_json_obj()
+    output["label"] = self.label
     return output
 }
 
@@ -204,14 +206,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     }
 
     # Put together the collected info of the with statement:
-    var iexp = none
-    if as_label == none {
-        iexp = new expr.InvalidExpr(1)
-    } else {
-        iesp = new expr.IdRefExpr()
-        iexp.label = as_label
-    }
-    stmt.subexprs.add(iexp)
+    stmt.label = as_label
     stmt.subexprs.add(with_expr)
 
     # Parse inner code block:

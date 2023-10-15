@@ -102,6 +102,7 @@ func BinopExpr.as_json_obj {
 
 type IdRefExpr base ast.TreeNode {
     var label
+    var typepath
 }
 
 func IdRefExpr.init {
@@ -1168,6 +1169,12 @@ func CallKWArgExpr.init {
     self.kind = ast.N_EXPR_CALLKWARG
 }
 
+func CallKWArgExpr.as_json_output {
+    var output = base.as_json_output()
+    output["label"] = self.label
+    return output
+}
+
 type ArgNameExpr base ast.TreeNode {
     var label
 }
@@ -1175,6 +1182,12 @@ type ArgNameExpr base ast.TreeNode {
 func ArgNameExpr.init {
     base.init()
     self.kind = ast.N_EXPR_ARGNAME
+}
+
+func ArgNameExpr.as_json_output {
+    var output = base.as_json_output()
+    output["label"] = self.label
+    return output
 }
 
 type CallOrDefArgsExpr base ast.TreeNode {

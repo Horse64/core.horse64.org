@@ -97,7 +97,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         invalid_st.col = token.get_col(tokens, startpos)
         return later invalid_st
     }
-    stmt.name = tokens[pos].str
+    var name = tokens[pos].str
     pos += 1
 
     # Extract components of type prefix, if any:
@@ -107,10 +107,11 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         if stmt.type_path == none {
             stmt.type_path = []
         }
-        stmt.type_path.add(stmt.name)
-        stmt.name = tokens[pos + 1].str
+        stmt.type_path.add(name)
+        name = tokens[pos + 1].str
         pos += 2
     }
+    stmt.name = name
 
     # Now we must have either '(' for arguments, or '{' for code block:
     if pos > tokens_len or
@@ -171,6 +172,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         }
         pos += args.token_len
     }
+    stmt.subexprs.add(args)
 
     # Now parse the required code block opening with '{' here:
     var block_result = block.parse(
