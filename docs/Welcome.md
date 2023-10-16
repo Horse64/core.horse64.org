@@ -6,7 +6,13 @@ Documentation
 
 Welcome to Horse64's documentation!
 
-- [📩 Get Horse64 here](https://horse64.org/download).
+```Horse64
+func main {
+    print("Hello World from Horse64!")
+}
+```
+
+- Get [📩 Horse64 here](https://horse64.org/download).
 
 - **New beginner?**
   Try the [🦸‍♀️ startup tutorial!](/docs/FIXME)
