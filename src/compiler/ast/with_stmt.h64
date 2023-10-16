@@ -183,15 +183,11 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             (tokens[pos].kind != token.T_BRACKET or
              tokens[pos].str != "{") {
         var beforeskippos = pos
-        var skiplen = token.get_naive_stmt_or_expr_len(
-            tokens, pos - 1, bracket_depth=0, for_expr=no
-        )
-        var skipto = pos + skiplen
-        while pos < skipto and (
-                tokens[pos].kind != token.T_BRACKET or
-                tokens[pos].str != "{") {
-            pos += 1
-        }
+        var skiplen = math.max(1,
+            token.skip_in_broken_stmt_to_code_block(
+                tokens, pos - 1, bracket_depth=0
+            ) - 1)
+        pos += skiplen
         if not stmt.has_damage() {
             msgs.add(new msg.FileMsg(
                 "Unexpected " + token.describe_token_at(tokens,

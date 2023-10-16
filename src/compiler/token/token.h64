@@ -740,6 +740,102 @@ func skip_garbage_to_closing_item(
     return pos
 }
 
+## If the given position is pointing to the opening
+## bracket token for a code block, try to skip over the
+## code block. (If the code block is broken, this might fail.)
+## The maximum index this can skip to is `tokens.len + 1`
+## or `max_len + 1` if a maximum length is supplied, whichever
+## is smaller.
+func skip_code_block_if_any(
+        tokens, startpos, max_len=none
+        ) {
+    var token_len = tokens.len
+    if max_len != none and max_len < token_len {
+        token_len = max_len
+    }
+    var pos = startpos
+
+    if pos < 1 or pos > token_len or
+            tokens[pos].kind != T_BRACKET or
+            tokens[pos].str != "{" {
+        return 0
+    }
+    pos += 1  # Past '{' bracket.
+
+    var block_depth = 1
+    while pos <= token_len {
+        if pos <= token_len and block_depth <= 1 and
+                tokens[pos].kind == T_BRACKET and
+                tokens[pos].str == "}" {
+            return (pos - startpos) + 1
+        }
+        if tokens[pos].kind == T_BRACKET {
+            if tokens[pos].str == "{" {
+                block_depth += 1
+                pos += 1
+                continue
+            } elseif tokens[pos].str == "}" {
+                block_depth = math.max(block_depth - 1, 0)
+                pos += 1
+                continue
+            }
+        }
+        var skiplen = token.get_naive_stmt_or_expr_len(
+            tokens, pos, bracket_depth=bracket_depth
+        )
+        pos += skiplen
+        if pos > token_len {
+            return token_len + 1
+        }
+    }
+    return pos
+}
+
+## In a broken statement of some kind that has code blocks,
+## try to skip the broken stuff until we reach a code block
+## or until the most likely ending point if it's incomplete.
+func skip_in_broken_stmt_to_code_block(
+        tokens, startpos, bracket_depth=0, max_len=none
+        ) {
+    var token_len = tokens.len
+    if max_len != none and max_len < token_len {
+        token_len = max_len
+    }
+    var pos = startpos
+    while yes {
+        var skiplen = token.get_naive_stmt_or_expr_len(
+            tokens, pos, bracket_depth=bracket_depth
+        )
+        var skipto = pos + math.max(1, skiplen) - 1
+        while pos <= skipto {
+            if pos > max_len or (
+                    bracket_depth <= 0 and
+                    tokens[pos].kind == T_BRACKET and
+                    tokens[pos].str == "{" and
+                    (pos <= 1 or not token_has_righthand(
+                        tokens[pos - 1]
+                    ))) {
+                return pos - startpos
+            }
+            if bracket_depth == 0 and
+                    surely_starts_stmt_even_in_bad_code(
+                        tokens, pos
+                    ) {
+                return pos - startpos
+            }
+            if tokens[pos].kind == T_BRACKET {
+                if {"{", "(", "["}.has(tokens[pos].str) {
+                    bracket_depth += 1
+                } else {
+                    assert({"}", ")", "]"}.has(tokens[pos].str))
+                    bracket_depth = math.max(bracket_depth - 1, 0)
+                }
+            }
+            pos += 1
+        }
+    }
+}
+
 ## Check if the given token is a syntatic element like a binary
 ## operator that necessarily requires a follow-up right-hand side.
 func token_has_righthand(t) {

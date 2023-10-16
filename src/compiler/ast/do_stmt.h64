@@ -115,11 +115,12 @@ func parse_rescue_clause_header(
                 }
                 stmt.damaged = yes
                 clause.damaged = yes
-                var skiplen = token.get_naive_stmt_or_expr_len(
-                    tokens, pos - 1, bracket_depth=0
-                )
+                var skiplen = math.max(1,
+                    token.skip_in_broken_stmt_to_code_block(
+                        tokens, pos - 1, bracket_depth=0
+                    ) + 1)
                 assert(skiplen > 0)
-                pos += skiplen - 1
+                pos += skiplen
             }
             clause.token_len = (pos - clausestart)
             return clause

@@ -31,12 +31,14 @@ import uri from core.horse64.org
 import compiler.ast.await_stmt as await_stmt
 import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
 import compiler.ast.do_stmt as do_stmt
+import compiler.ast.enum_stmt as enum_stmt
 import compiler.ast.for_stmt as for_stmt
 import compiler.ast.func_stmt as func_stmt
 import compiler.ast.if_stmt as if_stmt
 import compiler.ast.import_stmt as import_stmt
 import compiler.ast.invalid_stmt as invalid_stmt
 import compiler.ast.return_stmt as return_stmt
+import compiler.ast.type_stmt as type_stmt
 import compiler.ast.var_stmt as var_stmt
 import compiler.ast.with_stmt as with_stmt
 import compiler.msg as msg
@@ -142,6 +144,10 @@ enum NodeKind {
     N_EXPR_RESCUECLAUSE,
     N_EXPR_FINALLYCLAUSE,
     N_STMT_AWAIT,
+    N_STMT_TYPE,
+    N_STMT_TYPEEXTEND,
+    N_STMT_ENUM,
+    N_STMT_ENUMEXTEND,
     N_STMT_FOR,
     N_STMT_WITH,
     N_STMT_DO,
@@ -195,6 +201,8 @@ func ASTResult.as_json_obj {
 
 var stmt_parse_funcs = [
     call_or_assign_stmt.parse,
+    enum_stmt.parse,
+    type_stmt.parse,
     do_stmt.parse,
     await_stmt.parse,
     with_stmt.parse,

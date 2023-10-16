@@ -96,22 +96,11 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             ))
         }
         stmt.damaged = yes
-        var possibleskiplen = token.get_naive_stmt_or_expr_len(
-            tokens, startpos, bracket_depth=0
-        )
-        var i = pos
-        while i < possibleskiplen + pos and (
-                tokens[i].kind != token.T_BRACKET or
-                tokens[i].str != "{") {
-            i += 1
-        }
-        if i >= possibleskiplen + pos {
-            pos = i
-            var invalid_st = invalid_stmt.InvalidStmt(
-                math.max(pos - startpos, 1)
-            )
-            return invalid_st
-        }
+        var possibleskiplen = math.max(1,
+            token.skip_in_broken_stmt_to_code_block(
+                tokens, pos - 1, bracket_depth=0
+            ) - 1)
+        pos += possibleskiplen
         stmt.subexprs.add(new expr.InvalidExpr(
             math.max(i - pos + 1, 1)
         ))
@@ -160,15 +149,11 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             (tokens[pos].kind != token.T_BRACKET or
             tokens[pos].str != "{") {
         var beforeskippos = pos
-        var skiplen = token.get_naive_stmt_or_expr_len(
-            tokens, pos - 1, bracket_depth=0, for_expr=no
-        )
-        var skipto = pos + skiplen
-        while pos < skipto and (
-                tokens[pos].kind != token.T_BRACKET or
-                tokens[pos].str != "{") {
-            pos += 1
-        }
+        var skiplen = math.max(1,
+            token.skip_in_broken_stmt_to_code_block(
+                tokens, pos - 1, bracket_depth=0
+            ) - 1)
+        pos += skiplen
         if v == none {
             v = new expr.InvalidExpr(math.max(1, pos - beforeskippos))
         }

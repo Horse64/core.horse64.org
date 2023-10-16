@@ -86,12 +86,17 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             line=token.get_line(tokens, pos),
             col=token.get_col(tokens, pos),
         ))
-        var skiplen = token.get_naive_stmt_or_expr_len(
-            tokens, startpos, bracket_depth=0
+        var skiplen = math.max(1,
+            token.skip_in_broken_stmt_to_code_block(
+                tokens, pos - 1, bracket_depth=0
+            ) - 1)
+        skiplen += token.skip_code_block_if_any(
+            tokens, pos + skiplen
         )
         assert(skiplen > 0)
+        pos += skiplen
         var invalid_st = new invalid_stmt.InvalidStmt(
-            skiplen
+            pos - startpos
         )
         invalid_st.line = token.get_line(tokens, startpos)
         invalid_st.col = token.get_col(tokens, startpos)
@@ -126,11 +131,17 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             col=token.get_col(tokens, pos),
         ))
         pos -= 1
-        var skiplen = token.get_naive_stmt_or_expr_len(
-            tokens, pos, bracket_depth=0, for_expr=no
+        var skiplen = math.max(1,
+            token.skip_in_broken_stmt_to_code_block(
+                tokens, pos - 1, bracket_depth=0
+            ) + 1)
+        skiplen += token.skip_code_block_if_any(
+            tokens, pos + skiplen
         )
         assert(skiplen > 0)
-        stmt.token_len = (pos - startpos) + skiplen
+        pos += skiplen
+        stmt.damaged = yes
+        stmt.token_len = pos - startpos
         return later stmt
     }
 

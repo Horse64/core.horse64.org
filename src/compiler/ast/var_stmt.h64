@@ -104,9 +104,10 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
                 col=token.get_col(tokens, pos),
             ))
             pos -= 1
-            var skiplen = token.get_naive_stmt_or_expr_len(
-                tokens, pos, bracket_depth=0, for_expr=no
-            )
+            var skiplen = math.max(1,
+                token.get_naive_stmt_or_expr_len(
+                    tokens, pos, bracket_depth=0, for_expr=no
+                ) - 1)
             var invalid_st = new invalid_stmt.InvalidStmt(
                 skiplen
             )
