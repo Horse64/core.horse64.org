@@ -11,6 +11,8 @@ Welcome to Horse64's documentation!
   of Python.** It's [free.](
   https://horse64.org/download)
 
+Example:
+
 ```Horse64
 func main {
     print("Hello World from Horse64!")
