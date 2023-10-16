@@ -45,7 +45,7 @@ Major design goals of Horse64 are:
 - The basic tooling should be portable and easy to install and modify.
   *(This is why the compiler is custom, without LLVM or bison use.)*
 
-- Main focus is easy desktop and backend apps.
+- Main focus is easy desktop app and backend apps creation.
 
 
 OOP in Horse64 by using `type`
