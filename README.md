@@ -1,15 +1,16 @@
 
-![Horse64 Title Logo](logo/logo-readme.png)
-
 
 Horse64 Programming Language
 ============================
+
+![Horse64 Title Logo](logo/logo-readme.png)
 
 **Horse64** is a high-level language that combines readability, clean dynamic
 typing, and readiness for large projects. It's [free.](
 https://horse64.org/download)
 
-**Useful starting points:**
+
+### Useful starting points
 
 - [Documentation.](https://horse64.org/docs/Welcome)
 
