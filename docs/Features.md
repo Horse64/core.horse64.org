@@ -88,7 +88,7 @@ for any particular purpose** of these lists at all.*
 
 |Horse64|Python|JS|Go|C++|Lua|Libraries and Desktop App Features       |
 |-------|------|--|--|---|---|-----------------------------------------|
-|✔|✔|〰|✔| | |**Big standard library** always, with no extra setup.     |
+|✔|✔|〰|✔|〰| |**Big standard library** always, with no extra setup.     |
 |✔| |✔| | | |**Integrated UI and graphics** for easy graphical apps.   |
 |✔| | |✔|✔| |**Portable program binaries** as default output.          |
 |✔| | |✔|✔| |**No runtime install** for desktop apps for end users.    |
@@ -110,7 +110,7 @@ for any particular purpose** of these lists at all.*
 |Horse64|Python|JS|Go|C++|Lua|Runtime Performance Features             |
 |-------|------|--|--|---|---|-----------------------------------------|
 |✔|✔|✔| | |✔|**Bytecode interpreter** for high portability.            |
-| | |〰|✔|✔| |**Full memory-shared threads** for unlimited parallelism. |
+| |〰| |✔|✔| |**Full memory-shared threads** for unlimited parallelism. |
 | | |✔|✔|✔| |**Uses JIT** by default for speed, or 100% AOT compiled.  |
 | | | |✔|✔| |**Outputs machine code** always, for extreme speed.       |
 
