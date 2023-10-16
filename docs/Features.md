@@ -83,7 +83,7 @@ for any particular purpose** of these lists at all.*
 |✔|✔| | |✔| |**1st-class multiple base types inheritance.**            |
 | |✔|✔|✔|✔|✔|**Floating-point decimals** for larger numeric range.     |
 | | | | | |✔|**Tail-call optimization** (always used by default).      |
-|✔| | | | | |**Fixed-point decimals** as a default number type.        |
+|✔| | | | | |**Fixed-point decimals** default, for numeric stability.  |
 | |✔|✔| | |✔|**Dynamic global scope** at runtime, extreme mutability.  |
 |✔| | | | |✔|**1-based indexing** to be more beginner-friendly.        |
 
