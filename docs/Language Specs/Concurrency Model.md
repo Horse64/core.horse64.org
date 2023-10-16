@@ -120,12 +120,13 @@ or resume, there's **no guaranteed ordering** of execution.
 Later calls can't be inside a `while` or `for`
 loop due to technical limitations. While this might
 change at some point, there are currently no plans.
-Instead, you can use a `later:` ... `later repeat` loop
-whenever needed.
+Instead, you can use a `later:` ...code... `later repeat`
+loop whenever needed.
 
 ### Rule 8: You can't nest later repeats.
 
-You mustn't nest `later:` ... `later repeat` loops inside each
+You mustn't nest `later:` ...code... `later repeat`
+loops inside each
 other. Both paired calls must be in the same code block.
 Both paired calls must assign their return value, and they
 must assign it to the same local variable. [See here for an

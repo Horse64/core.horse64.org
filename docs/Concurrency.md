@@ -82,8 +82,8 @@ a possibly long time skip.
 
 Since later calls aren't supported by [horsec](/docs/Resources.md#horsec)
 inside `for` or `while`,
-do loops via `later` repeat instead (which must assign to the same
-local variable in both calls):
+whenever you need to call later functions in some repeating block,
+use `later repeat` instead in a pair like this:
 
   ```Horse64
   import my_line_fetch
@@ -100,6 +100,9 @@ local variable in both calls):
       ) later repeat  # Jumps back up to right after `later:`
   }
   ```
+
+(Both calls of such a `later repeat` pair must assign to the
+same variable, but they can differ in arguments.)
 
 
 Further reading
