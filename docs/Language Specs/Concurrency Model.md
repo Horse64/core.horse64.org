@@ -49,7 +49,8 @@ cases, you'll get an `InvalidCallError`.
 
 Any later call cannot be a nested inline call inside a
 bigger expression. It needs to be a standalone call statement,
-or right-hand to a variable definition or simple assignment to
+or right-hand to a variable definition, or
+right-hand to simple assignment to
 a local variable. A `later ignore` call's return value must be
 ignored. Examples:
 
