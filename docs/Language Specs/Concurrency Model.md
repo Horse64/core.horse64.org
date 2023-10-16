@@ -30,67 +30,105 @@ Formal rules for later `func`s
 
 The rules for calling later functions are as follows:
 
-1. Calls to later functions must be followed by either `later:`
-   or `later ignore`, or `later repeat`.
+### Rule 1: All "later" calls need special syntax.
 
-2. The call cannot be a nested inline call inside a
-   bigger expression. It needs to be a standalone call statement,
-   or right-hand to a variable definition or simple assignment to
-   a local variable. A `later ignore` call's return value must be
-   ignored. Examples:
+Calls to later functions must be followed by either `later:`
+or `later ignore`, or `later repeat`. Calls to regular
+functions *can't* use this syntax, so the two are kept
+strictly separate. You need to know in advance if the
+function you're calling is a later function, **but the
+compiler will usually tell you when you did it wrong**
+before you even run the program. So don't worry.
 
-     ```Horse64
-     import net.fetch from core.horse64.org
-     func main {
-         # Valid calls:
+### Rule 2: You can't inline nest later calls.
 
-         net.fetch.get_str(
-            "https://horse64.org"
-         ) later ignore
+Any later call cannot be a nested inline call inside a
+bigger expression. It needs to be a standalone call statement,
+or right-hand to a variable definition or simple assignment to
+a local variable. A `later ignore` call's return value must be
+ignored. Examples:
 
-         var value = net.fetch.get_str(
-            "https://horse64.org"
-         ) later:
-         await value  # Required.
+  ```Horse64
+  import net.fetch from core.horse64.org
+  func main {
+      # Valid calls:
 
-         # Invalid calls:
+      net.fetch.get_str(
+         "https://horse64.org"
+      ) later ignore
 
-         value["abc"] = net.fetch.get_str(
-            "https://horse64.org"
-         ) later:  # Not allowed, a complex assignment.
-         await value["abc"]
+      var value = net.fetch.get_str(
+         "https://horse64.org"
+      ) later:
+      await value  # Required.
 
-         var value2 = net.fetch.get_str(
-            "https://horse64.org" 
-         ) later ignore  # Not allowed, must ignore return value.
-     }
-     ```
+      # Invalid calls:
 
-   A `later ignore` call's return value needs to be ignored,
-   and if the return value was assigned it needs to be
-   `await`ed after a `later:`.
+      value["abc"] = net.fetch.get_str(
+         "https://horse64.org"
+      ) later:  # Not allowed, a complex assignment.
+      await value["abc"]
 
-3. Calling any later function with `later:` or `later repeat`
-   makes the surrounding calling function also a later function.
+      var value2 = net.fetch.get_str(
+         "https://horse64.org" 
+      ) later ignore  # Not allowed, must ignore return value.
+  }
+  ```
 
-4. Otherwise, using `return later ...` in a function will also
-   make it a later function. It's otherwise not needed, any
-   return in a later function is possibly returned later (after
-   a time skip).
+A `later ignore` call's return value needs to be ignored.
+After a regular `later:` call, the return value that was
+assigned needs to be `await`ed.
 
-5. Returning anything from a later function may cause other
-   functions and program parts to run in between, rather than
-   a guaranteed direct return to the caller. The same applies
-   for calling any later function.
+### Rule 3: Calling later marks a function.
 
-6. Currently, later calls can't be inside a `while` or `for`
-   loop. Instead, use a `later:` ... `later repeat` loop
-   if needed.
+Calling anything with `later:` or `later repeat`
+makes the surrounding calling function also a later function.
+This excludes `later ignore` calls, making this the only
+way to call a later function while keeping the caller
+a regular function.
 
-7. You cannot nest `later:` ... `later repeat` loops. Both
-   paired calls must be in the same code block. Both paired
-   calls must assign their return value, and they must assign
-   it to the same local variable. [See here for an
-   example of `later repeat` loops.](
-   /docs/Concurrency.md#later-repeat)
+### Rule 4: Return later marks a function.
+
+A `return later ...value...` denotes after a return after a
+time skip, and also makes the surrounding function a later
+function.
+Any function with neither a later call or a return later
+is automatically a normal function.
+
+### Rule 5: A later function has implicit delayed returns:
+
+Once a function is a later function, for any `return`,
+a `return later` is assumed. This means if you already have
+`later:` calls in the same function, you can omit the
+explicit `return later` use if you want.
+
+### Rule 6: A time skip can cause interleaved execution.
+
+Any later call and any later return may cause both a
+time delay, and for other functions and program runs to run
+in between, excluding only `later ignore` calls.
+**Write your code accordingly to avoid race conditions.**
+Neither regular later calls nor
+`later ignore` calls **have any guarantees to run any code
+immediately** of the called function, or in any specific
+time frame, it's merely run timely on a best-effort basis.
+Also, for all the later functions waiting to run
+or resume, there's **no guaranteed ordering** of execution.
+
+### Rule 7: `later repeat` replaces later inside loops.
+
+Later calls can't be inside a `while` or `for`
+loop due to technical limitations. While this might
+change at some point, there are currently no plans.
+Instead, you can use a `later:` ... `later repeat` loop
+whenever needed.
+
+### Rule 8: You can't nest later repeats.
+
+You mustn't nest `later:` ... `later repeat` loops inside each
+other. Both paired calls must be in the same code block.
+Both paired calls must assign their return value, and they
+must assign it to the same local variable. [See here for an
+example of `later repeat` loops.](
+/docs/Concurrency.md#later-repeat)
 

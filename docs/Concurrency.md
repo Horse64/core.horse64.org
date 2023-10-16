@@ -13,7 +13,8 @@ Basic concurrent call
 
 To have stalling external resources not freeze your program,
 you call any concurrent functions such that there's a time skip
-where other code of yours may run. This happens via the `later` keyword:
+where other code of yours may run.
+**Here is how to do a concurrent call via the `later` keyword:**
 
   ```Horse64
   import net.fetch from core.horse64.org
@@ -32,7 +33,8 @@ which is how [horsec](/docs/Resources#horsec) usually names them.
 
 Calls to such later functions must always be followed by `later`
 for a time skip, and then `await` on their return value.
-Awaiting the return value is also where errors bubble up:
+The await is where errors bubble up, **so here is how you catch
+errors after the time skip:**
 
   ```Horse64
   import net.fetch from core.horse64.org
@@ -54,8 +56,9 @@ Awaiting the return value is also where errors bubble up:
 `later ignore`
 --------------
 
-If you don't care about a later function's return value or
-its success, you can follow the call with `later ignore`:
+**Don't want to wait?** If you don't care about a later
+function's return value or its success, you can follow
+the call up with `later ignore`:
 
   ```Horse64
   import net.fetch from core.horse64.org
@@ -68,6 +71,10 @@ its success, you can follow the call with `later ignore`:
             but we don't care.")
   }
   ```
+
+In this case, the execution won't be delayed until the
+later call fully completes but instead continue without
+a possibly long time skip.
 
 
 `later repeat`
