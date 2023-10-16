@@ -28,6 +28,10 @@ Horse64's concurrency model has the following properties:
 Formal rules for later `func`s
 ------------------------------
 
+*(These are the formal rules, for a gentle introduction
+on calling so-called "later functions", [go here
+for examples](/docs/Concurrency.md).)*
+
 The rules for calling later functions are as follows:
 
 ### Rule 1: All "later" calls need special syntax.
