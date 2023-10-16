@@ -34,7 +34,8 @@ statements always end with some statement terminating character
 like a `;` at the end, others like the [Python programming
 language](https://python.org) have a statement terminating character
 for at least optional use. This is not the case in Horse64,
-statements just end where they naturally end.
+statements just end where they naturally end, and there
+is no optional character to end them more explicitly.
 
 
 ### No significant whitespace
@@ -53,17 +54,20 @@ that begin with `#` and always end at the next line break.
 
 ### Statement start restriction
 
-A statement can't ever begin with:
+A statement can't ever begin with some specific items:
 
-* `(` or `[` opening brackets (`{` opening bracket is allowed),
+* `(` or `[` opening brackets are forbidden,
+  while a `{` opening bracket is allowed,
 
-* a `new` operator,
+* a `new` operator is forbidden,
 
-* an inline `if` (a standalone `if` statement is allowed).
+* an inline `if` is forbidden,
+  while a standalone `if` statement start is allowed.
 
-This is forbidden to avoid ambiguity with the previous statement's
-ending given Horse64's [lack of significant whitespace](
-#no-significant-whitespace).
+All these are forbidden to avoid ambiguity
+given the grammar's [lack of significant whitespace](
+#no-significant-whitespace). If you use them anyway,
+expect to get yelled at by [horsec](/docs/Resources.md#horsec).
 
 
 ### Pitfall of `return` statements that aren't at block end
