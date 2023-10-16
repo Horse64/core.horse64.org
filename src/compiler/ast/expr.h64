@@ -174,7 +174,7 @@ func parse_container_entry(
         if container_type == C_VEC {
             expected = "':' (T_COLON) for vector"
         }
-        msgs.add(new FileMsg(
+        msgs.add(new msg.FileMsg(
             "Unexpected " + token.describe_token_at(
                 tokens, pos) +
             ", expected " + expected + " "
@@ -352,7 +352,7 @@ func parse_expression_unwrapped(
 
             await inner_expr
             if inner_expr == none {
-                msgs.add(new FileMsg(
+                msgs.add(new msg.FileMsg(
                     "Unexpected " + token.describe_token_at(
                         tokens, pos) +
                     ", expected any inner nested expression "
@@ -479,7 +479,7 @@ func parse_expression_unwrapped(
                 }
                 if ckind == C_SET {
                     node.value = {}
-                } elseif node.is_map {
+                } elseif ckind == C_MAP {
                     node.value = {->}
                 } else {
                     node.value = []
@@ -994,7 +994,7 @@ func parse_expression_unwrapped(
             if operand_parsed == none or
                     (operand[1] + operand_parsed.token_len - 1 <
                     operand[2]) {
-                assert(operand_parsed != none or
+                assert(operand_parsed == none or
                        operand_parsed.token_len > 0)
                 var after_pos = operand[1] + (
                     if operand_parsed != None

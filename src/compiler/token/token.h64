@@ -780,7 +780,7 @@ func skip_code_block_if_any(
                 continue
             }
         }
-        var skiplen = token.get_naive_stmt_or_expr_len(
+        var skiplen = get_naive_stmt_or_expr_len(
             tokens, pos, bracket_depth=bracket_depth
         )
         pos += skiplen
@@ -803,12 +803,12 @@ func skip_in_broken_stmt_to_code_block(
     }
     var pos = startpos
     while yes {
-        var skiplen = token.get_naive_stmt_or_expr_len(
+        var skiplen = get_naive_stmt_or_expr_len(
             tokens, pos, bracket_depth=bracket_depth
         )
         var skipto = pos + math.max(1, skiplen) - 1
         while pos <= skipto {
-            if pos > max_len or (
+            if pos > token_len or (
                     bracket_depth <= 0 and
                     tokens[pos].kind == T_BRACKET and
                     tokens[pos].str == "{" and

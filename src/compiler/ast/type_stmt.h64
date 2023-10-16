@@ -133,7 +133,7 @@ func parse_extend_or_enum_or_type_header(
         must_be_type=no, must_be_enum=no,
         project_file=none, debug=no
         ) {
-    var clausestart = pos
+    var clausestartpos = pos
     if pos > tokens_len or
             tokens[pos].kind != token.T_KEYWORD or
             (tokens[pos].str != "extend" and
@@ -161,7 +161,7 @@ func parse_extend_or_enum_or_type_header(
                     tokens, pos, bracket_depth=0
                 ))
             pos += skiplen
-            return (pos - startpos)
+            return (pos - clausestartpos)
         }
         is_extended = yes
         if (variant == EXTEND_TYPE) {
@@ -174,16 +174,16 @@ func parse_extend_or_enum_or_type_header(
     pos += 1
 
     if pos > tokens_len or
-            tokens[pos].kind != token.T_IDENTIFIER {
+            tokens[pos].kind != token.T_IDENT {
         if not stmt.has_damage() {
             msgs.add(new msg.FileMsg(
                 "Unexpected " + token.describe_token_at(tokens,
                     pos) +
-                ", expected valid expression for " + stmt_name +
+                ", expected valid expression for " + stmt_name + " "
                 "statement starting in line " +
-                token.get_line(tokens, startpos).as_str() +
+                token.get_line(tokens, clausestartpos).as_str() +
                 ", column " +
-                token.get_col(tokens, startpos).as_str() + ".",
+                token.get_col(tokens, clausestartpos).as_str() + ".",
                 source_file=project_file,
                 line=token.get_line(tokens, pos),
                 col=token.get_col(tokens, pos),
@@ -195,7 +195,7 @@ func parse_extend_or_enum_or_type_header(
                 tokens, pos, bracket_depth=0
             ))
         pos += skiplen
-        return (pos - startpos)    
+        return (pos - clausestartpos)    
     }
     var extend_typename = tokens[pos].str
     var extend_typepath = none
@@ -229,18 +229,20 @@ func parse_extend_or_enum_or_type_header(
         var basecount = 0
         while yes {
             if (pos > tokens_len or
-                    tokens[pos].kind != token.T_IDENTIFIER) and
+                    tokens[pos].kind != token.T_IDENT) and
                     basecount <= 0 {
                 if not stmt.has_damage() {
                     msgs.add(new msg.FileMsg(
                         "Unexpected " + token.describe_token_at(tokens,
                             pos) +
-                        ", expected T_IDENTIFIER for base class for " +
-                        stmt_name +
+                        ", expected T_IDENT for base class for " +
+                        stmt_name + " "
                         "statement starting in line " +
-                        token.get_line(tokens, startpos).as_str() +
+                        token.get_line(tokens,
+                            clausestartpos).as_str() +
                         ", column " +
-                        token.get_col(tokens, startpos).as_str() + ".",
+                        token.get_col(tokens,
+                            clausestartpos).as_str() + ".",
                         source_file=project_file,
                         line=token.get_line(tokens, pos),
                         col=token.get_col(tokens, pos),
@@ -279,17 +281,19 @@ func parse_extend_or_enum_or_type_header(
         }
     }
     if pos <= tokens_len and (
-            tokens[pos].kind == token.T_BRACKET or
+            tokens[pos].kind != token.T_BRACKET or
             tokens[pos].str != "{") {
         if not stmt.has_damage() {
             msgs.add(new msg.FileMsg(
                 "Unexpected " + token.describe_token_at(tokens,
                     pos) +
-                ", expected '{' for code block for " + stmt_name +
-                "statement starting in line " +
-                token.get_line(tokens, startpos).as_str() +
+                ", expected '{' for code block "
+                "for " + stmt_name + " statement starting in line " +
+                token.get_line(tokens,
+                    clausestartpos).as_str() +
                 ", column " +
-                token.get_col(tokens, startpos).as_str() + ".",
+                token.get_col(tokens,
+                    clausestartpos).as_str() + ".",
                 source_file=project_file,
                 line=token.get_line(tokens, pos),
                 col=token.get_col(tokens, pos),
@@ -302,7 +306,7 @@ func parse_extend_or_enum_or_type_header(
             ))
         pos += skiplen
     }
-    return (pos - startpos)
+    return (pos - clausestartpos)
 }
 
 func parse(tokens, pos, msgs, project_file=none, debug=no) {
@@ -314,8 +318,8 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         return later none
     }
 
-    var stmt = if tokens[pos].str == "type" (ast.N_STMT_TYPE)
-        else (ast.N_STMT_TYPEEXTEND)
+    var stmt = if tokens[pos].str == "type" (new TypeStmt())
+        else (new TypeExtendStmt())
     var stmt_name = tokens[pos].str
     var headerlen = parse_extend_or_enum_or_type_header(
         stmt, tokens, tokens_len, pos, msgs,
@@ -333,8 +337,8 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var block_result = block.parse(
         tokens, pos, msgs, project_file=project_file,
         debug=debug, had_damage=stmt.has_damage(),
-        block_purpose_name="for the " + stmt_name +
-            " statement starting in "
+        block_purpose_name="for the " + stmt_name + " "
+            "statement starting in "
             "line " + token.get_line(tokens, startpos).as_str() +
             ", column " + token.get_col(tokens, startpos).as_str()
     ) later:

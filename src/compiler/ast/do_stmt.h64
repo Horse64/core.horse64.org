@@ -94,7 +94,7 @@ func parse_rescue_clause_header(
     var errors_parsed = 0
     while yes {
         if pos > tokens_len or (
-                tokens[pos].kind != token.T_IDENTIFIER and
+                tokens[pos].kind != token.T_IDENT and
                 (token[pos].kind != token.T_KEYWORD or
                  token[pos].str != "any")) {
             if errors_parsed == 0 or

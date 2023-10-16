@@ -25,6 +25,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import math from core.horse64.org
+
 import compiler.ast as ast
 import compiler.ast.invalid_stmt as invalid_stmt
 import compiler.msg as msg
@@ -75,7 +77,6 @@ func parse(tokens, pos, msgs, project_file=none, debug=no,
                 col=token.get_col(tokens, pos),
             ))
         }
-        pos -= 1
         var skiplen = math.max(1,
             token.skip_in_broken_stmt_to_code_block(
                 tokens, pos, bracket_depth=0

@@ -76,8 +76,8 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         return later none
     }
 
-    var stmt = if tokens[pos].str == "enum" (ast.N_STMT_ENUM)
-        else (ast.N_STMT_ENUMEXTEND)
+    var stmt = if tokens[pos].str == "enum" (new EnumStmt())
+        else (new EnumExtendStmt())
     var stmt_name = tokens[pos].str
     var headerlen = parse_extend_or_enum_or_type_header(
         stmt, tokens, tokens_len, pos, msgs,
