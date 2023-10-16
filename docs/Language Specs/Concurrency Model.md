@@ -41,8 +41,9 @@ or `later ignore`, or `later repeat`. Calls to regular
 functions *can't* use this syntax, so the two are kept
 strictly separate. You need to know in advance if the
 function you're calling is a later function, **but the
-compiler will usually tell you when you did it wrong**
-before you even run the program. So don't worry.
+compiler will in many cases tell you when you did it wrong**
+before you even run the program. For the other uncaught
+cases, you'll get an `InvalidCallError`.
 
 ### Rule 2: You can't inline nest later calls.
 
