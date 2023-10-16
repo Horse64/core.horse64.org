@@ -1,4 +1,4 @@
-# @module compiler.ast.var_stmt
+# @module compiler.ast.throw_stmt
 # Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without

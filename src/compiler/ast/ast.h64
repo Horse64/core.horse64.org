@@ -29,7 +29,9 @@ import json from core.horse64.org
 import uri from core.horse64.org
 
 import compiler.ast.await_stmt as await_stmt
+import compiler.ast.break_stmt as break_stmt
 import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
+import compiler.ast.continue_stmt as continue_stmt
 import compiler.ast.do_stmt as do_stmt
 import compiler.ast.enum_stmt as enum_stmt
 import compiler.ast.for_stmt as for_stmt
@@ -157,6 +159,8 @@ enum NodeKind {
     N_STMT_CALL,
     N_STMT_ASSIGN,
     N_STMT_VAR,
+    N_STMT_BREAK,
+    N_STMT_CONTINUE,
     N_STMT_IMPORT,
     N_STMT_RETURN,
     N_STMT_IF,
@@ -215,6 +219,8 @@ var stmt_parse_funcs = [
     import_stmt.parse,
     return_stmt.parse,
     var_stmt.parse,
+    break_stmt.parse,
+    continue_stmt.parse,
 ]
 
 func parse_statement(

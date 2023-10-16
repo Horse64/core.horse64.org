@@ -66,6 +66,7 @@ const _math_or_comp_starter_chars = (
 
 const _maybe_stmt_token_strs = {
     "while", "do", "func", "for", "with",
+    "continue", "break",
     "var", "const", "type", "import", "if",
     "return", "await", "throw",
     "enum",
@@ -78,6 +79,7 @@ const _guaranteed_outer_scope_tokens = {
 const special_words = {
     # All keywords returned as T_KEYWORD:
     "while", "do", "func", "for", "with",
+    "continue", "break",
     "var", "const", "type", "import", "if",
     "return", "await", "later", "rescue",
     "finally", "as", "in", "base", "extend",

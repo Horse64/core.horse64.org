@@ -41,6 +41,7 @@ type VarStmt base ast.StmtNode {
     var has_later_ignore = no
     var has_later_repeat = no
     var var_names = []
+    var var_has_protect = []
 }
 
 func VarStmt.init {
@@ -52,6 +53,7 @@ func VarStmt.as_json_obj {
     var output = base.as_json_obj()
     output["is_const"] = self.is_const
     output["var_names"] = self.var_names
+    output["var_has_protect"] = self.var_has_protect
     if self.has_later {
         output["has_later"] = yes
     }
@@ -120,6 +122,14 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         stmt.var_names.add(tokens[pos].str)
         varcount += 1
         pos += 1
+        if pos <= tokens_len and
+                tokens[pos].kind == token.T_KEYWORD and
+                tokens[pos].str == "protect" {
+            stmt.var_has_protect.add(yes)
+            pos += 1
+        } else {
+            stmt.var_has_protect.add(no)
+        }
         if not token.can_stmt_or_expr_end_before_token(
                 tokens, pos, for_expr=no
                 ) and (pos > tokens_len or
@@ -127,9 +137,10 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
                  tokens[pos].kind != token.T_ASSIGN)) {
             msgs.add(new msg.FileMsg(
                 "Unexpected " + token.describe_token_at(tokens, pos) +
-                ", expected ',' or '=', or a new statement "
-                "following " + stmt_name +
-                " statement starting in line " +
+                ", expected ',' or '=', "
+                "or a new statement "
+                "following " + stmt_name + " "
+                "statement starting in line " +
                 token.get_line(tokens, startpos).as_str() +
                 ", column " +
                 token.get_col(tokens, startpos).as_str() + ".",
