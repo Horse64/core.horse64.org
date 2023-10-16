@@ -1917,12 +1917,13 @@ def translate(s, sc):
                     i += 1
                 if (i >= len(statement) or
                         statement[i] != "}"):
-                    raise ValueError("broken " +
+                    raise ValueError("Broken " +
                         str(statement[j]) +
-                        " in module " +
+                        " statement in module " +
                         sc.module_name + ("" if sc.package_name is None
                         else " (pkg: " + sc.package_name + ")") +
-                        " without properly closing code block")
+                        " without properly closing code block: " +
+                        str(statement[j:j + 20]))
                 content = statement[
                     begin_content_idx:i
                 ]
