@@ -85,6 +85,7 @@ for any particular purpose** of these lists at all.*
 | | | | | |✔|**Tail-call optimization** (always used by default).      |
 |✔| | | | | |**Fixed-point decimals** as a default number type.        |
 | |✔|✔| | |✔|**Dynamic global scope** at runtime, extreme mutability.  |
+|✔| | | | |✔|**1-based indexing** to be more beginner-friendly.        |
 
 |Horse64|Python|JS|Go|C++|Lua|Libraries and Desktop App Features       |
 |-------|------|--|--|---|---|-----------------------------------------|
