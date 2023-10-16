@@ -78,6 +78,12 @@ for any particular purpose** of these lists at all.*
 |✔|✔|✔| | |✔|**Avoids concurrency crashes** from threading bugs.       |
 |✔| |✔|〰|✔|✔|**Line breaks optional** for versatile code layout.       |
 |✔| |〰|✔| | | **Concurrency** of all the I/O and network default APIs. |
+|✔|✔|✔|✔| |✔|**Garbage-Collector** to make avoiding leaks easier.      |
+|✔| |〰|✔| | |**1st-class type extending without inheritance.**         |
+|✔|✔| | |✔| |**1st-class multiple base types inheritance.**            |
+| |✔|✔|✔|✔|✔|**Floating-point decimals** for larger numeric range.     |
+| | | | | |✔|**Tail-call optimization** (always used by default).      |
+|✔| | | | | |**Fixed-point decimals** as a default number type.        |
 | |✔|✔| | |✔|**Dynamic global scope** at runtime, extreme mutability.  |
 
 |Horse64|Python|JS|Go|C++|Lua|Libraries and Desktop App Features       |
@@ -104,6 +110,7 @@ for any particular purpose** of these lists at all.*
 |Horse64|Python|JS|Go|C++|Lua|Runtime Performance Features             |
 |-------|------|--|--|---|---|-----------------------------------------|
 |✔|✔|✔| | |✔|**Bytecode interpreter** for high portability.            |
+| | |〰|✔|✔| |**Full memory-shared threads** for unlimited parallelism. |
 | | |✔|✔|✔| |**Uses JIT** by default for speed, or 100% AOT compiled.  |
 | | | |✔|✔| |**Outputs machine code** always, for extreme speed.       |
 
