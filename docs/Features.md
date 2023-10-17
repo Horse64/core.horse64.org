@@ -74,10 +74,11 @@ for any particular purpose** of these lists at all.*
 |Horse64|Python|JS|Go|C++|Lua|Syntax and Core Behavior & Code Flow     |
 |-------|------|--|--|---|---|-----------------------------------------|
 |✔|✔|✔| | |✔|**Dynamic types** as a beginner-friendly default.         |
+|✔|✔| |✔|✔|✔|**Strongly typed** to avoid silent harmful conversions.   |
 |✔|✔| |✔| |✔|**Minimal, clean syntax** without line terminators.       |
 |✔|✔|✔| | |✔|**Avoids concurrency crashes** from threading bugs.       |
 |✔| |✔|〰|✔|✔|**Line breaks optional** for versatile code layout.       |
-|✔| |〰|✔| | | **Concurrency** of all the I/O and network default APIs. |
+|✔| |〰|✔| | |**Concurrency** of all I/O and network default APIs.      |
 |✔|✔|✔|✔| |✔|**Garbage-Collector** to make avoiding leaks easier.      |
 |✔| |〰|✔| | |**1st-class type extending without inheritance.**         |
 |✔|✔| | |✔| |**1st-class multiple base types inheritance.**            |
@@ -89,7 +90,7 @@ for any particular purpose** of these lists at all.*
 
 |Horse64|Python|JS|Go|C++|Lua|Libraries and Desktop App Features       |
 |-------|------|--|--|---|---|-----------------------------------------|
-|✔|✔|〰|✔|〰| |**Big standard library** always, with no extra setup.     |
+|✔|✔|〰|✔|〰| |**Big standard library** even without extra setup.        |
 |✔| |✔| | | |**Integrated UI and graphics** for easy graphical apps.   |
 |✔| | |✔|✔| |**Portable program binaries** as default output.          |
 |✔| | |✔|✔| |**No runtime install** for desktop apps for end users.    |
@@ -112,7 +113,7 @@ for any particular purpose** of these lists at all.*
 |-------|------|--|--|---|---|-----------------------------------------|
 |✔|✔|✔| | |✔|**Bytecode interpreter** for high portability.            |
 | |〰| |✔|✔| |**Full memory-shared threads** for unlimited parallelism. |
-| | |✔|✔|✔| |**Uses JIT** by default for speed, or 100% AOT compiled.  |
+| | |✔|✔|✔| |**Always uses JIT** for speed, or 100% AOT compiled.      |
 | | | |✔|✔| |**Outputs machine code** always, for extreme speed.       |
 
 If you find a mistake or want to
