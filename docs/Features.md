@@ -170,7 +170,7 @@ When to use Horse64
   and backends easy.
 
 - Horse64 isn't good at 🚫 [extreme raw speed](
-  #runtime-perfomance-and-lowlevel-features),
+  #runtime-performance-and-lowlevel-features),
   🚫 [super flexible scripting use](#scripting-features),
   and 🚫 complex offline code type checking (since it's dynamically typed).
 
