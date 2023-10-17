@@ -27,13 +27,23 @@
 import compiler.token as token
 
 func test_parse_inline_if {
-    var tokens = token.token_list_from_str_list([
+    var tokens,idx
+
+    tokens = token.token_list_from_str_list([
+        "if", "yes", "(", "1", ")", "else", "(", "2", ")",
+    ])
+    idx = token.get_inline_if_conditional_end(
+        tokens, 1
+    )
+    assert(idx == 3)
+
+    tokens = token.token_list_from_str_list([
         "if", "if", "yes", "(", "1", ")", "else", "(", "2", ")",
         "(", ")", "(", "func", "{", "return", "if", "yes",
         "(", "3", ")", "else", "(", "4", ")", "}", ")", "else", "(",
         "none", ")"
     ])
-    var idx = token.get_inline_if_conditional_end(
+    idx = token.get_inline_if_conditional_end(
         tokens, 1
     )
     assert(idx == 13)

@@ -595,7 +595,7 @@ func get_inline_if_conditional_end(tokens, pos, max_len=none) {
     pos += 1
     var inline_if_depth = 1
     var bracket_depth = 0
-    while pos < token_len {
+    while pos <= token_len {
         if bracket_depth == 0 {
             if tokens[pos].kind == T_BRACKET and
                     tokens[pos].str == "{" and
@@ -623,12 +623,12 @@ func get_inline_if_conditional_end(tokens, pos, max_len=none) {
                     while pos >= startpos + 2 {
                         if tokens[pos].kind == T_BRACKET {
                             if {")", "]", "}"}.has(tokens[pos].str) {
-                                bracket_depth += 1
+                                inner_bracket_depth += 1
                             } else {
                                 assert({"(", "[", "{"}.has(
                                     tokens[pos].str))
-                                bracket_depth -= 1
-                                if bracket_depth <= 0 {
+                                inner_bracket_depth -= 1
+                                if inner_bracket_depth <= 0 {
                                     if tokens[pos].str != "(" {
                                         return -1
                                     }
