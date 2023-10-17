@@ -83,7 +83,7 @@ for any particular purpose** of these lists at all.*
 |✔| |〰|✔| | |**1st-class type extending without inheritance.**         |
 |✔|✔| | |✔| |**1st-class multiple base types inheritance.**            |
 | |✔|✔|✔|✔|✔|**Floating-point decimals** for larger numeric range.     |
-| |〰|✔| | |✔|**Easy runtime `eval`** for trivial script injetion.      |
+| |〰|✔| | |✔|**Easy runtime `eval()`** for trivial script injection.  |
 | | | | | |✔|**Tail-call optimization** (always used by default).      |
 |✔| | | | | |**Fixed-point decimals** default, for numeric stability.  |
 | |✔|✔|❓| |✔|**Ships with dynamic REPL** by default for instant use.  |
