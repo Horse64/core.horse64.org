@@ -71,7 +71,9 @@ following lists are subjective and all languages are subject to
 change, **no guarantee provided for accuracy or fitness
 for any particular purpose** of these lists at all.*
 
-|Horse64|Python|JS|Go|C++|Lua|Syntax and Core Behavior & Code Flow     |
+### Syntax, Core, and Code Flow Features
+
+|Horse64|Python|JS|Go|C++|Lua|Syntax, Core, and Code Flow              |
 |-------|------|--|--|---|---|-----------------------------------------|
 |✔|✔|✔| | |✔|**Dynamic types** as a beginner-friendly default.         |
 |✔|✔| |✔|✔|✔|**Strongly typed** to avoid silent harmful conversions.   |
@@ -83,80 +85,96 @@ for any particular purpose** of these lists at all.*
 |✔| |〰|✔| | |**1st-class type extending without inheritance.**         |
 |✔|✔| | |✔| |**1st-class multiple base types inheritance.**            |
 | |✔|✔|✔|✔|✔|**Floating-point decimals** for larger numeric range.     |
-| |〰|✔| | |✔|**Easy runtime `eval()`** for trivial script injection.  |
 | | | | | |✔|**Tail-call optimization** (always used by default).      |
 |✔| | | | | |**Fixed-point decimals** default, for numeric stability.  |
 | |✔|✔|❓| |✔|**Ships with dynamic REPL** by default for instant use.  |
 | |✔|✔| | |✔|**Dynamic global scope** at runtime, extreme mutability.  |
 |✔| | | | |✔|**1-based indexing** to be more beginner-friendly.        |
 
+### Libraries and Desktop App Features
+
 |Horse64|Python|JS|Go|C++|Lua|Libraries and Desktop App Features       |
 |-------|------|--|--|---|---|-----------------------------------------|
 |✔|✔|〰|✔|〰| |**Big standard library** even without extra setup.        |
-|✔| |✔| | | |**Integrated UI and graphics** for easy graphical apps.   |
+|✔| |✔| | | |**UI and graphics integrated** for easy graphical apps.   |
+|✔|✔|✔|✔| | |**High-level networking by default** for backends etc.    |
+|✔|✔|✔|✔|❓| |**Unicode with full grapheme support** by default.        |
+
+### Deployment Features
+
+|Horse64|Python|JS|Go|C++|Lua|Deployment Features                      |
+|-------|------|--|--|---|---|-----------------------------------------|
 |✔| | |✔|✔| |**Portable program binaries** as default output.          |
 |✔| | |✔|✔| |**No runtime install** for desktop apps for end users.    |
-| | |✔| | | |**Runs in web browser** by default for simple web use.    |
-| |✔|✔| | |✔|**Easy to embed** for scripting, for only subordinate use.|
-| |✔|✔| | |✔|**Easy runtime module loading** for trivial mutability.   |
-|〰|✔|✔| | |✔|**Instant script use** for fast script helper launch.     |
-
-|Horse64|Python|JS|Go|C++|Lua|Tooling and Large Project Handling       |
-|-------|------|--|--|---|---|-----------------------------------------|
-|✔| | |✔|✔| |**Precompiled** always, for better large project checks.  |
-|✔| | |✔|✔| |**Static name resolution** to catch typos early.          |
-|✔| | |✔|✔| |**Non-trivial optimizations and warnings** by default.    |
 |✔|✔| |✔| | |**Official packaging tools** for easy project handling.   |
 |✔|✔|✔|❓| |✔|**Compiler trivially usable at runtime**, if needed.      |
+|✔| | |❓|❓| |**Easily bake in all binary resources** like images.      |
+|✔| | |❓| | |**Virtual archive mounting** for all standard I/O.        |
+
+### Scripting Features
+
+(⚠️ Horse64 is bad for this!)
+
+|Horse64|Python|JS|Go|C++|Lua|Scripting Features                       |
+|-------|------|--|--|---|---|-----------------------------------------|
+|✔|✔|✔|❓| |✔|**Compiler trivially usable at runtime**, if needed.      |
+|〰|✔|✔| | |✔|**Instant script use** for fast script helper launch.     |
+| |〰|✔| | |✔|**Easy runtime `eval()`** for trivial script injection.   |
+| | |✔| | | |**Runs in web browser** by default for simple web use.    |
+| |✔|✔| | |✔|**Easy to embed** for scripting, for subordinate use.     |
+| |✔|✔| | |✔|**Easy runtime module loading** for trivial mutability.   |
+
+### Tooling and Large Project Features
+
+|Horse64|Python|JS|Go|C++|Lua|Tooling and Large Project Features       |
+|-------|------|--|--|---|---|-----------------------------------------|
+|✔| | |✔|✔| |**Precompiled** always, for better large project checks.  |
+|✔| | |✔|✔| |**Static name resolution** to catch most typos early.     |
+|✔| | |✔|✔| |**Non-trivial optimizations and warnings** by default.    |
 | | | |✔|✔| |**Forced type declarations** for most in-advance checks.  |
 
-|Horse64|Python|JS|Go|C++|Lua|Organizational Structure, Contributions  |
+### Organizational Structure Comparison
+
+|Horse64|Python|JS|Go|C++|Lua|Organizational Structure Comparison      |
 |-------|------|--|--|---|---|-----------------------------------------|
 |✔|✔|〰|✔| |✔|**One central default runtime** for combined efforts.    |
 |✔|〰| |✔|✔| |**Default compiler self-hosted**, for easier changes.    |
 
-|Horse64|Python|JS|Go|C++|Lua|Runtime Performance Features             |
+### Runtime Performance and Lowlevel Features
+
+(⚠️ Horse64 isn't good at this!)
+
+|Horse64|Python|JS|Go|C++|Lua|Runtime Perfomance and Lowlevel Features |
 |-------|------|--|--|---|---|-----------------------------------------|
 |✔|✔|✔| | |✔|**Bytecode interpreter** for high portability.            |
 | |〰| |✔|✔| |**Full memory-shared threads** for extra flexibity.      |
 | | |✔|✔|✔| |**Always uses JIT** for speed, or 100% AOT compiled.      |
 | | | |✔|✔| |**Outputs machine code** always, for extreme speed.       |
+| | | | |✔| |**Inline assembly and manual allocation** easy to do.     |
+
+### Summary
 
 If you find a mistake or want to
 suggest an improvement, [please file a documentation issue](
 https://codeberg.org/Horse64/core.horse64.org/issues/new?template=.gitea%2fISSUE_TEMPLATE%2fdocs.yml
 ).
 
+Summed up, consider Horse64 for:
 
-What Horse64 is good at
------------------------
+- Helping both beginners and contributors **get started
+  🚀 fast** while still okay for larger projects.
 
-This is what Horse64 is intended to be suited for:
+- Ship desktop **apps 📦 mostly self-contained** easily.
 
-- Helping beginners and contributors **get started
-  🚀 quickly** while still suitable for larger projects.
+- Easily make **server backends using the 📶 integrated networking.**
 
-- Desktop **apps are shipped 📦 mostly self-contained** by default.
-
-- Creation and maintenance of **server backends using the 📶 integrated networking.**
-
-- [Concurrency out-of-the-box](/docs/concurrency) supports
+- [Concurrency out-of-the-box](/docs/concurrency) facilitates
   **📱 responsive, non-blocking behavior.**
 
-
-What Horse64 is bad at
-----------------------
-
-This is what Horse64 is likely to be bad at:
-
-- 🚫 Extreme raw speed, since it uses a bytecode VM.
-
-- 🚫 Complex offline code type checking, since it's dynamically typed.
-  *(The compiler still catches more errors than many scripting languages.)*
-
-- 🚫 Maximum fast compiler, since that's not a project focus.
-
-- 🚫 Heavily functional programming, it aims more at OOP and imperative.
+Horse64 isn't that good at 🚫 [extreme raw speed](
+#runtime-perfomance-and-lowlevel-features),
+🚫 [super flexible scripting use](#scripting-features),
+🚫 complex offline code type checking (since it's dynamically typed).
 
 
 Technical specifications
