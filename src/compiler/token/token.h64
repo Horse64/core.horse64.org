@@ -575,6 +575,92 @@ func get_naive_stmt_or_expr_len(
     return (i - start_pos)
 }
 
+## @func get_inline_if_conditional_end
+## Check whether the given 'if' keyword token is an inline
+## one or a statement, and then return the token index
+## just *past* the conditional.
+## @returns num Returns the index of the first token
+##   no longer part of the conditional for an inline if,
+##   otherwise -1.
+func get_inline_if_conditional_end(tokens, pos, max_len=none) {
+    var token_len = tokens.len
+    const startpos = pos
+    if max_len != none and max_len < token_len {
+        token_len = max_len
+    }
+    if tokens[pos].kind != T_KEYWORD or
+            tokens[pos].str != "if" {
+        return -1
+    }
+    pos += 1
+    var inline_if_depth = 1
+    var bracket_depth = 0
+    while pos < token_len {
+        if bracket_depth == 0 {
+            if tokens[pos].kind == T_BRACKET and
+                    tokens[pos].str == "{" and
+                    not token_has_righthand(tokens, pos - 1) {
+                return -1
+            }
+            if tokens[pos].kind == T_KEYWORD {
+                if tokens[pos].str == "if" {
+                    inline_if_depth += 1
+                } elseif tokens[pos].str == "else" {
+                    if inline_if_depth > 1 {
+                        inline_if_depth = math.max(
+                            1, inline_if_depth - 1
+                        )
+                        pos += 1
+                        continue
+                    }
+                    if (tokens[pos - 1].kind != T_BRACKET or
+                            tokens[pos - 1].str != ")") {
+                        return -1
+                    }
+                    # Find out where the first branch value started:
+                    pos -= 2
+                    var inner_bracket_depth = 1
+                    while pos >= startpos + 2 {
+                        if tokens[pos].kind == T_BRACKET {
+                            if {")", "]", "}"}.has(tokens[pos].str) {
+                                bracket_depth += 1
+                            } else {
+                                assert({"(", "[", "{"}.has(
+                                    tokens[pos].str))
+                                bracket_depth -= 1
+                                if bracket_depth <= 0 {
+                                    if tokens[pos].str != "(" {
+                                        return -1
+                                    }
+                                    return pos
+                                }
+                            }
+                        }
+                        pos -= 1
+                    }
+                    return -1
+                } elseif _maybe_stmt_token_strs.has(
+                        tokens[pos].str) and
+                        not {"func", "if"}.has(tokens[pos].str) {
+                    return -1
+                }
+            }
+        }
+        if tokens[pos].kind == T_BRACKET {
+            if {"(", "[", "{"}.has(tokens[pos].str) {
+                bracket_depth += 1
+            } else {
+                assert({")", "]", "}"}.has(tokens[pos].str))
+                bracket_depth = math.max(0, bracket_depth - 1)
+            }
+            pos += 1
+            continue
+        }
+        pos += 1
+    }
+    return -1
+}
+
 ## @func token_is_consumed_by_return
 ## Checks if this type of token, if following a 'return' keyword,
 ## will be considered a follow-up argument to be returned (rather

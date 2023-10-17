@@ -643,6 +643,165 @@ func parse_expression_unwrapped(
             ) later repeat
         }
     }
+    # Handle inline 'if':
+    if left_hand == none and
+            tokens[pos].kind == token.T_KEYWORD and
+            tokens[pos].str == "if" {
+        var if_idx = pos
+        var past_cond_idx = token.get_inline_if_conditional_end(
+            tokens, pos, max_len=tokens_len
+        )
+        if past_cond_idx >= 1 {  # This means it's an actual inline 'if'.
+            assert(tokens[past_cond_idx].kind == token.T_BRACKET and
+                   tokens[past_cond_idx].str == "(")
+            pos += 1
+            var had_error = no
+
+            var cond_expr = parse_expression(
+                tokens, pos, msgs, project_file=project_file,
+                max_len=past_cond_idx, debug=debug,
+            ) later:
+
+            await cond_expr
+            if inner_expr == none {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected " + token.describe_token_at(
+                        tokens, pos) +
+                    ", expected conditional for inline if "
+                    "expression.",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+                had_error = yes
+                cond_expr = new expr.InvalidExpr(
+                    math.max(1, past_cond_idx - pos)
+                )
+            }
+            pos = past_cond_idx + 1
+
+            func extract_return_bracket_expr(pos, past_idx=none) {
+                var value_start = pos
+                var value_expr = parse_expression(
+                    tokens, pos, msgs, project_file=project_file,
+                    max_len=past_idx, debug=debug,
+                ) later:
+
+                await value_expr
+                if value_expr == none {
+                    if not had_error {
+                        msgs.add(new msg.FileMsg(
+                            "Unexpected " + token.describe_token_at(
+                                tokens, pos) +
+                            ", expected bracketed return value "
+                            "for inline if starting in line " +
+                            token.get_line(tokens, if_idx).as_start() +
+                            ", column " +
+                            token.get_col(tokens, if_idx).as_col() +
+                            ".",
+                            source_file=project_file,
+                            line=token.get_line(tokens, pos),
+                            col=token.get_col(tokens, pos),
+                        ))
+                    }
+                    had_error = yes
+                    value_expr = new expr.InvalidExpr(1)
+                } else {
+                    pos += value_expr.token_len
+                }
+                if pos > tokens_len or
+                        tokens[pos].kind != T_BRACKET or
+                        tokens[pos].str != ")" {
+                    if not had_error {
+                        msgs.add(new msg.FileMsg(
+                            "Unexpected " + token.describe_token_at(
+                                tokens, pos) +
+                            ", expected ')' to end bracketed return "
+                            "value for inline if starting in "
+                            "line " +
+                            token.get_line(tokens, if_idx).as_start() +
+                            ", column " +
+                            token.get_col(tokens, if_idx).as_col() +
+                            ".",
+                            source_file=project_file,
+                            line=token.get_line(tokens, pos),
+                            col=token.get_col(tokens, pos),
+                        ))
+                    }
+                    had_error = yes
+                    var bracket_depth = 1
+                    while pos <= tokens_len {
+                        if tokens[pos].kind == T_BRACKET {
+                            if {"(", "[", "{"}.has(tokens[pos].str) {
+                                bracket_depth += 1
+                            } else {
+                                assert({")", "]", "}"}.has(
+                                    tokens[pos].str))
+                                bracket_depth -= 1
+                                if bracket_depth <= 0 {
+                                    break
+                                }
+                            }
+                        }
+                        pos += 1
+                    }
+                    value_expr.token_len = (pos - value_start)
+                }
+                return later value_expr
+            }
+            # Get first return expression for 'yes' branch:
+            var value1_expr = extract_return_bracket_expr(
+                pos, past_cond_idx
+            )
+            assert(value1_expr)
+            pos += value1_expr.token_len
+            if pos < past_cond_idx {
+                pos = past_cond_idx
+            }
+            if pos <= tokens_len and
+                    tokens[pos].kind == T_BRACKET and
+                    tokens[pos].str == ")" {
+                pos += 1
+            }
+            if pos > tokens_len or tokens[pos].kind != T_KEYWORD or
+                    tokens[pos].str != "else" {
+                if not had_error {
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected " + token.describe_token_at(
+                            tokens, pos) +
+                        ", expected 'else' to continue the "
+                        "inline if starting in line " +
+                        token.get_line(tokens, if_idx).as_start() +
+                        ", column " +
+                        token.get_col(tokens, if_idx).as_col() +
+                        ".",
+                        source_file=project_file,
+                        line=token.get_line(tokens, pos),
+                        col=token.get_col(tokens, pos),
+                    ))
+                }
+                had_error = yes
+            } else {
+                pos += 1  # Go past 'else'.
+            }
+            var value2_expr = extract_return_bracket_expr(
+                pos, past_cond_idx
+            )
+            assert(value2_expr)
+            pos += value2_expr.token_len
+            if pos <= tokens_len and
+                    tokens[pos].kind == T_BRACKET and
+                    tokens[pos].str == ")" {
+                pos += 1
+            }
+            var node = new InlineIfExpr()
+            node.line = token.get_line(tokens, if_idx)
+            node.col = token.get_col(tokens, if_idx)
+            node.subexpr.add(value1_expr)
+            node.subexpr.add(value2_expr)
+            return node
+        }
+    }
     # Handle 'new' operator:
     if left_hand == none and
             tokens[pos].kind == token.T_NEWOP {
