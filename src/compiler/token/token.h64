@@ -601,7 +601,7 @@ func token_is_consumed_by_return(t) {
     }
     if t.kind == T_KEYWORD and
             _maybe_stmt_token_strs.has(t.str) and
-            t.str != "func" {
+            t.str != "func" and t.str != "if" {
         return no
     }
     return yes
