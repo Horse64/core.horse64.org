@@ -43,6 +43,7 @@ import compiler.ast.return_stmt as return_stmt
 import compiler.ast.throw_stmt as throw_stmt
 import compiler.ast.type_stmt as type_stmt
 import compiler.ast.var_stmt as var_stmt
+import compiler.ast.while_stmt as while_stmt
 import compiler.ast.with_stmt as with_stmt
 import compiler.msg as msg
 import compiler.token as token
@@ -153,6 +154,7 @@ enum NodeKind {
     N_STMT_ENUM,
     N_STMT_ENUMEXTEND,
     N_STMT_FOR,
+    N_STMT_WHILE,
     N_STMT_WITH,
     N_STMT_DO,
     N_STMT_FUNC,
@@ -213,6 +215,7 @@ var stmt_parse_funcs = [
     do_stmt.parse,
     await_stmt.parse,
     with_stmt.parse,
+    while_stmt.parse,
     for_stmt.parse,
     if_stmt.parse,
     func_stmt.parse,

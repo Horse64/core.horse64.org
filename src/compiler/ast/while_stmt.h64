@@ -1,0 +1,131 @@
+# @module compiler.ast.while_stmt
+# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import math from core.horse64.org
+
+import compiler.ast as ast
+import compiler.ast.block as block
+import compiler.ast.expr as expr
+import compiler.msg as msg
+import compiler.token as token
+
+type WhileStmt base ast.StmtNode {
+}
+
+func WhileStmt.init {
+    base.init()
+    self.kind = ast.N_STMT_WHILE
+}
+
+func WhileStmt.as_json_obj {
+    var output = base.as_json_obj()
+    return output
+}
+
+func parse(tokens, pos, msgs, project_file=none, debug=no) {
+    var tokens_len = tokens.len
+    var startpos = pos
+
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_KEYWORD or
+            tokens[pos].str != "while" {
+        return later none
+    }
+    var stmt = new WhileStmt()
+
+    if debug {
+        print("compiler.ast.while_stmt: parse() on " +
+            tokens.sub(pos, math.min(pos + 10, tokens_len)).as_str() +
+            "... with pos=" + pos.as_str() + ", "
+            "tokens.len=" + tokens.len.as_str())
+    }
+    stmt.pos = token.get_line(tokens, pos)
+    stmt.col = token.get_col(tokens, pos)
+    pos += 1
+
+    # Get the conditional expression of the for loop:
+    var v = expr.parse_expression(
+        tokens, pos, msgs,
+        project_file=project_file
+    ) later:
+
+    await v
+    var skip_to_block = no
+    if v == none {
+        if not stmt.damaged {
+            msgs.add(new msg.FileMsg(
+                "Unexpected token " +
+                token.describe_token_at(tokens, pos) +
+                ", expected conditional for the while "
+                "loop.",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+        }
+        stmt.damaged = yes
+        skip_to_block = yes
+    }
+    # Advance to code block (needed if there was an error):
+    if skip_to_block and pos < tokens_len and
+            (tokens[pos].kind != token.T_BRACKET or
+            tokens[pos].str != "{") {
+        var beforeskippos = pos
+        var skiplen = math.max(1,
+            token.skip_in_broken_stmt_to_code_block(
+                tokens, pos - 1, bracket_depth=0
+            ) - 1)
+        pos += skiplen
+        if v == none {
+            v = new expr.InvalidExpr(math.max(1, pos - beforeskippos))
+        }
+    } else {
+        assert(v != none)
+        pos += v.token_len
+    }
+    stmt.subexprs.add(v)
+
+    # Parse inner code block:
+    var block_result = block.parse(
+        tokens, pos, msgs, project_file=project_file,
+        debug=debug, had_damage=stmt.has_damage(),
+        block_purpose_name="for the while loop statement starting in "
+            "line " + token.get_line(tokens, startpos).as_str() +
+            ", column " + token.get_col(tokens, startpos).as_str()
+    ) later:
+
+    await block_result
+    if block_result.has_damage() {
+        stmt.damaged = yes
+    }
+    pos += block_result.token_len
+    stmt.subblocks.add(block_result.stmts)
+
+    stmt.token_len = (pos - startpos)
+    return later stmt
+}
+
