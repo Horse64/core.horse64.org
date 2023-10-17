@@ -1276,7 +1276,7 @@ func parse_single_call_or_funcdef_arg(
                 ", expected assigned expression for " +
                 if is_call ("call")
                     else ("func def") + " argument "
-                " starting in line " +
+                "starting in line " +
                 token.get_line(tokens, startpos).as_str() +
                 ", col " +
                 token.get_col(tokens, startpos).as_str() + ".",
