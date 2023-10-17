@@ -83,8 +83,10 @@ for any particular purpose** of these lists at all.*
 |✔| |〰|✔| | |**1st-class type extending without inheritance.**         |
 |✔|✔| | |✔| |**1st-class multiple base types inheritance.**            |
 | |✔|✔|✔|✔|✔|**Floating-point decimals** for larger numeric range.     |
+| |〰|✔| | |✔|**Easy runtime `eval`** for trivial script injetion.      |
 | | | | | |✔|**Tail-call optimization** (always used by default).      |
 |✔| | | | | |**Fixed-point decimals** default, for numeric stability.  |
+| |✔|✔|❓| |✔|**Ships with dynamic REPL** by default for instant use.  |
 | |✔|✔| | |✔|**Dynamic global scope** at runtime, extreme mutability.  |
 |✔| | | | |✔|**1-based indexing** to be more beginner-friendly.        |
 
@@ -96,13 +98,17 @@ for any particular purpose** of these lists at all.*
 |✔| | |✔|✔| |**No runtime install** for desktop apps for end users.    |
 | | |✔| | | |**Runs in web browser** by default for simple web use.    |
 | |✔|✔| | |✔|**Easy to embed** for scripting, for only subordinate use.|
+| |✔|✔| | |✔|**Easy runtime module loading** for trivial mutability.   |
 |〰|✔|✔| | |✔|**Instant script use** for fast script helper launch.     |
 
 |Horse64|Python|JS|Go|C++|Lua|Tooling and Large Project Handling       |
 |-------|------|--|--|---|---|-----------------------------------------|
 |✔| | |✔|✔| |**Precompiled** always, for better large project checks.  |
 |✔| | |✔|✔| |**Static name resolution** to catch typos early.          |
+|✔| | |✔|✔| |**Non-trivial optimizations and warnings** by default.    |
 |✔|✔| |✔| | |**Official packaging tools** for easy project handling.   |
+|✔|✔|✔|❓| |✔|**Compiler trivially usable at runtime**, if needed.      |
+| | | |✔|✔| |**Forced type declarations** for most in-advance checks.  |
 
 |Horse64|Python|JS|Go|C++|Lua|Organizational Structure, Contributions  |
 |-------|------|--|--|---|---|-----------------------------------------|
@@ -112,7 +118,7 @@ for any particular purpose** of these lists at all.*
 |Horse64|Python|JS|Go|C++|Lua|Runtime Performance Features             |
 |-------|------|--|--|---|---|-----------------------------------------|
 |✔|✔|✔| | |✔|**Bytecode interpreter** for high portability.            |
-| |〰| |✔|✔| |**Full memory-shared threads** for unlimited parallelism. |
+| |〰| |✔|✔| |**Full memory-shared threads** for extra flexibity.      |
 | | |✔|✔|✔| |**Always uses JIT** for speed, or 100% AOT compiled.      |
 | | | |✔|✔| |**Outputs machine code** always, for extreme speed.       |
 
