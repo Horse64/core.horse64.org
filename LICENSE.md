@@ -263,6 +263,8 @@ The Horse64 Logo and its files may only be used in the official
 unmodified "Horse64" distribution as maintained by ellie/@ell1e,
 currently found at codeberg.org/Horse64, github.com/Horse64, and
 https://horse64.org/.
+These retrictions may be changed in the future, in which case
+they'll apply in their new form form that point forward.
 DON'T DISTRIBUTE MODIFIED HORSE64 VERSIONS WITH THE LOGO, PLEASE DON'T
 USE THE OFFICIAL NAME "Horse64" FOR THEM EITHER.
 ```
