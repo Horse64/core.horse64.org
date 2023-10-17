@@ -1014,8 +1014,8 @@ func parse_expression_unwrapped(
                         token.get_col(tokens, after_pos - 1
                                      ).as_str() + ".",
                         source_file=project_file,
-                        line=token.get_line(tokens, pos),
-                        col=token.get_col(tokens, pos),
+                        line=token.get_line(tokens, after_pos),
+                        col=token.get_col(tokens, after_pos),
                     ))
                 }
                 if operand_parsed == none {
