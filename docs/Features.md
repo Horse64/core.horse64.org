@@ -102,7 +102,7 @@ https://codeberg.org/Horse64/core.horse64.org/issues/new?template=.gitea%2fISSUE
 |-------|------|--|--|---|---|-----------------------------------------|
 |✔|✔|〰|✔|〰| |**Big standard library** even without extra setup.        |
 |✔| |✔| | | |**UI and graphics integrated** for easy graphical apps.   |
-|✔|✔|✔|✔| | |**High-level networking by default** for backends etc.    |
+|✔|✔|✔|✔| | |**High-level networking by default** for servers etc.     |
 |✔|✔|✔|✔|❓| |**Unicode with full grapheme support** by default.        |
 
 ### Deployment Features
@@ -163,11 +163,11 @@ When to use Horse64
 
 (Again, this is very subjective.)
 
-- Horse64 tries to unify the accessibility of scripting with the
-  large codebase suitability of backend languages like Go.
+- Horse64 tries to unify the accessibility of scripting languages with
+  the large codebase suitability of server-focused languages like Go.
 
 - Horse64 tries to make writing, shipping, deploying desktop apps
-  and backends easy.
+  and server apps easy.
 
 - Horse64 isn't good at 🚫 [extreme raw speed](
   #runtime-performance-and-lowlevel-features),
