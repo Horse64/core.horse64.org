@@ -29,7 +29,9 @@ func main {
   functionality.](/docs/FIXME)
 
 - **Undecided still?**
-  Check the [⚖️ features comparison!](/docs/Features.md)
+  Check the [⚖️ features comparison!](/docs/Features.md) Or
+  [✅ recommended uses](
+  /docs/Features.md#when-to-use-horse64) for Horse64.
 
 - **For community help,** see
   [💬 community chat](https://horse64.org/chat) and

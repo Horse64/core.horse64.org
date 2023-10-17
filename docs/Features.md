@@ -71,6 +71,11 @@ following lists are subjective and all languages are subject to
 change, **no guarantee provided for accuracy or fitness
 for any particular purpose** of these lists at all.*
 
+If you find a mistake or want to
+suggest an improvement, [please file a documentation issue](
+https://codeberg.org/Horse64/core.horse64.org/issues/new?template=.gitea%2fISSUE_TEMPLATE%2fdocs.yml
+).
+
 ### Syntax, Core, and Code Flow Features
 
 |Horse64|Python|JS|Go|C++|Lua|Syntax, Core, and Code Flow              |
@@ -152,29 +157,22 @@ for any particular purpose** of these lists at all.*
 | | | |✔|✔| |**Outputs machine code** always, for extreme speed.       |
 | | | | |✔| |**Inline assembly and manual allocation** easy to do.     |
 
-### Summary
 
-If you find a mistake or want to
-suggest an improvement, [please file a documentation issue](
-https://codeberg.org/Horse64/core.horse64.org/issues/new?template=.gitea%2fISSUE_TEMPLATE%2fdocs.yml
-).
+When to use Horse64
+-------------------
 
-Summed up, consider Horse64 for:
+(Again, this is very subjective.)
 
-- Helping both beginners and contributors **get started
-  🚀 fast** while still okay for larger projects.
+- Horse64 tries to unify the accessibility of scripting with the
+  large codebase suitability of backend languages like Go.
 
-- Ship desktop **apps 📦 mostly self-contained** easily.
+- Horse64 tries to make writing, shipping, deploying desktop apps
+  and backends easy.
 
-- Easily make **server backends using the 📶 integrated networking.**
-
-- [Concurrency out-of-the-box](/docs/concurrency) facilitates
-  **📱 responsive, non-blocking behavior.**
-
-Horse64 isn't that good at 🚫 [extreme raw speed](
-#runtime-perfomance-and-lowlevel-features),
-🚫 [super flexible scripting use](#scripting-features),
-🚫 complex offline code type checking (since it's dynamically typed).
+- Horse64 isn't good at 🚫 [extreme raw speed](
+  #runtime-perfomance-and-lowlevel-features),
+  🚫 [super flexible scripting use](#scripting-features),
+  and 🚫 complex offline code type checking (since it's dynamically typed).
 
 
 Technical specifications
