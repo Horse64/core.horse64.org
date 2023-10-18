@@ -131,6 +131,19 @@ func LiteralExpr.as_json_obj {
     return output
 }
 
+type InlineIfExpr base ast.TreeNode {
+}
+
+func InlineIfExpr.init {
+    base.init()
+    self.kind = ast.N_EXPR_INLINEIF
+}
+
+func InlineIfExpr.as_json_obj {
+    var output = base.as_json_obj()
+    return output
+}
+
 func token_continues_expr(t) {
     if t.kind == token.T_BRACKET {
         return (t.str == "(" or t.str == "[")
@@ -209,6 +222,9 @@ func parse_expression(
     var tokens_len = tokens.len
     if max_len != none {
         tokens_len = math.min(max_len, tokens_len)
+    }
+    if pos > tokens_len {
+        return later none
     }
     var debug_id = none
     if debug {
@@ -651,6 +667,7 @@ func parse_expression_unwrapped(
         var past_cond_idx = token.get_inline_if_conditional_end(
             tokens, pos, max_len=tokens_len
         )
+        assert(past_cond_idx <= tokens_len)
         if past_cond_idx >= 1 {  # This means it's an actual inline 'if'.
             assert(tokens[past_cond_idx].kind == token.T_BRACKET and
                    tokens[past_cond_idx].str == "(")
@@ -659,11 +676,11 @@ func parse_expression_unwrapped(
 
             var cond_expr = parse_expression(
                 tokens, pos, msgs, project_file=project_file,
-                max_len=past_cond_idx, debug=debug,
+                max_len=(past_cond_idx - 1), debug=debug,
             ) later:
 
             await cond_expr
-            if inner_expr == none {
+            if cond_expr == none {
                 msgs.add(new msg.FileMsg(
                     "Unexpected " + token.describe_token_at(
                         tokens, pos) +
@@ -674,17 +691,17 @@ func parse_expression_unwrapped(
                     col=token.get_col(tokens, pos),
                 ))
                 had_error = yes
-                cond_expr = new expr.InvalidExpr(
+                cond_expr = new InvalidExpr(
                     math.max(1, past_cond_idx - pos)
                 )
             }
             pos = past_cond_idx + 1
 
-            func extract_return_bracket_expr(pos, past_idx=none) {
+            func extract_return_bracket_expr(pos, max_idx=none) {
                 var value_start = pos
                 var value_expr = parse_expression(
                     tokens, pos, msgs, project_file=project_file,
-                    max_len=past_idx, debug=debug,
+                    max_len=max_idx, debug=debug,
                 ) later:
 
                 await value_expr
@@ -695,9 +712,9 @@ func parse_expression_unwrapped(
                                 tokens, pos) +
                             ", expected bracketed return value "
                             "for inline if starting in line " +
-                            token.get_line(tokens, if_idx).as_start() +
+                            token.get_line(tokens, if_idx).as_str() +
                             ", column " +
-                            token.get_col(tokens, if_idx).as_col() +
+                            token.get_col(tokens, if_idx).as_str() +
                             ".",
                             source_file=project_file,
                             line=token.get_line(tokens, pos),
@@ -705,12 +722,12 @@ func parse_expression_unwrapped(
                         ))
                     }
                     had_error = yes
-                    value_expr = new expr.InvalidExpr(1)
+                    value_expr = new InvalidExpr(1)
                 } else {
                     pos += value_expr.token_len
                 }
                 if pos > tokens_len or
-                        tokens[pos].kind != T_BRACKET or
+                        tokens[pos].kind != token.T_BRACKET or
                         tokens[pos].str != ")" {
                     if not had_error {
                         msgs.add(new msg.FileMsg(
@@ -719,9 +736,9 @@ func parse_expression_unwrapped(
                             ", expected ')' to end bracketed return "
                             "value for inline if starting in "
                             "line " +
-                            token.get_line(tokens, if_idx).as_start() +
+                            token.get_line(tokens, if_idx).as_str() +
                             ", column " +
-                            token.get_col(tokens, if_idx).as_col() +
+                            token.get_col(tokens, if_idx).as_str() +
                             ".",
                             source_file=project_file,
                             line=token.get_line(tokens, pos),
@@ -731,7 +748,7 @@ func parse_expression_unwrapped(
                     had_error = yes
                     var bracket_depth = 1
                     while pos <= tokens_len {
-                        if tokens[pos].kind == T_BRACKET {
+                        if tokens[pos].kind == token.T_BRACKET {
                             if {"(", "[", "{"}.has(tokens[pos].str) {
                                 bracket_depth += 1
                             } else {
@@ -747,23 +764,28 @@ func parse_expression_unwrapped(
                     }
                     value_expr.token_len = (pos - value_start)
                 }
+                assert(value_expr != none)
                 return later value_expr
             }
+
             # Get first return expression for 'yes' branch:
             var value1_expr = extract_return_bracket_expr(
-                pos, past_cond_idx
-            )
-            assert(value1_expr)
+                pos
+            ) later:
+
+            await value1_expr
+            assert(value1_expr != none)
             pos += value1_expr.token_len
             if pos < past_cond_idx {
                 pos = past_cond_idx
             }
             if pos <= tokens_len and
-                    tokens[pos].kind == T_BRACKET and
+                    tokens[pos].kind == token.T_BRACKET and
                     tokens[pos].str == ")" {
                 pos += 1
             }
-            if pos > tokens_len or tokens[pos].kind != T_KEYWORD or
+            if pos > tokens_len or
+                    tokens[pos].kind != token.T_KEYWORD or
                     tokens[pos].str != "else" {
                 if not had_error {
                     msgs.add(new msg.FileMsg(
@@ -771,9 +793,9 @@ func parse_expression_unwrapped(
                             tokens, pos) +
                         ", expected 'else' to continue the "
                         "inline if starting in line " +
-                        token.get_line(tokens, if_idx).as_start() +
+                        token.get_line(tokens, if_idx).as_str() +
                         ", column " +
-                        token.get_col(tokens, if_idx).as_col() +
+                        token.get_col(tokens, if_idx).as_str() +
                         ".",
                         source_file=project_file,
                         line=token.get_line(tokens, pos),
@@ -784,21 +806,47 @@ func parse_expression_unwrapped(
             } else {
                 pos += 1  # Go past 'else'.
             }
+            if pos > tokens_len or
+                    tokens[pos].kind != token.T_BRACKET or
+                    tokens[pos].str != "(" {
+                if not had_error {
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected " + token.describe_token_at(
+                            tokens, pos) +
+                        ", expected '(' for second bracketed "
+                        "return value of the "
+                        "inline if starting in line " +
+                        token.get_line(tokens, if_idx).as_str() +
+                        ", column " +
+                        token.get_col(tokens, if_idx).as_str() +
+                        ".",
+                        source_file=project_file,
+                        line=token.get_line(tokens, pos),
+                        col=token.get_col(tokens, pos),
+                    ))
+                }
+                had_error = yes
+            } else {
+                pos += 1  # Go past '('.
+            }
             var value2_expr = extract_return_bracket_expr(
-                pos, past_cond_idx
-            )
-            assert(value2_expr)
+                pos
+            ) later:
+
+            await value2_expr
+            assert(value2_expr != none)
             pos += value2_expr.token_len
             if pos <= tokens_len and
-                    tokens[pos].kind == T_BRACKET and
+                    tokens[pos].kind == token.T_BRACKET and
                     tokens[pos].str == ")" {
                 pos += 1
             }
             var node = new InlineIfExpr()
             node.line = token.get_line(tokens, if_idx)
             node.col = token.get_col(tokens, if_idx)
-            node.subexpr.add(value1_expr)
-            node.subexpr.add(value2_expr)
+            node.subexprs.add(value1_expr)
+            node.subexprs.add(value2_expr)
+            node.token_len = (pos - if_idx)
             return node
         }
     }
@@ -1371,12 +1419,17 @@ func parse_single_call_or_funcdef_arg(
         max_len=none, debug=no
         ) {
     var startpos = pos
+    var tokens_len = tokens.len
+    if max_len != none {
+        tokens_len = math.min(tokens_len, max_len)
+    }
 
     # Get the initial assigned thing or name label:
     var can_be_assign = yes
     var pre_assign_expr = none
     pre_assign_expr = parse_expression(
         tokens, pos, msgs, project_file=project_file,
+        max_len=tokens_len
     ) later:
 
     await pre_assign_expr
@@ -1417,7 +1470,7 @@ func parse_single_call_or_funcdef_arg(
 
     # Now, see if there's anything assigned:
     func parse_assigned_if_needed {
-        if pos > tokens.len or not can_be_assign or
+        if pos > tokens_len or not can_be_assign or
                 tokens[pos].kind != token.T_ASSIGN {
             return none
         }
@@ -1425,6 +1478,7 @@ func parse_single_call_or_funcdef_arg(
         pos += 1
         var assigned_expr = parse_expression(
             tokens, pos, msgs, project_file=project_file,
+            max_len=tokens_len
         ) later:
 
         await assigned_expr
@@ -1458,7 +1512,7 @@ func parse_single_call_or_funcdef_arg(
 
     # Make sure we reached the proper ending:
     var had_damage = no
-    if pos > tokens.len or (
+    if pos > tokens_len or (
             tokens[pos].kind != token.T_COMMA and
             (tokens[pos].kind != token.T_BRACKET or
              tokens[pos].str != ")")) {
@@ -1479,7 +1533,7 @@ func parse_single_call_or_funcdef_arg(
         }
         had_damage = yes
         var preskippos = pos
-        if pos < tokens.len {
+        if pos < tokens_len {
             var newpos = token.skip_garbage_to_closing_item(
                 tokens, pos, token.T_COMMA, ",",
                 skip_closing_item_itself=yes,
@@ -1493,7 +1547,7 @@ func parse_single_call_or_funcdef_arg(
     #    if pos <= tokens.len (tokens[pos].as_str()) else ("eof"))
 
     # If we're at a closing ',' + ')' then forward to final ')':
-    if pos + 1 <= tokens.len and
+    if pos + 1 <= tokens_len and
             tokens[pos].kind == token.T_COMMA and
             tokens[pos + 1].kind == token.T_BRACKET and
             tokens[pos + 1].str == ")" {
