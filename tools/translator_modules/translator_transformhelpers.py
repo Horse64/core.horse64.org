@@ -338,7 +338,7 @@ def transform_h64_misc_inline_to_python(s):
                         "ltrim", "pop_at", "rtrim", "rfind", "copy",
                         "reverse", "sublast", "subfirst",
                         "last", "first", "del", "insert",
-                        "join", "glyph_sub", "sub", "repeat") and
+                        "join", "glyph_sub", "sub", "rep") and
                         nextnonblank(s, i) == "("
                     ))):
                 cmd = s[i]
@@ -407,7 +407,7 @@ def transform_h64_misc_inline_to_python(s):
             elif cmd == "rfind":
                 insert_call = ["_translator_runtime_helpers",
                     ".", "_container_rfind"]
-            elif cmd == "repeat":
+            elif cmd == "rep":
                 insert_call = ["_translator_runtime_helpers",
                     ".", "_container_repeat"]
             elif cmd == "sub" or cmd == "glyph_sub":
@@ -442,7 +442,7 @@ def transform_h64_misc_inline_to_python(s):
                 i -= 1
                 assert(s[i] == ")")
             elif cmd in ("add", "sort", "join", "find", "sub",
-                    "repeat", "trim", "glyph_sub", "copy",
+                    "rep", "trim", "glyph_sub", "copy",
                     "ltrim", "rtrim", "rfind", "sublast",
                     "insert", "pop_at",
                     "subfirst", "last", "first", "del"):
