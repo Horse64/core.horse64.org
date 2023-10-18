@@ -97,8 +97,8 @@ func test_parse_call_expression {
         ["print", "(", "'Hello World'", ")"],
         1, msgs, project_file=none, debug=no
     ) later:
-    await v1
 
+    await v1
     if msgs.len > 0 {
         for msg in msgs {
             print("Test got invalid error: " + msg.as_terminal_str())

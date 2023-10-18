@@ -172,7 +172,7 @@ enum NodeKind {
 
 type ASTResult {
     ## @type [TreeNode]
-    var nodes = []
+    var stmts = []
 
     ## @type [msg.FileMsg]
     var msgs = []
@@ -187,7 +187,7 @@ type ASTResult {
 func ASTResult.as_json_obj {
     var output = {
         "messages"-> [],
-        "nodes"-> [],
+        "stmts"-> [],
     }
     for m in self.msgs {
         var mjson = {
@@ -202,8 +202,8 @@ func ASTResult.as_json_obj {
         }
         output["messages"].add(mjson)
     }
-    for node in self.nodes {
-        output["nodes"].append(node.as_json_obj())
+    for node in self.stmts {
+        output["stmts"].append(node.as_json_obj())
     }
     return output
 }
@@ -297,11 +297,11 @@ func parse_to_ast_ex(
         var invalid_st = new invalid_stmt.InvalidStmt(skiplen)
         invalid_st.line = token.get_line(tokens, pos)
         invalid_st.col = token.get_col(tokens, pos)
-        result.nodes.add(invalid_st)
+        result.stmts.add(invalid_st)
         pos += skiplen
     } else {
         # Extracted a new statement.
-        result.nodes.add(stmt)
+        result.stmts.add(stmt)
         pos += stmt.token_len
     }
 

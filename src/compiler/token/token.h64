@@ -599,7 +599,7 @@ func get_inline_if_conditional_end(tokens, pos, max_len=none) {
         if bracket_depth == 0 {
             if tokens[pos].kind == T_BRACKET and
                     tokens[pos].str == "{" and
-                    not token_has_righthand(tokens, pos - 1) {
+                    not token_has_righthand(tokens[pos - 1]) {
                 return -1
             }
             if tokens[pos].kind == T_KEYWORD {

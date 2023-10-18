@@ -109,7 +109,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no,
         contents.token_len = pos + skiplen
     }
     msgs += contents.msgs
-    result.stmts = contents.nodes
+    result.stmts = contents.stmts
     pos += contents.token_len 
 
     # See if we're missing a proper end:

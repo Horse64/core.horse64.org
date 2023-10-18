@@ -84,6 +84,12 @@ func UnopExpr.init(optoken) {
     self.optoken = optoken
 }
 
+func UnopExpr.as_json_obj {
+    var output = base.as_json_obj()
+    output["optoken"] = self.optoken.str
+    return output
+}
+
 type BinopExpr base ast.TreeNode {
     var optoken
 }
