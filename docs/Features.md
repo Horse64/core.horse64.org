@@ -61,8 +61,8 @@ Comparison with other languages and use cases
 information is based on the target state of a first release,
 and not reflective of the current work in progress version.** ⚠️⚠️⚠️
 
-Horse64 is a dynamically typed, high-level language. Here is
-how it compares to the other programming languages
+Horse64 is a dynamically typed, multi-paradigm, high-level language.
+Here is how it compares to the other programming languages
 [Python](https://python.org),
 [JavaScript (JS)](https://www.javascript.com/),
 [Go](https://go.dev/), and
@@ -171,8 +171,10 @@ When to use Horse64
 
 - Horse64 isn't good at 🚫 [extreme raw speed](
   #runtime-performance-and-lowlevel-features),
-  🚫 [super flexible scripting use](#scripting-features),
-  and 🚫 complex offline code type checking (since it's dynamically typed).
+  🚫 [super spontaneous self-mutating scripting
+  use](#scripting-features),
+  and 🚫 no limits to offline code type checking (since it's
+  dynamically typed, the checks have practicality limits).
 
 
 Technical specifications
