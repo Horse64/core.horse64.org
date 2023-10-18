@@ -482,10 +482,10 @@ func get_usage_text(options) {
         )
         for arg in options.args {
             if arg.positional {
-                var spaces = " ".repeat(math.max(
+                var spaces = " ".rep(math.max(
                     2, indent_target_len - arg.name.len
                 ))
-                var spaces_after_wrap = " ".repeat(indent_target_len)
+                var spaces_after_wrap = " ".rep(indent_target_len)
                 var wrapped = textfmt.wrap(
                     "   " + arg.name.replace(" ", "_") +
                     if arg.description != none (spaces + arg.description)
@@ -527,10 +527,10 @@ func get_usage_text(options) {
         30, longest_switch_len + 3
     )
     for switch_name in sorted_names {
-        var spaces = " ".repeat(math.max(
+        var spaces = " ".rep(math.max(
             2, indent_target_len - switch_name.len
         ))
-        var spaces_after_wrap = " ".repeat(indent_target_len)
+        var spaces_after_wrap = " ".rep(indent_target_len)
         var switch_description = none
         if switch_desc_map.has(switch_name) {
             switch_description = switch_desc_map[switch_name]

@@ -222,9 +222,6 @@ func parse_expression(
         tokens, pos, msgs, project_file=none,
         max_len=none, debug=no
         ) {
-    if tokens.len > 0 and typename(tokens[1]) == "str" {
-        tokens = token.token_list_from_str_list(tokens)
-    }
     var tokens_len = tokens.len
     if max_len != none {
         tokens_len = math.min(max_len, tokens_len)
@@ -511,20 +508,20 @@ func parse_expression_unwrapped(
             }
 
             # First, determine what type of container this is:
-            var bdepth = 0
+            var bracket_depth = 0
             var i = pos
             while i <= tokens_len and
-                    (bdepth > 0 or
+                    (bracket_depth > 0 or
                     tokens[i].kind != token.T_BRACKET or
                     tokens[i].str != closebracket) {
                 if tokens[i].kind == token.T_BRACKET {
                     if {"(", "[", "{"}.has(tokens[i].str) {
-                        bdepth += 1
+                        bracket_depth += 1
                     } else {
-                        bdepth = math.max(0, bdepth - 1)
+                        bracket_depth = math.max(0, bracket_depth - 1)
                     }
                 }
-                if bdepth > 0 {
+                if bracket_depth > 0 {
                     i += 1
                     continue
                 }
@@ -1094,6 +1091,7 @@ func parse_expression_unwrapped(
         var expr_len = token.get_naive_stmt_or_expr_len(
             tokens, pos, max_len=tokens_len, for_expr=yes
         )
+        assert(expr_len + pos - 1 <= tokens_len)
         tokens_len = pos + math.max(0, expr_len - 1)
         if expr_len > 2 and tokens_len >= 2 and
                 tokens[tokens_len - 1].kind == token.T_KEYWORD and
@@ -1112,33 +1110,45 @@ func parse_expression_unwrapped(
                 [tokens[pos].kind],  # The precedence.
             1  # The left operand index.
         ])
-        var bdepth = 0
+        var bracket_depth = 0
         var operandstart = pos + 1
+        var inline_if_depth = 0
         var i = pos + 1
         while i <= tokens_len {
             if tokens[i].kind == token.T_BRACKET {
                 if {"{", "(", "["}.has(tokens[i].str) {
-                    bdepth += 1
+                    bracket_depth += 1
                 } else {
-                    bdepth -= 1
+                    bracket_depth -= 1
                 }
-            } elseif {token.T_MATH, token.T_UNARYMATH, token.T_COMPARE,
-                    token.T_BOOLCOMP}.has(tokens[i].kind) {
-                # Found a relevant operator!
-                outer_level_ops_at.add([
-                    i,  # The position.
-                    precedence_map[tokens[i].str]
-                        [tokens[i].kind],  # The precedence.
-                    outer_level_ops_operands.len + 1,  # Left operand index.
-                ])
-                if i > operandstart {  # Collect range of operand:
-                    outer_level_ops_operands.add([
-                        operandstart, i - 1
+            } elseif bracket_depth == 0 {
+                if inline_if_depth == 0 and
+                        {token.T_MATH, token.T_UNARYMATH,
+                        token.T_COMPARE,
+                        token.T_BOOLCOMP}.has(tokens[i].kind) {
+                    # Found a relevant operator!
+                    outer_level_ops_at.add([
+                        i,  # The position.
+                        precedence_map[tokens[i].str]
+                            [tokens[i].kind],  # The precedence.
+                        outer_level_ops_operands.len +
+                        1,  # Left operand index.
                     ])
-                } else {
-                    outer_level_ops_operands.add(none)
+                    if i > operandstart {  # Collect range of operand:
+                        outer_level_ops_operands.add([
+                            operandstart, i - 1
+                        ])
+                    } else {
+                        outer_level_ops_operands.add(none)
+                    }
+                    operandstart = i + 1
+                } elseif tokens[i].kind == token.T_KEYWORD and
+                        tokens[i].str == "if" {
+                    inline_if_depth += 1
+                } elseif tokens[i].kind == token.T_KEYWORD and
+                        tokens[i].str == "else" {
+                    inline_if_depth = math.max(0, inline_if_depth - 1)
                 }
-                operandstart = i + 1
             }
             i += 1
         }
@@ -1182,11 +1192,18 @@ func parse_expression_unwrapped(
         }
         outer_level_ops_at.sort(cmp=sort_op_positions)
         if debug {
-            print("compiler.ast.expr: parse_expression_unwrapped() " +
+            var debugmsg = "compiler.ast.expr: "
+                "parse_expression_unwrapped() " +
                 debug_id + " parsing operators expression " +
                 tokens.sub(pos, tokens_len).as_str() +
-                " with outer_level_ops_at=" +
-                outer_level_ops_at.as_str())
+                " with outer_level_ops_at="
+            for op_entry in outer_level_ops_at {
+                debugmsg += "(pos=" + op_entry[1].as_str() +
+                    ", precedence=" + op_entry[2].as_str() +
+                    ", op=" + token.describe_token(
+                    tokens[op_entry[1]]) + ")"
+            }
+            print(debugmsg)
         }
 
         # Convert all the in-between operands into expressions:
@@ -1198,6 +1215,7 @@ func parse_expression_unwrapped(
                 return later operand
             }
             # Get expression node for this operand's range:
+            assert(operand[2] >= operand[1])
             var operand_parsed = parse_expression(
                 tokens, operand[1], msgs, project_file=project_file,
                 max_len=operand[2], debug=debug

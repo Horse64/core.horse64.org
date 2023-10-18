@@ -45,7 +45,7 @@ func TypeStmt.init {
 
 func TypeStmt.as_json_obj {
     var output = base.as_json_obj()
-    output["label"] = label
+    output["label"] = self.label
     return output
 }
 

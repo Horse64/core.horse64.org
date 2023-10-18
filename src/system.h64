@@ -30,7 +30,8 @@ import textfmt from core.horse64.org
 
 
 func program_license_text(
-        layout_width=79, blank_lines_at_end=1
+        layout_width=79, blank_lines_at_end=1,
+        linebreak="\n"
         ) {
     var output = ""
     var is_first = yes
@@ -39,11 +40,11 @@ func program_license_text(
         var target_len = layout_width
         var side_len = math.max(0, math.floor(
             (target_len - license.file_name.len - 2) / 2))
-        var side_dashes = "-".repeat(side_len)
+        var side_dashes = "-".rep(side_len)
         if is_first {
             is_first = no
         } else {
-            output += "\n".repeat(blank_lines_at_end)
+            output += linebreak.rep(blank_lines_at_end)
         }
         output += side_dashes + " " + license.file_name +
             " " + side_dashes + "\n"

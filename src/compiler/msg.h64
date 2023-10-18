@@ -101,7 +101,7 @@ func FileMsg.as_terminal_str(prefix="", wrap_width=none) {
         }
         t += " "
     }
-    next_line_prefix = " ".repeat(t.len)
+    next_line_prefix = " ".rep(t.len)
     t += self.content
     if wrap_width != none {
         t = textwrap.wrap(t, wrap_width,

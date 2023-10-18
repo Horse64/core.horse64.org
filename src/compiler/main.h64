@@ -112,11 +112,11 @@ func show_ast_result_to_terminal(
         }
         if not had_error {
             var output = ""
-            for node in aresult.nodes {
+            for stmt in aresult.stmts {
                 if output.len > 0 {
                     output += ", "
                 }
-                output += node.as_str()
+                output += stmt.as_str()
             }
             print(output)
             return 0

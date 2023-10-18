@@ -392,9 +392,6 @@ func parse_token_value(tok) {
 func surely_to_toplevel_even_in_bad_code(
         tokens, start_pos
         ) {
-    if tokens.len > 0 and typename(tokens[1]) == "str" {
-        tokens = token_list_from_str_list(tokens)
-    }
     if start_pos >= tokens.len or start_pos < 1 {
         return yes
     }
@@ -427,9 +424,6 @@ func surely_to_toplevel_even_in_bad_code(
 func surely_starts_stmt_even_in_bad_code(
         tokens, start_pos, break_out_of_code_blocks=yes
         ) {
-    if tokens.len > 0 and typename(tokens[1]) == "str" {
-        tokens = token_list_from_str_list(tokens)
-    }
     if start_pos >= tokens.len or start_pos < 1 {
         return yes
     }
@@ -518,9 +512,6 @@ func get_naive_stmt_or_expr_len(
     if bracket_depth < 0 {
         throw new ValueError("initial bracket_depth must "
             "be a non-negative number")
-    }
-    if tokens.len > 0 and typename(tokens[1]) == "str" {
-        tokens = token_list_from_str_list(tokens)
     }
     var tokens_len = tokens.len
     if max_len != none {

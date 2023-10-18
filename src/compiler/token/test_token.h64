@@ -156,54 +156,70 @@ func test_unary_op {
 }
 
 func test_surely_starts_stmt_even_in_bad_code {
-    var result
+    var result, tokens
+
+    tokens = token.token_list_from_str_list([
+        "(", "var", "x"])
     result = token.surely_starts_stmt_even_in_bad_code(
-        ["(", "var", "x"], 1, break_out_of_code_blocks=yes
+        tokens, 1, break_out_of_code_blocks=yes
     )
     assert(result == no)
+    tokens = token.token_list_from_str_list([
+        "(", "var", "x"])
     result = token.surely_starts_stmt_even_in_bad_code(
-        ["(", "var", "x"], 2, break_out_of_code_blocks=yes
+        tokens, 2, break_out_of_code_blocks=yes
     )
     assert(result == yes)
+    tokens = token.token_list_from_str_list([
+        "(", "var", "x"])
     result = token.surely_starts_stmt_even_in_bad_code(
-        ["(", "var", "x"], 2, break_out_of_code_blocks=no
+        tokens, 2, break_out_of_code_blocks=no
     )
     assert(result == no)
 }
 
 func test_get_naive_stmt_or_expr_len {
-    var result
-    result = token.get_naive_stmt_or_expr_len([
-        "func", "bla", ".", "main", "{", "}", "+", "a", "b"
-    ], 1, for_expr=no)
+    var result, tokens
+
+    tokens = token.token_list_from_str_list([
+        "func", "bla", ".", "main", "{", "}", "+", "a", "b"])
+    result = token.get_naive_stmt_or_expr_len(
+        tokens, 1, for_expr=no)
     assert(result == 4)
-    result = token.get_naive_stmt_or_expr_len([
-        "func", "bla", ".", "main", "+", "{", "}", "+", "a", "b"
-    ], 1, for_expr=no)
+    tokens = token.token_list_from_str_list([
+        "func", "bla", ".", "main", "+", "{", "}", "+", "a", "b"])
+    result = token.get_naive_stmt_or_expr_len(
+        tokens, 1, for_expr=no)
     assert(result == 9)
-    result = token.get_naive_stmt_or_expr_len([
+    tokens = token.token_list_from_str_list([
         "import", "compiler", ".", "msg", "as", "msg",
-        "import", "compiler", ".", "token", "as", "token",
-    ], 1, for_expr=no)
+        "import", "compiler", ".", "token", "as", "token"])
+    result = token.get_naive_stmt_or_expr_len(
+        tokens, 1, for_expr=no)
     assert(result == 6)
-    result = token.get_naive_stmt_or_expr_len([
+    tokens = token.token_list_from_str_list([
         "{", "var", "x", "=", "5", "print", "(", "none", ")", "}",
-        "print", "(", "y", ")"
-    ], 1, for_expr=no)
+        "print", "(", "y", ")"])
+    result = token.get_naive_stmt_or_expr_len(
+        tokens, 1, for_expr=no)
     assert(result == 10)
-    result = token.get_naive_stmt_or_expr_len([
-        "var", "x", "+", "}",
-    ], 1, for_expr=no)
+    tokens = token.token_list_from_str_list([
+        "var", "x", "+", "}"])
+    result = token.get_naive_stmt_or_expr_len(
+        tokens, 1, for_expr=no)
     assert(result == 3)
-    result = token.get_naive_stmt_or_expr_len([
-        "(", "var", "x", "+", "}"
-    ], 1, for_expr=no)
+    tokens = token.token_list_from_str_list([
+        "(", "var", "x", "+", "}"])
+    result = token.get_naive_stmt_or_expr_len(
+        tokens, 1, for_expr=no)
     assert(result == 1)
 
     # Special case that is different for expressions:
+    tokens = token.token_list_from_str_list([
+        "2", "+", "3",
+        "new", "z", "(", ")", "x"])
     var expr_len = token.get_naive_stmt_or_expr_len(
-        ["2", "+", "3",
-        "new", "z", "(", ")", "x"], 1, for_expr=yes)
+        tokens, 1, for_expr=yes)
     assert(expr_len == 3)
 }
 
@@ -240,3 +256,4 @@ func test_tokenize {
         )
     assert(result.msgs.len > 0)
 }
+

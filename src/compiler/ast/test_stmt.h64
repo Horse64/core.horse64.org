@@ -70,6 +70,35 @@ func test_parse_complex {
     assert(msgs.len == 0)
 }
 
+func test_parse_inline_if {
+    var msgs
+
+    msgs = []
+    var v1 = ast.parse_str_to_ast(
+        "if 3 != if 2 + 3 (bla != 5) else (blu) {"
+        "   throw new ValueError('oop')"
+        "}", debug=no
+    ) later:
+
+    await v1
+    if msgs.len > 0 {
+        for msg in msgs {
+            print("Test got invalid error: " + msg.as_terminal_str())
+        }
+    }
+    assert(v1 != none)
+    assert(msgs.len == 0)
+    assert(v1.stmts.len == 1)
+    var st = v1.stmts[1]
+    assert(st.kind == ast.N_STMT_IF)
+    assert(st.subexprs.len == 1)
+    assert(st.subexprs[1].kind == ast.N_EXPR_IFELSECLAUSE)
+    assert(st.subexprs[1].subexprs.len == 1)
+    assert(st.subexprs[1].subexprs[1].kind == ast.N_EXPR_BINOP)
+    assert(st.subexprs[1].subexprs[1].subexprs[2].kind ==
+           ast.N_EXPR_INLINEIF)
+}
+
 func test_parse_func_stmt_2 {
     var msgs = []
 
