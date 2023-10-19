@@ -1800,6 +1800,40 @@ func tokenize_str(
 
             col += name.len - 1
             continue
+        } elseif text.code(c) == code_0 and
+                i < strlen and str[i + 1] == "x" {
+            # Hex number. Goes until a char stops fitting.
+            var k = i + 2
+            while k <= strlen {
+                c = str[k]
+                if (text.code(c) < code_a or
+                        text.code(c) > code_z) and
+                        (text.code(c) < code_cap_a or
+                         text.code(c) > code_cap_z) and
+                        (text.code(c) < code_0 or
+                         text.code(c) > code_9) {
+                    break
+                }
+                k += 1
+            }
+            k -= 1
+            var numtoken = str.sub(i, k)
+            if k <= i + 2 {
+                # Oops, invalid, can't have "0x" with no digits.
+                result.msgs.add(new msg.FileMsg(
+                    "Invalid unexpected truncated '0x' " +
+                    "with not at least one digit following.",
+                    source_file=project_file,
+                    line=line, col=col
+                ))
+                numtoken += "0"  # Fix the token to carry on.
+            }
+            result.tokens.add(new Token(
+                numtoken, T_NUM, line, col
+            ))
+            col += (k - i)
+            i = k
+            continue
         } elseif (text.code(c) >= code_0 and
                 text.code(c) <= code_9) or
                 (c == "-" and i < strlen and
@@ -1835,7 +1869,7 @@ func tokenize_str(
                     "Invalid unexpected number literal " +
                     numtoken + " exceeds maximum value " +
                     limit.num_max_str + " that "
-                    "a Horse64 num can hold",
+                    "a Horse64 num can hold.",
                     source_file=project_file,
                     line=line, col=col
                 ))
@@ -1846,7 +1880,7 @@ func tokenize_str(
                     "Invalid unexpected number literal " +
                     numtoken + " is below minimum value " +
                     limit.num_min_str + " that "
-                    "a Horse64 num can hold",
+                    "a Horse64 num can hold.",
                     source_file=project_file,
                     line=line, col=col
                 ))

@@ -25,6 +25,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import base64 from core.horse64.org
 import math from core.horse64.org
 import random from core.horse64.org
 
@@ -141,7 +142,11 @@ func LiteralExpr.init {
 
 func LiteralExpr.as_json_obj {
     var output = base.as_json_obj()
-    output["value"] = self.value
+    if typename(self.value) == "bytes" {
+        output["value-base64"] = base64.dump(self.value)
+    } else {
+        output["value"] = self.value
+    }
     return output
 }
 

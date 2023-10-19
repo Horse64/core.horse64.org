@@ -213,6 +213,12 @@ remapped_uses = {
         "json.parse":
             "_translator_runtime_helpers._json_parse",
     },
+    "base64@core.horse64.org": {
+        "base64.parse":
+            "_translator_runtime_helpers._base64_parse",
+        "base64.dump":
+            "_translator_runtime_helpers._base64_dump",
+    },
     "math@core.horse64.org": {
         "math.min": "_translator_runtime_helpers._math_min",
         "math.max": "_translator_runtime_helpers._math_max",

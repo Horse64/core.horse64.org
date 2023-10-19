@@ -402,6 +402,20 @@ def _compiler_run_file(cmd, callback,
         args=run_args,
         run_in_dir=run_in_dir, print_output=print_output)
 
+def _base64_parse(x):
+    if type(x) != str and type(x) not in {bytes, bytearray}:
+        return _TypeError("argument must be bytes or str")
+    import base64
+    return base64.b64decode(x)
+
+
+def _base64_dump(x):
+    if type(x) not in {bytes, bytearray}:
+        return _TypeError("argument must be bytes")
+    import base64
+    s = base64.b64decode(x).decode("utf-8", "replace")
+    return s
+
 
 def h64_type(v):
     result = type(v)
@@ -795,8 +809,10 @@ def _uri_normalize(v, guess_nonfiles=True):
 
 
 def _json_dump(obj):
-    return json.dumps(obj)
-
+    try:
+        return json.dumps(obj)
+    except TypeError:
+        raise _TypeError("Failed to run json.dump on: " + str(obj))
 
 def _json_parse(s):
     return json.loads(s)
@@ -1970,6 +1986,22 @@ def _is_num(v):
         v = v.decode("utf-8", "surrogateescape")
     if type(v) != str:
         return False
+
+    if len(v) >= 2 and v[0:2] == "0x":
+        i = 2
+        if i > len(v):
+            return False
+        while i < len(v):
+            if (ord(v[i]) < ord("0") or
+                    ord(v[i]) > ord("9")) and \
+                    (ord(v[i]) < ord("a") or
+                    ord(v[i]) > ord("z")) and \
+                    (ord(v[i]) < ord("A") or
+                    ord(v[i]) > ord("Z")):
+                return False
+            i += 1
+        return True
+
     dotseen = False
     digitseen = False
     i = 0
@@ -2092,6 +2124,9 @@ def _bignum_compare_nums(v1, v2):
     if not _is_num(v1) or not _is_num(v2):
         raise _TypeError("parameters must contain "
             "properly formatted numbers")
+    if ((len(v1) >= 2 and v1[1] == "x") or
+            (len(v2) >= 2 and v2[1] == "x")):
+        raise _TypeError("hex numbers aren't supported")
     if "." in v1 or "." in v2:
         if float(v1) > float(v2):
             return 1
