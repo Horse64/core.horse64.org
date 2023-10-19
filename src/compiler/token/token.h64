@@ -1069,27 +1069,27 @@ func reverse_brackets(value) {
 
 ## Possible values for @{Token.kind}.
 enum TokenKind {
-    T_COMMENT
-    T_WSPACE
-    T_BRACKET
-    T_STR
-    T_BYTES
-    T_NUM
-    T_KEYWORD
-    T_BOOL
-    T_IDENT
-    T_NONE
-    T_MATH
-    T_NEWOP
-    T_UNARYMATH
-    T_BOOLCOMP
-    T_COMPARE
-    T_ASSIGN
-    T_MATHASSIGN
-    T_MAPASSIGN
-    T_COMMA
-    T_DOT
-    T_COLON
+    T_COMMENT,
+    T_WSPACE,
+    T_BRACKET,
+    T_STR,
+    T_BYTES,
+    T_NUM,
+    T_KEYWORD,
+    T_BOOL,
+    T_IDENT,
+    T_NONE,
+    T_MATH,
+    T_NEWOP,
+    T_UNARYMATH,
+    T_BOOLCOMP,
+    T_COMPARE,
+    T_ASSIGN,
+    T_MATHASSIGN,
+    T_MAPASSIGN,
+    T_COMMA,
+    T_DOT,
+    T_COLON,
 }
 
 type Token {

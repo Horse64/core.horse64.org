@@ -122,6 +122,14 @@ func IdRefExpr.as_json_obj {
     return output
 }
 
+type BaseRefExpr base ast.TreeNode {
+}
+
+func BaseRefExpr.init {
+    base.init()
+    self.kind = ast.N_EXPR_BASEREF
+}
+
 type LiteralExpr base ast.TreeNode {
     var value
 }
@@ -345,7 +353,7 @@ func parse_expression_unwrapped(
         } elseif {token.T_NUM, token.T_BOOL,
                   token.T_NONE}.has(tokens[pos].kind) {
             # Bool, number, and none literals.
-            var node = LiteralExpr()
+            var node = new LiteralExpr()
             node.value = token.parse_token_value(tokens[pos])
             node.token_len = 1
             node.line = startline
@@ -353,8 +361,16 @@ func parse_expression_unwrapped(
             return node
         } elseif tokens[pos].kind == token.T_IDENT {
             # An identifier expression.
-            var node = IdRefExpr()
+            var node = new IdRefExpr()
             node.label = tokens[pos].str
+            node.token_len = 1
+            node.line = startline
+            node.col = startcol
+            return node
+        } elseif tokens[pos].kind == token.T_KEYWORD and
+                tokens[pos].str == "base" {
+            # A "base" referencing expression
+            var node = new BaseRefExpr()
             node.token_len = 1
             node.line = startline
             node.col = startcol
@@ -441,7 +457,7 @@ func parse_expression_unwrapped(
                 {"{", "["}.has(tokens[pos].str) {
             var openbracket = tokens[pos].str
             pos += 1
-            var node = ContainerExpr()
+            var node = new ContainerExpr()
             node.line = startline
             node.col = startcol
 
@@ -554,7 +570,7 @@ func parse_expression_unwrapped(
                 if pos > tokens_len or
                         tokens[pos] != token.T_BRACKET or
                         tokens[pos].str != closingbracket {
-                    if not node.has_damaged() {
+                    if not node.has_damage() {
                         msgs.add(new msg.FileMsg(
                             "Unexpected " + token.describe_token_at(
                                 tokens, pos) +
