@@ -95,16 +95,14 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     if pos > tokens_len or
             tokens[pos].kind != token.T_BRACKET or
             tokens[pos].str != "{" {
-        pos -= 1
-        var skiplen = token.get_naive_stmt_or_expr_len(
-            tokens, pos, bracket_depth=0, for_expr=no
-        )
+        var skiplen = math.max(1, token.get_naive_stmt_or_expr_len(
+                tokens, pos - 1, bracket_depth=0, for_expr=no
+            ) - 1)
         var invalid_st = new invalid_stmt.InvalidStmt(
             math.max(1, skiplen - 1)
         )
         invalid_st.line = token.get_line(tokens, startpos)
         invalid_st.col = token.get_col(tokens, startpos)
-        assert(skiplen > 0)
         invalid_st.token_len = (pos - startpos) + skiplen
         return invalid_st
     }

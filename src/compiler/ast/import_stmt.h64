@@ -118,10 +118,10 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
                 line=token.get_line(tokens, pos),
                 col=token.get_col(tokens, pos),
             ))
-            pos -= 1
-            var skiplen = token.get_naive_stmt_or_expr_len(
-                tokens, pos, bracket_depth=0, for_expr=no
-            )
+            var skiplen = math.max(1,
+                token.get_naive_stmt_or_expr_len(
+                    tokens, pos - 1, bracket_depth=0, for_expr=no
+                ) - 1)
             assert(skiplen > 0)
             stmt.token_len = (pos - startpos) + skiplen
             return stmt
@@ -146,12 +146,11 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
                 line=token.get_line(tokens, pos),
                 col=token.get_col(tokens, pos),
             ))
-            pos -= 1
-            var skiplen = token.get_naive_stmt_or_expr_len(
-                tokens, pos, bracket_depth=0, for_expr=no
-            )
-            assert(skiplen > 0)
-            stmt.token_len = (pos - startpos) + skiplen
+            var skiplen = math.max(1, token.get_naive_stmt_or_expr_len(
+                    tokens, pos - 1, bracket_depth=0, for_expr=no
+                ) - 1)
+            pos += skiplen
+            stmt.token_len = pos - startpos
             return stmt
         }
     }

@@ -93,7 +93,6 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         skiplen += token.skip_code_block_if_any(
             tokens, pos + skiplen
         )
-        assert(skiplen > 0)
         pos += skiplen
         var invalid_st = new invalid_stmt.InvalidStmt(
             pos - startpos
@@ -130,15 +129,13 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             line=token.get_line(tokens, pos),
             col=token.get_col(tokens, pos),
         ))
-        pos -= 1
         var skiplen = math.max(1,
             token.skip_in_broken_stmt_to_code_block(
                 tokens, pos - 1, bracket_depth=0
-            ) + 1)
+            ) - 1)
         skiplen += token.skip_code_block_if_any(
             tokens, pos + skiplen
         )
-        assert(skiplen > 0)
         pos += skiplen
         stmt.damaged = yes
         stmt.token_len = pos - startpos

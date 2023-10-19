@@ -231,6 +231,10 @@ func parse_statement(
         tokens, pos, msgs, project_file=none, debug=no
         ) {
     var remaining_funcs = stmt_parse_funcs.copy()
+    if debug {
+        print("compiler.ast.expr: parse_statement() " +
+            "with pos=" + pos.as_str())
+    }
 
     var next_func = remaining_funcs.pop()
     var stmt = next_func(tokens, pos, msgs,

@@ -120,7 +120,6 @@ func parse_rescue_clause_header(
                     token.skip_in_broken_stmt_to_code_block(
                         tokens, pos - 1, bracket_depth=0
                     ) - 1)
-                assert(skiplen > 0)
                 pos += skiplen
             }
             clause.token_len = (pos - clausestart)
@@ -202,14 +201,13 @@ func parse_rescue_clause_header(
                 token.skip_in_broken_stmt_to_code_block(
                     tokens, pos - 1, bracket_depth=0
                 ) - 1)
-            assert(skiplen > 0)
             pos += skiplen
-            clause.token_len = (pos - clausestart)
+            clause.token_len = pos - clausestart
             return clause
         }
         if tokens[pos].kind == token.T_BRACKET {
             assert(tokens[pos].str == "{")
-            clause.token_len = (pos - clausestart)
+            clause.token_len = pos - clausestart
             return clause
         }
         assert(tokens[pos].kind == token.T_COMMA)

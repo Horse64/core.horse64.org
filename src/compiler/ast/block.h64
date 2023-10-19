@@ -82,13 +82,12 @@ func parse(tokens, pos, msgs, project_file=none, debug=no,
                 tokens, pos, bracket_depth=0
             ))
         pos += skiplen
-        assert(skiplen > 0)
         result.damaged = yes
         if pos > tokens_len or
                 tokens[pos].kind != token.T_BRACKET or
                 tokens[pos].str != "{" {
             # Still haven't found block, bail.
-            result.token_len = (pos - startpos) + skiplen
+            result.token_len = pos - startpos
             return result
         }
     }

@@ -93,7 +93,6 @@ func parse_next_ifelse_clause_header(
             var skiplen = token.get_naive_stmt_or_expr_len(
                 tokens, startpos, bracket_depth=0
             )
-            assert(skiplen > 0)
             var invalid_st = new expr.InvalidExpr(
                 skiplen
             )
@@ -141,7 +140,6 @@ func parse_next_ifelse_clause_header(
         var skiplen = token.get_naive_stmt_or_expr_len(
             tokens, startpos, bracket_depth=0
         )
-        assert(skiplen > 0)
         var invalid_st = new expr.InvalidExpr(
             skiplen
         )
