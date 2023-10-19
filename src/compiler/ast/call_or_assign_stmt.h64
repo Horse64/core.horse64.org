@@ -87,8 +87,11 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var token_len = tokens.len
     var startpos = pos
 
-    if pos > token_len or
-            tokens[pos].kind != token.T_IDENT {
+    if pos > token_len or (
+            not {token.T_NUM, token.T_STR, token.T_BYTES,
+             token.T_IDENT}.has(tokens[pos].kind) and
+            (tokens[pos].kind != token.T_KEYWORD or
+             tokens[pos].str != "base")) {
         return later none
     }
 
