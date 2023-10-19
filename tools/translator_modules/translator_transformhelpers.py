@@ -503,7 +503,6 @@ def transform_h64_misc_inline_to_python(s):
         return untokenize(s)
     return s
 
-
 def line_has_multi_stmts_for_sure(s):
     s = tokenize(s)
     hadnonblank = False

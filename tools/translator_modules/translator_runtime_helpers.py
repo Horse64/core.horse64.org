@@ -413,9 +413,20 @@ def _base64_dump(x):
     if type(x) not in {bytes, bytearray}:
         return _TypeError("argument must be bytes")
     import base64
-    s = base64.b64decode(x).decode("utf-8", "replace")
+    s = base64.b64encode(x).decode("utf-8", "replace")
     return s
 
+def _h64_print(s):
+    if type(s) == str:
+        sbytes = s.encode("utf-8", "ignore")
+        import sys
+        import platform
+        if platform.system().lower() == "windows":
+            sys.stdout.buffer.write(sbytes + b"\r\n")
+        else:
+            sys.stdout.buffer.write(sbytes + b"\n")
+    else:
+        print(s)
 
 def h64_type(v):
     result = type(v)

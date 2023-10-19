@@ -987,7 +987,6 @@ def find_start_of_call_index_chain(s, i, debug=False):
             return i
         return i + 1
 
-
 def is_number_token(v):
     def is_digit(v):
         if len(v) == 0:

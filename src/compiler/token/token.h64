@@ -1208,7 +1208,52 @@ func describe_token_str(s) {
     }
     if s.startswith("'") or s.startswith('"') or
             s.startswith("b'") or s.startswith('b"') {
-        return s
+        var result = ""
+        var quote = s[1]
+        if quote == "b" {
+            quote = s[2]
+        }
+        var maxlen = 32
+        var pos = 1
+        while pos <= s.len {
+            if pos > maxlen {
+                result += "..." + quote
+                break
+            }
+            if s[pos] == '\\' {
+                # Fix some of the "extra wrong" escape fumbles:
+                if pos + 1 > s.len or
+                        text.code(s[pos + 1]) < 32 {
+                    result += "\\"
+                }
+                result += "\\"
+                pos += 1
+                continue
+            }
+            if s[pos] == '\t' {
+                result += "\\t"
+                pos += 1
+                continue
+            }
+            if s[pos] == '\0' {
+                result += "\\0"
+                pos += 1
+                continue
+            }
+            if s[pos] == '\n' {
+                result += "\\n"
+                pos += 1
+                continue
+            }
+            if s[pos] == '\r' {
+                result += "\\r"
+                pos += 1
+                continue
+            }
+            result += s[pos]
+            pos += 1
+        }
+        return result
     }
     if is_identifier_or_keyword(s) or math_assign_ops.has(s) or
             math_ops.has(s) or s == "=" or compare_ops.has(s) {
