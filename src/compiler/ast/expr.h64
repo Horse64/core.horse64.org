@@ -185,12 +185,12 @@ func parse_container_entry(
         return [expr1, none]
     }
     pos += expr1.token_len
-    if pos >= tokens_len or (container_type == C_MAP and
-            tokens[pos].kind != T_MAPASSIGN) or
-            (container_type == C_VEC and
-            tokens[pos].kind != T_COLON) {
+    if pos >= tokens_len or (container_kind == C_MAP and
+            tokens[pos].kind != token.T_MAPASSIGN) or
+            (container_kind == C_VEC and
+            tokens[pos].kind != token.T_COLON) {
         var expected = "'->' (T_MAPASSIGN) for map"
-        if container_type == C_VEC {
+        if container_kind == C_VEC {
             expected = "':' (T_COLON) for vector"
         }
         msgs.add(new msg.FileMsg(

@@ -79,7 +79,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var stmt = if tokens[pos].str == "enum" (new EnumStmt())
         else (new EnumExtendStmt())
     var stmt_name = tokens[pos].str
-    var headerlen = parse_extend_or_enum_or_type_header(
+    var headerlen = type_stmt.parse_extend_or_enum_or_type_header(
         stmt, tokens, tokens_len, pos, msgs,
         must_be_type=no, must_be_enum=yes,
         project_file=project_file, debug=debug
@@ -92,7 +92,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     pos += headerlen
 
     # Parse inner enum values:
-    if pos > token_len or
+    if pos > tokens_len or
             tokens[pos].kind != token.T_BRACKET or
             tokens[pos].str != "{" {
         pos -= 1
@@ -111,18 +111,18 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     pos += 1  # Go past '{' bracket.
 
     var entry_count = 0
-    while pos <= token_len and
+    while pos <= tokens_len and
             tokens[pos].kind == token.T_IDENT {
-        stmt.enum_entry_names(tokens[pos])
+        stmt.enum_entry_names.add(tokens[pos])
         pos += 1
         entry_count += 1
-        if pos + 1 < token_len and
+        if pos + 1 < tokens_len and
                 tokens[pos].kind == token.T_ASSIGN and
                 tokens[pos + 1].kind == token.T_NUM {
-            stmt.enum_entry_values(tokens[pos + 1].value)
+            stmt.enum_entry_nums.add(tokens[pos + 1].value)
             pos += 2
         } else {
-            stmt.enum_entry_values(none)
+            stmt.enum_entry_nums.add(none)
         }
         if tokens[pos].kind == token.T_COMMA {
             pos += 1
@@ -147,7 +147,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         }
         break
     }
-    if entry_count == 0 or pos > token_len or
+    if entry_count == 0 or pos > tokens_len or
             tokens[pos].kind != token.T_BRACKET or
             tokens[pos].str != "}" {
         if not stmt.has_damage() {
@@ -166,7 +166,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             )) 
         }
         stmt.damaged = yes
-        while pos < token_len and (
+        while pos < tokens_len and (
                 tokens[pos].kind != token.T_BRACKET or
                 tokens[pos].str != "}") and
                 not token.surely_starts_stmt_even_in_bad_code(
@@ -175,7 +175,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             pos += 1
         }
     }
-    if pos < token_len and
+    if pos < tokens_len and
             tokens[pos].kind == token.T_BRACKET and
             tokens[pos].str == "}" {
         pos += 1  # Go past final close '}'.

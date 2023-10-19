@@ -95,11 +95,11 @@ func parse_rescue_clause_header(
     while yes {
         if pos > tokens_len or (
                 tokens[pos].kind != token.T_IDENT and
-                (token[pos].kind != token.T_KEYWORD or
-                 token[pos].str != "any")) {
+                (tokens[pos].kind != token.T_KEYWORD or
+                 tokens[pos].str != "any")) {
             if errors_parsed == 0 or
-                    token[pos].kind != token.T_BRACKET or
-                    token[pos].str != "{" {
+                    tokens[pos].kind != token.T_BRACKET or
+                    tokens[pos].str != "{" {
                 if not stmt.has_damage() {
                     msgs.add(new msg.FileMsg(
                         "Unexpected " + token.describe_token_at(tokens,
@@ -171,7 +171,7 @@ func parse_rescue_clause_header(
             }
         }
         var iexp = new expr.IdRefExpr()
-        iexp.label = error_classname
+        iexp.label = error_typename
         iexp.typepath = error_typepath
         clause.subexprs.add(iexp)
         clause.error_names.add(error_renameto)

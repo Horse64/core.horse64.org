@@ -214,7 +214,7 @@ func parse_extend_or_enum_or_type_header(
             extend_typename = tokens[pos + 1].str
             pos += 2
         }
-        var iexp = new exp.IdRefExpr()
+        var iexp = new expr.IdRefExpr()
         iexp.label = extend_typename
         iexp.typepath = extend_typepath
         stmt.subexprs.add(iexp)
@@ -267,7 +267,7 @@ func parse_extend_or_enum_or_type_header(
                 base_typename = tokens[pos + 1].str
                 pos += 2
             }
-            var iexp = new exp.IdRefExpr()
+            var iexp = new expr.IdRefExpr()
             iexp.label = base_typename
             iexp.typepath = base_typepath
             stmt.subexprs.add(iexp)
