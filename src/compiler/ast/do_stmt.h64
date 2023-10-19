@@ -106,7 +106,8 @@ func parse_rescue_clause_header(
                             pos) +
                         ", expected valid expression for rescue "
                         "clause" +
-                        if error_names.len > 0 (" or '{' to start "
+                        if clause.error_names.len > 0 (
+                            " or '{' to start "
                             "code block") else ("") + ".",
                         source_file=project_file,
                         line=token.get_line(tokens, pos),
@@ -118,7 +119,7 @@ func parse_rescue_clause_header(
                 var skiplen = math.max(1,
                     token.skip_in_broken_stmt_to_code_block(
                         tokens, pos - 1, bracket_depth=0
-                    ) + 1)
+                    ) - 1)
                 assert(skiplen > 0)
                 pos += skiplen
             }
@@ -156,7 +157,8 @@ func parse_rescue_clause_header(
                             pos) +
                         ", expected valid expression for rescue "
                         "clause" +
-                        if error_names.len > 0 (" or '{' to start "
+                        if clause.error_names.len > 0 (
+                            " or '{' to start "
                             "code block") else ("") + ".",
                         source_file=project_file,
                         line=token.get_line(tokens, pos),
@@ -175,6 +177,43 @@ func parse_rescue_clause_header(
         iexp.typepath = error_typepath
         clause.subexprs.add(iexp)
         clause.error_names.add(error_renameto)
+
+        if pos > tokens_len or (
+                tokens[pos].kind != token.T_COMMA and
+                (tokens[pos].kind != token.T_BRACKET or
+                 tokens[pos].str != "{")) {
+            if not stmt.has_damage() {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected " + token.describe_token_at(tokens,
+                        pos) +
+                    ", expected valid expression for rescue "
+                    "clause" +
+                    if clause.error_names.len > 0 (
+                        " or '{' to start "
+                        "code block") else ("") + ".",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+            }
+            stmt.damaged = yes
+            clause.damaged = yes
+            var skiplen = math.max(1,
+                token.skip_in_broken_stmt_to_code_block(
+                    tokens, pos - 1, bracket_depth=0
+                ) - 1)
+            assert(skiplen > 0)
+            pos += skiplen
+            clause.token_len = (pos - clausestart)
+            return clause
+        }
+        if tokens[pos].kind == token.T_BRACKET {
+            assert(tokens[pos].str == "{")
+            clause.token_len = (pos - clausestart)
+            return clause
+        }
+        assert(tokens[pos].kind == token.T_COMMA)
+        pos += 1  # Go past ',' and continue.
     }
 }
 
@@ -286,7 +325,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     # Parse rescue clause, if any:
     var rescue_clause = parse_rescue_clause(
         stmt, tokens, tokens_len, pos, msgs,
-        project_file=none, debug=no) later:
+        project_file=project_file, debug=no) later:
 
     await rescue_clause
     if rescue_clause != none {
@@ -295,12 +334,13 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         if rescue_clause.damaged {
             stmt.damaged = yes
         }
+        pos += rescue_clause.token_len
     }
 
     # Parse finally clause, if any:
     var finally_clause = parse_finally_clause(
         stmt, tokens, tokens_len, pos, msgs,
-        project_file=none, debug=no) later:
+        project_file=project_file, debug=no) later:
 
     await finally_clause
     if finally_clause != none {
@@ -309,6 +349,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         if finally_clause.damaged {
             stmt.damaged = yes
         }
+        pos += finally_clause.token_len
     }
 
     stmt.token_len = (pos - startpos)

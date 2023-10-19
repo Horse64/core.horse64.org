@@ -151,7 +151,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         tokens, pos,
         msgs, max_len=(if is_call (token_len) else
             (assign_or_call_idx)),
-        project_file=none, debug=debug
+        project_file=project_file, debug=debug
     ) later:
     await v1
 
@@ -233,7 +233,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var v2 = expr.parse_expression(
         tokens, assign_or_call_idx + 1,
         msgs,
-        project_file=none, debug=debug
+        project_file=project_file, debug=debug
     ) later:
     await v2
 
