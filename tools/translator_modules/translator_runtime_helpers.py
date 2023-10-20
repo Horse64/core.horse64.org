@@ -486,6 +486,8 @@ def _io_tree_list_walker(s):
             _async_ops_lock.acquire()
             _async_ops.append(op)
             _async_ops_lock.release()
+        def close(self):
+            pass
     return _Walker(s)
 
 def h64_type(v):
