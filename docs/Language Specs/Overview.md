@@ -52,7 +52,8 @@ OOP in Horse64 by using `type`
 ------------------------------
 
 The `type` keyword allows declaring the use of a so-called *custom
-type*. A custom type can be used for object-oriented programming.
+type*. A custom type can be used for object-oriented programming
+(OOP).
 Any *object instance*, or *object* in short, will have the
 *attributes* specified on the type, which can be variables or funcs.
 
