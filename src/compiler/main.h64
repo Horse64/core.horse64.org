@@ -85,11 +85,12 @@ func parse_ast_target_from_args(args, debug=no) {
     return tresult
 }
 
-func show_ast_result_to_terminal(
-        aresult, program_name=none, for_script=no
+func show_ast_or_global_scope_result_to_terminal(
+        aresult, msgs, program_name=none, for_script=no,
+        is_global_scope=no
         ) {
     var had_error = no
-    for m in aresult.msgs {
+    for m in msgs {
         if m.kind == msg.M_ERROR {
             had_error = yes
         }
@@ -107,16 +108,20 @@ func show_ast_result_to_terminal(
         print(json.dump(output))
         return 0
     } else {
-        for m in aresult.msgs {
+        for m in msgs {
             print(m.as_terminal_str(prefix=program_name))
         }
         if not had_error {
             var output = ""
-            for stmt in aresult.stmts {
-                if output.len > 0 {
-                    output += ", "
+            if is_global_scope {
+                output += aresult.as_str()
+            } else {
+                for stmt in aresult.stmts {
+                    if output.len > 0 {
+                        output += ",\n"
+                    }
+                    output += stmt.as_str()
                 }
-                output += stmt.as_str()
             }
             print(output)
             return 0
@@ -145,16 +150,16 @@ func actionparser_compile(args) {
         description="At which stage to stop. The default is "
             "\"binary\" which means full compilation, other "
             "available stages are: "
-            "tokens, ast, ast-scope, bytecode.")
+            "tokens, ast, global-scope, ast-scope, bytecode.")
     defs.add_switch(
         "--output-file", takes_arg=yes,
         description="Where to write the resulting binary, or "
-            "json file in case of --stage tokens, "
-            "--stage ast-local, --stage ast, or --stage bytecode.")
+            "horseasm for stage setting \"bytecode\", or json file "
+            "for any other stage that isn't \"binary\".")
     defs.add_switch(
         "--for-script",
         description="This switch formats horsec's terminal output (like"
-            "e.g. the errors when compiling) as JSON")
+            "e.g. the errors when compiling) as JSON.")
     var result = argparse.parse(defs, args)
     if result.output != "" {
         print(result.output)
@@ -209,7 +214,8 @@ func actionparser_compile(args) {
             }
             return 1
         }
-    } elseif result.args["--stage"] == "ast" {
+    } elseif result.args["--stage"] == "ast" or
+            result.args["--stage"] == "global-scope" {
         var had_error = no
         var aresult = parse_ast_target_from_args(
             result.args, debug=result.args["--debug-ast"]
@@ -217,10 +223,15 @@ func actionparser_compile(args) {
         later:
 
         await aresult
-        return show_ast_result_to_terminal(
-            aresult,
+        var is_global_scope = (
+            result.args["--stage"] == "global-scope")
+        return show_ast_or_global_scope_result_to_terminal(
+            if is_global_scope
+                (aresult.global_scope) else (aresult),
+            aresult.msgs,
             program_name=program_name,
-            for_script=result.args["--for-script"]
+            for_script=result.args["--for-script"],
+            is_global_scope=is_global_scope,
         )
     }
 }

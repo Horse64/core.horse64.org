@@ -329,7 +329,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     if headerlen == none {
         return later none
     }
-    stmt.pos = token.get_line(tokens, startpos)
+    stmt.line = token.get_line(tokens, startpos)
     stmt.col = token.get_col(tokens, startpos)
     pos += headerlen
 

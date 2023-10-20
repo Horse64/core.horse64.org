@@ -36,6 +36,7 @@ import compiler.ast.do_stmt as do_stmt
 import compiler.ast.enum_stmt as enum_stmt
 import compiler.ast.for_stmt as for_stmt
 import compiler.ast.func_stmt as func_stmt
+import compiler.ast.global_scope as global_scope
 import compiler.ast.if_stmt as if_stmt
 import compiler.ast.import_stmt as import_stmt
 import compiler.ast.invalid_stmt as invalid_stmt
@@ -181,6 +182,9 @@ type ASTResult {
     ## @types (project.ProjectFile, none)
     var project_file
 
+    ## @type global_scope.GlobalScope
+    var global_scope = new global_scope.GlobalScope()
+
     ## @type num
     var token_len
 }
@@ -268,7 +272,7 @@ func parse_statement(
 
 func parse_to_ast_ex(
         tokens, pos, project_file=none,
-        is_inside_block=no, debug=debug
+        is_inside_block=no, debug=debug,
         ) {
     var result = new ASTResult()
     const startpos = pos
@@ -292,6 +296,12 @@ func parse_to_ast_ex(
     ) later:
 
     await stmt
+    if not is_inside_block {
+        global_scope.process_toplevel_stmt(
+            result.global_scope, stmt, result.msgs,
+            project_file=project_file, debug=debug
+        )
+    }
     if stmt == none {
         # We completely failed to parse the next statement.
         # Skip to the next one:

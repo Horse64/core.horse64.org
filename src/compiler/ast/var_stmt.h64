@@ -40,7 +40,7 @@ type VarStmt base ast.StmtNode {
     var has_later = no
     var has_later_ignore = no
     var has_later_repeat = no
-    var var_names = []
+    var var_labels = []
     var var_has_protect = []
 }
 
@@ -52,7 +52,7 @@ func VarStmt.init {
 func VarStmt.as_json_obj {
     var output = base.as_json_obj()
     output["is_const"] = self.is_const
-    output["var_names"] = self.var_names
+    output["var_labels"] = self.var_labels
     output["var_has_protect"] = self.var_has_protect
     if self.has_later {
         output["has_later"] = yes
@@ -85,8 +85,8 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     }
     stmt.is_const = (tokens[pos].str == "const")
     const stmt_name = if stmt.is_const ("const") else ("var")
-    stmt.pos = token.get_line(tokens, pos)
-    stmt.col = token.get_col(tokens, pos)
+    stmt.line = token.get_line(tokens, startpos)
+    stmt.col = token.get_col(tokens, startpos)
     pos += 1
 
     # Parse variable names:
@@ -117,7 +117,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             invalid_st.token_len = (pos - startpos) + skiplen
             return invalid_st
         }
-        stmt.var_names.add(tokens[pos].str)
+        stmt.var_labels.add(tokens[pos].str)
         varcount += 1
         pos += 1
         if pos <= tokens_len and

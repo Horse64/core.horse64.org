@@ -35,7 +35,7 @@ import compiler.msg as msg
 import compiler.token as token
 
 type FuncStmt base ast.StmtNode {
-    var name
+    var label
     var type_path = none
     var arg_names = []
     var arg_defaults = []
@@ -48,7 +48,7 @@ func FuncStmt.init {
 
 func FuncStmt.as_json_obj {
     var output = base.as_json_obj()
-    output["name"] = self.name
+    output["label"] = self.label
     output["type_path"] = self.type_path
     output["arg_names"] = []
     output["arg_defaults"] = []
@@ -115,7 +115,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         name = tokens[pos + 1].str
         pos += 2
     }
-    stmt.name = name
+    stmt.label = name
 
     # Now we must have either '(' for arguments, or '{' for code block:
     if pos > tokens_len or

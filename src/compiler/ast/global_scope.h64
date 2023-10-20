@@ -1,0 +1,140 @@
+# @module compiler.ast.global_scope
+# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import compiler.ast as ast
+import compiler.msg as msg
+import compiler.token as token
+
+type GlobalScope {
+    var name_to_stmt_map = {->}
+}
+
+func GlobalScope.as_str {
+    var result = "GlobalScope<"
+    var isfirst = yes
+    for name in self.name_to_stmt_map {
+        if not isfirst {
+            result += "; "
+        } else {
+            isfirst = no
+        }
+        result += "name='" + name + "',kind="
+        result += ast.NodeKind.num_label(
+            if typename(self.name_to_stmt_map[name]) == "list"
+                (self.name_to_stmt_map[name][1].kind) else
+                (self.name_to_stmt_map[name].kind))
+    }
+    result += ">"
+    return result
+}
+
+func GlobalScope.as_json_obj {
+    var result = []
+    for name in self.name_to_stmt_map {
+        var entry = {"name": name}
+        entry["kind"] = ast.NodeKind.num_label(
+            if typename(self.name_to_stmt_map[name]) == "list"
+                (self.name_to_stmt_map[name][1].kind) else
+                (self.name_to_stmt_map[name].kind))
+        result.add(entry)
+    }
+    return result
+}
+
+func has_global_scope_duplicate(
+        scope, stmt, name, msgs, project_file=none
+        ) {
+    if name in scope.name_to_stmt_map {
+        if typename(scope.name_to_stmt_map[name]) != "list" or
+                stmt.kind != ast.N_STMT_IMPORT {
+            var duplicate_stmt = scope.name_to_stmt_map[name]
+            if typename(duplicate_stmt) == "list" {
+                duplicate_stmt = duplicate_stmt[1]
+            }
+            msgs.add(new msg.FileMsg(
+                "Unexpected duplicate name '" +
+                name +
+                "', name was already used "
+                "in line " +
+                duplicate_stmt.line.as_str() +
+                ", column " +
+                duplicate_stmt.col.as_str() + ".",
+                source_file=project_file,
+                line=stmt.line, col=stmt.col,
+            ))
+            return yes
+        }
+    }
+    return no
+}
+
+func get_statement_global_name(statement) {
+    if statement.kind == ast.N_STMT_IMPORT {
+        if statement.renamed_as != none {
+            return [statement.renamed_as]
+        }
+        assert(statement.module_path.len > 0)
+        return [statement.module_path[1]]
+    } elseif statement.kind == ast.N_STMT_FUNC {
+        if statement.type_path != none {
+            return []
+        }
+        return [statement.label]
+    } elseif statement.kind == ast.N_STMT_TYPE {
+        return [statement.label]
+    } elseif statement.kind == ast.N_STMT_ENUM {
+        return [statement.label]
+    } elseif statement.kind == ast.N_STMT_VAR {
+        return statement.var_labels
+    }
+    return []
+}
+
+func process_toplevel_stmt(
+        scope, statement, msgs,
+        project_file=none, debug=no) {
+    var names = get_statement_global_name(statement)
+    if names.len == 0 {
+        return
+    }
+    for name in names {
+        if not has_global_scope_duplicate(
+                scope, statement, name, msgs,
+                project_file=project_file
+                ) {
+            if statement.kind == ast.N_STMT_IMPORT {
+                if not name in scope.name_to_stmt_map {
+                    scope.name_to_stmt_map[name] = []
+                }
+                scope.name_to_stmt_map[name].add(statement)
+            } else {
+                scope.name_to_stmt_map[name] = statement
+            }
+        }
+    }
+}
+
