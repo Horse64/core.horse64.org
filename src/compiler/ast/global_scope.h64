@@ -79,7 +79,7 @@ func has_global_scope_duplicate(
                 "Unexpected duplicate name '" +
                 name +
                 "', name was already used "
-                "in line " +
+                "in statement in line " +
                 duplicate_stmt.line.as_str() +
                 ", column " +
                 duplicate_stmt.col.as_str() + ".",
