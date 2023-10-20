@@ -44,7 +44,7 @@ func test_parse_func_stmt {
     assert(v1.msgs.len == 0)
     assert(v1.stmts.len == 1)
     var func_stmt = v1.stmts[1]
-    assert(func_stmt.name == "main")
+    assert(func_stmt.label == "main")
     assert(func_stmt.subblocks.len == 1)
     assert(func_stmt.subblocks[1].len == 1)
     assert(func_stmt.subblocks[1][1].kind == ast.N_STMT_CALL)
@@ -117,10 +117,10 @@ func test_parse_func_stmt_2 {
     assert(v1.msgs.len == 0)
     assert(v1.stmts.len == 1)
     var func_stmt = v1.stmts[1]
-    assert(func_stmt.name == "main")
-    assert(func_stmt.arg_names.len == 2)
-    assert(func_stmt.arg_names[1] == "a")
-    assert(func_stmt.arg_names[2] == "b")
+    assert(func_stmt.label == "main")
+    assert(func_stmt.arg_labels.len == 2)
+    assert(func_stmt.arg_labels[1] == "a")
+    assert(func_stmt.arg_labels[2] == "b")
     assert(func_stmt.arg_defaults.len == 1)
     assert(func_stmt.arg_defaults[1].kind == ast.N_EXPR_LIT)
     assert(func_stmt.subblocks.len == 1)

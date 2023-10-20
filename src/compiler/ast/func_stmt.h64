@@ -37,7 +37,7 @@ import compiler.token as token
 type FuncStmt base ast.StmtNode {
     var label
     var type_path = none
-    var arg_names = []
+    var arg_labels = []
     var arg_defaults = []
 }
 
@@ -50,8 +50,11 @@ func FuncStmt.as_json_obj {
     var output = base.as_json_obj()
     output["label"] = self.label
     output["type_path"] = self.type_path
-    output["arg_names"] = []
+    output["arg_labels"] = self.arg_labels
     output["arg_defaults"] = []
+    for argdef in self.arg_defaults {
+        output["arg_defaults"].add(argdef.as_json_obj())
+    }
     return output
 }
 
@@ -170,10 +173,10 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     if args != none {
         for arg in args.subexprs {
             if arg.kind == ast.N_EXPR_ARGNAME {
-                stmt.arg_names.add(arg.label)
+                stmt.arg_labels.add(arg.label)
             } else {
                 assert(arg.kind == ast.N_EXPR_CALLKWARG)
-                stmt.arg_names.add(arg.label)
+                stmt.arg_labels.add(arg.label)
                 assert(arg.subexprs.len == 1)
                 stmt.arg_defaults.add(arg.subexprs[1])
             }
