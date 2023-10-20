@@ -184,10 +184,9 @@ remapped_uses = {
         "compiler.run_file":
             "_translator_runtime_helpers._compiler_run_file",
     },
-    "files@core.horse64.org": {
-        "files.get_working_dir" : "_remapped_os.getcwd",
-    },
     "io@core.horse64.org": {
+        "io.get_working_dir":
+            "_remapped_os.getcwd",
         "io.open":
             "_translator_runtime_helpers._io_open",
         "io.exists":
@@ -196,6 +195,8 @@ remapped_uses = {
             "_translator_runtime_helpers._io_is_dir",
         "io.list_dir":
             "_translator_runtime_helpers._io_ls_dir",
+        "io.tree_list_walker":
+            "_translator_runtime_helpers._io_tree_list_walker",
         "io.make_or_get_appcache":
             "_translator_runtime_helpers._make_or_get_appcache",
         "io.remove_file":

@@ -428,6 +428,66 @@ def _h64_print(s):
     else:
         print(s)
 
+def _io_tree_list_walker(s):
+    class _Walker:
+        def __init__(self, path, relative=True):
+            self.path = os.path.normpath(
+                os.path.abspath(path)
+            )
+            self.completed = False
+            self.relative = (relative == True)
+
+        def walk(self, cb):
+            def async_walk_do(job):
+                import os
+                _self = job.userdata["v"]
+                if _self.completed:
+                    result = [None, None]
+                    job.userdata2 = result
+                    job.done = True
+                    return
+                result = [None, None]
+                try:
+                    returnlist = []
+                    for basepath, subdirs, subfiles in os.walk(
+                            _self.path, topdown=True
+                            ):
+                        assert(basepath.startswith(_self.path))
+                        basepath = basepath[len(_self.path):]
+                        while (basepath.startswith(os.path.sep) and
+                                len(basepath) > 0):
+                            basepath = basepath[1:]
+                        for f in subdirs + subfiles:
+                            fpath = os.path.join(basepath, f)
+                            if not _self.relative:
+                                fpath = os.path.normpath(os.path.join(
+                                    _self.path, fpath
+                                ))
+                            returnlist.append(fpath)
+                    result[1] = returnlist
+                except Exception as e:
+                    result[0] = e
+                    result[1] = None
+                job.userdata2 = result
+                _self.completed = True
+                job.done = True
+            def done_cb(op):
+                result = op.userdata2
+                f = op.userdata["usercb"]
+                op.userdata = None
+                op.userdata2 = None
+                op.do_func = None
+                op.callback_func = None
+                return f(result[0], result[1])
+            op = _AsyncOperation({
+                "v": self,
+                "usercb": cb},
+                async_walk_do, done_cb)
+            _async_ops_lock.acquire()
+            _async_ops.append(op)
+            _async_ops_lock.release()
+    return _Walker(s)
+
 def h64_type(v):
     result = type(v)
     if result == str:
