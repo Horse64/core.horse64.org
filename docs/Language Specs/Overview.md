@@ -27,7 +27,7 @@ partially ahead-of-time
   Horse64](#oop-in-horse64-by-using-type).
 
 - Check [the formal concurrency rules here](
-  /docs/Languge%20Specs/Concurrency%20Model.md),
+  /docs/Language%20Specs/Concurrency%20Model.md),
   or read [an introduction on concurrency](/docs/Concurrency.md).
 
 
