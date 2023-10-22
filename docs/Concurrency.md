@@ -105,6 +105,15 @@ use `later repeat` instead in a pair like this:
 same variable, but they can differ in arguments.)
 
 
+`with ... later`
+----------------
+
+To use a concurrently created resource inside a [with statement](
+/docs/Error%20Handling.md#with-statement), instead of
+`with create_my_resource_non_concurrent() as my_name { ... }`
+use `with create_my_resource_concurrent() later as my_name { ... }`.
+
+
 Further reading
 ---------------
 
