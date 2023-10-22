@@ -35,6 +35,7 @@ import compiler.msg as msg
 import compiler.token as token
 
 type WithStmt base ast.StmtNode {
+    var has_later = no
     var label
 }
 
@@ -46,11 +47,13 @@ func WithStmt.init {
 func WithStmt.as_json_obj {
     var output = base.as_json_obj()
     output["label"] = self.label
+    if self.has_later {
+        output["has_later"] = yes
+    }
     return output
 }
 
 func parse(tokens, pos, msgs, project_file=none, debug=no) {
-    var stmt = new WithStmt()
     var tokens_len = tokens.len
     var startpos = pos
 
@@ -59,6 +62,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             tokens[pos].str != "with" {
         return later none
     }
+    var stmt = new WithStmt()
 
     if debug {
         print("compiler.ast.with_stmt: parse() on " +
@@ -75,7 +79,8 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var bracket_depth = 0
     while pos <= tokens_len and (bracket_depth > 0 or (
             (tokens[pos].kind != token.T_KEYWORD or
-             tokens[pos].str != "as") and
+             (tokens[pos].str != "as" and
+              tokens[pos].str != "later")) and
             (tokens[pos].kind != token.T_BRACKET or
              tokens[pos].str != "{" or
              pos <= startpos + 1 or
@@ -94,17 +99,19 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
                 bracket_depth -= 1
             }
         }
+        pos += 1
     }
     if pos >= tokens_len or (
             (tokens[pos].kind != token.T_KEYWORD or
-             tokens[pos].str != "as") and
+             (tokens[pos].str != "as" and
+              tokens[pos].str != "later")) and
             (tokens[pos].kind != token.T_BRACKET or
              tokens[pos].str != "{")) {
         msgs.add(new msg.FileMsg(
             "Unexpected " + token.describe_token_at(tokens,
                 with_expr_start) +
             ", expected valid expression for with "
-            "statement.",
+            "statement followed by 'as' or 'later'.",
             source_file=project_file,
             line=token.get_line(tokens, with_expr_start),
             col=token.get_col(tokens, with_expr_start),
@@ -114,7 +121,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
 
     # Try to parse with statement expression:
     var with_expr = expr.parse_expression(
-        tokens, pos, msgs,
+        tokens, with_expr_start, msgs,
         project_file=project_file,
         max_len=pos
     ) later:
@@ -126,7 +133,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
                 "Unexpected " + token.describe_token_at(
                     tokens, with_expr_start) +
                 ", expected valid expression for with "
-                "statement.",
+                "statement followed by 'as' or 'later'.",
                 source_file=project_file,
                 line=token.get_line(tokens, with_expr_start),
                 col=token.get_col(tokens, with_expr_start),
@@ -134,8 +141,34 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         }
         stmt.damaged = yes
         with_expr = new expr.InvalidExpr(math.max(1,
-            pos - (startpos + 1)
+            pos - with_expr_start
         ))
+    }
+    if with_expr_start + with_expr.token_len < pos {
+        if not stmt.has_damage() {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(
+                    tokens, with_expr_start +
+                    with_expr.token_len) +
+                ", expected 'as' or 'later' continuing "
+                "the with statement starting in line " +
+                token.get_line(tokens, startpos).as_str() +
+                ", column " +
+                token.get_col(tokens, startpos).as_str() + ".",
+                source_file=project_file,
+                line=token.get_line(tokens, with_expr_start +
+                    with_expr.token_len),
+                col=token.get_col(tokens, with_expr_start +
+                    with_expr.token_len),
+            ))
+        }
+        stmt.damaged = yes
+    }
+    if pos <= tokens_len and
+            tokens[pos].kind == token.T_KEYWORD and
+            tokens[pos].str == "later" {
+        stmt.has_later = yes
+        pos += 1
     }
 
     # Read the 'as' label:

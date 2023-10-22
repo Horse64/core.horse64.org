@@ -53,6 +53,10 @@ func FuncStmt.as_json_obj {
     output["arg_labels"] = self.arg_labels
     output["arg_defaults"] = []
     for argdef in self.arg_defaults {
+        if argdef == none {
+            output["arg_defaults"].add(none)
+            continue
+        }
         output["arg_defaults"].add(argdef.as_json_obj())
     }
     return output
@@ -174,6 +178,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         for arg in args.subexprs {
             if arg.kind == ast.N_EXPR_ARGNAME {
                 stmt.arg_labels.add(arg.label)
+                stmt.arg_defaults.add(none)
             } else {
                 assert(arg.kind == ast.N_EXPR_CALLKWARG)
                 stmt.arg_labels.add(arg.label)

@@ -46,6 +46,9 @@ func ThrowStmt.init {
 
 func ThrowStmt.as_json_obj {
     var output = base.as_json_obj()
+    if self.has_later {
+        output["has_later"] = yes
+    }
     return output
 }
 
