@@ -28,22 +28,62 @@
 import io from core.horse64.org
 import text from core.horse64.org
 
-func get_command_comments_from_str(
-        s, stop_at_noncomment=no, only_doc_comments=yes
+func _starts_command_comment(s, pos, slen) {
+    var code_a = text.code('a')
+    var code_cap_a = text.code('A')
+    var code_z = text.code('z')
+    var code_cap_z = text.code('Z')
+    if s[pos] == '@' and
+            pos + 1 <= slen and
+            ((text.code(s[pos + 1]) >= code_a and
+                text.code(s[pos + 1]) <= code_z) or
+             (text.code(s[pos + 1]) >= code_cap_a and
+                text.code(s[pos + 1]) <= code_cap_z) or
+             text.code(s[pos + 1]) > 127) {
+        return yes
+    }
+    return no
+}
+
+func get_comments_from_str(
+        s, stop_at_noncomment=no, only_doc_comments=yes,
+        strip_noncommands=no
         ) {
     var code_a = text.code('a')
     var code_cap_a = text.code('A')
     var code_z = text.code('z')
     var code_cap_z = text.code('Z')
 
-    var opts_lines = []
+    var comment_lines = []
     var line_had_comment = no
     var i = 1
     while i <= s.len {
         if not line_had_comment and
                 not {" ", "\n", "\r", "\t", "#"}.has(s[i]) {
-            break
-        } elseif s[i] == '#' and not line_had_comment {
+            # This is a non-comment line.
+
+            if stop_at_noncomment {
+                break
+            }
+            while i <= s.len and s[i] != '\r' and
+                    s[i] != '\n' and s[i] != '#' {
+                i += 1
+            }
+            if i > s.len or s[i] != '#' {
+                while i <= s.len and (
+                        s[i] == '\r' or s[i] == '\n') {
+                    i += 1
+                }
+                if comment_lines.len > 0 and
+                        comment_lines[comment_lines.len].len > 0 {
+                    comment_lines.add("")
+                }
+                continue
+            }
+        }
+        if s[i] == '#' and not line_had_comment {
+            # This is a comment line:
+
             line_had_comment = yes
             if only_doc_comments and (i + 1 > s.len or
                     s[i + 1] != '#') {
@@ -55,38 +95,87 @@ func get_command_comments_from_str(
                 i += 1
                 continue
             }
+            comment_start = "#"
+            i += 1
+            while i <= s.len and s[i] == "#" {
+                comment_start = "##"
+                i += 1
+            }
+            content_start = i
+            if not strip_noncommands {
+                # We want entire line rather than just command:
+                var had_nonwhitespace = no
+                while i <= s.len and s[i] != '\r' and
+                        s[i] != '\n' {
+                    if _starts_command_comment(s, i, s.len) {
+                        if had_nonwhitespace {
+                            # To make it easier to parse later,
+                            # ensure this command is on a separate line:
+                            comment_lines.add(comment_start +
+                                s.sub(content_start, i - 1))
+                        }
+                        comment_start += " "
+                        content_start = i
+                        while i <= s.len and s[i] != '\r' and
+                                s[i] != '\n' {
+                            i += 1
+                        }
+                        break
+                    } elseif s[i] != ' ' and s[i] != '\t' {
+                        had_nonwhitespace = yes
+                    }
+                    i += 1
+                }
+                comment_lines.add(
+                    comment_start + s.sub(content_start, i - 1)
+                )
+                if i + 1 <= s.len and
+                        s[i] == '\r' and
+                        s[i + 1] == '\n' {
+                    i += 1
+                }
+                i += 1
+                line_had_comment = no
+                continue
+            }
         } elseif s[i] == '\n' or s[i] == '\r' {
             line_had_comment = no
-        } elseif line_had_comment and s[i] == '@' and
-                i + 1 <= s.len and
-                ((text.code(s[i + 1]) >= code_a and
-                    text.code(s[i + 1]) <= code_z) or
-                 (text.code(s[i + 1]) >= code_cap_a and
-                    text.code(s[i + 1]) <= code_cap_z) or
-                 text.code(s[i + 1]) > 127) {
+        } elseif line_had_comment and strip_noncommands and
+                _starts_command_comment(s, i, s.len) {
+            # A special command we're meant to extract:
             var i2 = i
             var options_start = i2
             while i2 <= s.len and s[i2] != '\r' and
                     s[i2] != '\n' {
                 i2 += 1
             }
-            opts_lines.add(s.sub(options_start, i2 - 1).trim())
+            comment_lines.add("#" + if only_doc_comments
+                ("#") else (" ") + s.sub(options_start, i2 - 1).trim())
+            if s[i] == '\r' and i + 1 <= s.len and
+                    s[i] == '\r' {
+                i += 1
+            }
         }
         i += 1
     }
-    return opts_lines
+    while comment_lines.len > 0 and
+            comment_lines[comment_lines.len].len == 0 {
+        comment_lines.pop()
+    }
+    return comment_lines
 }
 
 func get_build_options_from_str(s) {
-    var lines = get_command_comments_from_str(
-        s, stop_at_noncomment=yes, only_doc_comments=yes
+    var lines = get_comments_from_str(
+        s, stop_at_noncomment=yes, only_doc_comments=yes,
+        strip_noncommands=yes
     )
     var opts_lines = []
     for line in lines {
-        if not line.startswith("@build_options ") {
+        if not line.startswith("##@build_options ") {
             continue
         }
-        opts_lines.add(line.sub("@build_options ".len + 1))
+        opts_lines.add(line.sub("##@build_options ".len + 1))
     }
 
     var opts = {->}

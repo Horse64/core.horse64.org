@@ -26,7 +26,7 @@
 
 import compiler.comment.command as command_comment
 
-func test_get_run_options_from_str {
+func test_get_build_options_from_str {
     var opts = command_comment.get_build_options_from_str(
         "# abc\n   ## @build_options abc=5  def= --test '#helo ' ' 'abcd = ef '"
     )
@@ -38,5 +38,43 @@ func test_get_run_options_from_str {
     assert(opts["#helo"] == none)
     assert(opts.has("abcd"))
     assert(opts["abcd"] == " ef ")
+}
+
+func test_get_comments_from_str {
+    var comments
+
+    comments = command_comment.get_comments_from_str(
+        "# abc\n   ##  @build_options abc=5  def= --test\n"
+        " abc\ndef  ##  bla @blu\ntest #bla",
+        only_doc_comments=yes
+    )
+    assert(comments.len == 4)
+    assert(comments[1].starts("## @build"))
+    assert(comments[2] == "")
+    assert(comments[3].starts("##  bla"))
+    assert(comments[4].starts("## @blu"))
+
+    comments = command_comment.get_comments_from_str(
+        "# abc\n   ##  @build_options abc=5  def= --test\n"
+        " abc\ndef  ##  bla @blu\ntest #bla",
+        only_doc_comments=yes,
+        stop_at_noncomment=yes
+    )
+    assert(comments.len == 1)
+    assert(comments[1].starts("## @build"))
+
+    comments = command_comment.get_comments_from_str(
+        "# abc\n   ##  @build_options abc=5  def= --test\n"
+        " abc\ndef  ##  bla @blu\ntest\n#bla",
+        only_doc_comments=no
+    )
+    assert(comments.len == 7)
+    assert(comments[1].starts("# a"))
+    assert(comments[2].starts("## @build"))
+    assert(comments[3] == "")
+    assert(comments[4].starts("##  bla"))
+    assert(comments[5].starts("## @blu"))
+    assert(comments[6] == "")
+    assert(comments[7].starts("#bla"))
 }
 
