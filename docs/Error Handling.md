@@ -7,11 +7,12 @@ Introduction to Horse64 Error Handling
 Horse64 has a runtime error system. A runtime error is an
 unexpected event stopping a command you intended, like for
 example an I/O error when reading a file or a network error
-when downloading a file. This is to ensure your program
+when downloading a file. Any runtime error occuring will by
+default end your program. This is to ensure your program
 doesn't mindlessly continue with the wrong assumption some
 operation succeeded and break even worse.
 
-Here is how to handle errors:
+Here is how to handle errors gracefully:
 
 
 Errors and `do .. rescue`
