@@ -26,50 +26,89 @@
 # license, see accompanied LICENSE.md.
 
 import io from core.horse64.org
+import text from core.horse64.org
 
-func get_run_options_from_str(s) {
+func get_command_comments_from_str(
+        s, stop_at_noncomment=no, only_doc_comments=yes
+        ) {
+    var code_a = text.code('a')
+    var code_cap_a = text.code('A')
+    var code_z = text.code('z')
+    var code_cap_z = text.code('Z')
+
     var opts_lines = []
     var line_had_comment = no
     var i = 1
     while i <= s.len {
         if not line_had_comment and
                 not {" ", "\n", "\r", "\t", "#"}.has(s[i]) {
-            return []
-        } elseif s[i] == '#' {
+            break
+        } elseif s[i] == '#' and not line_had_comment {
             line_had_comment = yes
+            if only_doc_comments and (i + 1 > s.len or
+                    s[i + 1] != '#') {
+                while i <= s.len and s[i] != '\n' and
+                        s[i] != '\r' {
+                    i += 1
+                }
+                line_had_comment = no
+                i += 1
+                continue
+            }
         } elseif s[i] == '\n' or s[i] == '\r' {
             line_had_comment = no
-        } elseif line_had_comment and s[i] == '@' {
-            if s.sub(i).starts("@run_options ") {
-                var i2 = i + "@run_options".len
-                var options_start = i2
-                while i2 <= s.len and s[i2] != '\r' and
-                        s[i2] != '\n' {
-                    i2 += 1
-                }
-                opts_lines.add(s.sub(options_start, i2 - 1).trim())
+        } elseif line_had_comment and s[i] == '@' and
+                i + 1 <= s.len and
+                ((text.code(s[i + 1]) >= code_a and
+                    text.code(s[i + 1]) <= code_z) or
+                 (text.code(s[i + 1]) >= code_cap_a and
+                    text.code(s[i + 1]) <= code_cap_z) or
+                 text.code(s[i + 1]) > 127) {
+            var i2 = i
+            var options_start = i2
+            while i2 <= s.len and s[i2] != '\r' and
+                    s[i2] != '\n' {
+                i2 += 1
             }
+            opts_lines.add(s.sub(options_start, i2 - 1).trim())
         }
         i += 1
     }
+    return opts_lines
+}
+
+func get_build_options_from_str(s) {
+    var lines = get_command_comments_from_str(
+        s, stop_at_noncomment=yes, only_doc_comments=yes
+    )
+    var opts_lines = []
+    for line in lines {
+        if not line.startswith("@build_options ") {
+            continue
+        }
+        opts_lines.add(line.sub("@build_options ".len + 1))
+    }
+
     var opts = {->}
     for line in opts_lines {
         var opt_start = 1
         var opt_unquoted_label = ""
-        var opt_unquoted_value = ""
+        var opt_unquoted_value = none
         var opt_had_assign = no
         var in_quote = none
         var i = 1
         while i <= line.len {
             if i + 1 > line.len or (in_quote == none and (
                     line[i + 1] == ' ' or
-                    line[i + 1] == '\t')) {
-                if (not opt_had_assign or line[i] != '=') and
-                        (in_quote == none or line[i] != in_quote) {
-                    if opt_had_assign {
-                        opt_unquoted_value += line[i]
-                    } else {
+                    line[i + 1] == '\t')) or
+                    (in_quote != none and in_quote == line[i + 1]) {
+                if line[i] != '=' and opt_had_assign {
+                    opt_unquoted_value += line[i]
+                } else {
+                    if line[i] != '=' {
                         opt_unquoted_label += line[i]
+                    } else {
+                        opt_unquoted_value = ""
                     }
                 }
                 if opt_unquoted_label.trim().len > 0 {
@@ -81,7 +120,7 @@ func get_run_options_from_str(s) {
                 i += 2
                 opt_start = i
                 opt_unquoted_label = ""
-                opt_unquoted_value = ""
+                opt_unquoted_value = none
                 opt_had_assign = no
                 in_quote = none
                 continue
@@ -96,6 +135,7 @@ func get_run_options_from_str(s) {
                 continue
             } elseif not opt_had_assign and line[i] == '=' {
                 opt_had_assign = yes
+                opt_unquoted_value = ""
                 i += 1
                 continue
             } else {
@@ -111,12 +151,12 @@ func get_run_options_from_str(s) {
     return opts
 }
 
-func get_run_options_from_file(s) {
+func get_build_options_from_file(path) {
     with io.open(path, "r") later as f {
         var file_str = f.read() later:
 
         await result
-        return get_run_options_from_str(s)
+        return get_build_options_from_str(file_str)
     }
 }
 

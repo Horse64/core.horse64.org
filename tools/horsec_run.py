@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -130,7 +130,8 @@ if __name__ == "__main__":
                 # past initial @module and @option for horsec running.
                 # (Since we mandate these run options come first.)
                 break
-            if "@option horsec-run --single-file" in doc_comment:
+            if ("@build_options" in doc_comment and
+                    "--single-file" in doc_comment):
                 extra_opts += ["--single-file"]
         cmd = os.path.join(translator_py_script_dir, "translator.py")
         cmd_args = extra_opts + ["--"] + [target_file] + target_args
