@@ -46,7 +46,8 @@ func test_get_comments_from_str {
     comments = command_comment.get_comments_from_str(
         "# abc\n   ##  @build_options abc=5  def= --test\n"
         " abc\ndef  ##  bla @blu\ntest #bla",
-        only_doc_comments=yes
+        only_doc_comments=yes, stop_at_noncomment=no,
+        strip_noncommands=no
     )
     assert(comments.len == 4)
     assert(comments[1].starts("## @build"))
@@ -76,5 +77,41 @@ func test_get_comments_from_str {
     assert(comments[5].starts("## @blu"))
     assert(comments[6] == "")
     assert(comments[7].starts("#bla"))
+
+    comments = command_comment.get_comments_from_str(
+        "# abc\n   ///  @build_options abc=5  def= --test\n"
+        " abc\ndef  //  bla @blu\ntest\n///bla",
+        only_doc_comments=no, c_style_comments=yes
+    )
+    assert(comments.len == 6)
+    assert(comments[1].starts("/// @build"))
+    assert(comments[2] == "")
+    assert(comments[3].starts("//  bla"))
+    assert(comments[4].starts("// @blu"))
+    assert(comments[5] == "")
+    assert(comments[6].starts("///bla"))
+
+    comments = command_comment.get_comments_from_str(
+        "# abc\n   /*  @build_options abc=5 /*  def= --test\n"
+        " abc\ndef */  //  bla @blu\ntest\n///bla",
+        only_doc_comments=no, c_style_comments=yes
+    )
+    assert(comments.len == 5)
+    assert(comments[1].starts("/* @build"))
+    assert(comments[2].starts("//  bla"))
+    assert(comments[3].starts("// @blu"))
+    assert(comments[4] == "")
+    assert(comments[5].starts("///bla"))
+
+    comments = command_comment.get_comments_from_str(
+        '# abc\n "  \\"  /*  @build_options abc=5 /*  def= --test\n'
+        ' abc\ndef */"  // " bla @blu\ntest\n///bla',
+        only_doc_comments=no, c_style_comments=yes
+    )
+    assert(comments.len == 4)
+    assert(comments[1].starts("// \" bla"))
+    assert(comments[2].starts("// @blu"))
+    assert(comments[3] == "")
+    assert(comments[4].starts("///bla"))
 }
 
