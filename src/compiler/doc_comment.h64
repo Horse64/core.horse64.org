@@ -1,0 +1,86 @@
+# @module compiler.doc_comment
+# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import io from core.horse64.org
+
+func scan_file_path_for_comments(path, allow_vfs=no, allow_disk=yes) {
+    with io.open(path, "r") later as f {
+        var result = f.read() later:
+
+        await result
+        result = result.replace("\r\n", "\n").replace("\r", "\n")
+        var lines = result.split("\n")
+        return lines
+    }
+}
+
+type TreeCommentScanner {
+    var allow_vfs protect = no
+    var allow_disk protect = yes
+    var _walker
+    var _outstanding_files = []
+}
+
+func TreeCommentScanner.init(path, allow_vfs=no, allow_disk=yes) {
+    self._walker = io.tree_list_walker(path)
+    self.allow_vfs = allow_vfs
+    self.allow_disk = allow_disk
+}
+
+func TreeCommentScanner.produce_next_file_path {
+    if _outstanding_files.len > 0 {
+        return _outstanding_files.pop()
+    }
+    var entries = walker.walk() later:
+
+    await entries
+    if entries == none {
+        return none
+    }
+    _outstanding_files += entries
+
+    if _outstanding_files.len > 0 {
+        return _outstanding_files.pop()
+    }
+    entries = walker.walk() later repeat
+}
+
+func TreeCommentScanner.produce_next_comments {
+    var next_file_path = produce_next_file_path() later:
+
+    await next_file_path
+    if next_file_path == none {
+        return none
+    }
+    var comments = scan_file_path_for_comments(
+        next_file_path, allow_vfs=self.allow_vfs,
+        allow_disk=self.allow_disk) later:
+
+    await comments
+    return comments
+}
+
