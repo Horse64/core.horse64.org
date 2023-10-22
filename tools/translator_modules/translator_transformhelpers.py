@@ -141,6 +141,101 @@ def is_problematic_identifier_name(s,
         return True
     return False
 
+def transform_h64_with_to_do_rescue(s):
+    was_string = False
+    tokens = None
+    if type(s) != list:
+        assert(type(s) == str)
+        was_string = True
+        s = tokenize(
+            s.replace("\r\n", "\n").replace("\r", "\n")
+        )
+    new_tokens = []
+    current_indent = ""
+    i = 0
+    slen = len(s)
+    while i < slen:
+        if s[i].startswith("\n") or s[i].endswith("\n"):
+            assert(s[i].strip("\n\r ") == "")
+            current_indent = s[i].rpartition("\n")[2]
+        elif s[i].endswith(" "):
+            assert(s[i].strip(" ") == "")
+            current_indent = s[i]
+        if s[i] == "with":
+            expr_with = []
+            i += 1
+            has_later = False
+            bdepth = 0
+            while i < slen and (
+                    bdepth > 0 or s[i] != "as"
+                    ):
+                if s[i] in {"(", "{", "["}:
+                    bdepth += 1
+                if s[i] in {")", "}", "]"}:
+                    bdepth -= 1
+                    assert(bdepth >= 0)
+                if s[i] == "later" and bdepth == 0:
+                    has_later = True
+                    i += 1
+                    while i < slen and s[i].strip("\r\n ") == "":
+                        i += 1
+                    assert(s[i] == "as")
+                    break
+                expr_with.append(s[i])
+                i += 1
+            assert(s[i] == "as")
+            while (len(expr_with) > 0 and
+                    expr_with[0].strip("\r\n ") == ""):
+                expr_with = expr_with[1:]
+            while (len(expr_with) > 0 and
+                    expr_with[-1].strip("\r\n ") == ""):
+                expr_with = expr_with[:-1]
+            i += 1
+            while i < slen and s[i].strip("\r\n ") == "":
+                i += 1
+            assert(i < slen)
+            label_name = s[i]
+            i += 1
+            while i < slen and s[i].strip("\r\n ") == "":
+                i += 1
+            assert(s[i] == "{")
+            i += 1
+            assert(s[i].startswith("\n"))
+            new_tokens += ["var", " ",
+                label_name, " ", "=", " "] + expr_with
+            if has_later:
+                new_tokens += [
+                    " ", "later", ":", "\n",
+                    current_indent, "await", " ",
+                    label_name]
+            new_tokens += ["\n", current_indent,
+                "do", " ", "{"]
+            bdepth = 1
+            while i < slen:
+                if s[i] in {"(", "{", "["}:
+                    bdepth += 1
+                if s[i] in {")", "}", "]"}:
+                    bdepth -= 1
+                    if bdepth == 0:
+                        break
+                new_tokens.append(s[i])
+                i += 1
+            assert(s[i] == "}")
+            i += 1
+            new_tokens += ["}", " ", "finally", " ", "{", "\n",
+                current_indent + "    ",
+                "if", " ", "has_attr", "(", label_name,
+                ",", "\"close\"", ")", " ", "{", "\n",
+                current_indent + "        ",
+                label_name, ".", "close",
+                "(", ")", "\n",
+                current_indent + "    ", "}", "\n",
+                current_indent, "}"]
+        new_tokens.append(s[i])
+        i += 1
+    if was_string:
+        new_tokens = untokenize(new_tokens)
+    return new_tokens
 
 def is_isolated_pure_assign(t):
     if type(t) == str:

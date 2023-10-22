@@ -70,6 +70,7 @@ from translator_transformhelpers import (
     transform_h64_misc_inline_to_python,
     apply_make_set_call,
     set_expr_len_if_any,
+    transform_h64_with_to_do_rescue,
     make_string_literal_python_friendly,
     is_problematic_identifier_name,
     indent_sanity_check,
@@ -3093,10 +3094,24 @@ def translate_do_func(
                     "broke syntax: " + str(e) + "\n"
                     "FULL BROKEN FILE DUMP:\n" +
                     untokenize(contents) + "\nEND OF DUMP.")
+        assert(type(contents) == str)
+        contents = tokenize(contents)
+        try:
+            contents = (
+                transform_h64_with_to_do_rescue(contents)
+            )
+        except Exception as e:
+            raise ValueError("in module '" + str(modname)
+                + "'" + (" in package '" +
+                    str(package_name) + "'" if
+                    package_name != None else "") + ", "
+                "encountered transform_h64_with_to_do_rescue() error: " +
+                str(e))
+        assert(type(contents) == list)
         try:
             # FIXME: Disabling this transformation for now, not working.
             contents = (
-                make_string_literal_python_friendly(tokenize(contents))
+                make_string_literal_python_friendly(contents)
             )  # Hack, correct transformation is one line below:
             #contents = transform_later_ifs_to_closures(
             #    make_string_literal_python_friendly(tokenize(contents)),

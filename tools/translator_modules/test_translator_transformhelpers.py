@@ -37,6 +37,7 @@ from translator_transformhelpers import (
     line_has_multi_stmts_for_sure,
     transform_h64_misc_inline_to_python,
     make_string_literal_python_friendly,
+    transform_h64_with_to_do_rescue,
     func_args_find_last_positional,
     is_isolated_pure_assign,
     apply_make_vec_call, vec_expr_len_if_any,
@@ -45,6 +46,10 @@ from translator_transformhelpers import (
 
 
 class TestTranslatorTransformHelpers(unittest.TestCase):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.maxDiff = None
+
     def test_make_string_literal_python_friendly(self):
         self.assertEqual(make_string_literal_python_friendly(
             "\"test\""), "\"test\"")
@@ -138,6 +143,58 @@ class TestTranslatorTransformHelpers(unittest.TestCase):
         assert(last_nonkw_arg_end == 0)
         assert(not had_any_positional_arg)
         assert(i == 3)
+
+    def test_transform_h64_with_to_do_rescue(self):
+        s = transform_h64_with_to_do_rescue(textwrap.dedent("""\
+        import io from core.horse64.org
+        func main {
+            with io.open("some_file.txt", "r") later as f {
+                var result = f.read() later:
+
+                await result
+            }
+        }
+        """))
+        self.assertEqual(s, textwrap.dedent("""\
+        import io from core.horse64.org
+        func main {
+            var f = io.open("some_file.txt", "r") later:
+            await f
+            do {
+                var result = f.read() later:
+
+                await result
+            } finally {
+                if has_attr(f, "close") {
+                    f.close()
+                }
+            }
+        }
+        """))
+        s = transform_h64_with_to_do_rescue(textwrap.dedent("""\
+        func some_func {
+        }
+        func main {
+            with some_func() as
+                    oopsoops {
+                print("Hello")
+            }
+        }
+        """))
+        self.assertEqual(s, textwrap.dedent("""\
+        func some_func {
+        }
+        func main {
+            var oopsoops = some_func()
+            do {
+                print("Hello")
+            } finally {
+                if has_attr(oopsoops, "close") {
+                    oopsoops.close()
+                }
+            }
+        }
+        """))
 
     def test_indent_sanity_check(self):
         def do_test(s, should_fail=False):

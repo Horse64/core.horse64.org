@@ -1256,7 +1256,8 @@ def tokens_need_spacing(v1, v2):
             identifier_or_keyword(v2) or is_number_token(v2)):
         return False
     if (v2 in {"@", "=", ","}) and (
-            identifier_or_keyword(v1) or is_number_token(v1)):
+            identifier_or_keyword(v1) or is_number_token(v1) or
+            v1.endswith("'") or v1.endswith('"')):
         return False
     if (is_bracket(v1) or is_bracket(v2) or
             v1 == ":" or v2 == ":"):
@@ -1285,7 +1286,12 @@ def untokenize(tokens):
     result = ""
     prevtoken = ""
     for token in tokens:
-        assert(type(token) == str)
+        if (token == " " or token == "\n" or
+                token == "(" or token == ")" or
+                token == "{" or token == "}"):  # Perf tweak.
+            result += token
+            prevtoken = token
+            continue
         if prevtoken != "" and \
                 tokens_need_spacing(prevtoken, token):
             result += " "
@@ -1423,6 +1429,46 @@ def separate_out_inline_funcs(s):
     s = tree_transform_statements(s, do_separate_out)
     return s
 
+def transform_h64_with_to_do_rescue(s):
+    was_string = False
+    tokens = None
+    if type(s) == list:
+        tokens = s
+    else:
+        was_string = True
+        tokens = tokenize(
+            s.replace("\r\n", "\n").replace("\r", "\n")
+        )
+    new_tokens = None
+    i = 0
+    slen = len(s)
+    while i < slen:
+        if s[i] == "with":
+            expr_with = []
+            i += 1
+            has_later = False
+            bdepth = 0
+            while i < slen and (
+                    bdepth > 0 or s[i] != "as"
+                    ):
+                if s[i] in {"(", "{", "["}:
+                    bdepth += 1
+                    i += 1
+                    continue
+                if s[i] in {")", "}", "]"}:
+                    bdepth -= 1
+                    i -= 1
+                    continue
+                if s[i] ==  "later":
+                    has_later = True
+                expr_with.append(s[i])
+                i += 1
+            assert(s[i] == "as" and i + 2 < slen and
+                   s[i + 2] == "{")
+        new_tokens.append(s[i])
+    if was_string:
+        new_tokens = untokenize(new_tokens)
+    return new_tokens
 
 def sanity_check_h64_codestring(s, filename="", modname=""):
     tokens = None
