@@ -73,6 +73,8 @@ func main {
         print("Read contents: '" + contents)
     } finally {
         f.close()  # Ensure file is closed even in case of errors.
+        # (The code in here runs both after successful completion
+        #  of the 'do' code block, and after any error aborting it.)
     }
 }
 ```
