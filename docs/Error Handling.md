@@ -15,8 +15,8 @@ operation succeeded and break even worse.
 Here is how to handle errors gracefully:
 
 
-Errors and `do .. rescue`
--------------------------
+Errors and `do ... rescue`
+--------------------------
 
 Whenever a runtime error occurs, you may not want your
 program to just stop. Instead, you may want to handle it.
@@ -50,7 +50,8 @@ the rescue clause will be ignored and skipped.
 
 Because errors interrupt your program and may even end it,
 in some cases like when reading a file, you may want to
-clean up and close a resource safely in case of an error.
+clean up and close a resource safely *both* for
+normal operation and in case of an error.
 
 **Handle clean-up safely with a finally clause,**
 which contains a code block that always runs after the main
