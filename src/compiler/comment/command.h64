@@ -1,0 +1,122 @@
+# @module compiler.comment.command
+# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import io from core.horse64.org
+
+func get_run_options_from_str(s) {
+    var opts_lines = []
+    var line_had_comment = no
+    var i = 1
+    while i <= s.len {
+        if not line_had_comment and
+                not {" ", "\n", "\r", "\t", "#"}.has(s[i]) {
+            return []
+        } elseif s[i] == '#' {
+            line_had_comment = yes
+        } elseif s[i] == '\n' or s[i] == '\r' {
+            line_had_comment = no
+        } elseif line_had_comment and s[i] == '@' {
+            if s.sub(i).starts("@run_options ") {
+                var i2 = i + "@run_options".len
+                var options_start = i2
+                while i2 <= s.len and s[i2] != '\r' and
+                        s[i2] != '\n' {
+                    i2 += 1
+                }
+                opts_lines.add(s.sub(options_start, i2 - 1).trim())
+            }
+        }
+        i += 1
+    }
+    var opts = {->}
+    for line in opts_lines {
+        var opt_start = 1
+        var opt_unquoted_label = ""
+        var opt_unquoted_value = ""
+        var opt_had_assign = no
+        var in_quote = none
+        var i = 1
+        while i <= line.len {
+            if i + 1 > line.len or (in_quote == none and (
+                    line[i + 1] == ' ' or
+                    line[i + 1] == '\t')) {
+                if (not opt_had_assign or line[i] != '=') and
+                        (in_quote == none or line[i] != in_quote) {
+                    if opt_had_assign {
+                        opt_unquoted_value += line[i]
+                    } else {
+                        opt_unquoted_label += line[i]
+                    }
+                }
+                if opt_unquoted_label.trim().len > 0 {
+                    opt_unquoted_label = opt_unquoted_label.trim()
+                    if not opts.has(opt_unquoted_label) {
+                        opts[opt_unquoted_label] = opt_unquoted_value
+                    }
+                }
+                i += 2
+                opt_start = i
+                opt_unquoted_label = ""
+                opt_unquoted_value = ""
+                opt_had_assign = no
+                in_quote = none
+                continue
+            } elseif in_quote == none and (
+                    line[i] == "'" or line[i] == '"') {
+                in_quote = line[i]
+                i += 1
+                continue
+            } elseif in_quote != none and in_quote == line[i] {
+                in_quote = none
+                i += 1
+                continue
+            } elseif not opt_had_assign and line[i] == '=' {
+                opt_had_assign = yes
+                i += 1
+                continue
+            } else {
+                if opt_had_assign {
+                    opt_unquoted_value += line[i]
+                } else {
+                    opt_unquoted_label += line[i]
+                }
+            }
+            i += 1
+        }
+    }
+    return opts
+}
+
+func get_run_options_from_file(s) {
+    with io.open(path, "r") later as f {
+        var file_str = f.read() later:
+
+        await result
+        return get_run_options_from_str(s)
+    }
+}
+

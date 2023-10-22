@@ -1,4 +1,4 @@
-# @module compiler.doc_comment
+# @module compiler.comment.scan
 # Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -27,14 +27,26 @@
 
 import io from core.horse64.org
 
-func scan_file_path_for_comments(path, allow_vfs=no, allow_disk=yes) {
+func scan_file_for_comments(path, allow_vfs=no, allow_disk=yes) {
     with io.open(path, "r") later as f {
-        var result = f.read() later:
+        var file_str = f.read() later:
 
         await result
-        result = result.replace("\r\n", "\n").replace("\r", "\n")
-        var lines = result.split("\n")
-        return lines
+        var tokens = tokenize_str(
+            file_str, keep_whitespace=no,
+            keep_comments=yes,
+            auto_recovery=no,
+            internal_labels=yes,
+        ) later:
+
+        await tokens
+        var ctoks = []
+        for t in tokens {
+            if t.kind == T_COMMENT {
+                ctoks.add(t)
+            }
+        }
+        return ctoks
     }
 }
 
@@ -76,7 +88,7 @@ func TreeCommentScanner.produce_next_comments {
     if next_file_path == none {
         return none
     }
-    var comments = scan_file_path_for_comments(
+    var comments = scan_file_for_comments(
         next_file_path, allow_vfs=self.allow_vfs,
         allow_disk=self.allow_disk) later:
 
