@@ -14,9 +14,10 @@ of Python.** It's free.
 
 - [Check project news](https://horse64.org/#news).
 
-- [Documentation](https://horse64.org/docs/Welcome).
+- [Documentation](https://horse64.org/docs/Welcome), which also lists
+  [features](https://horse64.org/docs/Features).
 
-- [Get the SDK](https://horse64.org/download).
+- [Get the 📦 SDK](https://horse64.org/download).
 
 - [Project license](LICENSE.md).
 
