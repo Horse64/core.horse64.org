@@ -69,7 +69,8 @@ func tokenize_target_from_args(args) {
 func parse_ast_target_from_args(args, debug=no) {
     if args["--code"] != none {
         var tresult = compiler.ast.parse_str_to_ast(
-            args["--code"], debug=debug
+            args["--code"], is_entrypoint=yes,
+            force_single_file=yes, debug=debug
         ) later:
 
         await tresult
@@ -78,7 +79,8 @@ func parse_ast_target_from_args(args, debug=no) {
     var src_path = args["source file"]
 
     var tresult = compiler.ast.parse_to_ast_from_uri(
-        src_path, default_to_diskpath=yes, debug=debug
+        src_path, default_to_diskpath=yes, is_entrypoint=yes,
+        force_single_file=no, debug=debug
     ) later:
 
     await tresult

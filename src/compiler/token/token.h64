@@ -2006,26 +2006,31 @@ func tokenize_from_fileobj (
 ##   like parse errors or warnings.
 func tokenize_from_uri(
         source_uri, project_file=none, keep_whitespace=no,
-        keep_comments=no,
-        allow_remote=yes,
-        default_to_diskpath=no
+        keep_comments=no, allow_remote=yes,
+        default_to_diskpath=no, is_entrypoint=yes
         ) {
     source_uri = uri.normalize(
         source_uri, guess_nonfiles=(not default_to_diskpath)
     )
+    if project_file != none {
+        if source_uri == none {
+            source_uri = project_file.source_uri
+        }
+        if source_uri != project_file.source_uri {
+            throw new ValueError("If source_uri parameter is "
+                "supplied along with the project_file parameter, "
+                "the URIs of both have to match.")
+        }
+    }
     if net.is_uri_remote(source_uri) and not allow_remote {
         throw new PermissionError("Remote URIs not allowed.")
     }
     if project_file == none {
-        project_file = project.ProjectFile(
+        project_file = new project.ProjectFile(
             source_uri=source_uri
         )
     }
-    var fileobj = net.fetch.open(
-        source_uri, allow_vfs=yes, allow_disk=yes
-    ) later:
-    await fileobj
-    do {
+    with project.open() later as fileobj {
         var result = tokenize_from_fileobj(fileobj,
             project_file=project_file,
             keep_whitespace=keep_whitespace,
@@ -2033,8 +2038,6 @@ func tokenize_from_uri(
 
         await result
         return result
-    } finally {
-        fileobj.close()
     }
 }
 

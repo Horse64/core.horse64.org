@@ -25,12 +25,56 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import compiler.comment.command as command_comment
+
 type ProjectFile {
-    ## types (str or none)
-    var source_uri
+    ## @types (str, none)
+    var source_uri protect = none
+
+    var is_entrypoint = no
+    var _is_single_file = none
 }
 
-func ProjectFile.init(source_uri=none) {
+func ProjectFile.init(
+        source_uri=none, is_entrypoint=no,
+        force_single_file=no) {
     self.source_uri = source_uri
+    self.is_entrypoint = is_entrypoint
+    if force_single_file {
+        self._is_single_file = yes
+    } elseif is_entrypoint {
+        self._is_single_file = no
+    }
+}
+
+func ProjectFile.open {
+    if self.source_uri == none {
+        throw new ValueError("project file has no source")
+    }
+    var result = net.fetch.open(
+        self.source_uri, allow_vfs=yes, allow_disk=yes
+    ) later:
+
+    await result
+    return result
+}
+
+func ProjectFile.check_is_single_file {
+    if self._is_single_file != none {
+        return self._is_single_file == yes
+    }
+    if self.source_uri == none {
+        self._is_single_file = yes
+        return yes
+    }
+    var contents = none
+    with self.open() later as f {
+        contents = f.read()
+    }
+    var opts = command_comment.get_build_options_from_str(
+        contents
+    )
+    self._is_single_file = opts.has("--single-file")
+    return self._is_single_file
 }
 

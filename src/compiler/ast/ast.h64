@@ -47,6 +47,7 @@ import compiler.ast.var_stmt as var_stmt
 import compiler.ast.while_stmt as while_stmt
 import compiler.ast.with_stmt as with_stmt
 import compiler.msg as msg
+import compiler.project as project
 import compiler.token as token
 
 type TreeNode {
@@ -349,16 +350,31 @@ func parse_to_ast(
 }
 
 func _tokenize_this_file_for_ast(
-        source, project_file=none, source_is_uri=no
+        source, project_file=none, source_is_uri=no,
+        is_entrypoint=yes, force_single_file=no
         ) {
     if not source_is_uri {
+        if not force_single_file and is_entrypoint {
+            throw new ValueError("Not setting force_single_file "
+                "to yes for inline code makes no sense.")
+        }
         var tresult = token.tokenize_str(
             source, project_file=project_file, keep_whitespace=no
         )
+        if tresult.project_file == none {
+            # This is usually the case for direct code,
+            # but we need one to do the import handling.
+            tresult.project_file = new project.ProjectFile(
+                source_uri=none, is_entrypoint=is_entrypoint,
+                force_single_file=force_single_file
+            )
+        }
         return tresult
     } else {
         var tresult = token.tokenize_from_uri(
             source, project_file=project_file,
+            is_entrypoint=is_entrypoint,
+            force_single_file=force_single_file,
             keep_whitespace=no
         ) later:
 
@@ -369,11 +385,15 @@ func _tokenize_this_file_for_ast(
 
 func _parse_tokens_file_to_ast_ex(
         tokens_source, project_file=project_file,
-        source_is_uri=no, debug=no
+        source_is_uri=no,
+        is_entrypoint=yes, force_single_file=no,
+        debug=no,
         ) {
     var tresult = _tokenize_this_file_for_ast(
         tokens_source, project_file=project_file,
-        source_is_uri=source_is_uri
+        source_is_uri=source_is_uri,
+        is_entrypoint=is_entrypoint,
+        force_single_file=force_single_file,
     )
     later:
 
@@ -399,11 +419,13 @@ func _parse_tokens_file_to_ast_ex(
 ## @returns ASTResult The resulting syntax tree and diagnostic messages,
 ##   like parse errors or warnings.
 func parse_str_to_ast(
-        codestr, project_file=none, debug=no
+        codestr, project_file=none,
+        is_entrypoint=yes, debug=no
         ) {
     var result = _parse_tokens_file_to_ast_ex(
         codestr, project_file=project_file, source_is_uri=no,
-        debug=debug
+        force_single_file=yes,  # Inline code is always single-file.
+        is_entrypoint=is_entrypoint, debug=debug
     ) later:
 
     await result
@@ -427,13 +449,15 @@ func parse_str_to_ast(
 ##   like parse errors or warnings.
 func parse_to_ast_from_uri(
         fileuri, project_file=none, default_to_diskpath=no,
+        is_entrypoint=yes, force_single_file=no,
         debug=no
         ) {
     var result = _parse_tokens_file_to_ast_ex(
         uri.normalize(fileuri,
         guess_nonfiles=(not default_to_diskpath)),
         project_file=project_file,
-        source_is_uri=yes, debug=debug
+        source_is_uri=yes, is_entrypoint=is_entrypoint,
+        force_single_file=force_single_file, debug=debug
     ) later:
 
     await result
