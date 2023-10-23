@@ -50,7 +50,7 @@ Horse64 code:
 
 - Use mixed case names with no word separation for types.
   ```Horse64
-  type MyReusableTYpe {
+  type MyReusableType {
   }
   ```
 
