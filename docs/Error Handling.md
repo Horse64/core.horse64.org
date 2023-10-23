@@ -102,6 +102,7 @@ func main {
         print("Oops, some other unspecified network error!")
     }
 }
+```
 
 
 Any error in `rescue`
