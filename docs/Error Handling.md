@@ -41,18 +41,18 @@ To know what func can throw which errors, check
 its [documentation, like for the standard library](
 /docs/FIXME)!
 
+How it works in detail:
+
 Above code will either print out "Everything alright." or
-"Oops we had an IOError!" but never both. This is because
-when an error occurs in a called function, like in
-`some_func_causing_io_error`, the execution jumps ahead into
-your surrounding rescue clause. When there's no error,
-the rescue clause will be ignored and skipped.
+"Oops we had an IOError!" but **never both.** When an error occurs,
+the execution jumps ahead into your surrounding rescue clause.
+When there's no error, the rescue clause will be ignored and skipped.
 
 
 Multiple errors in `rescue`
 ---------------------------
 
-Looking at some funcs like [net.fetch.get_str's documentation,](
+Looking at some funcs like [net.fetch.get_str's documentation](
 /docs/FIXME), you'll notice they can throw **multiple different
 errors.** You can handle these by listing them out like this,
 and if needed, give them custom labels like `cerror` in
@@ -78,11 +78,16 @@ func main {
     }
 }
 ```
-*(Note: `cerror` is a random name choice, you
-can pick any name you like.)
+Above, the first listed [error type](#error-type)
+with its label that matches the occured error directly **or
+any of its [base types](/docs/OOP.md#base-types)**
+will be assigned the error.
 
-Instead, you can also split it up into multiple clauses if you like,
-where the first matching one will be executed:
+*(Note: `cerror` above is a random name choice, you
+can pick any name you like.)*
+
+Want more clearly separate error handling? Then you can also split
+it up into multiple clauses (where the first matching one will run):
 
 ```Horse64
 import net from core.horse64.org
