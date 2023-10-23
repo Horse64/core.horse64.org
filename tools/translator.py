@@ -235,6 +235,10 @@ remapped_uses = {
             "_translator_runtime_helpers._net_lookup_name",
         "net.NetworkIOError":
             "_translator_runtime_helpers._NetworkIOError",
+        "net.ServerError":
+            "_translator_runtime_helpers._ServerError",
+        "net.ClientError":
+            "_translator_runtime_helpers._ClientError",
     },
     "net.fetch@core.horse64.org": {
         "net.fetch.open":
@@ -1617,14 +1621,14 @@ def translate(s, sc):
             while (j < len(statement) and
                     statement[j].strip(" \t\r\n") == ""):
                 j += 1
-            rescue_block_content_first = -1
-            rescue_block_content_last = -1
-            rescue_error_label_name = None
-            rescue_error_types_first = -1
-            rescue_error_types_last = -1
+            rescue_block_content_first = []
+            rescue_block_content_last = []
+            rescue_error_label_name = []
+            rescue_error_types_first = []
+            rescue_error_types_last = []
             finally_block_content_first = -1
             finally_block_content_last = -1
-            if (j < len(statement) and
+            while (j < len(statement) and
                     statement[j] == "rescue"):
                 j += 1  # Past 'rescue' keyword.
                 while (j < len(statement) and
@@ -1632,7 +1636,7 @@ def translate(s, sc):
                     j += 1
                 assert(j < len(statement) and
                        statement[j] != "as")
-                rescue_error_types_first = j
+                rescue_error_types_first.append(j)
                 hadnonblank = False
                 bracket_depth = 0
                 while (j < len(statement) and
@@ -1647,12 +1651,14 @@ def translate(s, sc):
                     if statement[j].strip(" \r\t\b"):
                         hadnonblank = True
                     j += 1
-                rescue_error_types_last = j - 1
-                while (rescue_error_types_last >
-                        rescue_error_types_first and
-                        statement[rescue_error_types_last].
+                rescue_error_types_last.append(j - 1)
+                while (rescue_error_types_last[-1] >
+                        rescue_error_types_first[-1] and
+                        statement[rescue_error_types_last[-1]].
                         strip(" \r\n\t") == ""):
-                    rescue_error_types_last -= 1
+                    rescue_error_types_last[-1] = (
+                        rescue_error_types_last[-1] - 1
+                    )
                 assert(statement[j] == "{" or
                     statement[j] == "as")
                 if statement[j] == "as":
@@ -1661,14 +1667,16 @@ def translate(s, sc):
                             statement[j].strip(" \t\r\n") == ""):
                         j += 1
                     assert(is_identifier(statement[j]))
-                    rescue_error_label_name = statement[j]
+                    rescue_error_label_name.append(statement[j])
                     j += 1
                     while (j < len(statement) and
                             statement[j].strip(" \t\r\n") == ""):
                         j += 1
+                else:
+                    rescue_error_label_name.append(None)
                 assert(statement[j] == "{")
                 j += 1  # Go past the opening '{'
-                rescue_block_content_first = j
+                rescue_block_content_first.append(j)
                 bracket_depth = 0
                 while (j < len(statement) and
                         (statement[j] != "}" or
@@ -1678,7 +1686,7 @@ def translate(s, sc):
                     elif statement[j] in {")", "]", "}"}:
                         bracket_depth -= 1
                     j += 1
-                rescue_block_content_last = j - 1
+                rescue_block_content_last.append(j - 1)
                 assert(statement[j] == "}")
                 j += 1
                 while (j < len(statement) and
@@ -1709,8 +1717,8 @@ def translate(s, sc):
                      statement[j].strip(" \t\r\n") == ""):
                 j += 1
             assert(j >= len(statement))  # Require no trailing data.
-            rescued_errors_expr = None
-            rescue_block_code = None
+            rescued_errors_expr = []
+            rescue_block_code = []
             new_sc = sc.copy()
             new_sc.parent_statements += [statement_cpy]
             do_block_code = translate(
@@ -1719,17 +1727,19 @@ def translate(s, sc):
                         do_block_content_last+1
                     ]), new_sc
                 )
-            if rescue_block_content_first >= 0:
+            z = -1
+            for block_content_first in rescue_block_content_first:
+                z += 1
                 new_sc = sc.copy()
                 new_sc.parent_statements += [statement_cpy]
-                rescue_block_code = translate(
+                rescue_block_code.append(translate(
                     untokenize(statement[
-                        rescue_block_content_first:
-                        rescue_block_content_last+1
-                    ]), new_sc)
-                rescued_errors_tokens = statement[
-                    rescue_error_types_first:
-                    rescue_error_types_last+1]
+                        rescue_block_content_first[z]:
+                        rescue_block_content_last[z]+1
+                    ]), new_sc))
+                rescued_errors_tokens = (statement[
+                    rescue_error_types_first[z]:
+                    rescue_error_types_last[z]+1])
                 if rescued_errors_tokens == ["any"]:
                     rescued_errors_tokens = ["Error"]
                 while (len(rescued_errors_tokens) > 1 and
@@ -1747,10 +1757,12 @@ def translate(s, sc):
                         rescued_errors_tokens + [")"])
                 new_sc = sc.copy()
                 new_sc.parent_statements += [statement_cpy]
-                rescued_errors_expr = translate_expression_tokens(
-                    rescued_errors_tokens,
-                    new_sc)
-                assert(rescued_errors_expr != None)
+                rescued_errors_expr.append(
+                    translate_expression_tokens(
+                        rescued_errors_tokens,
+                        new_sc
+                    ))
+                assert(rescued_errors_expr[-1] != None)
             finally_block_code = None
             if finally_block_content_first >= 0:
                 new_sc = sc.copy()
@@ -1763,20 +1775,22 @@ def translate(s, sc):
             result += (indent + "try:\n")
             result += do_block_code + "\n"
             result += (indent + "    pass\n")
-            if (rescue_block_code is None
-                    and finally_block_code is None):
+            if (len(rescue_block_code) == 0 and
+                    finally_block_code is None):
                 result += (indent + "finally:\n")
                 result += (indent + "    pass\n")
             else:
-                if rescue_block_code != None:
-                    assert(rescued_errors_expr != None)
+                z = -1
+                for block in rescue_block_code:
+                    z += 1
+                    assert(rescued_errors_expr[z] != None)
                     result += (indent + "except " +
-                        untokenize(rescued_errors_expr))
-                    if rescue_error_label_name != None:
+                        untokenize(rescued_errors_expr[z]))
+                    if rescue_error_label_name[z] != None:
                         result += (" as " +
-                            rescue_error_label_name)
+                            rescue_error_label_name[z])
                     result += ":\n"
-                    result += rescue_block_code + "\n"
+                    result += rescue_block_code[z] + "\n"
                     result += (indent + "    pass\n")
                 if finally_block_code != None:
                     result += (indent + "finally:\n")

@@ -75,14 +75,13 @@ class _LicenseObj:
         self.file_name = file_name
         self.text = text
 
-
 class _RuntimeError(BaseException):
     def __init__(self, msg):
         if msg is None:
             msg = ("Runtime error.")
         super().__init__(msg)
         self.msg = msg
-
+        self.arg = None
 
 class _ValueError(ValueError, _RuntimeError):
     def __init__(self, msg):
@@ -91,7 +90,6 @@ class _ValueError(ValueError, _RuntimeError):
         super().__init__(msg)
         self.msg = msg
 
-
 class _TypeError(TypeError, _RuntimeError):
     def __init__(self, msg):
         if msg is None:
@@ -99,14 +97,12 @@ class _TypeError(TypeError, _RuntimeError):
         super().__init__(msg)
         self.msg = msg
 
-
 class _ResourceError(OSError, _RuntimeError):
     def __init__(self, msg):
         if msg is None:
             msg = ("Hardware resource problem occured.")
         super().__init__(msg)
         self.msg = msg
-
 
 class _NetworkIOError(_ResourceError):
     def __init__(self, msg):
@@ -117,6 +113,25 @@ class _NetworkIOError(_ResourceError):
         super().__init__(msg)
         self.msg = msg
 
+class _ServerError(_NetworkIOError):
+    def __init__(self, msg):
+        if msg is None:
+            msg = (
+                "The server reported an error on its side "
+                "that is likely not your fault."
+            )
+        super().__init__(msg)
+        self.msg = msg
+
+class _ClientError(_NetworkIOError):
+    def __init__(self, msg):
+        if msg is None:
+            msg = (
+                "The server denied your request due to a "
+                "mistake on your side."
+            )
+        super().__init__(msg)
+        self.msg = msg
 
 class _IOError(_ResourceError):
     def __init__(self, msg):
@@ -1467,11 +1482,23 @@ class _RequestsFetchObj:
                         chunk_size=1024
                     )
                 except (OSError, requests.RequestException,
-                        requests.HTTPError):
+                        requests.HTTPError) as e:
                     _async_ops_lock.acquire()
-                    op.userdata2 = [
-                        _NetworkIOError("Connection setup or "
-                            "request failed."), None]
+                    if (isinstance(e, requests.HTTPError) and
+                            e.status_code >= 400):
+                        if e.status_code < 500:
+                            op.userdata2 = [
+                                _ClientError("Server "
+                                    "returned a HTTP 4xx error."), None]
+                        else:
+                            op.userdata2 = [
+                                _ServerError("Server "
+                                    "returned a HTTP 5xx error."), None]
+                        op.userdata2.arg = e.status_code
+                    else:
+                        op.userdata2 = [
+                            _NetworkIOError("Connection setup or "
+                                "request failed."), None]
                     op.done = True
                     _async_ops_lock.release()
                     return
