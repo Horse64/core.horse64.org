@@ -34,7 +34,7 @@ Recommended style for Horse64
 The following common style guideline is recommended for
 Horse64 code:
 
-- Indent code blocks inside '{ ... }' by 4 spaces,
+- Indent code blocks inside `{ ... }` by 4 spaces,
   and keep the opening brackets on the same line.
   ```Horse64
   func main {  # Opening bracket on same line!
