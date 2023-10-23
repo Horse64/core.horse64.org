@@ -83,10 +83,9 @@ your code!**
 Base types
 ----------
 
-If you want to make a new `type` for new variants of objects
-where you want to share some, but not all, of the behavior
-of an already existing type, you can `base` it on an existing
-type:
+If you need a new `type` for new variants of objects
+that reuses behavior of an already existing type,
+you can `base` it on an existing type:
 
 ```Horse64         
 type Vehicle {
