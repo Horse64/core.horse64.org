@@ -31,7 +31,7 @@ The larger and more advanced your code, the more relevant style is.
 Recommended style for Horse64
 -----------------------------
 
-The following common style guideline is recommended for
+The following common style guidelines are recommended for
 Horse64 code:
 
 - Indent code blocks inside `{ ... }` by 4 spaces,
