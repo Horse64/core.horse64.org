@@ -76,9 +76,11 @@ func main {
 }
 ```
 Above, the first listed [error type](#error-type)
-with its label that matches the occured error directly **or
-any of its [base types](/docs/OOP.md#base-types)**
-will be assigned the error.
+with its label that matches will be assigned the error,
+with the others set to `none`. An error's type matches
+if it's either the exact listed type, **or it has any
+[base type](/docs/OOP.md#base-types) matching the listed
+type.**
 
 *(Note: `cerror` above is a random name choice, you
 can pick any name you like.)*
