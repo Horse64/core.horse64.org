@@ -36,7 +36,7 @@ import compiler.msg as msg
 import compiler.token as token
 
 type ThrowStmt base ast.StmtNode {
-    var has_later = no
+    var has_repeat = no
 }
 
 func ThrowStmt.init {
@@ -46,8 +46,8 @@ func ThrowStmt.init {
 
 func ThrowStmt.as_json_obj {
     var output = base.as_json_obj()
-    if self.has_later {
-        output["has_later"] = yes
+    if self.has_repeat {
+        output["has_repeat"] = yes
     }
     return output
 }
@@ -72,6 +72,16 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     stmt.line = token.get_line(tokens, pos)
     stmt.col = token.get_col(tokens, pos)
     pos += 1
+
+    if pos <= tokens_len and
+            tokens[pos].kind == token.T_KEYWORD and
+            tokens[pos].str == "repeat" {
+        stmt.has_repeat = yes
+        pos += 1
+        stmt.token_len = (pos - startpos)
+        return later stmt
+    }
+
     var v = expr.parse_expression(
         tokens, pos, msgs,
         project_file=project_file
@@ -101,7 +111,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         )
         pos += skiplen
         stmt.subexprs.add(invexp)
-        smt.token_len = (pos - startpos)
+        stmt.token_len = (pos - startpos)
         return stmt
     }
     pos += v.token_len

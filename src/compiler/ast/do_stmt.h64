@@ -35,7 +35,7 @@ import compiler.msg as msg
 import compiler.token as token
 
 type DoStmt base ast.StmtNode {
-    var has_rescue = no
+    var rescue_clause_count = 0
     var has_finally = no
 }
 
@@ -46,11 +46,13 @@ func DoStmt.init {
 
 func DoStmt.as_json_obj {
     var output = base.as_json_obj()
+    output["rescue_clause_count"] = self.rescue_clause_count
+    output["has_finally"] = self.has_finally
     return output
 }
 
 type RescueClause base ast.TreeNode {
-    var error_names = []
+    var error_labels = []
 }
 
 func RescueClause.init {
@@ -60,7 +62,7 @@ func RescueClause.init {
 
 func RescueClause.as_json_obj {
     var output = base.as_json_obj()
-    output["error_names"] = self.error_names
+    output["error_labels"] = self.error_labels
     return output
 }
 
@@ -106,7 +108,7 @@ func parse_rescue_clause_header(
                             pos) +
                         ", expected valid expression for rescue "
                         "clause" +
-                        if clause.error_names.len > 0 (
+                        if clause.error_labels.len > 0 (
                             " or '{' to start "
                             "code block") else ("") + ".",
                         source_file=project_file,
@@ -152,8 +154,8 @@ func parse_rescue_clause_header(
                     tokens[pos].kind != token.T_IDENT {
                 if not stmt.has_damage() {
                     msgs.add(new msg.FileMsg(
-                        "Unexpected " + token.describe_token_at(tokens,
-                            pos) +
+                        "Unexpected " + token.describe_token_at(
+                            tokens, pos) +
                         ", expected valid expression for rescue "
                         "clause" +
                         if clause.error_names.len > 0 (
@@ -166,16 +168,22 @@ func parse_rescue_clause_header(
                 }
                 stmt.damaged = yes
                 clause.damaged = yes
-            } else {
-                error_renameto = tokens[pos].str
-                pos += 1
+                var skiplen = math.max(1,
+                token.skip_in_broken_stmt_to_code_block(
+                    tokens, pos - 1, bracket_depth=0
+                ) - 1)
+                pos += skiplen
+                clause.token_len = pos - clausestart
+                return clause
             }
+            error_renameto = tokens[pos].str
+            pos += 1
         }
         var iexp = new expr.IdRefExpr()
         iexp.label = error_typename
         iexp.typepath = error_typepath
         clause.subexprs.add(iexp)
-        clause.error_names.add(error_renameto)
+        clause.error_labels.add(error_renameto)
 
         if pos > tokens_len or (
                 tokens[pos].kind != token.T_COMMA and
@@ -185,11 +193,9 @@ func parse_rescue_clause_header(
                 msgs.add(new msg.FileMsg(
                     "Unexpected " + token.describe_token_at(tokens,
                         pos) +
-                    ", expected valid expression for rescue "
-                    "clause" +
-                    if clause.error_names.len > 0 (
-                        " or '{' to start "
-                        "code block") else ("") + ".",
+                    ", expected ',' for another error "
+                    "expression or '{' for code block for "
+                    "rescue clause.",
                     source_file=project_file,
                     line=token.get_line(tokens, pos),
                     col=token.get_col(tokens, pos),
@@ -215,7 +221,7 @@ func parse_rescue_clause_header(
     }
 }
 
-func parse_rescue_clause(
+func parse_single_rescue_clause(
         stmt, tokens, tokens_len, pos, msgs,
         project_file=none, debug=no) {
     var clausestartpos = pos
@@ -247,6 +253,27 @@ func parse_rescue_clause(
 
     clause.token_len = (pos - clausestartpos)
     return later clause
+}
+
+func parse_all_rescue_clauses(
+        stmt, tokens, tokens_len, pos, msgs,
+        project_file=project_file, debug=no) {
+    var result = []
+    var rescue_clause = parse_single_rescue_clause(
+        stmt, tokens, tokens_len, pos, msgs,
+        project_file=project_file, debug=no) later:
+
+    await rescue_clause
+    if rescue_clause == none {
+        return result
+    }
+    result.add(rescue_clause)
+    pos += rescue_clause.token_len
+
+    rescue_clause = parse_single_rescue_clause(
+        stmt, tokens, tokens_len, pos, msgs,
+        project_file=project_file, debug=no
+    ) later repeat
 }
 
 func parse_finally_clause(
@@ -320,19 +347,19 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     pos += block_result.token_len
     stmt.subblocks.add(block_result.stmts)
 
-    # Parse rescue clause, if any:
-    var rescue_clause = parse_rescue_clause(
+    # Parse rescue clauses, if any:
+    var rescue_clauses = parse_all_rescue_clauses(
         stmt, tokens, tokens_len, pos, msgs,
         project_file=project_file, debug=no) later:
 
-    await rescue_clause
-    if rescue_clause != none {
-        stmt.subexprs.add(rescue_clause)
-        stmt.has_rescue = yes
-        if rescue_clause.damaged {
+    await rescue_clauses
+    for clause in rescue_clauses {
+        stmt.subexprs.add(clause)
+        if clause.damaged {
             stmt.damaged = yes
         }
-        pos += rescue_clause.token_len
+        pos += clause.token_len
+        stmt.rescue_clause_count += 1
     }
 
     # Parse finally clause, if any:

@@ -117,7 +117,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         if pos + 1 < tokens_len and
                 tokens[pos].kind == token.T_ASSIGN and
                 tokens[pos + 1].kind == token.T_NUM {
-            stmt.enum_entry_nums.add(tokens[pos + 1].value)
+            stmt.enum_entry_nums.add(tokens[pos + 1].str.to_num())
             pos += 2
         } else {
             stmt.enum_entry_nums.add(none)
