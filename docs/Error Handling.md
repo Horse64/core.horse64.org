@@ -28,14 +28,18 @@ func main {
     do {
         var f = some_func_causing_io_error()
         print("Everything alright.")
-    } rescue IOError as e {
-        print("Oops, we had an IOError!")
+    } rescue IOError {
+        print("Oops, we had an IOError")
     }
 }
 ```
 
-With this code, **any IOError caused by
+With this code, **any IOError, or other error with
+an IOError [base type](/docs/OOP.md#base-types), caused by
 `some_func_causing_io_error` won't just end your program.**
+To know what func can throw which errors, check
+its [documentation, like for the standard library](
+/docs/FIXME)!
 
 Above code will either print out "Everything alright." or
 "Oops we had an IOError!" but never both. This is because
@@ -44,6 +48,84 @@ when an error occurs in a called function, like in
 your surrounding rescue clause. When there's no error,
 the rescue clause will be ignored and skipped.
 
+
+Multiple errors in `rescue`
+---------------------------
+
+Looking at some funcs like [net.fetch.get_str's documentation,](
+/docs/FIXME), you'll notice they can throw **multiple different
+errors.** You can handle these by listing them out like this,
+and if needed, give them custom labels like `cerror` in
+the example below. The first listed [error type](#error-type)
+with its label that matches the occured error directly **or
+any of its [base types](/docs/OOP.md#base-types)**
+will be assigned the error:
+
+```Horse64
+import net from core.horse64.org
+
+func main {
+    do {
+        var f = net.fetch.get_str("https://horse64.org")
+        print("Everything alright.")
+    } rescue net.ClientError as cerror, net.NetworkIOError {
+        print("Oops, we had a network error! Was it our fault?")
+        if cerror != none {
+            print("Yes, our fault! Maybe this page doesn't exist?")
+        } else {
+            print("Nope, maybe it was just a connection hiccup.")
+        }
+    }
+}
+```
+*(Note: `cerror` is a random name choice, you
+can pick any name you like.)
+
+Instead, you can also split it up into multiple clauses if you like,
+where the first matching one will be executed:
+
+```Horse64
+import net from core.horse64.org
+
+func main {
+    do {
+        var f = net.fetch.get_str("https://horse64.org")
+        print("Everything alright.")
+    } rescue net.ClientError as cerror {
+        print("Oops, a client error so we must have fetched
+            something invalid or forbidden!")
+    } rescue net.NetworkIOError {
+        print("Oops, some other unspecified network error!")
+    }
+}
+
+
+Any error in `rescue`
+---------------------
+
+**Warning: only use the following if you're sure the code calling you
+wouldn't want to know about this error, and you're logging the
+error somehow.** (Otherwise this is bad [coding style](
+/docs/Coding%20Style.md#what-and-why), hiding possibly important
+errors.)
+
+If you want to really catch any type of error, no matter how
+unexpected and what type, then use the `any` keyword:
+
+```Horse64
+import io as core.horse64.org
+
+func main {
+    do {
+        var f = net.fetch.get_str("https://horse64.org")
+        print("Everything alright.")
+    } rescue any {
+        print("Something went wrong, we really don't know "
+            "what though. (Which is maybe why we shouldn't "
+            "indiscriminately catch everythign like this.")
+    }
+}
+```
 
 `finally` clause
 ----------------
@@ -113,4 +195,20 @@ error and success, `with` produces way less cluttered code than
 a `do ... rescue` or `do ... finally` clause.
 **With statements are therefore always better style than
 finally clauses, in cases where they can be used.**
+
+
+Error types
+-----------
+
+An error is simply a special custom type that has as [base
+type](/docs/OOP.md#base-types) the built-in type `BaseError`,
+or any other error type.
+You can therefore declare your own error types like this:
+
+```Horse64
+import net from core.horse64.org
+
+type MySpecialNetworkSituationError base net.NetworkIOError {
+}
+```
 

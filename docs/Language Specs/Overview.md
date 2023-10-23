@@ -57,28 +57,39 @@ type*. A custom type can be used for object-oriented programming
 Any *object instance*, or *object* in short, will have the
 *attributes* specified on the type, which can be variables or funcs.
 
-Here is an example, where you can see `type` being used to specify
-a reusable concept of a "car", and then it can be used to create
-multiple actual *objects*:
+A custom type can either be `base`d on another one to form
+a subtype which inherits all attributes and can add more.
+[See here for a friendly introduction to base types](
+/docs/OOP.md#base-types) Or it can be `extend`ed by
+another module to add more shared attributes to all
+its instances.
 
-```Horse64
-type Car {
-    var speed = 90
-    var color = "green"
-}
+**The following rules apply to custom types:**
 
-func main {
-    var my_car = new Car()
-}
-```
+- `typename(...)` on any custom type object returns
+  `"object"`.
 
-A custom type's `func` attributes can access the
-current object they're called on, and its `var`
-attributes and their current values, via `self`:
+- For any type with a `base` type, you can override any
+  `func` attributes of the base type by just declaring
+  them again on your new type. However, you can never
+  override `var` attributes.
 
-```Horse64
-func Car.speed_up {
-    self.speed *= 1.5
-}
-```
+- If your type has multiple `base` types that all
+  provide a `func` attribute with the same name,
+  the type listed first in your `base` type list
+  will always be the one the attribute called is
+  picked from.
+
+- Using `base.some_func()` will call the overridden
+  func attribute in your overriding function. If multiple
+  base types had that function, it will call the one
+  first in your `base` type list.
+
+- If any attribute name begins with an underscore,
+  it can only be accessed from inside any func attribute
+  via `self`, not from the outside.
+
+- If any var attribute is declared using `protect`,
+  it can be accessed read-only from the outside but
+  it can only be changed inside the type's func attributes.
 
