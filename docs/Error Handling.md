@@ -54,12 +54,9 @@ Multiple errors in `rescue`
 
 Looking at some funcs like [net.fetch.get_str's documentation](
 /docs/FIXME), you'll notice they can throw **multiple different
-errors.** You can handle these by listing them out like this,
-and if needed, give them custom labels like `cerror` in
-the example below. The first listed [error type](#error-type)
-with its label that matches the occured error directly **or
-any of its [base types](/docs/OOP.md#base-types)**
-will be assigned the error:
+errors.** You can handle these by listing them
+and, if needed, add custom labels like `cerror`, like in
+the example below:
 
 ```Horse64
 import net from core.horse64.org
