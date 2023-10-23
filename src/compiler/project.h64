@@ -25,6 +25,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import net.fetch from core.horse64.org
+
 import compiler.comment.command as command_comment
 
 type ProjectFile {
@@ -76,5 +78,24 @@ func ProjectFile.check_is_single_file {
     )
     self._is_single_file = opts.has("--single-file")
     return self._is_single_file
+}
+
+func check_file_existence(uri) {
+    var result = net.fetch.test_readable(uri) later:
+
+    await result
+    if result == net.fetch.READABLE_YES {
+        return yes
+    } elseif result == net.fetch.READABLE_NO {
+        return no
+    }
+    return none
+}
+
+func ProjectFile.resolve_import(name_of_type, path_of_type) {
+    if self._is_single_file == none {
+        throw new RuntimeError("Must call "
+            "check_is_single_file() first.")
+    }
 }
 

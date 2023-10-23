@@ -1,5 +1,5 @@
 # @module net.fetch
-# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -222,5 +222,29 @@ func get_str(
         next_uri, allow_vfs=allow_vfs, allow_disk=allow_disk
     )
     data = obj.read(amount=max_size) later repeat
+}
+
+enum ReadableResult {
+    READABLE_YES=1,
+    READABLE_NO=2,
+    READABLE_TEMPORARY_ERROR=3,
+}
+
+func test_readable(uri) {
+    do {
+        with net.fetch.open(
+                next_uri, allow_vfs=allow_vfs, allow_disk=allow_disk
+                ) later as obj {
+            var data = obj.read(amount=1)
+            later:
+
+            await data
+            return READABLE_YES
+        }
+    } rescue ClientError as e {
+        return READABLE_NO
+    } rescue NetworkIOError as e {
+        return READABLE_TEMPORARY_ERROR
+    }
 }
 
