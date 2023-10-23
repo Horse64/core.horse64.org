@@ -2007,7 +2007,8 @@ func tokenize_from_fileobj (
 func tokenize_from_uri(
         source_uri, project_file=none, keep_whitespace=no,
         keep_comments=no, allow_remote=yes,
-        default_to_diskpath=no, is_entrypoint=yes
+        default_to_diskpath=no, is_entrypoint=yes,
+        force_single_file=no,
         ) {
     source_uri = uri.normalize(
         source_uri, guess_nonfiles=(not default_to_diskpath)
@@ -2027,10 +2028,12 @@ func tokenize_from_uri(
     }
     if project_file == none {
         project_file = new project.ProjectFile(
-            source_uri=source_uri
+            source_uri=source_uri,
+            is_entrypoint=is_entrypoint,
+            force_single_file=force_single_file,
         )
     }
-    with project.open() later as fileobj {
+    with project_file.open() later as fileobj {
         var result = tokenize_from_fileobj(fileobj,
             project_file=project_file,
             keep_whitespace=keep_whitespace,
