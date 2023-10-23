@@ -25,7 +25,6 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-
 func _validate_uri_list(uri) {
     # Validate input:
     if typename(uri) == "bytes" {
@@ -60,6 +59,8 @@ func _validate_uri_list(uri) {
 
 ## Get an internet resource and write it to a disk file.
 ##
+## @throws net.NetworkIOError, can throw sub variants
+##   net.ServerError and net.ClientError
 ## @param uri (str or list) A single URI as an @{str}, or
 ##   a @{list} or URIs, e.g. `["https://site1.org",
 ##   `["https://site2.org"]`. For a list, any of them
@@ -145,6 +146,8 @@ func write_to_file(uri, path, max_size=(100 * 1024  * 1024)) {
 ## Get an internet resource and download it as a widechar string.
 ## Can also get a list of resources at once.
 ##
+## @throws net.NetworkIOError, can throw sub variants
+##   net.ServerError and net.ClientError
 ## @param uri (str or list) A single URI as an @{str}, or
 ##   a @{list} or URIs, e.g. `["https://site1.org",
 ##   `["https://site2.org"]`.
