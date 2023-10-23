@@ -75,7 +75,7 @@ func main {
     }
 }
 ```
-Above, the first listed [error type](#error-type)
+Above, the first listed [error type](#error-types)
 with its label that matches will be assigned the error,
 with the others set to `none`. An error's type matches
 if it's either the exact listed type, **or it has any
