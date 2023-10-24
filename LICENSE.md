@@ -272,7 +272,7 @@ USE THE OFFICIAL NAME "Horse64" FOR THEM EITHER.
 *(Non-binding side notes: 1. Binaries you compile with `horsec` yourself
 of your own programs shouldn't by default include the logo, so these
 should be unaffected. 2. If you fork Horse64 just temporarily for
-preparing pull requst, that's fine of course.)*
+preparing pull requests, that's fine of course.)*
 
 
 Contributions
