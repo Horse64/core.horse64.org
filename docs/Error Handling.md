@@ -108,9 +108,9 @@ func main {
 Any error in `rescue`
 ---------------------
 
-**Warning: only use the following if you're sure the code calling you
+**Warning: only use the following if you're sure the code calling yours
 wouldn't want to know about this error, and you're logging the
-error somehow.** (Otherwise this is bad [coding style](
+error somehow.** (Otherwise this would be bad [coding style](
 /docs/Coding%20Style.md#what-and-why), hiding possibly important
 errors.)
 
