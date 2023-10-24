@@ -2009,6 +2009,7 @@ func tokenize_from_uri(
         keep_comments=no, allow_remote=yes,
         default_to_diskpath=no, is_entrypoint=yes,
         force_single_file=no,
+        allow_disk_access=yes, allow_vfs_access=no
         ) {
     source_uri = uri.normalize(
         source_uri, guess_nonfiles=(not default_to_diskpath)
@@ -2033,6 +2034,13 @@ func tokenize_from_uri(
             force_single_file=force_single_file,
         )
     }
+    project_file.ensure_project()
+    project_file.project.allow_disk_access = (
+        allow_disk_access
+    )
+    project_file.project.allow_vfs_access = (
+        allow_vfs_access
+    )
     with project_file.open() later as fileobj {
         var result = tokenize_from_fileobj(fileobj,
             project_file=project_file,

@@ -251,6 +251,7 @@ remapped_uses = {
             "_remapped_os.path.join",
         "path.basename" : "_remapped_os.path.basename",
         "path.dirname": "_remapped_os.path.dirname",
+        "path.sep": "_remapped_os.path.sep",
     },
     "process@core.horse64.org": {
         "process.args": "(_remapped_sys.argv[1:])",
@@ -319,8 +320,16 @@ remapped_uses = {
         "uri.to_file_or_vfs_path":
             "_translator_runtime_helpers."
                 "_uri_to_file_or_vfs_path",
-        "uri.escape_path":
-            "_translator_runtime_helpers._uri_escape_path",
+        "uri.unencode_path":
+            "_translator_runtime_helpers._uri_unencode_path",
+        "uri.encode_path":
+            "_translator_runtime_helpers._uri_encode_path",
+        "uri.dirname":
+            "_translator_runtime_helpers._uri_dirname",
+        "uri.add_part":
+            "_translator_runtime_helpers._uri_add_part",
+        "uri.traverse_up":
+            "_translator_runtime_helpers._uri_traverse_up",
         "uri.normalize":
             "_translator_runtime_helpers." +
             "_uri_normalize",

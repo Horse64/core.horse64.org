@@ -852,10 +852,60 @@ def _file_uri_from_path(v):
     v = "file://" + urllib.parse.quote(v)
     return v
 
+def _uri_unencode_path(v):
+    return urllib.parse.unquote(v)
 
-def _uri_escape_path(v):
+def _uri_encode_path(v):
     return urllib.parse.quote(v)
 
+def _uri_add_path(v):
+    urlobj = urllib.parse.urlparse(_uri_normalize(v))
+    if not urlobj.path.endswith("/"):
+        urlobj.path += "/"
+    urlobj.path += v
+    return _pyurlobj_to_str(urlobj)
+
+def _uri_dirname(v):
+    urlobj = urllib.parse.urlparse(_uri_normalize(v))
+    if urlobj.path.endswith("/"):
+        if (len(urlobj.path) > 1):
+            urlobj.path = urlobj.path[:-1]
+        if urlobj.path == ".":
+            urlobj.path = "./"
+        return _pyurlobj_to_str(urlobj)
+    while not urlobj.path.endswith("/"):
+        urlobj.path = urlobj.path[:-1]
+    return _pyurlobj_to_str(urlobj)
+
+def _uri_traverse_up(v, working_dir=None):
+    cwd = working_dir
+    urlobj = urllib.parse.urlparse(_uri_normalize(v))
+    if ((urlobj.path == "../" or
+            urlobj.path == "/../" or urlobj.path == "" or
+            urlobj.path == "." or urlobj.path == "./") and
+            urlobj.scheme.lower() == "file"):
+        if not os.path.isabs(urlobj.path):
+            if cwd == None:
+                import os
+                cwd = os.getcwd()
+            cwd = os.path.normpath(os.path.abspath(cwd.\
+                replace("/", os.path.sep))).\
+                replace(os.path.sep, "/")
+            urlobj.path = cwd + "/" + urlobj.path
+        urlobj.path = os.path.normpath(
+            urlobj.path.replace("/", os.path.sep)
+        ).replace(os.path.sep, "/")
+        if (urlobj.path == "../" or
+                urlobj.path == "/../"):
+            # Impossible to go up further.
+            return _pyurlobj_to_str(urlobj)
+
+    if (urlobj.path.endswith("/") and
+            len(urlobj.path) > 1):
+        urlobj.path = urlobj.path[:-1]
+    while not urlobj.path.endswith("/"):
+        urlobj.path = urlobj.path[:-1]
+    return _pyurlobj_to_str(urlobj)
 
 def _uri_normalize(v, guess_nonfiles=True):
     v = str(v + "")
@@ -875,6 +925,8 @@ def _uri_normalize(v, guess_nonfiles=True):
                 replace("\\", "/"))
         else:
             v = os.path.normpath(v)
+            if v == ".":
+                v = "./"
         v = "file://" + urllib.parse.quote(v)
     if (v.lower().startswith("file://") or
             v.lower().startswith("vfs://")):
@@ -885,6 +937,11 @@ def _uri_normalize(v, guess_nonfiles=True):
         return (v.partition("://")[0].lower() + "://" +
             urllib.parse.quote(resource))
     urlobj = urllib.parse.urlparse(v)
+    while "//" in urlobj.path:
+        urlobj.path = urlobj.path.replace("//", "/")
+    return _pyurlobj_to_str(urlobj)
+
+def _pyurlobj_to_str(urlobj):
     result = (urlobj.scheme.lower() + "://" +
         urlobj.hostname.lower())
     if urlobj.port != None:
@@ -894,7 +951,6 @@ def _uri_normalize(v, guess_nonfiles=True):
         resource = "/" + resource
     result += resource
     return result
-
 
 def _json_dump(obj):
     try:

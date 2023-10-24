@@ -26,12 +26,146 @@
 # license, see accompanied LICENSE.md.
 
 import net.fetch from core.horse64.org
+#import path from core.horse64.org
+#import uri from core.horse64.org
 
 import compiler.comment.command as command_comment
+
+var _known_readable_files = []
+
+type Project {
+    var base_dir_uri = none
+
+    var allow_disk_access = yes
+
+    var allow_vfs_access = yes
+}
+
+func looks_like_project_dir(folder_uri) {
+    var test_files = [
+        ".git", "horp.conf",
+    ]
+    var next_file = test_files.pop()
+    var can_read = net.fetch.try_readable(folder_uri)
+    later:
+
+    await can_read
+    if can_read {
+        return yes
+    }
+    if test_files.len == 0 {
+        return no
+    }
+    can_read = net.fetch.try_readable(folder_uri) later repeat
+}
+
+func find_project_base(file_uri) {
+    file_uri = uri.normalize(file_uri)
+    folder_uri = uri.dirname(file_uri)
+    var can_be_project = looks_like_project_dir(
+        folder_uri
+    ) later:
+
+    await can_be_project
+    if can_be_project {
+        return folder_uri
+    }
+    var new_folder_uri = uri.traverse_up(folder_uri)
+    if new_folder_uri == folder_uri {
+        return none
+    }
+    can_be_project = looks_like_project_dir(
+        folder_uri
+    ) later repeat
+}
+
+func Project.init_from_file(source_uri) {
+    var base_dir = find_project_base(source_uri)
+    later:
+
+    await base_dir
+    if base_dir == none {
+        throw new ValueError("Failed to locate project "
+            "directory for file: " + source_uri)
+    }
+    self.base_dir_uri = base_dir
+}
+
+func Project.get_rel_dir_of_file(file_uri) {
+    if base_dir == none {
+        throw new ValueError("Project has no base directory.")
+    }
+    if self.base_dir_uri == none or
+            uri.get_protocol(self.base_dir_uri) !=
+            uri.get_protocol(file_uri) {
+        return none
+    }
+    var base_norm = uri.normalize(self.base_dir_uri)
+    var furi_norm = uri.normalize(file_uri)
+    if not furi_norm.starts(base_norm) {
+        return none
+    }
+    var rel_dir = uri.unescape_path(furi_norm.sub(
+        base_norm.len
+    ))
+    while rel_dir.starts("/") {
+        rel_dir = rel_dir.sub(2)
+    }
+    while rel_dir.starts("./") {
+        rel_dir = rel_dir.sub(3)
+    }
+    if rel_dir == "." or rel_dir == "/" {
+        rel_dir = ""
+    }
+    return rel_dir.replace("/", path.sep)
+}
+
+func Project.get_typepath_of_file(file_uri) {
+    var rel_path = self.get_rel_dir_of_file(
+        file_uri
+    )
+    if rel_path == none {
+        throw new ValueError("Failed to get relative path "
+            "for file.")
+    }
+    rel_path = path.dirname(rel_path)
+    if rel_path.has(".") or rel_path.has(" ") {
+        throw new ValueError("File is inside directory "
+            "with invalid characters.")
+    }
+    if rel_path.startswith("horse_modules" + path.sep) or
+            rel_path == "horse_modules" {
+        rel_path = rel_path.sub(
+            ("horse_modules" + path.sep).len + 1)
+        var pos = rel_path.find(path.sep)
+        if pos == none {
+            return none
+        } else {
+            rel_path = rel_path.sub(pos + 1)
+        }
+    } else {
+        var source_dirs = ["source", "src"]
+        for source_dir in source_dirs {
+            if rel_path.lower().starts(source_dir + path.sep) or
+                    rel_path.lower() == source_dir {
+                rel_path = rel_path.sub(
+                    (source_dir + path_sep).len + 1)
+                break
+            }
+        }
+        if rel_path == "" {
+            return none
+        }
+    }
+    return rel_path.split(path.sep)
+}
 
 type ProjectFile {
     ## @types (str, none)
     var source_uri protect = none
+
+    ## @types (Project, none)
+    var project protect = none
 
     var is_entrypoint = no
     var _is_single_file = none
@@ -80,16 +214,71 @@ func ProjectFile.check_is_single_file {
     return self._is_single_file
 }
 
-func check_file_existence(uri) {
+func check_file_existence_diskpath(
+        disk_path, project=none, is_known_vfs=no
+        ) {
+    var allow_vfs = yes
+    var allow_disk = yes
+    if project != none {
+        allow_vfs = project.allow_vfs_access
+        allow_disk = project.allow_disk_access
+    }
+    if is_known_vfs {
+        allow_disk = no
+        if not allow_vfs {
+            return no
+        }
+    }
+
+    var result = io.exists(
+        disk_path, allow_vfs=allow_vfs, allow_disk=allow_disk
+    ) later:
+    await result
+    return result
+}
+
+func check_file_existence(file_uri, project=none) {
+    var allow_vfs = yes
+    var allow_disk = yes
+    if project != none {
+        allow_vfs = project.allow_vfs_access
+        allow_disk = project.allow_disk_access
+    }
+
+    file_uri = uri.normalize(file_uri)
+    if _known_readable_files.has(file_uri) {
+        return _known_readable_files[file_uri]
+    }
+    var protocol = uri.get_protocol(file_uri).lower()
+    var result
+    if protocol == "file" {
+        var upath = uri.to_file_or_vfs_path(file_uri)
+        return check_file_existence_diskpath(
+            upath, project=project, is_known_vfs=no
+        )
+    } elseif protocol == "vfs" {
+        var upath = uri.to_file_or_vfs_path(file_uri)
+        return check_file_existence_diskpath(
+            upath, project=project, is_known_vfs=yes
+        )
+    }
     var result = net.fetch.test_readable(uri) later:
 
     await result
-    if result == net.fetch.READABLE_YES {
-        return yes
-    } elseif result == net.fetch.READABLE_NO {
-        return no
+    _known_readable_files[file_uri] = result
+    return result
+}
+
+func ProjectFile.ensure_project {
+    if self.project == none {
+        self.project = new Project()
     }
-    return none
+}
+
+func ProjectFile.get_relative_imports_to_test(
+        full_original_import
+        ) {
+    self.ensure_project()
 }
 
 func ProjectFile.resolve_import(name_of_type, path_of_type) {
@@ -97,5 +286,6 @@ func ProjectFile.resolve_import(name_of_type, path_of_type) {
         throw new RuntimeError("Must call "
             "check_is_single_file() first.")
     }
+    self.ensure_project()
 }
 

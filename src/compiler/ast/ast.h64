@@ -351,7 +351,8 @@ func parse_to_ast(
 
 func _tokenize_this_file_for_ast(
         source, project_file=none, source_is_uri=no,
-        is_entrypoint=yes, force_single_file=no
+        is_entrypoint=yes, force_single_file=no,
+        allow_disk_access=yes, allow_vfs_access=no,
         ) {
     if not source_is_uri {
         if not force_single_file and is_entrypoint {
@@ -369,12 +370,21 @@ func _tokenize_this_file_for_ast(
                 force_single_file=force_single_file
             )
         }
+        tresult.project_file.ensure_project()
+        tresult.project_file.project.allow_disk_access = (
+            allow_disk_access
+        )
+        tresult.project_file.project.allow_vfs_access = (
+            allow_vfs_access
+        )
         return tresult
     } else {
         var tresult = token.tokenize_from_uri(
             source, project_file=project_file,
             is_entrypoint=is_entrypoint,
             force_single_file=force_single_file,
+            allow_disk_access=allow_disk_access,
+            allow_vfs_access=allow_vfs_access,
             keep_whitespace=no
         ) later:
 
@@ -387,11 +397,14 @@ func _parse_tokens_file_to_ast_ex(
         tokens_source, project_file=project_file,
         source_is_uri=no,
         is_entrypoint=yes, force_single_file=no,
+        allow_disk_access=yes, allow_vfs_access=no,
         debug=no,
         ) {
     var tresult = _tokenize_this_file_for_ast(
         tokens_source, project_file=project_file,
         source_is_uri=source_is_uri,
+        allow_disk_access=allow_disk_access,
+        allow_vfs_access=allow_vfs_access,
         is_entrypoint=is_entrypoint,
         force_single_file=force_single_file,
     )
@@ -420,11 +433,15 @@ func _parse_tokens_file_to_ast_ex(
 ##   like parse errors or warnings.
 func parse_str_to_ast(
         codestr, project_file=none,
-        is_entrypoint=yes, debug=no
+        is_entrypoint=yes,
+        allow_disk_access=yes, allow_vfs_access=no,
+        debug=no
         ) {
     var result = _parse_tokens_file_to_ast_ex(
         codestr, project_file=project_file, source_is_uri=no,
         force_single_file=yes,  # Inline code is always single-file.
+        allow_disk_access=allow_disk_access,
+        allow_vfs_access=allow_vfs_access,
         is_entrypoint=is_entrypoint, debug=debug
     ) later:
 
@@ -450,6 +467,7 @@ func parse_str_to_ast(
 func parse_to_ast_from_uri(
         fileuri, project_file=none, default_to_diskpath=no,
         is_entrypoint=yes, force_single_file=no,
+        allow_disk_access=yes, allow_vfs_access=no,
         debug=no
         ) {
     var result = _parse_tokens_file_to_ast_ex(
@@ -457,7 +475,10 @@ func parse_to_ast_from_uri(
         guess_nonfiles=(not default_to_diskpath)),
         project_file=project_file,
         source_is_uri=yes, is_entrypoint=is_entrypoint,
-        force_single_file=force_single_file, debug=debug
+        force_single_file=force_single_file,
+        allow_disk_access=allow_disk_access,
+        allow_vfs_access=allow_vfs_access,
+        debug=debug
     ) later:
 
     await result

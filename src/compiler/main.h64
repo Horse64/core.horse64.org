@@ -70,7 +70,8 @@ func parse_ast_target_from_args(args, debug=no) {
     if args["--code"] != none {
         var tresult = compiler.ast.parse_str_to_ast(
             args["--code"], is_entrypoint=yes,
-            force_single_file=yes, debug=debug
+            force_single_file=yes, allow_disk_access=yes,
+            allow_vfs_access=no, debug=debug
         ) later:
 
         await tresult
@@ -80,7 +81,8 @@ func parse_ast_target_from_args(args, debug=no) {
 
     var tresult = compiler.ast.parse_to_ast_from_uri(
         src_path, default_to_diskpath=yes, is_entrypoint=yes,
-        force_single_file=no, debug=debug
+        force_single_file=no, allow_disk_access=yes,
+        allow_vfs_access=no, debug=debug
     ) later:
 
     await tresult
