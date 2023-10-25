@@ -6,17 +6,18 @@ Runtime Concerns
 
 Get the Horse64 runtime as part of the [SDK](
 /docs/Resources.md#sdk). This document talks about
-technical detail concerns you might have regarding the
-runtime.
+technical detail concerns regarding the runtime and
+underlying implementations.
 
 
-Overall architecture
---------------------
+How code reaches the runtime
+----------------------------
 
-**A program**'s code is written in an `.h64` text file, then translated
+A program's code is written in an `.h64` text file, then translated
 by [horsec](/docs/Resources.md#horsec) to bytecode stored in a binary
 file. This binary file is then combined with [HVM](
-/docs/Resources.md#hvm) into a mostly standalone executable.
+/docs/Resources.md#hvm) as a runtime into a mostly standalone
+executable.
 
 Other tooling like [horp](/docs/Resources.md#horp) helps
 with project management.
