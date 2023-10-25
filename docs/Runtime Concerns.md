@@ -46,8 +46,8 @@ For a lot of its base functionality HVM, and therefore by
 extension Horse64 programs, use [Spew3D](/docs/Resources.md#spew3d).
 
 
-Portability
------------
+Platforms
+---------
 
 Horse64 should be portable to almost all Unix-like platforms
 with some effort, at least for headless apps, for all gcc or
