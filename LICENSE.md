@@ -15,7 +15,7 @@ Files outside of the `logo` and `vendor` folders are, unless indicated
 otherwise, licensed under the following **BSD-2-Clause license**:
 
 ```
-Copyright (c) 2020-2023,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 
 
 Redistribution and use in source and binary forms, with or without
@@ -255,7 +255,7 @@ Logo license
 This concerns the files inside `logo` folder:
 
 ```
-Horse64 Logo is Copyright (C)  2020-2022, ellie/@ell1e. All Rights Reserved.
+Horse64 Logo is Copyright (C) 2020-2022, ellie/@ell1e. All Rights Reserved.
 
 The "Horse64 Logo"'s files are located in `logo/` with the filenames
 starting with "logo".
