@@ -63,6 +63,13 @@ the `core.horse64.org` can be found in the same location as
   https://codeberg.org/Horse64/core.horse64.org/src/branch/main/src).
 
 
+Horp
+----
+
+The **Hor**se **p**ackage manager, [see code here](
+https://codeberg.org/Horse64/horp.horse64.org/).
+
+
 Horsec
 ------
 

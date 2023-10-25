@@ -10,7 +10,18 @@ technical detail concerns you might have regarding the
 runtime.
 
 
-Garbage Collection
+Overall architecture
+--------------------
+
+A program's code is written in some text file, then translated
+by [horsec](/docs/Resources.md#horsec) to bytecode in a binary
+file. This binary file is then combined with [HVM](
+/docs/Resources.md#hvm) into a mostly standalone executable.
+Other tooling like [horp](/docs/Resources.md#horp) helps
+with project management.
+
+
+Garbage collection
 ------------------
 
 To make Horse64 powerful to use while still efficient for the
