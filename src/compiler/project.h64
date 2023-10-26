@@ -35,7 +35,7 @@ var _known_readable_files = []
 
 type Project {
     var base_dir_uri = none
-    
+
     var allow_disk_access = yes
 
     var allow_vfs_access = yes
