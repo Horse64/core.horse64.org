@@ -298,7 +298,7 @@ def increase_indent(t, added="", removed=0):
             break
 
     had_trailing_lb = (
-        len(lb) > 0 and t[-1].endswith(lb)
+        len(lb) > 0 and len(t) > 0 and t[-1].endswith(lb)
     )
     new_tokens = []
     line_start = 0
