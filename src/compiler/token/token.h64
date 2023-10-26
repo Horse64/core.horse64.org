@@ -2009,7 +2009,8 @@ func tokenize_from_uri(
         keep_comments=no, allow_remote=yes,
         default_to_diskpath=no, is_entrypoint=yes,
         force_single_file=no,
-        allow_disk_access=yes, allow_vfs_access=no
+        allow_disk_access=yes, allow_vfs_access=no,
+        debug_modules=no
         ) {
     source_uri = uri.normalize(
         source_uri, guess_nonfiles=(not default_to_diskpath)
@@ -2032,6 +2033,7 @@ func tokenize_from_uri(
             source_uri=source_uri,
             is_entrypoint=is_entrypoint,
             force_single_file=force_single_file,
+            request_debug_modules=debug_modules
         )
     }
     project_file.ensure_project() later:

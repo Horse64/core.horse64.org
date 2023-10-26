@@ -66,12 +66,14 @@ func tokenize_target_from_args(args) {
     }
 }
 
-func parse_ast_target_from_args(args, debug=no) {
+func parse_ast_target_from_args(args, debug=no,
+        debug_modules=no) {
     if args["--code"] != none {
         var tresult = compiler.ast.parse_str_to_ast(
             args["--code"], is_entrypoint=yes,
             force_single_file=yes, allow_disk_access=yes,
-            allow_vfs_access=no, debug=debug
+            allow_vfs_access=no, debug=debug,
+            debug_modules=no
         ) later:
 
         await tresult
@@ -82,7 +84,8 @@ func parse_ast_target_from_args(args, debug=no) {
     var tresult = compiler.ast.parse_to_ast_from_uri(
         src_path, default_to_diskpath=yes, is_entrypoint=yes,
         force_single_file=no, allow_disk_access=yes,
-        allow_vfs_access=no, debug=debug
+        allow_vfs_access=no, debug=debug,
+        debug_modules=debug_modules
     ) later:
 
     await tresult
@@ -148,7 +151,11 @@ func actionparser_compile(args) {
     defs.add_switch(
         "--debug-ast",
         description="Enable debug mode for the AST parser. "
-            "Warning, this will result in a lot of output.")
+            "Be warned, this will result in a lot of output.")
+    defs.add_switch(
+        "--debug-modules",
+        description="Enable debug module discovery. Prints out "
+        "all file paths and associated modules when processing.")
     defs.add_switch(
         "--stage", takes_arg=yes,
         description="At which stage to stop. The default is "
@@ -222,7 +229,8 @@ func actionparser_compile(args) {
             result.args["--stage"] == "global-scope" {
         var had_error = no
         var aresult = parse_ast_target_from_args(
-            result.args, debug=result.args["--debug-ast"]
+            result.args, debug=result.args["--debug-ast"],
+            debug_modules=result.args["--debug-modules"],
         )
         later:
 

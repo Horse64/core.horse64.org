@@ -366,7 +366,7 @@ func _tokenize_code_line_for_ast(
         # but we need one to do the import handling.
         tresult.project_file = new project.ProjectFile(
             source_uri=none, is_entrypoint=is_entrypoint,
-            force_single_file=force_single_file
+            force_single_file=force_single_file,
         )
     }
     tresult.project_file.ensure_project() later:
@@ -383,6 +383,7 @@ func _tokenize_this_file_for_ast(
         source, project_file=none, source_is_uri=no,
         is_entrypoint=yes, force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
+        debug_modules=no
         ) {
     if not source_is_uri {
         var result = _tokenize_code_line_for_ast(
@@ -401,7 +402,8 @@ func _tokenize_this_file_for_ast(
         force_single_file=force_single_file,
         allow_disk_access=allow_disk_access,
         allow_vfs_access=allow_vfs_access,
-        keep_whitespace=no
+        keep_whitespace=no,
+        debug_modules=debug_modules
     ) later:
 
     await tresult
@@ -413,7 +415,7 @@ func _parse_tokens_file_to_ast_ex(
         source_is_uri=no,
         is_entrypoint=yes, force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
-        debug=no,
+        debug=no, debug_modules=no
         ) {
     var tresult = _tokenize_this_file_for_ast(
         tokens_source, project_file=project_file,
@@ -422,6 +424,7 @@ func _parse_tokens_file_to_ast_ex(
         allow_vfs_access=allow_vfs_access,
         is_entrypoint=is_entrypoint,
         force_single_file=force_single_file,
+        debug_modules=debug_modules
     )
     later:
 
@@ -450,14 +453,15 @@ func parse_str_to_ast(
         codestr, project_file=none,
         is_entrypoint=yes,
         allow_disk_access=yes, allow_vfs_access=no,
-        debug=no
+        debug=no, debug_modules=no
         ) {
     var result = _parse_tokens_file_to_ast_ex(
         codestr, project_file=project_file, source_is_uri=no,
         force_single_file=yes,  # Inline code is always single-file.
         allow_disk_access=allow_disk_access,
         allow_vfs_access=allow_vfs_access,
-        is_entrypoint=is_entrypoint, debug=debug
+        is_entrypoint=is_entrypoint, debug=debug,
+        debug_modules=debug_modules
     ) later:
 
     await result
@@ -483,7 +487,7 @@ func parse_to_ast_from_uri(
         fileuri, project_file=none, default_to_diskpath=no,
         is_entrypoint=yes, force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
-        debug=no
+        debug=no, debug_modules=no
         ) {
     var result = _parse_tokens_file_to_ast_ex(
         uri.normalize(fileuri,
@@ -493,7 +497,7 @@ func parse_to_ast_from_uri(
         force_single_file=force_single_file,
         allow_disk_access=allow_disk_access,
         allow_vfs_access=allow_vfs_access,
-        debug=debug
+        debug=debug, debug_modules=debug_modules
     ) later:
 
     await result

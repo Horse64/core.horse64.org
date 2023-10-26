@@ -25,36 +25,39 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import io from core.horse64.org
 import net from core.horse64.org
+import uri from core.horse64.org
 
-func _validate_uri_list(uri) {
+func _validate_uri_list(target_uri) {
     # Validate input:
-    if typename(uri) == "bytes" {
-        uri = uri.as_str()
+    if typename(target_uri) == "bytes" {
+        target_uri = target_uri.as_str()
     }
-    if (typename(uri) != "list" and typename(uri) != "str") or
-            (typename(uri) == "list" and uri.len > 0 and
-            typename(uri[1]) != "str" and typename(uri[1]) != "bytes") {
-        throw new TypeError("unknown type for uri, expected "
-            "str or bytes or list for multiple")
+    if (typename(target_uri) != "list" and typename(target_uri) != "str") or
+            (typename(target_uri) == "list" and target_uri.len > 0 and
+             typename(target_uri[1]) != "str" and
+             typename(target_uri[1]) != "bytes") {
+        throw new TypeError("Unknown type for target_uri, expected "
+            "str or bytes or list for multiple.")
     }
 
     # Turn to a list, ensure it's really all strings:
-    var uris_unclean = uri
-    if typename(uri) != "list" {
+    var uris_unclean = target_uri
+    if typename(target_uri) != "list" {
         was_single_uri = yes
-        uris_unclean = [uri]
+        uris_unclean = [target_uri]
     }
     var uris = []
-    for uri in uris_unclean {
+    for target_uri in uris_unclean {
         if typename(uri) == "bytes" {
-            uris.append(uri.as_str())
-        } elseif typename(uri) != "str" {
+            uris.append(target_uri.as_str())
+        } elseif typename(target_uri) != "str" {
             throw new TypeError("unknown type for uri "
                 "list entry, expected "
                 "str or bytes")
         }
-        uris.append(uri)
+        uris.append(target_uri)
     }
     return uris
 }
@@ -63,20 +66,20 @@ func _validate_uri_list(uri) {
 ##
 ## @throws net.NetworkIOError, can throw sub variants
 ##   net.ServerError and net.ClientError
-## @param uri (str or list) A single URI as an @{str}, or
+## @param target_uri (str or list) A single URI as an @{str}, or
 ##   a @{list} or URIs, e.g. `["https://site1.org",
 ##   `["https://site2.org"]`. For a list, any of them
 ##   causing an @{error|Error} will interrupt and return it.
 ## @param path (str or list) A target path as an @{str},
-##   or a @{list} of paths if the `uri` param is also a @{list}.
+##   or a @{list} of paths if the `target_uri` param is also a @{list}.
 ## @param max_size num Since the string will be written to
 ##   disk unattended, for security reasons there must be a maximum
 ##   size. It defaults to 100MB. Use @{net.fetch.get} if you want
 ##   to avoid any limit.
-func write_to_file(uri, path, max_size=(100 * 1024  * 1024)) {
+func write_to_file(target_uri, path, max_size=(100 * 1024  * 1024)) {
     # Validate input:
-    var was_single_uri = {"bytes", "str"}.has(typename(uri))
-    var uris = _validate_uri_list(uri)
+    var was_single_uri = {"bytes", "str"}.has(typename(target_uri))
+    var uris = _validate_uri_list(target_uri)
     uris.reverse()  # So we can use .pop() to get it in order.
     if uris.len == 0 {
         return []
@@ -150,7 +153,7 @@ func write_to_file(uri, path, max_size=(100 * 1024  * 1024)) {
 ##
 ## @throws net.NetworkIOError, can throw sub variants
 ##   net.ServerError and net.ClientError
-## @param uri (str or list) A single URI as an @{str}, or
+## @param target_uri (str or list) A single URI as an @{str}, or
 ##   a @{list} or URIs, e.g. `["https://site1.org",
 ##   `["https://site2.org"]`.
 ## @param max_size num Since the string will be fully loaded
@@ -167,17 +170,17 @@ func write_to_file(uri, path, max_size=(100 * 1024  * 1024)) {
 ## @param allow_vfs bool Defaults to @{no}. If set to @{yes},
 ##   `vfs://` paths are allowed. **Only use if you want the URI
 ##   to possibly access any sort of internal resource unrestricted.**
-## @returns (str or list) If the `uri` parameter was a
+## @returns (str or list) If the `target_uri` parameter was a
 ##   an @{str} and not a @{list}, returns a single @{str} of
 ##   the contents. Otherwise, a @{list} of @{str}s, with
 ##   failed entries @{none} if `one_or_more` is @{yes}.
 func get_str(
-        uri, max_size=(1024 * 100), one_or_more=no,
+        target_uri, max_size=(1024 * 100), one_or_more=no,
         allow_vfs=no, allow_disk=no
         ) {
     # Validate input:
-    var was_single_uri = {"bytes", "str"}.has(typename(uri))
-    var uris = _validate_uri_list(uri)
+    var was_single_uri = {"bytes", "str"}.has(typename(target_uri))
+    var uris = _validate_uri_list(target_uri)
     uris.reverse()  # So we can use .pop() to get it in order.
     if uris.len == 0 {
         return []
@@ -229,19 +232,31 @@ func get_str(
     data = obj.read(amount=max_size) later repeat
 }
 
-func try_readable(uri) {
-    do {
-        with net.fetch.open(
-                uri, allow_vfs=yes, allow_disk=yes
-                ) later as obj {
-            var data = obj.read(amount=1)
-            later:
+func try_readable(docuri) {
+    # Using io.exists here is incorrect.
+    var result = io.exists(
+        uri.to_file_or_vfs_path(docuri)
+    ) later:
+    await result
+    return result
 
-            await data
-            return yes
-        }
-    } rescue net.ClientError, PermissionError {
-        return no
-    }
+    # THIS BREAKS OUR PYTHON TRANSLATOR, BIG DISABLE HACK XXX:
+    #do {
+    #    with net.fetch.open(
+    #            docuri, allow_vfs=yes, allow_disk=yes
+    #            ) later as obj {
+    #        var data = obj.read(amount=1)
+    #        later:
+    #
+    #        await data
+    #        return yes
+    #    }
+    #} rescue net.ClientError, PermissionError,
+    #        PathNotFoundError {
+    #    print("HELLO")
+    #    return no
+    #}
+    #print("EXIT")
+    #return no
 }
 

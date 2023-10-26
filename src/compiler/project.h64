@@ -25,11 +25,14 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import io from core.horse64.org
 import net.fetch from core.horse64.org
 import path from core.horse64.org
+import text from core.horse64.org
 import uri from core.horse64.org
 
 import compiler.comment.command as command_comment
+import compiler.token as token
 
 var _known_readable_files = []
 
@@ -39,14 +42,26 @@ type Project {
     var allow_disk_access = yes
 
     var allow_vfs_access = yes
+
+    var debug_modules = yes
 }
 
-func looks_like_project_dir(folder_uri) {
+type ModuleInfo {
+    var module_name
+
+    var rel_path
+
+    var package_name
+
+    var package_dir_uri
+}
+
+func check_is_project_dir_check_files(folder_uri) {
     var test_files = [
         ".git", "horp.conf",
     ]
     var next_file = test_files.pop()
-    var can_read = net.fetch.try_readable(folder_uri)
+    var can_read = net.fetch.try_readable(uri.add_part(folder_uri, "/" + next_file))
     later:
 
     await can_read
@@ -56,25 +71,53 @@ func looks_like_project_dir(folder_uri) {
     if test_files.len == 0 {
         return no
     }
-    can_read = net.fetch.try_readable(folder_uri) later repeat
+    next_file = test_files.pop()
+    can_read = net.fetch.try_readable(
+        uri.add_part(folder_uri, "/" + next_file)
+    ) later repeat
+}
+
+func check_is_project_dir(folder_uri) {
+    var files_say_yes = check_is_project_dir_check_files(
+        folder_uri
+    ) later:
+
+    await files_say_yes
+    if files_say_yes {
+        return yes
+    }
+    if not {"file", "vfs"}.has(uri.get_protocol(folder_uri))  {
+        # Checking folders remotely not implemented, so we give up.
+        return no
+    }
+
+    var folder_exists = io.exists(
+        uri.add_part(folder_uri, "/horse_modules")
+    ) later:
+
+    await folder_exists
+    return folder_exists
 }
 
 func find_project_base(file_uri) {
     file_uri = uri.normalize(file_uri)
-    folder_uri = uri.dirname(file_uri)
-    var can_be_project = looks_like_project_dir(
+    var folder_uri = uri.dirname(file_uri)
+    var can_be_project = check_is_project_dir(
         folder_uri
     ) later:
 
     await can_be_project
     if can_be_project {
-        return folder_uri
+        return uri.normalize(
+            folder_uri, abs_disk_paths=yes
+        )
     }
     var new_folder_uri = uri.traverse_up(folder_uri)
     if new_folder_uri == folder_uri {
         return none
     }
-    can_be_project = looks_like_project_dir(
+    folder_uri = new_folder_uri
+    can_be_project = check_is_project_dir(
         folder_uri
     ) later repeat
 }
@@ -92,21 +135,21 @@ func Project.guess_base_from_file_uri(source_uri) {
 }
 
 func Project.get_rel_dir_of_file(file_uri) {
-    if base_dir == none {
+    if self.base_dir_uri == none {
         throw new ValueError("Project has no base directory.")
     }
-    if self.base_dir_uri == none or
-            uri.get_protocol(self.base_dir_uri) !=
+    if uri.get_protocol(self.base_dir_uri) !=
             uri.get_protocol(file_uri) {
         return none
     }
-    var base_norm = uri.normalize(self.base_dir_uri)
-    var furi_norm = uri.normalize(file_uri)
+    var base_norm = uri.normalize(self.base_dir_uri, abs_disk_paths=yes)
+    var furi_norm = uri.normalize(file_uri, abs_disk_paths=yes)
     if not furi_norm.starts(base_norm) {
         return none
     }
+
     var rel_dir = uri.unencode_path(furi_norm.sub(
-        base_norm.len
+        base_norm.len + 1
     ))
     while rel_dir.starts("/") {
         rel_dir = rel_dir.sub(2)
@@ -120,7 +163,7 @@ func Project.get_rel_dir_of_file(file_uri) {
     return rel_dir.replace("/", path.sep)
 }
 
-func Project.get_typepath_of_file(file_uri) {
+func Project.get_modinfo_for_file(file_uri) {
     var rel_path = self.get_rel_dir_of_file(
         file_uri
     )
@@ -128,20 +171,57 @@ func Project.get_typepath_of_file(file_uri) {
         throw new ValueError("Failed to get relative path "
             "for file.")
     }
-    rel_path = path.dirname(rel_path)
-    if rel_path.has(".") or rel_path.has(" ") {
-        throw new ValueError("File is inside directory "
-            "with invalid characters.")
+    if not rel_path.lower().endswith(".h64") {
+        throw new ValueError("Code files must have "
+            ".h64 file extension.")
     }
+    rel_path = rel_path.sub(1, rel_path.len - ".h64".len)
+    var code_a = text.code('a')
+    var code_z = text.code('z')
+    var code_cap_a = text.code('A')
+    var code_cap_z = text.code('Z')
+    var code_0 = text.code('0')
+    var code_9 = text.code('0')
+    var pos = 1
+    while pos <= rel_path.len {
+        if {"_", "/"}.has(rel_path[pos]) {
+            pos += 1
+            continue
+        }
+        var cp = text.code(rel_path[pos])
+        if (cp < code_a or cp > code_z) and
+                (cp < code_cap_a or cp > code_cap_z) and
+                (cp < code_0 or cp > code_9) and
+                cp <= 127 {
+            throw new ValueError("File is inside directory "
+                "with invalid module name with forbidden "
+                "character: " +
+                token.describe_char_at(rel_path, pos,
+                    maybe_cutoff_glyph=no
+                ))
+        }
+        pos += 1
+    }
+    var package_name = none
+    var package_dir_uri = self.base_dir_uri
     if rel_path.startswith("horse_modules" + path.sep) or
             rel_path == "horse_modules" {
         rel_path = rel_path.sub(
             ("horse_modules" + path.sep).len + 1)
+        while rel_path.starts(path.sep) {
+            rel_path = rel_path.sub(2)
+        }
         var pos = rel_path.find(path.sep)
         if pos == none {
             return none
         } else {
+            assert(pos > 1)
+            var component = rel_path.sub(1, pos - 1)
             rel_path = rel_path.sub(pos + 1)
+            package_name = component
+            package_dir_uri = uri.add_part(
+                package_dir_uri, "/horse_modules/" + component
+            )
         }
     } else {
         var source_dirs = ["source", "src"]
@@ -149,26 +229,32 @@ func Project.get_typepath_of_file(file_uri) {
             if rel_path.lower().starts(source_dir + path.sep) or
                     rel_path.lower() == source_dir {
                 rel_path = rel_path.sub(
-                    (source_dir + path_sep).len + 1)
+                    (source_dir + path.sep).len + 1)
                 break
             }
         }
         if rel_path == "" {
-            return none
+            return later none
         }
     }
-    return rel_path.split(path.sep)
+    var modinfo = new ModuleInfo()
+    modinfo.module_name = rel_path.replace(path.sep, ".")
+    modinfo.package_dir_uri = package_dir_uri
+    modinfo.rel_path = rel_path
+    modinfo.package_name = package_name
+    return later modinfo
 }
 
 type ProjectFile {
     ## @types (str, none)
     var source_uri protect = none
 
+    var wants_debug_modules = no
+
     ## @types (Project, none)
     var project protect = none
 
-    var module_name = none
-    var package_name = none
+    var modinfo = none
 
     var is_entrypoint = no
     var _is_single_file = none
@@ -176,9 +262,12 @@ type ProjectFile {
 
 func ProjectFile.init(
         source_uri=none, is_entrypoint=no,
-        force_single_file=no) {
+        force_single_file=no, project=none,
+        request_debug_modules=no) {
+    self.wants_debug_modules = request_debug_modules
     self.source_uri = source_uri
     self.is_entrypoint = is_entrypoint
+    self.project = project
     if force_single_file {
         self._is_single_file = yes
     } elseif is_entrypoint {
@@ -272,15 +361,45 @@ func check_file_existence(file_uri, project=none) {
     return result
 }
 
-func ProjectFile.ensure_project {
-    if self.project == none {
-        self.project = new Project()
-    }
+func ProjectFile.ensure_project_base_dir {
     if self.source_uri == none or self.project.base_dir_uri != none {
         return later none
     }
     self.project.guess_base_from_file_uri(self.source_uri) later:
-    return
+    if self.wants_debug_modules {
+        print("compiler.project: ensure_project_base_dir() " +
+            "detected project dir: " +
+            self.project.base_dir_uri.as_str() +
+            " (from file: " + self.source_uri.as_str() + ")")
+    }
+}
+
+func ProjectFile.ensure_project {
+    if self.project == none {
+        self.project = new Project()
+        if self.wants_debug_modules {
+            self.project.debug_modules = yes
+        }
+    }
+    self.ensure_project_base_dir() later:
+
+    if self.source_uri == none or self.modinfo != none {
+        return later none
+    }
+    var modinfo = self.project.get_modinfo_for_file(
+        self.source_uri
+    ) later:
+
+    await modinfo
+    self.modinfo = modinfo
+    if self.wants_debug_modules {
+        print("compiler.project: ensure_project() " +
+            "detected module info: module_name='" +
+            self.modinfo.module_name + "', package_name=" +
+            if self.modinfo.package_name != none ("'" +
+                self.modinfo.package_name + "'") else ("none") +
+            ", from file: " + self.source_uri.as_str())
+    }
 }
 
 func ProjectFile.get_relative_imports_to_test(
