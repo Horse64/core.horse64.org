@@ -2034,7 +2034,7 @@ func tokenize_from_uri(
             force_single_file=force_single_file,
         )
     }
-    project_file.ensure_project()
+    project_file.ensure_project() later:
     project_file.project.allow_disk_access = (
         allow_disk_access
     )

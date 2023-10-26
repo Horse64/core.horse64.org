@@ -349,48 +349,63 @@ func parse_to_ast(
     return contents
 }
 
+func _tokenize_code_line_for_ast(
+        source, project_file=none,
+        is_entrypoint=yes, force_single_file=no,
+        allow_disk_access=yes, allow_vfs_access=no,
+        ) {
+    if not force_single_file and is_entrypoint {
+        throw new ValueError("Not setting force_single_file "
+            "to yes for inline code makes no sense.")
+    }
+    var tresult = token.tokenize_str(
+        source, project_file=project_file, keep_whitespace=no
+    )
+    if tresult.project_file == none {
+        # This is usually the case for direct code,
+        # but we need one to do the import handling.
+        tresult.project_file = new project.ProjectFile(
+            source_uri=none, is_entrypoint=is_entrypoint,
+            force_single_file=force_single_file
+        )
+    }
+    tresult.project_file.ensure_project() later:
+    tresult.project_file.project.allow_disk_access = (
+        allow_disk_access
+    )
+    tresult.project_file.project.allow_vfs_access = (
+        allow_vfs_access
+    )
+    return tresult
+}
+
 func _tokenize_this_file_for_ast(
         source, project_file=none, source_is_uri=no,
         is_entrypoint=yes, force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
         ) {
     if not source_is_uri {
-        if not force_single_file and is_entrypoint {
-            throw new ValueError("Not setting force_single_file "
-                "to yes for inline code makes no sense.")
-        }
-        var tresult = token.tokenize_str(
-            source, project_file=project_file, keep_whitespace=no
-        )
-        if tresult.project_file == none {
-            # This is usually the case for direct code,
-            # but we need one to do the import handling.
-            tresult.project_file = new project.ProjectFile(
-                source_uri=none, is_entrypoint=is_entrypoint,
-                force_single_file=force_single_file
-            )
-        }
-        tresult.project_file.ensure_project()
-        tresult.project_file.project.allow_disk_access = (
-            allow_disk_access
-        )
-        tresult.project_file.project.allow_vfs_access = (
-            allow_vfs_access
-        )
-        return tresult
-    } else {
-        var tresult = token.tokenize_from_uri(
+        var result = _tokenize_code_line_for_ast(
             source, project_file=project_file,
             is_entrypoint=is_entrypoint,
             force_single_file=force_single_file,
             allow_disk_access=allow_disk_access,
-            allow_vfs_access=allow_vfs_access,
-            keep_whitespace=no
+            allow_vfs_access=allow_vfs_access
         ) later:
-
-        await tresult
-        return tresult
+        await result
+        return result
     }
+    var tresult = token.tokenize_from_uri(
+        source, project_file=project_file,
+        is_entrypoint=is_entrypoint,
+        force_single_file=force_single_file,
+        allow_disk_access=allow_disk_access,
+        allow_vfs_access=allow_vfs_access,
+        keep_whitespace=no
+    ) later:
+
+    await tresult
+    return tresult
 }
 
 func _parse_tokens_file_to_ast_ex(

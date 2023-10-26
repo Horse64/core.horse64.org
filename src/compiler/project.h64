@@ -26,8 +26,8 @@
 # license, see accompanied LICENSE.md.
 
 import net.fetch from core.horse64.org
-#import path from core.horse64.org
-#import uri from core.horse64.org
+import path from core.horse64.org
+import uri from core.horse64.org
 
 import compiler.comment.command as command_comment
 
@@ -35,7 +35,7 @@ var _known_readable_files = []
 
 type Project {
     var base_dir_uri = none
-
+    
     var allow_disk_access = yes
 
     var allow_vfs_access = yes
@@ -79,7 +79,7 @@ func find_project_base(file_uri) {
     ) later repeat
 }
 
-func Project.init_from_file(source_uri) {
+func Project.guess_base_from_file_uri(source_uri) {
     var base_dir = find_project_base(source_uri)
     later:
 
@@ -105,7 +105,7 @@ func Project.get_rel_dir_of_file(file_uri) {
     if not furi_norm.starts(base_norm) {
         return none
     }
-    var rel_dir = uri.unescape_path(furi_norm.sub(
+    var rel_dir = uri.unencode_path(furi_norm.sub(
         base_norm.len
     ))
     while rel_dir.starts("/") {
@@ -166,6 +166,9 @@ type ProjectFile {
 
     ## @types (Project, none)
     var project protect = none
+
+    var module_name = none
+    var package_name = none
 
     var is_entrypoint = no
     var _is_single_file = none
@@ -273,12 +276,18 @@ func ProjectFile.ensure_project {
     if self.project == none {
         self.project = new Project()
     }
+    if self.source_uri == none or self.project.base_dir_uri != none {
+        return later none
+    }
+    self.project.guess_base_from_file_uri(self.source_uri) later:
+    return
 }
 
 func ProjectFile.get_relative_imports_to_test(
         full_original_import
         ) {
-    self.ensure_project()
+    self.ensure_project() later:
+    return none
 }
 
 func ProjectFile.resolve_import(name_of_type, path_of_type) {
@@ -286,6 +295,7 @@ func ProjectFile.resolve_import(name_of_type, path_of_type) {
         throw new RuntimeError("Must call "
             "check_is_single_file() first.")
     }
-    self.ensure_project()
+    self.ensure_project() later:
+    return none
 }
 
