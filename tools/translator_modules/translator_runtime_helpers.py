@@ -885,6 +885,17 @@ def _uri_dirname(v):
         urlobj, replace_path=new_path
     )
 
+def _uri_add_part(v, part):
+    urlobj = urllib.parse.urlparse(_uri_normalize(v))
+    new_path = urlobj.path
+    if (new_path.endswith("/") and
+            part.startswith("/")):
+        part = part[1:]
+    new_path += part
+    return _pyurlobj_to_str(
+        urlobj, replace_path=new_path
+    )
+
 def _uri_traverse_up(v, working_dir=None):
     cwd = working_dir
     urlobj = urllib.parse.urlparse(_uri_normalize(v))
