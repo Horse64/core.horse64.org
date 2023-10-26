@@ -3096,6 +3096,7 @@ def translate_do_func(
             print("translator.py: error: trying to locate module " +
                 modname + " in package " + str(package_name) +
                 " but file is missing: " + str(target_file))
+            import sys
             sys.exit(1)
         original_contents = contents
         sanity_check_h64_codestring(contents, modname=modname,

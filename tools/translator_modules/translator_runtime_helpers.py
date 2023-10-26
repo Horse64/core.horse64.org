@@ -897,16 +897,21 @@ def _uri_add_part(v, part):
     )
 
 def _uri_traverse_up(v, working_dir=None):
+    import os
     cwd = working_dir
-    urlobj = urllib.parse.urlparse(_uri_normalize(v))
+    v = _uri_normalize(v)
+    urlobj = urllib.parse.urlparse(v)
     new_path = urlobj.path
+    if urlobj.scheme.lower() in ["file", "vfs"]:
+        # urllib is apparently kinda trashy, fix this:
+        new_path = urllib.parse.unquote(v.partition("://")[2])
+
     if ((new_path == "../" or
             new_path == "/../" or new_path == "" or
             new_path == "." or new_path == "./") and
-            new_scheme.lower() in ["file", "vfs"]):
+            urlobj.scheme.lower() in ["file", "vfs"]):
         if not os.path.isabs(new_path):
             if cwd == None:
-                import os
                 cwd = os.getcwd()
             cwd = os.path.normpath(os.path.abspath(cwd.\
                 replace("/", os.path.sep))).\
@@ -925,13 +930,18 @@ def _uri_traverse_up(v, working_dir=None):
     if (new_path.endswith("/") and
             len(new_path) > 1):
         new_path = new_path[:-1]
-    while not new_path.endswith("/"):
+    while len(new_path) > 0 and not new_path.endswith("/"):
         new_path = new_path[:-1]
+    if urlobj.scheme.lower() in ["file", "vfs"]:
+        # Hack around urllib bugginess
+        return urlobj.scheme.lower() + "://" + new_path
     return _pyurlobj_to_str(
         urlobj, replace_path=new_path
     )
 
-def _uri_normalize(v, guess_nonfiles=True):
+def _uri_normalize(v, guess_nonfiles=True,
+        abs_disk_paths=False,
+        working_dir=None):
     v = str(v + "")
     if (guess_nonfiles and
             _looks_like_uri(v) and
@@ -954,10 +964,22 @@ def _uri_normalize(v, guess_nonfiles=True):
         v = "file://" + urllib.parse.quote(v)
     if (v.lower().startswith("file://") or
             v.lower().startswith("vfs://")):
-        resource = urllib.parse.unquote(v.partition("://")[2])
+        resource = urllib.parse.unquote(v.partition("://")[2]).\
+            replace("/", os.path.sep)
         resource = os.path.normpath(resource)
-        if resource == ".":
-            resource = "./"
+        if resource == "." or resource == "":
+            resource = "." + os.path.sep
+        if abs_disk_paths and not os.path.isabs(resource):
+            if working_dir == None:
+                working_dir = os.getcwd()
+            resource = os.path.normpath(os.path.join(
+                working_dir, resource
+            ))
+        resource = resource.replace(os.path.sep, "/")
+        while "//" in resource:
+            resource = resource.replace("//", "/")
+        if resource.endswith("/") and len(resource) > 1:
+            resource = resource[:-1]
         return (v.partition("://")[0].lower() + "://" +
             urllib.parse.quote(resource))
     urlobj = urllib.parse.urlparse(v)
