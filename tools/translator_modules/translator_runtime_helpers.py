@@ -860,52 +860,65 @@ def _uri_encode_path(v):
 
 def _uri_add_path(v):
     urlobj = urllib.parse.urlparse(_uri_normalize(v))
-    if not urlobj.path.endswith("/"):
-        urlobj.path += "/"
-    urlobj.path += v
-    return _pyurlobj_to_str(urlobj)
+    new_path = urlobj.path
+    if not new_path.endswith("/"):
+        new_path += "/"
+    new_path += v
+    return _pyurlobj_to_str(
+        urlobj, replace_path=new_path
+    )
 
 def _uri_dirname(v):
     urlobj = urllib.parse.urlparse(_uri_normalize(v))
-    if urlobj.path.endswith("/"):
-        if (len(urlobj.path) > 1):
-            urlobj.path = urlobj.path[:-1]
-        if urlobj.path == ".":
-            urlobj.path = "./"
-        return _pyurlobj_to_str(urlobj)
-    while not urlobj.path.endswith("/"):
-        urlobj.path = urlobj.path[:-1]
-    return _pyurlobj_to_str(urlobj)
+    new_path = urlobj.path
+    if new_path.endswith("/"):
+        if (len(new_path) > 1):
+            new_path = new_path[:-1]
+        if new_path == ".":
+            new_path = "./"
+        return _pyurlobj_to_str(
+            urlobj, replace_path=new_path
+        )
+    while not new_path.endswith("/"):
+        new_path = new_path[:-1]
+    return _pyurlobj_to_str(
+        urlobj, replace_path=new_path
+    )
 
 def _uri_traverse_up(v, working_dir=None):
     cwd = working_dir
     urlobj = urllib.parse.urlparse(_uri_normalize(v))
-    if ((urlobj.path == "../" or
-            urlobj.path == "/../" or urlobj.path == "" or
-            urlobj.path == "." or urlobj.path == "./") and
-            urlobj.scheme.lower() == "file"):
-        if not os.path.isabs(urlobj.path):
+    new_path = urlobj.path
+    if ((new_path == "../" or
+            new_path == "/../" or new_path == "" or
+            new_path == "." or new_path == "./") and
+            new_scheme.lower() in ["file", "vfs"]):
+        if not os.path.isabs(new_path):
             if cwd == None:
                 import os
                 cwd = os.getcwd()
             cwd = os.path.normpath(os.path.abspath(cwd.\
                 replace("/", os.path.sep))).\
                 replace(os.path.sep, "/")
-            urlobj.path = cwd + "/" + urlobj.path
-        urlobj.path = os.path.normpath(
-            urlobj.path.replace("/", os.path.sep)
+            new_path = cwd + "/" + new_path
+        new_path = os.path.normpath(
+            new_path.replace("/", os.path.sep)
         ).replace(os.path.sep, "/")
-        if (urlobj.path == "../" or
-                urlobj.path == "/../"):
+        if (new_path == "../" or
+                new_path == "/../"):
             # Impossible to go up further.
-            return _pyurlobj_to_str(urlobj)
+            return _pyurlobj_to_str(
+                urlobj, replace_path=new_path
+            )
 
-    if (urlobj.path.endswith("/") and
-            len(urlobj.path) > 1):
-        urlobj.path = urlobj.path[:-1]
-    while not urlobj.path.endswith("/"):
-        urlobj.path = urlobj.path[:-1]
-    return _pyurlobj_to_str(urlobj)
+    if (new_path.endswith("/") and
+            len(new_path) > 1):
+        new_path = new_path[:-1]
+    while not new_path.endswith("/"):
+        new_path = new_path[:-1]
+    return _pyurlobj_to_str(
+        urlobj, replace_path=new_path
+    )
 
 def _uri_normalize(v, guess_nonfiles=True):
     v = str(v + "")
@@ -937,17 +950,23 @@ def _uri_normalize(v, guess_nonfiles=True):
         return (v.partition("://")[0].lower() + "://" +
             urllib.parse.quote(resource))
     urlobj = urllib.parse.urlparse(v)
-    while "//" in urlobj.path:
-        urlobj.path = urlobj.path.replace("//", "/")
-    return _pyurlobj_to_str(urlobj)
+    new_path = urlobj.path
+    while "//" in new_path:
+        new_path = new_path.replace("//", "/")
+    return _pyurlobj_to_str(
+        urlobj, replace_path=new_path
+    )
 
-def _pyurlobj_to_str(urlobj):
+def _pyurlobj_to_str(urlobj, replace_path=None):
     result = (urlobj.scheme.lower() + "://" +
         urlobj.hostname.lower())
     if urlobj.port != None:
         result += ":" + str(urlobj.port)
     resource = urlobj.path
-    if not resource.startswith("/"):
+    if replace_path != None:
+        resource = replace_path
+    if (not resource.startswith("/") and
+            urlobj.scheme.lower() not in ["file", "vfs"]):
         resource = "/" + resource
     result += resource
     return result
@@ -1762,7 +1781,7 @@ def _net_fetch_open(*args, **kwargs):
 
 def _net_fetch_open_sync(uri, extra_headers=None,
         user_agent="core.horse64.org net.fetch/0.1 (translator)",
-        allow_disk=False, allow_vfs=False):
+        allow_disk=True, allow_vfs=True):
     if extra_headers is None:
         extra_headers = {}
     if not "://" in uri:

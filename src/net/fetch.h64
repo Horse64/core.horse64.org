@@ -25,6 +25,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import net from core.horse64.org
+
 func _validate_uri_list(uri) {
     # Validate input:
     if typename(uri) == "bytes" {
@@ -230,7 +232,7 @@ func get_str(
 func try_readable(uri) {
     do {
         with net.fetch.open(
-                next_uri, allow_vfs=allow_vfs, allow_disk=allow_disk
+                uri, allow_vfs=yes, allow_disk=yes
                 ) later as obj {
             var data = obj.read(amount=1)
             later:
@@ -238,7 +240,7 @@ func try_readable(uri) {
             await data
             return yes
         }
-    } rescue ClientError, PermissionError {
+    } rescue net.ClientError, PermissionError {
         return no
     }
 }
