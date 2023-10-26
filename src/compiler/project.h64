@@ -57,12 +57,38 @@ type ModuleInfo {
     var package_dir_uri
 }
 
-func check_is_project_dir_check_files(folder_uri) {
+func ModuleInfo.as_json_obj(project=none) {
+    var result = {
+        "module_name" -> self.module_name,
+        "rel_path" -> self.rel_path,
+        "package_name" -> self.package_name,
+        "package_dir" -> self.package_dir_uri,
+    }
+    if project != none and project.base_dir_uri != none {
+        result["base_dir_uri"] = project.base_dir_uri
+    }
+    return result
+}
+
+func ModuleInfo.as_terminal_str(project=none) {
+    var t = ""
+    var title = "Module: " + self.module_name
+    t += title + "\n" + "-".rep(title.len) + "\n\n"
+    t += "Relative path: " + self.rel_path + "\n"
+    t += "Package name: " + self.package_name.as_str() + "\n"
+    t += "Package directory URI: " + self.package_dir_uri + "\n"
+    if project != none and project.base_dir_uri != none {
+        t += "Project directory URI: " + project.base_dir_uri + "\n"
+    }
+    return t
+}
+
+func check_is_project_dir_check_files(dir_uri) {
     var test_files = [
         ".git", "horp.conf",
     ]
     var next_file = test_files.pop()
-    var can_read = net.fetch.try_readable(uri.add_part(folder_uri, "/" + next_file))
+    var can_read = net.fetch.try_readable(uri.add_part(dir_uri, "/" + next_file))
     later:
 
     await can_read
@@ -74,52 +100,52 @@ func check_is_project_dir_check_files(folder_uri) {
     }
     next_file = test_files.pop()
     can_read = net.fetch.try_readable(
-        uri.add_part(folder_uri, "/" + next_file)
+        uri.add_part(dir_uri, "/" + next_file)
     ) later repeat
 }
 
-func check_is_project_dir(folder_uri) {
+func check_is_project_dir(dir_uri) {
     var files_say_yes = check_is_project_dir_check_files(
-        folder_uri
+        dir_uri
     ) later:
 
     await files_say_yes
     if files_say_yes {
         return yes
     }
-    if not {"file", "vfs"}.has(uri.get_protocol(folder_uri))  {
-        # Checking folders remotely not implemented, so we give up.
+    if not {"file", "vfs"}.has(uri.get_protocol(dir_uri))  {
+        # Checking dirs remotely not implemented, so we give up.
         return no
     }
 
-    var folder_exists = io.exists(
-        uri.add_part(folder_uri, "/horse_modules")
+    var dir_exists = io.exists(
+        uri.add_part(dir_uri, "/horse_modules")
     ) later:
 
-    await folder_exists
-    return folder_exists
+    await dir_exists
+    return dir_exists
 }
 
 func find_project_base(file_uri) {
     file_uri = uri.normalize(file_uri)
-    var folder_uri = uri.dirname(file_uri)
+    var dir_uri = uri.dirname(file_uri)
     var can_be_project = check_is_project_dir(
-        folder_uri
+        dir_uri
     ) later:
 
     await can_be_project
     if can_be_project {
         return uri.normalize(
-            folder_uri, abs_disk_paths=yes
+            dir_uri, abs_disk_paths=yes
         )
     }
-    var new_folder_uri = uri.traverse_up(folder_uri)
-    if new_folder_uri == folder_uri {
+    var new_dir_uri = uri.traverse_up(dir_uri)
+    if new_dir_uri == dir_uri {
         return none
     }
-    folder_uri = new_folder_uri
+    dir_uri = new_dir_uri
     can_be_project = check_is_project_dir(
-        folder_uri
+        dir_uri
     ) later repeat
 }
 
@@ -136,6 +162,7 @@ func Project.guess_base_from_file_uri(source_uri) {
 }
 
 func Project.get_rel_dir_of_file(file_uri) {
+    file_uri = uri.normalize(file_uri)
     if self.base_dir_uri == none {
         throw new ValueError("Project has no base directory.")
     }
@@ -194,7 +221,7 @@ func Project.get_modinfo_for_file(file_uri) {
                 (cp < code_cap_a or cp > code_cap_z) and
                 (cp < code_0 or cp > code_9) and
                 cp <= 127 {
-            throw new ValueError("File is inside directory "
+            throw new ValueError("File is inside dir "
                 "with invalid module name with forbidden "
                 "character: " +
                 token.describe_char_at(rel_path, pos,
@@ -288,6 +315,9 @@ func ProjectFile.init(
         force_single_file=no, project=none,
         request_debug_modules=no) {
     self.wants_debug_modules = request_debug_modules
+    if source_uri != none {
+        source_uri = uri.normalize(source_uri)
+    }
     self.source_uri = source_uri
     self.is_entrypoint = is_entrypoint
     self.project = project
