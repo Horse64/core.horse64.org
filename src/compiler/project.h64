@@ -25,6 +25,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import confparse from core.horse64.org
 import io from core.horse64.org
 import net.fetch from core.horse64.org
 import path from core.horse64.org
@@ -237,11 +238,33 @@ func Project.get_modinfo_for_file(file_uri) {
             return later none
         }
     }
+
     var modinfo = new ModuleInfo()
     modinfo.module_name = rel_path.replace(path.sep, ".")
     modinfo.package_dir_uri = package_dir_uri
     modinfo.rel_path = rel_path
     modinfo.package_name = package_name
+
+    var horp_conf_uri = uri.add_part(package_dir_uri, "horp.conf")
+    var conf_exists = check_file_existence(
+        horp_conf_uri, project=self
+    ) later:
+
+    await conf_exists
+    if not conf_exists {
+        return modinfo
+    }
+    var conf_contents = confparse.parse_from_uri(
+        horp_conf_uri, error_on_mistakes=no
+    ) later:
+
+    await conf_contents
+    if conf_contents.has("package") and
+            conf_contents["package"].has("name") and
+            typename(conf_contents["package"]["name"]) == "str" {
+        modinfo.package_name = conf_contents["package"]["name"]
+    }
+
     return later modinfo
 }
 
@@ -343,16 +366,13 @@ func check_file_existence(file_uri, project=none) {
     }
     var protocol = uri.get_protocol(file_uri).lower()
     var result
-    if protocol == "file" {
+    if protocol == "file" or protocol == "vfs" {
         var upath = uri.to_file_or_vfs_path(file_uri)
-        return check_file_existence_diskpath(
+        var result = check_file_existence_diskpath(
             upath, project=project, is_known_vfs=no
-        )
-    } elseif protocol == "vfs" {
-        var upath = uri.to_file_or_vfs_path(file_uri)
-        return check_file_existence_diskpath(
-            upath, project=project, is_known_vfs=yes
-        )
+        ) later:
+        await rsult
+        return result
     }
     var result = net.fetch.test_readable(uri) later:
 

@@ -1,5 +1,5 @@
 # @module confparse
-# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -28,7 +28,6 @@
 import net from core.horse64.org
 import net.fetch from core.horse64.org
 import uri from core.horse64.org
-
 
 ## The error returned by @{parse_str}, @{parse_from_file}, and
 ## @{parse_from_uri} when an invalid config is found with
@@ -273,7 +272,7 @@ func parse_from_uri(
         throw new PermissionError("Remote URIs not allowed.")
     }
     var contents = net.fetch.get_str(
-        uri, max_size=max_size, one_or_more=no,
+        conf_uri, max_size=max_size, one_or_more=no,
         allow_vfs=yes, allow_disk=yes
     ) later:
 
@@ -281,7 +280,7 @@ func parse_from_uri(
     return parse_str(
         contents, allow_multiline=allow_multiline,
         allow_multiassign=allow_multiassign,
-        error_on_mistake=error_on_mistake
+        error_on_mistakes=error_on_mistakes
     )
 }
 

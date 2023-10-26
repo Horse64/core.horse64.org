@@ -50,7 +50,7 @@ func _validate_uri_list(target_uri) {
     }
     var uris = []
     for target_uri in uris_unclean {
-        if typename(uri) == "bytes" {
+        if typename(target_uri) == "bytes" {
             uris.append(target_uri.as_str())
         } elseif typename(target_uri) != "str" {
             throw new TypeError("unknown type for uri "
