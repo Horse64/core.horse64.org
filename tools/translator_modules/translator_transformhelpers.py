@@ -150,6 +150,38 @@ def transform_h64_with_to_do_rescue(s):
         s = tokenize(
             s.replace("\r\n", "\n").replace("\r", "\n")
         )
+    else:
+        s = list(s)  # We need a deep copy, we'll modify it.
+    def find_previous_block_opener(pos):
+        bdepth = 0
+        i = pos - 1
+        while i >= 0:
+            if s[i] in {"}", ")", "]"}:
+                bdepth += 1
+            elif s[i] in {"{", "(", "["}:
+                bdepth -= 1
+                if bdepth < 0 :
+                    if s[i] != "{":
+                        return None
+                    bdepth = 0
+                    i2 = i - 1
+                    while i2 >= 0 and (s[i2] not in {"func",
+                            "do", "if", "with", "type",
+                            "for", "enum", "else", "elseif",
+                            "finally", "rescue",
+                            "var", "const", "="} or
+                            bdepth > 0) and bdepth >= 0:
+                        if s[i2] in {"}", ")", "]"}:
+                            bdepth += 1
+                        elif s[i2] in {"{", "(", "["}:
+                            bdepth -= 1
+                        i2 -= 1
+                    if (i2 >= 0 and bdepth >= 0 and
+                            s[i2] != "="):
+                        return i2
+                    return None
+            i -= 1
+        return None
     new_tokens = []
     current_indent = ""
     i = 0
@@ -162,6 +194,111 @@ def transform_h64_with_to_do_rescue(s):
             assert(s[i].strip(" ") == "")
             current_indent = s[i]
         if s[i] == "with":
+            with_idx = i
+            in_block_idx = find_previous_block_opener(i)
+
+            # Only supporting 'with' directly in 'func' or inside
+            # outer 'do':
+            if (in_block_idx == None or
+                    s[in_block_idx] not in {"func", "do"} or
+                    (s[in_block_idx] == "do" and (
+                    find_previous_block_opener(in_block_idx) == None or
+                    s[find_previous_block_opener(in_block_idx)] != "func"))):
+                raise NotImplementedError("Found a 'with' "
+                    "not inside 'func', or 'func'+'do'. "
+                    "This is unsupported.")
+            block_indent = max(0, len(current_indent) - 4) * " "
+
+            # Get info about the 'do' statement we're in:
+            in_do_stmt = (s[in_block_idx] == "do")
+            do_inner_code_closing_bracket = None
+            finally_kw_idx = None
+            finally_first_code_line_idx = None
+            finally_code_closing_bracket_idx = None
+            rescue_kw_idx = []
+            rescue_first_code_line_idx = []
+            rescue_code_closing_bracket_idx = []
+            past_first_code_line_idx = None
+            if in_do_stmt:
+                bdepth = 0
+                k = in_block_idx + 1
+                while (k < slen and (bdepth > 0 or
+                        s[k] not in {"do", "if", "func",
+                        "type", "import", "var", "const"})):
+                    if s[k] in {"(", "{", "["}:
+                        bdepth += 1
+                    elif s[k] in {")", "}", "]"}:
+                        bdepth -= 1
+                        if (bdepth == 0 and s[k] == "}" and
+                                    nextnonblank(s, k) not in
+                                    {"finally", "rescue"}):
+                            if do_inner_code_closing_bracket is None:
+                                do_inner_code_closing_bracket = k
+                            k += 1
+                            while s[k].strip(" \t") == "":
+                                k += 1
+                            if s[k].strip("\r\n") == "":
+                                k += 1
+                            past_first_code_line_idx = k
+                            break
+                        elif (bdepth == 0 and s[k] == "}" and
+                                nextnonblank(s, k) in {"finally",
+                                "rescue"}):
+                            if do_inner_code_closing_bracket is None:
+                                do_inner_code_closing_bracket = k
+                            is_finally = (nextnonblank(s, k) == "finally")
+                            k = nextnonblankidx(s, k)
+                            if is_finally:
+                                finally_kw_idx = k
+                            else:
+                                rescue_kw_idx.append(k)
+                            k += 1
+                            while (s[k] != "{" or
+                                    prevnonblank(s,k) in ("{", "(", "=",
+                                    "+")):
+                                k += 1
+                            assert(s[k] == "{")
+                            k += 1
+                            while s[k].strip(" \t") == "":
+                                k += 1
+                            if s[k].strip("\r\n") == "":
+                                k += 1
+                            if is_finally:
+                                finally_first_code_line_idx = k
+                            else:
+                                rescue_first_code_line_idx.append(k)
+                            assert(bdepth == 0)
+                            bdepth = 1
+                            while k < slen:
+                                if s[k] in {"(", "[", "{"}:
+                                    bdepth += 1
+                                elif s[k] in {")", "]", "}"}:
+                                    bdepth -= 1
+                                    if bdepth <= 0:
+                                        assert(s[k] == "}")
+                                        break
+                                k += 1
+                            assert(s[k] == "}")
+                            if is_finally:
+                                finally_code_closing_bracket_idx = k
+                            else:
+                                rescue_code_closing_bracket_idx.\
+                                    append(k)
+                            if nextnonblank(s, k) not in ["finally",
+                                    "rescue"]:
+                                k += 1
+                                while s[k].strip(" \t") == "":
+                                    k += 1
+                                if s[k] == "\n":
+                                    k += 1
+                                past_first_code_line_idx = k
+                                break
+                            bdepth = 1
+                            continue
+                    k += 1
+                assert(past_first_code_line_idx != None)
+
+            # Now find with expression and label:
             expr_with = []
             i += 1
             has_later = False
@@ -200,16 +337,94 @@ def transform_h64_with_to_do_rescue(s):
                 i += 1
             assert(s[i] == "{")
             i += 1
+
+            # Now we're at the first token inside the 'with',
+            # and we got all the data we need to make this happen.
+
+            append_for_do = []
+            if in_do_stmt:
+                # First, instrument our pre-existing do's finally clause:
+                assert(len(rescue_kw_idx) == 0 or
+                    finally_kw_idx == None or
+                    finally_kw_idx > rescue_kw_idx[-1])
+                assert(do_inner_code_closing_bracket != None)
+                insert_tok = [current_indent, "if", " ",
+                    label_name, " ", "!=", " ", "none", " ",
+                    "and", " ", "has_attr", "(", label_name,
+                    ",", "\"close\"", ")", " ", "{", "\n",
+                    current_indent + "    ", label_name,
+                    ".", "close", "(", ")", "\n",
+                    current_indent, "}","\n"]
+                if finally_kw_idx != None:
+                    assert(s[finally_kw_idx] == "finally")
+                    s = s[:finally_first_code_line_idx] +\
+                        insert_tok + s[finally_first_code_line_idx:]
+                    past_first_code_line_idx += len(insert_tok)
+                    slen += len(insert_tok)
+                    assert(len(s) == slen)
+                else:
+                    #print("PRE FINALLY INSERT: " + str(untokenize(s)))
+                    finally_kw_idx = past_first_code_line_idx - 1
+                    #print("TOK PAST FIRST CODE LINE: " + str(s[finally_kw_idx:]))
+                    insert_at = finally_kw_idx
+                    while s[insert_at] != "}":
+                        insert_at -= 1
+                    insert_at += 1
+                    finally_kw_idx = insert_at + 1
+                    insert_tok2 = [" ", "finally", " ",
+                        "{", "\n"] + insert_tok + [current_indent[:-4],
+                        "}"]
+                    finally_first_code_line_idx = (
+                        past_first_code_line_idx + len(insert_tok2) + 1
+                    )
+                    s = s[:insert_at] +\
+                        insert_tok2 + s[insert_at:]
+                    slen += len(insert_tok2)
+                    past_first_code_line_idx += len(insert_tok2)
+                    #print("POST FINALLY INSERT: " + str(untokenize(s)))
+                z = len(rescue_kw_idx)
+                while z >= 1:
+                    z -= 1
+                    s = (s[:rescue_first_code_line_idx[z]] +
+                        insert_tok +
+                        s[rescue_first_code_line_idx[z]:])
+                    slen += len(insert_tok)
+                    past_first_code_line_idx += len(insert_tok)
+                    z2 = z + 1
+                    while z2 < len(rescue_kw_idx):
+                        rescue_kw_idx[z] += len(insert_tok)
+                        rescue_code_closing_bracket_idx[z] += len(
+                            insert_tok
+                        )
+                        z2 += 1
+                var_insert = ["var", " ", label_name, "\n",
+                    current_indent[:-4]]
+                diff = (len(new_tokens) - with_idx)
+                assert(s[in_block_idx] == "do")
+                assert(new_tokens[in_block_idx + diff] == "do")
+                s = s[:in_block_idx] + var_insert +\
+                    s[in_block_idx:]
+                i += len(var_insert)
+                slen += len(var_insert)
+                assert(len(s) == slen)
+                new_tokens = new_tokens[:in_block_idx + diff] +\
+                    var_insert + new_tokens[in_block_idx + diff:]
+
             assert(s[i].startswith("\n"))
-            new_tokens += ["var", " ",
+            new_tokens += (["var", " "] if
+                not in_do_stmt else []) + [
                 label_name, " ", "=", " "] + expr_with
             if has_later:
                 new_tokens += [
                     " ", "later", ":", "\n",
                     current_indent, "await", " ",
                     label_name]
-            new_tokens += ["\n", current_indent,
-                "do", " ", "{"]
+            adjust_indent = 0
+            if not in_do_stmt:
+                new_tokens += ["\n", current_indent,
+                    "do", " ", "{"]
+            else:
+                adjust_indent = -4
             bdepth = 1
             while i < slen:
                 if s[i] in {"(", "{", "["}:
@@ -218,19 +433,37 @@ def transform_h64_with_to_do_rescue(s):
                     bdepth -= 1
                     if bdepth == 0:
                         break
-                new_tokens.append(s[i])
+                if (s[i].strip(" \t") == "" and
+                        i > 0 and s[i - 1] == "\n" and
+                        adjust_indent < 0):
+                    new_tokens.append(s[i][:adjust_indent])
+                else:
+                    new_tokens.append(s[i])
                 i += 1
             assert(s[i] == "}")
             i += 1
-            new_tokens += ["}", " ", "finally", " ", "{", "\n",
-                current_indent + "    ",
-                "if", " ", "has_attr", "(", label_name,
-                ",", "\"close\"", ")", " ", "{", "\n",
-                current_indent + "        ",
-                label_name, ".", "close",
-                "(", ")", "\n",
-                current_indent + "    ", "}", "\n",
-                current_indent, "}"]
+            if not in_do_stmt:
+                new_tokens += ["}", " ", "finally", " ", "{", "\n",
+                    current_indent + "    ",
+                    "if", " ", "has_attr", "(", label_name,
+                    ",", "\"close\"", ")", " ", "{", "\n",
+                    current_indent + "        ",
+                    label_name, ".", "close",
+                    "(", ")", "\n",
+                    current_indent + "    ", "}", "\n",
+                    current_indent, "}"]
+            else:
+                while s[i].strip(" \t") == "":
+                    i += 1
+                if s[i] == "\n":
+                    i += 1
+                new_tokens += ["\n", current_indent,
+                    "var", " ", "_closevar", " ", "=",
+                    " ", label_name, "\n", current_indent,
+                    label_name, " ", "=", " ", "none",
+                    "\n", current_indent, "_closevar",
+                    ".", "close", "(", ")", "\n"]
+            continue
         new_tokens.append(s[i])
         i += 1
     if was_string:

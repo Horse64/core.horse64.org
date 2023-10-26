@@ -155,7 +155,7 @@ class TestTranslatorTransformHelpers(unittest.TestCase):
             }
         }
         """))
-        self.assertEqual(s, textwrap.dedent("""\
+        self.assertEqual(textwrap.dedent("""\
         import io from core.horse64.org
         func main {
             var f = io.open("some_file.txt", "r") later:
@@ -170,31 +170,149 @@ class TestTranslatorTransformHelpers(unittest.TestCase):
                 }
             }
         }
-        """))
+        """), s)
         s = transform_h64_with_to_do_rescue(textwrap.dedent("""\
         func some_func {
         }
         func main {
-            with some_func() as
-                    oopsoops {
-                print("Hello")
+            do {
+                print("toast")
+                with some_func() as
+                        oopsoops {
+                    print("Hello")
+                }
+                print("Hello abc")
+            } rescue IOError {
+                print("oops")
             }
         }
         """))
-        self.assertEqual(s, textwrap.dedent("""\
+        def _noemptylines(s):
+            lines = s.splitlines()
+            lines = [l for l in lines if l.strip() != ""]
+            return "\n".join(lines)
+        self.assertEqual(_noemptylines(textwrap.dedent("""\
         func some_func {
         }
         func main {
-            var oopsoops = some_func()
+            var oopsoops
             do {
+                print("toast")
+                oopsoops = some_func()
                 print("Hello")
+                var _closevar = oopsoops
+                oopsoops = none
+                _closevar.close()
+                print("Hello abc")
+            } rescue IOError {
+                if oopsoops != none and has_attr(oopsoops, "close") {
+                    oopsoops.close()
+                }
+                print("oops")
             } finally {
-                if has_attr(oopsoops, "close") {
+                if oopsoops != none and has_attr(oopsoops, "close") {
                     oopsoops.close()
                 }
             }
         }
+        """)), _noemptylines(s))
+        s = transform_h64_with_to_do_rescue(textwrap.dedent("""\
+        func some_func {
+        }
+        func main {
+            do {
+                print("toast")
+                with some_func() later as
+                        oopsoops {
+                    print("Hello")
+                }
+                print("Hello abc")
+            } finally {
+                print("oops")
+            }
+        }
         """))
+        self.assertEqual(_noemptylines(textwrap.dedent("""\
+        func some_func {
+        }
+        func main {
+            var oopsoops
+            do {
+                print("toast")
+                oopsoops = some_func() later:
+                await oopsoops
+                print("Hello")
+                var _closevar = oopsoops
+                oopsoops = none
+                _closevar.close()
+                print("Hello abc")
+            } finally {
+                if oopsoops != none and has_attr(oopsoops, "close") {
+                    oopsoops.close()
+                }
+                print("oops")
+            }
+        }
+        """)), _noemptylines(s))
+        s = transform_h64_with_to_do_rescue(textwrap.dedent("""\
+        func some_func {
+        }
+        func main {
+            do {
+                print("toast")
+                with some_func() later as
+                        oopsoops {
+                    print("Hello")
+                }
+                print("Hello abc")
+            } rescue IOError,
+                    ValueError {
+                print("OOOOP")
+                do {
+                    print("test!")
+                }
+            } rescue any {
+                print("HELO!")
+            } finally {
+                print("oops")
+            }
+        }
+        """))
+        self.assertEqual(_noemptylines(textwrap.dedent("""\
+        func some_func {
+        }
+        func main {
+            var oopsoops
+            do {
+                print("toast")
+                oopsoops = some_func() later:
+                await oopsoops
+                print("Hello")
+                var _closevar = oopsoops
+                oopsoops = none
+                _closevar.close()
+                print("Hello abc")
+            } rescue IOError,
+                    ValueError {
+                if oopsoops != none and has_attr(oopsoops, "close") {
+                    oopsoops.close()
+                }
+                print("OOOOP")
+                do {
+                    print("test!")
+                }
+            } rescue any {
+                if oopsoops != none and has_attr(oopsoops, "close") {
+                    oopsoops.close()
+                }
+                print("HELO!")
+            } finally {
+                if oopsoops != none and has_attr(oopsoops, "close") {
+                    oopsoops.close()
+                }
+                print("oops")
+            }
+        }""")), _noemptylines(s))
 
     def test_indent_sanity_check(self):
         def do_test(s, should_fail=False):
