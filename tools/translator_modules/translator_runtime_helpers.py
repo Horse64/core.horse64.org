@@ -886,12 +886,21 @@ def _uri_dirname(v):
     )
 
 def _uri_add_part(v, part):
-    urlobj = urllib.parse.urlparse(_uri_normalize(v))
+    v = _uri_normalize(v)
+    urlobj = urllib.parse.urlparse(v)
     new_path = urlobj.path
+    if urlobj.scheme.lower() in ["file", "vfs"]:
+        # Work around urllib:
+        new_path = v.partition("://")[2]
     if (new_path.endswith("/") and
             part.startswith("/")):
         part = part[1:]
+    elif (not new_path.endswith("/") and
+            not part.startswith("/")):
+        part = "/" + part
     new_path += part
+    if urlobj.scheme.lower() in ["file", "vfs"]:
+        return urlobj.scheme.lower() + "://" + new_path
     return _pyurlobj_to_str(
         urlobj, replace_path=new_path
     )
@@ -903,7 +912,7 @@ def _uri_traverse_up(v, working_dir=None):
     urlobj = urllib.parse.urlparse(v)
     new_path = urlobj.path
     if urlobj.scheme.lower() in ["file", "vfs"]:
-        # urllib is apparently kinda trashy, fix this:
+        # Work around urllib:
         new_path = urllib.parse.unquote(v.partition("://")[2])
 
     if ((new_path == "../" or
