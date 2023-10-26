@@ -3201,6 +3201,7 @@ def translate_do_func(
                 transform_for_file_output(contents,
                     with_linenos=output_file_linenos))
             print(output_file_result)
+            import sys
             sys.exit(0)
 
         sc = TranslateInfoScope()
