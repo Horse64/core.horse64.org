@@ -75,6 +75,13 @@ class CleanupCodeInsertInfo:
         self.rescue_disablers = []
         self.finally_disablers = []
 
+    def copy(self):
+        import copy
+        new_copy = CleanupCodeInsertInfo()
+        new_copy.cleanup_blocks = copy.deepcopy(self.cleanup_blocks)
+        new_copy.rescue_disablers = copy.deepcopy(self.rescue_disablers)
+        new_copy.finally_disablers = copy.deepcopy(self.finally_disablers)
+        return new_copy
 
 def _func_sts_end_in_return(sts):
     if type(sts) == list and \
@@ -496,6 +503,8 @@ def transform_later_to_closure_funccontents(
             cinfo = cleanup_code_insert_info
             if cinfo is None:
                 cinfo = CleanupCodeInsertInfo()
+            else:
+                cinfo = cinfo.copy()
             cinfo_insert = [None, None]
             cinfo_range = [None, None]
             do_range = None
