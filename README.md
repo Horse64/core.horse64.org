@@ -12,6 +12,7 @@ of Python.** It's free.
 ```Horse64
 func main {
     print("Hello to Horse64!")
+}
 ```
 [Features...](https://horse64.org/docs/Features)
 
