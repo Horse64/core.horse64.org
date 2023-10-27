@@ -2243,11 +2243,14 @@ def _is_num(v):
 
 
 def _container_copy(v, *args, **kwargs):
-    if type(v) in {dict, list, set} and len(args) == 0:
+    if type(v) in {dict, list, set,
+            _TranslatedSet} and len(args) == 0:
         if type(v) == dict:
             return dict(v)
         if type(v) == set:
             return set(v)
+        if type(v) == _TranslatedSet:
+            return _TranslatedSet(v.contents)
         return list(v)
     if hasattr(v, "_translator_renamed_copy"):
         return v._translator_renamed_copy(*args, **kwargs)
@@ -2544,6 +2547,9 @@ class _TranslatedSet(collections.abc.MutableSet):
         if v != None:
             for i in v:
                 self.contents.add(i)
+
+    def __repr__(self):
+        return "_TranslatedSet" + str(self.contents)
 
     def __len__(self):
         return len(self.contents)
