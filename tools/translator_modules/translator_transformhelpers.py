@@ -470,7 +470,10 @@ def transform_h64_with_to_do_rescue(s):
         new_tokens = untokenize(new_tokens)
     return new_tokens
 
-def is_isolated_pure_assign(t):
+def is_isolated_pure_assign(
+        t, allow_these_local_globals=None,
+        debug=False
+        ):
     if type(t) == str:
         t = tokenize(t)
     assert(type(t) == list and (
@@ -484,7 +487,10 @@ def is_isolated_pure_assign(t):
     starti = i
     while i <= len(t):
         if i >= len(t) or (bdepth == 0 and t[i] == ","):
-            if not is_isolated_pure_expression(t[starti:i]):
+            if not is_isolated_pure_expression(t[starti:i],
+                    allow_these_local_globals=\
+                        allow_these_local_globals,
+                    debug=debug):
                 return False
             starti = i + 1
             i += 1
@@ -496,8 +502,47 @@ def is_isolated_pure_assign(t):
         i += 1
     return True
 
+def get_declared_local_globals_simple(t):
+    names = []
+    bdepth = 0
+    i = 0
+    while i < len(t):
+        if t[i] in {"(", "[", "{"}:
+            bdepth += 1
+            i += 1
+            continue
+        elif t[i] in {")", "]", "}"}:
+            bdepth = max(0, bdepth - 1)
+            i += 1
+            continue
+        elif (bdepth == 0 and
+                t[i] in {"const", "var"}):
+            nameidx = nextnonblankidx(t, i)
+            name = t[nameidx]
+            if nextnonblank(t, nameidx) == "=":
+                expr_start = nextnonblankidx(t,
+                    nextnonblankidx(t, nameidx))
+                i = expr_start
+                while (i < len(t) and
+                        (bdepth > 0 or
+                        t[i].strip(" \t\r") != "\n")):
+                    if t[i] in {"(", "[", "{"}:
+                        bdepth += 1
+                    elif t[i] in {")", "]", "}"}:
+                        bdepth = max(0, bdepth - 1)
+                    i += 1
+                if is_isolated_pure_expression(
+                        t[expr_start:i]):
+                    names.append(name)
+        i += 1
+    return names
 
-def is_isolated_pure_expression(t):
+def is_isolated_pure_expression(
+        t, allow_these_local_globals=None,
+        debug=False
+        ):
+    if len(t) == 0:
+        return True
     known_ops = ["+", "*", "/", "&", "|", "~",
         "and", "or", "-", "not", "^", "**"]
 
@@ -525,6 +570,8 @@ def is_isolated_pure_expression(t):
         if not removed_bracket:
             break
     assigned_expr = t[start_idx:end_idx]
+    if len(assigned_expr) == 0:
+        return True
 
     # Creating locks can be done early & isolated no problem:
     if "".join(assigned_expr).strip() == "threading.make_lock()":
@@ -544,15 +591,34 @@ def is_isolated_pure_expression(t):
         if (bdepth == 0 and
                 assigned_expr[k] in known_ops):
             return is_isolated_pure_expression(
-                assigned_expr[:k]
+                assigned_expr[:k],
+                allow_these_local_globals=\
+                    allow_these_local_globals
             ) and is_isolated_pure_expression(
-                assigned_expr[k + 1:]
+                assigned_expr[k + 1:],
+                allow_these_local_globals=\
+                    allow_these_local_globals
             )
         if assigned_expr[k] in {"(", "[", "{"}:
             bdepth += 1
         elif assigned_expr[k] in {")", "]", "}"}:
             bdepth -= 1
         k += 1
+
+    # Handle needless brackets:
+    if (len(assigned_expr) >= 2 and
+            assigned_expr[0] == "(" and
+            assigned_expr[-1] == ")"):
+        return is_isolated_pure_expression(
+            assigned_expr[1:-1], allow_these_local_globals=\
+                allow_these_local_globals
+        )
+
+    # Handle local globals if we're allowed:
+    if (allow_these_local_globals != None and
+            len(assigned_expr) == 1 and
+            assigned_expr[0] in allow_these_local_globals):
+        return True
 
     # Handle all the other things we know to be without side
     # effects or dependency:
@@ -582,7 +648,9 @@ def is_isolated_pure_expression(t):
             if bdepth == 0 and (assigned_expr[i] == "," or
                     assigned_expr[i] in {"]", "}"}):
                 if not is_isolated_pure_expression(
-                        assigned_expr[item_start:i]):
+                        assigned_expr[item_start:i],
+                        allow_these_local_globals=\
+                            allow_these_local_globals):
                     return False
                 item_start = i + 1
                 if assigned_expr[i] != ",":

@@ -68,6 +68,7 @@ from translator_horphelpers import (
 
 from translator_transformhelpers import (
     transform_h64_misc_inline_to_python,
+    get_declared_local_globals_simple,
     apply_make_set_call,
     set_expr_len_if_any,
     transform_h64_with_to_do_rescue,
@@ -1345,6 +1346,7 @@ class TranslateInfoScope:
         self.project_info = None
         self.processed_imports = None
         self.translate_file_queue = None
+        self.h64_local_global_simple_vars_consts = None
         self.orig_h64_imports = None
         self.orig_h64_globals = None
         self.paranoid = False
@@ -1353,6 +1355,9 @@ class TranslateInfoScope:
     def copy(self):
         sc = TranslateInfoScope()
         sc.paranoid = self.paranoid
+        sc.h64_local_global_simple_vars_consts = (
+            list(self.h64_local_global_simple_vars_consts)
+        )
         sc.module_name = self.module_name
         sc.package_name = self.package_name
         sc.parent_statements = list(self.parent_statements)
@@ -1375,6 +1380,9 @@ def translate(s, sc):
         assert(sc.processed_imports is None or
             len(sc.processed_imports) == 0)
         assert(type(s) == list)
+        sc.h64_local_global_simple_vars_consts = (
+            get_declared_local_globals_simple(s)
+        )
         sc.orig_h64_imports = extract_all_imports(s)
         if sc.paranoid:
             assert(type(sc.orig_h64_imports) == list)
@@ -1436,8 +1444,16 @@ def translate(s, sc):
 
             # Check if this is a global var declaration:
             is_global = (len(sc.parent_statements) == 0)
+            allow_global_simple_vars_access_list = None
+            if is_global:
+                allow_global_simple_vars_access_list = list(
+                    sc.h64_local_global_simple_vars_consts
+                )
             is_nonisolated_or_nonpure = (
-                is_isolated_pure_assign(statement)
+                is_isolated_pure_assign(statement,
+                    debug=is_global,
+                    allow_these_local_globals=\
+                        allow_global_simple_vars_access_list)
             )
 
             # Hack: for various reasons, easiest to just nuke
@@ -3530,6 +3546,7 @@ def translate_do_func(
                 transform_for_file_output(contents_result,
                     with_linenos=output_file_linenos))
                 print(output_file_result)
+                import sys
                 sys.exit(0)
 
             if DEBUGV.ENABLE and DEBUGV.ENABLE_CONTENTS:
