@@ -39,6 +39,9 @@ import compiler.token as token
 
 var _known_readable_files = []
 
+type InvalidModuleNameError base ValueError {
+}
+
 type Project {
     var tried_loading_package_name = no
 
@@ -67,6 +70,12 @@ type ModuleInfo {
     var package_dir_uri
 }
 
+func ModuleInfo.as_str {
+    return "<ModuleInfo for module '" +
+        self.module_name + "' with rel_path '" +
+        self.rel_path + "'>"
+}
+
 func ModuleInfo.as_json_obj(project=none, project_file=none) {
     var result = {
         "module_name" -> self.module_name,
@@ -86,13 +95,18 @@ func ModuleInfo.as_json_obj(project=none, project_file=none) {
         result["imports"] = []
         for importst in project_file.imports {
             assert(importst != none)
-            result["imports"].add({
+            var entry = {
                 "module_name" -> importst.module_path.join("."),
                 "named_as" -> if importst.renamed_as != none
                     (importst.renamed_as) else (importst.module_path[1]),
                 "package_name" -> if importst.package_name != none
                     (importst.package_name) else (self.package_name),
-            })
+            }
+            if importst.project_file != none and
+                    importst.project_file.source_uri != none {
+                entry["file_uri"] = importst.project_file.source_uri
+            }
+            result["imports"].add(entry)
         }
     }
     return result
@@ -120,6 +134,9 @@ func ModuleInfo.as_terminal_str(project=none, project_file=none) {
             t += "  -> import " + importst["module_name"] +
                 " as " + importst["named_as"] +
                 " from " + importst["package_name"] + "\n"
+            if importst.has("file_uri") {
+                t += "      -> " + importst["file_uri"] + "\n"
+            }
         }
         if data["imports"].len == 0 {
             t += "   (none)\n"
@@ -254,7 +271,7 @@ func Project.get_modinfo_for_file(file_uri) {
             "for file.")
     }
     if not rel_path.lower().endswith(".h64") {
-        throw new ValueError("Code files must have "
+        throw new InvalidModuleNameError("Code files must have "
             ".h64 file extension.")
     }
     var no_ext_rel_path = rel_path.sub(1, rel_path.len - ".h64".len)
@@ -275,7 +292,7 @@ func Project.get_modinfo_for_file(file_uri) {
                 (cp < code_cap_a or cp > code_cap_z) and
                 (cp < code_0 or cp > code_9) and
                 cp <= 127 {
-            throw new ValueError("File is inside dir "
+            throw new InvalidModuleNameError("File is inside dir "
                 "with invalid module name with forbidden "
                 "character: " +
                 token.describe_char_at(no_ext_rel_path, pos,
@@ -288,7 +305,7 @@ func Project.get_modinfo_for_file(file_uri) {
     var package_dir_uri = self.base_dir_uri
     var is_external_package = no
     var module_name = none
-    if rel_path.startswith("horse_modules" + path.sep) or
+    if rel_path.starts("horse_modules" + path.sep) or
             rel_path == "horse_modules" {
         is_external_package = yes
         rel_path = rel_path.sub(
@@ -311,6 +328,11 @@ func Project.get_modinfo_for_file(file_uri) {
         no_ext_rel_path = rel_path.sub(1, rel_path.len - ".h64".len)
     }
     module_name = no_ext_rel_path.replace(path.sep, ".")
+    if module_name.split(".").has("horse_modules") {
+        throw new InvalidModuleNameError("File is inside dir "
+            "with invalid reserved name 'horse_modules', "
+            "while not in the actual packages directory.")
+    }
     if not is_external_package {
         for source_dir in valid_source_nesting_dirs {
             if module_name.lower().starts(source_dir + ".") or
@@ -705,23 +727,23 @@ func ProjectFile.get_relative_imports_to_test(
         if package_dir_uri == none {
             return none
         }
-        try_list.add([
+        try_list += [
             "horse_modules" + path.sep + external_package_name +
                 path.sep + full_original_import.join(path.sep) +
                 path.sep + full_original_import[
                     full_original_import.len] + ".h64",
             "horse_modules" + path.sep + external_package_name +
                 path.sep + full_original_import.join(path.sep) + ".h64"
-        ])
+        ]
         return try_list
     } else {
-        try_list.add([
+        try_list += [
             folder_path + path.sep + full_original_import.join(path.sep) +
                 path.sep + full_original_import[
                     full_original_import.len] + ".h64",
             folder_path + path.sep +
                 full_original_import.join(path.sep) + ".h64"
-        ])
+        ]
     }
     var i = levels_up
     while i > 0 {
@@ -763,6 +785,131 @@ func ProjectFile.get_relative_imports_to_test(
 
 extend import_stmt.ImportStmt {
     var resolve_attempted = no
+    var project_file = none
+}
+
+func get_source_nesting_dir(project_folder_uri) {
+    var protocol = uri.get_protocol(project_folder_uri).lower()
+    if not {"vfs", "file"}.has(protocol) {
+        throw new NotImplementedError("Probing directory "
+            "structure for remote dependency not support.")
+    }
+    var base_path = uri.to_file_or_vfs_path(project_folder_uri)
+    var try_list = valid_source_nesting_dirs.copy()
+    var next_name = try_list.pop()
+    var exists = io.exists(path.join(
+        base_path, next_name)) later:
+
+    await exists
+    if exists {
+        return later next_name
+    }
+    if try_list.len == 0 {
+        return later none
+    }
+    next_name = try_list.pop()
+
+    exists = io.exists(path.join(
+        base_path, next_name)) later repeat
+}
+
+func ProjectFile.get_target_uri_for_import(
+        import_rel_path, external_package_name=none
+        ) {
+    func get_uri_for_external(import_rel_path) {
+        var source_nest_dir = get_source_nesting_dir(
+            uri.add_part(
+                self.project.modules_dir_uri,
+                import_rel_path.split(path.sep)[2]
+            )) later:
+
+        await source_nest_dir
+        assert(external_package_name != none)
+        if source_nest_dir != none {
+            import_rel_path = (
+                import_rel_path.split(path.sep)[2] +
+                "/" + source_nest_dir + "/" +
+                import_rel_path.split(path.sep).sub(3).join("/")
+            )
+        }
+        var new_uri = uri.add_part(
+            self.project.modules_dir_uri,
+            import_rel_path.replace(path.sep, "/")
+        )
+        return later uri.normalize(new_uri)
+    }
+    if import_rel_path.starts("horse_modules" + path.sep) {
+        var result_uri = get_uri_for_external(import_rel_path) later:
+
+        await result_uri
+        return result_uri
+    }
+    if self.project.base_dir_uri == none {
+        throw new RuntimeError("Internal error, "
+            "somehow asked to find place of internal project "
+            "file without project root.")
+    }
+    var new_uri = uri.add_part(
+        self.project.base_dir_uri,
+        import_rel_path.replace(path.sep, "/")
+    )
+    return later uri.normalize(new_uri)
+}
+
+func ProjectFile.find_first_working_project_file(
+        try_list, external_package_name=none
+        ) {
+    if try_list.len == 0 {
+        return none
+    }
+    func test_and_get_project_file(try_entry) {
+        var file_uri = self.get_target_uri_for_import(
+            try_entry, external_package_name=
+                external_package_name) later:
+
+        await file_uri
+        var readable = net.fetch.try_readable(file_uri) later:
+
+        await readable
+        if readable {
+            var mod_rel_path = try_entry
+            var mod_name
+            if external_package_name != none {
+                assert(mod_rel_path.starts("horse_modules"))
+                var split_path = mod_rel_path.split(path.sep)
+                mod_name = split_path.sub(3).join(".")
+            } else {
+                mod_name = mod_rel_path.split(path.sep).join(".")
+            }
+            assert(mod_name.ends(".h64"))
+            mod_name = mod_name.sub(1, mod_name.len - ".h64".len)
+
+            var modinfo = new ModuleInfo()
+            modinfo.module_name = mod_name
+            modinfo.rel_path = mod_rel_path
+            modinfo.package_name = external_package_name
+            if modinfo.package_name == none {
+                modinfo.package_name = self.project.package_name
+            }
+            var pfile = new ProjectFile(file_uri)
+            pfile.project = self.project
+            pfile.modinfo = modinfo
+            return pfile
+        }
+        return later none
+    }
+    var next_entry = try_list.pop()
+    var project_file = test_and_get_project_file(next_entry) later:
+
+    await project_file
+    if project_file != none {
+        return later project_file
+    }
+    if try_list.len == 0 {
+        return later none
+    }
+    next_entry = try_list.pop()
+    project_file = test_and_get_project_file(next_entry) later repeat
 }
 
 func ProjectFile.resolve_all_imports(debug=no) {
@@ -806,6 +953,11 @@ func ProjectFile.resolve_all_imports(debug=no) {
         ) later:
 
         await try_list
+        var project_file = self.find_first_working_project_file(
+            try_list, external_package_name=external_name
+        ) later:
+
+        await project_file
         if debug {
             print("compiler.project: resolve_all_imports() "
                 "resolving import " + importst.module_path.as_str() + " "
@@ -813,8 +965,12 @@ func ProjectFile.resolve_all_imports(debug=no) {
                     (external_name) else ("<same project>") + " "
                 "issued from file: " + file_rel_path +
                 " => files to try: " +
-                try_list.as_str())
+                try_list.as_str() + " => result: " +
+                if project_file != none (project_file.source_uri)
+                    else ("<not found>")
+            )
         }
+        importst.project_file = project_file
         return yes
     }
 
@@ -827,14 +983,5 @@ func ProjectFile.resolve_all_imports(debug=no) {
     }
     do_continue = resolve_next_import_if_needed()
     later repeat
-}
-
-func ProjectFile.resolve_import(name_of_type, path_of_type) {
-    if self._is_single_file == none {
-        throw new RuntimeError("Must call "
-            "ensure_known_single_file_status() first.")
-    }
-    self.ensure_project() later:
-    return none
 }
 
