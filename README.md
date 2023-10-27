@@ -9,13 +9,18 @@ Horse64 Programming Language
 typing, and readiness for large projects. **A more grounded rethinking
 of Python.** It's free.
 
+```Horse64
+func main {
+    print("Hello to Horse64!")
+```
+[Features...](https://horse64.org/docs/Features)
+
 
 ### Useful starting points
 
 - [Check project news](https://horse64.org/#news).
 
-- [Documentation](https://horse64.org/docs/Welcome), which also lists
-  [features](https://horse64.org/docs/Features).
+- [Documentation](https://horse64.org/docs/Welcome).
 
 - [Get the 📦 SDK](https://horse64.org/download).
 
