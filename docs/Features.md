@@ -59,7 +59,7 @@ When to use Horse64
 (This is very subjective.)
 
 - **Approachable but capable.** Clean dynamic types, but more
-  AOT error checks than most scripting.
+  AOT error checks than common for dynamic languages.
 
 - **Self-contained.** For deploying server and desktop apps easily.
 
