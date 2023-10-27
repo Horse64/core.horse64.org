@@ -58,13 +58,18 @@ When to use Horse64
 
 (This is very subjective.)
 
-- Horse64 tries to unify approachability with suitability for
-  large code bases.
+- **Approachable but capable.** Clean dynamic types, but more
+  AOT error checks than most scripting.
 
-- Horse64 is very self-contained! Easy to ship and deploy
-  desktop and server apps.
+- **Self-contained.** For deploying server and desktop apps easily.
 
-- Horse64 isn't good at 🚫 [extreme raw speed](
+- **Universal.** General-purpose and multi-paradigm, good OOP support.
+
+- **Backend and cloud-ready.** Concurrent networking by design.
+
+- **Portable tooling.** Package manager included, no giant toolchains.
+
+- **Not flawless:** Horse64 isn't good at 🚫 [extreme raw speed](
   #runtime-performance-and-lowlevel-features),
   🚫 [self-mutating scripting use](#scripting-features),
   and 🚫 limitless offline type checking (since it's
