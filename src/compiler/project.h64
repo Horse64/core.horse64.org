@@ -34,12 +34,17 @@ import uri from core.horse64.org
 
 import compiler.ast as ast
 import compiler.comment.command as command_comment
+import compiler.ast.import_stmt as import_stmt
 import compiler.token as token
 
 var _known_readable_files = []
 
 type Project {
+    var tried_loading_package_name = no
+
     var base_dir_uri = none
+
+    var package_name = none
 
     var allow_disk_access = yes
 
@@ -85,8 +90,8 @@ func ModuleInfo.as_json_obj(project=none, project_file=none) {
                 "module_name" -> importst.module_path.join("."),
                 "named_as" -> if importst.renamed_as != none
                     (importst.renamed_as) else (importst.module_path[1]),
-                "package_name" -> if importst.library_name != none
-                    (importst.library_name) else (self.package_name),
+                "package_name" -> if importst.package_name != none
+                    (importst.package_name) else (self.package_name),
             })
         }
     }
@@ -236,6 +241,10 @@ func Project.get_rel_dir_of_file(file_uri) {
     return rel_dir.replace("/", path.sep)
 }
 
+const valid_source_nesting_dirs = {
+    "source", "src"
+}
+
 func Project.get_modinfo_for_file(file_uri) {
     var rel_path = self.get_rel_dir_of_file(
         file_uri
@@ -277,8 +286,11 @@ func Project.get_modinfo_for_file(file_uri) {
     }
     var package_name = none
     var package_dir_uri = self.base_dir_uri
+    var is_external_package = no
+    var module_name = none
     if rel_path.startswith("horse_modules" + path.sep) or
             rel_path == "horse_modules" {
+        is_external_package = yes
         rel_path = rel_path.sub(
             ("horse_modules" + path.sep).len + 1)
         while rel_path.starts(path.sep) {
@@ -296,13 +308,15 @@ func Project.get_modinfo_for_file(file_uri) {
                 package_dir_uri, "/horse_modules/" + component
             )
         }
-    } else {
-        var source_dirs = ["source", "src"]
-        for source_dir in source_dirs {
-            if rel_path.lower().starts(source_dir + path.sep) or
-                    rel_path.lower() == source_dir {
-                rel_path = rel_path.sub(
-                    (source_dir + path.sep).len + 1)
+        no_ext_rel_path = rel_path.sub(1, rel_path.len - ".h64".len)
+    }
+    module_name = no_ext_rel_path.replace(path.sep, ".")
+    if not is_external_package {
+        for source_dir in valid_source_nesting_dirs {
+            if module_name.lower().starts(source_dir + ".") or
+                    module_name.lower() == source_dir {
+                module_name = module_name.sub(
+                    (source_dir + ".").len + 1)
                 break
             }
         }
@@ -312,10 +326,11 @@ func Project.get_modinfo_for_file(file_uri) {
     }
 
     var modinfo = new ModuleInfo()
-    modinfo.module_name = rel_path.replace(path.sep, ".")
+    modinfo.module_name = module_name
     modinfo.package_dir_uri = package_dir_uri
     modinfo.rel_path = rel_path
     modinfo.package_name = package_name
+    modinfo.is_external_package = is_external_package
 
     var horp_conf_uri = uri.add_part(package_dir_uri, "horp.conf")
     var conf_exists = check_file_existence(
@@ -336,8 +351,33 @@ func Project.get_modinfo_for_file(file_uri) {
             typename(conf_contents["package"]["name"]) == "str" {
         modinfo.package_name = conf_contents["package"]["name"]
     }
-
+    if self.package_name == none and not is_external_package {
+        self.package_name = modinfo.package_name
+    }
+    if self.package_name != none or
+            self.tried_loading_package_name {
+        return later modinfo
+    }
+    self.ensure_package_name() later:
     return later modinfo
+}
+
+func Project.ensure_package_name {
+    if self.package_name != none or
+            self.tried_loading_package_name {
+        return later
+    }
+    self.tried_loading_package_name = yes
+    var conf_contents = confparse.parse_from_uri(
+        horp_conf_uri, error_on_mistakes=no
+    ) later:
+
+    await conf_contents
+    if conf_contents.has("package") and
+            conf_contents["package"].has("name") and
+            typename(conf_contents["package"]["name"]) == "str" {
+        self.package_name = conf_contents["package"]["name"]
+    }
 }
 
 func try_workspace_modules_dir_for_single_file(file_uri) {
@@ -401,6 +441,7 @@ type ProjectFile {
     var modinfo = none
 
     var is_entrypoint = no
+    var is_external_package = no
     var _is_single_file = none
 
     var imports = none
@@ -464,6 +505,7 @@ func ProjectFile.parse_for_imports_if_needed {
     var allow_vfs_access =
         if self.project != none (self.project.allow_vfs_access)
             else (no)
+    self.imports = []
     var astresult = ast.parse_to_ast_from_uri(
         self.source_uri, project_file=self,
         is_entrypoint=self.is_entrypoint,
@@ -606,6 +648,7 @@ func ProjectFile.ensure_project {
     ) later:
 
     await modinfo
+    self.is_external_package = modinfo.is_external_package
     self.modinfo = modinfo
     if self.wants_debug_modules {
         print("compiler.project: ensure_project() " +
@@ -618,8 +661,14 @@ func ProjectFile.ensure_project {
 }
 
 func ProjectFile.get_relative_imports_to_test(
-        full_original_import
+        full_original_import, external_package_name=none
         ) {
+    if external_package_name != none and (
+            external_package_name.find("/") != none or
+            external_package_name.find("\\") != none or
+            external_package_name.find("..") != none) {
+        throw new ValueError("Invalid external_package_name given.")
+    }
     if typename(full_original_import) != "list" {
         full_original_import = full_original_import.split(".")
     }
@@ -633,29 +682,47 @@ func ProjectFile.get_relative_imports_to_test(
         return []
     }
     var rel_path = self.modinfo.rel_path
-    while rel_path.starts(os.path.sep) {
+    while rel_path.starts(path.sep) {
         rel_path = rel_path.sub(1)
     }
-    while rel_path.ends(os.path.sep) {
+    while rel_path.ends(path.sep) {
         rel_path = rel_path.sub(1, rel_path.len - 1)
     }
     if rel_path == "" or not rel_path.ends(".h64") {
         return []
     }
+    var package_dir_uri = self.project.modules_dir_uri
     var folder_path = path.dirname(path.normalize(rel_path))
-    while folder_path.ends(os.path.sep) {
+    while folder_path.ends(path.sep) {
         folder_path = folder_path.sub(1, folder_path.len - 1)
     }
     var levels_up = 0
     if folder_path != "" {
-        levels_up = folder_path.split(path.sep)
+        levels_up = folder_path.split(path.sep).len
     }
-    var try_list = [
-        folder_path + path.sep + full_original_import.join(path.sep) +
-            path.sep + full_original_import[
-                full_original_import.len] + ".h64",
-        folder_path + full_original_import.join(path.sep) + ".h64"
-    ]
+    var try_list = []
+    if external_package_name != none {
+        if package_dir_uri == none {
+            return none
+        }
+        try_list.add([
+            "horse_modules" + path.sep + external_package_name +
+                path.sep + full_original_import.join(path.sep) +
+                path.sep + full_original_import[
+                    full_original_import.len] + ".h64",
+            "horse_modules" + path.sep + external_package_name +
+                path.sep + full_original_import.join(path.sep) + ".h64"
+        ])
+        return try_list
+    } else {
+        try_list.add([
+            folder_path + path.sep + full_original_import.join(path.sep) +
+                path.sep + full_original_import[
+                    full_original_import.len] + ".h64",
+            folder_path + path.sep +
+                full_original_import.join(path.sep) + ".h64"
+        ])
+    }
     var i = levels_up
     while i > 0 {
         if i > 1 {
@@ -663,23 +730,103 @@ func ProjectFile.get_relative_imports_to_test(
             folder_path = folder_path.sub(
                 1, folder_path.find(path.sep) - 1
             )
+            assert(folder_path.len > 0)
             try_list += [
                 folder_path + path.sep + full_original_import.join(path.sep) +
                     path.sep + full_original_import[
                         full_original_import.len] + ".h64",
-                folder_path + full_original_import.join(path.sep) + ".h64"
+                folder_path + path.sep +
+                    full_original_import.join(path.sep) + ".h64"
             ]
         } else {
-            try_list += [
-                full_original_import.join(path.sep) +
-                    path.sep + full_original_import[
-                        full_original_import.len] + ".h64",
-                full_original_import.join(path.sep) + ".h64"
-            ]
+            assert(folder_path.len > 0 and folder_path.find(path.sep) == none)
+            var skip_because_source_folder = no
+            for source_dir in valid_source_nesting_dirs {
+                if source_dir.lower() == folder_path {
+                    skip_because_source_folder = yes
+                    break
+                }
+            }
+            if not skip_because_source_folder {
+                try_list += [
+                    full_original_import.join(path.sep) +
+                        path.sep + full_original_import[
+                            full_original_import.len] + ".h64",
+                    full_original_import.join(path.sep) + ".h64"
+                ]
+            }
         }
         i -= 1
     }
     return later try_list
+}
+
+extend import_stmt.ImportStmt {
+    var resolve_attempted = no
+}
+
+func ProjectFile.resolve_all_imports(debug=no) {
+    if self.project == none {
+        throw new RuntimeError("Must call "
+            "ensure_project() first.")
+    }
+    if self._is_single_file == none {
+        throw new RuntimeError("Must call "
+            "ensure_known_single_file_status() first.")
+    }
+    self.parse_for_imports_if_needed() later:
+
+    self.project.ensure_package_name() later:
+
+    var imports_to_process = self.imports.copy()
+
+    var file_rel_path = "<not on disk>"
+    if self.source_uri != none {
+        assert(self.modinfo != none)
+        file_rel_path = self.modinfo.rel_path
+        assert(file_rel_path != none)
+    }
+
+    func resolve_next_import_if_needed {
+        if imports_to_process.len == 0 {
+            return no
+        }
+        var importst = imports_to_process.pop()
+        if importst.resolve_attempted {
+            return yes
+        }
+        importst.resolve_attempted = yes
+        var external_name = importst.package_name
+        if external_name == self.project.package_name {
+            external_name = none
+        }
+        var try_list = self.get_relative_imports_to_test(
+            importst.module_path,
+            external_package_name=external_name
+        ) later:
+
+        await try_list
+        if debug {
+            print("compiler.project: resolve_all_imports() "
+                "resolving import " + importst.module_path.as_str() + " "
+                "from package " + if external_name != none
+                    (external_name) else ("<same project>") + " "
+                "issued from file: " + file_rel_path +
+                " => files to try: " +
+                try_list.as_str())
+        }
+        return yes
+    }
+
+    var do_continue = resolve_next_import_if_needed()
+    later:
+
+    await do_continue
+    if not do_continue {
+        return no
+    }
+    do_continue = resolve_next_import_if_needed()
+    later repeat
 }
 
 func ProjectFile.resolve_import(name_of_type, path_of_type) {

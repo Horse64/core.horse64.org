@@ -152,19 +152,44 @@ func actionparser_modinfo(args) {
         "--for-script",
         description="This switch formats horsec's terminal output (like"
             "e.g. the errors when compiling) as JSON.")
+    defs.add_switch(
+        "--resolve-imports",
+        description="When enabled, the module info will include "
+            "file paths to the corresponding target file for each "
+            "import found.")
+    defs.add_switch(
+        "--debug-modules",
+        description="Enable debug module discovery. Prints out "
+            "all file paths and associated modules when processing.")
     var result = argparse.parse(defs, args)
     if result.output != "" {
         print(result.output)
         return result.exit_code
     }
+    var resolve_imports = no
+    if result.args["--resolve-imports"] {
+        resolve_imports = yes
+    }
     var target = result.args["module path"]
-    var pfile = new project.ProjectFile(target)
+    var pfile = new project.ProjectFile(
+        target, request_debug_modules=result.args["--debug-modules"]
+    )
     pfile.ensure_project() later:
     pfile.parse_for_imports_if_needed() later:
     if pfile.modinfo == none {
         throw new RuntimeError("Internal error, "
             "unexpectedly failed to obtain module info.")
     }
+    func resolve_imports_if_needed {
+        if not resolve_imports {
+            return
+        }
+        pfile.resolve_all_imports(
+            debug=result.args["--debug-modules"]
+        ) later:
+    }
+    resolve_imports_if_needed() later:
+
     if result.args["--for-script"] {
         print(json.dump(
             pfile.modinfo.as_json_obj(project=pfile.project,

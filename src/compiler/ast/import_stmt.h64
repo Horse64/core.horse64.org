@@ -32,14 +32,14 @@ import compiler.token as token
 
 type ImportStmt base ast.StmtNode {
     var module_path = []
-    var library_name
+    var package_name
     var renamed_as
 }
 
 func ImportStmt.copy {
     var new_stmt = new ImportStmt()
     new_stmt.module_path = self.module_path.copy()
-    new_stmt.library_name = self.library_name
+    new_stmt.package_name = self.package_name
     new_stmt.renamed_as = self.renamed_as
     new_stmt.line = self.line
     new_stmt.col = self.col
@@ -54,7 +54,7 @@ func ImportStmt.init {
 func ImportStmt.as_json_obj {
     var output = base.as_json_obj()
     output["module_path"] = self.module_path
-    output["library_name"] = self.library_name
+    output["package_name"] = self.package_name
     output["renamed_as"] = self.renamed_as
     return output
 }
@@ -111,12 +111,12 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         pos += 1
         if pos <= tokens_len and
                 tokens[pos].kind == token.T_IDENT {
-            stmt.library_name = tokens[pos].str
+            stmt.package_name = tokens[pos].str
             pos += 1
             while pos + 1 <= tokens_len and
                     tokens[pos].kind == token.T_DOT and
                     tokens[pos + 1].kind == token.T_IDENT {
-                stmt.library_name += "." + tokens[pos + 1].str
+                stmt.package_name += "." + tokens[pos + 1].str
                 pos += 2
             }
         } else {
