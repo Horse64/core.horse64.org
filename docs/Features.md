@@ -53,6 +53,23 @@ func check_config {
 }
 ```
 
+When to use Horse64
+-------------------
+
+(This is very subjective.)
+
+- Horse64 tries to unify approachability with suitability for
+  large code bases.
+
+- Horse64 is very self-contained! Easy to ship and deploy
+  desktop and server apps.
+
+- Horse64 isn't good at 🚫 [extreme raw speed](
+  #runtime-performance-and-lowlevel-features),
+  🚫 [self-mutating scripting use](#scripting-features),
+  and 🚫 limitless offline type checking (since it's
+  dynamically typed, so analysis is limited).
+
 
 Comparison with other languages and use cases
 ---------------------------------------------
@@ -110,7 +127,7 @@ https://codeberg.org/Horse64/core.horse64.org/issues/new?template=.gitea%2fISSUE
 |Horse64|Python|JS|Go|C++|Lua|Deployment Features                      |
 |-------|------|--|--|---|---|-----------------------------------------|
 |✔| | |✔|✔| |**Portable program binaries** as default output.          |
-|✔| | |✔|✔| |**No runtime install** for desktop apps for end users.    |
+|✔| | |✔|✔| |**Self-contained, no install** needed for end users.      |
 |✔|✔| |✔| | |**Official packaging tools** for easy project handling.   |
 |✔|✔|✔|❓| |✔|**Compiler trivially usable at runtime**, if needed.      |
 |✔| | |❓|❓| |**Easily bake in all binary resources** like images.      |
@@ -152,29 +169,11 @@ https://codeberg.org/Horse64/core.horse64.org/issues/new?template=.gitea%2fISSUE
 |Horse64|Python|JS|Go|C++|Lua|Runtime Perfomance and Lowlevel Features |
 |-------|------|--|--|---|---|-----------------------------------------|
 |✔|✔|✔| | |✔|**Bytecode interpreter** for high portability.            |
+|✔| |❓|✔|✔| |**Compiler made for AOT optimizations.**                  |
 | |〰| |✔|✔| |**Full memory-shared threads** for extra flexibity.      |
 | | |✔|✔|✔| |**Always uses JIT** for speed, or 100% AOT compiled.      |
 | | | |✔|✔| |**Outputs machine code** always, for extreme speed.       |
 | | | | |✔| |**Inline assembly and manual allocation** easy to do.     |
-
-
-When to use Horse64
--------------------
-
-(Again, this is very subjective.)
-
-- Horse64 tries to unify the accessibility of scripting languages with
-  the large codebase suitability of server-focused languages like Go.
-
-- Horse64 tries to make writing, shipping, deploying desktop apps
-  and server apps easy.
-
-- Horse64 isn't good at 🚫 [extreme raw speed](
-  #runtime-performance-and-lowlevel-features),
-  🚫 [super spontaneous self-mutating scripting
-  use](#scripting-features),
-  and 🚫 no limits to offline code type checking (since it's
-  dynamically typed, the checks have practicality limits).
 
 
 Technical specifications
