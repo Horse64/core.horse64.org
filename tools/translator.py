@@ -187,7 +187,7 @@ remapped_uses = {
             "_translator_runtime_helpers._compiler_run_file",
     },
     "io@core.horse64.org": {
-        "io.get_working_dir":
+        "io.working_dir":
             "_remapped_os.getcwd",
         "io.open":
             "_translator_runtime_helpers._io_open",
