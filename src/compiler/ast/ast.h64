@@ -353,6 +353,7 @@ func _tokenize_code_line_for_ast(
         source, project_file=none,
         is_entrypoint=yes, force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
+        require_detect_project_dir=yes
         ) {
     if not force_single_file and is_entrypoint {
         throw new ValueError("Not setting force_single_file "
@@ -369,7 +370,14 @@ func _tokenize_code_line_for_ast(
             force_single_file=force_single_file,
         )
     }
-    tresult.project_file.ensure_project() later:
+    func ensure_project_if_needed {
+        if not require_detect_project_dir {
+            return later
+        }
+        tresult.project_file.ensure_project() later:
+        return later
+    }
+    ensure_project_if_needed() later:
     tresult.project_file.project.allow_disk_access = (
         allow_disk_access
     )
@@ -383,7 +391,8 @@ func _tokenize_this_file_for_ast(
         source, project_file=none, source_is_uri=no,
         is_entrypoint=yes, force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
-        debug_modules=no
+        debug_modules=no,
+        require_detect_project_dir=yes
         ) {
     if not source_is_uri {
         var result = _tokenize_code_line_for_ast(
@@ -391,7 +400,9 @@ func _tokenize_this_file_for_ast(
             is_entrypoint=is_entrypoint,
             force_single_file=force_single_file,
             allow_disk_access=allow_disk_access,
-            allow_vfs_access=allow_vfs_access
+            allow_vfs_access=allow_vfs_access,
+            require_detect_project_dir=
+                require_detect_project_dir
         ) later:
         await result
         return result
@@ -403,6 +414,8 @@ func _tokenize_this_file_for_ast(
         allow_disk_access=allow_disk_access,
         allow_vfs_access=allow_vfs_access,
         keep_whitespace=no,
+        require_detect_project_dir=
+            require_detect_project_dir,
         debug_modules=debug_modules
     ) later:
 
@@ -415,6 +428,7 @@ func _parse_tokens_file_to_ast_ex(
         source_is_uri=no,
         is_entrypoint=yes, force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
+        require_detect_project_dir=yes,
         debug=no, debug_modules=no
         ) {
     var tresult = _tokenize_this_file_for_ast(
@@ -424,6 +438,8 @@ func _parse_tokens_file_to_ast_ex(
         allow_vfs_access=allow_vfs_access,
         is_entrypoint=is_entrypoint,
         force_single_file=force_single_file,
+        require_detect_project_dir=
+            require_detect_project_dir,
         debug_modules=debug_modules
     )
     later:
@@ -453,6 +469,7 @@ func parse_str_to_ast(
         codestr, project_file=none,
         is_entrypoint=yes,
         allow_disk_access=yes, allow_vfs_access=no,
+        require_detect_project_dir=yes,
         debug=no, debug_modules=no
         ) {
     var result = _parse_tokens_file_to_ast_ex(
@@ -461,6 +478,8 @@ func parse_str_to_ast(
         allow_disk_access=allow_disk_access,
         allow_vfs_access=allow_vfs_access,
         is_entrypoint=is_entrypoint, debug=debug,
+        require_detect_project_dir=
+            require_detect_project_dir,
         debug_modules=debug_modules
     ) later:
 
@@ -487,6 +506,8 @@ func parse_to_ast_from_uri(
         fileuri, project_file=none, default_to_diskpath=no,
         is_entrypoint=yes, force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
+        require_detect_project_dir=
+            require_detect_project_dir,
         debug=no, debug_modules=no
         ) {
     var result = _parse_tokens_file_to_ast_ex(
@@ -497,6 +518,8 @@ func parse_to_ast_from_uri(
         force_single_file=force_single_file,
         allow_disk_access=allow_disk_access,
         allow_vfs_access=allow_vfs_access,
+        require_detect_project_dir=
+            require_detect_project_dir,
         debug=debug, debug_modules=debug_modules
     ) later:
 

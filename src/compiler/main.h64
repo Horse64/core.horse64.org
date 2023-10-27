@@ -59,6 +59,7 @@ func tokenize_target_from_args(args) {
             src_path, project_file=none,
             keep_whitespace=no,
             default_to_diskpath=yes,
+            require_detect_project_dir=no
         ) later:
 
         await tresult
@@ -72,8 +73,9 @@ func parse_ast_target_from_args(args, debug=no,
         var tresult = compiler.ast.parse_str_to_ast(
             args["--code"], is_entrypoint=yes,
             force_single_file=yes, allow_disk_access=yes,
-            allow_vfs_access=no, debug=debug,
-            debug_modules=no
+            allow_vfs_access=no,
+            require_detect_project_dir=yes,
+            debug=debug, debug_modules=no
         ) later:
 
         await tresult
@@ -84,8 +86,9 @@ func parse_ast_target_from_args(args, debug=no,
     var tresult = compiler.ast.parse_to_ast_from_uri(
         src_path, default_to_diskpath=yes, is_entrypoint=yes,
         force_single_file=no, allow_disk_access=yes,
-        allow_vfs_access=no, debug=debug,
-        debug_modules=debug_modules
+        allow_vfs_access=no,
+        require_detect_project_dir=yes,
+        debug=debug, debug_modules=debug_modules
     ) later:
 
     await tresult

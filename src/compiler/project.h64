@@ -46,6 +46,10 @@ type Project {
     var allow_vfs_access = yes
 
     var debug_modules = yes
+
+    var modules_dir_uri = none
+
+    var tried_find_modules_dir = no
 }
 
 type ModuleInfo {
@@ -64,9 +68,14 @@ func ModuleInfo.as_json_obj(project=none, project_file=none) {
         "rel_path" -> self.rel_path,
         "package_name" -> self.package_name,
         "package_dir" -> self.package_dir_uri,
+        "horse_modules_dir" -> none,
+        "base_dir_uri" -> none,
     }
     if project != none and project.base_dir_uri != none {
         result["base_dir_uri"] = project.base_dir_uri
+    }
+    if project != none and project.modules_dir_uri != none {
+        result["horse_modules_dir"] = project.modules_dir_uri
     }
     if project_file != none and project_file.imports != none {
         result["imports"] = []
@@ -93,8 +102,12 @@ func ModuleInfo.as_terminal_str(project=none, project_file=none) {
     t += "Relative path: " + self.rel_path + "\n"
     t += "Package name: " + self.package_name.as_str() + "\n"
     t += "Package directory URI: " + self.package_dir_uri + "\n"
-    if data.has("base_dir_uri") {
+    if data["base_dir_uri"] != none {
         t += "Project directory URI: " + data["base_dir_uri"] + "\n"
+    }
+    if data["horse_modules_dir"] != none {
+        t += "Horse modules directory URI: " +
+            data["horse_modules_dir"] + "\n"
     }
     if data.has("imports") {
         t += "Imports:\n"
@@ -178,15 +191,19 @@ func find_project_base(file_uri) {
 }
 
 func Project.guess_base_from_file_uri(source_uri) {
-    var base_dir = find_project_base(source_uri)
+    self.tried_find_modules_dir = yes
+    var base_dir_uri = find_project_base(source_uri)
     later:
 
-    await base_dir
-    if base_dir == none {
+    await base_dir_uri
+    if base_dir_uri == none {
         throw new ValueError("Failed to locate project "
             "directory for file: " + source_uri)
     }
-    self.base_dir_uri = base_dir
+    self.base_dir_uri = base_dir_uri
+    self.modules_dir_uri = uri.add_part(
+        base_dir_uri, "horse_modules"
+    )
 }
 
 func Project.get_rel_dir_of_file(file_uri) {
@@ -231,7 +248,7 @@ func Project.get_modinfo_for_file(file_uri) {
         throw new ValueError("Code files must have "
             ".h64 file extension.")
     }
-    rel_path = rel_path.sub(1, rel_path.len - ".h64".len)
+    var no_ext_rel_path = rel_path.sub(1, rel_path.len - ".h64".len)
     var code_a = text.code('a')
     var code_z = text.code('z')
     var code_cap_a = text.code('A')
@@ -239,12 +256,12 @@ func Project.get_modinfo_for_file(file_uri) {
     var code_0 = text.code('0')
     var code_9 = text.code('0')
     var pos = 1
-    while pos <= rel_path.len {
-        if {"_", "/"}.has(rel_path[pos]) {
+    while pos <= no_ext_rel_path.len {
+        if {"_", path.sep}.has(no_ext_rel_path[pos]) {
             pos += 1
             continue
         }
-        var cp = text.code(rel_path[pos])
+        var cp = text.code(no_ext_rel_path[pos])
         if (cp < code_a or cp > code_z) and
                 (cp < code_cap_a or cp > code_cap_z) and
                 (cp < code_0 or cp > code_9) and
@@ -252,7 +269,7 @@ func Project.get_modinfo_for_file(file_uri) {
             throw new ValueError("File is inside dir "
                 "with invalid module name with forbidden "
                 "character: " +
-                token.describe_char_at(rel_path, pos,
+                token.describe_char_at(no_ext_rel_path, pos,
                     maybe_cutoff_glyph=no
                 ))
         }
@@ -321,6 +338,55 @@ func Project.get_modinfo_for_file(file_uri) {
     }
 
     return later modinfo
+}
+
+func try_workspace_modules_dir_for_single_file(file_uri) {
+    var base_dir_uri = find_project_base(file_uri)
+    later:
+
+    await base_dir_uri
+    if base_dir_uri == none {
+        return later none
+    }
+    var test_path = uri.add_part(base_dir_uri, "horse_modules")
+    if {"file", "vfs"}.has(uri.get_protocol(test_path).lower()) {
+        return none
+    }
+    var is_vfs = (uri.get_protocol(test_path).lower() == "vfs")
+    var result = io.exists(uri.to_file_or_vfs_path(test_path),
+        allow_vfs=is_vfs, allow_disk=(not is_vfs))
+    later:
+
+    await result
+    if result {
+        if not is_vfs {
+            return later uri.from_disk_path(test_path)
+        } else {
+            return later uri.from_vfs_path(test_path)
+        }
+    }
+    return later none
+}
+
+func guess_horse_modules_for_single_file(file_uri) {
+    var modules_dir = try_workspace_modules_dir_for_single_file(
+        file_uri
+    ) later:
+
+    await modules_dir
+    if modules_dir != none {
+        return modules_dir
+    }
+
+    # Otherwise, try working directory:
+    var test_path = path.join(io.working_dir(), "horse_modules")
+    var result = io.exists(test_path, allow_vfs=no) later:
+
+    await result
+    if result {
+        return later uri.from_disk_path(test_path)
+    }
+    return later none
 }
 
 type ProjectFile {
@@ -412,21 +478,27 @@ func ProjectFile.parse_for_imports_if_needed {
 
 func ProjectFile.check_is_single_file {
     if self._is_single_file != none {
-        return self._is_single_file == yes
+        return later self._is_single_file == yes
     }
+    sekf.ensure_known_single_file_status() later:
+    return later self._is_single_file == yes
+}
+
+func ProjectFile.ensure_known_single_file_status {
     if self.source_uri == none {
-        self._is_single_file = yes
-        return yes
+        return later
     }
+
     var contents = none
     with self.open() later as f {
-        contents = f.read()
+        contents = f.read() later:
+        await contents
+
+        var opts = command_comment.get_build_options_from_str(
+            contents
+        )
+        self._is_single_file = opts.has("--single-file")
     }
-    var opts = command_comment.get_build_options_from_str(
-        contents
-    )
-    self._is_single_file = opts.has("--single-file")
-    return self._is_single_file
 }
 
 func check_file_existence_diskpath(
@@ -481,9 +553,32 @@ func check_file_existence(file_uri, project=none) {
     return result
 }
 
+func ProjectFile.ensure_modules_dir {
+    if self.tried_find_modules_dir {
+        return later
+    }
+    self.ensure_known_single_file_status() later:
+    if self._is_single_file != yes {
+        return later
+    }
+    self.tried_find_modules_dir = yes
+    var dir_uri = guess_horse_modules_for_single_file(self.source_uri)
+    later:
+
+    await dir_uri
+    if dir_uri != none {
+        self.project.modules_dir_uri = dir_uri
+    }
+}
+
 func ProjectFile.ensure_project_base_dir {
     if self.source_uri == none or self.project.base_dir_uri != none {
-        return later none
+        return later
+    }
+    self.ensure_known_single_file_status() later:
+    assert(self._is_single_file != none or self.source_uri == none)
+    if self._is_single_file == yes {
+        return later
     }
     self.project.guess_base_from_file_uri(self.source_uri) later:
     if self.wants_debug_modules {
@@ -525,14 +620,72 @@ func ProjectFile.ensure_project {
 func ProjectFile.get_relative_imports_to_test(
         full_original_import
         ) {
+    if typename(full_original_import) != "list" {
+        full_original_import = full_original_import.split(".")
+    }
+    if full_original_import.len == 0 or
+            full_original_import[1].len == 0 or
+            self.source_uri is none {
+        return []
+    }
     self.ensure_project() later:
-    return none
+    if self.modinfo == none or self.modinfo.rel_path == none {
+        return []
+    }
+    var rel_path = self.modinfo.rel_path
+    while rel_path.starts(os.path.sep) {
+        rel_path = rel_path.sub(1)
+    }
+    while rel_path.ends(os.path.sep) {
+        rel_path = rel_path.sub(1, rel_path.len - 1)
+    }
+    if rel_path == "" or not rel_path.ends(".h64") {
+        return []
+    }
+    var folder_path = path.dirname(path.normalize(rel_path))
+    while folder_path.ends(os.path.sep) {
+        folder_path = folder_path.sub(1, folder_path.len - 1)
+    }
+    var levels_up = 0
+    if folder_path != "" {
+        levels_up = folder_path.split(path.sep)
+    }
+    var try_list = [
+        folder_path + path.sep + full_original_import.join(path.sep) +
+            path.sep + full_original_import[
+                full_original_import.len] + ".h64",
+        folder_path + full_original_import.join(path.sep) + ".h64"
+    ]
+    var i = levels_up
+    while i > 0 {
+        if i > 1 {
+            assert(folder_path.find(path.sep) != none)
+            folder_path = folder_path.sub(
+                1, folder_path.find(path.sep) - 1
+            )
+            try_list += [
+                folder_path + path.sep + full_original_import.join(path.sep) +
+                    path.sep + full_original_import[
+                        full_original_import.len] + ".h64",
+                folder_path + full_original_import.join(path.sep) + ".h64"
+            ]
+        } else {
+            try_list += [
+                full_original_import.join(path.sep) +
+                    path.sep + full_original_import[
+                        full_original_import.len] + ".h64",
+                full_original_import.join(path.sep) + ".h64"
+            ]
+        }
+        i -= 1
+    }
+    return later try_list
 }
 
 func ProjectFile.resolve_import(name_of_type, path_of_type) {
     if self._is_single_file == none {
         throw new RuntimeError("Must call "
-            "check_is_single_file() first.")
+            "ensure_known_single_file_status() first.")
     }
     self.ensure_project() later:
     return none

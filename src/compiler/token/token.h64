@@ -2010,6 +2010,7 @@ func tokenize_from_uri(
         default_to_diskpath=no, is_entrypoint=yes,
         force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
+        require_detect_project_dir=yes,
         debug_modules=no
         ) {
     source_uri = uri.normalize(
@@ -2036,7 +2037,14 @@ func tokenize_from_uri(
             request_debug_modules=debug_modules
         )
     }
-    project_file.ensure_project() later:
+    func ensure_project_if_needed {
+        if not require_detect_project_dir {
+            return later
+        }
+        project_file.ensure_project() later:
+        return later
+    }
+    ensure_project_if_needed() later:
     project_file.project.allow_disk_access = (
         allow_disk_access
     )
