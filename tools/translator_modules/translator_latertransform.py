@@ -892,7 +892,8 @@ def transform_later_to_closure_funccontents(
             elif arg_name != None and not has_await:
                 if not ignore_erroneous_code:
                     raise ValueError("Didn't find valid 'await' "
-                        "following a 'later' with a return value.")
+                        "following a 'later' with a return value. "
+                        "Affected tokens: " + str(st))
                 new_sts.append(st)
                 continue
 
