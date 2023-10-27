@@ -32,6 +32,7 @@ import path from core.horse64.org
 import text from core.horse64.org
 import uri from core.horse64.org
 
+import compiler.ast as ast
 import compiler.comment.command as command_comment
 import compiler.token as token
 
@@ -57,7 +58,7 @@ type ModuleInfo {
     var package_dir_uri
 }
 
-func ModuleInfo.as_json_obj(project=none) {
+func ModuleInfo.as_json_obj(project=none, project_file=none) {
     var result = {
         "module_name" -> self.module_name,
         "rel_path" -> self.rel_path,
@@ -67,19 +68,46 @@ func ModuleInfo.as_json_obj(project=none) {
     if project != none and project.base_dir_uri != none {
         result["base_dir_uri"] = project.base_dir_uri
     }
+    if project_file != none and project_file.imports != none {
+        result["imports"] = []
+        for importst in project_file.imports {
+            assert(importst != none)
+            result["imports"].add({
+                "module_name" -> importst.module_path.join("."),
+                "named_as" -> if importst.renamed_as != none
+                    (importst.renamed_as) else (importst.module_path[1]),
+                "package_name" -> if importst.library_name != none
+                    (importst.library_name) else (self.package_name),
+            })
+        }
+    }
     return result
 }
 
-func ModuleInfo.as_terminal_str(project=none) {
+func ModuleInfo.as_terminal_str(project=none, project_file=none) {
+    var data = self.as_json_obj(
+        project=project, project_file=project_file)
     var t = ""
     var title = "Module: " + self.module_name
     t += title + "\n" + "-".rep(title.len) + "\n\n"
     t += "Relative path: " + self.rel_path + "\n"
     t += "Package name: " + self.package_name.as_str() + "\n"
     t += "Package directory URI: " + self.package_dir_uri + "\n"
-    if project != none and project.base_dir_uri != none {
-        t += "Project directory URI: " + project.base_dir_uri + "\n"
+    if data.has("base_dir_uri") {
+        t += "Project directory URI: " + data["base_dir_uri"] + "\n"
     }
+    if data.has("imports") {
+        t += "Imports:\n"
+        for importst in data["imports"] {
+            t += "  -> import " + importst["module_name"] +
+                " as " + importst["named_as"] +
+                " from " + importst["package_name"] + "\n"
+        }
+        if data["imports"].len == 0 {
+            t += "   (none)\n"
+        }
+    }
+
     return t
 }
 
@@ -308,6 +336,8 @@ type ProjectFile {
 
     var is_entrypoint = no
     var _is_single_file = none
+
+    var imports = none
 }
 
 func ProjectFile.init(
@@ -338,6 +368,46 @@ func ProjectFile.open {
 
     await result
     return result
+}
+
+func ProjectFile.set_imports_from_ast_result(result) {
+    self.imports = []
+    for name in result.global_scope.name_to_stmt_map {
+        var entry = result.global_scope.name_to_stmt_map[name]
+        if typename(entry) != "list" or
+                entry[1].kind != ast.N_STMT_IMPORT {
+            continue
+        }
+        for importst in entry {
+            assert(importst != none)
+            self.imports.add(importst.copy())
+        }
+    }
+}
+
+func ProjectFile.parse_for_imports_if_needed {
+    if self.imports != none {
+        return later
+    }
+    var force_single_file = (
+        if self._is_single_file == yes (yes) else (no)
+    )
+    var allow_disk_access =
+        if self.project != none (self.project.allow_disk_access)
+            else (no)
+    var allow_vfs_access =
+        if self.project != none (self.project.allow_vfs_access)
+            else (no)
+    var astresult = ast.parse_to_ast_from_uri(
+        self.source_uri, project_file=self,
+        is_entrypoint=self.is_entrypoint,
+        force_single_file=force_single_file,
+        allow_disk_access=allow_disk_access,
+        allow_vfs_access=allow_vfs_access
+    ) later:
+
+    await astresult
+    self.set_imports_from_ast_result(astresult)
 }
 
 func ProjectFile.check_is_single_file {

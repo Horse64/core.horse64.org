@@ -157,16 +157,18 @@ func actionparser_modinfo(args) {
     var target = result.args["module path"]
     var pfile = new project.ProjectFile(target)
     pfile.ensure_project() later:
+    pfile.parse_for_imports_if_needed() later:
     if pfile.modinfo == none {
         throw new RuntimeError("Internal error, "
             "unexpectedly failed to obtain module info.")
     }
     if result.args["--for-script"] {
         print(json.dump(
-            pfile.modinfo.as_json_obj(project=pfile.project)
-        ))
+            pfile.modinfo.as_json_obj(project=pfile.project,
+                project_file=pfile)))
     } else {
-        print(pfile.modinfo.as_terminal_str(project=pfile.project))
+        print(pfile.modinfo.as_terminal_str(project=pfile.project,
+            project_file=pfile))
     }
     return 0
 }

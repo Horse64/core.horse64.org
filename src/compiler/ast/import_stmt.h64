@@ -1,5 +1,5 @@
 # @module compiler.ast.import_stmt
-# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -25,17 +25,25 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-
 import compiler.ast as ast
 import compiler.ast.invalid_stmt as invalid_stmt
 import compiler.msg as msg
 import compiler.token as token
 
-
 type ImportStmt base ast.StmtNode {
     var module_path = []
     var library_name
     var renamed_as
+}
+
+func ImportStmt.copy {
+    var new_stmt = new ImportStmt()
+    new_stmt.module_path = self.module_path.copy()
+    new_stmt.library_name = self.library_name
+    new_stmt.renamed_as = self.renamed_as
+    new_stmt.line = self.line
+    new_stmt.col = self.col
+    return new_stmt
 }
 
 func ImportStmt.init {
@@ -61,6 +69,8 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             tokens[pos].str != "import" {
         return later none
     }
+    stmt.col = tokens[pos].col
+    stmt.line = tokens[pos].line
     pos += 1
 
     # Bail with error if no module path follows at all:
