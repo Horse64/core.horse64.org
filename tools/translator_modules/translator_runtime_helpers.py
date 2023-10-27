@@ -799,6 +799,8 @@ def _looks_like_uri(v):
             len(v.partition("://")[0].strip()) > 1
             ):
         return True
+    if v.startswith("."):
+        return False
     if len(v) >= 1 and v[0] == "/":
         return False
     if (len(v) >= 3 and v[1] == ":" and
@@ -1895,7 +1897,6 @@ def _run_main(main_func):
             if work_job == None:
                 if len(_async_ops_lowprio) == 0:
                     _async_ops_lock.release()
-                    print("SLEEPING")
                     time.sleep(0.1)
                     continue
                 _async_ops += _async_ops_lowprio[:5]

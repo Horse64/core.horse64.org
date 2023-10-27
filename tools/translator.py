@@ -247,7 +247,7 @@ remapped_uses = {
     },
     "path@core.horse64.org": {
         "path.normalize":
-            "_remapped_os.path.normmpath",
+            "_remapped_os.path.normpath",
         "path.join":
             "_remapped_os.path.join",
         "path.basename" : "_remapped_os.path.basename",
