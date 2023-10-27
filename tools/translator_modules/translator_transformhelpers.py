@@ -747,6 +747,11 @@ def transform_h64_misc_inline_to_python(s):
             else:
                 i += 1
                 continue
+            if (s[i] == "join" and
+                    prevnonblank(s, i) == "." and
+                    prevnonblank(s, i, no=2) == "path"):
+                i += 1
+                continue
             replaced_one = True
             insert_call = ["_translator_runtime_helpers",
                 ".", "_value_to_str"]
