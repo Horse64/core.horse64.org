@@ -336,7 +336,7 @@ func Project.get_modinfo_for_file(file_uri) {
     if not is_external_package {
         for source_dir in valid_source_nesting_dirs {
             if module_name.lower().starts(source_dir + ".") or
-                    module_name.lower() == source_dir {
+                    module_name.lower() == source_dir.lower() {
                 module_name = module_name.sub(
                     (source_dir + ".").len + 1)
                 break
@@ -764,7 +764,7 @@ func ProjectFile.get_relative_imports_to_test(
             assert(folder_path.len > 0 and folder_path.find(path.sep) == none)
             var skip_because_source_folder = no
             for source_dir in valid_source_nesting_dirs {
-                if source_dir.lower() == folder_path {
+                if source_dir.lower() == folder_path.lower() {
                     skip_because_source_folder = yes
                     break
                 }
@@ -857,7 +857,8 @@ func ProjectFile.get_target_uri_for_import(
 }
 
 func ProjectFile.find_first_working_project_file(
-        try_list, external_package_name=none
+        try_list, external_package_name=none,
+        debug=no
         ) {
     try_list = try_list.copy()
     try_list.reverse()
@@ -870,6 +871,10 @@ func ProjectFile.find_first_working_project_file(
                 external_package_name) later:
 
         await file_uri
+        if debug {
+            print("compiler.project: find_first_working_project_file() "
+                "testing import target location: " + file_uri)
+        }
         var readable = net.fetch.try_readable(file_uri) later:
 
         await readable
@@ -883,8 +888,22 @@ func ProjectFile.find_first_working_project_file(
             } else {
                 mod_name = mod_rel_path.split(path.sep).join(".")
             }
+            for src_dir in valid_source_nesting_dirs {
+                if mod_name.lower().startswith(src_dir + ".") {
+                    mod_name = mod_name.sub((src_dir + ".").len + 1)
+                    break
+                }
+            }
             assert(mod_name.ends(".h64"))
             mod_name = mod_name.sub(1, mod_name.len - ".h64".len)
+            var last_component = if mod_name.rfind(".") != none
+                (mod_name.sub(mod_name.rfind(".") + 1)) else (mod_name)
+            if mod_name == last_component + "." + last_component or
+                    mod_name.ends("." + last_component +
+                                  "." + last_component) {
+                # Need to strip the last component:
+                mod_name = mod_name.sub(1, mod_name.rfind(".") - 1)
+            }
 
             var modinfo = new ModuleInfo()
             modinfo.module_name = mod_name
@@ -956,7 +975,8 @@ func ProjectFile.resolve_all_imports(debug=no) {
 
         await try_list
         var project_file = self.find_first_working_project_file(
-            try_list, external_package_name=external_name
+            try_list, external_package_name=external_name,
+            debug=debug
         ) later:
 
         await project_file
@@ -968,7 +988,9 @@ func ProjectFile.resolve_all_imports(debug=no) {
                 "issued from file: " + file_rel_path +
                 " => files to try: " +
                 try_list.as_str() + " => result: " +
-                if project_file != none (project_file.source_uri)
+                if project_file != none (project_file.source_uri +
+                    " (full module: " +
+                        project_file.modinfo.module_name + ")")
                     else ("<not found>")
             )
         }
