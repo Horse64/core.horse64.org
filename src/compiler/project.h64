@@ -856,7 +856,13 @@ func ProjectFile.get_target_uri_for_import(
     return later uri.normalize(new_uri)
 }
 
-func ProjectFile.find_first_working_project_file(
+type ProcessModuleFileResult {
+    var project_file = none
+    var neighbor_rel_path_list = []
+    var neighbor_project_files = []
+}
+
+func ProjectFile.process_first_working_module_file(
         try_list, external_package_name=none,
         debug=no
         ) {
@@ -872,7 +878,7 @@ func ProjectFile.find_first_working_project_file(
 
         await file_uri
         if debug {
-            print("compiler.project: find_first_working_project_file() "
+            print("compiler.project: process_first_working_module_file() "
                 "testing import target location: " + file_uri)
         }
         var readable = net.fetch.try_readable(file_uri) later:
@@ -915,7 +921,13 @@ func ProjectFile.find_first_working_project_file(
             var pfile = new ProjectFile(file_uri)
             pfile.project = self.project
             pfile.modinfo = modinfo
-            return pfile
+
+            var result = new ProcessModuleFileResult()
+            result.pfile = pfile
+
+            # FIXME: collect neighbor modules to also load!!!
+
+            return result
         }
         return later none
     }
@@ -974,15 +986,16 @@ func ProjectFile.resolve_all_imports(debug=no) {
         ) later:
 
         await try_list
-        var project_file = self.find_first_working_project_file(
+        var process_result = self.process_first_working_module_file(
             try_list, external_package_name=external_name,
             debug=debug
         ) later:
 
-        await project_file
+        await process_result
+        project_file = process_result.project_file
         if debug {
             print("compiler.project: resolve_all_imports() "
-                "resolving import " + importst.module_path.as_str() + " "
+                "resolved import " + importst.module_path.as_str() + " "
                 "from package " + if external_name != none
                     (external_name) else ("<same project>") + " "
                 "issued from file: " + file_rel_path +
