@@ -859,6 +859,8 @@ func ProjectFile.get_target_uri_for_import(
 func ProjectFile.find_first_working_project_file(
         try_list, external_package_name=none
         ) {
+    try_list = try_list.copy()
+    try_list.reverse()
     if try_list.len == 0 {
         return none
     }
