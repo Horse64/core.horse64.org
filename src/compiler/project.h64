@@ -745,12 +745,13 @@ func ProjectFile.get_relative_imports_to_test(
                 full_original_import.join(path.sep) + ".h64"
         ]
     }
+
     var i = levels_up
     while i > 0 {
         if i > 1 {
             assert(folder_path.find(path.sep) != none)
             folder_path = folder_path.sub(
-                1, folder_path.find(path.sep) - 1
+                1, folder_path.rfind(path.sep) - 1
             )
             assert(folder_path.len > 0)
             try_list += [
@@ -927,9 +928,10 @@ func ProjectFile.process_first_working_module_file(
 
             # FIXME: collect neighbor modules to also load!!!
 
-            return result
+            return later result
         }
-        return later none
+        var result = new ProcessModuleFileResult()
+        return later result
     }
     var next_entry = try_list.pop()
     var project_file = test_and_get_project_file(next_entry) later:
@@ -939,7 +941,8 @@ func ProjectFile.process_first_working_module_file(
         return later project_file
     }
     if try_list.len == 0 {
-        return later none
+        var result = new ProcessModuleFileResult()
+        return later result
     }
     next_entry = try_list.pop()
     project_file = test_and_get_project_file(next_entry) later repeat
