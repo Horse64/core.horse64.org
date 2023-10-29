@@ -34,6 +34,7 @@ import net.fetch from core.horse64.org
 import text from core.horse64.org
 import uri from core.horse64.org
 
+import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
 import compiler.limit as climit
 import compiler.msg as msg
 import compiler.project as project
@@ -652,15 +653,15 @@ func get_inline_if_conditional_end(tokens, pos, max_len=none) {
     return -1
 }
 
-## @func token_is_consumed_by_return
+## @func token_is_consumed_by_return_simple
 ## Checks if this type of token, if following a 'return' keyword,
-## will be considered a follow-up argument to be returned (rather
-## than a separate follow-up statement).
+## simplified pre-check. Use @{check_tokens_consumed_by_return}
+## for reliable result and to avoid false-positive yes results.
 ##
 ## @param t (Token or str) The token to be pondered as a 'return'
 ##   argument
 ## @returns bool @{yes|Yes} if it's a return argument, @{no} if not
-func token_is_consumed_by_return(t) {
+func token_is_consumed_by_return_simple(t) {
     if typename(t) == "str" {
         var result = tokenize_str(
             t, keep_whitespace=no,
@@ -680,6 +681,39 @@ func token_is_consumed_by_return(t) {
             _maybe_stmt_token_strs.has(t.str) and
             t.str != "func" and t.str != "if" {
         return no
+    }
+    return yes
+}
+
+## @func check_tokens_consumed_by_return
+## Checks if this type of token, if following a 'return' keyword,
+## will be considered a follow-up argument to be returned (rather
+## than a separate follow-up statement).
+##
+## @param tokens list The list of tokens in which to check.
+## @param pos num The token index where the maybe-consumed
+##     expression starts.
+## @param max_len The maximum length for the tokens list
+##     that is considered as reachable, checkable range.
+## @returns bool @{yes|Yes} if it's a return argument, @{no} if not
+func check_tokens_consumed_by_return(tokens, pos, max_len=none) {
+    if max_len == none or max_len > tokens.len {
+        max_len = tokens.len
+    }
+    const tokens_len = max_len
+    if pos > tokens_len {
+        return no
+    }
+    if not token_is_consumed_by_return_simple(tokens[pos]) {
+        return no
+    }
+    if tokens[pos].kind == T_IDENT {
+        var idx = call_or_assign_stmt.check_call_or_assign_and_get_idx(
+            tokens, tokens_len, pos, only_assigns=yes
+        )
+        if idx >= 0 {
+            return no
+        }
     }
     return yes
 }
@@ -719,8 +753,8 @@ func can_stmt_or_expr_end_before_token(
         return no
     }
     if tokens[tok_pos - 1].kind == T_KEYWORD and
-            tokens[tok_pos - 1].str == "return" {
-        if token_is_consumed_by_return(tokens[tok_pos]) {
+            {"return", "throw"}.has(tokens[tok_pos - 1]) {
+        if check_tokens_consumed_by_return(tokens, tok_pos) {
             return no
         }
         return yes
@@ -735,8 +769,8 @@ func can_stmt_or_expr_end_before_token(
             return no
         } elseif tok_pos >= 3 and
                 tokens[tok_pos - 2].kind == T_KEYWORD and
-                tokens[tok_pos - 2].kind == "return" and
-                token_is_consumed_by_return(tokens[tok_pos]) {
+                tokens[tok_pos - 2].str == "return" and
+                check_tokens_consumed_by_return(tokens, tok_pos) {
             return no
         }
         return yes

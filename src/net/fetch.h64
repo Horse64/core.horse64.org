@@ -106,7 +106,7 @@ func write_to_file(target_uri, path, max_size=(100 * 1024  * 1024)) {
     } rescue any {
         target_obj.close()
         src_obj.close()
-        throw repeat
+        throw
     }
 
     # Do first chunk of read & write:
@@ -136,7 +136,7 @@ func write_to_file(target_uri, path, max_size=(100 * 1024  * 1024)) {
         } rescue any {
             target_obj.close()
             src_obj.close()
-            throw repeat
+            throw
         }
     }
 

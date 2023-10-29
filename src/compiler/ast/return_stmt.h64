@@ -77,8 +77,9 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
 
     # See if this return has an argument at all:
     if pos > tokens_len or
-            not token.token_is_consumed_by_return(
-            tokens[pos]) {
+            not token.check_tokens_consumed_by_return(
+            tokens, pos, max_len=tokens_len
+            ) {
         stmt.token_len = 1
         return stmt
     }

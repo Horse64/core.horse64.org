@@ -952,10 +952,6 @@ def translate_expression_tokens(s, sc,
             s[i] = "__contains__"
         elif s[i] == "throw" and previous_token != ".":
             s[i] = "raise"
-            if nextnonblank(s, i) == "repeat":
-                s = s[:i + 1] + s[
-                    nextnonblankidx(s, i) + 1:
-                ]
         elif s[i] == "is_num" and previous_token != ".":
             s = s[:i] + ["_translator_runtime_helpers",
                 ".", "_is_num"] + s[i + 1:]

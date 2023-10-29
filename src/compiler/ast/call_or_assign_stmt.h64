@@ -83,16 +83,14 @@ func AssignStmt.as_json_obj {
     return output
 }
 
-func parse(tokens, pos, msgs, project_file=none, debug=no) {
-    var token_len = tokens.len
-    var startpos = pos
-
-    if pos > token_len or (
+func check_call_or_assign_and_get_idx(
+        tokens, pos, tokens_len, only_assigns=no) {
+    if pos > tokens_len or (
             not {token.T_NUM, token.T_STR, token.T_BYTES,
              token.T_IDENT}.has(tokens[pos].kind) and
             (tokens[pos].kind != token.T_KEYWORD or
              tokens[pos].str != "base")) {
-        return later none
+        return -1
     }
 
     # To check this is a call or assign, find the '(' or '=':
@@ -100,10 +98,10 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var assign_or_call_idx = -1
     var i = pos + 1
     while yes {
-        if i > token_len {
+        if i > tokens_len {
             break
         } elseif tokens[i].kind == token.T_DOT {
-            if i + 1 > token_len or
+            if i + 1 > tokens_len or
                     tokens[i + 1].kind != token.T_IDENT {
                 break
             }
@@ -134,20 +132,32 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             continue
         } elseif tokens[i].kind == token.T_BRACKET and
                 tokens[i].str == "(" {
-            assign_or_call_idx = i
-            break
+            if only_assigns {
+                return -1
+            }
+            return i
         } elseif tokens[i].kind == token.T_MATHASSIGN or
                 tokens[i].kind == token.T_ASSIGN {
-            assign_or_call_idx = i
-            is_call = no
-            break
+            return i
         } else {
             break
         }
     }
+    return -1
+}
+
+func parse(tokens, pos, msgs, project_file=none, debug=no) {
+    var token_len = tokens.len
+    var startpos = pos
+
+    var assign_or_call_idx = check_call_or_assign_and_get_idx(
+        tokens, token_len, pos
+    )
     if assign_or_call_idx < 0 {
         return later none
     }
+    var is_call = (
+        tokens[assign_or_call_idx].kind == token.T_BRACKET)
 
     # Parse the call or lvalue expression:
     var v1 = expr.parse_expression(

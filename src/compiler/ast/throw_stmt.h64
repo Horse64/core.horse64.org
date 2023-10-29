@@ -73,11 +73,10 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     stmt.col = token.get_col(tokens, pos)
     pos += 1
 
-    if pos <= tokens_len and
-            tokens[pos].kind == token.T_KEYWORD and
-            tokens[pos].str == "repeat" {
-        stmt.has_repeat = yes
-        pos += 1
+    if pos > tokens_len or
+            not token.check_tokens_consumed_by_return(
+            tokens, pos, max_len=tokens_len
+            ) {
         stmt.token_len = (pos - startpos)
         return later stmt
     }

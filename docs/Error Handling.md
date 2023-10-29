@@ -29,7 +29,7 @@ func main {
         var f = some_func_causing_io_error()
         print("Everything alright.")
     } rescue IOError {
-        print("Oops, we had an IOError")
+        print("Oops, we had an IOError.")
     }
 }
 ```
@@ -49,8 +49,28 @@ the execution jumps ahead into your surrounding rescue clause.
 When there's no error, the rescue clause will be ignored and skipped.
 
 
-Multiple errors in `rescue`
----------------------------
+Propagate error up in `rescue` clause
+-------------------------------------
+
+Sometimes you want to do clean-up handling, but then forward
+the error to the caller of your func anyway. In this case,
+just use `throw` to propagate it further up:
+
+```Horse64
+func main {
+    do {
+        var f = some_func_causing_io_error()
+        print("Everything alright.")
+    } rescue IOError {
+        print("Oops, we had an IOError. Let our caller know:")
+        throw
+    }
+}
+```
+
+
+Multiple error types in `rescue`
+--------------------------------
 
 Looking at some funcs like [net.fetch.get_str's documentation](
 /docs/FIXME), you'll notice they can throw **multiple different
