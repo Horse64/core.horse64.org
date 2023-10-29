@@ -1824,7 +1824,8 @@ def cut_tokens_after_lineend(st, i):
     return st[:i]
 
 
-def stmt_is_later_call(st, include_later_ignore=False):
+def stmt_is_later_call(st, include_later_ignore=False,
+        include_return_later=False):
     if type(st) == str:
         st = tokenize(st)
     bdepth = 0
@@ -1834,7 +1835,9 @@ def stmt_is_later_call(st, include_later_ignore=False):
             bdepth += 1
         elif st[i] in {")", "]", "}"}:
             bdepth -= 1
-        if st[i] == "later":
+        if (st[i] == "later" and (
+                include_return_later or
+                prevnonblank(st, i) != "return")):
             if (include_later_ignore or
                     nextnonblank(st, i) != "ignore"):
                 return True
