@@ -11,40 +11,41 @@ functions. These usually depend on external I/O or networking.
 Basic concurrent call
 ---------------------
 
-To have stalling external resources not freeze your program,
-you call any concurrent functions such that there's a time skip
-where other code of yours may run.
-**Here is how to do a concurrent call via the `later` keyword:**
+To avoid stalling external resources freeze your program,
+functionality like disk or network access in Horse64 is
+*concurrent*. This means that while it happens, other code
+in your program continues.
+
+You call any concurrent functions annotated with the `later`
+keyword, indicating a **time skip, see this call example:**
 
   ```Horse64
   import net.fetch from core.horse64.org
   func main {
       var contents = net.fetch.get_str(
           "https://horse64.org"
-      ) later:  # <- Execution after this runs later, after a time skip.
+      ) later:  # Execution after this runs later, after a time skip.
 
-      await contents  # <- You're acknowledging this resouce must be ready.
+      await contents  # Access the results of your async call.
       print("Obtained website contents: " + contents)
   }
   ```
 
-Concurrent functions in Horse64 are also called *"later functions"*
-which is how [horsec](/docs/Resources#horsec) usually names them.
+Concurrent functions in Horse64 are also called *"later functions"*.
 
-Calls to such later functions must always be followed by `later`
-for a time skip, and then `await` on their return value.
-The await is where errors bubble up, **so here is how you catch
-errors after the time skip:**
+The `await` keyword extracts the results, and causes errors
+to bubble up that happened in the call, if any.
+**Here is how you catch errors after the time skip:**
 
   ```Horse64
   import net.fetch from core.horse64.org
   func main {
      var contents = net.fetch.get_str(
          "https://horse64.org"
-     ) later:  # <- Execution after this runs later, after a time skip.
+     ) later:  # Execution after this runs later, after a time skip.
 
      do {
-         await contents  # <- Errors bubble up here.
+         await contents  # Errors bubble up here.
          print("Obtained website contents: " + contents)
      } rescue NetworkIOError {
          print("Oops, our download failed!")
@@ -65,7 +66,7 @@ the call up with `later ignore`:
   func main {
       net.fetch.get_str(
          "https://horse64.org"
-      ) later ignore  # <- We don't care if it succeeds or what it returns.
+      ) later ignore  # <- We don't care about success or return value.
 
       print("The internet fetch is likely still in progress now,
             but we don't care.")
