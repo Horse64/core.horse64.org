@@ -58,6 +58,8 @@ type Project {
     var modules_dir_uri = none
 
     var tried_find_modules_dir = no
+
+    var module_to_file_map = {->}
 }
 
 type ModuleInfo {
@@ -333,17 +335,21 @@ func Project.get_modinfo_for_file(file_uri) {
             "with invalid reserved name 'horse_modules', "
             "while not in the actual packages directory.")
     }
-    if not is_external_package {
-        for source_dir in valid_source_nesting_dirs {
-            if module_name.lower().starts(source_dir + ".") or
-                    module_name.lower() == source_dir.lower() {
-                module_name = module_name.sub(
-                    (source_dir + ".").len + 1)
-                break
-            }
-        }
-        if rel_path == "" {
+    for source_dir in valid_source_nesting_dirs {
+        if module_name.lower().starts(source_dir + ".") {
+            module_name = module_name.sub(
+                (source_dir + ".").len + 1)
+            break
+        } elseif module_name.lower() == source_dir.lower() {
             return later none
+        }
+    }
+    if module_name.has(".") {
+        var last_component = module_name.sub(module_name.rfind(".") + 1)
+        if module_name == last_component + "." + last_component or
+                module_name.ends("." + last_component +
+                    "." + last_component) {
+            module_name = module_name.sub(1, module_name.rfind(".") - 1)
         }
     }
 
@@ -670,6 +676,8 @@ func ProjectFile.ensure_project {
     ) later:
 
     await modinfo
+    self.project.module_to_file_map[modinfo.module_name + "@" +
+        modinfo.package_name] = self
     self.is_external_package = modinfo.is_external_package
     self.modinfo = modinfo
     if self.wants_debug_modules {
@@ -919,33 +927,41 @@ func ProjectFile.process_first_working_module_file(
             if modinfo.package_name == none {
                 modinfo.package_name = self.project.package_name
             }
-            var pfile = new ProjectFile(file_uri)
-            pfile.project = self.project
-            pfile.modinfo = modinfo
+            var key = (modinfo.module_name + "@" +
+                modinfo.package_name)
+            var pfile = none
+            if not self.project.module_to_file_map.has(key) {
+                pfile = new ProjectFile(file_uri)
+                pfile.project = self.project
+                pfile.modinfo = modinfo
+                self.project.module_to_file_map[key] = pfile
+            } else {
+                pfile = self.project.module_to_file_map[key]
+            }
+            assert(pfile.source_uri != none)
 
             var result = new ProcessModuleFileResult()
-            result.pfile = pfile
+            result.project_file = pfile
 
             # FIXME: collect neighbor modules to also load!!!
 
             return later result
         }
-        var result = new ProcessModuleFileResult()
-        return later result
+        return later none
     }
     var next_entry = try_list.pop()
-    var project_file = test_and_get_project_file(next_entry) later:
+    var process_result = test_and_get_project_file(next_entry) later:
 
-    await project_file
-    if project_file != none {
-        return later project_file
+    await process_result
+    if process_result != none {
+        return later process_result
     }
     if try_list.len == 0 {
         var result = new ProcessModuleFileResult()
         return later result
     }
     next_entry = try_list.pop()
-    project_file = test_and_get_project_file(next_entry) later repeat
+    process_result = test_and_get_project_file(next_entry) later repeat
 }
 
 func ProjectFile.resolve_all_imports(debug=no) {
@@ -995,7 +1011,10 @@ func ProjectFile.resolve_all_imports(debug=no) {
         ) later:
 
         await process_result
-        project_file = process_result.project_file
+        var project_file = none
+        if process_result != none {
+            project_file = process_result.project_file
+        }
         if debug {
             print("compiler.project: resolve_all_imports() "
                 "resolved import " + importst.module_path.as_str() + " "
