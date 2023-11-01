@@ -50,31 +50,8 @@ program main entrypoint starts.
 The **main entrypoint is the `main` function** you have to declare
 somewhere for your program.
 
-
-Folder module files
--------------------
-
-When a code file has the same name as the surrounding folder
-e.g. named `mymodule`, it sort of "represents" the functions
-of that folder module.
-
-See here, an example:
-
-*In file `mymodule/mymodule.h64`:*
-```Horse64
-var test = print_hello()
-
-func print_hello {
-    print("Hello from mymodule")
-}
-```
-
-*Above code gets triggered with this import:*
-```Horse64
-import mymodule
-```
-Also, after this import, `mymodule.print_hello` and
-`mymodule.test` can be accessed.
+Summed up: `my/random/folder/codefile.h64` becomes a module
+that can be imported as `my.random.folder.codefile` for use.
 
 
 Neighboring modules are automatically imported
@@ -107,6 +84,32 @@ all the ones in the same folder,** allowing easy use
 of [extending types](/docs/OOP.md#extend-types) like
 in the example above. However, anything in deeper
 subfolders or outside of the folder won't be pulled in.
+
+
+Folder init module files
+------------------------
+
+As a special case, when a code file has the same name as the
+surrounding folder e.g. named `mymodule`, it sort of
+"represents" the functions of that folder module.
+
+See here, an example:
+
+*In file `mymodule/mymodule.h64`:*
+```Horse64
+var test = print_hello()
+
+func print_hello {
+    print("Hello from mymodule")
+}
+```
+
+*Above code gets triggered with this import:*
+```Horse64
+import mymodule
+```
+Also, after this import, `mymodule.print_hello` and
+`mymodule.test` can be accessed.
 
 
 How to get more packages
