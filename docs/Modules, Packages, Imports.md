@@ -7,17 +7,19 @@ Modules, Packages, Imports
 This document describes how Horse64 code is organized, and how you can
 integrate third-party libraries and code. For a simple program
 you can have some single `myprogram.h64` text file with all your code,
-but for non-trivial programs you'll want to use multiple modules:
+but for non-trivial programs you'll want to use multiple files.
+Each such file is then called a module, but read on for details:
 
 
 How a project is organized
 --------------------------
 
 A **package** is Horse64's name for a more-or-less complete project,
-e.g. a repository folder holding your piece of software or library
-would be a package. (As an example, `core.horse64.org` is the
-package holding all the standard library functionality, so all the
-I/O and math basics likely needed by most programs.)
+e.g. a project folder holding your piece of software or library
+would be a package. (Or as another example, `core.horse64.org` is
+the package holding all the standard library functionality,
+with things like I/O and math basics likely needed by most
+programs.)
 
 A **module** is Horse64's name for what you organize in either a single
 code file, or whatever is then grouped in a folder. For example, the
