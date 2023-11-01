@@ -48,7 +48,7 @@ global variables, runs for each import module** before the actual
 program main entrypoint starts.
 
 The **main entrypoint is the `main` function** you have to declare
-somewhere for each program.
+somewhere for your program.
 
 
 Folder module files
