@@ -9,7 +9,9 @@ What is Horse64
 ---------------
 
 *(This is a technical in-depth look,
-[go here for easy to grasp features](/docs/Features.md)).*
+[go here for easy to grasp features](/docs/Features.md),
+or check out the [tutorials section for easy introductions
+and overviews](/docs/Tutorials/Start)).*
 
 Horse64 is on the technical side a [dynamically but
 strongly typed](
