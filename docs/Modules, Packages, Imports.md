@@ -23,7 +23,7 @@ A **module** is Horse64's name for what you organize in either a single
 code file, or whatever is then grouped in a folder. For example, the
 `math` module in `core.horse64.org` is implemented in a respective
 `math.h64` file. The `compiler.main` module sits in a `compiler/main.h64`
-file.
+file, and it's a **submodule** of the `compiler` module.
 
 To use code from a separate module, simply import it:
 ```Horse64
