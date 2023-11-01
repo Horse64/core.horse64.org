@@ -147,11 +147,11 @@ func check_call_or_assign_and_get_idx(
 }
 
 func parse(tokens, pos, msgs, project_file=none, debug=no) {
-    var token_len = tokens.len
+    var tokens_len = tokens.len
     var startpos = pos
 
     var assign_or_call_idx = check_call_or_assign_and_get_idx(
-        tokens, token_len, pos
+        tokens, tokens_len, pos
     )
     if assign_or_call_idx < 0 {
         return later none
