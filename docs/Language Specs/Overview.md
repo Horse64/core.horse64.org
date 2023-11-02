@@ -38,17 +38,20 @@ Design Goals
 
 Major design goals of Horse64 are:
 
-- As approachable as possible for beginners,
+- Approachability and productivity for beginners,
   without sacrificing big project suitability.
 
-- As clean and minimal as possible,
+- Clean and minimal, as much as possible
   without sacrificing big project suitability.
 
-- The basic tooling should be portable and easy to install and modify.
-  *(This is why the compiler is custom, without LLVM or bison or
-  any similar external tooling.)*
+- Base tooling and resulting programs should be portable,
+  and easy to install and expand.
 
-- Main focus is easy desktop app and server app creation.
+  *(This is why the [compiler](/docs/Resources.md#horsec) is
+  custom and self-hosted, without LLVM or bison or other similar
+  external tooling.)*
+
+- Desktop app and server app creation should be easy.
 
 
 OOP in Horse64 by using `type`
