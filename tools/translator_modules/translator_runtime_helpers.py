@@ -2017,6 +2017,10 @@ def _run_main(main_func):
     _async_ops_lock.release()
     sys.exit(return_value)
 
+def _container_get_values(container):
+    if type(container) == dict:
+        return list(container.values())
+    return getattr(container, "values")
 
 def _container_squarebracketaccess(container, index):
     if type(container) == dict:
