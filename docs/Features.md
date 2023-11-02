@@ -158,7 +158,7 @@ https://codeberg.org/Horse64/core.horse64.org/issues/new?template=.gitea%2fISSUE
 |✔| | |✔|✔| |**Precompiled** always, for better large project checks.  |
 |✔| | |✔|✔| |**Static name resolution** to catch most typos early.     |
 |✔| | |✔|✔| |**Non-trivial optimizations and warnings** by default.    |
-| | | |✔|✔| |**Forced type declarations** for most in-advance checks.  |
+| | | |✔|✔| |**Forced type declarations** for deepest compile checks.  |
 
 ### Organizational Structure Comparison
 
