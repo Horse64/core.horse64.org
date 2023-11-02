@@ -13,7 +13,7 @@ underlying implementations.
 How code reaches the runtime
 ----------------------------
 
-Check [the compilation section](/docs/Compilation.md)
+Check [the compilation section](/docs/Compilation.md).
 
 
 Garbage collection
@@ -54,9 +54,9 @@ the current state on platform support:
 | Linux x64 glibc            |★★★   | Official build.             |
 | Linux ARM64 glibc          |★★★   | Official build.             |
 | Any Linux (MIPS, musl, ...)|★★    | Works, if **SDL2** does.    |
-| Windows x86                |★★    | Works on Vista or newer.    |
-| macOS ARM64                |★     | Might work, patches welcome.|
-| Generic Unix, BSD          |★     | Might work, patches welcome.|
+| Windows x86                |★★    | Should work, Vista or newer.|
+| macOS ARM64                |★     | Might require minor patches.|
+| Generic Unix, BSD          |★     | Might require minor patches.|
 | Android ARM64              |      | Tons of work needed first.  |
 | iOS ARM64                  |      | Tons of work needed first.  |
 
@@ -68,6 +68,7 @@ the current state on platform support:
 | Linux x64 glibc      |`"linux"`      | linux-x64-glibc      |
 | Linux ARM64 glibc    |`"linux"`      | linux-arm64-glibc    |
 | Linux x64, other libc|`"linux"`      | linux-x64-other      |
+| Windows x86          |`"windows"`    | windows-x86-mingw    |
 | FreeBSD x64          |`"freebsd"`    | freebsd-x64-default  |
 | macOS ARM64          |`"macos"`      | macos-arm64-default  |
 | Android ARM64        |`"android"`    | android-arm64-bionic |
