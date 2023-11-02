@@ -84,7 +84,7 @@ func AssignStmt.as_json_obj {
 }
 
 func check_call_or_assign_and_get_idx(
-        tokens, pos, tokens_len, only_assigns=no) {
+        tokens, pos, tokens_len, only_assigns=no, debug=no) {
     if pos > tokens_len or (
             not {token.T_NUM, token.T_STR, token.T_BYTES,
              token.T_IDENT}.has(tokens[pos].kind) and
@@ -112,7 +112,7 @@ func check_call_or_assign_and_get_idx(
             var bracket_depth = 1
             i += 1
             while yes {
-                if i > token_len {
+                if i > tokens_len {
                     break
                 }
                 if tokens[i].kind == token.T_BRACKET {
@@ -151,18 +151,18 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var startpos = pos
 
     var assign_or_call_idx = check_call_or_assign_and_get_idx(
-        tokens, tokens_len, pos
+        tokens, pos, tokens_len, debug=debug
     )
     if assign_or_call_idx < 0 {
         return later none
     }
-    var is_call = (
-        tokens[assign_or_call_idx].kind == token.T_BRACKET)
+    var is_call =
+        tokens[assign_or_call_idx].kind == token.T_BRACKET
 
     # Parse the call or lvalue expression:
     var v1 = expr.parse_expression(
         tokens, pos,
-        msgs, max_len=(if is_call (token_len) else
+        msgs, max_len=(if is_call (tokens_len) else
             (assign_or_call_idx)),
         project_file=project_file, debug=debug
     ) later:
