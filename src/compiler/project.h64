@@ -264,6 +264,62 @@ const valid_source_nesting_dirs = {
     "source", "src"
 }
 
+func check_valid_rel_module_path(modpath, msgs=none,
+        orig_file_uri=none,
+        is_import=yes, import_line=none, import_col=none
+        ) {
+    if modpath.ends(".h64") {
+        modpath = modpath.sub(1, modpath.len - ".h64".len)
+    }
+    var code_a = text.code('a')
+    var code_z = text.code('z')
+    var code_cap_a = text.code('A')
+    var code_cap_z = text.code('Z')
+    var code_0 = text.code('0')
+    var code_9 = text.code('0')
+    var pos = 1
+    while pos <= modpath.len {
+        if {"_", path.sep}.has(modpath[pos]) {
+            pos += 1
+            continue
+        }
+        var cp = text.code(modpath[pos])
+        if (cp < code_a or cp > code_z) and
+                (cp < code_cap_a or cp > code_cap_z) and
+                (cp < code_0 or cp > code_9) and
+                cp <= 127 {
+            if msgs != none {
+                var fake_source_file = new ProjectFile(
+                    source_uri=orig_file_uri)
+                if is_import {
+                    msgs.add(new msg.FileMsg(
+                        "Failed to process import due to invalid "
+                        "folder name in path.",
+                        source_file=fake_source_file,
+                        line=import_line, col=import_col,
+                    ))
+                } else {
+                    msgs.add(new msg.FileMsg(
+                        "Failed to load file due to invalid "
+                        "folder name in path.",
+                        source_file=fake_source_file
+                    ))
+                }
+            } else {
+                throw new InvalidModuleNameError("File is inside dir "
+                    "with invalid module name with forbidden "
+                    "character: " +
+                    token.describe_char_at(modpath, pos,
+                        maybe_cutoff_glyph=no
+                ))
+            }
+            return no
+        }
+        pos += 1
+    }
+    return yes
+}
+
 func Project.get_modinfo_for_file(file_uri) {
     var rel_path = self.get_rel_dir_of_file(
         file_uri
@@ -277,31 +333,9 @@ func Project.get_modinfo_for_file(file_uri) {
             ".h64 file extension.")
     }
     var no_ext_rel_path = rel_path.sub(1, rel_path.len - ".h64".len)
-    var code_a = text.code('a')
-    var code_z = text.code('z')
-    var code_cap_a = text.code('A')
-    var code_cap_z = text.code('Z')
-    var code_0 = text.code('0')
-    var code_9 = text.code('0')
-    var pos = 1
-    while pos <= no_ext_rel_path.len {
-        if {"_", path.sep}.has(no_ext_rel_path[pos]) {
-            pos += 1
-            continue
-        }
-        var cp = text.code(no_ext_rel_path[pos])
-        if (cp < code_a or cp > code_z) and
-                (cp < code_cap_a or cp > code_cap_z) and
-                (cp < code_0 or cp > code_9) and
-                cp <= 127 {
-            throw new InvalidModuleNameError("File is inside dir "
-                "with invalid module name with forbidden "
-                "character: " +
-                token.describe_char_at(no_ext_rel_path, pos,
-                    maybe_cutoff_glyph=no
-                ))
-        }
-        pos += 1
+    if not check_valid_rel_module_path(no_ext_rel_path,
+            orig_file_uri=file_uri, is_import=no) {
+        return none
     }
     var package_name = none
     var package_dir_uri = self.base_dir_uri
@@ -691,13 +725,25 @@ func ProjectFile.ensure_project {
 }
 
 func ProjectFile.get_relative_imports_to_test(
-        full_original_import, external_package_name=none
+        full_original_import, msgs=none, external_package_name=none,
+        import_line=none, import_col=none,
         ) {
     if external_package_name != none and (
+            external_package_name.startswith(".") or
+            external_package_name.endswith(".") or
             external_package_name.find("/") != none or
             external_package_name.find("\\") != none or
             external_package_name.find("..") != none) {
-        throw new ValueError("Invalid external_package_name given.")
+        if msgs != none {
+            msgs.add(new msg.FileMsg(
+                "Failed to process import due to invalid "
+                "package name.",
+                source_file=self,
+                line=import_line, col=import_col,
+            ))
+        } else {
+            throw new ValueError("Invalid external_package_name given.")
+        }
     }
     if typename(full_original_import) != "list" {
         full_original_import = full_original_import.split(".")
@@ -871,8 +917,83 @@ type ProcessModuleFileResult {
     var neighbor_project_files = []
 }
 
+func add_neighbor_modules_to_result(
+        result, file_uri, msgs=none,
+        import_line=none, import_col=none,
+        debug=no
+        ) {
+    var folder_uri = uri.dirname(file_uri)
+    if not {"file", "vfs"}.has(uri.get_protocol(file_uri)) {
+        if msgs != none {
+            msgs.add(new msg.FileMsg(
+                "Failed to process neighbor imports in "
+                "folder " + uri.normalize(file_uri) + ", since "
+                "folder listing isn't supported for this type "
+                "of URI.",
+                source_file=self,
+                line=import_line, col=import_col,
+            ))
+        } else {
+            throw new ValueError("Folder listing not supported for "
+                "this type of import, can't process neighbors.")
+        }
+    }
+    var is_vfs = (uri.get_protocol(file_uri) == "vfs")
+    func process_neighbor_import(neighbor_file_name) {
+        if not neighbor_file_name.endswith(".h64") {
+            return later
+        }
+        var neighbor_uri = uri.add_part(folder_uri,
+            neighbor_file_name)
+        assert({"file", "vfs"}.has(
+            uri.get_protocol(neighbor_uri).lower()
+        ))
+        var is_dir_result = io.is_dir(
+            uri.to_file_or_vfs_path(neighbor_uri),
+            allow_vfs=is_vfs, allow_disk=(not is_vfs)) later:
+
+        await is_dir_result
+        if not is_dir_result {
+            return later
+        }
+        if not check_valid_rel_module_path(
+                neighbor_file_name, msgs=msgs,
+                orig_file_uri=file_uri, is_import=yes,
+                import_line=import_line, import_col=import_col
+                ) {
+            return later
+        }
+
+        var neighbor_rel_path = result.project_file.modinfo.rel_path
+        var neighbor_project_file = new ProjectFile(
+            source_uri=neighbor_uri, is_entrypoint=no,
+            force_single_file=no, project=result.project_file.project,
+            request_debug_modules=debug)
+        result.neighbor_rel_path_list.add(neighbor_rel_path)
+        result.neighbor_project_files.add(neighbor_project_file)
+    }
+    var folder_disk_path = uri.to_file_or_vfs_path(folder_uri)
+    var entries = io.list_dir(folder_disk_path,
+        allow_vfs=is_vfs, allow_disk=(not is_vfs)) later:
+
+    await entries
+    if entries.len == 0 {
+        return
+    }
+    var next_file = entries.pop()
+    var _unused = process_neighbor_import(next_file) later:
+
+    await _unused
+    if entries.len == 0 {
+        return
+    }
+    var next_file = entries.pop()
+    _unused = process_neighbor_import(next_file) later repeat
+}
+
 func ProjectFile.process_first_working_module_file(
         try_list, external_package_name=none,
+        msgs=none, import_line=none, import_col=none,
         debug=no
         ) {
     try_list = try_list.copy()
@@ -943,7 +1064,9 @@ func ProjectFile.process_first_working_module_file(
             var result = new ProcessModuleFileResult()
             result.project_file = pfile
 
-            # FIXME: collect neighbor modules to also load!!!
+            add_neighbor_modules_to_result(
+                result, file_uri, msgs=msgs, import_line=import_line,
+                import_col=import_col, debug=debug) later:
 
             return later result
         }
@@ -964,7 +1087,7 @@ func ProjectFile.process_first_working_module_file(
     process_result = test_and_get_project_file(next_entry) later repeat
 }
 
-func ProjectFile.resolve_all_imports(debug=no) {
+func ProjectFile.resolve_all_imports(msgs=none, debug=no) {
     if self.project == none {
         throw new RuntimeError("Must call "
             "ensure_project() first.")
@@ -986,7 +1109,7 @@ func ProjectFile.resolve_all_imports(debug=no) {
         assert(file_rel_path != none)
     }
 
-    func resolve_next_import_if_needed {
+    func resolve_next_import_if_needed(msgs=none) {
         if imports_to_process.len == 0 {
             return no
         }
@@ -1000,13 +1123,16 @@ func ProjectFile.resolve_all_imports(debug=no) {
             external_name = none
         }
         var try_list = self.get_relative_imports_to_test(
-            importst.module_path,
-            external_package_name=external_name
+            importst.module_path, msgs=msgs,
+            external_package_name=external_name,
+            import_line=importst.line, import_col=importst.col
         ) later:
 
         await try_list
         var process_result = self.process_first_working_module_file(
             try_list, external_package_name=external_name,
+            msgs=msgs, import_line=importst.line,
+            import_col=importst.col,
             debug=debug
         ) later:
 
@@ -1033,14 +1159,14 @@ func ProjectFile.resolve_all_imports(debug=no) {
         return yes
     }
 
-    var do_continue = resolve_next_import_if_needed()
+    var do_continue = resolve_next_import_if_needed(msgs=msgs)
     later:
 
     await do_continue
     if not do_continue {
         return no
     }
-    do_continue = resolve_next_import_if_needed()
+    do_continue = resolve_next_import_if_needed(msgs=msgs)
     later repeat
 }
 
