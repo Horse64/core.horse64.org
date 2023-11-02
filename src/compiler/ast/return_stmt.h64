@@ -80,7 +80,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             not token.check_tokens_consumed_by_return(
             tokens, pos, max_len=tokens_len
             ) {
-        stmt.token_len = 1
+        stmt.token_len = (pos - startpos)
         return stmt
     }
 
