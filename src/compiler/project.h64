@@ -1168,7 +1168,8 @@ func ProjectFile.process_first_working_module_file(
     process_result = test_and_get_project_file(next_entry) later repeat
 }
 
-func ProjectFile.resolve_all_imports(msgs=none, debug=no) {
+func ProjectFile.resolve_all_imports(msgs=none,
+        ignore_missing=no, debug=no) {
     if self.project == none {
         throw new RuntimeError("Must call "
             "ensure_project() first.")
@@ -1236,7 +1237,7 @@ func ProjectFile.resolve_all_imports(msgs=none, debug=no) {
                     else ("<not found>")
             )
         }
-        if project_file == none {
+        if project_file == none and not ignore_missing {
             if msgs != none {
                 msgs.add(new msg.FileMsg(
                     "Import failed, couldn't "

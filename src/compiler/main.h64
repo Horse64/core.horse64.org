@@ -215,6 +215,7 @@ func actionparser_modinfo(args) {
             return
         }
         pfile.resolve_all_imports(
+            ignore_missing=yes,
             debug=result.args["--debug-modules"]
         ) later:
     }
