@@ -31,3 +31,14 @@ This repository holds the code of the standard library, compiler,
 and main documentation. The code is officially hosted on [Codeberg](
 https://codeberg.org/Horse64/core.horse64.org) with a GitHub mirror.
 
+
+Install & Build
+---------------
+
+The recommended way to install is [to get the prebuilt SDK](
+https://horse64.org/download), and then to use [horp](
+/docs/Runtime.md#horp) to update or switch versions. (It
+all comes with the SDK.)
+
+To bootstrap without any prebuilt SDK, *FIXME/to be written.*
+
