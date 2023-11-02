@@ -871,6 +871,14 @@ def _uri_add_path(v):
     )
 
 def _uri_dirname(v):
+    if (v.lower().startswith("file://") or
+            v.lower().startswith("vfs://")):
+        protocol = v.partition("://")[0].lower()
+        dirpath = urllib.parse.unquote(v.partition("://")[2])
+        dirpath = dirpath.replace("/", os.path.sep)
+        dirpath = os.path.dirname(dirpath)
+        return (protocol + "://" +
+            urllib.parse.quote(dirpath))
     urlobj = urllib.parse.urlparse(_uri_normalize(v))
     new_path = urlobj.path
     if new_path.endswith("/"):
@@ -1049,7 +1057,7 @@ def _io_open(fpath, mode, cb, allow_vfs=True, allow_disk=True):
                 ]
             else:
                 result = [
-                    _PathNotFoundError("Path doesn't exist"), None
+                    _PathNotFoundError("Path doesn't exist."), None
                 ]
         else:
             result = [None, None]
@@ -1098,7 +1106,7 @@ def _io_rename(v1, v2, cb, allow_vfs=True, allow_disk=True):
                 ]
             else:
                 result = [
-                    _PathNotFoundError("Path doesn't exist"), None
+                    _PathNotFoundError("Path doesn't exist."), None
                 ]
         else:
             result = [None, None]
@@ -1144,7 +1152,7 @@ def _io_remove_file(v, cb, allow_vfs=True, allow_disk=True):
                 ]
             else:
                 result = [
-                    _PathNotFoundError("Path doesn't exist"), None
+                    _PathNotFoundError("Path doesn't exist."), None
                 ]
         else:
             result = [None, None]
@@ -1188,7 +1196,7 @@ def _io_remove_dir(v, cb, allow_vfs=True, allow_disk=True):
                 ]
             else:
                 result = [
-                    _PathNotFoundError("Path doesn't exist"), None
+                    _PathNotFoundError("Path doesn't exist."), None
                 ]
         else:
             result = [None, None]
@@ -1231,7 +1239,7 @@ def _io_ls_dir(v, cb, allow_vfs=True, allow_disk=True):
                 result = [None, []]
             else:
                 result = [
-                    _PathNotFoundError("Path doesn't exist"), None
+                    _PathNotFoundError("Path doesn't exist."), None
                 ]
         else:
             result = [None, None]
@@ -1273,12 +1281,12 @@ def _io_is_dir(v, cb, allow_vfs=True, allow_disk=True):
                 result = [None, True]
             else:
                 result = [
-                    _PathNotFoundError("Path doesn't exist"), None
+                    _PathNotFoundError("Path doesn't exist."), None
                 ]
         else:
             result = [None, None]
             try:
-                result[1] = _wrap_io(os.path.is_dir)(v)
+                result[1] = _wrap_io(os.path.isdir)(v)
             except Exception as e:
                 result[0] = e
                 result[1] = None
