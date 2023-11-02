@@ -33,13 +33,17 @@ import text from core.horse64.org
 import uri from core.horse64.org
 
 import compiler.ast as ast
-import compiler.comment.command as command_comment
 import compiler.ast.import_stmt as import_stmt
+import compiler.comment.command as command_comment
+import compiler.msg as msg
 import compiler.token as token
 
 var _known_readable_files = []
 
 type InvalidModuleNameError base ValueError {
+}
+
+type ModuleNotFoundError base ValueError {
 }
 
 type Project {
@@ -1231,6 +1235,23 @@ func ProjectFile.resolve_all_imports(msgs=none, debug=no) {
                         project_file.modinfo.module_name + ")")
                     else ("<not found>")
             )
+        }
+        if project_file == none {
+            if msgs != none {
+                msgs.add(new msg.FileMsg(
+                    "Import failed, couldn't "
+                    "find module '" + importst.module_path.join(".") +
+                    "'" + if external_name != none (" from " +
+                        external_name) else ("") + " "
+                    "that was referenced.",
+                    source_file=self,
+                    line=importst.line, col=importst.col,
+                ))
+            } else {
+                throw new ModuleNotFoundError(
+                    "Failed to find referenced module."
+                )
+            }
         }
         importst.project_file = project_file
         if process_result != none {
