@@ -13,14 +13,7 @@ underlying implementations.
 How code reaches the runtime
 ----------------------------
 
-A program's code is written in an `.h64` text file, then translated
-by [horsec](/docs/Resources.md#horsec) to bytecode stored in a binary
-file. This binary file is then combined with [HVM](
-/docs/Resources.md#hvm) as a runtime into a mostly standalone
-executable.
-
-Other tooling like [horp](/docs/Resources.md#horp) helps
-with project management.
+Check [the compilation section](/docs/Compilation.md)
 
 
 Garbage collection

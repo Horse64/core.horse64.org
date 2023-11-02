@@ -76,6 +76,9 @@ Horsec
 The official compiler for Horse64 code is a binary called `horsec`.
 It's written primarily in Horse64.
 
+- [The compilation section describes some details on horsec.](
+  /docs/Compilation.md)
+
 - Get it by fetching the **SDK**.
 
 - Find [🧬 horsec's code here](
