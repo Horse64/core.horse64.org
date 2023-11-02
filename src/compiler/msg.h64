@@ -68,6 +68,26 @@ func FileMsg.as_str {
     return t + ")"
 }
 
+func FileMsg.as_json_obj {
+    var output = {
+        "msg"-> self.content,
+        "line"-> none,
+        "col"-> none,
+        "file->uri"-> none,
+    }
+    if self.line != none {
+        output["line"] = self.line
+        if self.col != none {
+            output["col"] = self.col
+        }
+    }
+    if self.source_file != none and
+            self.source_file.source_uri != none {
+        output["file-uri"] = self.source_file.source_uri
+    }
+    return output
+}
+
 func FileMsg.as_terminal_str(prefix="", wrap_width=none) {
     var next_line_prefix = ""
     var t = ""

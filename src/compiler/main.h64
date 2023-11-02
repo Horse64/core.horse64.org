@@ -67,8 +67,8 @@ func tokenize_target_from_args(args) {
     }
 }
 
-func parse_ast_target_from_args(args, debug=no,
-        debug_modules=no) {
+func parse_ast_target_from_args(args, checked_ast=no,
+        debug=no, debug_modules=no) {
     if args["--code"] != none {
         var tresult = compiler.ast.parse_str_to_ast(
             args["--code"], is_entrypoint=yes,
@@ -92,6 +92,22 @@ func parse_ast_target_from_args(args, debug=no,
     ) later:
 
     await tresult
+    if not checked_ast {
+        return tresult
+    }
+    ensure_global_scope_for_full_project(msgs=tresult.msgs) later:
+
+    var haderror = no
+    for m in tresult.msgs {
+        if m.kind == msg.M_ERROR {
+            haderror = yes
+            break
+        }
+    }
+    if haderror {
+        return tresult
+    }
+    # FIXME: do full scope checks here
     return tresult
 }
 
@@ -108,7 +124,11 @@ func show_ast_or_global_scope_result_to_terminal(
     if for_script {
         var output = {
             "error": none,
+            "msgs": [],
             "result": aresult.as_json_obj(),
+        }
+        for m in msgs {
+            output["msgs"].add(msg.as_json_obj())
         }
         if had_error {
             output["error"] = "Code has errors."
@@ -225,7 +245,8 @@ func actionparser_compile(args) {
         description="At which stage to stop. The default is "
             "\"binary\" which means full compilation, other "
             "available stages are: "
-            "tokens, ast, global-scope, ast-scope, bytecode.")
+            "tokens, ast, global-scope, checked-ast, "
+            "transformed-code, bytecode.")
     defs.add_switch(
         "--output-file", takes_arg=yes,
         description="Where to write the resulting binary, or "
@@ -262,7 +283,11 @@ func actionparser_compile(args) {
         if result.args["--for-script"] {
             var output = {
                 "error": none,
+                "msgs": [],
                 "result": tresult.as_json_obj(),
+            }
+            for m in msgs {
+                output["msgs"].add(msg.as_json_obj())
             }
             if had_error {
                 output["error"] = "Code has errors."
@@ -291,9 +316,9 @@ func actionparser_compile(args) {
         }
     } elseif result.args["--stage"] == "ast" or
             result.args["--stage"] == "global-scope" {
-        var had_error = no
         var aresult = parse_ast_target_from_args(
-            result.args, debug=result.args["--debug-ast"],
+            result.args, checked_ast=no,
+            debug=result.args["--debug-ast"],
             debug_modules=result.args["--debug-modules"],
         )
         later:
@@ -309,6 +334,52 @@ func actionparser_compile(args) {
             for_script=result.args["--for-script"],
             is_global_scope=is_global_scope,
         )
+    } elseif result.args["--stage"] == "checked-ast" or
+            result.args["--stage"] == "transformed-code" {
+        var aresult = parse_ast_target_from_args(
+            result.args, checked_ast=no,
+            debug=result.args["--debug-ast"],
+            debug_modules=result.args["--debug-modules"],
+        )
+        later:
+
+        await aresult
+        if result.args["--stage"] == "checked-ast" {
+            return show_ast_or_global_scope_result_to_terminal(
+                aresult,
+                aresult.msgs,
+                program_name=program_name,
+                for_script=result.args["--for-script"],
+                is_global_scope=is_global_scope,
+            )
+        }
+        # Continuing here, we want to transform the code.
+        # If the AST wasn't succesfully created, abort:
+        var haderror = no
+        for m in aresult.msgs {
+            if m.kind == msg.M_ERROR {
+                haderror = yes
+                break
+            }
+        }
+        if haderror {
+            if result.args["--for-script"] {
+                var output = {
+                    "error": "Code has errors.",
+                    "msgs": [],
+                    "result": none,
+                }
+                for m in aresult.msgs {
+                    output["msgs"].add(msg.as_json_obj())
+                }
+                print(json.dump(output))
+                return 1
+            }
+            for m in aresult.msgs {
+                print(m.as_terminal_str(prefix=program_name))
+            }
+            return 1
+        }
     }
 }
 

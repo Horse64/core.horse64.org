@@ -520,6 +520,8 @@ type ProjectFile {
     var _is_single_file = none
 
     var imports = none
+
+    var global_scope = none
 }
 
 func ProjectFile.init(
@@ -591,6 +593,7 @@ func ProjectFile.parse_for_imports_if_needed {
 
     await astresult
     self.set_imports_from_ast_result(astresult)
+    self.global_scope = astresult.global_scope
 }
 
 func ProjectFile.check_is_single_file {
@@ -1119,6 +1122,31 @@ func ProjectFile.process_first_working_module_file(
     }
     next_entry = try_list.pop()
     process_result = test_and_get_project_file(next_entry) later repeat
+}
+
+func ProjectFile.ensure_global_scope_for_full_project(
+        msgs=none, debug=no) {
+    func process_file_fully(pfile) {
+        var result = pfile.resolve_all_imports(
+            msgs=msgs, debug=de) later:
+
+        await result
+    }
+    process_file_fully(self) later:
+
+    var file_queue = self.project.module_to_file_map.values()
+    if file_queue.len == 0 {
+        return
+    }
+    var next_file = file_queue.pop()
+    var _unused = process_file_fully(next_file) later:
+
+    await _unused
+    if file_queue.len == 0 {
+        return
+    }
+    next_file = file_queue.pop()
+    _unused = process_file_fully(next_file) later repeat
 }
 
 func ProjectFile.resolve_all_imports(msgs=none, debug=no) {
