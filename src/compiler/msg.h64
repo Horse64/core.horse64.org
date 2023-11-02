@@ -25,11 +25,9 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-
 import textfmt
 
 import compiler.token as token
-
 
 enum MsgKind {
     M_ERROR
