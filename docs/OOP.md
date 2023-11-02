@@ -47,10 +47,10 @@ using the `func` keyword to make func attributes:
 type Car {
     var speed = 90
     var color = "green"
+}
 
-    func honk {
-        print("HONK! HONK!")
-    }
+func Car.honk {
+    print("HONK! HONK!")
 }
 
 func main {
@@ -66,10 +66,10 @@ var attributes and their values via the `self` keyword:
 type Car {
     var speed = 90
     var color = "green"
+}
 
-    func increase_speed {
-        self.speed += 10
-    }
+func Car.increase_speed {
+    self.speed += 10
 }
 ```
 
@@ -91,10 +91,10 @@ you can `base` it on an existing type:
 type Vehicle {
     var speed = 90
     var color = "green"
+}
 
-    func increase_speed {
-        self.speed += 10
-    }
+func Vehicle.increase_speed {
+    self.speed += 10
 }
 
 type Truck base Vehicle {
