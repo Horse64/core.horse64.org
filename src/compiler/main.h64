@@ -95,8 +95,18 @@ func parse_ast_target_from_args(args, checked_ast=no,
     if not checked_ast {
         return tresult
     }
-    ensure_global_scope_for_full_project(msgs=tresult.msgs) later:
 
+    tresult.project_file.project.ensure_global_scope_for_full_project(
+        msgs=tresult.msgs,
+        debug=debug_modules
+    ) later:
+
+    if debug_modules {
+        print("compiler.main: parse_ast_target_from_args() " +
+            "full list of project files that were processed: " +
+            tresult.project_file.project.
+                module_to_file_map.values().as_str())
+    }
     var had_error = no
     for m in tresult.msgs {
         if m.kind == msg.M_ERROR {
@@ -337,7 +347,7 @@ func actionparser_compile(args) {
     } elseif result.args["--stage"] == "checked-ast" or
             result.args["--stage"] == "transformed-code" {
         var aresult = parse_ast_target_from_args(
-            result.args, checked_ast=no,
+            result.args, checked_ast=yes,
             debug=result.args["--debug-ast"],
             debug_modules=result.args["--debug-modules"],
         )

@@ -333,13 +333,15 @@ func check_valid_rel_module_path(modpath, msgs=none,
     return yes
 }
 
-func Project.get_modinfo_for_file(file_uri) {
-    var rel_path = self.get_rel_dir_of_file(
-        file_uri
-    )
+func Project.get_modinfo_for_file(file_uri, rel_path=none) {
     if rel_path == none {
-        throw new ValueError("Failed to get relative path "
-            "for file.")
+        rel_path = self.get_rel_dir_of_file(
+            file_uri
+        )
+        if rel_path == none {
+            throw new ValueError("Failed to get relative path "
+                "for file.")
+        }
     }
     if not rel_path.lower().endswith(".h64") {
         throw new InvalidModuleNameError("Code files must have "
@@ -455,6 +457,30 @@ func Project.ensure_package_name {
     }
 }
 
+func Project.ensure_global_scope_for_full_project(
+        msgs=none, debug=no) {
+    func process_file_fully(pfile) {
+        var result = pfile.resolve_all_imports(
+            msgs=msgs, debug=debug) later:
+
+        await result
+    }
+
+    var file_queue = self.module_to_file_map.values()
+    if file_queue.len == 0 {
+        return
+    }
+    var next_file = file_queue.pop()
+    var _unused = process_file_fully(next_file) later:
+
+    await _unused
+    if file_queue.len == 0 {
+        return
+    }
+    next_file = file_queue.pop()
+    _unused = process_file_fully(next_file) later repeat
+}
+
 func try_workspace_modules_dir_for_single_file(file_uri) {
     var base_dir_uri = find_project_base(file_uri)
     later:
@@ -542,6 +568,23 @@ func ProjectFile.init(
     }
 }
 
+func ProjectFile.as_str {
+    var t = "<ProjectFile at="
+    if self.source_uri != none {
+        t += "'" + self.source_uri + "'"
+    } else {
+        t += "<inline>"
+    }
+    if self.modinfo != none and self.modinfo.module_name != none {
+        t += " module=" + self.modinfo.module_name
+        if self.modinfo.package_name != none {
+            t += "@" + self.modinfo.package_name
+        }
+    }
+    t += ">"
+    return t
+}
+
 func ProjectFile.open {
     if self.source_uri == none {
         throw new ValueError("project file has no source")
@@ -552,6 +595,18 @@ func ProjectFile.open {
 
     await result
     return result
+}
+
+func ProjectFile.ensure_modinfo(rel_path=none) {
+    if self.modinfo != none {
+        return later
+    }
+    var modinfo = self.project.get_modinfo_for_file(
+        self.source_uri, rel_path=rel_path) later:
+
+    await modinfo
+    assert(modinfo != none)
+    self.modinfo = modinfo
 }
 
 func ProjectFile.set_imports_from_ast_result(result) {
@@ -930,7 +985,6 @@ func ProjectFile.get_target_uri_for_import(
 
 type ProcessModuleFileResult {
     var project_file = none
-    var neighbor_rel_path_list = []
     var neighbor_project_files = []
 }
 
@@ -939,6 +993,7 @@ func add_neighbor_modules_to_result(
         import_line=none, import_col=none,
         debug=no
         ) {
+    assert(result.project_file.modinfo != none)
     var folder_uri = uri.dirname(file_uri)
     if not {"file", "vfs"}.has(uri.get_protocol(file_uri)) {
         if msgs != none {
@@ -957,7 +1012,8 @@ func add_neighbor_modules_to_result(
     }
     var is_vfs = (uri.get_protocol(file_uri) == "vfs")
     func process_neighbor_import(neighbor_file_name) {
-        if not neighbor_file_name.endswith(".h64") {
+        if not neighbor_file_name.endswith(".h64") or
+                neighbor_file_name.startswith("test_") {
             return later
         }
         var neighbor_uri = uri.normalize(uri.add_part(folder_uri,
@@ -983,25 +1039,40 @@ func add_neighbor_modules_to_result(
         }
 
         var neighbor_rel_path = result.project_file.modinfo.rel_path
+        var last_sep_pos = neighbor_rel_path.rfind(path.sep)
+        if last_sep_pos == none {
+            neighbor_rel_path = neighbor_file_name
+        } else {
+            neighbor_rel_path = neighbor_rel_path.sub(
+                1, last_sep_pos) + neighbor_file_name
+        }
 
         var project = result.project_file.project
-        if project.module_to_file_map.has(neighbor_uri) {
+        var key = uri.normalize(neighbor_uri)
+        var pfile = none
+        if not project.module_to_file_map.has(neighbor_uri) {
             if debug {
                 print("compiler.project: add_neighbor_modules_to_result() "
                     "discovered new neighbor of " +
                     file_uri.as_str() + " "
-                    "at: " + neighbor_uri.as_str())
+                    "at: " + neighbor_uri.as_str() + " [rel_path='" +
+                        neighbor_rel_path + "']")
             }
-        } else {
-            var neighbor_project_file = new ProjectFile(
+            pfile = new ProjectFile(
                 source_uri=neighbor_uri, is_entrypoint=no,
                 force_single_file=no, project=result.project_file.project,
                 request_debug_modules=debug)
-            project.module_to_file_map[neighbor_uri] =
-                neighbor_project_file
-            result.neighbor_rel_path_list.add(neighbor_rel_path)
-            result.neighbor_project_files.add(neighbor_project_file)
+            project.module_to_file_map[neighbor_uri] = pfile
+            result.neighbor_project_files.add(pfile)
+        } else {
+            pfile = project.module_to_file_map[neighbor_uri]
+            assert(pfile != none)
+            result.neighbor_project_files.add(pfile)
         }
+        pfile.ensure_modinfo(rel_path=neighbor_rel_path)
+        later:
+
+        return later
     }
     var folder_disk_path = uri.to_file_or_vfs_path(folder_uri)
     var entries = io.list_dir(folder_disk_path,
@@ -1053,49 +1124,18 @@ func ProjectFile.process_first_working_module_file(
         await readable
         if readable {
             var mod_rel_path = try_entry
-            var mod_name
-            if external_package_name != none {
-                assert(mod_rel_path.starts("horse_modules"))
-                var split_path = mod_rel_path.split(path.sep)
-                mod_name = split_path.sub(3).join(".")
-            } else {
-                mod_name = mod_rel_path.split(path.sep).join(".")
-            }
-            for src_dir in valid_source_nesting_dirs {
-                if mod_name.lower().startswith(src_dir + ".") {
-                    mod_name = mod_name.sub((src_dir + ".").len + 1)
-                    break
-                }
-            }
-            assert(mod_name.ends(".h64"))
-            mod_name = mod_name.sub(1, mod_name.len - ".h64".len)
-            var last_component = if mod_name.rfind(".") != none
-                (mod_name.sub(mod_name.rfind(".") + 1)) else (mod_name)
-            if mod_name == last_component + "." + last_component or
-                    mod_name.ends("." + last_component +
-                                  "." + last_component) {
-                # Need to strip the last component:
-                mod_name = mod_name.sub(1, mod_name.rfind(".") - 1)
-            }
 
-            var modinfo = new ModuleInfo()
-            modinfo.module_name = mod_name
-            modinfo.rel_path = mod_rel_path
-            modinfo.package_name = external_package_name
-            if modinfo.package_name == none {
-                modinfo.package_name = self.project.package_name
-            }
-            var key = (modinfo.module_name + "@" +
-                modinfo.package_name)
+            var key = uri.normalize(file_uri)
             var pfile = none
             if not self.project.module_to_file_map.has(key) {
                 pfile = new ProjectFile(file_uri)
                 pfile.project = self.project
-                pfile.modinfo = modinfo
                 self.project.module_to_file_map[key] = pfile
             } else {
                 pfile = self.project.module_to_file_map[key]
             }
+            pfile.ensure_modinfo(rel_path=mod_rel_path) later:
+
             assert(pfile.source_uri != none)
 
             var result = new ProcessModuleFileResult()
@@ -1122,31 +1162,6 @@ func ProjectFile.process_first_working_module_file(
     }
     next_entry = try_list.pop()
     process_result = test_and_get_project_file(next_entry) later repeat
-}
-
-func ProjectFile.ensure_global_scope_for_full_project(
-        msgs=none, debug=no) {
-    func process_file_fully(pfile) {
-        var result = pfile.resolve_all_imports(
-            msgs=msgs, debug=de) later:
-
-        await result
-    }
-    process_file_fully(self) later:
-
-    var file_queue = self.project.module_to_file_map.values()
-    if file_queue.len == 0 {
-        return
-    }
-    var next_file = file_queue.pop()
-    var _unused = process_file_fully(next_file) later:
-
-    await _unused
-    if file_queue.len == 0 {
-        return
-    }
-    next_file = file_queue.pop()
-    _unused = process_file_fully(next_file) later repeat
 }
 
 func ProjectFile.resolve_all_imports(msgs=none, debug=no) {
