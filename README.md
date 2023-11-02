@@ -14,7 +14,7 @@ func main {
     print("Hello to Horse64!")
 }
 ```
-[Features...](https://horse64.org/docs/Features)
+Curious? Here are the [features...](https://horse64.org/docs/Features)
 
 
 ### Useful starting points
