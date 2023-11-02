@@ -97,14 +97,14 @@ func parse_ast_target_from_args(args, checked_ast=no,
     }
     ensure_global_scope_for_full_project(msgs=tresult.msgs) later:
 
-    var haderror = no
+    var had_error = no
     for m in tresult.msgs {
         if m.kind == msg.M_ERROR {
-            haderror = yes
+            had_error = yes
             break
         }
     }
-    if haderror {
+    if had_error {
         return tresult
     }
     # FIXME: do full scope checks here
@@ -355,14 +355,14 @@ func actionparser_compile(args) {
         }
         # Continuing here, we want to transform the code.
         # If the AST wasn't succesfully created, abort:
-        var haderror = no
+        var had_error = no
         for m in aresult.msgs {
             if m.kind == msg.M_ERROR {
-                haderror = yes
+                had_error = yes
                 break
             }
         }
-        if haderror {
+        if had_error {
             if result.args["--for-script"] {
                 var output = {
                     "error": "Code has errors.",
