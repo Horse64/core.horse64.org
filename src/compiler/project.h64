@@ -108,6 +108,14 @@ func ModuleInfo.as_json_obj(project=none, project_file=none) {
                     importst.project_file.source_uri != none {
                 entry["file_uri"] = importst.project_file.source_uri
             }
+            if importst.neighbor_project_files.len > 0 {
+                entry["neighbors"] = []
+                for neighbor_file in importst.neighbor_project_files {
+                    entry["neighbors"].add({
+                        "file_uri" -> neighbor_file.source_uri
+                    })
+                }
+            }
             result["imports"].add(entry)
         }
     }
@@ -138,6 +146,11 @@ func ModuleInfo.as_terminal_str(project=none, project_file=none) {
                 " from " + importst["package_name"] + "\n"
             if importst.has("file_uri") {
                 t += "      -> " + importst["file_uri"] + "\n"
+            }
+            if importst.has("neighbors") {
+                for neighbor in importst["neighbors"] {
+                    t += "      -> neighbor: " + neighbor["file_uri"] + "\n"
+                }
             }
         }
         if data["imports"].len == 0 {
@@ -647,7 +660,7 @@ func check_file_existence(file_uri, project=none) {
         var result = check_file_existence_diskpath(
             upath, project=project, is_known_vfs=no
         ) later:
-        await rsult
+        await result
         return result
     }
     var result = net.fetch.test_readable(uri) later:
@@ -841,6 +854,7 @@ func ProjectFile.get_relative_imports_to_test(
 extend import_stmt.ImportStmt {
     var resolve_attempted = no
     var project_file = none
+    var neighbor_project_files = []
 }
 
 func get_source_nesting_dir(project_folder_uri) {
@@ -943,8 +957,9 @@ func add_neighbor_modules_to_result(
         if not neighbor_file_name.endswith(".h64") {
             return later
         }
-        var neighbor_uri = uri.add_part(folder_uri,
-            neighbor_file_name)
+        var neighbor_uri = uri.normalize(uri.add_part(folder_uri,
+            neighbor_file_name
+        ))
         assert({"file", "vfs"}.has(
             uri.get_protocol(neighbor_uri).lower()
         ))
@@ -953,7 +968,7 @@ func add_neighbor_modules_to_result(
             allow_vfs=is_vfs, allow_disk=(not is_vfs)) later:
 
         await is_dir_result
-        if not is_dir_result {
+        if is_dir_result {
             return later
         }
         if not check_valid_rel_module_path(
@@ -965,18 +980,37 @@ func add_neighbor_modules_to_result(
         }
 
         var neighbor_rel_path = result.project_file.modinfo.rel_path
-        var neighbor_project_file = new ProjectFile(
-            source_uri=neighbor_uri, is_entrypoint=no,
-            force_single_file=no, project=result.project_file.project,
-            request_debug_modules=debug)
-        result.neighbor_rel_path_list.add(neighbor_rel_path)
-        result.neighbor_project_files.add(neighbor_project_file)
+
+        var project = result.project_file.project
+        if project.module_to_file_map.has(neighbor_uri) {
+            if debug {
+                print("compiler.project: add_neighbor_modules_to_result() "
+                    "discovered new neighbor of " +
+                    file_uri.as_str() + " "
+                    "at: " + neighbor_uri.as_str())
+            }
+        } else {
+            var neighbor_project_file = new ProjectFile(
+                source_uri=neighbor_uri, is_entrypoint=no,
+                force_single_file=no, project=result.project_file.project,
+                request_debug_modules=debug)
+            project.module_to_file_map[neighbor_uri] =
+                neighbor_project_file
+            result.neighbor_rel_path_list.add(neighbor_rel_path)
+            result.neighbor_project_files.add(neighbor_project_file)
+        }
     }
     var folder_disk_path = uri.to_file_or_vfs_path(folder_uri)
     var entries = io.list_dir(folder_disk_path,
         allow_vfs=is_vfs, allow_disk=(not is_vfs)) later:
 
     await entries
+    if debug {
+        print("compiler.project: add_neighbor_modules_to_result() "
+            "processing files next to " +
+            file_uri.as_str() + " "
+            "for neighbors: " + entries.as_str())
+    }
     if entries.len == 0 {
         return
     }
@@ -1156,6 +1190,10 @@ func ProjectFile.resolve_all_imports(msgs=none, debug=no) {
             )
         }
         importst.project_file = project_file
+        if process_result != none {
+            importst.neighbor_project_files +=
+                process_result.neighbor_project_files
+        }
         return yes
     }
 
