@@ -114,8 +114,6 @@ https://codeberg.org/Horse64/core.horse64.org/issues/new?template=.gitea%2fISSUE
 | |✔|✔|✔|✔|✔|**Floating-point decimals** for larger numeric range.     |
 | | | | | |✔|**Tail-call optimization** (always used by default).      |
 |✔| | | | | |**Fixed-point decimals** default, for numeric stability.  |
-| |✔|✔|❓| |✔|**Ships with dynamic REPL** by default for instant use.  |
-| |✔|✔| | |✔|**Dynamic global scope** at runtime, extreme mutability.  |
 |✔| | | | |✔|**1-based indexing** to be more beginner-friendly.        |
 
 ### Libraries and Desktop App Features
@@ -148,10 +146,12 @@ https://codeberg.org/Horse64/core.horse64.org/issues/new?template=.gitea%2fISSUE
 |〰|✔|✔| | |✔|**Instant script use** for fast script helper launch.     |
 | |〰|✔| | |✔|**Easy runtime `eval()`** for trivial script injection.   |
 | | |✔| | | |**Runs in web browser** by default for simple web use.    |
-| |✔|✔| | |✔|**Easy to embed** for scripting, for subordinate use.     |
+| |✔|✔| | |✔|**Embedded easily** for integrated, subordinate scripts.  |
 | |✔|✔| | |✔|**Easy runtime module loading** for trivial mutability.   |
+| |✔|✔| | |✔|**Dynamic global scope** at runtime, extreme mutability.  |
+| |✔|✔|❓| |✔|**REPL shipped by default** for dynamic experiments.      |
 
-### Tooling and Large Project Features
+### Large Project Features
 
 |Horse64|Python|JS|Go|C++|Lua|Tooling and Large Project Features       |
 |-------|------|--|--|---|---|-----------------------------------------|
@@ -174,11 +174,15 @@ https://codeberg.org/Horse64/core.horse64.org/issues/new?template=.gitea%2fISSUE
 |Horse64|Python|JS|Go|C++|Lua|Runtime Perfomance and Lowlevel Features |
 |-------|------|--|--|---|---|-----------------------------------------|
 |✔|✔|✔| | |✔|**Bytecode interpreter** for high portability.            |
+|✔| | |✔|✔| |**Attribute lookups largely AOT**, to avoid bottlenecks.  |
 |✔| |❓|✔|✔| |**Compiler made for AOT optimizations.**                  |
-| |〰| |✔|✔| |**Full memory-shared threads** for extra flexibity.      |
+| |〰| |✔|✔| |**Full memory-shared threads** for extra flexibity.       |
 | | |✔|✔|✔| |**Always uses JIT** for speed, or 100% AOT compiled.      |
 | | | |✔|✔| |**Outputs machine code** always, for extreme speed.       |
 | | | | |✔| |**Inline assembly and manual allocation** easy to do.     |
+
+*(AOT refers to Ahead-of-Time, handled at compile time rather than
+runtime.)*
 
 
 Technical specifications
