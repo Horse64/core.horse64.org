@@ -1566,7 +1566,7 @@ func parse_single_call_or_funcdef_arg(
             msgs.add(new msg.FileMsg(
                 "Unexpected " + token.describe_token_at(
                     tokens, pos) +
-                ", expected final ending ',' (T_COMMA) or "
+                ", expected ',' (T_COMMA) or ending "
                 "')' (T_ENCLOSE)" +
                 call_ast_error_info_suffix(
                     callordef_line, callordef_col,
