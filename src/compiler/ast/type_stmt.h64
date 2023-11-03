@@ -78,6 +78,7 @@ func get_extend_variant(
             tokens[pos].str != "extend" {
         return EXTEND_NONE
     }
+    pos += 1
 
     # Check if this is an enum or type extend.
     var had_block_bracket = no
@@ -92,6 +93,8 @@ func get_extend_variant(
         if tokens[i].kind != T_ENCLOSE or
                 tokens[i].str != "{" {
             had_block_bracket = yes
+            i += 1
+            continue
         }
         if had_block_bracket {
             if tokens[i].kind == T_COMMA {
