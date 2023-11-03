@@ -1,0 +1,70 @@
+# @module compiler.cext
+# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import uri from core.horse64.org
+
+import compiler.comment.scan as comment_scan
+import compiler.project as project
+
+type CFunc {
+    var name
+    var module_name
+    var package_name
+}
+
+func scan_package_for_cexts(base_project, package_name) {
+    var dir_uri = base_project.find_package_dir_uri(
+        package_name) later:
+
+    await dir_uri
+    if dir_uri == none  {
+        throw new ValueError("Package directory not "
+            "found for: " + package_name)
+    }
+    if not {"file", "vfs"}.has(uri.get_protocol(dir_uri)) {
+        throw new NotImplementedError("Scanning for cexts "
+            "not supported for remote URIs.")
+    }
+    var scanner = new comment_scan.TreeCommentScanner(
+        dir_uri, strip_noncommands=yes,
+        exclude_dir_names=["horse_modules", "vendor"],
+        exclude_dot_names=yes,
+    )
+    var result = {->}
+    var comments = scanner.produce_next_comments() later:
+
+    await comments
+    if comments == none {
+        return result
+    }
+    for comment in comments {
+        # FIXME: finish this part.
+        print("got a comment: " + comment)
+    }
+    comments = scanner.produce_next_comments() later repeat
+}
+

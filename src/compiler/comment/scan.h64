@@ -26,28 +26,26 @@
 # license, see accompanied LICENSE.md.
 
 import io from core.horse64.org
+import net.fetch from core.horse64.org
+import uri from core.horse64.org
 
-func scan_file_for_comments(path, allow_vfs=no, allow_disk=yes) {
-    with io.open(path, "r") later as f {
-        var file_str = f.read() later:
+import compiler.comment.command as command_comment
 
-        await result
-        var tokens = tokenize_str(
-            file_str, keep_whitespace=no,
-            keep_comments=yes,
-            auto_recovery=no,
-            internal_labels=yes,
-        ) later:
+func scan_uri_for_comments(file_uri, allow_vfs=no, allow_disk=yes,
+        strip_noncommands=no, c_style_comments=no,
+        only_doc_comments=yes) {
+    var contents = net.fetch.get_str(
+        file_uri, allow_disk=allow_disk, allow_vfs=allow_vfs
+    ) later:
 
-        await tokens
-        var ctoks = []
-        for t in tokens {
-            if t.kind == T_COMMENT {
-                ctoks.add(t)
-            }
-        }
-        return ctoks
-    }
+    await contents
+    var comments = command_comment.get_comments_from_str(
+        contents, stop_at_noncomment=no,
+        only_doc_comments=only_doc_comments,
+        strip_noncommands=strip_noncommands,
+        c_style_comments=c_style_comments
+    )
+    return comments
 }
 
 type TreeCommentScanner {
@@ -55,42 +53,76 @@ type TreeCommentScanner {
     var allow_disk protect = yes
     var _walker
     var _outstanding_files = []
+    var strip_noncommands
+    var dir_path
+    var dir_is_vfs = no
 }
 
-func TreeCommentScanner.init(path, allow_vfs=no, allow_disk=yes) {
-    self._walker = io.tree_list_walker(path)
-    self.allow_vfs = allow_vfs
-    self.allow_disk = allow_disk
+func TreeCommentScanner.init(dir_uri, strip_noncommands=no,
+        exclude_dir_names=[], exclude_dot_names=yes) {
+    if not {"file", "vfs"}.has(uri.get_protocol(dir_uri)) {
+        throw new NotImplementedError("Protocol not "
+            "implemented for scanning.")
+    }
+    self.dir_path = uri.to_file_or_vfs_path(dir_uri)
+    self.dir_is_vfs = (uri.get_protocol(dir_uri) == "vfs")
+    self._walker = io.tree_list_walker(
+        self.dir_path, relative=no,
+        return_dirs=no,
+        exclude_dot_names=exclude_dot_names,
+        exclude_dir_names=exclude_dir_names,
+        allow_vfs=self.dir_is_vfs,
+        allow_disk=not self.dir_is_vfs)
+    self.strip_noncommands = strip_noncommands
 }
 
 func TreeCommentScanner.produce_next_file_path {
-    if _outstanding_files.len > 0 {
-        return _outstanding_files.pop()
+    if self._outstanding_files.len > 0 {
+        return self._outstanding_files.pop()
     }
-    var entries = walker.walk() later:
+    var entries = self._walker.walk() later:
 
     await entries
     if entries == none {
         return none
     }
-    _outstanding_files += entries
-
-    if _outstanding_files.len > 0 {
-        return _outstanding_files.pop()
+    var endings = [".h64", ".c", ".h"]
+    for entry in entries {
+        var ending_found = no
+        for ending in endings {
+            if entry.lower().ends(ending) {
+                ending_found = yes
+                break
+            }
+        }
+        if ending_found {
+            self._outstanding_files.add(entry)
+        }
     }
-    entries = walker.walk() later repeat
+
+    if self._outstanding_files.len > 0 {
+        return self._outstanding_files.pop()
+    }
+    entries = self._walker.walk() later repeat
 }
 
 func TreeCommentScanner.produce_next_comments {
-    var next_file_path = produce_next_file_path() later:
+    var next_file_path = self.produce_next_file_path() later:
 
     await next_file_path
     if next_file_path == none {
         return none
     }
-    var comments = scan_file_for_comments(
-        next_file_path, allow_vfs=self.allow_vfs,
-        allow_disk=self.allow_disk) later:
+    var file_uri = if self.dir_is_vfs
+        (uri.from_vfs_path(next_file_path)) else
+        (uri.from_disk_path(next_file_path))
+    var comments = scan_uri_for_comments(
+        file_uri,
+        only_doc_comments=yes,
+        strip_noncommands=self.strip_noncommands,
+        c_style_comments=no,
+        allow_vfs=self.dir_is_vfs,
+        allow_disk=not self.dir_is_vfs) later:
 
     await comments
     return comments
