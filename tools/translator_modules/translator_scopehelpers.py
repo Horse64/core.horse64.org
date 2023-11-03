@@ -217,6 +217,11 @@ def get_names_defined_in_func(
         # Skip the function name.
         if k < 0 or not is_identifier(st[k]):
             return []
+        # Skip over the lead-up type name:
+        while (is_identifier(st[k]) and
+                nextnonblank(st, k) == "." and
+                is_identifier(nextnonblank(st, k, no=2))):
+            k = nextnonblankidx(st, k, no=2)
         if (not st[k] in names and
                 not exclude_direct_func_name):
             names.append(st[k])
