@@ -893,8 +893,9 @@ func ProjectFile.ensure_project(msgs=none) {
     ) later:
 
     await modinfo
-    self.project.module_to_file_map[modinfo.module_name + "@" +
-        modinfo.package_name] = self
+    self.project.module_to_file_map[
+        uri.normalize(self.source_uri, absolute_file=yes)
+    ] = self
     self.is_external_package = modinfo.is_external_package
     self.modinfo = modinfo
     if self.wants_debug_modules {
@@ -1163,7 +1164,7 @@ func add_neighbor_modules_to_result(
         var key = uri.normalize(neighbor_uri, absolute_file=yes)
         var pfile = none
         if not project.module_to_file_map.has(neighbor_uri) {
-            if debug or yes {
+            if debug {
                 print("compiler.project: add_neighbor_modules_to_result() "
                     "discovered new neighbor of " +
                     file_uri.as_str() + " "
@@ -1240,7 +1241,7 @@ func ProjectFile.process_first_working_module_file(
             var key = uri.normalize(file_uri, absolute_file=yes)
             var pfile = none
             if not self.project.module_to_file_map.has(key) {
-                if debug or yes {
+                if debug {
                     print("compiler.project: process_first_working_module_file() "
                         "discovered new module at: " + file_uri)
                 }
