@@ -937,7 +937,7 @@ func ProjectFile.get_relative_imports_to_test(
     }
     if full_original_import.len == 0 or
             full_original_import[1].len == 0 or
-            self.source_uri is none {
+            self.source_uri == none {
         return []
     }
     self.ensure_project(msgs=msgs) later:
