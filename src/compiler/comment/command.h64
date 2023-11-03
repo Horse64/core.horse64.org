@@ -50,7 +50,8 @@ func _starts_command_comment(s, pos, slen) {
 
 func get_comments_from_str(
         s, stop_at_noncomment=no, only_doc_comments=yes,
-        strip_noncommands=no, c_style_comments=no
+        strip_noncommands=no, c_style_comments=no,
+        group_comments=yes
         ) {
     var code_a = text.code('a')
     var code_cap_a = text.code('A')
@@ -225,13 +226,35 @@ func get_comments_from_str(
             comment_lines[comment_lines.len].len == 0 {
         comment_lines.pop()
     }
-    return comment_lines
+    if not group_comments {
+        return comment_lines
+    }
+    var groups = []
+    var current_group = none
+    for comment_line in comment_lines {
+        if {"#", "##", "//", "///",
+                "/*", "/**"}.has(comment_line.trim()) {
+            if current_group != none {
+                groups.add(current_group)
+            }
+            current_group = none
+        } else {
+            if current_group == none {
+                current_group = []
+            }
+            current_group.add(comment_line)
+        }
+    }
+    if current_group != none {
+        groups.add(current_group)
+    }
+    return groups
 }
 
 func get_build_options_from_str(s) {
     var lines = get_comments_from_str(
         s, stop_at_noncomment=yes, only_doc_comments=yes,
-        strip_noncommands=yes
+        strip_noncommands=yes, group_comments=no
     )
     var opts_lines = []
     for line in lines {

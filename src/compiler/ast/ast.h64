@@ -297,12 +297,6 @@ func parse_to_ast_ex(
     ) later:
 
     await stmt
-    if not is_inside_block {
-        global_scope.process_toplevel_stmt(
-            result.global_scope, stmt, result.msgs,
-            project_file=project_file, debug=debug
-        )
-    }
     if stmt == none {
         # We completely failed to parse the next statement.
         # Skip to the next one:
@@ -319,6 +313,12 @@ func parse_to_ast_ex(
         # Extracted a new statement.
         result.stmts.add(stmt)
         pos += stmt.token_len
+        if not is_inside_block {
+            global_scope.process_toplevel_stmt(
+                result.global_scope, stmt, result.msgs,
+                project_file=project_file, debug=debug
+            )
+        }
     }
 
     if pos > tokens.len or
@@ -374,7 +374,7 @@ func _tokenize_code_line_for_ast(
         if not require_detect_project_dir {
             return later
         }
-        tresult.project_file.ensure_project() later:
+        tresult.project_file.ensure_project(msgs=tresult.msgs) later:
         return later
     }
     ensure_project_if_needed() later:

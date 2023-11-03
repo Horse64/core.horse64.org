@@ -40,14 +40,13 @@ type FileMsg {
     ## @types (compiler.project.ProjectFile, none)
     var source_file
     var kind = M_ERROR
-    var line = -1
-    var col = -1
+    var line = none
+    var col = none
     var content = ""
 }
 
 func FileMsg.init(message, kind=M_ERROR,
-        source_file=none,
-        line=-1, col=-1) {
+        source_file=none, line=none, col=none) {
     self.content = message + ""
     self.source_file = source_file
     self.line = line

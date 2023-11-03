@@ -2071,11 +2071,12 @@ func tokenize_from_uri(
             request_debug_modules=debug_modules
         )
     }
+    var early_msgs = []
     func ensure_project_if_needed {
         if not require_detect_project_dir {
             return later
         }
-        project_file.ensure_project() later:
+        project_file.ensure_project(msgs=early_msgs) later:
         return later
     }
     ensure_project_if_needed() later:
@@ -2092,6 +2093,7 @@ func tokenize_from_uri(
             keep_comments=keep_comments) later:
 
         await result
+        result.msgs += early_msgs
         return result
     }
 }

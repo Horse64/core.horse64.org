@@ -998,7 +998,7 @@ def _uri_traverse_up(v, working_dir=None):
     )
 
 def _uri_normalize(v, guess_nonfiles=True,
-        abs_disk_paths=False,
+        absolute_file=False,
         working_dir=None):
     v = str(v + "")
     if (guess_nonfiles and
@@ -1027,7 +1027,7 @@ def _uri_normalize(v, guess_nonfiles=True,
         resource = os.path.normpath(resource)
         if resource == "." or resource == "":
             resource = "." + os.path.sep
-        if abs_disk_paths and not os.path.isabs(resource):
+        if absolute_file and not os.path.isabs(resource):
             if working_dir == None:
                 working_dir = os.getcwd()
             resource = os.path.normpath(os.path.join(

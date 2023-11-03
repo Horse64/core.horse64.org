@@ -229,7 +229,7 @@ func find_project_base(file_uri) {
     await can_be_project
     if can_be_project {
         return uri.normalize(
-            dir_uri, abs_disk_paths=yes
+            dir_uri, absolute_file=yes
         )
     }
     var new_dir_uri = uri.traverse_up(dir_uri)
@@ -267,8 +267,8 @@ func Project.get_rel_dir_of_file(file_uri) {
             uri.get_protocol(file_uri) {
         return none
     }
-    var base_norm = uri.normalize(self.base_dir_uri, abs_disk_paths=yes)
-    var furi_norm = uri.normalize(file_uri, abs_disk_paths=yes)
+    var base_norm = uri.normalize(self.base_dir_uri, absolute_file=yes)
+    var furi_norm = uri.normalize(file_uri, absolute_file=yes)
     if not furi_norm.starts(base_norm) {
         return none
     }
@@ -503,20 +503,34 @@ func Project.ensure_package_name {
 
 func Project.ensure_global_scope_for_full_project(
         msgs=none, debug=no) {
+    var seen = {}
+    var file_queue = []
     func process_file_fully(pfile) {
+        # Process current queue entry handed to us:
+        seen.add(pfile.source_uri)
+        pfile.ensure_known_single_file_status() later:
         var result = pfile.resolve_all_imports(
             msgs=msgs, debug=debug) later:
-
         await result
+
+        # Now add in the new files discovered through imports:
+        for potentially_new in self.module_to_file_map.values() {
+            if not seen.has(potentially_new.source_uri) and
+                    not file_queue.has(potentially_new) {
+                file_queue.add(potentially_new)
+            }
+        }
     }
 
-    var file_queue = self.module_to_file_map.values()
+    # Process queue of all files until empty:
+    for value in self.module_to_file_map.values() {
+        file_queue.add(value)
+    }
     if file_queue.len == 0 {
         return
     }
     var next_file = file_queue.pop()
     var _unused = process_file_fully(next_file) later:
-
     await _unused
     if file_queue.len == 0 {
         return
@@ -842,19 +856,21 @@ func ProjectFile.ensure_project_base_dir {
     }
 }
 
-func Project.ensure_builtin_cexts {
+func Project.ensure_builtin_cexts(
+        msgs=none, debug_modules=no
+        ) {
     if self.builtin_cexts != none {
         return later
     }
     var cfuncs = cext.scan_package_for_cexts(
-        self, "hvm.horse64.org"
+        self, "hvm.horse64.org", msgs=msgs, debug=debug_modules
     ) later:
 
     await cfuncs
     self.builtin_cexts = cfuncs
 }
 
-func ProjectFile.ensure_project {
+func ProjectFile.ensure_project(msgs=none) {
     if self.project == none {
         self.project = new Project()
         if self.wants_debug_modules {
@@ -865,7 +881,9 @@ func ProjectFile.ensure_project {
 
     self.project.ensure_package_name() later:
 
-    self.project.ensure_builtin_cexts() later:
+    self.project.ensure_builtin_cexts(
+        msgs=msgs, debug_modules=self.project.debug_modules
+    ) later:
 
     if self.source_uri == none or self.modinfo != none {
         return later none
@@ -918,7 +936,7 @@ func ProjectFile.get_relative_imports_to_test(
             self.source_uri is none {
         return []
     }
-    self.ensure_project() later:
+    self.ensure_project(msgs=msgs) later:
     if self.modinfo == none or self.modinfo.rel_path == none {
         return []
     }
@@ -1142,10 +1160,10 @@ func add_neighbor_modules_to_result(
         }
 
         var project = result.project_file.project
-        var key = uri.normalize(neighbor_uri)
+        var key = uri.normalize(neighbor_uri, absolute_file=yes)
         var pfile = none
         if not project.module_to_file_map.has(neighbor_uri) {
-            if debug {
+            if debug or yes {
                 print("compiler.project: add_neighbor_modules_to_result() "
                     "discovered new neighbor of " +
                     file_uri.as_str() + " "
@@ -1219,9 +1237,13 @@ func ProjectFile.process_first_working_module_file(
         if readable {
             var mod_rel_path = try_entry
 
-            var key = uri.normalize(file_uri)
+            var key = uri.normalize(file_uri, absolute_file=yes)
             var pfile = none
             if not self.project.module_to_file_map.has(key) {
+                if debug or yes {
+                    print("compiler.project: process_first_working_module_file() "
+                        "discovered new module at: " + file_uri)
+                }
                 pfile = new ProjectFile(file_uri)
                 pfile.project = self.project
                 self.project.module_to_file_map[key] = pfile

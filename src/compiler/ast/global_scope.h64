@@ -117,6 +117,7 @@ func get_statement_global_name(statement) {
 func process_toplevel_stmt(
         scope, statement, msgs,
         project_file=none, debug=no) {
+    assert(statement != none)
     var names = get_statement_global_name(statement)
     if names.len == 0 {
         return

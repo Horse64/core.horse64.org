@@ -28,6 +28,7 @@
 import uri from core.horse64.org
 
 import compiler.comment.scan as comment_scan
+import compiler.msg as msg
 import compiler.project as project
 
 type CFunc {
@@ -36,7 +37,8 @@ type CFunc {
     var package_name
 }
 
-func scan_package_for_cexts(base_project, package_name) {
+func scan_package_for_cexts(
+        base_project, package_name, msgs=none, debug=no) {
     var dir_uri = base_project.find_package_dir_uri(
         package_name) later:
 
@@ -62,16 +64,44 @@ func scan_package_for_cexts(base_project, package_name) {
         include_patterns=source_code_patterns,
     )
     var result = {->}
-    var comments = scanner.produce_next_comments() later:
+    var comment_groups = scanner.produce_next_comments() later:
 
-    await comments
-    if comments == none {
+    await comment_groups
+    if comment_groups == none {
         return result
     }
-    for comment in comments {
+    for group in comment_groups {
         # FIXME: finish this part.
-        print("got a cext comment: " + comment)
+        for comment in group {
+            if comment.starts("/// @h64func ") or
+                    comment.starts("/** @h64func ") {
+                var c_func_ref = comment.sub(comment.find("@h64func ") +
+                    "@h64func ".len).trim()
+                var c_func_package = package_name
+                if c_func_ref.find("@") != none {
+                    c_func_package = c_func_ref.sub(
+                        c_func_ref.find("@") + 1).trim()
+                    c_func_ref = c_func_ref.sub(
+                        1, c_func_ref.find("@") - 1).trim()
+                }
+                var invalid = no
+                if c_func_ref.find(".") == none or
+                        c_func_package.find(".") == none {
+                    invalid = yes
+                }
+                if invalid or yes {
+                    if msgs != none {
+                        msgs.add(new msg.FileMsg(
+                            "Skipped malformed C extension reference "
+                            "in package '" + package_name.as_str() + "': " +
+                            c_func_ref + "@" + c_func_package,
+                            kind=msg.M_WARNING
+                        ))
+                    }
+                }
+            }
+        }
     }
-    comments = scanner.produce_next_comments() later repeat
+    comment_groups = scanner.produce_next_comments() later repeat
 }
 
