@@ -49,10 +49,17 @@ func scan_package_for_cexts(base_project, package_name) {
         throw new NotImplementedError("Scanning for cexts "
             "not supported for remote URIs.")
     }
+
+    var source_code_patterns =
+        project.get_source_code_patterns(dir_uri) later:
+
+    await source_code_patterns
+
     var scanner = new comment_scan.TreeCommentScanner(
         dir_uri, strip_noncommands=yes,
         exclude_dir_names=["horse_modules", "vendor"],
         exclude_dot_names=yes,
+        include_patterns=source_code_patterns,
     )
     var result = {->}
     var comments = scanner.produce_next_comments() later:
@@ -63,7 +70,7 @@ func scan_package_for_cexts(base_project, package_name) {
     }
     for comment in comments {
         # FIXME: finish this part.
-        print("got a comment: " + comment)
+        print("got a cext comment: " + comment)
     }
     comments = scanner.produce_next_comments() later repeat
 }

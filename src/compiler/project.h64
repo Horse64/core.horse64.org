@@ -451,6 +451,37 @@ func Project.get_modinfo_for_file(file_uri, rel_path=none) {
     return later modinfo
 }
 
+func get_source_code_patterns(package_uri) {
+    var source_code_patterns = ["*"]
+    var horp_conf_uri = uri.add_part(package_uri, "horp.conf")
+    var conf_exists = check_file_existence(
+        horp_conf_uri
+    ) later:
+
+    await conf_exists
+    if not conf_exists {
+        return source_code_patterns
+    }
+    var conf_contents = confparse.parse_from_uri(
+        horp_conf_uri, error_on_mistakes=no
+    ) later:
+
+    await conf_contents
+    if conf_contents.has("package") and
+            conf_contents["package"].has("code files") and
+            typename(conf_contents["package"]["code files"]) == "str" {
+        source_code_patterns = []
+        var patterns = conf_contents["package"]["code files"].split(",")
+        for pattern in patterns {
+            pattern = pattern.trim()
+            if pattern.len > 0 {
+                source_code_patterns.add(pattern)
+            }
+        }
+    }
+    return later source_code_patterns
+}
+
 func Project.ensure_package_name {
     if self.package_name != none or
             self.tried_loading_package_name {
