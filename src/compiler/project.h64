@@ -64,7 +64,7 @@ type Project {
 
     var tried_find_modules_dir = no
 
-    var module_to_file_map = {->}
+    var module_uri_to_file_map = {->}
 
     var builtin_cexts = none
 }
@@ -514,7 +514,7 @@ func Project.ensure_global_scope_for_full_project(
         await result
 
         # Now add in the new files discovered through imports:
-        for potentially_new in self.module_to_file_map.values() {
+        for potentially_new in self.module_uri_to_file_map.values() {
             if not seen.has(potentially_new.source_uri) and
                     not file_queue.has(potentially_new) {
                 file_queue.add(potentially_new)
@@ -523,7 +523,7 @@ func Project.ensure_global_scope_for_full_project(
     }
 
     # Process queue of all files until empty:
-    for value in self.module_to_file_map.values() {
+    for value in self.module_uri_to_file_map.values() {
         file_queue.add(value)
     }
     if file_queue.len == 0 {
@@ -870,6 +870,7 @@ func Project.ensure_builtin_cexts(
     ) later:
 
     await cfuncs
+    cfuncs.package_name = "core.horse64.org"
     self.builtin_cexts = cfuncs
 }
 
@@ -896,7 +897,7 @@ func ProjectFile.ensure_project(msgs=none) {
     ) later:
 
     await modinfo
-    self.project.module_to_file_map[
+    self.project.module_uri_to_file_map[
         uri.normalize(self.source_uri, absolute_file=yes)
     ] = self
     self.is_external_package = modinfo.is_external_package
@@ -1027,6 +1028,7 @@ func ProjectFile.get_relative_imports_to_test(
 
 extend import_stmt.ImportStmt {
     var resolve_attempted = no
+    var is_builtin_ext = no
     var project_file = none
     var neighbor_project_files = []
 }
@@ -1166,7 +1168,7 @@ func add_neighbor_modules_to_result(
         var project = result.project_file.project
         var key = uri.normalize(neighbor_uri, absolute_file=yes)
         var pfile = none
-        if not project.module_to_file_map.has(neighbor_uri) {
+        if not project.module_uri_to_file_map.has(neighbor_uri) {
             if debug {
                 print("compiler.project: add_neighbor_modules_to_result() "
                     "discovered new neighbor of " +
@@ -1178,10 +1180,10 @@ func add_neighbor_modules_to_result(
                 source_uri=neighbor_uri, is_entrypoint=no,
                 force_single_file=no, project=result.project_file.project,
                 request_debug_modules=debug)
-            project.module_to_file_map[neighbor_uri] = pfile
+            project.module_uri_to_file_map[neighbor_uri] = pfile
             result.neighbor_project_files.add(pfile)
         } else {
-            pfile = project.module_to_file_map[neighbor_uri]
+            pfile = project.module_uri_to_file_map[neighbor_uri]
             assert(pfile != none)
             result.neighbor_project_files.add(pfile)
         }
@@ -1243,16 +1245,16 @@ func ProjectFile.process_first_working_module_file(
 
             var key = uri.normalize(file_uri, absolute_file=yes)
             var pfile = none
-            if not self.project.module_to_file_map.has(key) {
+            if not self.project.module_uri_to_file_map.has(key) {
                 if debug {
                     print("compiler.project: process_first_working_module_file() "
                         "discovered new module at: " + file_uri)
                 }
                 pfile = new ProjectFile(file_uri)
                 pfile.project = self.project
-                self.project.module_to_file_map[key] = pfile
+                self.project.module_uri_to_file_map[key] = pfile
             } else {
-                pfile = self.project.module_to_file_map[key]
+                pfile = self.project.module_uri_to_file_map[key]
             }
             pfile.ensure_modinfo(rel_path=mod_rel_path) later:
 
@@ -1355,7 +1357,14 @@ func ProjectFile.resolve_all_imports(msgs=none,
                     else ("<not found>")
             )
         }
-        if project_file == none and not ignore_missing {
+        var covered_by_builtin_cext = no
+        if project_file == none and
+                self.project.builtin_cexts.covers_import(
+                importst, project=self.project) {
+            covered_by_builtin_cext = yes
+        }
+        if project_file == none and not ignore_missing and
+                not covered_by_builtin_cext {
             if msgs != none {
                 msgs.add(new msg.FileMsg(
                     "Import failed, couldn't "
@@ -1372,6 +1381,7 @@ func ProjectFile.resolve_all_imports(msgs=none,
                 )
             }
         }
+        importst.is_builtin_ext = covered_by_builtin_cext
         importst.project_file = project_file
         if process_result != none {
             importst.neighbor_project_files +=

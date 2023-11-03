@@ -37,8 +37,71 @@ type CFunc {
     var package_name
 }
 
+func CFunc.as_str {
+    var t = "<CFunc '" + self.module_name.as_str() +
+        "." + self.name.as_str() + "'@'" +
+        self.package_name.as_str() + "'>"
+    return t
+}
+
+type CModule {
+    var module_name
+
+    var name_to_cfunc_map = {->}
+}
+
+func CModule.as_str {
+    var t = "<CModule "
+    var is_first = yes
+    for cfunc in self.name_to_cfunc_map.values() {
+        if is_first {
+            is_first = no
+        } else {
+            t += ","
+        }
+        t += cfunc.as_str()
+    }
+    t += ">"
+    return t
+}
+
+type CExtInfo {
+    var package_name
+
+    var name_to_cmodule_map = {->}
+}
+
+func CExtInfo.covers_import(importst, project=none) {
+    assert(self.package_name != none)
+    if importst.package_name != self.package_name and
+            (importst.package_name != none or
+             project == none or
+             project.package_name != self.package_name) {
+        return no
+    }
+    var mod_name = importst.module_path.join(".")
+    return self.name_to_cmodule_map.has(mod_name)
+}
+
+func CExtInfo.as_str {
+    var t = "<CExtInfo "
+    var is_first = yes
+    for cmod in self.name_to_cmodule_map.values() {
+        if is_first {
+            is_first = no
+        } else {
+            t += ","
+        }
+        t += cmod.as_str()
+    }
+    t += ">"
+    return t
+}
+
 func scan_package_for_cexts(
         base_project, package_name, msgs=none, debug=no) {
+    var cext_info = new CExtInfo()
+    cext_info.package_name = package_name
     var dir_uri = base_project.find_package_dir_uri(
         package_name) later:
 
@@ -63,41 +126,81 @@ func scan_package_for_cexts(
         exclude_dot_names=yes,
         include_patterns=source_code_patterns,
     )
-    var result = {->}
     var comment_groups = scanner.produce_next_comments() later:
 
     await comment_groups
     if comment_groups == none {
-        return result
+        return cext_info
     }
     for group in comment_groups {
         # FIXME: finish this part.
         for comment in group {
             if comment.starts("/// @h64func ") or
                     comment.starts("/** @h64func ") {
-                var c_func_ref = comment.sub(comment.find("@h64func ") +
+                var cfunc_ref = comment.sub(comment.find("@h64func ") +
                     "@h64func ".len).trim()
-                var c_func_package = package_name
-                if c_func_ref.find("@") != none {
-                    c_func_package = c_func_ref.sub(
-                        c_func_ref.find("@") + 1).trim()
-                    c_func_ref = c_func_ref.sub(
-                        1, c_func_ref.find("@") - 1).trim()
+                var orig_ref = cfunc_ref
+                var cfunc_package = package_name
+                if cfunc_ref.find("@") != none {
+                    cfunc_package = cfunc_ref.sub(
+                        cfunc_ref.find("@") + 1).trim()
+                    cfunc_ref = cfunc_ref.sub(
+                        1, cfunc_ref.find("@") - 1).trim()
                 }
                 var invalid = no
-                if c_func_ref.find(".") == none or
-                        c_func_package.find(".") == none {
+                if cfunc_ref.starts(".") or
+                        cfunc_ref.ends(".") or
+                        cfunc_ref.find(".") == none or
+                        cfunc_package.find(".") == none or
+                        cfunc_ref.trim() != cfunc_ref or
+                        cfunc_package.trim() != cfunc_package {
                     invalid = yes
                 }
-                if invalid or yes {
-                    if msgs != none {
-                        msgs.add(new msg.FileMsg(
-                            "Skipped malformed C extension reference "
-                            "in package '" + package_name.as_str() + "': " +
-                            c_func_ref + "@" + c_func_package,
-                            kind=msg.M_WARNING
-                        ))
-                    }
+                var cfunc_module
+                if not invalid {
+                    cfunc_module = cfunc_ref.sub(
+                        1, cfunc_ref.rfind(".") - 1)
+                    cfunc_ref = cfunc_ref.sub(
+                        cfunc_ref.rfind(".") + 1)
+                }
+                if invalid and msgs != none {
+                    msgs.add(new msg.FileMsg(
+                        "Skipped malformed C extension reference "
+                        "in package '" +
+                        package_name.as_str() + "': " +
+                        orig_ref,
+                        kind=msg.M_WARNING
+                    ))
+                } elseif invalid {
+                    throw new ValueError(
+                        "Malformed C extension reference found.")
+                }
+                if not cext_info.name_to_cmodule_map.has(cfunc_module) {
+                    cext_info.name_to_cmodule_map[cfunc_module] =
+                        new CModule()
+                }
+                var cmod = cext_info.name_to_cmodule_map[cfunc_module]
+                cmod.module_name = cfunc_module
+                var duplicate = no
+                if cmod.name_to_cfunc_map.has(cfunc_ref) {
+                    duplicate = yes
+                } else {
+                    var cfunc = new CFunc()
+                    cfunc.name = cfunc_ref
+                    cfunc.package_name = package_name
+                    cfunc.module_name = cfunc_module
+                    cmod.name_to_cfunc_map[cfunc_ref] = cfunc
+                }
+                if duplicate and msgs != none {
+                    msgs.add(new msg.FileMsg(
+                        "Found invalid duplicate C extension "
+                        "referemce in package '" +
+                        package_name.as_str() + "': " +
+                        orig_ref,
+                    ))
+                } elseif duplicate {
+                    throw new ValueError(
+                        "Duplicate C extension reference found.")
                 }
             }
         }
