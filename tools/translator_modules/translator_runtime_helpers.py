@@ -2233,16 +2233,21 @@ class _ModuleObject:
 
 def _wildcard_match(pattern, value,
         doublestar_for_paths=False,
-        backslash_paths=False):
+        backslash_paths=False,
+        is_winpath=None
+        ):
     if "^" in pattern:
         raise NotImplementedError(
             "Escaping via '^' is not implemented by "
             "the Python translator."
         )
+    if is_winpath == None:
+        import platform
+        is_winpath = (platform.system().lower() == "windows")
     if is_winpath:
         pattern = pattern.replace("\\", "/")
         value = value.replace("\\", "/")
-    if doubleglob_for_paths and (
+    if doublestar_for_paths and (
             "/" in value):
         return (len(pywildcard.filter([value], pattern)) == 1)
     return fnmatch.fnmatch(value, pattern)
