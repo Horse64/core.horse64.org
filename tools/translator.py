@@ -343,7 +343,7 @@ remapped_uses = {
     },
     "wildcard@core.horse64.org": {
         "wildcard.match":
-            "_translator_runtime_helpers._glob_match",
+            "_translator_runtime_helpers._wildcard_match",
     },
 }
 
