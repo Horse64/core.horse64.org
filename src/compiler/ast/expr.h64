@@ -1691,10 +1691,17 @@ func parse_call_or_funcdef_args(
     assert(pos >= 1)
     assert(arg.token_len >= 1)
     pos += arg.token_len
-    if pos > tokens_len or tokens[pos].kind != token.T_COMMA {
+    if pos > tokens_len or tokens[pos].kind != token.T_COMMA or
+            (tokens[pos].kind == token.T_COMMA and
+             pos + 1 <= tokens_len and
+             tokens[pos + 1].kind == token.T_ENCLOSE and
+             tokens[pos + 1].str == ")") {
         # We reached the end. If this isn't ')', then
         # parse_single_call_or_funcdef_arg() should have already
         # added an error to the msgs list.
+        if pos <= tokens_len and tokens[pos].kind == token.T_COMMA {
+            pos += 1
+        }
         if pos > tokens_len or
                 tokens[pos].kind != token.T_ENCLOSE or
                 tokens[pos].str != ")" {
