@@ -443,12 +443,20 @@ def _h64_print(s):
     else:
         print(s)
 
-def _io_tree_list_walker(s):
+def _io_tree_list_walker(s, relative=True,
+        allow_vfs=True, allow_disk=True,
+        return_dirs=True, exclude_dir_names=[],
+        exclude_dot_names=False):
     class _Walker:
-        def __init__(self, path, relative=True):
+        def __init__(self, path, relative=True,
+                return_dirs=True, exclude_dir_names=[],
+                exclude_dot_names=False):
             self.path = os.path.normpath(
                 os.path.abspath(path)
             )
+            self.exclude_dot_names = exclude_dot_names
+            self.exclude_dir_names = list(exclude_dir_names)
+            self.return_dirs = return_dirs
             self.completed = False
             self.relative = (relative == True)
 
@@ -473,7 +481,35 @@ def _io_tree_list_walker(s):
                                 len(basepath) > 0):
                             basepath = basepath[1:]
                         for f in subdirs + subfiles:
-                            fpath = os.path.join(basepath, f)
+                            fpath = os.path.join(basepath, f).\
+                                replace("/", os.path.sep)
+                            its_a_dir = os.path.isdir(os.path.join(
+                                _self.path, fpath
+                            ))
+                            if not _self.return_dirs and its_a_dir:
+                                continue
+                            if self.exclude_dot_names and ((
+                                    fpath.startswith(".") and
+                                    not fpath.startswith("." +
+                                    os.path.sep)) or (
+                                    os.path.sep + "." in fpath)):
+                                continue
+                            skip = False
+                            for forbidden_dir in self.exclude_dir_names:
+                                if its_a_dir and (fpath.endswith(
+                                        os.path.sep + forbidden_dir) or
+                                        fpath == forbidden_dir):
+                                    skip = True
+                                    break
+                                elif not its_a_dir and (
+                                        fpath.startswith(forbidden_dir +
+                                            os.path.sep) or
+                                        (os.path.sep + forbidden_dir +
+                                         os.path.sep) in fpath):
+                                    skip = True
+                                    break
+                            if skip:
+                                continue
                             if not _self.relative:
                                 fpath = os.path.normpath(os.path.join(
                                     _self.path, fpath
@@ -503,7 +539,10 @@ def _io_tree_list_walker(s):
             _async_ops_lock.release()
         def close(self):
             pass
-    return _Walker(s)
+    return _Walker(s, relative=relative,
+        return_dirs=return_dirs,
+        exclude_dir_names=exclude_dir_names,
+        exclude_dot_names=exclude_dot_names)
 
 def h64_type(v):
     result = type(v)
