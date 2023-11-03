@@ -212,7 +212,7 @@ func parse_container_entry(
             ", expected " + expected + " "
             "in line " +
             container_start_line.as_str() +
-            ", col " +
+            ", column " +
             container_start_col.as_str() + ".",
             source_file=project_file,
             line=token.get_line(tokens, pos),
@@ -398,7 +398,7 @@ func parse_expression_unwrapped(
                     ", expected any inner nested expression "
                     "following '(' in line " +
                     startline.as_str() +
-                    ", col " +
+                    ", column " +
                     startcol.as_str() + ".",
                     source_file=project_file,
                     line=token.get_line(tokens, pos),
@@ -429,7 +429,7 @@ func parse_expression_unwrapped(
                         ", expected ')' (T_BRACKET) closing the "
                         "opening bracket '(' in line " +
                         startline.as_str() +
-                        ", col " +
+                        ", column " +
                         startcol.as_str() + ".",
                         source_file=project_file,
                         line=token.get_line(tokens, pos),
@@ -583,7 +583,7 @@ func parse_expression_unwrapped(
                             container_kind_to_name(ckind) +
                             " in line " +
                             startline.as_str() +
-                            ", col " +
+                            ", column " +
                             startcol.as_str() + ".",
                             source_file=project_file,
                             line=token.get_line(tokens, pos),
@@ -623,7 +623,7 @@ func parse_expression_unwrapped(
                         container_kind_to_name(c_kind) +
                         " started in line " +
                         startline.as_str() +
-                        ", col " +
+                        ", column " +
                         startcol.as_str() + ".",
                         source_file=project_file,
                         line=token.get_line(tokens, pos),
@@ -883,7 +883,7 @@ func parse_expression_unwrapped(
         node.col = startcol
 
         var inner_expr = parse_expression(
-            tokens, pos, msgs, project_file=none,
+            tokens, pos, msgs, project_file=project_file,
             max_len=tokens_len, debug=debug,
         ) later:
 
@@ -987,7 +987,7 @@ func parse_expression_unwrapped(
                     tokens, startpos) + " "
                 "found in line " +
                 token.get_line(tokens, op_pos).as_str() +
-                ", col " +
+                ", column " +
                 token.get_col(tokens, op_pos).as_str() + ".",
                 source_file=project_file,
                 line=token.get_line(tokens, pos),
@@ -1042,7 +1042,7 @@ func parse_expression_unwrapped(
                         "' to close '" + openbracket + "' "
                         "found in line " +
                         token.get_line(tokens, op_pos).as_str() +
-                        ", col " +
+                        ", column " +
                         token.get_col(tokens, op_pos).as_str() + ".",
                         source_file=project_file,
                         line=token.get_line(tokens, pos),
@@ -1262,7 +1262,7 @@ func parse_expression_unwrapped(
                             tokens, after_pos - 1) + " "
                         "found in line " +
                         token.get_line(tokens, after_pos - 1
-                                      ).as_str() + ", col " +
+                                      ).as_str() + ", column " +
                         token.get_col(tokens, after_pos - 1
                                      ).as_str() + ".",
                         source_file=project_file,
@@ -1331,7 +1331,7 @@ func parse_expression_unwrapped(
                             tokens, op_entry[1]) + " "
                         "found in line " +
                         token.get_line(tokens, op_entry[1]
-                                      ).as_str() + ", col " +
+                                      ).as_str() + ", column " +
                         token.get_col(tokens, op_entry[1]
                                      ).as_str() + ".",
                         source_file=project_file,
@@ -1368,7 +1368,7 @@ func parse_expression_unwrapped(
                             tokens, op_entry[1]) + " "
                         "found in line " +
                         token.get_line(tokens, op_entry[1]
-                                      ).as_str() + ", col " +
+                                      ).as_str() + ", column " +
                         token.get_col(tokens, op_entry[1]
                                      ).as_str() + ".",
                         source_file=project_file,
@@ -1455,7 +1455,7 @@ func call_ast_error_info_suffix(call_line, call_pos, is_call=yes) {
         return ""
     }
     return " for call in line " + call_line.as_str() +
-        ", col " + call_pos.as_str()
+        ", column " + call_pos.as_str()
 }
 
 func parse_single_call_or_funcdef_arg(

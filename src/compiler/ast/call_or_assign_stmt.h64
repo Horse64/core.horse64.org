@@ -108,7 +108,8 @@ func check_call_or_assign_and_get_idx(
             i += 2
             continue
         } elseif tokens[i].kind == token.T_BRACKET and
-                tokens[i].str == "[" {
+                (tokens[i].str == "[" or tokens[i].str == "(") {
+            var bracket_pos = i
             var bracket_depth = 1
             i += 1
             while yes {
@@ -129,6 +130,17 @@ func check_call_or_assign_and_get_idx(
                 i += 1
             }
             i += 1
+            if i > tokens_len or (
+                    tokens[i].kind != token.T_DOT and
+                    (tokens[i].kind != token.T_BRACKET or
+                     not {"(", "["}.has(tokens[i].str)) and
+                    tokens[i].kind != token.T_MATHASSIGN and
+                    tokens[i].kind != token.T_ASSIGN) {
+                if not only_assigns and tokens[bracket_pos].str == "(" {
+                    return bracket_pos
+                }
+                return -1
+            }
             continue
         } elseif tokens[i].kind == token.T_BRACKET and
                 tokens[i].str == "(" {

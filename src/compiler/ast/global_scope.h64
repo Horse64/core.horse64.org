@@ -68,7 +68,7 @@ func GlobalScope.as_json_obj {
 func has_global_scope_duplicate(
         scope, stmt, name, msgs, project_file=none
         ) {
-    if name in scope.name_to_stmt_map {
+    if scope.name_to_stmt_map.has(name) {
         if typename(scope.name_to_stmt_map[name]) != "list" or
                 stmt.kind != ast.N_STMT_IMPORT {
             var duplicate_stmt = scope.name_to_stmt_map[name]
@@ -128,7 +128,7 @@ func process_toplevel_stmt(
                 project_file=project_file
                 ) {
             if statement.kind == ast.N_STMT_IMPORT {
-                if not name in scope.name_to_stmt_map {
+                if not scope.name_to_stmt_map.has(name) {
                     scope.name_to_stmt_map[name] = []
                 }
                 scope.name_to_stmt_map[name].add(statement)
