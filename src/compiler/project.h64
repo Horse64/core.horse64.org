@@ -716,7 +716,7 @@ func ProjectFile.set_imports_from_ast_result(result) {
     }
 }
 
-func ProjectFile.parse_for_imports_if_needed {
+func ProjectFile.parse_for_imports_if_needed(msgs=none) {
     if self.imports != none {
         return later
     }
@@ -739,6 +739,9 @@ func ProjectFile.parse_for_imports_if_needed {
     ) later:
 
     await astresult
+    if msgs != none {
+        msgs += astresult.msgs
+    }
     self.set_imports_from_ast_result(astresult)
     self.global_scope = astresult.global_scope
 }
@@ -1291,7 +1294,9 @@ func ProjectFile.resolve_all_imports(msgs=none,
         throw new RuntimeError("Must call "
             "ensure_known_single_file_status() first.")
     }
-    self.parse_for_imports_if_needed() later:
+    self.parse_for_imports_if_needed(
+        msgs=msgs
+    ) later:
 
     self.project.ensure_package_name() later:
 
