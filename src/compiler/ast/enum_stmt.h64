@@ -93,7 +93,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
 
     # Parse inner enum values:
     if pos > tokens_len or
-            tokens[pos].kind != token.T_BRACKET or
+            tokens[pos].kind != token.T_ENCLOSE or
             tokens[pos].str != "{" {
         var skiplen = math.max(1, token.get_naive_stmt_or_expr_len(
                 tokens, pos - 1, bracket_depth=0, for_expr=no
@@ -146,7 +146,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         break
     }
     if entry_count == 0 or pos > tokens_len or
-            tokens[pos].kind != token.T_BRACKET or
+            tokens[pos].kind != token.T_ENCLOSE or
             tokens[pos].str != "}" {
         if not stmt.has_damage() {
             msgs.add(new msg.FileMsg(
@@ -165,7 +165,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         }
         stmt.damaged = yes
         while pos < tokens_len and (
-                tokens[pos].kind != token.T_BRACKET or
+                tokens[pos].kind != token.T_ENCLOSE or
                 tokens[pos].str != "}") and
                 not token.surely_starts_stmt_even_in_bad_code(
                 tokens, pos
@@ -174,7 +174,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         }
     }
     if pos < tokens_len and
-            tokens[pos].kind == token.T_BRACKET and
+            tokens[pos].kind == token.T_ENCLOSE and
             tokens[pos].str == "}" {
         pos += 1  # Go past final close '}'.
     }

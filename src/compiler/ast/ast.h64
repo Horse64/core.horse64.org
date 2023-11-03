@@ -283,7 +283,7 @@ func parse_to_ast_ex(
     if pos > tokens.len or
             (is_inside_block and (
              (pos <= tokens.len and
-              tokens[pos].kind == token.T_BRACKET and
+              tokens[pos].kind == token.T_ENCLOSE and
               tokens[pos].str == "}") or
              token.surely_to_toplevel_even_in_bad_code(tokens, pos))) {
         result.token_len = 0
@@ -324,7 +324,7 @@ func parse_to_ast_ex(
     if pos > tokens.len or
             (is_inside_block and (
              (pos <= tokens.len and
-              tokens[pos].kind == token.T_BRACKET and
+              tokens[pos].kind == token.T_ENCLOSE and
               tokens[pos].str == "}") or
              token.surely_to_toplevel_even_in_bad_code(tokens, pos))) {
         # We reached the end!

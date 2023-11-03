@@ -81,7 +81,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             (tokens[pos].kind != token.T_KEYWORD or
              (tokens[pos].str != "as" and
               tokens[pos].str != "later")) and
-            (tokens[pos].kind != token.T_BRACKET or
+            (tokens[pos].kind != token.T_ENCLOSE or
              tokens[pos].str != "{" or
              pos <= startpos + 1 or
              token.token_has_righthand(tokens[pos])) and
@@ -91,7 +91,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             not token.surely_to_toplevel_even_in_bad_code(
                 tokens, pos
             ) {
-        if tokens[pos].kind == token.T_BRACKET {
+        if tokens[pos].kind == token.T_ENCLOSE {
             if {"(", "[", "{"}.has(tokens[pos].str) {
                 bracket_depth += 1
             } else {
@@ -105,7 +105,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             (tokens[pos].kind != token.T_KEYWORD or
              (tokens[pos].str != "as" and
               tokens[pos].str != "later")) and
-            (tokens[pos].kind != token.T_BRACKET or
+            (tokens[pos].kind != token.T_ENCLOSE or
              tokens[pos].str != "{")) {
         msgs.add(new msg.FileMsg(
             "Unexpected " + token.describe_token_at(tokens,
@@ -213,7 +213,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
 
     # Advance to block (not needed if the code was correct):
     if pos < tokens_len and
-            (tokens[pos].kind != token.T_BRACKET or
+            (tokens[pos].kind != token.T_ENCLOSE or
              tokens[pos].str != "{") {
         var beforeskippos = pos
         var skiplen = math.max(1,

@@ -182,7 +182,7 @@ func parse_next_ifelse_clause(
     pos += clause.token_len
     if clause.kind == ast.N_EXPR_INVALID and (
             pos > tokens_len or
-            tokens[pos].kind != token.T_BRACKET or
+            tokens[pos].kind != token.T_ENCLOSE or
             tokens[pos].str != "{") {
         # Don't pile on error msg for missing code block since
         # it already spat out an error, just quietly bail:

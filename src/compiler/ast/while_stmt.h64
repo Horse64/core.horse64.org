@@ -92,7 +92,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     }
     # Advance to code block (needed if there was an error):
     if skip_to_block and pos < tokens_len and
-            (tokens[pos].kind != token.T_BRACKET or
+            (tokens[pos].kind != token.T_ENCLOSE or
             tokens[pos].str != "{") {
         var beforeskippos = pos
         var skiplen = math.max(1,

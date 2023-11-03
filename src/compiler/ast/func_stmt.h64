@@ -126,11 +126,11 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
 
     # Now we must have either '(' for arguments, or '{' for code block:
     if pos > tokens_len or
-            tokens[pos].kind != token.T_BRACKET or
+            tokens[pos].kind != token.T_ENCLOSE or
             not {"(", "{"}.has(tokens[pos].str) {
         msgs.add(new msg.FileMsg(
             "Unexpected " + token.describe_token_at(tokens, pos) +
-            ", expected '(' or '{' (T_BRACKET) for "
+            ", expected '(' or '{' (T_ENCLOSE) for "
             "arguments or code block.",
             source_file=project_file,
             line=token.get_line(tokens, pos),
@@ -152,7 +152,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     func get_func_arguments {
         var args = new expr.CallOrDefArgsExpr()
         args.token_len = 0
-        if tokens[pos].kind != token.T_BRACKET or
+        if tokens[pos].kind != token.T_ENCLOSE or
                 tokens[pos].str != "(" {
             return args
         }

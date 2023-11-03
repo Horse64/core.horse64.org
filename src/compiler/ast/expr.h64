@@ -164,7 +164,7 @@ func InlineIfExpr.as_json_obj {
 }
 
 func token_continues_expr(t) {
-    if t.kind == token.T_BRACKET {
+    if t.kind == token.T_ENCLOSE {
         return (t.str == "(" or t.str == "[")
     }
     if {token.T_MATH, token.T_COMPARE, token.T_DOT}.has(t.kind) {
@@ -382,7 +382,7 @@ func parse_expression_unwrapped(
             return node
         }
         # Handle bracketed expressions, like `(1 + 2)`:
-        if tokens[pos].kind == token.T_BRACKET and
+        if tokens[pos].kind == token.T_ENCLOSE and
                 tokens[pos].str == "(" {
             pos += 1
             var inner_expr = parse_expression(
@@ -420,13 +420,13 @@ func parse_expression_unwrapped(
             assert(inner_expr.token_len != none)
             pos += inner_expr.token_len
             if pos > tokens_len or
-                    tokens[pos].kind != token.T_BRACKET or
+                    tokens[pos].kind != token.T_ENCLOSE or
                     tokens[pos].str != ")" {
                 if not inner_expr.has_damage() {
                     msgs.add(new msg.FileMsg(
                         "Unexpected " + token.describe_token_at(
                             tokens, pos) +
-                        ", expected ')' (T_BRACKET) closing the "
+                        ", expected ')' (T_ENCLOSE) closing the "
                         "opening bracket '(' in line " +
                         startline.as_str() +
                         ", column " +
@@ -440,12 +440,12 @@ func parse_expression_unwrapped(
 
                 # Try to find actual closing bracket:
                 pos = token.skip_garbage_to_closing_item(
-                    tokens, pos, token.T_BRACKET, "(",
+                    tokens, pos, token.T_ENCLOSE, "(",
                     max_len=tokens_len,
                 )
                 # If we're at a proper closing bracket, consume it:
                 if pos <= tokens_len and
-                        tokens[pos].kind == token.T_BRACKET and
+                        tokens[pos].kind == token.T_ENCLOSE and
                         {")", "]", "}"}.has(token[pos].str) {
                     pos += 1  # Past whatever closing thing we found.
                 }
@@ -458,7 +458,7 @@ func parse_expression_unwrapped(
             return inner_expr
         }
         # Handle container constructors for map, list, set, vector:
-        if tokens[pos].kind == token.T_BRACKET and
+        if tokens[pos].kind == token.T_ENCLOSE and
                 {"{", "["}.has(tokens[pos].str) {
             var openbracket = tokens[pos].str
             pos += 1
@@ -475,7 +475,7 @@ func parse_expression_unwrapped(
             # Handle special cases: [], {}, [,], {,}, {->}
             if pos <= tokens_len and (
                     tokens[pos].kind == token.T_COMMA or
-                    (tokens[pos].kind == token.T_BRACKET and
+                    (tokens[pos].kind == token.T_ENCLOSE and
                      tokens[pos].str == closebracket) or
                     (openbracket == "{" and
                      tokens[pos].kind == token.T_MAPASSIGN)) {
@@ -496,13 +496,13 @@ func parse_expression_unwrapped(
                     }
                 }
                 if pos > tokens_len or
-                        tokens[pos].kind != token.T_BRACKET or
+                        tokens[pos].kind != token.T_ENCLOSE or
                         tokens[pos].str != closebracket {
                     if not node.has_damage() {
                         msgs.add(new msg.FileMsg(
                             "Unexpected " + token.describe_token_at(
                                 tokens, pos) +
-                            ", expected ')' (T_BRACKET) closing the "
+                            ", expected ')' (T_ENCLOSE) closing the "
                             "opening bracket '" +
                             openbracket + "' in line " +
                             startline.as_str() +
@@ -533,9 +533,9 @@ func parse_expression_unwrapped(
             var i = pos
             while i <= tokens_len and
                     (bracket_depth > 0 or
-                    tokens[i].kind != token.T_BRACKET or
+                    tokens[i].kind != token.T_ENCLOSE or
                     tokens[i].str != closebracket) {
-                if tokens[i].kind == token.T_BRACKET {
+                if tokens[i].kind == token.T_ENCLOSE {
                     if {"(", "[", "{"}.has(tokens[i].str) {
                         bracket_depth += 1
                     } else {
@@ -573,7 +573,7 @@ func parse_expression_unwrapped(
             var had_fatal_error = yes
             if next_expr == none {
                 if pos > tokens_len or
-                        tokens[pos] != token.T_BRACKET or
+                        tokens[pos] != token.T_ENCLOSE or
                         tokens[pos].str != closingbracket {
                     if not node.has_damage() {
                         msgs.add(new msg.FileMsg(
@@ -611,7 +611,7 @@ func parse_expression_unwrapped(
                 }
             }
             if not had_fatal_error and (pos > tokens_len or
-                    ((tokens[pos].kind != token.T_BRACKET or
+                    ((tokens[pos].kind != token.T_ENCLOSE or
                       tokens[pos].str != close_bracket) and
                      tokens[pos].kind != token.T_COMMA)) {
                 if not node.has_damage() {
@@ -639,9 +639,9 @@ func parse_expression_unwrapped(
                 bdepth = 0
                 while pos <= tokens_len and
                         (bdepth > 0 or
-                        tokens[pos].kind != token.T_BRACKET or
+                        tokens[pos].kind != token.T_ENCLOSE or
                         not {")", "]", "}"}.has(tokens[pos].str)) {
-                    if tokens[pos].kind == token.T_BRACKET {
+                    if tokens[pos].kind == token.T_ENCLOSE {
                         if {")", "]", "}"}.has(tokens[pos].str) {
                             bdepth -= 1
                         } else {
@@ -659,7 +659,7 @@ func parse_expression_unwrapped(
             }
             if tokens[pos].kind != token.T_COMMA or
                     (pos + 1 <= tokens_len and
-                    tokens[pos + 1].kind == token.T_BRACKET and
+                    tokens[pos + 1].kind == token.T_ENCLOSE and
                     tokens[pos + 1].str == closingbracket) {
                 # We're at the closing bracket.
                 if tokens[pos].kind == token.T_COMMA {
@@ -693,7 +693,7 @@ func parse_expression_unwrapped(
         )
         assert(past_cond_idx <= tokens_len)
         if past_cond_idx >= 1 {  # This means it's an actual inline 'if'.
-            assert(tokens[past_cond_idx].kind == token.T_BRACKET and
+            assert(tokens[past_cond_idx].kind == token.T_ENCLOSE and
                    tokens[past_cond_idx].str == "(")
             pos += 1
             var had_error = no
@@ -751,7 +751,7 @@ func parse_expression_unwrapped(
                     pos += value_expr.token_len
                 }
                 if pos > tokens_len or
-                        tokens[pos].kind != token.T_BRACKET or
+                        tokens[pos].kind != token.T_ENCLOSE or
                         tokens[pos].str != ")" {
                     if not had_error {
                         msgs.add(new msg.FileMsg(
@@ -772,7 +772,7 @@ func parse_expression_unwrapped(
                     had_error = yes
                     var bracket_depth = 1
                     while pos <= tokens_len {
-                        if tokens[pos].kind == token.T_BRACKET {
+                        if tokens[pos].kind == token.T_ENCLOSE {
                             if {"(", "[", "{"}.has(tokens[pos].str) {
                                 bracket_depth += 1
                             } else {
@@ -804,7 +804,7 @@ func parse_expression_unwrapped(
                 pos = past_cond_idx
             }
             if pos <= tokens_len and
-                    tokens[pos].kind == token.T_BRACKET and
+                    tokens[pos].kind == token.T_ENCLOSE and
                     tokens[pos].str == ")" {
                 pos += 1
             }
@@ -831,7 +831,7 @@ func parse_expression_unwrapped(
                 pos += 1  # Go past 'else'.
             }
             if pos > tokens_len or
-                    tokens[pos].kind != token.T_BRACKET or
+                    tokens[pos].kind != token.T_ENCLOSE or
                     tokens[pos].str != "(" {
                 if not had_error {
                     msgs.add(new msg.FileMsg(
@@ -861,7 +861,7 @@ func parse_expression_unwrapped(
             assert(value2_expr != none)
             pos += value2_expr.token_len
             if pos <= tokens_len and
-                    tokens[pos].kind == token.T_BRACKET and
+                    tokens[pos].kind == token.T_ENCLOSE and
                     tokens[pos].str == ")" {
                 pos += 1
             }
@@ -896,7 +896,7 @@ func parse_expression_unwrapped(
     # Handle call, member access, and indexing operators:
     if left_hand != none and
             (tokens[pos].kind == token.T_DOT or
-             (tokens[pos].kind == token.T_BRACKET and
+             (tokens[pos].kind == token.T_ENCLOSE and
               {"(", "["}.has(tokens[pos].str))) {
         if debug {
             print("compiler.ast.expr: parse_expression_unwrapped() " +
@@ -907,7 +907,7 @@ func parse_expression_unwrapped(
 
         var orig_left_hand_len = left_hand.token_len
         var openbracket =
-            if tokens[pos].kind == token.T_BRACKET
+            if tokens[pos].kind == token.T_ENCLOSE
             (tokens[pos].str) else (".")
         var op_pos = pos
         pos += 1  # Go past opening bracket.
@@ -939,7 +939,7 @@ func parse_expression_unwrapped(
                 if inner_expr.token_len > 0 and
                         pos + inner_expr.token_len - 1 <= tokens_len and
                         tokens[pos + inner_expr.token_len - 1].kind ==
-                            token.T_BRACKET and
+                            token.T_ENCLOSE and
                         tokens[pos + inner_expr.token_len - 1].str == ")" {
                     inner_expr.token_len -= 1  # Exclude closing ')'.
                 }
@@ -997,14 +997,14 @@ func parse_expression_unwrapped(
             if openbracket != "." {
                 # Try to find actual closing bracket:
                 pos = token.skip_garbage_to_closing_item(
-                    tokens, pos, token.T_BRACKET,
+                    tokens, pos, token.T_ENCLOSE,
                     token.reverse_brackets(openbracket),
                     max_len=tokens_len,
                     skip_closing_item_itself=yes,
                 )
                 # If we're at a proper closing bracket, consume it:
                 if pos <= tokens_len and
-                        tokens[pos].kind == token.T_BRACKET and
+                        tokens[pos].kind == token.T_ENCLOSE and
                         {")", "]", "}"}.has(token[pos].str) {
                     pos += 1  # Past whatever closing thing we found.
                 }
@@ -1029,7 +1029,7 @@ func parse_expression_unwrapped(
             pos += inner_expr.token_len
             if openbracket != "." and
                     (pos > tokens_len or
-                    tokens[pos].kind != token.T_BRACKET or
+                    tokens[pos].kind != token.T_ENCLOSE or
                     token.reverse_brackets(openbracket) !=
                         tokens[pos].str) {
                 if not node.has_damage() {
@@ -1051,7 +1051,7 @@ func parse_expression_unwrapped(
                 }
                 node.damaged = yes
                 pos = token.skip_garbage_to_closing_item(
-                    tokens, pos, token.T_BRACKET,
+                    tokens, pos, token.T_ENCLOSE,
                     token.reverse_brackets(openbracket),
                     max_len=tokens_len,
                     skip_closing_item_itself=yes
@@ -1063,7 +1063,7 @@ func parse_expression_unwrapped(
         node.token_len = orig_left_hand_len + (pos - startpos)
         if pos >= tokens_len or (
                 tokens[pos].kind != token.T_DOT and
-                (tokens[pos].kind != token.T_BRACKET or
+                (tokens[pos].kind != token.T_ENCLOSE or
                  not {"(", "["}.has(tokens[pos].str))) {
             if debug {
                 print("compiler.ast.expr: parse_expression_unwrapped() " +
@@ -1081,7 +1081,7 @@ func parse_expression_unwrapped(
         }
         left_hand = node
         openbracket =
-            if tokens[pos].kind == token.T_BRACKET
+            if tokens[pos].kind == token.T_ENCLOSE
             (tokens[pos].str) else (".")
         node = new BinopExpr(tokens[pos])
         node.line = left_hand.line
@@ -1136,7 +1136,7 @@ func parse_expression_unwrapped(
         var inline_if_depth = 0
         var i = pos + 1
         while i <= tokens_len {
-            if tokens[i].kind == token.T_BRACKET {
+            if tokens[i].kind == token.T_ENCLOSE {
                 if {"{", "(", "["}.has(tokens[i].str) {
                     bracket_depth += 1
                 } else {
@@ -1559,7 +1559,7 @@ func parse_single_call_or_funcdef_arg(
     var had_damage = no
     if pos > tokens_len or (
             tokens[pos].kind != token.T_COMMA and
-            (tokens[pos].kind != token.T_BRACKET or
+            (tokens[pos].kind != token.T_ENCLOSE or
              tokens[pos].str != ")")) {
         if assigned_expr == none or
                 not assigned_expr.has_damage() {
@@ -1567,7 +1567,7 @@ func parse_single_call_or_funcdef_arg(
                 "Unexpected " + token.describe_token_at(
                     tokens, pos) +
                 ", expected final ending ',' (T_COMMA) or "
-                "')' (T_BRACKET)" +
+                "')' (T_ENCLOSE)" +
                 call_ast_error_info_suffix(
                     callordef_line, callordef_col,
                     is_call=is_call) + ".",
@@ -1594,7 +1594,7 @@ func parse_single_call_or_funcdef_arg(
     # If we're at a closing ',' + ')' then forward to final ')':
     if pos + 1 <= tokens_len and
             tokens[pos].kind == token.T_COMMA and
-            tokens[pos + 1].kind == token.T_BRACKET and
+            tokens[pos + 1].kind == token.T_ENCLOSE and
             tokens[pos + 1].str == ")" {
         pos += 1
     }
@@ -1656,18 +1656,18 @@ func parse_call_or_funcdef_args(
     node.col = token.get_col(tokens, pos)
     var startpos = pos
     if pos > tokens_len or
-            tokens[pos].kind != token.T_BRACKET or
+            tokens[pos].kind != token.T_ENCLOSE or
             tokens[pos].str != "(" {
         node.token_len = 0
         return node
     }
     pos += 1  # Past '(' opening bracket
     if pos <= tokens_len and ((  # Empty arguments expression:
-            tokens[pos].kind == token.T_BRACKET and
+            tokens[pos].kind == token.T_ENCLOSE and
             tokens[pos].str == ")") or
             (tokens[pos].kind == token.T_COMMA and
              pos + 1 <= tokens_len and
-             tokens[pos + 1].kind == token.T_BRACKET and
+             tokens[pos + 1].kind == token.T_ENCLOSE and
              tokens[pos + 1].str == ")")) {
         if tokens[pos].kind == token.T_COMMA {
             pos += 1  # Advance ONTO actual closing ')'.
@@ -1696,7 +1696,7 @@ func parse_call_or_funcdef_args(
         # parse_single_call_or_funcdef_arg() should have already
         # added an error to the msgs list.
         if pos > tokens_len or
-                tokens[pos].kind != token.T_BRACKET or
+                tokens[pos].kind != token.T_ENCLOSE or
                 tokens[pos].str != ")" {
             pos -= 1  # Revert onto last valid contained token.
         }

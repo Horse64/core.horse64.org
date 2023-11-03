@@ -107,7 +107,7 @@ func check_call_or_assign_and_get_idx(
             }
             i += 2
             continue
-        } elseif tokens[i].kind == token.T_BRACKET and
+        } elseif tokens[i].kind == token.T_ENCLOSE and
                 (tokens[i].str == "[" or tokens[i].str == "(") {
             var bracket_pos = i
             var bracket_depth = 1
@@ -116,7 +116,7 @@ func check_call_or_assign_and_get_idx(
                 if i > tokens_len {
                     break
                 }
-                if tokens[i].kind == token.T_BRACKET {
+                if tokens[i].kind == token.T_ENCLOSE {
                     if {"(", "[", "{"}.has(tokens[i].str) {
                         bracket_depth += 1
                     } else {
@@ -132,7 +132,7 @@ func check_call_or_assign_and_get_idx(
             i += 1
             if i > tokens_len or (
                     tokens[i].kind != token.T_DOT and
-                    (tokens[i].kind != token.T_BRACKET or
+                    (tokens[i].kind != token.T_ENCLOSE or
                      not {"(", "["}.has(tokens[i].str)) and
                     tokens[i].kind != token.T_MATHASSIGN and
                     tokens[i].kind != token.T_ASSIGN) {
@@ -142,7 +142,7 @@ func check_call_or_assign_and_get_idx(
                 return -1
             }
             continue
-        } elseif tokens[i].kind == token.T_BRACKET and
+        } elseif tokens[i].kind == token.T_ENCLOSE and
                 tokens[i].str == "(" {
             if only_assigns {
                 return -1
@@ -169,7 +169,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         return later none
     }
     var is_call =
-        tokens[assign_or_call_idx].kind == token.T_BRACKET
+        tokens[assign_or_call_idx].kind == token.T_ENCLOSE
 
     # Parse the call or lvalue expression:
     var v1 = expr.parse_expression(

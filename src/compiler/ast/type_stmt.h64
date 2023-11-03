@@ -89,7 +89,7 @@ func get_extend_variant(
             (not token.surely_starts_stmt_even_in_bad_code(
                 tokens, i
             ) or had_block_bracket) {
-        if tokens[i].kind != T_BRACKET or
+        if tokens[i].kind != T_ENCLOSE or
                 tokens[i].str != "{" {
             had_block_bracket = yes
         }
@@ -104,7 +104,7 @@ func get_extend_variant(
                     {"var", "const", "func"}.has(tokens[i].str) {
                 return EXTEND_TYPE
             }
-            if tokens[i].kind == T_BRACKET and
+            if tokens[i].kind == T_ENCLOSE and
                     {"{", "}"}.has(tokens[i].str) {
                 if not had_damage {
                     msgs.add(new msg.FileMsg(
@@ -281,7 +281,7 @@ func parse_extend_or_enum_or_type_header(
         }
     }
     if pos <= tokens_len and (
-            tokens[pos].kind != token.T_BRACKET or
+            tokens[pos].kind != token.T_ENCLOSE or
             tokens[pos].str != "{") {
         if not stmt.has_damage() {
             msgs.add(new msg.FileMsg(

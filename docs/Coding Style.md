@@ -35,9 +35,9 @@ The following common style guidelines are recommended for
 Horse64 code:
 
 - Indent code blocks inside `{ ... }` by 4 spaces,
-  and keep the opening brackets on the same line.
+  and keep the opening braces on the same line.
   ```Horse64
-  func main {  # Opening bracket on same line!
+  func main {  # Opening brace on same line!
       print("Hello!")  # Indented by 4 spaces.
   }
   ```

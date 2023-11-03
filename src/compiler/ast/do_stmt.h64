@@ -100,7 +100,7 @@ func parse_rescue_clause_header(
                 (tokens[pos].kind != token.T_KEYWORD or
                  tokens[pos].str != "any")) {
             if errors_parsed == 0 or
-                    tokens[pos].kind != token.T_BRACKET or
+                    tokens[pos].kind != token.T_ENCLOSE or
                     tokens[pos].str != "{" {
                 if not stmt.has_damage() {
                     msgs.add(new msg.FileMsg(
@@ -187,7 +187,7 @@ func parse_rescue_clause_header(
 
         if pos > tokens_len or (
                 tokens[pos].kind != token.T_COMMA and
-                (tokens[pos].kind != token.T_BRACKET or
+                (tokens[pos].kind != token.T_ENCLOSE or
                  tokens[pos].str != "{")) {
             if not stmt.has_damage() {
                 msgs.add(new msg.FileMsg(
@@ -211,7 +211,7 @@ func parse_rescue_clause_header(
             clause.token_len = pos - clausestart
             return clause
         }
-        if tokens[pos].kind == token.T_BRACKET {
+        if tokens[pos].kind == token.T_ENCLOSE {
             assert(tokens[pos].str == "{")
             clause.token_len = pos - clausestart
             return clause

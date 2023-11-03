@@ -63,12 +63,12 @@ func parse(tokens, pos, msgs, project_file=none, debug=no,
 
     # Ensure we have an opening '{' bracket:
     if pos > tokens_len or
-            tokens[pos].kind != token.T_BRACKET or
+            tokens[pos].kind != token.T_ENCLOSE or
             tokens[pos].str != "{" {
         if not had_damage {
             msgs.add(new msg.FileMsg(
                 "Unexpected " + token.describe_token_at(tokens, pos) +
-                ", expected '{' (T_BRACKET) to start "
+                ", expected '{' (T_ENCLOSE) to start "
                 "code block" +
                 if block_purpose_name.len > 0 (" ") else ("") +
                 block_purpose_name + ".",
@@ -84,7 +84,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no,
         pos += skiplen
         result.damaged = yes
         if pos > tokens_len or
-                tokens[pos].kind != token.T_BRACKET or
+                tokens[pos].kind != token.T_ENCLOSE or
                 tokens[pos].str != "{" {
             # Still haven't found block, bail.
             result.token_len = pos - startpos
@@ -113,12 +113,12 @@ func parse(tokens, pos, msgs, project_file=none, debug=no,
 
     # See if we're missing a proper end:
     if pos > tokens_len or
-            tokens[pos].kind != token.T_BRACKET or
+            tokens[pos].kind != token.T_ENCLOSE or
             tokens[pos].str != "}" {
         if not result.has_damage() {
             msgs.add(new msg.FileMsg(
                 "Unexpected " + token.describe_token_at(tokens, pos) +
-                ", expected '}' (T_BRACKET) to end "
+                ", expected '}' (T_ENCLOSE) to end "
                 "code block starting in line " +
                 token.get_line(tokens, startpos).as_str() + ", "
                 "column " + token.get_col(tokens, startpos).as_str() +

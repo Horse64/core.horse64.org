@@ -521,7 +521,7 @@ func get_naive_stmt_or_expr_len(
 
     if start_pos > tokens_len or (for_expr and
             bracket_depth == 0 and
-            (tokens[start_pos].kind == T_BRACKET and
+            (tokens[start_pos].kind == T_ENCLOSE and
              {")", "]", "}"}.has(tokens[start_pos]))) {
         return 1
     }
@@ -537,7 +537,7 @@ func get_naive_stmt_or_expr_len(
                 bracket_depth == 0 and for_expr {
             break
         }
-        if tokens[i].kind == T_BRACKET {
+        if tokens[i].kind == T_ENCLOSE {
             if {"(", "{", "["}.has(tokens[i].str) {
                 bracket_depth += 1
                 if tokens[i].str == "{" {
@@ -589,7 +589,7 @@ func get_inline_if_conditional_end(tokens, pos, max_len=none) {
     var bracket_depth = 0
     while pos <= token_len {
         if bracket_depth == 0 {
-            if tokens[pos].kind == T_BRACKET and
+            if tokens[pos].kind == T_ENCLOSE and
                     tokens[pos].str == "{" and
                     not token_has_righthand(tokens[pos - 1]) {
                 return -1
@@ -605,7 +605,7 @@ func get_inline_if_conditional_end(tokens, pos, max_len=none) {
                         pos += 1
                         continue
                     }
-                    if (tokens[pos - 1].kind != T_BRACKET or
+                    if (tokens[pos - 1].kind != T_ENCLOSE or
                             tokens[pos - 1].str != ")") {
                         return -1
                     }
@@ -613,7 +613,7 @@ func get_inline_if_conditional_end(tokens, pos, max_len=none) {
                     pos -= 2
                     var inner_bracket_depth = 1
                     while pos >= startpos + 2 {
-                        if tokens[pos].kind == T_BRACKET {
+                        if tokens[pos].kind == T_ENCLOSE {
                             if {")", "]", "}"}.has(tokens[pos].str) {
                                 inner_bracket_depth += 1
                             } else {
@@ -638,7 +638,7 @@ func get_inline_if_conditional_end(tokens, pos, max_len=none) {
                 }
             }
         }
-        if tokens[pos].kind == T_BRACKET {
+        if tokens[pos].kind == T_ENCLOSE {
             if {"(", "[", "{"}.has(tokens[pos].str) {
                 bracket_depth += 1
             } else {
@@ -674,7 +674,7 @@ func token_is_consumed_by_return_simple(t) {
         }
         t = result.tokens[1]
     }
-    if t.kind == T_BRACKET {
+    if t.kind == T_ENCLOSE {
         return {"{", "(", "["}.has(t.str)
     }
     if t.kind == T_KEYWORD and
@@ -815,12 +815,12 @@ func skip_garbage_to_closing_item(
     var bdepth = 0
     while pos <= tokens_len and
             (bdepth > 0 or
-             ((tokens[pos].kind != T_BRACKET or
+             ((tokens[pos].kind != T_ENCLOSE or
                not {")", "]", "}"}.has(tokens[pos].str)) and
               (tokens[pos].kind != closing_kind or
                tokens[pos].str != closing_str))) {
         # Track inner nestings:
-        if tokens[pos].kind == T_BRACKET {
+        if tokens[pos].kind == T_ENCLOSE {
             if {"(", "[", "{"}.has(tokens[pos].str) {
                 bdepth += 1
                 if tokens[pos].str == "{" {
@@ -869,7 +869,7 @@ func skip_code_block_if_any(
     var pos = startpos
 
     if pos < 1 or pos > token_len or
-            tokens[pos].kind != T_BRACKET or
+            tokens[pos].kind != T_ENCLOSE or
             tokens[pos].str != "{" {
         return 0
     }
@@ -878,11 +878,11 @@ func skip_code_block_if_any(
     var block_depth = 1
     while pos <= token_len {
         if pos <= token_len and block_depth <= 1 and
-                tokens[pos].kind == T_BRACKET and
+                tokens[pos].kind == T_ENCLOSE and
                 tokens[pos].str == "}" {
             return (pos - startpos) + 1
         }
-        if tokens[pos].kind == T_BRACKET {
+        if tokens[pos].kind == T_ENCLOSE {
             if tokens[pos].str == "{" {
                 block_depth += 1
                 pos += 1
@@ -923,7 +923,7 @@ func skip_in_broken_stmt_to_code_block(
         while pos <= skipto {
             if pos > token_len or (
                     bracket_depth <= 0 and
-                    tokens[pos].kind == T_BRACKET and
+                    tokens[pos].kind == T_ENCLOSE and
                     tokens[pos].str == "{" and
                     (pos <= 1 or not token_has_righthand(
                         tokens[pos - 1]
@@ -936,7 +936,7 @@ func skip_in_broken_stmt_to_code_block(
                     ) {
                 return pos - startpos
             }
-            if tokens[pos].kind == T_BRACKET {
+            if tokens[pos].kind == T_ENCLOSE {
                 if {"{", "(", "["}.has(tokens[pos].str) {
                     bracket_depth += 1
                 } else {
@@ -981,7 +981,7 @@ func token_has_lefthand(t) {
             T_DOT}.has(t.kind) {
         return yes
     }
-    if t.kind == T_BRACKET and
+    if t.kind == T_ENCLOSE and
             {"[", "("}.has(t.str) {
         return yes
     }
@@ -1105,7 +1105,7 @@ func reverse_brackets(value) {
 enum TokenKind {
     T_COMMENT,
     T_WSPACE,
-    T_BRACKET,
+    T_ENCLOSE,
     T_STR,
     T_BYTES,
     T_NUM,
@@ -1709,7 +1709,7 @@ func tokenize_str(
             }
             bracket_nesting.add([c, line, col])
             result.tokens.add(new Token(
-                c, T_BRACKET, line, col
+                c, T_ENCLOSE, line, col
             ))
             continue
         } elseif c == ")" or c == "]" or c == "}" {
@@ -1743,7 +1743,7 @@ func tokenize_str(
                 bracket_nesting.pop()
             }
             result.tokens.add(new Token(
-                c, T_BRACKET, line, col
+                c, T_ENCLOSE, line, col
             ))
             continue
         } elseif c == "=" or (i + 1 <= strlen and

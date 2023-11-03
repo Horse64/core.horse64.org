@@ -56,8 +56,8 @@ that begin with `#` and always end at the next line break.
 
 A statement can't ever begin with some specific items:
 
-* `(` or `[` opening brackets are forbidden,
-  while a `{` opening bracket is allowed,
+* `(` or `[` opening enclosing marks are forbidden,
+  while a `{` opening brace is allowed,
 
 * a `new` operator is forbidden,
 
@@ -78,7 +78,7 @@ This can lead to seeming ambiguity, which can be easily avoided
 with this advice:
 
 > **Advice:** You shouldn't put a `return` statement anywhere
-  but right before the closing `}` bracket of a code block.
+  but right before the closing `}` brace of a code block.
 
 An example follows where ignoring this advice is confusing:
 
