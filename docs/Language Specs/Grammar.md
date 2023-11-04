@@ -95,3 +95,131 @@ func main {
 }
 ```
 
+Operators
+---------
+
+Horse64 supports the following operators, all of which
+will raise a `TypeError` if not applied to the supported
+types specified:
+
+**Math operators (`T_MATH`):**
+
+Math operators: `+`, `-`, `*`, `/`, `%`, `**',
+Bitwise math operators: `<<`, `>>`, `~`, `&`, `|`, `^`.
+*(All operators except for `-` always take a left-hand
+and right-hand side, so they're all binary operators)*
+
+They can be applied to any pair of numbers, the
+bitwise ones will round the number to an integer
+first if it has a fractional part.
+
+The `+` operator can also be applied to two strings or
+two lists or two sets or two vectors,
+and the `-` operator can also be used as a unary operator.
+
+**Comparison operators (`T_COMPARE`):**
+
+Comparison operators: `==`, `!=`, `>`, `<`, `>=`, `<=`.
+*(These all take a left-hand and right-hand side,
+so they're all binary operators)*
+
+The first two can be applied to any types, the others
+to a pair of numbers, or a pair of strings which compares
+them based on unicode code point value. All comparisons
+evaluate to either boolean yes or boolean no.
+
+**Boolean operators (`T_BOOLCOMP`):**
+
+Boolean operators: `not`, `and`, `or`.
+*(The `not` operator only takes a right-hand side
+and is therefore unary, the others are binary operators.)*
+
+All of these can be applied to any pair of booleans,
+and will return a boolean (`yes`/`no`).
+The `and` operator will only evaluate the right-hand side
+if the left-hand turns out to be boolean `yes`.
+The `or` operator will only evaluate the right-hand side
+if the left-hand turns out to be boolean `no`.
+
+**New operator (`T_NEWOP`):**
+
+New operator: `new`.
+*(It just takes a right-hand side, it's an unary operator.)*
+
+Example: `new type_name(arg1, arg2)`
+This operator can be applied to an identifier that
+refers to a type, an expression referring to a variable
+previously assigned to a type, combined with arguments
+for the constructor.
+It evaluates to an object instance, or may raise any
+error caused by the `init` function attribute when run.
+
+**Index by expression operator:**
+
+Index by expression operator: `[` with closing `]`.
+*(It takes both a right-hand and left-hand side,
+so it's a binary operator)*
+
+Example: `somecontainer[<indexexpr>]`.
+This operator can be applied to any container of type
+list or vector, and takes a number type for indexing. It
+evaluates to the respective nth list or vector item.
+If the number passed in is lower than `1` or higher than
+the amount of items, an `IndexError` will be raised.
+
+**Attribute by identifier operator:**
+
+Attribute by identifier operator: `.` (dot).
+*(It has both right- and left-hand side,
+it's a binary operator)*
+
+Example: `someitem.identifier`.
+
+The item can be any arbitrary expression.
+The operator can be applied on any item, even numbers or
+booleans or even none, but will raise an `AttributeError` if
+the given data type doesn't have this attribute.
+
+For object instances creted from your [classes](
+defining-custom-classes-class-new) via `new`, the attributes
+are as specified by your class. Beyond that, many values
+have special attributes, see the
+[data types section](#datatypes) for these. E.g., all
+values have the `.as_str` attribute that returns a string
+value representing them.
+
+**Call operator:**
+
+Call operator: `(` with closing `)`.
+*(Also a binary operator with left- and right-hand side.)*
+
+Calls are also treated as an operator, the syntax
+being `left_hand_called_side(right_hand_argument_side)`.
+Please note it needs a closing `)`.
+
+### Operator precedences
+
+If operators aren't clearly nested via parenthesis to indicate
+evaluation order, then it is determined by operator precedence.
+For simplicity, precedence is presented here by pasting the
+according C code of [horsec](../horsec/horsec.md):
+
+```
+var precedence_table = [  # From closest-binding to loosest:
+    ["new"],
+    [["-", token.T_UNARYMATH]],
+    ["~", "&"],
+    ["|"],
+    ["^"],
+    ["/", "*", "%", "**"],
+    ["+", ["-", token.T_MATH]],
+    ["<<", ">>"],
+    ["==", "!="],
+    [">=", "<="],
+    [">", "<"],
+    ["not"],
+    ["and"],
+    ["or"],
+]
+```
+
