@@ -95,7 +95,7 @@ for any particular purpose** of these lists at all.*
 
 If you find a mistake or want to
 suggest an improvement, [please file a documentation issue](
-https://codeberg.org/Horse64/core.horse64.org/issues/new?template=.gitea%2fISSUE_TEMPLATE%2fdocs.yml
+/docs/Resources.md#report-bugs).
 ).
 
 ### Syntax, Core, and Code Flow Features

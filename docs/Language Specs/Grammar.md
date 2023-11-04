@@ -202,7 +202,8 @@ Please note it needs a closing `)`.
 If operators aren't clearly nested via parenthesis to indicate
 evaluation order, then it is determined by operator precedence.
 For simplicity, precedence is presented here by pasting the
-according C code of [horsec](../horsec/horsec.md):
+according implementation code of [horsec](../horsec/horsec.md)
+found in `src/compiler/operator.h64`:
 
 ```
 var precedence_table = [  # From closest-binding to loosest:
