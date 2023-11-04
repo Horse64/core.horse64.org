@@ -71,7 +71,7 @@ enum ExtendType {
 
 func get_extend_variant(
         tokens, tokens_len, pos, msgs,
-        had_damage=no) {
+        had_damage=no, project_file=none) {
     const startpos = pos
     if pos > tokens_len or
             tokens[pos].kind != token.T_KEYWORD or
@@ -90,45 +90,47 @@ func get_extend_variant(
             (not token.surely_starts_stmt_even_in_bad_code(
                 tokens, i
             ) or had_block_bracket) {
-        if tokens[i].kind != T_ENCLOSE or
-                tokens[i].str != "{" {
+        if tokens[i].kind == token.T_ENCLOSE and
+                tokens[i].str == "{" {
             had_block_bracket = yes
             i += 1
             continue
         }
         if had_block_bracket {
-            if tokens[i].kind == T_COMMA {
+            if tokens[i].kind == token.T_COMMA {
                 return EXTEND_ENUM
             }
-            if tokens[i].kind == T_ASSIGN {
+            if tokens[i].kind == token.T_ASSIGN {
                 return EXTEND_ENUM
             }
-            if tokens[i].kind == T_KEYWORD and
+            if tokens[i].kind == token.T_KEYWORD and
                     {"var", "const", "func"}.has(tokens[i].str) {
                 return EXTEND_TYPE
             }
-            if tokens[i].kind == T_ENCLOSE and
-                    {"{", "}"}.has(tokens[i].str) {
-                if not had_damage {
-                    msgs.add(new msg.FileMsg(
-                        "Unexpected " + token.describe_token_at(
-                            tokens, startpos + 1) +
-                        ", expected either a valid custom type "
-                        "attribute or enum entry for 'extend' "
-                        "statement starting in line " +
-                        token.get_line(tokens, startpos).as_str() +
-                        ", column " +
-                        token.get_col(tokens, startpos).as_str() + ".",
-                        source_file=project_file,
-                        line=token.get_line(tokens, pos),
-                        col=token.get_col(tokens, pos),
-                    ))
-                }
-                return EXTEND_INVALID
+            if tokens[i].kind == token.T_ENCLOSE and
+                    {"{", "}"}.has(tokens[i].str) or
+                    i + 1 > tokens_len {
+                break
             }
         }
         i += 1
     }
+    if not had_damage {
+        msgs.add(new msg.FileMsg(
+            "Unexpected " + token.describe_token_at(
+                tokens, startpos + 1) +
+            ", expected either a valid custom type "
+            "attribute or enum entry for 'extend' "
+            "statement starting in line " +
+            token.get_line(tokens, startpos).as_str() +
+            ", column " +
+            token.get_col(tokens, startpos).as_str() + ".",
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+    }
+    return EXTEND_INVALID
 }
 
 func parse_extend_or_enum_or_type_header(
@@ -140,9 +142,9 @@ func parse_extend_or_enum_or_type_header(
     if pos > tokens_len or
             tokens[pos].kind != token.T_KEYWORD or
             (tokens[pos].str != "extend" and
-             (must_be_enum and tokens[pos].str != "enum") or
-             (must_be_type and tokens[pos].str != "type")) or
-            not {"enum", "type"}.has(tokens[pos].str) {
+             ((must_be_enum and tokens[pos].str != "enum") or
+              (must_be_type and tokens[pos].str != "type"))) or
+            not {"enum", "extend", "type"}.has(tokens[pos].str) {
         return none
     }
     var stmt_name = tokens[pos].str
@@ -151,7 +153,8 @@ func parse_extend_or_enum_or_type_header(
     var is_extended = no
     if stmt_name == "extend" {
         var variant = get_extend_variant(
-            tokens, tokens_len, pos, had_damage=stmt.has_damage()
+            tokens, tokens_len, pos, msgs, had_damage=stmt.has_damage(),
+            project_file=project_file
         )
         if (must_be_type and variant != EXTEND_TYPE) or
                 (must_be_enum and variant != EXTEND_ENUM) {
@@ -236,8 +239,8 @@ func parse_extend_or_enum_or_type_header(
                     basecount <= 0 {
                 if not stmt.has_damage() {
                     msgs.add(new msg.FileMsg(
-                        "Unexpected " + token.describe_token_at(tokens,
-                            pos) +
+                        "Unexpected " + token.describe_token_at(
+                            tokens,  pos) +
                         ", expected T_IDENT for base class for " +
                         stmt_name + " "
                         "statement starting in line " +
@@ -324,6 +327,9 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var stmt = if tokens[pos].str == "type" (new TypeStmt())
         else (new TypeExtendStmt())
     var stmt_name = tokens[pos].str
+    if stmt_name == "extend" {
+        debug = yes
+    }
     var headerlen = parse_extend_or_enum_or_type_header(
         stmt, tokens, tokens_len, pos, msgs,
         must_be_type=yes, must_be_enum=no,
