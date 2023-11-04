@@ -49,6 +49,19 @@ func TypeStmt.as_json_obj {
     return output
 }
 
+func TypeStmt.as_code(indent=0) {
+    var t = " ".rep(indent) + "type " + self.label
+    if self.subexprs.len > 0 {
+        t += " " + self.subexprs[1].as_code(indent=indent)
+    }
+    t += self.label + " {"
+    for stmt in self.subblocks[1] {
+        t += stmt.as_code(indent=(indent + 4)) + "\n"
+    }
+    t += " ".rep(indent) + "}"
+    return t
+}
+
 type TypeExtendStmt base ast.StmtNode {
 }
 
@@ -60,6 +73,16 @@ func TypeExtendStmt.init {
 func TypeExtendStmt.as_json_obj {
     var output = base.as_json_obj()
     return output
+}
+
+func TypeExtendStmt.as_code(indent=0) {
+    var t = " ".rep(indent) + "extend " +
+        self.subexprs[1].as_code(indent=indent) + " {"
+    for stmt in self.subblocks[1] {
+        t += stmt.as_code(indent=(indent + 4)) + "\n"
+    }
+    t += " ".rep(indent) + "}"
+    return t
 }
 
 enum ExtendType {
@@ -203,29 +226,29 @@ func parse_extend_or_enum_or_type_header(
         pos += skiplen
         return (pos - clausestartpos)    
     }
-    var extend_typename = tokens[pos].str
-    var extend_typepath = none
+    var extend_type_name = tokens[pos].str
+    var extend_type_path = none
     pos += 1
 
     if is_extended {
         # Extract components of type prefix, if any:
-        var extend_typepath = none
+        var extend_type_path = none
         while pos + 1 <= tokens_len and
                 tokens[pos].kind == token.T_DOT and
                 tokens[pos + 1].kind == token.T_IDENT {
-            if extend_typepath == none {
-                extend_typepath = []
+            if extend_type_path == none {
+                extend_type_path = []
             }
-            extend_typepath.add(extend_typename)
-            extend_typename = tokens[pos + 1].str
+            extend_type_path.add(extend_type_name)
+            extend_type_name = tokens[pos + 1].str
             pos += 2
         }
         var iexp = new expr.IdRefExpr()
-        iexp.label = extend_typename
-        iexp.typepath = extend_typepath
+        iexp.label = extend_type_name
+        iexp.type_path = extend_type_path
         stmt.subexprs.add(iexp)
     } else {
-        stmt.label = extend_typename
+        stmt.label = extend_type_name
     }
 
     if is_type and pos <= tokens_len and
@@ -257,25 +280,25 @@ func parse_extend_or_enum_or_type_header(
                 stmt.damaged = yes
                 break
             }
-            var base_typename = tokens[pos].str
-            var base_typepath = none
+            var base_type_name = tokens[pos].str
+            var base_type_path = none
             basecount += 1
             pos += 1
 
-            var base_typepath = none
+            var base_type_path = none
             while pos + 1 <= tokens_len and
                     tokens[pos].kind == token.T_DOT and
                     tokens[pos + 1].kind == token.T_IDENT {
-                if base_typepath == none {
-                    base_typepath = []
+                if base_type_path == none {
+                    base_type_path = []
                 }
-                base_typepath.add(base_typename)
-                base_typename = tokens[pos + 1].str
+                base_type_path.add(base_type_name)
+                base_type_name = tokens[pos + 1].str
                 pos += 2
             }
             var iexp = new expr.IdRefExpr()
-            iexp.label = base_typename
-            iexp.typepath = base_typepath
+            iexp.label = base_type_name
+            iexp.type_path = base_type_path
             stmt.subexprs.add(iexp)
 
             if pos <= tokens_len and

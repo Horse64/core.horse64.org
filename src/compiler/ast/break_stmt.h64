@@ -44,6 +44,10 @@ func BreakStmt.as_json_obj {
     return output
 }
 
+func BreakStmt.as_code(indent=0) {
+    return " ".rep(indent) + "break"
+}
+
 func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var tokens_len = tokens.len
     

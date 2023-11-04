@@ -47,6 +47,24 @@ func IfStmt.as_json_obj {
     return output
 }
 
+func IfStmt.as_code(indent=0) {
+    if self.damaged {
+        return ""
+    }
+    var t = ""
+    var is_first = yes
+    for clause in self.subexprs {
+        if not is_first {
+            t += "\n"
+        }
+        t += clause.as_code(
+            indent=indent, is_first=is_first
+        )
+        is_first = no
+    }
+    return t
+}
+
 type IfElseClause base ast.TreeNode {
     var is_else = no
 }
@@ -59,6 +77,28 @@ func IfElseClause.init {
 func IfElseClause.as_json_obj {
     var output = base.as_json_obj()
     return output
+}
+
+func IfElseClause.as_code(indent=0, is_first=yes) {
+    if self.damaged {
+        return ""
+    }
+    var t = " ".rep(indent)
+    if not self.is_else {
+        if is_first {
+            t += "if "
+        } else {
+            t += "elseif "
+        }
+        t += self.subexprs[1].as_code(indent=indent) + " {\n"
+    } else {
+        t += "else {\n"
+    }
+    for stmt in self.subblocks[1] {
+        t += stmt.as_code(indent=(indent + 4)) + "\n"
+    }
+    t += " ".rep(indent) + "}"
+    return t
 }
 
 func parse_next_ifelse_clause_header(

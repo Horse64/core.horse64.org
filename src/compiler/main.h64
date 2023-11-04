@@ -391,6 +391,10 @@ func actionparser_compile(args) {
             }
             return 1
         }
+        if result.args["--stage"] == "transformed-code" {
+            print(aresult.return_code())
+        }
+        return 0
     }
 }
 

@@ -43,6 +43,10 @@ func ContinueStmt.as_json_obj {
     return output
 }
 
+func ContinueStmt.as_code(indent=0) {
+    return " ".rep(indent) + "continue"
+}
+
 func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var tokens_len = tokens.len
 

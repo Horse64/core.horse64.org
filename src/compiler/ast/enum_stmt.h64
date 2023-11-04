@@ -52,6 +52,23 @@ func EnumStmt.as_json_obj {
     return output
 }
 
+func EnumStmt.as_code(indent=0) {
+    if self.damaged {
+        return ""
+    }
+    var t = " ".rep(indent) + "enum " + self.label + " {\n"
+    var i = 0
+    for entry in self.enum_entry_names {
+        i += 1
+        t += emtry
+        if self.enum_entry_nums[i] != none {
+            t += "=" + self.enum_entry_nums[i] + ",\n"
+        }
+    }
+    t += "}"
+    return t
+}
+
 type EnumExtendStmt base ast.StmtNode {
     var enum_entry_names = []
     var enum_entry_nums = []
@@ -65,6 +82,27 @@ func EnumExtendStmt.init {
 func EnumExtendStmt.as_json_obj {
     var output = base.as_json_obj()
     return output
+}
+
+func EnumExtendStmt.as_code(indent=0) {
+    if self.damaged {
+        return ""
+    }
+    var t = " ".rep(indent) + "extend "
+    if self.subexprs[1].type_path != none {
+        t += self.subexprs[1].type_path.join(".") + "."
+    }
+    t += self.subexprs[1].label + " {\n"
+    var i = 0
+    for entry in self.enum_entry_names {
+        i += 1
+        t += emtry
+        if self.enum_entry_nums[i] != none {
+            t += "=" + self.enum_entry_nums[i] + ",\n"
+        }
+    }
+    t += "}"
+    return t
 }
 
 func parse(tokens, pos, msgs, project_file=none, debug=no) {

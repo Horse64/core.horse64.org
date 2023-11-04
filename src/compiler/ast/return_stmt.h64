@@ -48,6 +48,17 @@ func ReturnStmt.as_json_obj {
     return output
 }
 
+func ReturnStmt.as_code(indent=0) {
+    if self.damaged {
+        return ""
+    }
+    var t = " ".rep(indent) + "return"
+    if self.subexprs.len > 0 {
+        t += " " + self.subexprs[1].as_code(indent=indent)
+    }
+    return t
+}
+
 func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var stmt = new ReturnStmt()
     var tokens_len = tokens.len

@@ -58,6 +58,10 @@ func CallStmt.as_json_obj {
     return output
 }
 
+func CallStmt.as_code(indent=0) {
+    return " ".rep(indent) + self.subexprs[1].as_code(indent=indent)
+}
+
 type AssignStmt base ast.StmtNode {
     var has_later = no
     var has_later_ignore = no
@@ -81,6 +85,12 @@ func AssignStmt.as_json_obj {
         output["has_later_repeat"] = yes
     }
     return output
+}
+
+func AssignStmt.as_code(indent=0) {
+    return " ".rep(indent) +
+        self.subexprs[1].as_code(indent=indent) + " = " +
+        self.subexprs[2].as_code(indent=indent)
 }
 
 func check_call_or_assign_and_get_idx(

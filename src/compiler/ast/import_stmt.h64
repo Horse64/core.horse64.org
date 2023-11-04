@@ -59,6 +59,21 @@ func ImportStmt.as_json_obj {
     return output
 }
 
+func ImportStmt.as_code(indent=0) {
+    if self.damaged {
+        return ""
+    }
+    var t = " ".rep(indent) + "import " +
+        self.module_path.join(".")
+    if self.package_name != none {
+        t += " from " + self.package_name
+    }
+    if self.renamed_as != none {
+        t += " as " + self.renamed_as
+    }
+    return t
+}
+
 func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var stmt = new ImportStmt()
     var tokens_len = tokens.len

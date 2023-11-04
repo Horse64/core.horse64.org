@@ -66,6 +66,34 @@ func VarStmt.as_json_obj {
     return output
 }
 
+func VarStmt.as_code(indent=0) {
+    if self.damaged {
+        return ""
+    }
+    var t = " ".rep(indent) + "var "
+    var is_first = yes
+    for label in self.var_labels {
+        if is_first {
+            is_first = no
+        } else {
+            t += ","
+        }
+        t += label
+    }
+    t += " = "
+    is_first = yes
+    for value in self.subexprs {
+        if is_first {
+            is_first = no
+        } else {
+            t += ","
+        }
+        t += value.as_code(indent=(indent + 4))
+        is_first = no
+    }
+    return t
+}
+
 func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var stmt = new VarStmt()
     var tokens_len = tokens.len

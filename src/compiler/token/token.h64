@@ -1350,8 +1350,38 @@ func as_escaped_code_string(
     if quote_type != "'" and quote_type != '"' {
         throw new ValueError("unsupported quote type")
     }
+    var is_bytes = no
+    if typename(s) == "bytes" {
+        is_bytes = yes
+    }
 
     var new_s = ""
+    if is_bytes {
+        var code_n = text.code("\n")
+        var code_r = text.code("\r")
+        var i = 1
+        while i <= s.len {
+            var value = s.value(i)
+            if value >= 32 and value < 127 {
+                var c = s.sub(i, i)
+                if {"'", '"', "\\"}.has(c) {
+                    c = "\\" + c
+                }
+                new_s += c
+            } elseif value == code_n {
+                new_s += "\\n"
+            } elseif value == code_r {
+                new_s += "\\r"
+            } else {
+                var hexstr = value.as_hex()
+                while hexstr.len < 2 {
+                    hexstr = "0" + hexstr
+                }
+                new_s += "\\x" + hexstr
+            }
+            i += 1
+        }
+    }
     var i = 1
     while i <= s.len {
         var c = s.sub(i, i)
@@ -1375,7 +1405,11 @@ func as_escaped_code_string(
         }
         i += 1
     }
-    return quote_type + new_s + quote_type
+    new_s = quote_type + new_s + quote_type
+    if is_bytes {
+        return "b" + new_s
+    }
+    return new_s
 }
 
 ## Tokenize the given Horse64 code string to proper tokens.

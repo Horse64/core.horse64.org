@@ -92,6 +92,22 @@ func TreeNode.has_damage {
     return no
 }
 
+func TreeNode.as_code(indent=0) {
+    var t = ""
+    var code_lines = json.dump(self.as_json_obj()).splitlines()
+    var is_first = yes
+    for code_line in code_lines {
+        if is_first {
+            is_first = no
+        } else {
+            t += "\n"
+        }
+        t += " ".rep(indent) +
+            "# (unimplemented as_code func) " + code_line
+    }
+    return t
+}
+
 func TreeNode.as_json_obj {
     var output = {
         "kind"-> NodeKind.num_label(self.kind),
@@ -188,6 +204,14 @@ type ASTResult {
 
     ## @type num
     var token_len
+}
+
+func ASTResult.return_code {
+    var t = ""
+    for stmt in self.stmts {
+        t += stmt.as_code() + "\n"
+    }
+    return t
 }
 
 func ASTResult.as_json_obj {

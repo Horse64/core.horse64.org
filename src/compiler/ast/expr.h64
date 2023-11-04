@@ -56,13 +56,80 @@ func container_kind_to_name(k) {
 
 type ContainerExpr base ast.TreeNode {
     ## @type ContainerKind
-    var kind
-    var values
+    var container_kind
 }
 
 func ContainerExpr.init {
     base.init()
     self.kind = ast.N_EXPR_CONTAINER
+}
+
+func ContainerExpr.as_code(indent=0) {
+    if self.damaged {
+        return ""
+    }
+    var t = ""
+    if self.container_kind == C_SET {
+        t += "{"
+        var is_first = yes
+        for item in self.subexprs {
+            if is_first {
+                is_first = no
+            } else {
+                t += ","
+            }
+            t += item.as_code(indent=indent)
+        }
+        return t + "}"
+    } elseif self.container_kind == C_MAP {
+        if self.value == none or self.value.len == 0 {
+            return "{->}"
+        }
+        var pair_count = self.subexprs.len / 2
+        var i = 1
+        while i <= pair_count {
+            if is_first {
+                is_first = no
+            } else {
+                t += ","
+            }
+            t += self.subexprs[i * 2 - 1].as_code(
+                    indent=indent) + " -> " +
+                self.value[i * 2].as_code(indent=indent)
+        }
+        return t + "}"
+    } elseif self.container_kind == C_LIST {
+        t += "["
+        var is_first = yes
+        for item in self.subexprs {
+            if is_first {
+                is_first = no
+            } else {
+                t += ","
+            }
+            t += item.as_code(indent=indent)
+        }
+        return t + "]"
+    } else {
+        assert(self.container_kind == C_VEC)
+        if self.subexprs.len < 2 {
+            return "[x: 0, y: 0]"
+        }
+        if self.subexprs.len == 2 {
+            return "[x:" + self.subexprs[1].as_code(indent=indent) +
+                ",y: " + self.subexprs[2].as_code(indent=indent) + "]"
+        } elseif self.subexprs.len == 3 {
+            return "[x:" + self.subexprs[1].as_code(indent=indent) +
+                ",y: " + self.subexprs[2].as_code(indent=indent) +
+                ",z: " + self.subexprs[3].as_code(indent=indent) +"]"
+        } else {
+            assert(self.subexprs.len == 4)
+            return "[x:" + self.subexprs[1].as_code(indent=indent) +
+                ",y: " + self.subexprs[2].as_code(indent=indent) +
+                ",z: " + self.subexprs[3].as_code(indent=indent) +
+                ",w: " + self.subexprs[4].as_code(indent=indent) +"]"
+        }
+    }
 }
 
 type InvalidExpr base ast.TreeNode {
@@ -83,6 +150,14 @@ func UnopExpr.init(optoken) {
     base.init()
     self.kind = ast.N_EXPR_UNOP
     self.optoken = optoken
+}
+
+func UnopExpr.as_code(indent=0) {
+    if self.damaged {
+        return ""
+    }
+    return self.optoken.str + " " +
+        self.subexprs[1].as_code(indent=indent)
 }
 
 func UnopExpr.as_json_obj {
@@ -107,9 +182,28 @@ func BinopExpr.as_json_obj {
     return output
 }
 
+func BinopExpr.as_code(indent=0) {
+    if self.damaged {
+        return ""
+    }
+    if self.optoken.str == "(" {
+        return self.subexprs[1].as_code(indent=indent) + "(" +
+            self.subexprs[2].as_code(indent=indent) + ")"
+    } elseif self.optoken.str == "[" {
+        return self.subexprs[1].as_code(indent=indent) + "[" +
+            self.subexprs[2].as_code(indent=indent) + "]"
+    } elseif self.optoken.str == "." {
+        return self.subexprs[1].as_code(indent=indent) + "." +
+            self.subexprs[2].as_code(indent=indent)
+    }
+    return self.subexprs[1].as_code(indent=indent) + " " +
+        self.optoken.str + " " +
+        self.subexprs[2].as_code(indent=indent)
+}
+
 type IdRefExpr base ast.TreeNode {
     var label
-    var typepath
+    var type_path
 }
 
 func IdRefExpr.init {
@@ -120,7 +214,19 @@ func IdRefExpr.init {
 func IdRefExpr.as_json_obj {
     var output = base.as_json_obj()
     output["label"] = self.label
+    if self.type_path != none {
+        output["type_path"] = self.type_path
+    }
     return output
+}
+
+func IdRefExpr.as_code(indent=0) {
+    var t = ""
+    if self.type_path != none {
+        t += self.type_path + "."
+    }
+    t += self.label
+    return t
 }
 
 type BaseRefExpr base ast.TreeNode {
@@ -131,6 +237,10 @@ func BaseRefExpr.init {
     self.kind = ast.N_EXPR_BASEREF
 }
 
+func BaseRefExpr.as_code(indent=0) {
+    return "base"
+}
+
 type LiteralExpr base ast.TreeNode {
     var value
 }
@@ -138,6 +248,13 @@ type LiteralExpr base ast.TreeNode {
 func LiteralExpr.init {
     base.init()
     self.kind = ast.N_EXPR_LIT
+}
+
+func LiteralExpr.as_code(indent=0) {
+    if {"bytes", "str"}.has(typename(self.value)) {
+        return token.as_escaped_code_string(self.value)
+    }
+    return self.value.as_str()
 }
 
 func LiteralExpr.as_json_obj {
@@ -161,6 +278,15 @@ func InlineIfExpr.init {
 func InlineIfExpr.as_json_obj {
     var output = base.as_json_obj()
     return output
+}
+
+func InlineIfExpr.as_code(indent=0) {
+    if self.damaged {
+        return ""
+    }
+    return "if " + self.subexprs[1].as_str() + " (" +
+        self.subexprs[2].as_str() + ") else (" +
+        self.subexprs[3].as_str() + ")"
 }
 
 func token_continues_expr(t) {
@@ -517,13 +643,7 @@ func parse_expression_unwrapped(
                 } else {
                     pos += 1
                 }
-                if ckind == C_SET {
-                    node.value = {}
-                } elseif ckind == C_MAP {
-                    node.value = {->}
-                } else {
-                    node.value = []
-                }
+                node.container_kind = ckind
                 node.token_len = (pos - startpos)
                 return node
             }
@@ -631,6 +751,7 @@ func parse_expression_unwrapped(
                     ))
                 }
                 node.damaged = yes
+                node.container_kind = ckind
                 node.token_len = (pos - startpos)
                 return node
             }
@@ -654,6 +775,7 @@ func parse_expression_unwrapped(
                     pos += 1  # Go past closing bracket.
                 }
                 node.damaged = yes
+                node.container_kind = ckind
                 node.token_len = (pos - startpos)
                 return node
             }
@@ -668,6 +790,7 @@ func parse_expression_unwrapped(
                     pos += 1  # Past '}'/']'.
                 }
                 node.token_len = (pos - startpos)
+                node.container_kind = ckind
                 return node
             }
             pos += 1  # Go past ',' to next entry.
@@ -868,6 +991,7 @@ func parse_expression_unwrapped(
             var node = new InlineIfExpr()
             node.line = token.get_line(tokens, if_idx)
             node.col = token.get_col(tokens, if_idx)
+            node.subexprs.add(cond_expr)
             node.subexprs.add(value1_expr)
             node.subexprs.add(value2_expr)
             node.token_len = (pos - if_idx)
@@ -877,10 +1001,11 @@ func parse_expression_unwrapped(
     # Handle 'new' operator:
     if left_hand == none and
             tokens[pos].kind == token.T_NEWOP {
-        pos += 1  # Go past opening bracket.
-        var node = new BinopExpr(tokens[pos - 1])
+        var node = new UnopExpr(tokens[pos - 1])
+        node.optoken = tokens[pos]
         node.line = startline
         node.col = startcol
+        pos += 1  # Go past opening bracket.
 
         var inner_expr = parse_expression(
             tokens, pos, msgs, project_file=project_file,
@@ -1442,12 +1567,38 @@ func ArgNameExpr.as_json_output {
     return output
 }
 
+func ArgNameExpr.as_code(indent=0) {
+    return self.label
+}
+
 type CallOrDefArgsExpr base ast.TreeNode {
 }
 
 func CallOrDefArgsExpr.init {
     base.init()
     self.kind = ast.N_EXPR_CALLORDEFARGS
+}
+
+func CallOrDefArgsExpr.as_code(indent=0) {
+    if self.damaged {
+        return ""
+    }
+    var t = ""
+    var is_first = yes
+    for arg in self.subexprs {
+        if is_first {
+            is_first = no
+        } else {
+            t += ","
+        }
+        if arg.kind == ast.N_EXPR_CALLKWARG {
+            t += arg.label + "=" +
+                arg.subexprs[1].as_code(indent=indent)
+        } else {
+            t += arg.as_code(indent=indent)
+        }
+    }
+    return t
 }
 
 func call_ast_error_info_suffix(call_line, call_pos, is_call=yes) {

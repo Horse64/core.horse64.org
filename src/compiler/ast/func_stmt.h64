@@ -39,6 +39,7 @@ type FuncStmt base ast.StmtNode {
     var type_path = none
     var arg_labels = []
     var arg_defaults = []
+    var kw_arg_count = 0
 }
 
 func FuncStmt.init {
@@ -60,6 +61,51 @@ func FuncStmt.as_json_obj {
         output["arg_defaults"].add(argdef.as_json_obj())
     }
     return output
+}
+
+func FuncStmt.as_code(indent=0) {
+    if self.damaged {
+        return ""
+    }
+    var t = " ".rep(indent) + "func "
+    if self.type_path != none {
+        t += self.type_path.join(".") + "."
+    }
+    t += self.label
+    if self.arg_labels.len > 0 {
+        t += "("
+        var is_first = yes
+        var pos_arg_count = self.arg_labels.len - self.kw_arg_count
+        var i = 1
+        while i <= pos_arg_count {
+            if is_first {
+                is_first = no
+            } else {
+                t += ","
+            }
+            t += self.arg_labels[i]
+            i += 1
+        }
+        while i <= self.kw_arg_count + pos_arg_count {
+            if is_first {
+                is_first = no
+            } else {
+                t += ","
+            }
+            t += self.arg_labels[i] + "=" +
+                self.arg_defaults[i - pos_arg_count].as_code(
+                    indent=indent
+                )
+            i += 1
+        }
+        t += ")"
+    }
+    t += " {\n"
+    for stmt in self.subblocks[1] {
+        t += stmt.as_code(indent=(indent + 4)) + "\n"
+    }
+    t += " ".rep(indent) + "}"
+    return t
 }
 
 func parse(tokens, pos, msgs, project_file=none, debug=no) {
@@ -178,12 +224,12 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         for arg in args.subexprs {
             if arg.kind == ast.N_EXPR_ARGNAME {
                 stmt.arg_labels.add(arg.label)
-                stmt.arg_defaults.add(none)
             } else {
                 assert(arg.kind == ast.N_EXPR_CALLKWARG)
                 stmt.arg_labels.add(arg.label)
                 assert(arg.subexprs.len == 1)
                 stmt.arg_defaults.add(arg.subexprs[1])
+                stmt.kw_arg_count += 1
             }
         }
         pos += args.token_len

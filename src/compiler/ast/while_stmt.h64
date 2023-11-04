@@ -46,6 +46,19 @@ func WhileStmt.as_json_obj {
     return output
 }
 
+func WhileStmt.as_code(indent=0) {
+    if self.damaged {
+        return ""
+    }
+    var t = " ".rep(indent) + "while " +
+        self.subexprs[1].as_code(indent=indent) + " {\n"
+    for stmt in self.subblocks[1] {
+        t += stmt.as_code(indent=(indent + 4)) + "\n"
+    }
+    t += " ".rep(indent) + "}"
+    return t
+}
+
 func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var tokens_len = tokens.len
     var startpos = pos
