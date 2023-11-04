@@ -47,7 +47,6 @@ For precedence numbers, check the [operators semantics section](
 ### Grammar listing
 
 ```
-
 # Top-level structure:
 
 program ::= (toplvlstmt_1, toplvlstmt_2, ...)
@@ -148,7 +147,6 @@ expr ::= '(' expr ')' | callexpr | literalexpr |
          operatorexpr | inlineifexpr
 
 callexpr ::= expr '(' commaexprlist kwarglist? ')'
-
 latercallexpr ::= callexpr "later:" |
                   callexpr "later" "repeat" |
                   callexpr "later" "ignore"
