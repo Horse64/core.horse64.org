@@ -713,6 +713,14 @@ def _container_pop_at(container, *args, **kwargs):
         return item
     return container.pop_at(*args, **kwargs)
 
+def _container_value(container, *args, **kwargs):
+    if (type(container) == bytes and
+            len(args) >= 1):
+        idx = args[0] + 1
+        return int(container[idx])
+    elif type(container) == bytes:
+        return int(container[0])
+    return getattr(container, "value")(*args, **kwargs)
 
 def _container_find(container, *args, **kwargs):
     if (type(container) in {str, bytes} and
