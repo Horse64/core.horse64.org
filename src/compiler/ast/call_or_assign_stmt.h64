@@ -59,6 +59,9 @@ func CallStmt.as_json_obj {
 }
 
 func CallStmt.as_code(indent=0) {
+    if self.damaged {
+        return " ".rep(indent) + "(damaged call statement)"
+    }
     return " ".rep(indent) + self.subexprs[1].as_code(indent=indent)
 }
 
@@ -88,6 +91,9 @@ func AssignStmt.as_json_obj {
 }
 
 func AssignStmt.as_code(indent=0) {
+    if self.damaged {
+        return " ".rep(indent) + "(damaged assign)"
+    }
     return " ".rep(indent) +
         self.subexprs[1].as_code(indent=indent) + " = " +
         self.subexprs[2].as_code(indent=indent)

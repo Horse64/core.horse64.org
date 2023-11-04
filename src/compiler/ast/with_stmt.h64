@@ -55,7 +55,7 @@ func WithStmt.as_json_obj {
 
 func WithStmt.as_code(indent=0) {
     if self.damaged {
-        return " ".rep(indent) + "(damaged with statement)\n"
+        return " ".rep(indent) + "(damaged with statement)"
     }
     var t = " ".rep(indent) + "with " +
         self.subexprs[1].as_code(indent=indent) + " "

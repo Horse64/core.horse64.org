@@ -54,7 +54,7 @@ func EnumStmt.as_json_obj {
 
 func EnumStmt.as_code(indent=0) {
     if self.damaged {
-        return ""
+        return " ".rep(indent) + "(damaged enum)"
     }
     var t = " ".rep(indent) + "enum " + self.label + " {\n"
     var i = 0
@@ -86,7 +86,7 @@ func EnumExtendStmt.as_json_obj {
 
 func EnumExtendStmt.as_code(indent=0) {
     if self.damaged {
-        return ""
+        return " ".rep(indent) + "(damaged enum extend)"
     }
     var t = " ".rep(indent) + "extend "
     if self.subexprs[1].type_path != none {

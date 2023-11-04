@@ -48,7 +48,7 @@ func WhileStmt.as_json_obj {
 
 func WhileStmt.as_code(indent=0) {
     if self.damaged {
-        return " ".rep(indent) + "(damaged while func)\n"
+        return " ".rep(indent) + "(damaged while func)"
     }
     var t = " ".rep(indent) + "while " +
         self.subexprs[1].as_code(indent=indent) + " {\n"

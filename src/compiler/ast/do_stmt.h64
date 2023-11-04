@@ -51,6 +51,28 @@ func DoStmt.as_json_obj {
     return output
 }
 
+func DoStmt.as_code(indent=0) {
+    if self.damaged {
+        return " ".rep(indent) + "(damaged do statement)"
+    }
+    var t = "do {\n"
+    for stmt in self.subblocks[1] {
+        t += stmt.as_code(indent=(indent + 4)) + "\n"
+    }
+    t += "}"
+    var is_first = yes
+    for clause in self.subexprs {
+        if not is_first {
+            t += "\n"
+        }
+        t += clause.as_code(
+            indent=indent, is_first=is_first
+        )
+        is_first = no
+    }
+    return t
+}
+
 type RescueClause base ast.TreeNode {
     var error_labels = []
 }
@@ -66,6 +88,33 @@ func RescueClause.as_json_obj {
     return output
 }
 
+func RescueClause.as_code(indent=0) {
+    if self.damaged {
+        return " ".rep(indent) + "(damaged rescue clause)"
+    }
+    var t = "rescue "
+    var is_first = yes
+    idx = 0
+    for elabel in error_labels {
+        idx += 1
+        if is_first {
+            is_first = no
+        } else {
+            t += ","
+        }
+        t += self.subexprs[idx].as_code(indent=indent)
+        if elabel != none {
+            t += " as " + elabel
+        }
+    }
+    t += " {\n"
+    for stmt in self.subblocks[1] {
+        t += stmt.as_code(indent=(indent + 4)) + "\n"
+    }
+    t += "}"
+    return t
+}
+
 type FinallyClause base ast.TreeNode {
 }
 
@@ -77,6 +126,18 @@ func FinallyClause.init {
 func FinallyClause.as_json_obj {
     var output = base.as_json_obj()
     return output
+}
+
+func FinallyClause.as_code(indent=0) {
+    if self.damaged {
+        return " ".rep(indent) + "(damaged finally clause)"
+    }
+    var t = "finally {\n"
+    for stmt in self.subblocks[1] {
+        t += stmt.as_code(indent=(indent + 4)) + "\n"
+    }
+    t += "}"
+    return t
 }
 
 func parse_rescue_clause_header(

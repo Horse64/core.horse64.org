@@ -50,7 +50,7 @@ func ReturnStmt.as_json_obj {
 
 func ReturnStmt.as_code(indent=0) {
     if self.damaged {
-        return " ".rep(indent) + "(damaged return)\n"
+        return " ".rep(indent) + "(damaged return)"
     }
     var t = " ".rep(indent) + "return"
     if self.subexprs.len > 0 {

@@ -50,6 +50,9 @@ func TypeStmt.as_json_obj {
 }
 
 func TypeStmt.as_code(indent=0) {
+    if self.damaged {
+        return " ".rep(indent) + "(damaged type)"
+    }
     var t = " ".rep(indent) + "type " + self.label
     if self.subexprs.len > 0 {
         t += " " + self.subexprs[1].as_code(indent=indent)
@@ -77,7 +80,7 @@ func TypeExtendStmt.as_json_obj {
 
 func TypeExtendStmt.as_code(indent=0) {
     if self.damaged {
-        return " ".rep(indent) + "(damaged type)\n"
+        return " ".rep(indent) + "(damaged type extend)"
     }
     var t = " ".rep(indent) + "extend " +
         self.subexprs[1].as_code(indent=indent) + " {"

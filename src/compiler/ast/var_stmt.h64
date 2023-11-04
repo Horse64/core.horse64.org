@@ -68,7 +68,7 @@ func VarStmt.as_json_obj {
 
 func VarStmt.as_code(indent=0) {
     if self.damaged {
-        return " ".rep(indent) + "(damaged var)\n"
+        return " ".rep(indent) + "(damaged var)"
     }
     var t = " ".rep(indent) + "var "
     var is_first = yes
