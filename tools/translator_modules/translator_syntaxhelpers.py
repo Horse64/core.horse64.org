@@ -1072,13 +1072,23 @@ def get_statement_inline_funcs(t):
 
 
 def tokenize(s):
+    one_char_toks = {".", ",",
+        "{",  "[", "(", ")", "]", "}"}
     tokens = []
-    while len(s) > 0:
+    len_s = len(s)
+    while len_s > 0:
+        if s[0] in one_char_toks:  # Perf tweak.
+            tokens.append(s[0])
+            s = s[1:]
+            len_s -= 1
+            continue
         t = get_next_token(s)
-        if len(t) == 0:
+        len_t = len(t)
+        if len_t == 0:
             return tokens
         tokens.append(t)
-        s = s[len(t):]
+        s = s[len_t:]
+        len_s -= len_t
     return tokens
 
 
@@ -1283,21 +1293,23 @@ def tokens_need_spacing(v1, v2):
 
 def untokenize(tokens):
     assert(type(tokens) in {list, tuple})
-    result = ""
+    result_l = []
     prevtoken = ""
     for token in tokens:
         if (token == " " or token == "\n" or
+                token == "." or token == "," or
+                token == "[" or token == "]" or
                 token == "(" or token == ")" or
                 token == "{" or token == "}"):  # Perf tweak.
-            result += token
+            result_l.append(token)
             prevtoken = token
             continue
         if prevtoken != "" and \
                 tokens_need_spacing(prevtoken, token):
-            result += " "
-        result += token
+            result_l.append(" ")
+        result_l.append(token)
         prevtoken = token
-    return result
+    return "".join(result_l)
 
 
 def tree_transform_statements(

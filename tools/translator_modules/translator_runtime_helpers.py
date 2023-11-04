@@ -24,8 +24,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-
 import collections.abc
+from collections import deque
 import fnmatch
 import functools
 import ipaddress
@@ -45,17 +45,15 @@ import traceback
 import urllib
 import urllib.parse
 
-
 _async_ops_lock = threading.Lock()
 _async_ops_in_processing = 0
 _async_ops_lowprio = []
 _async_ops_done = []
-_async_ops = []
+_async_ops = deque([])
 _async_ops_stop_threads = False
 _async_delayed_calls = []
 
 _delayed_modinit_funclist = []
-
 
 def _run_delayed_modinit():
     failed_runs = []
@@ -1921,40 +1919,40 @@ def _run_main(main_func):
                 return
             if len(_async_ops) == 0:
                 if len(_async_ops_lowprio) > 0:
-                    _async_ops += _async_ops_lowprio[:5]
-                    _async_ops_lowprio = _async_ops_lowprio[5:]
+                    _async_ops.extend(_async_ops_lowprio[:5])
+                    del _async_ops_lowprio[0:5]
                     _async_ops_lock.release()
                     continue
                 _async_ops_lock.release()
-                time.sleep(0.1)
                 continue
             if last_low_prio_intake + 0.2 < time.monotonic():
                 #print("worker #" + str(no) +
                 #    " WILL DO INTAKE, " + str((
                 #    len(_async_ops), len(_async_ops_lowprio),
                 #    processed_total, succeeded_total)))
-                _async_ops += _async_ops_lowprio[:5]
-                _async_ops_lowprio = _async_ops_lowprio[5:]
+                _async_ops.extend(_async_ops_lowprio[:5])
+                del _async_ops_lowprio[0:5]
                 last_low_prio_intake = time.monotonic()
             work_job = None
+            work_job_idx = -1
             for job in _async_ops:
+                work_job_idx += 1
                 if not job.done and not job.started:
                     work_job = job
                     break
             if work_job == None:
                 if len(_async_ops_lowprio) == 0:
                     _async_ops_lock.release()
-                    time.sleep(0.1)
                     continue
-                _async_ops += _async_ops_lowprio[:5]
-                _async_ops_lowprio = _async_ops_lowprio[5:]
+                _async_ops.extend(_async_ops_lowprio[:5])
+                del _async_ops_lowprio[0:5]
                 _async_ops_lock.release()
                 continue
             processed_total += 1
             assert(work_job != None)
             work_job.started = True
             _async_ops_in_processing += 1
-            _async_ops.remove(work_job)
+            del _async_ops[work_job_idx]
             _async_ops_lock.release()
             try:
                 if work_job.do_func(work_job) is False:
@@ -2008,11 +2006,11 @@ def _run_main(main_func):
             break
 
         # If we got any operations done, process result:
-        have_calls_waiting = len(_async_delayed_calls)
+        have_calls_waiting = len(_async_delayed_calls) > 0
         done_op = None
         if len(_async_ops_done) > 0:
-            done_op = _async_ops_done[0]
-            _async_ops_done = _async_ops_done[1:]
+            done_op = _async_ops_done[-1]
+            _async_ops_done.pop()
         _async_ops_lock.release()
         if done_op != None:
             try:
@@ -2031,22 +2029,18 @@ def _run_main(main_func):
                 # Oops, was cleared out in race condition.
                 _async_ops_lock.release()
                 continue
-            first_call = _async_delayed_calls[0]
-            assert(type(first_call) == tuple)
-            _async_delayed_calls = (
-                _async_delayed_calls[1:]
-            )
+            next_call = _async_delayed_calls[-1]
+            assert(type(next_call) == tuple)
+            _async_delayed_calls.pop()
             _async_ops_lock.release()
             try:
-                first_call[0](*(first_call[1]))
+                next_call[0](*(next_call[1]))
             except Exception as e:
                 _async_ops_lock.acquire()
                 _async_ops_stop_threads = True
                 _async_ops_lock.release()
                 raise e
             continue
-        # Since we didn't do work, sleep to not burn the CPU:
-        #time.sleep(0.01)
         continue
     if DEBUGV.ENABLE and DEBUGV.ENABLE_ASYNC_OPS:
         print("tools/translator.py: debug: program "
