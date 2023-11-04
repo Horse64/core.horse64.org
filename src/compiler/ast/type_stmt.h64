@@ -327,9 +327,6 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var stmt = if tokens[pos].str == "type" (new TypeStmt())
         else (new TypeExtendStmt())
     var stmt_name = tokens[pos].str
-    if stmt_name == "extend" {
-        debug = yes
-    }
     var headerlen = parse_extend_or_enum_or_type_header(
         stmt, tokens, tokens_len, pos, msgs,
         must_be_type=yes, must_be_enum=no,
