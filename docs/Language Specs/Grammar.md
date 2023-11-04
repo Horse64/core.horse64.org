@@ -180,13 +180,13 @@ The operator can be applied on any item, even numbers or
 booleans or even none, but will raise an `AttributeError` if
 the given data type doesn't have this attribute.
 
-For object instances creted from your [classes](
-defining-custom-classes-class-new) via `new`, the attributes
-are as specified by your class. Beyond that, many values
-have special attributes, see the
-[data types section](#datatypes) for these. E.g., all
-values have the `.as_str` attribute that returns a string
-value representing them.
+For object instances created from your [custom types](
+/docs/OOP#custom-types-in-horse64) via `new`, the attributes
+are as specified by your type. Beyond that, many values
+have special attributes, see the [data types listing](
+/docs/Language%20Specs/Data%20Types.md) for these.
+E.g., all values have the `.as_str()` attribute
+that when called returns a string value representing them.
 
 **Call operator:**
 
