@@ -44,11 +44,11 @@ For precedence numbers, check the [operators semantics section](
   has a type path in front, e.g. `some.module.MyType`.
 
 
-### Rules listing
+### Grammar listing
 
 The actual grammar rules follow:
 
-#### Rules listing: top-level structure
+#### Grammar listing: top-level structure
 ```
 program ::= (toplvlstmt_1, toplvlstmt_2, ...)
 toplvlstmt ::= vardefstmt | funcdefstmt | importstmt |
@@ -56,7 +56,7 @@ toplvlstmt ::= vardefstmt | funcdefstmt | importstmt |
                extendenumstmt
 ```
 
-#### Rules listing: top-level statements
+#### Grammar listing: top-level statements
 ```
 vardefstmt ::= "var" identifier "deprecated"? |
                 "var" identifier "deprecated"? '=' expr |
@@ -76,7 +76,7 @@ extendenumstmt ::= "extend" typepath_identifier
                    enumlist
 ```
 
-#### Rules listing: code blocks and general statements
+#### Grammar listing: code blocks and general statements
 ```
 codeblock ::= '{' (stmt_1, stmt_2, ...) '}'
 stmt ::= toplevelstmt | callstmt | assignstmt |
@@ -99,7 +99,7 @@ continuestmt ::= "continue"
 breakstmt ::= "break"
 ```
 
-#### Rules listing: detail rules for top-level statements
+#### Grammar listing: detail rules for top-level statements
 ```
 importlibinfo ::= "from" typepath_identifier
 importrename ::= "as" identifier
@@ -123,7 +123,7 @@ enumnumberassign ::= '=' numberliteral
 enumlastitem ::= identifier enumnumberassign? ','?
 ```
 
-#### Rules listing: detail rules for general statements
+#### Grammar listing: detail rules for general statements
 ```
 elseifblocklist ::= (elseifblock_1, elseifblock_2, ...)
 elseifblock ::= "elseif" expr codeblock
@@ -143,7 +143,7 @@ rescuelastspecificitem ::= expr "as" identifier
 finallyblock ::= "finally" codeblock
 ```
 
-#### Rules listing: inline expressions
+#### Grammar listing: inline expressions
 ```
 expr ::= '(' expr ')' | callexpr | literalexpr |
          operatorexpr | inlineifexpr
@@ -168,7 +168,7 @@ unopexpr ::= unop expr
 inlineifexpr ::= "if" expr '(' expr "else" expr ')'
 ```
 
-#### Rules listing: literal constructors
+#### Grammar listing: literal constructors
 ```
 literalexpr ::= "none" | "yes" | "no" | numberliteral |
                 stringliteral | containerexpr
