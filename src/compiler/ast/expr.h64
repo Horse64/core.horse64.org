@@ -694,7 +694,7 @@ func parse_expression_unwrapped(
             ) later:
 
             await next_expr
-            var had_fatal_error = yes
+            var had_fatal_error = no
             if next_expr == none {
                 if pos > tokens_len or
                         tokens[pos] != token.T_ENCLOSE or
@@ -736,15 +736,15 @@ func parse_expression_unwrapped(
             }
             if not had_fatal_error and (pos > tokens_len or
                     ((tokens[pos].kind != token.T_ENCLOSE or
-                      tokens[pos].str != close_bracket) and
+                      tokens[pos].str != closebracket) and
                      tokens[pos].kind != token.T_COMMA)) {
                 if not node.has_damage() {
                     msgs.add(new msg.FileMsg(
                         "Unexpected " + token.describe_token_at(
                             tokens, pos) +
                         ", expected ',' (T_COMMA) or '" +
-                        close_bracket + "' to resume or end " +
-                        container_kind_to_name(c_kind) +
+                        closebracket + "' to resume or end " +
+                        container_kind_to_name(ckind) +
                         " started in line " +
                         startline.as_str() +
                         ", column " +
@@ -786,7 +786,7 @@ func parse_expression_unwrapped(
             if tokens[pos].kind != token.T_COMMA or
                     (pos + 1 <= tokens_len and
                     tokens[pos + 1].kind == token.T_ENCLOSE and
-                    tokens[pos + 1].str == closingbracket) {
+                    tokens[pos + 1].str == closebracket) {
                 # We're at the closing bracket.
                 if tokens[pos].kind == token.T_COMMA {
                     pos += 2  # Past ',' and past '}'/']'.

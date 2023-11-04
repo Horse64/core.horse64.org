@@ -189,7 +189,6 @@ func parse_next_ifelse_clause_header(
         return later invalid_st
     }
     pos += v.token_len
-
     clause.subexprs.add(v)
     clause.token_len = pos - clausestart
     return clause
@@ -226,6 +225,7 @@ func parse_next_ifelse_clause(
             tokens[pos].str != "{") {
         # Don't pile on error msg for missing code block since
         # it already spat out an error, just quietly bail:
+        clause.damaged = yes
         return clause
     }
     var block_result = block.parse(
