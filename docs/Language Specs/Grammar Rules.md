@@ -46,17 +46,16 @@ For precedence numbers, check the [operators semantics section](
 
 ### Grammar listing
 
+#### Top-level structure
 ```
-# Top-level structure:
-
 program ::= (toplvlstmt_1, toplvlstmt_2, ...)
 toplvlstmt ::= vardefstmt | funcdefstmt | importstmt |
                typedefstmt | enumstmt | extendtypestmt |
                extendenumstmt
+```
 
-
-# Top-level statements:
-
+#### Top-level statements
+```
 vardefstmt ::= "var" identifier "deprecated"? |
                 "var" identifier "deprecated"? '=' expr |
                 "var" identifier "deprecated"? '=' latercallexpr
@@ -73,10 +72,10 @@ extendtypestmt ::= "extend" typepath_identifier
                    typecodeblock
 extendenumstmt ::= "extend" typepath_identifier
                    enumlist
+```
 
-
-# Code blocks and general statements:
-
+#### Code blocks and general statements
+```
 codeblock ::= '{' (stmt_1, stmt_2, ...) '}'
 stmt ::= toplevelstmt | callstmt | assignstmt |
          ifstmt | whilestmt | forstmt | withstmt |
@@ -96,10 +95,10 @@ throwstmt ::= "throw" | "throw" expr
 awaitstmt ::= "await" expr
 continuestmt ::= "continue"
 breakstmt ::= "break"
+```
 
-
-# Detail rules for top-level statements:
-
+#### Detail rules for top-level statements
+```
 importlibinfo ::= "from" typepath_identifier
 importrename ::= "as" identifier
 typepath_identifier ::= identifierwithdot identifier
@@ -120,10 +119,10 @@ enumlist ::= (enumentry_1, enumentry_2) enumlastitem
 enumitem ::= identifier enumnumberassign? ','
 enumnumberassign ::= '=' numberliteral
 enumlastitem ::= identifier enumnumberassign? ','?
+```
 
-
-# Detail rules for general statements:
-
+#### Detail rules for general statements
+```
 elseifblocklist ::= (elseifblock_1, elseifblock_2, ...)
 elseifblock ::= "elseif" expr codeblock
 elseblock ::= "else" codeblock
@@ -140,10 +139,10 @@ rescuespecificitem ::= expr "as" identifier ','
 rescuelastspecificitem ::= expr "as" identifier
 
 finallyblock ::= "finally" codeblock
+```
 
-
-# Inline expressions:
-
+#### Inline expressions
+```
 expr ::= '(' expr ')' | callexpr | literalexpr |
          operatorexpr | inlineifexpr
 
@@ -160,6 +159,15 @@ kwarglist ::= (kwargitem_1, kwargitem_2, ...) kwarglastitem
 kwargitem ::= identifier '=' expr ','
 kwarglastitem ::= identifier '=' expr
 
+operatorexpr ::= binopexpr | unopexpr
+binopexpr ::= expr binop expr
+unopexpr ::= unop expr
+
+inlineifexpr ::= "if" expr '(' expr "else" expr ')'
+```
+
+#### Literal constructors
+```
 literalexpr ::= "none" | "yes" | "no" | numberliteral |
                 stringliteral | containerexpr
 
@@ -182,7 +190,7 @@ unopexpr ::= unop expr
 inlineifexpr ::= "if" expr '(' expr "else" expr ')'
 ```
 
-### A few missing rules in writing
+#### A few missing rules in writing
 
 `assignbinop` can be `+=`, `-=`, `*=`, and `/=`. Assignments
 with these assignment math operators are just a short hand,
