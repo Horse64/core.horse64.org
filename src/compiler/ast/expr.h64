@@ -66,7 +66,7 @@ func ContainerExpr.init {
 
 func ContainerExpr.as_code(indent=0) {
     if self.damaged {
-        return ""
+        return "(damaged container expr.)"
     }
     var t = ""
     if self.container_kind == C_SET {
@@ -142,6 +142,10 @@ func InvalidExpr.init(tlen) {
     self.damaged = yes
 }
 
+func InvalidExpr.as_code(indent=0) {
+    return "(invalid expr.)"
+}
+
 type UnopExpr base ast.TreeNode {
     var optoken
 }
@@ -154,7 +158,7 @@ func UnopExpr.init(optoken) {
 
 func UnopExpr.as_code(indent=0) {
     if self.damaged {
-        return ""
+        return "(damaged unop expr)"
     }
     return self.optoken.str + " " +
         self.subexprs[1].as_code(indent=indent)
@@ -184,7 +188,7 @@ func BinopExpr.as_json_obj {
 
 func BinopExpr.as_code(indent=0) {
     if self.damaged {
-        return ""
+        return "(damaged binop expr.)"
     }
     if self.optoken.str == "(" {
         return self.subexprs[1].as_code(indent=indent) + "(" +
@@ -282,7 +286,7 @@ func InlineIfExpr.as_json_obj {
 
 func InlineIfExpr.as_code(indent=0) {
     if self.damaged {
-        return ""
+        return "(damaged inline if expr.)"
     }
     return "if " + self.subexprs[1].as_str() + " (" +
         self.subexprs[2].as_str() + ") else (" +

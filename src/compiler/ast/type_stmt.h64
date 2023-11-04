@@ -76,6 +76,9 @@ func TypeExtendStmt.as_json_obj {
 }
 
 func TypeExtendStmt.as_code(indent=0) {
+    if self.damaged {
+        return " ".rep(indent) + "(damaged type)\n"
+    }
     var t = " ".rep(indent) + "extend " +
         self.subexprs[1].as_code(indent=indent) + " {"
     for stmt in self.subblocks[1] {

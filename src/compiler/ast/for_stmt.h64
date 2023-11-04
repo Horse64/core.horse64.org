@@ -51,7 +51,7 @@ func ForStmt.as_json_obj {
 
 func ForStmt.as_code(indent=0) {
     if self.damaged {
-        return ""
+        return " ".rep(indent) + "(damaged for loop)\n"
     }
     var t = " ".rep(indent) + "for " + self.label + " in " +
         self.subexprs[1].as_code(indent=indent) + " {\n"

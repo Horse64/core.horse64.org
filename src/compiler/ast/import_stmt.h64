@@ -61,7 +61,7 @@ func ImportStmt.as_json_obj {
 
 func ImportStmt.as_code(indent=0) {
     if self.damaged {
-        return ""
+        return " ".rep(indent) + "(damaged import)\n"
     }
     var t = " ".rep(indent) + "import " +
         self.module_path.join(".")

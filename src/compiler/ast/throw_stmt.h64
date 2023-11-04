@@ -54,7 +54,7 @@ func ThrowStmt.as_json_obj {
 
 func ThrowStmt.as_code(indent=0) {
     if self.damaged {
-        return ""
+        return " ".rep(indent) + "(damaged throw)\n"
     }
     var t = " ".rep(indent) + "throw"
     if self.subexprs.len > 0 {

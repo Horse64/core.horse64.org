@@ -65,7 +65,7 @@ func FuncStmt.as_json_obj {
 
 func FuncStmt.as_code(indent=0) {
     if self.damaged {
-        return ""
+        return " ".rep(indent) + "(damaged func)\n"
     }
     var t = " ".rep(indent) + "func "
     if self.type_path != none {
