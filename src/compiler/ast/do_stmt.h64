@@ -55,19 +55,14 @@ func DoStmt.as_code(indent=0) {
     if self.damaged {
         return " ".rep(indent) + "(damaged do statement)"
     }
-    var t = "do {\n"
+    var t = " ".rep(indent) + "do {\n"
     for stmt in self.subblocks[1] {
         t += stmt.as_code(indent=(indent + 4)) + "\n"
     }
-    t += "}"
+    t += " ".rep(indent) + "}"
     var is_first = yes
     for clause in self.subexprs {
-        if not is_first {
-            t += "\n"
-        }
-        t += clause.as_code(
-            indent=indent, is_first=is_first
-        )
+        t += clause.as_code(indent=indent)
         is_first = no
     }
     return t
@@ -90,12 +85,12 @@ func RescueClause.as_json_obj {
 
 func RescueClause.as_code(indent=0) {
     if self.damaged {
-        return " ".rep(indent) + "(damaged rescue clause)"
+        return " (damaged rescue clause)"
     }
-    var t = "rescue "
+    var t = " rescue "
     var is_first = yes
     idx = 0
-    for elabel in error_labels {
+    for elabel in self.error_labels {
         idx += 1
         if is_first {
             is_first = no
@@ -111,7 +106,7 @@ func RescueClause.as_code(indent=0) {
     for stmt in self.subblocks[1] {
         t += stmt.as_code(indent=(indent + 4)) + "\n"
     }
-    t += "}"
+    t += " ".rep(indent) + "}"
     return t
 }
 
@@ -130,13 +125,13 @@ func FinallyClause.as_json_obj {
 
 func FinallyClause.as_code(indent=0) {
     if self.damaged {
-        return " ".rep(indent) + "(damaged finally clause)"
+        return " (damaged finally clause)"
     }
-    var t = "finally {\n"
+    var t = " finally {\n"
     for stmt in self.subblocks[1] {
         t += stmt.as_code(indent=(indent + 4)) + "\n"
     }
-    t += "}"
+    t += " ".rep(indent) + "}"
     return t
 }
 

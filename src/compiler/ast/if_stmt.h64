@@ -54,9 +54,6 @@ func IfStmt.as_code(indent=0) {
     var t = ""
     var is_first = yes
     for clause in self.subexprs {
-        if not is_first {
-            t += "\n"
-        }
         t += clause.as_code(
             indent=indent, is_first=is_first
         )
@@ -83,16 +80,16 @@ func IfElseClause.as_code(indent=0, is_first=yes) {
     if self.damaged {
         return " ".rep(indent) + "(damaged if else clause)"
     }
-    var t = " ".rep(indent)
+    var t = ""
     if not self.is_else {
         if is_first {
-            t += "if "
+            t += " ".rep(indent) + "if "
         } else {
-            t += "elseif "
+            t += " elseif "
         }
         t += self.subexprs[1].as_code(indent=indent) + " {\n"
     } else {
-        t += "else {\n"
+        t += " else {\n"
     }
     for stmt in self.subblocks[1] {
         t += stmt.as_code(indent=(indent + 4)) + "\n"
