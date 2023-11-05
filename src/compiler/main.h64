@@ -133,9 +133,9 @@ func show_ast_or_global_scope_result_to_terminal(
     }
     if for_script {
         var output = {
-            "error": none,
-            "msgs": [],
-            "result": aresult.as_json_obj(),
+            "error"-> none,
+            "msgs"-> [],
+            "result"-> aresult.as_json_obj(),
         }
         for m in msgs {
             output["msgs"].add(msg.as_json_obj())
@@ -293,9 +293,9 @@ func actionparser_compile(args) {
         }
         if result.args["--for-script"] {
             var output = {
-                "error": none,
-                "msgs": [],
-                "result": tresult.as_json_obj(),
+                "error"-> none,
+                "msgs"-> [],
+                "result"-> tresult.as_json_obj(),
             }
             for m in msgs {
                 output["msgs"].add(msg.as_json_obj())
@@ -376,9 +376,9 @@ func actionparser_compile(args) {
         if had_error {
             if result.args["--for-script"] {
                 var output = {
-                    "error": "Code has errors.",
-                    "msgs": [],
-                    "result": none,
+                    "error"-> "Code has errors.",
+                    "msgs"-> [],
+                    "result"-> none,
                 }
                 for m in aresult.msgs {
                     output["msgs"].add(msg.as_json_obj())

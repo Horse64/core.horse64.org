@@ -55,7 +55,7 @@ func GlobalScope.as_str {
 func GlobalScope.as_json_obj {
     var result = []
     for name in self.name_to_stmt_map {
-        var entry = {"name": name}
+        var entry = {"name"-> name}
         entry["kind"] = ast.NodeKind.num_label(
             if typename(self.name_to_stmt_map[name]) == "list"
                 (self.name_to_stmt_map[name][1].kind) else
