@@ -82,10 +82,12 @@ func ContainerExpr.as_code(indent=0) {
         }
         return t + "}"
     } elseif self.container_kind == C_MAP {
-        if self.value == none or self.value.len == 0 {
+        if self.subexprs.len == 0 {
             return "{->}"
         }
+        t += "{"
         var pair_count = self.subexprs.len / 2
+        var is_first = yes
         var i = 1
         while i <= pair_count {
             if is_first {
@@ -95,7 +97,8 @@ func ContainerExpr.as_code(indent=0) {
             }
             t += self.subexprs[i * 2 - 1].as_code(
                     indent=indent) + " -> " +
-                self.value[i * 2].as_code(indent=indent)
+                self.subexprs[i * 2].as_code(indent=indent)
+            i += 1
         }
         return t + "}"
     } elseif self.container_kind == C_LIST {
@@ -288,9 +291,9 @@ func InlineIfExpr.as_code(indent=0) {
     if self.damaged {
         return "(damaged inline if expr.)"
     }
-    return "if " + self.subexprs[1].as_str() + " (" +
-        self.subexprs[2].as_str() + ") else (" +
-        self.subexprs[3].as_str() + ")"
+    return "if " + self.subexprs[1].as_code(indent=indent) + " (" +
+        self.subexprs[2].as_code(indent=indent) + ") else (" +
+        self.subexprs[3].as_code(indent=indent) + ")"
 }
 
 func token_continues_expr(t) {
