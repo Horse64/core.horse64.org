@@ -754,10 +754,7 @@ func parse_expression_unwrapped(
                         col=token.get_col(tokens, pos),
                     ))
                 }
-                node.damaged = yes
-                node.container_kind = ckind
-                node.token_len = (pos - startpos)
-                return node
+                had_fatal_error = yes
             }
             if had_fatal_error {
                 # Forward to final closing bracket and abort.
@@ -765,7 +762,10 @@ func parse_expression_unwrapped(
                 while pos <= tokens_len and
                         (bdepth > 0 or
                         tokens[pos].kind != token.T_ENCLOSE or
-                        not {")", "]", "}"}.has(tokens[pos].str)) {
+                        not {")", "]", "}"}.has(tokens[pos].str)) and
+                        not token.surely_starts_stmt_even_in_bad_code(
+                            tokens, pos
+                        ) {
                     if tokens[pos].kind == token.T_ENCLOSE {
                         if {")", "]", "}"}.has(tokens[pos].str) {
                             bdepth -= 1
@@ -775,7 +775,9 @@ func parse_expression_unwrapped(
                     }
                     pos += 1
                 }
-                if pos <= tokens_len {
+                if pos <= tokens_len and
+                        tokens[pos].kind == token.T_ENCLOSE and
+                        tokens[pos].str == closebracket {
                     pos += 1  # Go past closing bracket.
                 }
                 node.damaged = yes
