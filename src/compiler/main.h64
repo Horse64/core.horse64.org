@@ -32,6 +32,7 @@ import system from core.horse64.org
 import compiler.ast
 import compiler.msg as msg
 import compiler.project as project
+import compiler.storage.scope
 import compiler.token
 
 func version_output_for_terminal {
@@ -120,7 +121,10 @@ func parse_ast_target_from_args(args, checked_ast=no,
     if had_error {
         return tresult
     }
-    # FIXME: do full scope checks here
+
+    tresult.project_file.project.compute_all_scopes(tresult.msgs)
+    later:
+
     return tresult
 }
 

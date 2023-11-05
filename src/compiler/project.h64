@@ -66,6 +66,8 @@ type Project {
 
     var module_uri_to_file_map = {->}
 
+    var no_uri_files = {}
+
     var builtin_cexts = none
 }
 
@@ -526,6 +528,9 @@ func Project.ensure_global_scope_for_full_project(
     for pfile in self.module_uri_to_file_map.values() {
         file_queue.add(pfile)
     }
+    for pfile in self.no_uri_files {
+        file_queue.add(pfile)
+    }
     if file_queue.len == 0 {
         return
     }
@@ -537,6 +542,38 @@ func Project.ensure_global_scope_for_full_project(
     }
     next_file = file_queue.pop()
     _unused = process_file_fully(next_file) later repeat
+}
+
+func Project.do_for_all_files(callback) {
+    var file_queue = []
+    for pfile in self.module_uri_to_file_map.values() {
+        file_queue.add(pfile)
+    }
+    for pfile in self.no_uri_files {
+        file_queue.add(pfile)
+    }
+    var finished_with_no_abort = yes
+    func process_next_file {
+        if file_queue.len == 0 {
+            return later no
+        }
+        var next_file = file_queue.pop()
+        var resume_process = callback(next_file) later:
+
+        await resume_process
+        if not resume_process {
+            finished_with_no_abort = no
+            return later no
+        }
+        return later yes
+    }
+    var resume_queue = process_next_file() later:
+
+    await resume_queue
+    if not resume_queue {
+        return later finished_with_no_abort
+    }
+    resume_queue = process_next_file() later repeat
 }
 
 func Project.find_package_dir_uri(package_name) {
@@ -731,6 +768,11 @@ func ProjectFile.parse_for_imports_if_needed(msgs=none) {
         if self.project != none (self.project.allow_vfs_access)
             else (no)
     self.imports = []
+    if self.source_uri == none {
+        throw new RuntimeError("This shouldn't ever need to be "
+            "called on a file with no source_uri, "
+            "since the imports should have already been set.")
+    }
 
     var astresult = ast.parse_to_ast_from_uri(
         self.source_uri, project_file=self,
@@ -891,6 +933,7 @@ func ProjectFile.ensure_project(msgs=none) {
     ) later:
 
     if self.source_uri == none or self.modinfo != none {
+        self.project.no_uri_files.add(self)
         return later none
     }
     var modinfo = self.project.get_modinfo_for_file(
