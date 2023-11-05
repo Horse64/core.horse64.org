@@ -523,8 +523,8 @@ func Project.ensure_global_scope_for_full_project(
     }
 
     # Process queue of all files until empty:
-    for value in self.module_uri_to_file_map.values() {
-        file_queue.add(value)
+    for pfile in self.module_uri_to_file_map.values() {
+        file_queue.add(pfile)
     }
     if file_queue.len == 0 {
         return
@@ -701,7 +701,7 @@ func ProjectFile.ensure_modinfo(rel_path=none) {
     self.modinfo = modinfo
 }
 
-func ProjectFile.set_imports_from_ast_result(result) {
+func ProjectFile.set_data_from_ast_result(result) {
     self.imports = []
     for name in result.global_scope.name_to_stmt_map {
         var entry = result.global_scope.name_to_stmt_map[name]
@@ -714,6 +714,7 @@ func ProjectFile.set_imports_from_ast_result(result) {
             self.imports.add(importst.copy())
         }
     }
+    self.global_scope = result.global_scope
 }
 
 func ProjectFile.parse_for_imports_if_needed(msgs=none) {
@@ -730,6 +731,7 @@ func ProjectFile.parse_for_imports_if_needed(msgs=none) {
         if self.project != none (self.project.allow_vfs_access)
             else (no)
     self.imports = []
+
     var astresult = ast.parse_to_ast_from_uri(
         self.source_uri, project_file=self,
         is_entrypoint=self.is_entrypoint,
@@ -742,8 +744,7 @@ func ProjectFile.parse_for_imports_if_needed(msgs=none) {
     if msgs != none {
         msgs += astresult.msgs
     }
-    self.set_imports_from_ast_result(astresult)
-    self.global_scope = astresult.global_scope
+    self.set_data_from_ast_result(astresult)
 }
 
 func ProjectFile.check_is_single_file {

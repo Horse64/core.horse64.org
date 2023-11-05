@@ -96,6 +96,9 @@ func parse_ast_target_from_args(args, checked_ast=no,
         return tresult
     }
 
+    tresult.project_file.set_data_from_ast_result(
+        tresult
+    )
     tresult.project_file.project.ensure_global_scope_for_full_project(
         msgs=tresult.msgs,
         debug=debug_modules
