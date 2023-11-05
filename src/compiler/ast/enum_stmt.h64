@@ -60,9 +60,11 @@ func EnumStmt.as_code(indent=0) {
     var i = 0
     for entry in self.enum_entry_names {
         i += 1
-        t += emtry
+        t += " ".rep(indent + 4) + entry
         if self.enum_entry_nums[i] != none {
             t += "=" + self.enum_entry_nums[i] + ",\n"
+        } else {
+            t += ",\n"
         }
     }
     t += "}"
@@ -96,9 +98,11 @@ func EnumExtendStmt.as_code(indent=0) {
     var i = 0
     for entry in self.enum_entry_names {
         i += 1
-        t += emtry
+        t += " ".rep(indent + 4) + entry
         if self.enum_entry_nums[i] != none {
             t += "=" + self.enum_entry_nums[i] + ",\n"
+        } else {
+            t += ",\n"
         }
     }
     t += "}"
@@ -149,7 +153,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var entry_count = 0
     while pos <= tokens_len and
             tokens[pos].kind == token.T_IDENT {
-        stmt.enum_entry_names.add(tokens[pos])
+        stmt.enum_entry_names.add(tokens[pos].str)
         pos += 1
         entry_count += 1
         if pos + 1 < tokens_len and

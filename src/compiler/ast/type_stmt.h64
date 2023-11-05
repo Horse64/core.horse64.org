@@ -55,9 +55,9 @@ func TypeStmt.as_code(indent=0) {
     }
     var t = " ".rep(indent) + "type " + self.label
     if self.subexprs.len > 0 {
-        t += " " + self.subexprs[1].as_code(indent=indent)
+        t += " base " + self.subexprs[1].as_code(indent=indent)
     }
-    t += self.label + " {"
+    t += " {\n"
     for stmt in self.subblocks[1] {
         t += stmt.as_code(indent=(indent + 4)) + "\n"
     }
@@ -83,7 +83,7 @@ func TypeExtendStmt.as_code(indent=0) {
         return " ".rep(indent) + "(damaged type extend)"
     }
     var t = " ".rep(indent) + "extend " +
-        self.subexprs[1].as_code(indent=indent) + " {"
+        self.subexprs[1].as_code(indent=indent) + " {\n"
     for stmt in self.subblocks[1] {
         t += stmt.as_code(indent=(indent + 4)) + "\n"
     }
