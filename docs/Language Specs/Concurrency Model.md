@@ -7,9 +7,10 @@ Concurrency model of Horse64
 Horse64's concurrency model has the following properties:
 
 - It has two types of functions, the concurrent *"later functions"*
-  and the regular ones, that both need to be called differently.
+  and the regular ones, while the former ones need to be called
+  differently.
 
-- The execution is concurrent as in interleaved, but not threaded
+- Any concurrent execution is interleaved, but not threaded
   as in not parallel. Interleaving happens only at the `later`
   call points or when one execution chain fully ends.
 
@@ -38,12 +39,13 @@ The rules for calling later functions are as follows:
 
 Calls to later functions must be followed by either `later:`
 or `later ignore`, or `later repeat`. Calls to regular
-functions *can't* use this syntax, so the two are kept
-strictly separate. You need to know in advance if the
-function you're calling is a later function, **but the
-compiler will in many cases tell you when you did it wrong**
+functions can use this syntax, or regular calls.
+This means you need to know in advance if the
+function you're calling is possibly a later function, **but
+the compiler will in many cases tell you when you did it wrong**
 before you even run the program. For the other uncaught
-cases, you'll get an `InvalidCallError`.
+cases, you'll get an `InvalidCallError` whenever you
+call a later function incorrectly.
 
 ### Rule 2: You can't inline nest later calls.
 
