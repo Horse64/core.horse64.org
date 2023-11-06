@@ -85,6 +85,9 @@ func TreeNode.has_damage {
         return yes
     }
     for subexpr in self.subexprs {
+        if subexpr == none {
+            continue
+        }
         if subexpr.has_damage() {
             return yes
         }

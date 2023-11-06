@@ -25,26 +25,43 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import compiler.ast as ast
 import compiler.ast.transform as transform
 import compiler.project as project
 
-func project.Project.resolve_name_global_scope(
-        project, global_scope, name, type_path=none
+func project.Project.resolve_name_in_global_scope(
+        global_scope, name, type_path=none
         ) {
-    var lookup_components = []
-    # FIXME
+    var lookup_components = [name]
+    if type_path != none {
+        if typename(type_path) == "list" {
+            lookup_components = type_path + lookup_components
+        } else {
+            lookup_components = type_path.split(".") +
+                lookup_components
+        }
+    }
+
+    # FIXMEEEE
 }
 
-func project.Project.compute_all_scopes(msgs) {
-    func compute_scope(pfile) {
-        print("COMPUTE SCOPES ON: " + pfile.source_uri)
-        # FIXME
-        return later yes
-    }
-    var success = self.do_for_all_files(compute_scope)
-    later:
+type SymbolInfo {
+    var name
+    var storage_id
+    var line, col
+}
 
-    await success
-    return success
+func SymbolInfo.init(name) {
+    self.name = name
+}
+
+type LocalScope {
+    var parent
+    var name_to_symbol_map = {->}
+    var last_storage_id = 0
+}
+
+extend ast.TreeNode {
+    var scope
 }
 

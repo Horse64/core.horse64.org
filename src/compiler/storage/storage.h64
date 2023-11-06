@@ -1,0 +1,220 @@
+# @module compiler.storage
+# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import compiler.ast as ast
+import compiler.ast.transform as transform
+import compiler.project as project
+import compiler.storage.scope as scope
+
+func project.Project.resolve_name_in_global_scope(
+        global_scope, name, type_path=none
+        ) {
+    var lookup_components = [name]
+    if type_path != none {
+        if typename(type_path) == "list" {
+            lookup_components = type_path + lookup_components
+        } else {
+            lookup_components = type_path.split(".") +
+                lookup_components
+        }
+    }
+    print("RESOLVING COMPONENTS: " + lookup_components.as_str())
+}
+
+func project.Project.compute_all_scopes(msgs) {
+    func try_register_symbol(
+            local_scope, symbol_name, msgs, line, col) {
+        if local_scope.name_to_symbol_map.has(symbol_name) {
+            var old_symbol =
+                local_scope.name_to_symbol_map[symbol_name]
+            msgs.add(new msg.FileMsg(
+                "Unexpected duplicate name '" + symbol_name + "'"
+                ", name was already used in same "
+                "scope in statement in line " +
+                old_symbol.line.as_str() +
+                ", column " + old_symbol.col.as_str() + ".",
+                source_file=project_file,
+                line=line, col=col
+            ))
+            return
+        }
+        local_scope.name_to_symbol_map[symbol_name] =
+            new scope.SymbolInfo(symbol_name)
+        local_scope.name_to_symbol_map[symbol_name].storage_id =
+            local_scope.last_storage_id + 1
+        local_scope.last_storage_id += 1
+    }
+    func compute_scope(pfile) {
+        print("COMPUTE SCOPES ON: " + pfile.source_uri)
+        func assign_local_scope(node, parent) {
+            if node.scope != none {
+                if has_attr(parent, "scope") {
+                    node.scope = parent.scope
+                } else {
+                    node.scope = none
+                }
+            }
+            if node.subblocks.len > 0 {
+                var inner_scope = new scope.LocalScope()
+                inner_scope.parent = node.scope
+                for block in node.subblocks {
+                    for stmt in block {
+                        stmt.scope = inner_scope
+                    }
+                }
+                if node.kind == ast.N_STMT_FUNC {
+                    try_register_symbol(inner_scope,
+                        node.label, msgs,
+                        node.line, node.col)
+                    for label in node.arg_labels {
+                        try_register_symbol(inner_scope,
+                            label, msgs,
+                            node.line, node.col)
+                    }
+                } elseif node.kind == ast.N_STMT_FOR {
+                    try_register_symbol(inner_scope,
+                        node.label, msgs,
+                        node.line, node.col)
+                } elseif node.kind == ast.N_STMT_WITH {
+                    try_register_symbol(inner_scope,
+                        node.label, msgs,
+                        node.line, node.col)
+                }
+            }
+            if node.kind == ast.N_STMT_IF {
+                for clause in node.subexprs {
+                    var inner_scope = new scope.LocalScope()
+                    inner_scope.parent = node.scope
+                    for block in node.subblocks {
+                        for stmt in block {
+                            stmt.scope = inner_scope
+                        }
+                    }
+                }
+            } elseif node.kind == ast.N_STMT_DO {
+                for clause in node.subexprs {
+                    var inner_scope = new scope.LocalScope()
+                    inner_scope.parent = node.scope
+                    for block in node.subblocks {
+                        for stmt in block {
+                            stmt.scope = inner_scope
+                        }
+                    }
+                    if clause.kind == ast.N_EXPR_RESCUECLAUSE {
+                        for elabel in clause.error_labels {
+                            if elabel == none {
+                                continue
+                            }
+                            try_register_symbol(inner_scope,
+                                elabel, msgs,
+                                clause.line, clause.col)
+                        }
+                    }
+                }
+            }
+            if node.kind == ast.N_STMT_VAR and
+                    node.scope != none {
+                for label in node.var_labels {
+                    try_register_symbol(node.scope,
+                        label, msgs,
+                        node.line, node.col)
+                }
+            }
+            if node.kind == ast.N_STMT_FUNC and
+                    node.scope != none {
+                try_register_symbol(node.scope,
+                    node.label, msgs,
+                    node.line, node.col)
+            }
+            return later node
+        }
+        var success = transform.visit_ast_tree(
+            pfile.ast, assign_local_scope
+            ) later:
+
+        await success
+        assert(success == yes)
+        func expr_idref_resolve_visitor(node, parent) {
+            if node.kind == ast.N_EXPR_IDREF {
+                if parent.kind == ast.N_EXPR_BINOP and
+                        parent.optoken.str == "." {
+                    return later node
+                }
+                self.resolve_name_in_global_scope(
+                    pfile.global_scope, node.label,
+                    type_path=node.type_path
+                )
+            } elseif node.kind == ast.N_EXPR_BINOP and
+                    node.optoken.str == "." and
+                    (parent.kind != ast.N_EXPR_BINOP or
+                     parent.optoken.str != ".") {
+                var label = []
+                var type_path = []
+                var lefthand = node.subexprs[1]
+                while yes {
+                    if lefthand.kind == ast.N_EXPR_IDREF {
+                        var tpath = lefthand.type_path
+                        if tpath == none {
+                            tpath = []
+                        }
+                        type_path = tpath +
+                            [lefthand.label] + type_path
+                        break
+                    } elseif lefthand.kind == ast.N_EXPR_BINOP and
+                            lefthand.optoken.str == "." {
+                        type_path = [lefthand.subexprs[2].label] +
+                            type_path
+                        assert(lefthand.subexprs[2].type_path == none or
+                            lefthand.subexprs[2].type_path.len == 0)
+                        lefthand = lefthand.subexprs[1]
+                        continue
+                    } else {
+                        return later node
+                    }
+                }
+                label = type_path.pop()
+                self.resolve_name_in_global_scope(
+                    pfile.global_scope, label,
+                    type_path=type_path
+                )
+            }
+            return later node
+        }
+        success = transform.visit_ast_tree(
+            pfile.ast, expr_idref_resolve_visitor) later:
+
+        await success
+        assert(success == yes)
+        return later success
+    }
+    var success = self.do_for_all_files(compute_scope)
+    later:
+
+    await success
+    return success
+}
+

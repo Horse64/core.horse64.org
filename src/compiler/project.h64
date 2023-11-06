@@ -34,9 +34,11 @@ import uri from core.horse64.org
 
 import compiler.ast as ast
 import compiler.ast.import_stmt as import_stmt
+import compiler.ast.transform as transform
 import compiler.cext as cext
 import compiler.comment.command as command_comment
 import compiler.msg as msg
+import compiler.storage.scope as scope
 import compiler.token as token
 
 var _known_readable_files = []
@@ -677,6 +679,7 @@ type ProjectFile {
     var imports = none
 
     var global_scope = none
+    var ast = none
 }
 
 func ProjectFile.init(
@@ -752,6 +755,7 @@ func ProjectFile.set_data_from_ast_result(result) {
         }
     }
     self.global_scope = result.global_scope
+    self.ast = result
 }
 
 func ProjectFile.parse_for_imports_if_needed(msgs=none) {

@@ -25,6 +25,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import compiler.ast as ast
+
 type VisitQueueEntry {
     var node
     var parent
@@ -35,21 +37,44 @@ func VisitQueueEntry.init(node, parent) {
     self.parent = parent
 }
 
-func visit_ast_tree(node, visit_cb) {
+func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes) {
     var seen = {}
     var visit_queue = [new VisitQueueEntry(node, none)]
+    var aborted = no
+    var is_first = yes
     func process_next_node {
         if visit_queue.len == 0 {
             return later no
         }
         var next = visit_queue.pop_at(1)
+        if not has_attr(next.node, "kind") and
+                has_attr(next.node, "stmts") {
+            # Must be a root ASTResult item. Skip.
+            if next.node != none and has_attr(next.node, "stmts") {
+                for st in next.node.stmts {
+                    visit_queue.add(new VisitQueueEntry(
+                        st, next.node
+                    ))
+                }
+            }
+            return later yes
+        }
+        if is_first {
+            is_first = no
+        } elseif not pass_func_boundaries and
+                next.node.kind == ast.N_STMT_FUNC {
+            return later yes
+        }
         var new_node = visit_cb(next.node, next.parent)
         later:
 
         await new_node
+        if new_node == no {
+            aborted = yes
+            return later no
+        }
         if new_node != next.node {
-            if next.parent != none and
-                    has_attr(next.parent, "subexprs") {
+            if has_attr(next.parent, "subexprs") {
                 pos = 1
                 while pos <= next.parent.subexprs.len {
                     if next.parent.subexprs[pos] == next.node {
@@ -63,8 +88,7 @@ func visit_ast_tree(node, visit_cb) {
                     pos += 1
                 }
             }
-            if next.parent != none and
-                    has_attr(next.parent, "stmts") {
+            if has_attr(next.parent, "stmts") {
                 pos = 1
                 while pos <= next.parent.stmts.len {
                     if next.parent.stmts[pos] == next.node {
@@ -78,8 +102,7 @@ func visit_ast_tree(node, visit_cb) {
                     pos += 1
                 }
             }
-            if next.parent != none and
-                    has_attr(next.parent, "subblocks") {
+            if has_attr(next.parent, "subblocks") {
                 for block in next.parent.subblocks {
                     pos = 1
                     while pos <= block.len {
@@ -98,6 +121,9 @@ func visit_ast_tree(node, visit_cb) {
         }
         if new_node != none and has_attr(new_node, "subexprs") {
             for expr in new_node.subexprs {
+                if expr == none {
+                    continue
+                }
                 visit_queue.add(new VisitQueueEntry(
                     expr, new_node
                 ))
@@ -118,7 +144,10 @@ func visit_ast_tree(node, visit_cb) {
 
     await resume_queue
     if not resume_queue {
-        return
+        if aborted {
+            return later no
+        }
+        return later yes
     }
     resume_queue = process_next_node() later repeat
 }

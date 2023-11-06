@@ -97,7 +97,11 @@ func RescueClause.as_code(indent=0) {
         } else {
             t += ","
         }
-        t += self.subexprs[idx].as_code(indent=indent)
+        if self.subexprs[idx] != none {
+            t += self.subexprs[idx].as_code(indent=indent)
+        } else {
+            t += "any"
+        }
         if elabel != none {
             t += " as " + elabel
         }
@@ -184,6 +188,10 @@ func parse_rescue_clause_header(
             return clause
         }
         var error_typename = tokens[pos].str
+        if tokens[pos].kind == token.T_KEYWORD and
+                tokens[pos].str == "any" {
+            error_typename = none
+        }
         var error_renameto = none
         errors_parsed += 1
         pos += 1
@@ -191,6 +199,7 @@ func parse_rescue_clause_header(
         # Extract components of type prefix, if any:
         var error_typepath = none
         while pos + 1 <= tokens_len and
+                error_typename != none and
                 tokens[pos].kind == token.T_DOT and
                 tokens[pos + 1].kind == token.T_IDENT {
             if error_typepath == none {
@@ -235,10 +244,14 @@ func parse_rescue_clause_header(
             error_renameto = tokens[pos].str
             pos += 1
         }
-        var iexp = new expr.IdRefExpr()
-        iexp.label = error_typename
-        iexp.typepath = error_typepath
-        clause.subexprs.add(iexp)
+        if error_typename != none {
+            var iexp = new expr.IdRefExpr()
+            iexp.label = error_typename
+            iexp.typepath = error_typepath
+            clause.subexprs.add(iexp)
+        } else {
+            clause.subexprs.add(none)
+        }
         clause.error_labels.add(error_renameto)
 
         if pos > tokens_len or (
