@@ -119,13 +119,25 @@ type MySpecialBehavior base FunnyBehavior, Strangebehavior {
 }
 ```
 
+You can also base it on a type [imported from another
+module](/docs/Modules, Packages, Imports):
+
+```Horse64
+import my_other_module
+
+type MySpecialType base my_other_module.BaseType {
+    var new_value
+}
+```
+
 
 Extend types
 ------------
 
 **(⚠️ Warning, this is very advanced functionality for
 large projects. If this sounds strange to you,
-just don't use it.)**
+just don't use it and make [new types based on others
+instead](#base-types).)**
 
 You can also split up a very complex type across multiple
 modules, by declaring it and some of its attributes in one
@@ -149,4 +161,9 @@ extend module_a.MyType {
     var value2 = 6
 }
 ```
+
+The difference to [basing a new type on an existing
+type](#base-types) is that instead of having your own
+specialized variant for just your own uses, it allows
+expanding types for already pre-existing code using them.
 

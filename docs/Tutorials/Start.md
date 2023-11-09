@@ -12,8 +12,8 @@ Then, try out these tutorials if you're a beginner:
 - [FIXME](/FIXME.md).
 
 
-Dive into concepts
-------------------
+Advanced concepts
+-----------------
 
 If you want a slightly more advanced dive into various concepts
 used in Horse64, check out this list:
