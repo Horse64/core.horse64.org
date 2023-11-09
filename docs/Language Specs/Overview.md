@@ -70,7 +70,7 @@ Any *object instance*, or *object* in short, will have the
 A custom type can either be `base`d on another one to form
 a subtype which inherits all attributes and can add more.
 [See here for a friendly introduction to base types](
-/docs/OOP.md#base-types) Or it can be `extend`ed by
+/docs/OOP.md#base-types). Or it can be `extend`ed by
 another module to add more shared attributes to all
 its instances.
 
