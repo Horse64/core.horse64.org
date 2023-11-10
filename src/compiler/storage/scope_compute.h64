@@ -1,0 +1,180 @@
+# @module compiler.storage.scope_compute
+# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import compiler.ast as ast
+import compiler.ast.transform as transform
+import compiler.msg as msg
+import compiler.project as project
+import compiler.storage.scope as scope
+
+func project.Project.resolve_name_in_global_scope(
+        global_scope, name, type_path=none
+        ) {
+    var lookup_components = [name]
+    if type_path != none {
+        if typename(type_path) == "list" {
+            lookup_components = type_path + lookup_components
+        } else {
+            lookup_components = type_path.split(".") +
+                lookup_components
+        }
+    }
+
+    # FIXMEEEE
+}
+
+func project.ProjectFile.type_path_to_full_module_path(tpath) {
+    var pfile =
+        self.global_scope.type_path_to_project_file(tpath)
+    if pfile == none {
+        return none
+    }
+    var t = pfile.modinfo.module_name
+    if pfile.modinfo.package_name != none {
+        t += "@" + pfile.modinfo.package_name
+    }
+    return t
+}
+
+func project.ProjectFile.get_type_or_enum_scope_from_node(
+        node, msgs=none) {
+    assert(node.kind == ast.N_STMT_TYPE or
+        node.kind == ast.N_STMT_TYPEEXTEND or
+        node.kind == ast.N_STMT_ENUM or
+        node.kind == ast.N_STMT_ENUMEXTEND)
+    var stmt_base_full_type_path
+    var stmt_base_label
+    var stmt_full_type_path
+    var stmt_label
+
+    var key
+    var result_scope
+    var is_enum
+    if node.kind == ast.N_STMT_TYPE or
+            node.kind == ast.N_STMT_ENUM {
+        is_enum = if node.kind == ast.N_STMT_TYPE (no)
+                  else (yes)
+        stmt_full_type_path = self.modinfo.module_name
+        assert(stmt_full_type_path != none)
+        if self.modinfo.package_name != none {
+            stmt_full_type_path += "@" + self.modinfo.package_name
+        }
+        stmt_label = node.label
+        if node.kind == ast.N_STMT_TYPE and
+                node.subexprs.len >= 1 {
+            if node.subexprs[1].kind != ast.N_EXPR_IDREF {
+                return none
+            }
+            if node.subexprs[1].type_path != none {
+                stmt_base_full_type_path =
+                    self.type_path_to_full_module_path(
+                        node.subexprs[1].type_path)
+            } else {
+                stmt_base_full_type_path = stmt_full_type_path
+            }
+            stmt_base_label = node.subexprs[1].label
+            if stmt_base_full_type_path == none and msgs != none {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected type statement with invalid base type, "
+                    "there isn't any import for this module: " +
+                    node.subexprs[1].type_path.join("."),
+                    source_file=self,
+                    line=node.line, col=node.col,
+                ))
+            } elseif stmt_base_full_type_path == none {
+                throw new ValueError("Couldn't resolve type's "
+                    "base type path.")
+            }
+        }
+        key = stmt_full_type_path + "." + stmt_label
+    } else {
+        assert(node.kind == ast.N_STMT_TYPEEXTEND or
+            node.kind == ast.N_STMT_ENUMEXTEND)
+        is_enum = if node.kind == ast.N_STMT_TYPE (no)
+                  else (yes)
+        if node.subexprs.len < 1 or
+                node.subexprs[1].kind != ast.N_EXPR_IDREF {
+            return none
+        }
+        if node.subexprs[1].type_path != none {
+            stmt_full_type_path =
+                self.type_path_to_full_module_path(
+                    node.subexprs[1].type_path)
+        } else {
+            stmt_full_type_path = self.modinfo.module_name
+            assert(stmt_full_type_path != none)
+            if self.modinfo.package_name != none {
+                stmt_full_type_path += "@" + self.modinfo.package_name
+            }
+        }
+        stmt_label = node.subexprs[1].label
+        if stmt_full_type_path == none and msgs != none {
+            msgs.add(new msg.FileMsg(
+                "Unexpected extend statement, "
+                "there isn't any import for this module: " +
+                node.subexprs[1].type_path.join("."),
+                source_file=self,
+                line=node.line, col=node.col,
+            ))
+            return none
+        } elseif stmt_full_type_path == none {
+            throw new ValueError("Couldn't resolve extend's "
+                "type path.")
+        }
+        key = stmt_full_type_path + "." + stmt_label
+    }
+    if not self.project.type_or_enum_scope_map.has(key) {
+        result_scope = if not is_enum (new scope.TypeScope())
+                else (new scope.EnumScope())
+        if stmt_base_full_type_path != none {
+            var base_key = stmt_base_full_type_path + "." +
+                stmt_base_label
+            result_scope.base_key = base_key
+        }
+        self.project.type_or_enum_scope_map[key] = result_scope
+    }
+    if result_scope.is_enum != is_enum {
+        var stmt_name = if is_enum ("enum") else ("type")
+        var opposite_name = if is_enum ("type") else ("enum")
+        if msgs != none {
+            msgs.add(new msg.FileMsg(
+                "This " + stmt_name + " statement has "
+                "a mismatched extend statement elsewhere "
+                "treating it as " + opposite_name + ".",
+                source_file=self,
+                line=node.line, col=node.col,
+            ))
+        } else {
+            throw new ValueError("Found " + stmt_name +
+                "statement that has extend statement "
+                "treating it as " + opposite_name + ".")
+        }
+        return none
+    }
+    return result_scope
+}
+

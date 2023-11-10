@@ -42,12 +42,12 @@ func project.Project.resolve_name_in_global_scope(
                 lookup_components
         }
     }
-    print("RESOLVING COMPONENTS: " + lookup_components.as_str())
 }
 
 func project.Project.compute_all_scopes(msgs) {
     func try_register_symbol(
-            local_scope, symbol_name, msgs, line, col) {
+            local_scope, symbol_name, msgs, pfile, line, col
+            ) {
         if local_scope.name_to_symbol_map.has(symbol_name) {
             var old_symbol =
                 local_scope.name_to_symbol_map[symbol_name]
@@ -57,21 +57,40 @@ func project.Project.compute_all_scopes(msgs) {
                 "scope in statement in line " +
                 old_symbol.line.as_str() +
                 ", column " + old_symbol.col.as_str() + ".",
-                source_file=project_file,
+                source_file=pfile,
                 line=line, col=col
             ))
             return
+        } elseif local_scope.func_scope == none {
+            throw new RuntimeError("Internal error.")
         }
         local_scope.name_to_symbol_map[symbol_name] =
             new scope.SymbolInfo(symbol_name)
         local_scope.name_to_symbol_map[symbol_name].storage_id =
-            local_scope.last_storage_id + 1
-        local_scope.last_storage_id += 1
+            local_scope.func_scope.last_storage_id + 1
+        local_scope.func_scope.last_storage_id += 1
     }
     func compute_scope(pfile) {
-        print("COMPUTE SCOPES ON: " + pfile.source_uri)
         func assign_local_scope(node, parent) {
-            if node.scope != none {
+            if node.kind == ast.N_STMT_TYPE or
+                    node.kind == ast.N_STMT_ENUM or
+                    node.kind == ast.N_STMT_TYPEEXTEND or
+                    node.kind == ast.N_STMT_ENUMEXTEND {
+                node.scope = none
+                node.func_scope = none
+                var escope = pfile.get_type_or_enum_scope_from_node(
+                    node, msgs=msgs
+                )
+                var is_enum = if node.kind == ast.N_STMT_ENUM or
+                    node.kind == ast.N_STMT_ENUMEXTEND (yes) else (no)
+                #if not is_enum {
+
+                #} else {
+
+                #}
+                return
+            }
+            if node.scope == none {
                 if has_attr(parent, "scope") {
                     node.scope = parent.scope
                 } else {
@@ -81,35 +100,40 @@ func project.Project.compute_all_scopes(msgs) {
             if node.subblocks.len > 0 {
                 var inner_scope = new scope.LocalScope()
                 inner_scope.parent = node.scope
+                if inner_scope.parent != none and
+                        has_attr(inner_scope.parent, "func_scope") {
+                    inner_scope.func_scope = inner_scope.parent.func_scope
+                }
                 for block in node.subblocks {
                     for stmt in block {
                         stmt.scope = inner_scope
                     }
                 }
                 if node.kind == ast.N_STMT_FUNC {
+                    inner_scope.func_scope = new scope.FuncScope()
                     try_register_symbol(inner_scope,
                         node.label, msgs,
-                        node.line, node.col)
+                        pfile, node.line, node.col)
                     for label in node.arg_labels {
                         try_register_symbol(inner_scope,
                             label, msgs,
-                            node.line, node.col)
+                            pfile, node.line, node.col)
                     }
                 } elseif node.kind == ast.N_STMT_FOR {
                     try_register_symbol(inner_scope,
                         node.label, msgs,
-                        node.line, node.col)
+                        pfile, node.line, node.col)
                 } elseif node.kind == ast.N_STMT_WITH {
                     try_register_symbol(inner_scope,
                         node.label, msgs,
-                        node.line, node.col)
+                        pfile, node.line, node.col)
                 }
             }
             if node.kind == ast.N_STMT_IF {
                 for clause in node.subexprs {
                     var inner_scope = new scope.LocalScope()
                     inner_scope.parent = node.scope
-                    for block in node.subblocks {
+                    for block in clause.subblocks {
                         for stmt in block {
                             stmt.scope = inner_scope
                         }
@@ -119,7 +143,7 @@ func project.Project.compute_all_scopes(msgs) {
                 for clause in node.subexprs {
                     var inner_scope = new scope.LocalScope()
                     inner_scope.parent = node.scope
-                    for block in node.subblocks {
+                    for block in clause.subblocks {
                         for stmt in block {
                             stmt.scope = inner_scope
                         }
@@ -131,7 +155,7 @@ func project.Project.compute_all_scopes(msgs) {
                             }
                             try_register_symbol(inner_scope,
                                 elabel, msgs,
-                                clause.line, clause.col)
+                                pfile, clause.line, clause.col)
                         }
                     }
                 }
@@ -141,14 +165,14 @@ func project.Project.compute_all_scopes(msgs) {
                 for label in node.var_labels {
                     try_register_symbol(node.scope,
                         label, msgs,
-                        node.line, node.col)
+                        pfile, node.line, node.col)
                 }
             }
             if node.kind == ast.N_STMT_FUNC and
                     node.scope != none {
                 try_register_symbol(node.scope,
                     node.label, msgs,
-                    node.line, node.col)
+                    pfile, node.line, node.col)
             }
             return later node
         }

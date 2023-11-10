@@ -65,6 +65,38 @@ func GlobalScope.as_json_obj {
     return result
 }
 
+func GlobalScope.type_path_to_project_file(tpath) {
+    if typename(tpath) == "str" {
+        tpath = tpath.split(".")
+    }
+    if not self.name_to_stmt_map.has(tpath[1]) or
+            typename(self.name_to_stmt_map[tpath[1]]) != "list" {
+        return none
+    }
+    for entry in self.name_to_stmt_map[tpath[1]] {
+        assert(entry.kind == ast.N_STMT_IMPORT)
+        if tpath.len == 1 and entry.renamed_as != none {
+            return entry.project_file
+        }
+        if entry.module_path.len != tpath.len {
+            continue
+        }
+        var mismatch = no
+        var idx = 2
+        while idx <= entry.module_path.len {
+            if entry.module_path[idx] != tpath[idx] {
+                mismatch = yes
+                break
+            }
+            idx += 1
+        }
+        if not mismatch {
+            return entry.project_file
+        }
+    }
+    return none
+}
+
 func has_global_scope_duplicate(
         scope, stmt, name, msgs, project_file=none
         ) {
@@ -133,7 +165,15 @@ func process_toplevel_stmt(
                 }
                 scope.name_to_stmt_map[name].add(statement)
             } else {
-                scope.name_to_stmt_map[name] = statement
+                # Note: to avoid keeping the entire AST in memory
+                # indirectly through this global scope, we make a
+                # fake shallow stand-in node that only retains
+                # the info we care about later.
+                var stand_in_node = new ast.StmtNode()
+                stand_in_node.kind = statement.kind
+                stand_in_node.line = statement.line
+                stand_in_node.col = statement.col
+                scope.name_to_stmt_map[name] = stand_in_node
             }
         }
     }

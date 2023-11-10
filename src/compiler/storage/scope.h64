@@ -27,23 +27,8 @@
 
 import compiler.ast as ast
 import compiler.ast.transform as transform
+import compiler.msg as msg
 import compiler.project as project
-
-func project.Project.resolve_name_in_global_scope(
-        global_scope, name, type_path=none
-        ) {
-    var lookup_components = [name]
-    if type_path != none {
-        if typename(type_path) == "list" {
-            lookup_components = type_path + lookup_components
-        } else {
-            lookup_components = type_path.split(".") +
-                lookup_components
-        }
-    }
-
-    # FIXMEEEE
-}
 
 type SymbolInfo {
     var name
@@ -55,13 +40,35 @@ func SymbolInfo.init(name) {
     self.name = name
 }
 
+type FuncScope {
+    var last_storage_id = 0
+}
+
+type TypeScope {
+    const is_enum = no
+    var node_map = {->}
+    var name_to_symbol_map = {->}
+    var base_key = none
+}
+
+type EnumScope {
+    const is_enum = yes
+    var node_map = {->}
+    var label_names = []
+    var label_values = []
+}
+
 type LocalScope {
     var parent
     var name_to_symbol_map = {->}
-    var last_storage_id = 0
+    var func_scope
 }
 
 extend ast.TreeNode {
     var scope
+}
+
+extend project.Project {
+    var type_or_enum_scope_map = {->}
 }
 

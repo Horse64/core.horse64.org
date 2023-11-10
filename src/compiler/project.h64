@@ -1254,6 +1254,7 @@ func add_neighbor_modules_to_result(
     if entries.len == 0 {
         return
     }
+    entries.sort()  # For reproducible builds.
     var next_file = entries.pop()
     var _unused = process_neighbor_import(next_file) later:
 

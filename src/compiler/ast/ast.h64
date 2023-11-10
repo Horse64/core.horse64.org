@@ -121,6 +121,10 @@ func TreeNode.as_json_obj {
     if self.subexprs.len > 0 {
         output["subexprs"] = []
         for subexpr in self.subexprs {
+            if subexpr == none {
+                output["subexprs"].add(none)
+                continue
+            }
             output["subexprs"].add(subexpr.as_json_obj())
         }
     }
@@ -138,21 +142,6 @@ func TreeNode.as_json_obj {
 }
 
 type StmtNode base TreeNode {
-}
-
-func StmtNode.as_json_obj {
-    var output = base.as_json_obj()
-    output["subblocks"] = []
-    for blocks in self.subblocks {
-        var inner_blocks_objs = []
-        for block in blocks {
-            inner_blocks_objs.add(
-                block.as_json_obj()
-            )
-        }
-        output["subblocks"].add(inner_blocks_objs)
-    }
-    return output
 }
 
 enum NodeKind {

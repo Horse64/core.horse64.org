@@ -264,7 +264,7 @@ func actionparser_compile(args) {
             "\"binary\" which means full compilation, other "
             "available stages are: "
             "tokens, ast, global-scope, checked-ast, "
-            "transformed-code, bytecode.")
+            "transformed-code, transformed-ast, bytecode.")
     defs.add_switch(
         "--output-file", takes_arg=yes,
         description="Where to write the resulting binary, or "
@@ -285,6 +285,9 @@ func actionparser_compile(args) {
             "source file or --code option.")
         print("Use " + program_name + " --help to show usage.")
         return 1
+    }
+    if result.args["--stage"] == none {
+        result.args["--stage"] = "binary"
     }
 
     if result.args["--stage"] == "tokens" {
@@ -353,7 +356,10 @@ func actionparser_compile(args) {
             is_global_scope=is_global_scope,
         )
     } elseif result.args["--stage"] == "checked-ast" or
-            result.args["--stage"] == "transformed-code" {
+            result.args["--stage"] == "transformed-code" or
+            result.args["--stage"] == "transformed-ast" or
+            result.args["--stage"] == "bytecode" or
+            result.args["--stage"] == "binary" {
         var aresult = parse_ast_target_from_args(
             result.args, checked_ast=yes,
             debug=result.args["--debug-ast"],
@@ -398,10 +404,31 @@ func actionparser_compile(args) {
             }
             return 1
         }
+        # Apply code transformation:
+
         if result.args["--stage"] == "transformed-code" {
             print(aresult.return_code())
+            return 0
+        } elseif result.args["--stage"] == "transformed-ast" {
+            return show_ast_or_global_scope_result_to_terminal(
+                aresult,
+                aresult.msgs,
+                program_name=program_name,
+                for_script=result.args["--for-script"],
+                is_global_scope=is_global_scope,
+            )
         }
+        assert(result.args["--stage"] == "bytecode" or
+            result.args["--stage"] == "binary")
+        # Continuing here, we want the actual byte code.
+        # Apply bytecode transformation:
         return 0
+    } else {
+        print(program_name + ": error: Unsupported "
+            "stage: " + result.args["--stage"])
+        print("Use " + program_name + " compile --help to show "
+            "available stages.")
+        return 1
     }
 }
 
