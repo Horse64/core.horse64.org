@@ -85,10 +85,8 @@ func project.ProjectFile.get_type_or_enum_scope_from_node(
         }
         stmt_label = node.label
         if node.kind == ast.N_STMT_TYPE and
-                node.subexprs.len >= 1 {
-            if node.subexprs[1].kind != ast.N_EXPR_IDREF {
-                return none
-            }
+                node.subexprs.len >= 1 and
+                node.subexprs[1].kind == ast.N_EXPR_IDREF {
             if node.subexprs[1].type_path != none {
                 stmt_base_full_type_path =
                     self.type_path_to_full_module_path(
@@ -118,6 +116,17 @@ func project.ProjectFile.get_type_or_enum_scope_from_node(
                   else (yes)
         if node.subexprs.len < 1 or
                 node.subexprs[1].kind != ast.N_EXPR_IDREF {
+            if msgs != none {
+                msgs.add(new msg.FileMsg(
+                    "Invalid extend statement with "
+                    "no specified base.",
+                    source_file=self,
+                    line=node.line, col=node.col,
+                ))
+            } else {
+                throw new ValueError("Found extend "
+                    "statement with missing base parameter.")
+            }
             return none
         }
         if node.subexprs[1].type_path != none {

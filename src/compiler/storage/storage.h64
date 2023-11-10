@@ -45,6 +45,7 @@ func project.Project.resolve_name_in_global_scope(
 }
 
 func project.Project.compute_all_scopes(msgs) {
+    assert(msgs != none)
     func try_register_symbol(
             local_scope, symbol_name, msgs, pfile, line, col
             ) {
@@ -62,12 +63,21 @@ func project.Project.compute_all_scopes(msgs) {
             ))
             return
         } elseif local_scope.func_scope == none {
-            throw new RuntimeError("Internal error.")
+            msgs.add(new msg.FileMsg(
+                "Invalid statement declaring '" + symbol_name + "'"
+                ", declaration must be inside type or "
+                "func.",
+                source_file=pfile,
+                line=line, col=col
+            ))
+            return
         }
         local_scope.name_to_symbol_map[symbol_name] =
             new scope.SymbolInfo(symbol_name)
         local_scope.name_to_symbol_map[symbol_name].storage_id =
             local_scope.func_scope.last_storage_id + 1
+        local_scope.name_to_symbol_map[symbol_name].line = line
+        local_scope.name_to_symbol_map[symbol_name].col = col
         local_scope.func_scope.last_storage_id += 1
     }
     func compute_scope(pfile) {
@@ -81,6 +91,11 @@ func project.Project.compute_all_scopes(msgs) {
                 var escope = pfile.get_type_or_enum_scope_from_node(
                     node, msgs=msgs
                 )
+                if escope == none {
+                    # Note: error has already been emitted by
+                    # get_type_or_enum_scope_from_node().
+                    return later none
+                }
                 var is_enum = if node.kind == ast.N_STMT_ENUM or
                     node.kind == ast.N_STMT_ENUMEXTEND (yes) else (no)
                 #if not is_enum {
