@@ -48,14 +48,17 @@ func project.Project.resolve_name_in_global_scope(
 }
 
 func project.ProjectFile.type_path_to_full_module_path(tpath) {
-    var pfile =
+    var pfile_or_modpkgkey =
         self.global_scope.type_path_to_project_file(tpath)
-    if pfile == none {
+    if pfile_or_modpkgkey == none {
         return none
     }
-    var t = pfile.modinfo.module_name
-    if pfile.modinfo.package_name != none {
-        t += "@" + pfile.modinfo.package_name
+    if typename(pfile_or_modpkgkey) == "str" {
+        return pfile_or_modpkgkey
+    }
+    var t = pfile_or_modpkgkey.modinfo.module_name
+    if pfile_or_modpkgkey.modinfo.package_name != none {
+        t += "@" + pfile_or_modpkgkey.modinfo.package_name
     }
     return t
 }
@@ -98,8 +101,9 @@ func project.ProjectFile.get_type_or_enum_scope_from_node(
             if stmt_base_full_type_path == none and msgs != none {
                 msgs.add(new msg.FileMsg(
                     "Unexpected type statement with invalid base type, "
-                    "there isn't any import for this module: " +
-                    node.subexprs[1].type_path.join("."),
+                    "module '" +
+                    node.subexprs[1].type_path.join(".") +
+                    "' wasn't imported anywhere.",
                     source_file=self,
                     line=node.line, col=node.col,
                 ))
@@ -165,6 +169,8 @@ func project.ProjectFile.get_type_or_enum_scope_from_node(
             result_scope.base_key = base_key
         }
         self.project.type_or_enum_scope_map[key] = result_scope
+    } else {
+        result_scope = self.project.type_or_enum_scope_map[key]
     }
     if result_scope.is_enum != is_enum {
         var stmt_name = if is_enum ("enum") else ("type")

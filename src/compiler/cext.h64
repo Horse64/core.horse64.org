@@ -71,16 +71,21 @@ type CExtInfo {
     var name_to_cmodule_map = {->}
 }
 
-func CExtInfo.covers_import(importst, project=none) {
+func CExtInfo.import_to_modname(importst, project=none) {
     assert(self.package_name != none)
     if importst.package_name != self.package_name and
             (importst.package_name != none or
              project == none or
              project.package_name != self.package_name) {
-        return no
+        return none
     }
+    # FIXME: Add support for nested imports (e.g. if built-in
+    # is module a.b, importing just b inside folder a/ should work).
     var mod_name = importst.module_path.join(".")
-    return self.name_to_cmodule_map.has(mod_name)
+    if self.name_to_cmodule_map.has(mod_name) {
+        return mod_name
+    }
+    return none
 }
 
 func CExtInfo.as_str {

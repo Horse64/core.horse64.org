@@ -44,7 +44,11 @@ func project.Project.resolve_name_in_global_scope(
     }
 }
 
-func project.Project.compute_all_scopes(msgs) {
+func project.Project.compute_all_scopes(msgs, debug=no) {
+    if debug {
+        print("compiler.ast.storage: compute_all_scopes() " +
+            "starting...")
+    }
     assert(msgs != none)
     func try_register_symbol(
             local_scope, symbol_name, msgs, pfile, line, col
@@ -81,6 +85,26 @@ func project.Project.compute_all_scopes(msgs) {
         local_scope.func_scope.last_storage_id += 1
     }
     func compute_scope(pfile) {
+        if debug {
+            # Print out if we got weirdly missing file associations:
+            for entry in pfile.global_scope.name_to_stmt_map.values() {
+                if typename(entry) != "list" or
+                        entry[1].kind != ast.N_STMT_IMPORT {
+                    continue
+                }
+                if entry[1].project_file != none or
+                        entry[1].cext_modname != none {
+                    continue
+                }
+                print("compiler.ast.storage: compute_all_scopes()'s " +
+                    "compute_scope(): Warning, found import " +
+                    "statement with no corresponding project file or "
+                    "builtin module: " +
+                    entry[1].as_str())
+            }
+        }
+
+        # Do a visitation to figure out the local inner scopes:
         func assign_local_scope(node, parent) {
             if node.kind == ast.N_STMT_TYPE or
                     node.kind == ast.N_STMT_ENUM or

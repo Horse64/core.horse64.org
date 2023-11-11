@@ -291,7 +291,6 @@ func parse_extend_or_enum_or_type_header(
             basecount += 1
             pos += 1
 
-            var base_type_path = none
             while pos + 1 <= tokens_len and
                     tokens[pos].kind == token.T_DOT and
                     tokens[pos + 1].kind == token.T_IDENT {

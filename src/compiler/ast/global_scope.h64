@@ -75,7 +75,14 @@ func GlobalScope.type_path_to_project_file(tpath) {
     }
     for entry in self.name_to_stmt_map[tpath[1]] {
         assert(entry.kind == ast.N_STMT_IMPORT)
-        if tpath.len == 1 and entry.renamed_as != none {
+        if tpath.len == 1 and entry.renamed_as != none and
+                (tpath.join(".") == entry.renamed_as or
+                tpath.join(".").starts(entry.renamed_as + ".")) {
+            if entry.project_file == none and
+                    entry.cext_modname != none {
+                return entry.cext_modname + "@" +
+                    entry.cext_pkgname
+            }
             return entry.project_file
         }
         if entry.module_path.len != tpath.len {
@@ -163,7 +170,7 @@ func process_toplevel_stmt(
                 if not scope.name_to_stmt_map.has(name) {
                     scope.name_to_stmt_map[name] = []
                 }
-                scope.name_to_stmt_map[name].add(statement)
+                scope.name_to_stmt_map[name].add(statement.copy())
             } else {
                 # Note: to avoid keeping the entire AST in memory
                 # indirectly through this global scope, we make a

@@ -69,7 +69,7 @@ func tokenize_target_from_args(args) {
 }
 
 func parse_ast_target_from_args(args, checked_ast=no,
-        debug=no, debug_modules=no) {
+        debug=no, debug_modules=no, debug_scopes=no) {
     if args["--code"] != none {
         var tresult = compiler.ast.parse_str_to_ast(
             args["--code"], is_entrypoint=yes,
@@ -109,7 +109,7 @@ func parse_ast_target_from_args(args, checked_ast=no,
         print("compiler.main: parse_ast_target_from_args() " +
             "full list of project files that were processed: " +
             tresult.project_file.project.
-                module_to_file_map.values().as_str())
+                module_uri_to_file_map.values().as_str())
     }
     var had_error = no
     for m in tresult.msgs {
@@ -122,7 +122,8 @@ func parse_ast_target_from_args(args, checked_ast=no,
         return tresult
     }
 
-    tresult.project_file.project.compute_all_scopes(tresult.msgs)
+    tresult.project_file.project.compute_all_scopes(
+        tresult.msgs, debug=debug_scopes)
     later:
 
     return tresult
@@ -259,6 +260,9 @@ func actionparser_compile(args) {
         description="Enable debug module discovery. Prints out "
         "all file paths and associated modules when processing.")
     defs.add_switch(
+        "--debug-scopes",
+        description="Enable debug scope and storage computation.")
+    defs.add_switch(
         "--stage", takes_arg=yes,
         description="At which stage to stop. The default is "
             "\"binary\" which means full compilation, other "
@@ -364,6 +368,7 @@ func actionparser_compile(args) {
             result.args, checked_ast=yes,
             debug=result.args["--debug-ast"],
             debug_modules=result.args["--debug-modules"],
+            debug_scopes=result.args["--debug-scopes"],
         )
         later:
 

@@ -751,7 +751,7 @@ func ProjectFile.set_data_from_ast_result(result) {
         }
         for importst in entry {
             assert(importst != none)
-            self.imports.add(importst.copy())
+            self.imports.add(importst)
         }
     }
     self.global_scope = result.global_scope
@@ -854,7 +854,6 @@ func check_file_existence(file_uri, project=none) {
         return _known_readable_files[file_uri]
     }
     var protocol = uri.get_protocol(file_uri).lower()
-    var result
     if protocol == "file" or protocol == "vfs" {
         var upath = uri.to_file_or_vfs_path(file_uri)
         var result = check_file_existence_diskpath(
@@ -1076,7 +1075,8 @@ func ProjectFile.get_relative_imports_to_test(
 
 extend import_stmt.ImportStmt {
     var resolve_attempted = no
-    var is_builtin_ext = no
+    var cext_modname = none
+    var cext_pkgname = none
     var project_file = none
     var neighbor_project_files = []
 }
@@ -1262,7 +1262,7 @@ func add_neighbor_modules_to_result(
     if entries.len == 0 {
         return
     }
-    var next_file = entries.pop()
+    next_file = entries.pop()
     _unused = process_neighbor_import(next_file) later repeat
 }
 
@@ -1406,14 +1406,19 @@ func ProjectFile.resolve_all_imports(msgs=none,
                     else ("<not found>")
             )
         }
-        var covered_by_builtin_cext = no
-        if project_file == none and
-                self.project.builtin_cexts.covers_import(
-                importst, project=self.project) {
-            covered_by_builtin_cext = yes
+        # FIXME: Add support for C extensions outside of built-ins.
+        var is_builtin = no
+        var cext_modname = none
+        if project_file == none {
+            cext_modname =
+                self.project.builtin_cexts.import_to_modname(
+                importst, project=self.project)
+            if cext_modname != none {
+                is_builtin = yes
+            }
         }
         if project_file == none and not ignore_missing and
-                not covered_by_builtin_cext {
+                not is_builtin {
             if msgs != none {
                 msgs.add(new msg.FileMsg(
                     "Import failed, couldn't "
@@ -1430,7 +1435,10 @@ func ProjectFile.resolve_all_imports(msgs=none,
                 )
             }
         }
-        importst.is_builtin_ext = covered_by_builtin_cext
+        importst.cext_modname = cext_modname
+        if is_builtin {
+            importst.cext_pkgname = "core.horse64.org"
+        }
         importst.project_file = project_file
         if process_result != none {
             importst.neighbor_project_files +=
