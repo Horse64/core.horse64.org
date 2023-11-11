@@ -83,7 +83,7 @@ func parse_str(
 
         # Extract indentation:
         var indent = line.sub(1, line.len - line.ltrim(" \t").len)
-        var line = line.ltrim(" \t")
+        line = line.ltrim(" \t")
         if multiline_outer_indent != none {
             if not indent.startswith(multiline_outer_indent) or
                     indent.len <= multiline_outer_indent.len or
