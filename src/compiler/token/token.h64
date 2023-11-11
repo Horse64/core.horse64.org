@@ -2043,7 +2043,7 @@ func tokenize_from_fileobj (
         ))
         return result
     }
-    var result = tokenize_str(
+    result = tokenize_str(
         contents, project_file=project_file,
         keep_whitespace=keep_whitespace,
         keep_comments=keep_comments
