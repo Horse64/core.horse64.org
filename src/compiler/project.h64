@@ -428,14 +428,21 @@ func Project.get_modinfo_for_file(file_uri, rel_path=none) {
     modinfo.package_name = package_name
     modinfo.is_external_package = is_external_package
 
-    var horp_conf_uri = uri.add_part(package_dir_uri, "horp.conf")
+    var horp_conf_uri = none
+    if package_dir_uri != none {
+        horp_conf_uri =
+            uri.add_part(package_dir_uri, "horp.conf")
+    }
+    if horp_conf_uri == none {
+        return later modinfo
+    }
     var conf_exists = check_file_existence(
         horp_conf_uri, project=self
     ) later:
 
     await conf_exists
     if not conf_exists {
-        return modinfo
+        return later modinfo
     }
     var conf_contents = confparse.parse_from_uri(
         horp_conf_uri, error_on_mistakes=no
