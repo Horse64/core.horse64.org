@@ -86,6 +86,10 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
     }
     func compute_scope(pfile) {
         if debug {
+            print("compiler.ast.storage: compute_all_scopes() " +
+                "compute_scope() on: " + pfile.as_str())
+        }
+        if debug {
             # Print out if we got weirdly missing file associations:
             for entry in pfile.global_scope.name_to_stmt_map.values() {
                 if typename(entry) != "list" or

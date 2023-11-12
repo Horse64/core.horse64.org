@@ -554,6 +554,16 @@ func Project.do_for_all_files(callback) {
     for pfile in self.no_uri_files {
         file_queue.add(pfile)
     }
+    func sort_files(a, b) {
+        if a.source_uri == none {
+            if b.source_uri != none {
+                return no
+            }
+            return yes
+        }
+        return a.source_uri > b.source_uri
+    }
+    file_queue.sort(cmp=sort_files)
     var finished_with_no_abort = yes
     func process_next_file {
         if file_queue.len == 0 {
@@ -936,7 +946,9 @@ func ProjectFile.ensure_project(msgs=none) {
     ) later:
 
     if self.source_uri == none or self.modinfo != none {
-        self.project.no_uri_files.add(self)
+        if self.source_uri == none {
+            self.project.no_uri_files.add(self)
+        }
         return later none
     }
     var modinfo = self.project.get_modinfo_for_file(
