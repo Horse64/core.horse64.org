@@ -33,7 +33,8 @@ import compiler.project as project
 type SymbolInfo {
     var name
     var storage_id
-    var line, col
+    var def_line, def_col, def_uri
+    var value_node
 }
 
 func SymbolInfo.init(name) {
@@ -56,7 +57,7 @@ type EnumScope {
     const is_enum = yes
     var node_map = {->}
     var label_names = []
-    var label_values = []
+    var label_nums = []
     var def_line, def_col, def_uri
 }
 

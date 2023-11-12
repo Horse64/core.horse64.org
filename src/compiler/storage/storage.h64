@@ -126,11 +126,135 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                 }
                 var is_enum = if node.kind == ast.N_STMT_ENUM or
                     node.kind == ast.N_STMT_ENUMEXTEND (yes) else (no)
-                #if not is_enum {
-
-                #} else {
-
-                #}
+                if not is_enum {
+                    if node.subblocks.len < 1 {
+                        # This must be a faulty node, abort.
+                        return later node
+                    }
+                    for stmt in node.subblocks[1] {
+                        if stmt.kind == ast.N_STMT_VAR {
+                            var idx = 0
+                            for label in stmt.var_labels {
+                                idx += 1
+                                if not escope.name_to_symbol_map.
+                                        has(label) {
+                                    var symbol_info =
+                                        new scope.SymbolInfo(label)
+                                    symbol_info.def_ine = stmt.line
+                                    symbol_info.def_col = stmt.col
+                                    symbol_info.def_uri = pfile.source_uri
+                                    symbol_info.storage_id =
+                                        escope.name_to_symbol_map.len + 1
+                                    if idx <= stmt.subexprs.len {
+                                        symbol_info.value_node =
+                                            stmt.subexprs[idx]
+                                    }
+                                    escope.name_to_symbol_map[label] =
+                                        symbol_info
+                                    continue
+                                }
+                                # If we arrive here, this name is taken.
+                                var old_symbol =
+                                    escope.name_to_symbol_map[label]
+                                var where = "elsewhere"
+                                if old_symbol.def_uri != none {
+                                    where = "in " + old_symbol.def_uri
+                                    if old_symbol.def_line != none {
+                                        where += ":" +
+                                            old_symbol.def_line.as_str()
+                                        if old_symbol.def_col != none {
+                                            where += ":" +
+                                                old_symbol.def_col.as_str()
+                                        }
+                                    }
+                                }
+                                if msgs != none {
+                                    msgs.add(new msg.FileMsg(
+                                        "Invalid var attribute "
+                                        "with duplicate name '" +
+                                        label +
+                                        "', already defined " +
+                                        where + ".",
+                                        source_file=pfile,
+                                        line=stmt.line, col=stmt.col,
+                                    ))
+                                } else {
+                                    throw new ValueError("Invalid var "
+                                        "attribute with duplicate name.")
+                                }
+                            }
+                            continue
+                        }
+                        if msgs != none {
+                            msgs.add(new msg.FileMsg(
+                                "Invalid statement "
+                                "of type " +
+                                ast.NodeKind.num_label(stmt.kind) +
+                                ", expected var attributes for "
+                                "custom type starting in line " +
+                                node.line.as_str() + ", column " +
+                                node.column.as_str() + ".",
+                                source_file=pfile,
+                                line=stmt.line, col=stmt.col,
+                            ))
+                        } else {
+                            throw new ValueError("Invalid statement "
+                                "inside custom type of type " +
+                                ast.NodeKind.num_label(stmt.kind) +
+                                ", expected var or func attributes.")
+                        }
+                    }
+                } else {
+                    var idx = 0
+                    for label in node.enum_entry_names {
+                        idx += 1
+                        if not escope.label_names.has(label) {
+                            escope.label_names.add(label)
+                            var numval =
+                                node.enum_entry_nums[idx]
+                            if numval == none or
+                                    not escope.label_nums.has(
+                                    numval) {
+                                escope.label_nums.add(
+                                    numval
+                                )
+                                continue
+                            }
+                            if msgs != none {
+                                msgs.add(new msg.FileMsg(
+                                    "Invalid enum entry "
+                                    "with duplicate number value " +
+                                    numval.as_str() +
+                                    " for label '" +
+                                    label + "', already used "
+                                    "previously.",
+                                    source_file=pfile,
+                                    line=node.line, col=node.col,
+                                ))
+                            } else {
+                                throw new ValueError("Invalid enum "
+                                    "entry with duplicate "
+                                    "number value.")
+                            }
+                            continue
+                        }
+                        # If we arrive here, this name is taken.
+                        if msgs != none {
+                            msgs.add(new msg.FileMsg(
+                                "Invalid enum entry "
+                                "with duplicate name '" +
+                                label +
+                                "', already defined "
+                                "previously.",
+                                source_file=pfile,
+                                line=node.line, col=node.col,
+                            ))
+                        } else {
+                            throw new ValueError("Invalid enum "
+                                "entry with duplicate name.")
+                        }
+                    }
+                }
                 return
             }
             if node.scope == none {
@@ -201,6 +325,7 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
             }
             if node.kind == ast.N_STMT_VAR and
                     node.scope != none {
+                # Inside a function.
                 for label in node.var_labels {
                     try_register_symbol(node.scope,
                         label, msgs,
