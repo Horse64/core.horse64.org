@@ -49,6 +49,7 @@ type TypeScope {
     var node_map = {->}
     var name_to_symbol_map = {->}
     var base_key = none
+    var def_line, def_col, def_uri
 }
 
 type EnumScope {
@@ -56,6 +57,7 @@ type EnumScope {
     var node_map = {->}
     var label_names = []
     var label_values = []
+    var def_line, def_col, def_uri
 }
 
 type LocalScope {

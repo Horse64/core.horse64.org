@@ -64,7 +64,7 @@ func project.ProjectFile.type_path_to_full_module_path(tpath) {
 }
 
 func project.ProjectFile.get_type_or_enum_scope_from_node(
-        node, msgs=none) {
+        node, msgs=none, project_file=none) {
     assert(node.kind == ast.N_STMT_TYPE or
         node.kind == ast.N_STMT_TYPEEXTEND or
         node.kind == ast.N_STMT_ENUM or
@@ -116,7 +116,7 @@ func project.ProjectFile.get_type_or_enum_scope_from_node(
     } else {
         assert(node.kind == ast.N_STMT_TYPEEXTEND or
             node.kind == ast.N_STMT_ENUMEXTEND)
-        is_enum = if node.kind == ast.N_STMT_TYPE (no)
+        is_enum = if node.kind == ast.N_STMT_TYPEEXTEND (no)
                   else (yes)
         if node.subexprs.len < 1 or
                 node.subexprs[1].kind != ast.N_EXPR_IDREF {
@@ -163,6 +163,12 @@ func project.ProjectFile.get_type_or_enum_scope_from_node(
     if not self.project.type_or_enum_scope_map.has(key) {
         result_scope = if not is_enum (new scope.TypeScope())
                 else (new scope.EnumScope())
+        assert(result_scope.is_enum == is_enum)
+        result_scope.def_line = node.line
+        result_scope.def_col = node.col
+        if project_file != none {
+            result_scope.def_uri = project_file.source_uri
+        }
         if stmt_base_full_type_path != none {
             var base_key = stmt_base_full_type_path + "." +
                 stmt_base_label
@@ -176,9 +182,19 @@ func project.ProjectFile.get_type_or_enum_scope_from_node(
         var stmt_name = if is_enum ("enum") else ("type")
         var opposite_name = if is_enum ("type") else ("enum")
         if msgs != none {
+            var where = "elsewhere"
+            if result_scope.def_uri != none {
+                where = "in " + result_scope.def_uri
+                if result_scope.def_line != none {
+                    where += ":" + result_scope.def_line.as_str()
+                    if result_scope.def_col != none {
+                        where += ":" + result_scope.def_col.as_str()
+                    }
+                }
+            }
             msgs.add(new msg.FileMsg(
                 "This " + stmt_name + " statement has "
-                "a mismatched extend statement elsewhere "
+                "a mismatched extend statement " + where + " "
                 "treating it as " + opposite_name + ".",
                 source_file=self,
                 line=node.line, col=node.col,

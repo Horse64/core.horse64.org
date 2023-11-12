@@ -117,7 +117,7 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                 node.scope = none
                 node.func_scope = none
                 var escope = pfile.get_type_or_enum_scope_from_node(
-                    node, msgs=msgs
+                    node, msgs=msgs, project_file=pfile
                 )
                 if escope == none {
                     # Note: error has already been emitted by
