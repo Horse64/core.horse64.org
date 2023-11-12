@@ -579,21 +579,58 @@ def _container_sort(container, *args, **kwargs):
         if len(container) <= 1:
             return None
         sorted_container = None
-        if "cmp" in kwargs:
-            cmp_func = kwargs["cmp"]
+        if "by" in kwargs:
+            key_list = kwargs["by"]
+            if type(key_list) != list:
+                key_list = [key_list]
+            for key in key_list:
+                if type(key) not in {int, float, str}:
+                    raise _TypeError("invalid key name(s)")
+            key_container = container
+            if "from" in kwargs:
+                key_container = kwargs["from"]
+            if type(key_container) != list:
+                raise _TypeError("invalid key container type")
+            pairs = []
+            idx = 0
+            while idx < len(container):
+                pairs.append((container[idx],
+                    key_container[idx]))
+                idx += 1
             def do_cmp(a, b):
-                v = cmp_func(a, b)
-                if v == True:
-                    return -1
-                elif v == False:
-                    return 1
-                elif v == None:
-                    return None
-                raise ValueError("Given 'cmp' func returned "
-                    "invalid value.")
-            sorted_container = list(sorted(
-                container, key=functools.cmp_to_key(do_cmp)
+                for key_name in key_list:
+                    if (key_name in {int, float} or
+                            type(a[1]) in {dict}):
+                        idx = key_name
+                        if type(a[1]) == list:
+                            idx -= 1
+                        key_a = a[1][key_name]
+                    else:
+                        key_a = getattr(a[1], key_name)
+                    if (key_name in {int, float} or
+                            type(b[1]) in {dict}):
+                        idx = key_name
+                        if type(b[1]) == list:
+                            idx -= 1
+                        key_b = b[1][key_name]
+                    else:
+                        key_b = getattr(b[1], key_name)
+                    if key_a == key_b:
+                        continue
+                    if key_b == None:
+                        return -1
+                    elif key_a == None:
+                        return 1
+                    if key_a < key_b:
+                        return -1
+                    elif key_a > key_b:
+                        return 1
+                return 0
+            sorted_pairs = list(sorted(
+                pairs, key=functools.cmp_to_key(do_cmp)
             ))
+            sorted_container = [pair[0]
+                for pair in sorted_pairs]
         else:
             sorted_container = list(sorted(container))
         i = 0

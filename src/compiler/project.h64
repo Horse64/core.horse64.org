@@ -554,16 +554,7 @@ func Project.do_for_all_files(callback) {
     for pfile in self.no_uri_files {
         file_queue.add(pfile)
     }
-    func sort_files(a, b) {
-        if a.source_uri == none {
-            if b.source_uri != none {
-                return no
-            }
-            return yes
-        }
-        return a.source_uri > b.source_uri
-    }
-    file_queue.sort(cmp=sort_files)
+    file_queue.sort(by="source_uri")
     var finished_with_no_abort = yes
     func process_next_file {
         if file_queue.len == 0 {
