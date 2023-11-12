@@ -1504,7 +1504,7 @@ def transform_later_ifs_to_closures_inner(
                 if stmt_inner_blocks_use_later(
                         innerst, including_later_ignore=False
                         ) or stmt_is_later_call(innerst,
-                            include_return_later==True):
+                            include_return_later=True):
                     inner_uses_later = True
                     break
             if not inner_uses_later:
