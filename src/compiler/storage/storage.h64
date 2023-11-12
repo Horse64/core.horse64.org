@@ -172,20 +172,16 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                         pfile, node.line, node.col)
                 }
             }
-            if node.kind == ast.N_STMT_IF {
+            if node.kind == ast.N_STMT_IF or
+                    node.kind == ast.N_STMT_DO {
                 for clause in node.subexprs {
                     var inner_scope = new scope.LocalScope()
                     inner_scope.parent = node.scope
-                    for block in clause.subblocks {
-                        for stmt in block {
-                            stmt.scope = inner_scope
-                        }
+                    if inner_scope.parent != none and
+                            has_attr(inner_scope.parent, "func_scope") {
+                        inner_scope.func_scope =
+                            inner_scope.parent.func_scope
                     }
-                }
-            } elseif node.kind == ast.N_STMT_DO {
-                for clause in node.subexprs {
-                    var inner_scope = new scope.LocalScope()
-                    inner_scope.parent = node.scope
                     for block in clause.subblocks {
                         for stmt in block {
                             stmt.scope = inner_scope
