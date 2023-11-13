@@ -956,8 +956,6 @@ func Project.ensure_builtin_cexts(
     if self.builtin_cexts != none {
         return later
     }
-    print("our entrypoint is inline: " +
-        self.entrypoint_is_inline.as_str())
     var cfuncs = cext.scan_package_for_cexts(
         self, "hvm.horse64.org", msgs=msgs, debug=debug_modules,
         allow_project_independent_packages_fallback=
