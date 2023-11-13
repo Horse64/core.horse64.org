@@ -232,8 +232,7 @@ func get_comments_from_str(
     var groups = []
     var current_group = none
     for comment_line in comment_lines {
-        if {"#", "##", "//", "///",
-                "/*", "/**"}.has(comment_line.trim()) {
+        if comment_line == "" {
             if current_group != none {
                 groups.add(current_group)
             }
