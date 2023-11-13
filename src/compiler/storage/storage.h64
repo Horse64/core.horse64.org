@@ -44,7 +44,19 @@ func project.Project.resolve_name_in_global_scope(
     }
 }
 
+extend project.Project {
+    var did_compute_scopes = no
+}
+
 func project.Project.compute_all_scopes(msgs, debug=no) {
+    if self.did_compute_scopes {
+        if debug {
+            print("compiler.ast.storage: compute_all_scopes() " +
+                "got nothing to do, scopes already computed.")
+        }
+        return
+    }
+    self.did_compute_scopes = yes
     if debug {
         print("compiler.ast.storage: compute_all_scopes() " +
             "starting...")
@@ -409,5 +421,50 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
 
     await success
     return success
+}
+
+extend project.Project {
+    var did_compute_storage = no
+}
+
+func project.Project.check_all_storage(msgs, debug=no) {
+    if self.did_compute_storage {
+        if debug {
+            print("compiler.ast.storage: check_all_storage() " +
+                "got nothing to do, scopes already checked.")
+        }
+        return later no
+    }
+    self.did_compute_storage = yes
+    if debug {
+        print("compiler.ast.storage: check_all_storage() " +
+            "starting...")
+    }
+    var success = self.compute_all_scopes(msgs, debug=debug) later:
+
+    await success
+    if not success {
+        return later no
+    }
+    func check_scope(pfile) {
+        if debug {
+            print("compiler.ast.storage: check_all_storage() " +
+                "check_scope() on: " + pfile.as_str())
+        }
+        func check_node_scope(node, parent) {
+            return later none
+        }
+        var success = transform.visit_ast_tree(
+            pfile.ast, check_node_scope
+            ) later:
+
+        await success
+        assert(success == yes)
+    }
+    success = self.do_for_all_files(check_scope)
+    later:
+
+    await success
+    return later success
 }
 
