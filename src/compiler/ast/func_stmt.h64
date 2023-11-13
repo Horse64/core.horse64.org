@@ -224,13 +224,17 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         for arg in args.subexprs {
             if arg.kind == ast.N_EXPR_ARGNAME {
                 stmt.arg_labels.add(arg.label)
-            } else {
-                assert(arg.kind == ast.N_EXPR_CALLKWARG)
-                stmt.arg_labels.add(arg.label)
-                assert(arg.subexprs.len == 1)
-                stmt.arg_defaults.add(arg.subexprs[1])
-                stmt.kw_arg_count += 1
             }
+        }
+        for arg in args.subexprs {
+            if arg.kind == ast.N_EXPR_ARGNAME {
+                continue
+            }
+            assert(arg.kind == ast.N_EXPR_CALLKWARG)
+            stmt.arg_labels.add(arg.label)
+            assert(arg.subexprs.len == 1)
+            stmt.arg_defaults.add(arg.subexprs[1])
+            stmt.kw_arg_count += 1
         }
         pos += args.token_len
     }

@@ -103,7 +103,7 @@ func test_parse_func_stmt_2 {
     var msgs = []
 
     var v1 = ast.parse_str_to_ast(
-        "func main(a, b=2) {print('Hello World')}",
+        "func main(a, b=2, c) {print('Hello World')}",
         project_file=none, debug=no
     ) later:
     await v1
@@ -118,11 +118,14 @@ func test_parse_func_stmt_2 {
     assert(v1.stmts.len == 1)
     var func_stmt = v1.stmts[1]
     assert(func_stmt.label == "main")
-    assert(func_stmt.arg_labels.len == 2)
+    assert(func_stmt.arg_labels.len == 3)
     assert(func_stmt.arg_labels[1] == "a")
-    assert(func_stmt.arg_labels[2] == "b")
-    assert(func_stmt.arg_defaults.len == 2)
-    assert(func_stmt.arg_defaults[2].kind == ast.N_EXPR_LIT)
+    assert(func_stmt.arg_labels[2] == "c")
+    assert(func_stmt.arg_labels[3] == "b")
+    assert(func_stmt.kw_arg_count == 1)
+    assert(func_stmt.arg_defaults.len == 1)
+    assert(func_stmt.arg_defaults[1].kind == ast.N_EXPR_LIT)
+    assert(func_stmt.arg_defaults[1].value == 2)
     assert(func_stmt.subblocks.len == 1)
     assert(func_stmt.subblocks[1].len == 1)
     assert(func_stmt.subblocks[1][1].kind == ast.N_STMT_CALL)
