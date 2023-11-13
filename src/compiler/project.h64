@@ -71,6 +71,8 @@ type Project {
     var no_uri_files = {}
 
     var builtin_cexts = none
+
+    var entrypoint_is_inline = no
 }
 
 type ModuleInfo {
@@ -598,10 +600,33 @@ func Project.do_for_all_files(callback) {
     resume_queue = process_next_file() later repeat
 }
 
-func Project.find_package_dir_uri(package_name) {
-    if self.modules_dir_uri == none {
+func Project.find_package_dir_uri_fallback {
+    var cwd = io.working_dir()
+    var guess_dir = path.join(cwd, "horse_modules")
+    var result = io.exists(guess_dir, allow_vfs=no)
+    later:
+
+    await result
+    if not result {
         throw new RuntimeError("Must use guess_base_file_from_uri() "
-            "to set modules_dir_uri first.")
+            "to set modules_dir_uri first, or have "
+            "horse_modules folder in project independent directory.")
+    }
+    return uri.from_disk_path(guess_dir)
+}
+
+func Project.find_package_dir_uri(package_name,
+        allow_project_independent_fallback=no) {
+    if self.modules_dir_uri == none {
+        if not allow_project_independent_fallback {
+            throw new RuntimeError("Must use guess_base_file_from_uri() "
+                "to set modules_dir_uri first.")
+        }
+        var result = self.find_package_dir_uri_fallback()
+        later:
+
+        await result
+        return result
     }
     if self.package_name != none and
             package_name.lower() == self.package_name.lower() {
@@ -931,8 +956,12 @@ func Project.ensure_builtin_cexts(
     if self.builtin_cexts != none {
         return later
     }
+    print("our entrypoint is inline: " +
+        self.entrypoint_is_inline.as_str())
     var cfuncs = cext.scan_package_for_cexts(
-        self, "hvm.horse64.org", msgs=msgs, debug=debug_modules
+        self, "hvm.horse64.org", msgs=msgs, debug=debug_modules,
+        allow_project_independent_packages_fallback=
+            self.entrypoint_is_inline
     ) later:
 
     await cfuncs
@@ -945,6 +974,10 @@ func ProjectFile.ensure_project(msgs=none) {
         self.project = new Project()
         if self.wants_debug_modules {
             self.project.debug_modules = yes
+        }
+        if self.source_uri == none and
+                self.is_entrypoint {
+            self.project.entrypoint_is_inline = yes
         }
     }
     self.ensure_project_base_dir() later:

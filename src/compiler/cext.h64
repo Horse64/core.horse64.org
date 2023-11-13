@@ -104,11 +104,14 @@ func CExtInfo.as_str {
 }
 
 func scan_package_for_cexts(
-        base_project, package_name, msgs=none, debug=no) {
+        base_project, package_name, msgs=none, debug=no,
+        allow_project_independent_packages_fallback=no) {
     var cext_info = new CExtInfo()
     cext_info.package_name = package_name
     var dir_uri = base_project.find_package_dir_uri(
-        package_name) later:
+        package_name,
+        allow_project_independent_fallback=
+            allow_project_independent_packages_fallback) later:
 
     await dir_uri
     if dir_uri == none  {
