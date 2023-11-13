@@ -56,6 +56,7 @@ type TypeScope {
 type EnumScope {
     const is_enum = yes
     var node_map = {->}
+    var first_entry_pos
     var label_names = []
     var label_nums = []
     var def_line, def_col, def_uri

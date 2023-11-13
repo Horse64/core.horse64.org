@@ -210,6 +210,10 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                         idx += 1
                         if not escope.label_names.has(label) {
                             escope.label_names.add(label)
+                            if node.kind == ast.N_STMT_ENUM and
+                                    escope.first_entry_pos == none {
+                                escope.first_entry_pos = idx
+                            }
                             var numval =
                                 node.enum_entry_nums[idx]
                             if numval == none or
@@ -220,6 +224,7 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                                 )
                                 continue
                             }
+                            escope.label_nums.add(none)
                             if msgs != none {
                                 msgs.add(new msg.FileMsg(
                                     "Invalid enum entry "
