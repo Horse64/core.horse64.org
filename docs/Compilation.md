@@ -30,11 +30,13 @@ These are the current compilation stages of horsec as of 2023-11-02:
 
 4. `--stage transformed-code` takes the fully symbol resolved code and
    applies all concurrency transforms and the part of the optimizations
-   that happen still on the AST tree level.
+   that happen still on the AST tree level. You can alternatively
+   output the corresponding AST via `--stage corresponding-ast` if
+   desired.
 
 5. `--stage bytecode` will take the fully resolved and transformed
    AST and generate the resulting bytecode.
 
-6. (maybe upcoming at some point, another optimization stage on the
-   bytecode level)
+6. (Maybe upcoming at some point, another optimization stage on the
+   bytecode level.)
 
