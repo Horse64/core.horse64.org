@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import argparse from core.horse64.org
+import io from core.horse64.org
 import json from core.horse64.org
 import system from core.horse64.org
 
@@ -142,7 +143,7 @@ func show_ast_or_global_scope_result_to_terminal_or_file(
             had_error = yes
         }
     }
-    if for_script {
+    if for_script or output_file != none {
         var output = {
             "error"-> none,
             "msgs"-> [],
@@ -156,7 +157,18 @@ func show_ast_or_global_scope_result_to_terminal_or_file(
             print(json.dump(output))
             return later 1
         }
-        print(json.dump(output))
+        if output_dir != none {
+            print(json.dump(output))
+            return later 0
+        }
+        var f = io.open(output_file, "w") later:
+
+        await f
+        do {
+            f.write(json.dump(output)) later:
+        } finally {
+            f.close()
+        }
         return later 0
     } else {
         for m in msgs {
@@ -321,7 +333,8 @@ func actionparser_compile(args) {
         return 1
     }
     if result.args["--output-file"] != none {
-        if {"checked-ast", "ast", "transformed-ast"}.has(
+        if {"checked-ast", "ast", "transformed-ast",
+                    "global-scope"}.has(
                 result.args["--stage"]) and
                 not result.args["--output-file"].lower().ends(".json") {
             print(program_name + ": error: Expected "
@@ -442,7 +455,7 @@ func actionparser_compile(args) {
                     for_script=opt_for_script,
                     output_file=opt_output_file,
                     output_dir=opt_output_dir,
-                    is_global_scope=is_global_scope
+                    is_global_scope=no
                 ) later:
 
             await finalresult
@@ -490,7 +503,7 @@ func actionparser_compile(args) {
                     for_script=opt_for_script,
                     output_file=opt_output_file,
                     output_dir=opt_output_dir,
-                    is_global_scope=is_global_scope
+                    is_global_scope=no
                 ) later:
 
             await finalresult
