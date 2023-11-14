@@ -26,12 +26,12 @@ These are the current compilation stages of horsec as of 2023-11-02:
 
 3. `--stage checked-ast` processes all imports and applies the previous
    stages to them as well, and then does full project-wide symbol
-   resolution.
+   resolution to verify all symbol references.
 
-4. `--stage transformed-code` takes the fully symbol resolved code and
+4. `--stage transformed-code` takes the fully checked code and
    applies all concurrency transforms and the part of the optimizations
    that happen still on the AST tree level. You can alternatively
-   output the corresponding AST via `--stage corresponding-ast` if
+   output the corresponding AST via `--stage transformed-ast` if
    desired.
 
 5. `--stage bytecode` will take the fully resolved and transformed
