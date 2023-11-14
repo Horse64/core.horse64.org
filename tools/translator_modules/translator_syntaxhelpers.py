@@ -44,7 +44,6 @@ translator_py_script_dir = (
 )
 translator_py_script_path = os.path.abspath(__file__)
 
-
 def is_keyword(x):
     if x in {"if", "func", "import", "else",
             "type", "do", "rescue", "finally",
@@ -57,14 +56,12 @@ def is_keyword(x):
         return True
     return False
 
-
 def flatten(l):
     flat = []
     for sl in l:
         for item in sl:
             flat.append(item)
     return flat
-
 
 def identifier_or_keyword(x):
     if x == "" or type(x) != str:
@@ -81,11 +78,9 @@ def identifier_or_keyword(x):
         i += 1
     return True
 
-
 def is_identifier(v):
     return (identifier_or_keyword(v) and
         not is_keyword(v))
-
 
 def as_escaped_code_string(s):
     insert_value = "(b\""
@@ -107,7 +102,6 @@ def as_escaped_code_string(s):
     insert_value += "\").decode(\"utf-8\", \"replace\")"
     return insert_value
 
-
 def is_whitespace_token(s):
     if len(s) == 0:
         return False
@@ -115,7 +109,6 @@ def is_whitespace_token(s):
         if char not in [" ", "\t", "\n", "\r"]:
             return False
     return True
-
 
 def get_next_token(s):
     assert(type(s) == str)
@@ -221,7 +214,6 @@ def get_next_token(s):
         return s[:i]
     return s[:1]
 
-
 def get_statement_ranges_ex(t,
         range_type="expr"):
     assert(type(t) in {list, tuple})
@@ -252,7 +244,6 @@ def get_statement_ranges_ex(t,
         return ranges_fixed
     return ranges
 
-
 def adjust_to_absolute_indent(t, indent=""):
     old_indent = get_indent(t)
     if old_indent is None:
@@ -266,7 +257,6 @@ def adjust_to_absolute_indent(t, indent=""):
         t = increase_indent(t, removed=(
             len(old_indent) - len(indent)))
     return t
-
 
 def increase_indent(t, added="", removed=0):
     was_str = False
@@ -348,7 +338,6 @@ def increase_indent(t, added="", removed=0):
         return untokenize(new_tokens)
     return new_tokens
 
-
 def token_outside_brackets_idx(
         s, t, startidx = 0, startbdepth = 0):
     assert(type(s) == list and (
@@ -367,7 +356,6 @@ def token_outside_brackets_idx(
             return i
         i += 1
     return -1
-
 
 def get_statement_ranges_ex_with_confused_linebreaks(t,
         range_type="expr"):
@@ -746,17 +734,14 @@ def get_statement_ranges_ex_with_confused_linebreaks(t,
         return [[0, len(t)]]  # Default to full length expression.
     return []  # Default to no sub-blocks.
 
-
 def get_statement_expr_ranges(t):
     return get_statement_ranges_ex(
         t, range_type="expr")
-
 
 def get_statement_block_ranges(t):
     ranges = get_statement_ranges_ex(
         t, range_type="block")
     return ranges
-
 
 def firstnonblankidx(t):
     idx = 0
@@ -767,7 +752,6 @@ def firstnonblankidx(t):
         return -1
     return idx
 
-
 def firstnonblank(t):
     idx = 0
     while (idx < len(t) and
@@ -776,7 +760,6 @@ def firstnonblank(t):
     if idx >= len(t):
         return ""
     return t[idx]
-
 
 def nextnonblank(t, idx, no=1):
     while no > 0:
@@ -788,7 +771,6 @@ def nextnonblank(t, idx, no=1):
     if idx >= len(t):
         return ""
     return t[idx]
-
 
 def nextnonblanksameline(t, idx, no=1):
     while no > 0:
@@ -803,7 +785,6 @@ def nextnonblanksameline(t, idx, no=1):
         return ""
     return t[idx]
 
-
 def nextnonblankidx(t, idx, no=1):
     while no > 0:
         idx += 1
@@ -815,7 +796,6 @@ def nextnonblankidx(t, idx, no=1):
         return -1
     return idx
 
-
 def prevnonblank(t, idx, no=1):
     while no > 0:
         idx -= 1
@@ -826,7 +806,6 @@ def prevnonblank(t, idx, no=1):
     if idx < 0:
         return ""
     return t[idx]
-
 
 def expr_nonblank_equals(
         v1, v2, any_match_value=None,
@@ -924,7 +903,6 @@ def expr_nonblank_equals(
         i1 += 1
         i2 += 1
 
-
 def find_start_of_call_index_chain(s, i, debug=False):
     if debug:
         print("find_start_of_call_index_chain(): " +
@@ -1011,7 +989,6 @@ def is_number_token(v):
             return True
         return is_digit(v)
 
-
 def prevnonblankidx(t, idx, no=1):
     while no > 0:
         idx -= 1
@@ -1022,7 +999,6 @@ def prevnonblankidx(t, idx, no=1):
     if idx < 0:
         return -1
     return idx
-
 
 def get_statement_inline_funcs(t):
     assert(type(t) in {list, tuple})
@@ -1070,7 +1046,6 @@ def get_statement_inline_funcs(t):
             continue
     return result
 
-
 def tokenize(s):
     one_char_toks = {".", ",",
         "{",  "[", "(", ")", "]", "}"}
@@ -1091,7 +1066,6 @@ def tokenize(s):
         len_s -= len_t
     return tokens
 
-
 def is_h64op_with_righthand(v):
     if v in {"and", "or", "not", "+", "-", "*", "/",
             ">", "<", "->", "**",
@@ -1101,7 +1075,6 @@ def is_h64op_with_righthand(v):
         return True
     return False
 
-
 def is_h64op_with_lefthand(v):
     if v in {"and", "or", "+", "-", "*", "/",
             ">", "<", "->", ".", "!=", "=", "==",
@@ -1110,7 +1083,6 @@ def is_h64op_with_lefthand(v):
     if len(v) == 2 and v[1] == "=":
         return True
     return False
-
 
 def has_no_ascii_letters(v):
     if v == "":
@@ -1124,7 +1096,6 @@ def has_no_ascii_letters(v):
         i += 1
     return True
 
-
 def has_any_ascii_letters(v):
     if v == "":
         return False
@@ -1137,40 +1108,42 @@ def has_any_ascii_letters(v):
         i += 1
     return False
 
+must_continue_after_toks = {
+    "->", "(", "[", "{", "later",
+    "elseif", "throw", "var", "const",
+    "func", "if", "while", "for", "do",
+    ",", "else", "as", "in", "from",
+    "rescue", "finally", "elseif",
+    "enum", "await"}
+must_continue_before_toks = {
+    "->", "(", "[", ":", "later",
+    "repeat", "elseif",
+    ",", "else", "as", "in", "from",
+    "rescue", "finally", "elseif"
+}
+must_stop_before_toks = {
+    # XXX: does NOT include "func" or "if"! (Can be inline!)
+    "var", "const", "throw", "return",
+    "while", "with", "do", "enum", "type", "import",
+    "for", "await",
+}
 
-def get_next_statement(s):
-    if len(s) == 0:
+def get_next_statement(s, pos):
+    s_len = len(s)
+    if s_len <= pos:
         return []
-    must_continue_after_toks = {
-        "->", "(", "[", "{", "later",
-        "elseif", "throw", "var", "const",
-        "func", "if", "while", "for", "do",
-        ",", "else", "as", "in", "from",
-        "rescue", "finally", "elseif",
-        "enum", "await"}
-    must_continue_before_toks = {
-        "->", "(", "[", ":", "later",
-        "repeat", "elseif",
-        ",", "else", "as", "in", "from",
-        "rescue", "finally", "elseif"
-    }
-    must_stop_before_toks = {
-        # XXX: does NOT include "func" or "if"! (Can be inline!)
-        "var", "const", "throw", "return",
-        "while", "with", "do", "enum", "type", "import",
-        "for", "await",
-    }
     last_nonwhitespace_token = ""
     token_count = 0
     bracket_nesting = 0
     _future_last_token = None
-    i = -1
-    for t in s:
+    i = pos - 1
+    while i + 1 < s_len:
         if (_future_last_token != None and
                 _future_last_token.strip(" \t\r\n") != ""):
             last_nonwhitespace_token = _future_last_token
-        _future_last_token = t
         i += 1
+        _future_last_token = s[i]
+        t = s[i]
         token_count += 1
         if t in ["(", "[", "{"]:
             bracket_nesting += 1
@@ -1182,7 +1155,7 @@ def get_next_statement(s):
                 is_whitespace_token(t) and
                 nextnonblank(t, i) in
                 must_stop_before_toks))):
-            return s[:token_count - 1]  # Stop EXCLUDING token.
+            return s[pos:pos + token_count - 1]  # Stop EXCLUDING token.
         if ((last_nonwhitespace_token != "" and (
                 is_whitespace_token(t) and
                 nextnonblank(t, i) in
@@ -1198,7 +1171,7 @@ def get_next_statement(s):
             if (not nt in must_continue_before_toks and
                     not is_h64op_with_lefthand(nt) and
                     not nt in {"(", "{", "["}) :
-                return s[:token_count]
+                return s[pos:pos + token_count]
         if (bracket_nesting == 0 and
                 (t.endswith("\n") or t.endswith("\r")) and
                 last_nonwhitespace_token != "," and
@@ -1210,34 +1183,34 @@ def get_next_statement(s):
             is_string_continuation = False
             if (last_nonwhitespace_token.endswith("\"") or
                     last_nonwhitespace_token.endswith("'")):
-                z = token_count
+                z = pos + token_count
                 while z < len(s) and s[z].strip(" \t\r\n") == "":
                     z += 1
                 if z < len(s) and (
                         s[z].endswith("\"") or s[z].endswith("'")):
                     is_string_continuation = True
             if not is_string_continuation:
-                return s[:token_count]  # Stop INCLUDING token.
+                return s[pos:pos + token_count]  # Stop INCLUDING token.
         assert(bracket_nesting >= 0), \
             "failed to find terminating bracket in: " + str(s)
-    return s
-
+    return s[pos:]
 
 def is_whitespace_statement(tokens):
-        for token in tokens:
-            for c in token:
-                if not is_whitespace_token(c):
-                    return False
-        return True
-
+    for token in tokens:
+        for c in token:
+            if not is_whitespace_token(c):
+                return False
+    return True
 
 def split_toplevel_statements(s, skip_whitespace=True):
     assert(type(s) in {list, tuple})
     if len(s) == 0:
         return []
     statements = []
-    while True:
-        next_stmt = get_next_statement(s)
+    len_s = len(s)
+    i = 0
+    while i < len_s:
+        next_stmt = get_next_statement(s, i)
         if len(next_stmt) == 0:
             return statements
         if (not skip_whitespace or
@@ -1247,14 +1220,14 @@ def split_toplevel_statements(s, skip_whitespace=True):
             if ("".join(statements[-1]).strip("\r\n") ==
                     "".join(statements[-1])):
                 statements[-1] += ["\n"]
-        s = s[len(next_stmt):]
+        i += len(next_stmt)
     return statements
 
+_brackets = {"(", "[", "{",
+    "}", "]", ")"}
 
 def is_bracket(v):
-    return v in {"(", "[", "{",
-        "}", "]", ")"}
-
+    return v in _brackets
 
 def tokens_need_spacing(v1, v2):
     if v1 == "" or v2 == "":
@@ -1290,7 +1263,6 @@ def tokens_need_spacing(v1, v2):
         return False
     return True
 
-
 def untokenize(tokens):
     assert(type(tokens) in {list, tuple})
     result_l = []
@@ -1310,7 +1282,6 @@ def untokenize(tokens):
         result_l.append(token)
         prevtoken = token
     return "".join(result_l)
-
 
 def tree_transform_statements(
         code, callback_statement_list, inside_out=False
@@ -1370,24 +1341,23 @@ def tree_transform_statements(
         return untokenize(final_tokens)
     return final_tokens
 
-
 def get_leading_whitespace(st):
     if type(st) == str:
         st = [st]
+    len_st = len(st)
     leading = ""
     i = 0
-    while i < len(st):
-        if st[i].strip(" \r\n\t") != "":
+    while i < len_st:
+        lstrip = st[i].lstrip(" \r\n\t")
+        if lstrip != "":
             len_diff = (len(st[i]) -
-                len(st[i].lstrip(" \r\n\t")))
-            if len_diff > 0:
-                leading += st[i][:len_diff]
+                len(lstrip))
+            leading += st[i][:len_diff]
             return leading
         else:
             leading += st[i]
         i += 1
     return leading
-
 
 def separate_out_inline_funcs(s):
     def do_separate_out(sts):
@@ -1580,7 +1550,6 @@ def sanity_check_h64_codestring(s, filename="", modname=""):
         else:
             col += len(token)
 
-
 def get_indent(statement):
     s = statement
     if type(s) == list:
@@ -1605,7 +1574,6 @@ def get_indent(statement):
     if indentlen < len(s):
         result = s[:indentlen]
     return result
-
 
 def make_kwargs_in_call_tailing(s):
     was_str = False
@@ -1758,7 +1726,6 @@ def make_kwargs_in_call_tailing(s):
         return untokenize(s)
     return s
 
-
 def mirror_brackets(s):
     revs = {
         "(": ")",
@@ -1777,7 +1744,6 @@ def mirror_brackets(s):
             snew += s[i]
         i += 1
     return snew
-
 
 def idx_of_lineend(st, i, forward_first=False):
     assert(type(st) == list)
@@ -1823,7 +1789,6 @@ def idx_of_lineend(st, i, forward_first=False):
 
     return None
 
-
 def cut_tokens_after_lineend(st, i):
     assert(type(st) == list)
     assert(len(st) == 0 or type(st[0]) == str)
@@ -1834,7 +1799,6 @@ def cut_tokens_after_lineend(st, i):
     if i == None:
         raise ValueError("no line split point found")
     return st[:i]
-
 
 def stmt_is_later_call(st, include_later_ignore=False,
         include_return_later=False):
