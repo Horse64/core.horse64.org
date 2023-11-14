@@ -122,10 +122,12 @@ func parse_ast_target_from_args(args, checked_ast=no,
         return tresult
     }
 
-    tresult.project_file.project.check_all_storage(
+    var success = tresult.project_file.project.check_all_storage(
         tresult.msgs, debug=debug_storage)
     later:
 
+    await success
+    assert(success == yes)
     return tresult
 }
 
@@ -312,11 +314,35 @@ func actionparser_compile(args) {
     }
     if result.args["--output-dir"] != none and
             not {"transformed-code", "checked-ast",
-                 "transformed-ast"} {
-        print(program_name + ": error: Can't combine "
-            "--output-file and --output-dir options.")
+                 "transformed-ast"}.has(result.args["--stage"]) {
+        print(program_name + ": error: This stage doesn't support "
+            "the --output-dir option.")
         print("Use " + program_name + " compile --help to show usage.")
         return 1
+    }
+    if result.args["--output-file"] != none {
+        if {"checked-ast", "ast", "transformed-ast"}.has(
+                result.args["--stage"]) and
+                not result.args["--output-file"].lower().ends(".json") {
+            print(program_name + ": error: Expected "
+                "--output-file to be a .json file for this stage.")
+            print("Use " + program_name + " compile --help to show usage.")
+            return 1
+        } elseif {"transformed-code"}.has(
+                result.args["--stage"]) and
+                not result.args["--output-file"].lower().ends(".h64") {
+            print(program_name + ": error: Expected "
+                "--output-file to be a .h64 file for this stage.")
+            print("Use " + program_name + " compile --help to show usage.")
+            return 1
+        } elseif {"bytecode"}.has(
+                result.args["--stage"]) and
+                not result.args["--output-file"].lower().ends(".hasm") {
+            print(program_name + ": error: Expected "
+                "--output-file to be a .hasm file for this stage.")
+            print("Use " + program_name + " compile --help to show usage.")
+            return 1
+        }
     }
     var opt_output_file = result.args["--output-file"]
     var opt_output_dir = result.args["--output-dir"]
