@@ -129,9 +129,10 @@ func parse_ast_target_from_args(args, checked_ast=no,
     return tresult
 }
 
-func show_ast_or_global_scope_result_to_terminal(
+func show_ast_or_global_scope_result_to_terminal_or_file(
         aresult, msgs, program_name=none, for_script=no,
-        is_global_scope=no
+        is_global_scope=no, output_file=none,
+        output_dir=none
         ) {
     var had_error = no
     for m in msgs {
@@ -151,10 +152,10 @@ func show_ast_or_global_scope_result_to_terminal(
         if had_error {
             output["error"] = "Code has errors."
             print(json.dump(output))
-            return 1
+            return later 1
         }
         print(json.dump(output))
-        return 0
+        return later 0
     } else {
         for m in msgs {
             print(m.as_terminal_str(prefix=program_name))
@@ -172,9 +173,9 @@ func show_ast_or_global_scope_result_to_terminal(
                 }
             }
             print(output)
-            return 0
+            return later 0
         }
-        return 1
+        return later 1
     }
 }
 
@@ -275,6 +276,12 @@ func actionparser_compile(args) {
             "horseasm for stage setting \"bytecode\", or json file "
             "for any other stage that isn't \"binary\".")
     defs.add_switch(
+        "--output-dir", takes_arg=yes,
+        description="Can be used for the \"transformed-code\", "
+            "\"checked-ast\", \"transformed-ast\" stages to "
+            "write out an output file corresponding to each module in "
+            "the project (rather than just the entrypoint module).")
+    defs.add_switch(
         "--for-script",
         description="This switch formats horsec's terminal output (like"
             "e.g. the errors when compiling) as JSON.")
@@ -283,16 +290,39 @@ func actionparser_compile(args) {
         print(result.output)
         return result.exit_code
     }
+
+    # Sanity check the provided options first:
+
     if result.args["--code"] == none and
             result.args["source file"] == none {
         print(program_name + ": error: Must specify "
             "source file or --code option.")
-        print("Use " + program_name + " --help to show usage.")
+        print("Use " + program_name + " compile --help to show usage.")
         return 1
     }
     if result.args["--stage"] == none {
         result.args["--stage"] = "binary"
     }
+    if result.args["--output-dir"] != none and
+            result.args["--output-file"] != none {
+        print(program_name + ": error: Can't combine "
+            "--output-file and --output-dir options.")
+        print("Use " + program_name + " compile --help to show usage.")
+        return 1
+    }
+    if result.args["--output-dir"] != none and
+            not {"transformed-code", "checked-ast",
+                 "transformed-ast"} {
+        print(program_name + ": error: Can't combine "
+            "--output-file and --output-dir options.")
+        print("Use " + program_name + " compile --help to show usage.")
+        return 1
+    }
+    var opt_output_file = result.args["--output-file"]
+    var opt_output_dir = result.args["--output-dir"]
+    var opt_for_script = result.args["--for-script"]
+
+    # Actually execute what was asked of us:
 
     if result.args["--stage"] == "tokens" {
         var tresult = tokenize_target_from_args(result.args)
@@ -344,21 +374,26 @@ func actionparser_compile(args) {
         var aresult = parse_ast_target_from_args(
             result.args, checked_ast=no,
             debug=result.args["--debug-ast"],
-            debug_modules=result.args["--debug-modules"],
+            debug_modules=result.args["--debug-modules"]
         )
         later:
 
         await aresult
         var is_global_scope = (
             result.args["--stage"] == "global-scope")
-        return show_ast_or_global_scope_result_to_terminal(
-            if is_global_scope
-                (aresult.global_scope) else (aresult),
-            aresult.msgs,
-            program_name=program_name,
-            for_script=result.args["--for-script"],
-            is_global_scope=is_global_scope,
-        )
+        var to_be_printed_obj = if is_global_scope
+           (aresult.global_scope) else (aresult)
+        var finalresult =
+            show_ast_or_global_scope_result_to_terminal_or_file(
+                to_be_printed_obj, aresult.msgs,
+                program_name=program_name,
+                for_script=opt_for_script,
+                output_file=opt_output_file,
+                is_global_scope=is_global_scope
+            ) later:
+
+        await finalresult
+        return finalresult
     } elseif result.args["--stage"] == "checked-ast" or
             result.args["--stage"] == "transformed-code" or
             result.args["--stage"] == "transformed-ast" or
@@ -374,14 +409,20 @@ func actionparser_compile(args) {
 
         await aresult
         if result.args["--stage"] == "checked-ast" {
-            return show_ast_or_global_scope_result_to_terminal(
-                aresult,
-                aresult.msgs,
-                program_name=program_name,
-                for_script=result.args["--for-script"],
-                is_global_scope=is_global_scope,
-            )
+            var finalresult =
+                show_ast_or_global_scope_result_to_terminal_or_file(
+                    aresult, aresult.msgs,
+                    program_name=program_name,
+                    for_script=opt_for_script,
+                    output_file=opt_output_file,
+                    output_dir=opt_output_dir,
+                    is_global_scope=is_global_scope
+                ) later:
+
+            await finalresult
+            return finalresult
         }
+
         # Continuing here, we want to transform the code.
         # If the AST wasn't succesfully created, abort:
         var had_error = no
@@ -412,16 +453,22 @@ func actionparser_compile(args) {
         # Apply code transformation:
 
         if result.args["--stage"] == "transformed-code" {
-            print(aresult.return_code())
+            print(aresult.dump_as_code())
             return 0
-        } elseif result.args["--stage"] == "transformed-ast" {
-            return show_ast_or_global_scope_result_to_terminal(
-                aresult,
-                aresult.msgs,
-                program_name=program_name,
-                for_script=result.args["--for-script"],
-                is_global_scope=is_global_scope,
-            )
+        }
+        if result.args["--stage"] == "transformed-ast" {
+            var finalresult =
+                show_ast_or_global_scope_result_to_terminal_or_file(
+                    aresult, aresult.msgs,
+                    program_name=program_name,
+                    for_script=opt_for_script,
+                    output_file=opt_output_file,
+                    output_dir=opt_output_dir,
+                    is_global_scope=is_global_scope
+                ) later:
+
+            await finalresult
+            return finalresult
         }
         assert(result.args["--stage"] == "bytecode" or
             result.args["--stage"] == "binary")

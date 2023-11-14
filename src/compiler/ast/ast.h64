@@ -198,7 +198,7 @@ type ASTResult {
     var token_len
 }
 
-func ASTResult.return_code {
+func ASTResult.dump_as_code {
     var t = ""
     for stmt in self.stmts {
         t += stmt.as_code() + "\n"
