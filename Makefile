@@ -32,6 +32,6 @@ test-translator:
 	@echo "Regular unit tests done!"
 	@# Regular test suite from here:
 	@echo -e "\033[95;40mTesting the bootstrap translator with full test suite...\033[0m"
-	tools/testfind_translated.py --tl-opt stdlib,. .
+	tools/testfind_translated.py --exclude-dir tests/compile-fail --tl-opt stdlib,. .
 	@# Done!
 	@echo -e "\033[92;40mCompleted tests for bootstrap translator.\033[0m"

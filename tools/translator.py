@@ -268,8 +268,8 @@ remapped_uses = {
         "system.exit" : "_remapped_sys.exit",
         "system.osname":
             "_translator_runtime_helpers._system_osname",
-        "system.program_compiled_with":
-            "(lambda: \"horse64-translator-py v\" + " +
+        "system.program_compiler_name":
+            "(\"horse64-translator-py v\" + " +
             as_escaped_code_string(VERSION) + ")",
         "system.program_licenses_as_list":
             "(lambda: _translator_runtime_helpers._return_licenses())",

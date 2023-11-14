@@ -24,33 +24,52 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-import threading from core.horse64.org
-import time from core.horse64.org
-
-func complicated_func {
-    my_lock = threading.make_lock()
-    my_lock.lock() later:
-    do {
-        print("pre first sleep")
-        var f = time.sleep(0.2) later:
-        await f
-        print("post first sleep")
-        do {
-            print("pre second sleep")
-            var result = time.sleep(0.2) later:
-            await result
-            print("post second sleep")
-        } finally {
-            print("run finally inner")
-        }
-    } finally {
-        print("run finally")
-        my_lock.unlock()
+func oopsie_func(v) {
+    if typename(v) != "num" {
+        throw new TypeError("oopsie, wrong value")
     }
+    return v + 1
 }
 
-func test_do {
-    complicated_func() later:
-    return
+type ToCloseObj {
+    var closed = no
+}
+
+func ToCloseObj.close {
+    self.closed = yes
+}
+
+func test_rescue_examples {
+    var x = 1
+    do {
+        x = oopsie_func("abc")  # Shouldn't run
+    } rescue TypeError {
+        x += 2  # Should run, x now 3
+    }
+    assert(x == 3)
+    do {
+        do {
+            x = oopsie_func("florb")  # Shouldn't run
+        } rescue ValueError {
+            x += 2  # Shouldn't run
+        } finally {
+            x -= 1  # Should run, x now 2
+        }
+    } rescue TypeError {
+        x += 4  # Should run, x now 6
+    } finally {
+        x += 10  # Should run, x now 16
+    }
+    assert(x == 16)
+    oopsie_func(x)
+    assert(x == 16)
+    x = oopsie_func(x)
+    assert(x == 17)
+
+    # Test that with blocks also work:
+    with new ToCloseObj() as f {
+        assert(not f.closed)
+    }  # End bracket should call f.close()
+    assert(f.closed)
 }
 

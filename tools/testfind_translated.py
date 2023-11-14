@@ -58,6 +58,7 @@ if __name__ == "__main__":
         print("tools/testfind_translated.py V1")
         sys.exit(0)
     translator_options = []
+    exclude_paths = []
     discovery_path = None
     i = -1
     while i + 1 < len(args):
@@ -66,6 +67,27 @@ if __name__ == "__main__":
         if arg.startswith("-"):
             if arg == "--debug-cmd":
                 debug_cmd = True
+            elif arg == "--exclude-dir":
+                if (i + 1 > len(args) or
+                        args[i + 1].startswith("-")):
+                    print("tools/testfind_translated.py: "
+                        "error: missing argument " +
+                        "for --exclude-dir")
+                    sys.exit(1)
+                p = args[i + 1]
+                p = p.replace("/", os.path.sep)
+                while p.startswith("." + os.path.sep):
+                    p = p[2:]
+                while os.path.sep + os.path.sep in p:
+                    p = p.replace(os.path.sep + os.path.sep,
+                        os.path.sep)
+                if p.startswith(os.path.sep):
+                    p = p[1:]
+                if not p.endswith(os.path.sep):
+                    p += os.path.sep
+                exclude_paths.append(p)
+                i += 1
+                continue
             elif arg == "--tl-opt":
                 if (i + 1 > len(args) or
                         args[i + 1].startswith("-")):
@@ -112,9 +134,17 @@ if __name__ == "__main__":
                 (platform.system().lower() == "windows" and
                 base_relpath.startswith("\\"))):
             base_relpath = base_relpath[1:]
+        skip = False
+        for exclude_dir in exclude_paths:
+            compare_path = base_relpath.replace("/", os.path.sep)
+            if not compare_path.endswith(os.path.sep):
+                compare_path += os.path.sep
+            for exclude_dir in exclude_paths:
+                if compare_path.startswith(exclude_dir):
+                    skip = True
         if len(set(base_relpath.replace("\\", "/").split("/")).\
                 intersection({".git", "horse_modules",
-                "__pycache__", ".hg"})) > 0:
+                "__pycache__", ".hg"})) > 0 or skip:
             continue
         for f in files:
             if f.startswith("test_") and f.endswith(".h64"):

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -24,55 +24,23 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import typefile1
 
-func oopsie_func(v) {
-    if typename(v) != "num" {
-        throw new TypeError("oopsie, wrong value")
-    }
-    return v + 1
+type Apple2 base typefile1.Apple1 {
+
 }
 
-
-type ToCloseObj {
-    var closed = no
+func Apple2.v {
+    return yes
 }
 
+type Banana2 {
 
-func ToCloseObj.close {
-    self.closed = yes
 }
 
+type Banana2_2 base typefile1.Banana1 {
 
-func test_rescue_examples {
-    var x = 1
-    do {
-        x = oopsie_func("abc")  # Shouldn't run
-    } rescue TypeError {
-        x += 2  # Should run, x now 3
-    }
-    assert(x == 3)
-    do {
-        do {
-            x = oopsie_func("florb")  # Shouldn't run
-        } rescue ValueError {
-            x += 2  # Shouldn't run
-        } finally {
-            x -= 1  # Should run, x now 2
-        }
-    } rescue TypeError {
-        x += 4  # Should run, x now 6
-    } finally {
-        x += 10  # Should run, x now 16
-    }
-    assert(x == 16)
-    oopsie_func(x)
-    assert(x == 16)
-    x = oopsie_func(x)
-    assert(x == 17)
-
-    # Test that with blocks also work:
-    with new ToCloseObj() as f {
-        assert(not f.closed)
-    }  # End bracket should call f.close()
-    assert(f.closed)
 }
+
+var oops2 = (new Apple2()).v()
+

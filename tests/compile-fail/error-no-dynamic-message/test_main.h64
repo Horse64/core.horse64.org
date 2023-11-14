@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -24,11 +24,9 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-
-func test_inline_func_execution {
-    var x = 1
-    x = (func z {
-        return z * 3
-    })(x)
-    assert(x == 3)
+func test_basic_things {
+    # This is not allowed, because errors can't be
+    # constructed with a dynamic message:
+    var e = new ValueError("Abc: " + 5)
 }
+

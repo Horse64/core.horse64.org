@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -24,23 +24,11 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-import typefile1
-
-type Apple2 base typefile1.Apple1 {
-
+type BaseType {
+    var count0 = 0
 }
 
-func Apple2.v {
-    return yes
+type MyType base BaseType {
+    var count1 = 1
 }
-
-type Banana2 {
-
-}
-
-type Banana2_2 base typefile1.Banana1 {
-
-}
-
-var oops2 = (new Apple2()).v()
 
