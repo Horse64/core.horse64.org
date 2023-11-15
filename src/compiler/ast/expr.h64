@@ -1345,7 +1345,7 @@ func parse_expression_unwrapped(
             }
             return no
         }
-        outer_level_ops_at.sort(sort_by=[2, 1])
+        outer_level_ops_at.sort(by=[2, 1])
         if debug {
             var debugmsg = "compiler.ast.expr: "
                 "parse_expression_unwrapped() " +
