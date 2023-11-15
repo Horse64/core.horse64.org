@@ -536,7 +536,7 @@ func actionparser_compile(args) {
                 }
                 assert(opt_output_dir != none)
                 success = aresult.project_file.project.
-                    do_for_all_files(check_scope)
+                    do_for_all_files(output_to_folder)
                 later:
 
                 await success
