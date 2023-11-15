@@ -327,6 +327,8 @@ remapped_uses = {
             "_translator_runtime_helpers._uri_encode_path",
         "uri.dirname":
             "_translator_runtime_helpers._uri_dirname",
+        "uri.basename":
+            "_translator_runtime_helpers._uri_basename",
         "uri.add_part":
             "_translator_runtime_helpers._uri_add_part",
         "uri.traverse_up":

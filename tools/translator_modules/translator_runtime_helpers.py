@@ -952,6 +952,18 @@ def _uri_add_path(v):
         urlobj, replace_path=new_path
     )
 
+def _uri_basename(v):
+    if (v.lower().startswith("file://") or
+            v.lower().startswith("vfs://")):
+        protocol = v.partition("://")[0].lower()
+        dirpath = urllib.parse.unquote(v.partition("://")[2])
+        dirpath = dirpath.replace("/", os.path.sep)
+        return os.path.basename(dirpath)
+    urlobj = urllib.parse.urlparse(_uri_normalize(v))
+    new_path = urlobj.path
+    new_path = new_path.replace("/", os.path.sep)
+    return os.path.basename(new_path)
+
 def _uri_dirname(v):
     if (v.lower().startswith("file://") or
             v.lower().startswith("vfs://")):
@@ -990,7 +1002,7 @@ def _uri_add_part(v, part):
     elif (not new_path.endswith("/") and
             not part.startswith("/")):
         part = "/" + part
-    new_path += part
+    new_path += part.replace(os.path.sep, "/")
     if urlobj.scheme.lower() in ["file", "vfs"]:
         return urlobj.scheme.lower() + "://" + new_path
     return _pyurlobj_to_str(
