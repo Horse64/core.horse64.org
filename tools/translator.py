@@ -191,6 +191,8 @@ remapped_uses = {
             "_remapped_os.getcwd",
         "io.open":
             "_translator_runtime_helpers._io_open",
+        "io.make_dir":
+            "_translator_runtime_helpers._io_make_dir",
         "io.exists":
             "_translator_runtime_helpers._io_exists",
         "io.is_dir":

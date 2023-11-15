@@ -599,7 +599,7 @@ def _container_sort(container, *args, **kwargs):
                 idx += 1
             def do_cmp(a, b):
                 for key_name in key_list:
-                    if (key_name in {int, float} or
+                    if (type(key_name) in {int, float} or
                             type(a[1]) in {dict}):
                         idx = key_name
                         if type(a[1]) == list:
@@ -607,7 +607,7 @@ def _container_sort(container, *args, **kwargs):
                         key_a = a[1][key_name]
                     else:
                         key_a = getattr(a[1], key_name)
-                    if (key_name in {int, float} or
+                    if (type(key_name) in {int, float} or
                             type(b[1]) in {dict}):
                         idx = key_name
                         if type(b[1]) == list:
@@ -1444,6 +1444,54 @@ def _make_lock():
             self._lock.release()
     return _TranslatorLock()
 
+def _io_make_dir(v, cb, allow_vfs=True, allow_disk=True,
+        ignore_exists=False, allow_nested=False):
+    def async_exists_do(job):
+        v = job.userdata["v"]
+        allow_vfs = job.userdata["allow_vfs"]
+        allow_disk = job.userdata["allow_disk"]
+        ignore_exists = job.userdata["ignore_exists"]
+        allow_nested = job.userdata["allow_nested"]
+        if v == "":
+            v = "."
+        if not allow_disk:
+            result = [ValueError(), None]
+        else:
+            try:
+                result = [None, None]
+                if allow_nested:
+                    _wrap_io(os.makedirs)(v)
+                else:
+                    _wrap_io(os.mkdir)(v)
+            except Exception as e:
+                if ignore_exists and (
+                        isinstance(e, FileExistsError) or
+                        isinstance(e,
+                            _PathAlreadyExistsError)):
+                    result = [None, None]
+                else:
+                    result = [e, None]
+        job.userdata2 = result
+        job.done = True
+    def done_cb(op):
+        result = op.userdata2
+        f = op.userdata["usercb"]
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        op.callback_func = None
+        return f(result[0], result[1])
+    op = _AsyncOperation({
+        "v": v,
+        "allow_disk": allow_disk,
+        "allow_vfs": allow_vfs,
+        "ignore_exists": ignore_exists,
+        "allow_nested": allow_nested,
+        "usercb": cb},
+        async_exists_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
 
 def _io_exists(v, cb, allow_vfs=True, allow_disk=True):
     def async_exists_do(job):
