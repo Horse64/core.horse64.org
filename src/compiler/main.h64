@@ -464,6 +464,10 @@ func actionparser_compile(args) {
 
         # Continuing here, we want to transform the code.
         # If the AST wasn't succesfully created, abort:
+
+        # Apply code transformation:
+
+        # If we had an error at this stage then we need to abort:
         var had_error = no
         for m in aresult.msgs {
             if m.kind == msg.M_ERROR {
@@ -489,9 +493,26 @@ func actionparser_compile(args) {
             }
             return 1
         }
-        # Apply code transformation:
-
         if result.args["--stage"] == "transformed-code" {
+            if opt_output_file != none or opt_output_dir != none {
+                func output_code {
+                    if opt_output_file != none {
+                        assert(opt_output_dir == none)
+                        var f = io.open(opt_output_file, "w") later:
+
+                        await f
+                        do {
+                            f.write(aresult.dump_as_code()) later:
+                        } finally {
+                            f.close()
+                        }
+                        return
+                    }
+                }
+                output_code() later:
+
+                return 0
+            }
             print(aresult.dump_as_code())
             return 0
         }
