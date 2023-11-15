@@ -53,13 +53,14 @@ func check_config {
 }
 ```
 
+
 When to use Horse64
 -------------------
 
 (This is very subjective.)
 
-- **Approachable but capable.** Clean dynamic types, but more
-  AOT error checks than common for dynamic languages.
+- **Approachable but capable.** Clean dynamic types, but a focus on
+  Ahead-Of-Time checks not common in scripting *by default.*
 
 - **Self-contained.** For deploying server and desktop apps easily.
 
@@ -74,6 +75,9 @@ When to use Horse64
   🚫 [self-mutating scripting use](#scripting-features),
   and 🚫 limitless offline type checking (since it's
   dynamically typed, so analysis is limited).
+
+For the [design goals, go here](
+/docs/Language%20Specs/Overview#design-goals).
 
 
 Comparison with other languages and use cases

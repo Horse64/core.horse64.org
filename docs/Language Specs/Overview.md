@@ -57,6 +57,9 @@ Major design goals of Horse64 are:
 
 - Desktop app and server app creation should be easy.
 
+For a more practical list of [recommended uses, go here](
+/docs/Features#when-to-use-horse64).
+
 
 OOP in Horse64 by using `type`
 ------------------------------

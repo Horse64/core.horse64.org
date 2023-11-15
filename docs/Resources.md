@@ -11,7 +11,7 @@ This section has various external resources useful when using the
 SDK
 ---
 
-If you want to get started, [**click here for
+If you want to get started, [**go here for
 the SDK** (Software Development Kit) for Horse64](
 https://horse64.org/download
 ).
