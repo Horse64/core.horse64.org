@@ -28,6 +28,7 @@
 import argparse from core.horse64.org
 import io from core.horse64.org
 import json from core.horse64.org
+import path from core.horse64.org
 import system from core.horse64.org
 import uri from core.horse64.org
 
@@ -525,13 +526,25 @@ func actionparser_compile(args) {
                         rel_path = pfile.modinfo.rel_path
                     }
                     var fname = uri.basename(furi)
-                    var output_furi = uri.add_part(
+                    var write_folder_uri = uri.add_part(
                         opt_output_dir,
-                        rel_path)
-                    output_furi = uri.add_part(
-                        output_furi, fname)
-                    print("WRITING: " + [
-                        furi, output_furi].as_str())
+                        path.dirname(rel_path))
+                    var write_furi = uri.add_part(
+                        write_folder_uri, fname)
+                    if uri.get_protocol(write_folder_uri).lower() !=
+                            "file" {
+                        throw new NotImplementedError(
+                            "Can't make directory using this "
+                            "remote protocol.")
+                    }
+                    write_folder_path = uri.to_file_or_vfs_path(
+                        write_folder_uri)
+                    io.make_dir(uri.to_file_or_vfs_path(
+                        write_folder_uri), allow_vfs=no,
+                        allow_nested=yes, ignore_exists=yes) later:
+
+                    print("WRITING: " + [write_folder_path,
+                        furi, write_furi].as_str())
                     return later yes
                 }
                 assert(opt_output_dir != none)
