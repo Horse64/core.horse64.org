@@ -63,14 +63,14 @@ When to use Horse64
   Clean dynamic types meet Ahead-Of-Time checks not common
   in scripting *by default.*
 
-- 📦 **If you need self-contained deployment.** Allows
-  shipping server and desktop apps easier.
+- 📦 **If you need self-contained deployment.**
+  Ship server and desktop apps easier.
 
-- ⚖ **If you need flexibility.** A multi-paradigm design
+- ⚖ **If you need flexibility.** The multi-paradigm design
   provides flexibility and good object-oriented support.
 
 - ☁ **If you write backends and cloud tools.**
-  Concurrent networking by design helps.
+  The built-in networking is concurrent.
 
 - **Not flawless:** Horse64 isn't good at 🚫 [extreme raw speed](
   #runtime-performance-and-lowlevel-features),
