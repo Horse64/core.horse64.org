@@ -59,17 +59,18 @@ When to use Horse64
 
 (This is very subjective.)
 
-- 🛡️ **Approachable but not reckless.** Clean dynamic types,
-  but a focus on Ahead-Of-Time checks not common in scripting
-  *by default.*
+- 🛡️ **If you need an approachable but not reckless language.**
+  Clean dynamic types meet Ahead-Of-Time checks not common
+  in scripting *by default.*
 
-- 📦 **Self-contained deployment.** For shipping server and desktop
-  apps easier.
+- 📦 **If you need self-contained deployment.** Allows
+  shipping server and desktop apps easier.
 
-- ⚖ **General-purpose.** Multi-paradigm design, good object-oriented
-  support.
+- ⚖ **If you need flexibility.** A multi-paradigm design
+  provides flexibility and good object-oriented support.
 
-- ☁ **Backend and cloud-ready.** Concurrent networking by design.
+- ☁ **If you write backends and cloud tools.**
+  Concurrent networking by design helps.
 
 - **Not flawless:** Horse64 isn't good at 🚫 [extreme raw speed](
   #runtime-performance-and-lowlevel-features),
