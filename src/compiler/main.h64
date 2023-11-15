@@ -29,6 +29,7 @@ import argparse from core.horse64.org
 import io from core.horse64.org
 import json from core.horse64.org
 import system from core.horse64.org
+import uri from core.horse64.org
 
 import compiler.ast
 import compiler.msg as msg
@@ -493,26 +494,59 @@ func actionparser_compile(args) {
             }
             return 1
         }
-        if result.args["--stage"] == "transformed-code" {
-            if opt_output_file != none or opt_output_dir != none {
-                func output_code {
-                    if opt_output_file != none {
-                        assert(opt_output_dir == none)
-                        var f = io.open(opt_output_file, "w") later:
+        if (result.args["--stage"] == "transformed-code" or
+                result.args["--stage"] == "transformed-ast") and
+                (opt_output_file != none or opt_output_dir != none) {
+            func output_code {
+                if opt_output_file != none {
+                    assert(opt_output_dir == none)
+                    var f = io.open(opt_output_file, "w") later:
 
-                        await f
-                        do {
-                            f.write(aresult.dump_as_code()) later:
-                        } finally {
-                            f.close()
-                        }
-                        return
+                    await f
+                    do {
+                        f.write(aresult.dump_as_code()) later:
+                    } finally {
+                        f.close()
                     }
+                    return
                 }
-                output_code() later:
+                opt_output_dir = uri.normalize(
+                    opt_output_dir, absolute_file=yes)
+                func output_to_folder(pfile) {
+                    var furi = pfile.source_uri
+                    var rel_path
+                    if furi == none {
+                        furi = uri.add_part(
+                            opt_output_dir, "(inline).h64"
+                        )
+                        rel_path = "(inline).h64"
+                    } else {
+                        assert(pfile.modinfo != none)
+                        rel_path = pfile.modinfo.rel_path
+                    }
+                    var fname = uri.basename(furi)
+                    var output_furi = uri.add_part(
+                        opt_output_dir,
+                        rel_path)
+                    output_furi = uri.add_part(
+                        output_furi, fname)
+                    print("WRITING: " + [
+                        furi, output_furi].as_str())
+                    return later yes
+                }
+                assert(opt_output_dir != none)
+                success = aresult.project_file.project.
+                    do_for_all_files(check_scope)
+                later:
 
-                return 0
+                await success
+                return
             }
+            output_code() later:
+
+            return 0
+        }
+        if result.args["--stage"] == "transformed-code" {
             print(aresult.dump_as_code())
             return 0
         }
