@@ -62,7 +62,7 @@ type Project {
 
     var debug_modules = yes
 
-    var modules_dir_uri = none
+    var packages_dir_uri = none
 
     var tried_find_modules_dir = no
 
@@ -107,8 +107,8 @@ func ModuleInfo.as_json_obj(project=none, project_file=none) {
     if project != none and project.package_name != none {
         result["base_package_name"] = project.package_name
     }
-    if project != none and project.modules_dir_uri != none {
-        result["horse_modules_dir"] = project.modules_dir_uri
+    if project != none and project.packages_dir_uri != none {
+        result["horse_modules_dir"] = project.packages_dir_uri
     }
     if project_file != none and project_file.imports != none {
         result["imports"] = []
@@ -259,7 +259,7 @@ func Project.guess_base_from_file_uri(source_uri) {
             "directory for file: " + source_uri)
     }
     self.base_dir_uri = base_dir_uri
-    self.modules_dir_uri = uri.add_part(
+    self.packages_dir_uri = uri.add_part(
         base_dir_uri, "horse_modules"
     )
 }
@@ -300,10 +300,25 @@ const valid_source_nesting_dirs = {
 
 func check_valid_rel_module_path(modpath, msgs=none,
         orig_file_uri=none,
-        is_import=yes, import_line=none, import_col=none
+        is_import=yes, import_line=none, import_col=none,
+        packages_dir_was_trimmed=yes
         ) {
-    if modpath.ends(".h64") {
+    if modpath.lower().ends(".h64") {
         modpath = modpath.sub(1, modpath.len - ".h64".len)
+    }
+    if not packages_dir_was_trimmed and
+            modpath.starts("horse_modules" + path.sep) {
+        modpath = modpath.sub("horse_modules/".len + 1)
+        while modpath.starts(path.sep) {
+            modpath = modpath.sub(2)
+        }
+        while not modpath.starts(path.sep) and
+                modpath.len > 0 {
+            modpath = modpath.sub(2)
+        }
+        while modpath.starts(path.sep) {
+            modpath = modpath.sub(2)
+        }
     }
     var code_a = text.code('a')
     var code_z = text.code('z')
@@ -369,8 +384,9 @@ func Project.get_modinfo_for_file(file_uri, rel_path=none) {
             ".h64 file extension.")
     }
     var no_ext_rel_path = rel_path.sub(1, rel_path.len - ".h64".len)
-    if not check_valid_rel_module_path(no_ext_rel_path,
-            orig_file_uri=file_uri, is_import=no) {
+    if not check_valid_rel_module_path(rel_path,
+            orig_file_uri=file_uri, is_import=no,
+            packages_dir_was_trimmed=no) {
         return none
     }
     var package_name = none
@@ -609,7 +625,7 @@ func Project.find_package_dir_uri_fallback {
     await result
     if not result {
         throw new RuntimeError("Must use guess_base_file_from_uri() "
-            "to set modules_dir_uri first, or have "
+            "to set packages_dir_uri first, or have "
             "horse_modules folder in project independent directory.")
     }
     return uri.from_disk_path(guess_dir)
@@ -617,10 +633,10 @@ func Project.find_package_dir_uri_fallback {
 
 func Project.find_package_dir_uri(package_name,
         allow_project_independent_fallback=no) {
-    if self.modules_dir_uri == none {
+    if self.packages_dir_uri == none {
         if not allow_project_independent_fallback {
             throw new RuntimeError("Must use guess_base_file_from_uri() "
-                "to set modules_dir_uri first.")
+                "to set packages_dir_uri first.")
         }
         var result = self.find_package_dir_uri_fallback()
         later:
@@ -637,15 +653,15 @@ func Project.find_package_dir_uri(package_name,
         }
         return later self.base_dir_uri
     }
-    if not {"file", "vfs"}.has(uri.get_protocol(self.modules_dir_uri)) {
+    if not {"file", "vfs"}.has(uri.get_protocol(self.packages_dir_uri)) {
         # Can't enforce case sensitivty on this, so just return
         # the obvious path right awway:
-        return later uri.add_part(modules_dir_uri, package_name)
+        return later uri.add_part(packages_dir_uri, package_name)
     }
     # To enforce case sensitivity, do a file listing:
-    var modules_path = uri.to_file_or_vfs_path(self.modules_dir_uri)
+    var modules_path = uri.to_file_or_vfs_path(self.packages_dir_uri)
     var modules_in_vfs =
-        (uri.get_protocol(self.modules_dir_uri) == "vfs")
+        (uri.get_protocol(self.packages_dir_uri) == "vfs")
     var file_names = io.list_dir(modules_path,
         allow_vfs=modules_in_vfs, allow_disk=not modules_in_vfs)
     later:
@@ -654,7 +670,7 @@ func Project.find_package_dir_uri(package_name,
     if not file_names.has(package_name) {
         return later none
     }
-    return later uri.add_part(self.modules_dir_uri, package_name)
+    return later uri.add_part(self.packages_dir_uri, package_name)
 }
 
 func try_workspace_modules_dir_for_single_file(file_uri) {
@@ -928,7 +944,7 @@ func ProjectFile.ensure_modules_dir {
 
     await dir_uri
     if dir_uri != none {
-        self.project.modules_dir_uri = dir_uri
+        self.project.packages_dir_uri = dir_uri
     }
 }
 
@@ -1055,7 +1071,7 @@ func ProjectFile.get_relative_imports_to_test(
     if rel_path == "" or not rel_path.ends(".h64") {
         return []
     }
-    var package_dir_uri = self.project.modules_dir_uri
+    var package_dir_uri = self.project.packages_dir_uri
     var folder_path = path.dirname(path.normalize(rel_path))
     while folder_path.ends(path.sep) {
         folder_path = folder_path.sub(1, folder_path.len - 1)
@@ -1165,7 +1181,7 @@ func ProjectFile.get_target_uri_for_import(
     func get_uri_for_external(import_rel_path) {
         var source_nest_dir = get_source_nesting_dir(
             uri.add_part(
-                self.project.modules_dir_uri,
+                self.project.packages_dir_uri,
                 import_rel_path.split(path.sep)[2]
             )) later:
 
@@ -1179,7 +1195,7 @@ func ProjectFile.get_target_uri_for_import(
             )
         }
         var new_uri = uri.add_part(
-            self.project.modules_dir_uri,
+            self.project.packages_dir_uri,
             import_rel_path.replace(path.sep, "/")
         )
         return later uri.normalize(new_uri)
