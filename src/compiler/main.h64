@@ -524,6 +524,16 @@ func actionparser_compile(args) {
                     } else {
                         assert(pfile.modinfo != none)
                         rel_path = pfile.modinfo.rel_path
+                        if pfile.modinfo.package_name != none and
+                                pfile.modinfo.package_name !=
+                                aresult.project_file.
+                                    project.package_name and
+                                not rel_path.lower().starts(
+                                    "horse_modules") {
+                            rel_path = "horse_modules" + path.sep +
+                                pfile.modinfo.package_name +
+                                path.sep + rel_path
+                        }
                     }
                     var fname = uri.basename(furi)
                     var write_folder_uri = uri.add_part(
@@ -543,8 +553,16 @@ func actionparser_compile(args) {
                         write_folder_uri), allow_vfs=no,
                         allow_nested=yes, ignore_exists=yes) later:
 
-                    print("WRITING: " + [write_folder_path,
-                        furi, write_furi].as_str())
+                    var code = pfile.dump_as_code() later:
+
+                    await code
+                    var f = io.open(uri.to_file_or_vfs_path(
+                        write_furi), "w") later:
+
+                    await f
+                    f.write(code) later:
+
+                    f.close()
                     return later yes
                 }
                 assert(opt_output_dir != none)

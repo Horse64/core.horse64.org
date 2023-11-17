@@ -790,6 +790,13 @@ func ProjectFile.open {
     return result
 }
 
+func ProjectFile.dump_as_code {
+    # Ensure AST:
+    self.ensure_ast() later:
+
+    return self.ast.dump_as_code()
+}
+
 func ProjectFile.ensure_modinfo(rel_path=none,
         known_external_package=none) {
     if self.modinfo != none {
@@ -806,6 +813,19 @@ func ProjectFile.ensure_modinfo(rel_path=none,
     await modinfo
     assert(modinfo != none)
     self.modinfo = modinfo
+}
+
+func ProjectFile.ensure_ast {
+    # FIXME: once we allow swapping ASTs to disk,
+    # load it back into memory here.
+
+    if self.imports != none {
+        assert(self.ast != none)
+        return later
+    }
+    self.parse_for_imports_if_needed() later:
+
+    return later
 }
 
 func ProjectFile.set_data_from_ast_result(result) {

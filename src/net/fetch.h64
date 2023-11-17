@@ -66,20 +66,20 @@ func _validate_uri_list(target_uri) {
 ##
 ## @throws net.NetworkIOError, can throw sub variants
 ##   net.ServerError and net.ClientError
-## @param target_uri (str or list) A single URI as an @{str}, or
+## @param source_uri (str or list) A single URI as an @{str}, or
 ##   a @{list} or URIs, e.g. `["https://site1.org",
 ##   `["https://site2.org"]`. For a list, any of them
-##   causing an @{error|Error} will interrupt and return it.
+##   causing an @{error|Error} will interrupt and throw the error.
 ## @param path (str or list) A target path as an @{str},
-##   or a @{list} of paths if the `target_uri` param is also a @{list}.
+##   or a @{list} of paths if the `source_uri` param is also a @{list}.
 ## @param max_size num Since the string will be written to
 ##   disk unattended, for security reasons there must be a maximum
 ##   size. It defaults to 100MB. Use @{net.fetch.get} if you want
 ##   to avoid any limit.
-func write_to_file(target_uri, path, max_size=(100 * 1024  * 1024)) {
+func write_to_file(source_uri, path, max_size=(100 * 1024  * 1024)) {
     # Validate input:
-    var was_single_uri = {"bytes", "str"}.has(typename(target_uri))
-    var uris = _validate_uri_list(target_uri)
+    var was_single_uri = {"bytes", "str"}.has(typename(source_uri))
+    var uris = _validate_uri_list(source_uri)
     uris.reverse()  # So we can use .pop() to get it in order.
     if uris.len == 0 {
         return []
@@ -91,7 +91,6 @@ func write_to_file(target_uri, path, max_size=(100 * 1024  * 1024)) {
     if uris.len != paths.len {
         throw new ValueError("supplied target paths "
             "must be same amount as URIs")
-
     }
 
     # Go to first URI:
