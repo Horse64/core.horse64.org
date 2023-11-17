@@ -790,9 +790,15 @@ func ProjectFile.open {
     return result
 }
 
-func ProjectFile.ensure_modinfo(rel_path=none) {
+func ProjectFile.ensure_modinfo(rel_path=none,
+        known_external_package=none) {
     if self.modinfo != none {
         return later
+    }
+    if known_external_package != none and
+            not rel_path.lower().starts("horse_modules") {
+        rel_path = path.join("horse_modules",
+            known_external_package, rel_path)
     }
     var modinfo = self.project.get_modinfo_for_file(
         self.source_uri, rel_path=rel_path) later:
@@ -1274,6 +1280,10 @@ func add_neighbor_modules_to_result(
         }
 
         var neighbor_rel_path = result.project_file.modinfo.rel_path
+        var neighbor_ext_pkg = result.project_file.modinfo.package_name
+        if neighbor_ext_pkg == result.project_file.project.package_name {
+            neighbor_ext_pkg = none
+        }
         var last_sep_pos = neighbor_rel_path.rfind(path.sep)
         if last_sep_pos == none {
             neighbor_rel_path = neighbor_file_name
@@ -1291,7 +1301,8 @@ func add_neighbor_modules_to_result(
                     "discovered new neighbor of " +
                     file_uri.as_str() + " "
                     "at: " + neighbor_uri.as_str() + " [rel_path='" +
-                        neighbor_rel_path + "']")
+                        neighbor_rel_path + "',ext_pkg='" +
+                        neighbor_ext_pkg + "']")
             }
             pfile = new ProjectFile(
                 source_uri=neighbor_uri, is_entrypoint=no,
@@ -1304,9 +1315,16 @@ func add_neighbor_modules_to_result(
             assert(pfile != none)
             result.neighbor_project_files.add(pfile)
         }
-        pfile.ensure_modinfo(rel_path=neighbor_rel_path)
+        pfile.ensure_modinfo(rel_path=neighbor_rel_path,
+            known_external_package=neighbor_ext_pkg)
         later:
 
+        assert(pfile.modinfo.package_name == neighbor_ext_pkg or
+               neighbor_ext_pkg == none)
+        if pfile.modinfo.package_name == none {
+            pfile.modinfo.package_name =
+                result.project_file.project.package_name
+        }
         return later
     }
     var folder_disk_path = uri.to_file_or_vfs_path(folder_uri)
@@ -1377,7 +1395,6 @@ func ProjectFile.process_first_working_module_file(
             pfile.ensure_modinfo(rel_path=mod_rel_path) later:
 
             assert(pfile.source_uri != none)
-
             var result = new ProcessModuleFileResult()
             result.project_file = pfile
 
@@ -1414,6 +1431,15 @@ func ProjectFile.resolve_all_imports(msgs=none,
         throw new RuntimeError("Must call "
             "ensure_known_single_file_status() first.")
     }
+    if debug {
+        print("compiler.project: resolve_all_imports() "
+            "processing file " +
+            if self.source_uri != none (self.source_uri)
+                else ("<no uri>") +
+            " modinfo.package_name='" +
+            if self.modinfo != none (self.modinfo.package_name.as_str())
+                else ("<no modinfo>") + "'")
+    }
     self.parse_for_imports_if_needed(
         msgs=msgs
     ) later:
@@ -1441,6 +1467,10 @@ func ProjectFile.resolve_all_imports(msgs=none,
         var external_name = importst.package_name
         if external_name == self.project.package_name {
             external_name = none
+        } elseif external_name == none and
+                self.modinfo != none and
+                self.modinfo.package_name != self.project.package_name {
+            external_name = self.modinfo.package_name
         }
         var try_list = self.get_relative_imports_to_test(
             importst.module_path, msgs=msgs,
