@@ -3515,7 +3515,14 @@ def translate_do_func(
                             "_translator_runtime_helpers."
                             "_async_final_bail_handler); ")
                     else:
-                        contents_result += ("main();")
+                        contents_result += ("v = main();")
+                        contents_result += (
+                            "\n    if v is True or v is None:")
+                        contents_result += ("\n        v = 0")
+                        contents_result += ("\n    elif v is False:")
+                        contents_result += ("\n        v = 1")
+                        contents_result += ("\n    "
+                            "_remapped_sys.exit(int(v))")
                 else:
                     contents_result += ("return 0;")
 

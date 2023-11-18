@@ -2831,4 +2831,9 @@ def _async_final_bail_handler(err, result, funcname="main"):
         print(''.join(traceback.format_exception(
             type(err), err, err.__traceback__)))
         sys.exit(1)
+    if result is True or result is None:
+        result = 0
+    elif result is False:
+        result = 1
+    sys.exit(int(result))
 
