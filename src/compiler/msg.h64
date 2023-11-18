@@ -105,10 +105,13 @@ func FileMsg.as_terminal_str(prefix="", wrap_width=none) {
     } elseif self.kind == M_DEBUG {
         t += "debug: "
     }
-    if self.line != none or self.source_file != none {
-        t += "in "
-        if self.source_file != none {
-            t += self.source_file.source_uri + ":"
+    if self.line != none or (self.source_file != none and
+            self.source_file.source_uri != none) {
+        if self.source_file != none and
+                self.source_file.source_uri != none {
+            t += "in " + self.source_file.source_uri + ":"
+        } else {
+            t += "at "
         }
         if self.line != none {
             t += self.line.as_str() + ":"

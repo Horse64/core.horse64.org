@@ -74,10 +74,11 @@ func tokenize_target_from_args(args) {
 func parse_ast_target_from_args(args, checked_ast=no,
         debug=no, debug_modules=no, debug_storage=no) {
     if args["--code"] != none {
+        # Note: force_single_file=yes is implied and not a parameter,
+        # since this is "str_to_ast":
         var tresult = compiler.ast.parse_str_to_ast(
             args["--code"], is_entrypoint=yes,
-            force_single_file=yes, allow_disk_access=yes,
-            allow_vfs_access=no,
+            allow_disk_access=yes, allow_vfs_access=no,
             require_detect_project_dir=yes,
             debug=debug, debug_modules=no
         ) later:
