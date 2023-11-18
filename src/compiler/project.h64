@@ -187,7 +187,8 @@ func check_is_project_dir_check_files(dir_uri) {
         ".git", "horp.conf",
     ]
     var next_file = test_files.pop()
-    var can_read = net.fetch.try_readable(uri.add_part(dir_uri, "/" + next_file))
+    var can_read = net.fetch.check_exists(
+        uri.add_part(dir_uri, "/" + next_file))
     later:
 
     await can_read
@@ -198,7 +199,7 @@ func check_is_project_dir_check_files(dir_uri) {
         return no
     }
     next_file = test_files.pop()
-    can_read = net.fetch.try_readable(
+    can_read = net.fetch.check_exists(
         uri.add_part(dir_uri, "/" + next_file)
     ) later repeat
 }
@@ -530,6 +531,13 @@ func Project.ensure_package_name {
     }
     self.tried_loading_package_name = yes
     if horp_conf_uri == none {
+        return later
+    }
+    var have_conf = net.fetch.check_exists(horp_conf_uri)
+    later:
+
+    await have_conf
+    if not have_conf {
         return later
     }
     var conf_contents = confparse.parse_from_uri(
@@ -942,7 +950,7 @@ func check_file_existence(file_uri, project=none) {
     if _known_readable_files.has(file_uri) {
         return _known_readable_files[file_uri]
     }
-    var protocol = uri.get_protocol(file_uri).lower()
+    var protocol = uri.get_protocol(file_uri)
     if protocol == "file" or protocol == "vfs" {
         var upath = uri.to_file_or_vfs_path(file_uri)
         var result = check_file_existence_diskpath(
@@ -1323,8 +1331,10 @@ func add_neighbor_modules_to_result(
                     "discovered new neighbor of " +
                     file_uri.as_str() + " "
                     "at: " + neighbor_uri.as_str() + " [rel_path='" +
-                        neighbor_rel_path + "',ext_pkg='" +
-                        neighbor_ext_pkg + "']")
+                        neighbor_rel_path + "',ext_pkg=" +
+                        if neighbor_ext_pkg != none
+                            ("'" + neighbor_ext_pkg + "'") else
+                            ("none") + "]")
             }
             pfile = new ProjectFile(
                 source_uri=neighbor_uri, is_entrypoint=no,
@@ -1395,7 +1405,7 @@ func ProjectFile.process_first_working_module_file(
             print("compiler.project: process_first_working_module_file() "
                 "testing import target location: " + file_uri)
         }
-        var readable = net.fetch.try_readable(file_uri) later:
+        var readable = net.fetch.check_exists(file_uri) later:
 
         await readable
         if readable {

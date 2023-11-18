@@ -231,15 +231,14 @@ func get_str(
     data = obj.read(amount=max_size) later repeat
 }
 
-func try_readable(docuri) {
-    # Using io.exists here is incorrect.
+func check_exists(docuri) {
     var result = io.exists(
         uri.to_file_or_vfs_path(docuri)
     ) later:
     await result
     return result
 
-    # THIS BREAKS OUR PYTHON TRANSLATOR, BIG DISABLE HACK XXX:
+    # THIS BREAKS OUR PYTHON TRANSLATOR, BIG DISABLE HACK FIXME XXX:
     #do {
     #    with net.fetch.open(
     #            docuri, allow_vfs=yes, allow_disk=yes
