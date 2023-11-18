@@ -250,7 +250,8 @@ var stmt_parse_funcs = [
 ]
 
 func parse_statement(
-        tokens, pos, msgs, project_file=none, debug=no
+        tokens, pos, msgs, project_file=none,
+        prev_stmt_was_broken=no, debug=no,
         ) {
     var remaining_funcs = stmt_parse_funcs.copy()
     if debug {
@@ -270,13 +271,15 @@ func parse_statement(
     if remaining_funcs.len == 0 {
         var line = tokens[pos].line
         var col = tokens[pos].col
-        msgs.add(new msg.FileMsg(
-            "Unexpected token " +
-            token.describe_token(tokens[pos]) +
-            ", expected start of any recognized statement.",
-            kind=msg.M_ERROR, source_file=project_file,
-            line=line, col=col)
-        )
+        if not prev_stmt_was_broken {
+            msgs.add(new msg.FileMsg(
+                "Unexpected token " +
+                token.describe_token(tokens[pos]) +
+                ", expected start of any recognized statement.",
+                kind=msg.M_ERROR, source_file=project_file,
+                line=line, col=col)
+            )
+        }
         return none
     }
 
@@ -308,8 +311,9 @@ func parse_to_ast_ex(
 
     # Get next statement:
     var stmt = parse_statement(
-        tokens, pos, result.msgs,
-        project_file=project_file, debug=debug
+        tokens, pos, result.msgs, project_file=project_file,
+        prev_stmt_was_broken=(result.stmts.len > 0 and
+            result.stmts[result.stmts.len].has_damage()), debug=debug
     ) later:
 
     await stmt
@@ -348,8 +352,9 @@ func parse_to_ast_ex(
         return result
     }
     stmt = parse_statement(
-        tokens, pos, result.msgs,
-        project_file=project_file, debug=debug
+        tokens, pos, result.msgs, project_file=project_file,
+        prev_stmt_was_broken=(result.stmts.len > 0 and
+            result.stmts[result.stmts.len].has_damage()), debug=debug
     ) later repeat
 }
 
