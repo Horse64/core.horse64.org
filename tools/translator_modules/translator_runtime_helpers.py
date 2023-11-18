@@ -753,7 +753,9 @@ def _container_pop_at(container, *args, **kwargs):
 def _container_value(container, *args, **kwargs):
     if (type(container) == bytes and
             len(args) >= 1):
-        idx = args[0] + 1
+        idx = args[0] - 1
+        if idx < 0 or idx >= len(container):
+            raise IndexError("Index out of bounds.")
         return int(container[idx])
     elif type(container) == bytes:
         return int(container[0])
