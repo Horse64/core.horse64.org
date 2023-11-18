@@ -216,9 +216,11 @@ func check_is_project_dir(dir_uri) {
         # Checking dirs remotely not implemented, so we give up.
         return no
     }
-
+    var is_vfs = (uri.get_protocol(dir_uri) == "vfs")
     var dir_exists = io.exists(
-        uri.add_part(dir_uri, "/horse_modules")
+        uri.to_file_or_vfs_path(
+            uri.add_part(dir_uri, "/horse_modules")
+        ), allow_vfs=is_vfs, allow_disk=not is_vfs
     ) later:
 
     await dir_exists
