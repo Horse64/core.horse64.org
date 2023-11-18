@@ -3455,6 +3455,14 @@ def translate_do_func(
                     str(uuid.uuid4()).replace("-", ""))
                 contents_result += ("\ndef " + testmain + "():" +
                     "\n    ")
+                later_bail_count = 0
+                for (tfname, tfislater) in test_funcs:
+                    if tfislater:
+                        later_bail_count += 1
+                contents_result += ("_translator_runtime_helpers."
+                    "_async_final_bail_required_extra_bails(" +
+                    str(max(0, later_bail_count - 1)) + ");")
+                contents_result += "\n    "
                 for (tfname, tfislater) in test_funcs:
                     contents_result += (tfname + "(" +
                         ("_translator_runtime_helpers."

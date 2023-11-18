@@ -52,6 +52,7 @@ _async_ops_done = []
 _async_ops = deque([])
 _async_ops_stop_threads = False
 _async_delayed_calls = []
+_async_final_bails_need_extra_bail_count = 0
 
 _delayed_modinit_funclist = []
 
@@ -2824,8 +2825,12 @@ def _math_parse_hex(v):
         i += 1
     return int("0x" + v, 0)
 
+def _async_final_bail_required_extra_bails(extra_bails):
+    global _async_final_bails_need_extra_bail_count
+    _async_final_bails_need_extra_bail_count = extra_bails
 
 def _async_final_bail_handler(err, result, funcname="main"):
+    global _async_final_bails_need_extra_bail_count
     if err != None and not isinstance(err, SystemExit):
         print("Unhandled error in 'later' function: " + str(err))
         print(''.join(traceback.format_exception(
@@ -2835,5 +2840,8 @@ def _async_final_bail_handler(err, result, funcname="main"):
         result = 0
     elif result is False:
         result = 1
-    sys.exit(int(result))
+    if _async_final_bails_need_extra_bail_count > 0:
+        _async_final_bails_need_extra_bail_count -= 1
+    else:
+        sys.exit(int(result))
 
