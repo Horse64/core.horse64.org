@@ -1070,6 +1070,7 @@ func ProjectFile.ensure_project(msgs=none) {
 func ProjectFile.get_relative_imports_to_test(
         full_original_import, msgs=none, external_package_name=none,
         import_line=none, import_col=none,
+        is_cross_pkg_import=no,
         ) {
     if external_package_name != none and (
             external_package_name.startswith(".") or
@@ -1102,7 +1103,7 @@ func ProjectFile.get_relative_imports_to_test(
     }
     var rel_path = self.modinfo.rel_path
     while rel_path.starts(path.sep) {
-        rel_path = rel_path.sub(1)
+        rel_path = rel_path.sub(2)
     }
     while rel_path.ends(path.sep) {
         rel_path = rel_path.sub(1, rel_path.len - 1)
@@ -1120,28 +1121,32 @@ func ProjectFile.get_relative_imports_to_test(
         levels_up = folder_path.split(path.sep).len
     }
     var try_list = []
+    var prefix = ""
     if external_package_name != none {
         if package_dir_uri == none {
             return none
         }
-        try_list += [
-            "horse_modules" + path.sep + external_package_name +
-                path.sep + full_original_import.join(path.sep) +
-                path.sep + full_original_import[
-                    full_original_import.len] + ".h64",
-            "horse_modules" + path.sep + external_package_name +
-                path.sep + full_original_import.join(path.sep) + ".h64"
-        ]
-        return try_list
-    } else {
-        try_list += [
-            folder_path + path.sep + full_original_import.join(path.sep) +
-                path.sep + full_original_import[
-                    full_original_import.len] + ".h64",
-            folder_path + path.sep +
-                full_original_import.join(path.sep) + ".h64"
-        ]
+        prefix = "horse_modules" + path.sep +
+            external_package_name + path.sep
+        if is_cross_pkg_import {
+            # Drop the folder_path part and bail early:
+            try_list += [
+                prefix + full_original_import.join(path.sep) +
+                    path.sep + full_original_import[
+                        full_original_import.len] + ".h64",
+                prefix +
+                    full_original_import.join(path.sep) + ".h64"
+            ]
+            return try_list
+        }
     }
+    try_list += [
+        prefix + folder_path + path.sep + full_original_import.join(path.sep) +
+            path.sep + full_original_import[
+                full_original_import.len] + ".h64",
+        prefix + folder_path + path.sep +
+            full_original_import.join(path.sep) + ".h64"
+    ]
 
     var i = levels_up
     while i > 0 {
@@ -1152,10 +1157,11 @@ func ProjectFile.get_relative_imports_to_test(
             )
             assert(folder_path.len > 0)
             try_list += [
-                folder_path + path.sep + full_original_import.join(path.sep) +
+                prefix + folder_path + path.sep +
+                    full_original_import.join(path.sep) +
                     path.sep + full_original_import[
                         full_original_import.len] + ".h64",
-                folder_path + path.sep +
+                prefix + folder_path + path.sep +
                     full_original_import.join(path.sep) + ".h64"
             ]
         } else {
@@ -1169,10 +1175,10 @@ func ProjectFile.get_relative_imports_to_test(
             }
             if not skip_because_source_folder {
                 try_list += [
-                    full_original_import.join(path.sep) +
+                    prefix + full_original_import.join(path.sep) +
                         path.sep + full_original_import[
                             full_original_import.len] + ".h64",
-                    full_original_import.join(path.sep) + ".h64"
+                    prefix + full_original_import.join(path.sep) + ".h64"
                 ]
             }
         }
@@ -1506,16 +1512,21 @@ func ProjectFile.resolve_all_imports(msgs=none,
         }
         importst.resolve_attempted = yes
         var external_name = importst.package_name
-        if external_name == self.project.package_name {
+        var is_cross_pkg = if external_name != none (yes) else (no)
+        if external_name == self.project.package_name and
+                external_name != none {
             external_name = none
+            is_cross_pkg = no
         } elseif external_name == none and
                 self.modinfo != none and
                 self.modinfo.package_name != self.project.package_name {
             external_name = self.modinfo.package_name
+            is_cross_pkg = no
         }
         var try_list = self.get_relative_imports_to_test(
             importst.module_path, msgs=msgs,
             external_package_name=external_name,
+            is_cross_pkg_import=is_cross_pkg,
             import_line=importst.line, import_col=importst.col
         ) later:
 
