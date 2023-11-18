@@ -188,7 +188,7 @@ func check_is_project_dir_check_files(dir_uri) {
     ]
     var next_file = test_files.pop()
     var can_read = net.fetch.check_exists(
-        uri.add_part(dir_uri, "/" + next_file))
+        uri.add_part(dir_uri, "/" + uri.encode_path(next_file)))
     later:
 
     await can_read
@@ -200,7 +200,7 @@ func check_is_project_dir_check_files(dir_uri) {
     }
     next_file = test_files.pop()
     can_read = net.fetch.check_exists(
-        uri.add_part(dir_uri, "/" + next_file)
+        uri.add_part(dir_uri, "/" + uri.encode_path(next_file))
     ) later repeat
 }
 
@@ -413,7 +413,8 @@ func Project.get_modinfo_for_file(file_uri, rel_path=none) {
             rel_path = rel_path.sub(pos + 1)
             package_name = component
             package_dir_uri = uri.add_part(
-                package_dir_uri, "/horse_modules/" + component
+                package_dir_uri, "/horse_modules/" +
+                uri.encode_path(component)
             )
         }
         no_ext_rel_path = rel_path.sub(1, rel_path.len - ".h64".len)
@@ -666,7 +667,8 @@ func Project.find_package_dir_uri(package_name,
     if not {"file", "vfs"}.has(uri.get_protocol(self.packages_dir_uri)) {
         # Can't enforce case sensitivty on this, so just return
         # the obvious path right awway:
-        return later uri.add_part(packages_dir_uri, package_name)
+        return later uri.add_part(packages_dir_uri,
+            uri.encode_path(package_name))
     }
     # To enforce case sensitivity, do a file listing:
     var modules_path = uri.to_file_or_vfs_path(self.packages_dir_uri)
@@ -680,7 +682,8 @@ func Project.find_package_dir_uri(package_name,
     if not file_names.has(package_name) {
         return later none
     }
-    return later uri.add_part(self.packages_dir_uri, package_name)
+    return later uri.add_part(self.packages_dir_uri,
+        uri.encode_path(package_name))
 }
 
 func try_workspace_modules_dir_for_single_file(file_uri) {
@@ -1218,7 +1221,9 @@ func ProjectFile.get_target_uri_for_import(
         var source_nest_dir = get_source_nesting_dir(
             uri.add_part(
                 self.project.packages_dir_uri,
-                import_rel_path.split(path.sep)[2]
+                uri.encode_path(
+                    import_rel_path.split(path.sep)[2]
+                )
             )) later:
 
         await source_nest_dir
@@ -1230,9 +1235,13 @@ func ProjectFile.get_target_uri_for_import(
                 import_rel_path.split(path.sep).sub(3).join("/")
             )
         }
+        var added_part = import_rel_path.replace(path.sep, "/")
+        if added_part.lower().starts("horse_modules/") {
+            added_part = added_part.sub(added_part.find("/") + 1)
+        }
         var new_uri = uri.add_part(
             self.project.packages_dir_uri,
-            import_rel_path.replace(path.sep, "/")
+            uri.encode_path(added_part)
         )
         return later uri.normalize(new_uri)
     }
@@ -1249,7 +1258,7 @@ func ProjectFile.get_target_uri_for_import(
     }
     var new_uri = uri.add_part(
         self.project.base_dir_uri,
-        import_rel_path.replace(path.sep, "/")
+        uri.encode_path(import_rel_path.replace(path.sep, "/"))
     )
     return later uri.normalize(new_uri)
 }
@@ -1288,7 +1297,7 @@ func add_neighbor_modules_to_result(
             return later
         }
         var neighbor_uri = uri.normalize(uri.add_part(folder_uri,
-            neighbor_file_name
+            uri.encode_path(neighbor_file_name)
         ))
         assert({"file", "vfs"}.has(
             uri.get_protocol(neighbor_uri).lower()
