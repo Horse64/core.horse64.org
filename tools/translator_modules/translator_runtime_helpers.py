@@ -993,6 +993,7 @@ def _uri_dirname(v):
 
 def _uri_add_part(v, part):
     v = _uri_normalize(v)
+    part = urllib.parse.unquote(part)
     urlobj = urllib.parse.urlparse(v)
     new_path = urlobj.path
     if urlobj.scheme.lower() in ["file", "vfs"]:
