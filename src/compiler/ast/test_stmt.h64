@@ -51,9 +51,6 @@ func test_parse_func_stmt {
 }
 
 func test_parse_complex {
-    var msgs
-
-    msgs = []
     var v1 = ast.parse_str_to_ast(
         "if bla != (not bla.attr) {"
         "   throw new ValueError('oop')"
@@ -61,13 +58,30 @@ func test_parse_complex {
     ) later:
 
     await v1
-    if msgs.len > 0 {
-        for msg in msgs {
+    if v1.msgs.len > 0 {
+        for msg in v1.msgs {
             print("Test got invalid error: " + msg.as_terminal_str())
         }
     }
     assert(v1 != none)
-    assert(msgs.len == 0)
+    assert(v1.msgs.len == 0)
+    assert(v1.stmts.len == 1)
+    assert(v1.stmts[1].kind == ast.N_STMT_IF)
+
+    v1 = ast.parse_str_to_ast(
+        "var v = blu.A + blu.B", debug=no
+    ) later:
+
+    await v1
+    if v1.msgs.len > 0 {
+        for msg in v1.msgs {
+            print("Test got invalid error: " + msg.as_terminal_str())
+        }
+    }
+    assert(v1 != none)
+    assert(v1.msgs.len == 0)
+    assert(v1.stmts.len == 1)
+    assert(v1.stmts[1].kind == ast.N_STMT_VAR)
 }
 
 func test_parse_inline_if {

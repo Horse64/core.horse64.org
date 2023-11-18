@@ -44,6 +44,17 @@ func test_parse_expression {
     assert(v1.value == 5)
 
     tokens = token.token_list_from_str_list([
+        "blu", ".", "A", "+", "blu", ".", "B"])
+    var v1 = expr.parse_expression(
+        tokens, 1, msgs, project_file=none, debug=no
+    ) later:
+    await v1
+    assert(msgs.len == 0)
+    assert(v1 != none)
+    assert(v1.token_len == 7)
+    assert(v1.kind == ast.N_EXPR_BINOP)
+
+    tokens = token.token_list_from_str_list([
         "not", "5", "*", "3", "+", "-", "(",
         "23", ")", "ignored_10th_token"])
     var v2 = expr.parse_expression(
