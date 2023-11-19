@@ -307,6 +307,10 @@ func actionparser_compile(args) {
         print(result.output)
         return result.exit_code
     }
+    const possible_stages = [
+        "tokens", "ast", "global-scope", "checked-ast",
+        "transformed-code", "transformed-ast", "bytecode"
+    ]
 
     # Sanity check the provided options first:
 
@@ -319,6 +323,13 @@ func actionparser_compile(args) {
     }
     if result.args["--stage"] == none {
         result.args["--stage"] = "binary"
+    }
+    if not possible_stages.has(result.args["--stage"]) {
+        print(program_name + ": error: Unsupported "
+            "stage: " + result.args["--stage"])
+        print("Use " + program_name + " compile --help to show "
+            "available stages.")
+        return 1
     }
     if result.args["--output-dir"] != none and
             result.args["--output-file"] != none {
@@ -602,11 +613,8 @@ func actionparser_compile(args) {
         # Apply bytecode transformation:
         return 0
     } else {
-        print(program_name + ": error: Unsupported "
-            "stage: " + result.args["--stage"])
-        print("Use " + program_name + " compile --help to show "
-            "available stages.")
-        return 1
+        throw new NotImplementedError("Compiler "
+            "stage not implemented.")
     }
 }
 
