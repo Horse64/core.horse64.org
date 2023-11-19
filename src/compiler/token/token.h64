@@ -425,7 +425,7 @@ func surely_to_toplevel_even_in_bad_code(
 func surely_starts_stmt_even_in_bad_code(
         tokens, start_pos, break_out_of_code_blocks=yes
         ) {
-    if start_pos >= tokens.len or start_pos < 1 {
+    if start_pos > tokens.len or start_pos < 1 {
         return yes
     }
     if (tokens[start_pos].kind == T_KEYWORD and
