@@ -38,6 +38,7 @@ import compiler.ast.transform as transform
 import compiler.cext as cext
 import compiler.comment.command as command_comment
 import compiler.msg as msg
+import compiler.storage.ref as storage_ref
 import compiler.storage.scope as scope
 import compiler.token as token
 

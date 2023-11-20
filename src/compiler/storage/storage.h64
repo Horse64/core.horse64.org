@@ -26,26 +26,23 @@
 # license, see accompanied LICENSE.md.
 
 import compiler.ast as ast
+import compiler.ast.expr
 import compiler.ast.transform as transform
+import compiler.cext as cext
 import compiler.project as project
 import compiler.storage.scope as scope
+import compiler.storage.ref as storage_ref
 
-func project.Project.resolve_name_in_global_scope(
-        global_scope, name, type_path=none
-        ) {
-    var lookup_components = [name]
-    if type_path != none {
-        if typename(type_path) == "list" {
-            lookup_components = type_path + lookup_components
-        } else {
-            lookup_components = type_path.split(".") +
-                lookup_components
-        }
-    }
+extend ast.TreeNode {
+    var symbol_info
 }
 
 extend project.Project {
     var did_compute_scopes = no
+}
+
+extend ast.expr.IdRefExpr {
+    var ref
 }
 
 func project.Project.compute_all_scopes(msgs, debug=no) {
@@ -128,12 +125,12 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                     node.kind == ast.N_STMT_ENUMEXTEND {
                 node.scope = none
                 node.func_scope = none
-                var escope = pfile.get_type_or_enum_scope_from_node(
+                var escope = pfile.make_type_or_enum_scope_from_node(
                     node, msgs=msgs, project_file=pfile
                 )
                 if escope == none {
                     # Note: error has already been emitted by
-                    # get_type_or_enum_scope_from_node().
+                    # make_type_or_enum_scope_from_node().
                     return later none
                 }
                 var is_enum = if node.kind == ast.N_STMT_ENUM or
@@ -369,10 +366,31 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                         parent.optoken.str == "." {
                     return later node
                 }
-                self.resolve_name_in_global_scope(
-                    pfile.global_scope, node.label,
+                var result = pfile.try_lookup_symbol_path(
+                    pfile, node.scope,
+                    name=node.label,
                     type_path=node.type_path
                 )
+                if result == none {
+                    var ref_name = node.label
+                    if node.type_path != none {
+                        ref_name = node.type_path.join(".") + "." +
+                            ref_name
+                    }
+                    if msgs != none {
+                        msgs.add(new msg.FileMsg(
+                            "Unknown reference '" +
+                            ref_name +
+                            "', can't find what it refers to.",
+                            source_file=pfile,
+                            line=node.line, col=node.col,
+                        ))
+                    } else {
+                        throw new ValueError(
+                            "Unknown reference."
+                        )
+                    }
+                }
             } elseif node.kind == ast.N_EXPR_BINOP and
                     node.optoken.str == "." and
                     (parent.kind != ast.N_EXPR_BINOP or
@@ -402,10 +420,7 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                     }
                 }
                 label = type_path.pop()
-                self.resolve_name_in_global_scope(
-                    pfile.global_scope, label,
-                    type_path=type_path
-                )
+
             }
             return later node
         }

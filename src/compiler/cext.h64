@@ -31,6 +31,12 @@ import compiler.comment.scan as comment_scan
 import compiler.msg as msg
 import compiler.project as project
 
+const hvm_builtin_cext_funcs = {
+    "typename"->"builtin_h64_typename",
+    "print"->"builtin_h64_print",
+    "assert"->"builtin_h64_assert",
+}
+
 type CFunc {
     var name
     var module_name
@@ -42,6 +48,22 @@ func CFunc.as_str {
         "." + self.name.as_str() + "'@'" +
         self.package_name.as_str() + "'>"
     return t
+}
+
+const hvm_builtin_cext_funcs_storage_map = {->}
+
+func get_builtin_cext_storage_id(name) {
+    if hvm_builtin_cext_funcs_storage_map.len == 0 {
+        var st_id = 1
+        for entry in hvm_builtin_cext_funcs {
+            hvm_builtin_cext_funcs_storage_map[entry] = st_id
+            st_id += 1
+        }
+    }
+    if not hvm_builtin_cext_funcs_storage_map.has(name) {
+        return none
+    }
+    return hvm_builtin_cext_funcs_storage_map[name]
 }
 
 type CModule {
@@ -141,7 +163,7 @@ func scan_package_for_cexts(
         return cext_info
     }
     for group in comment_groups {
-        # FIXME: finish this part.
+        # FIXME: finish this part, parse parameters and all later.
         for comment in group {
             if comment.starts("/// @h64func ") or
                     comment.starts("/** @h64func ") {

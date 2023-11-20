@@ -1,4 +1,4 @@
-# @module compiler.storage.scope_compute
+# @module compiler.storage.manage
 # Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -31,22 +31,6 @@ import compiler.msg as msg
 import compiler.project as project
 import compiler.storage.scope as scope
 
-func project.Project.resolve_name_in_global_scope(
-        global_scope, name, type_path=none
-        ) {
-    var lookup_components = [name]
-    if type_path != none {
-        if typename(type_path) == "list" {
-            lookup_components = type_path + lookup_components
-        } else {
-            lookup_components = type_path.split(".") +
-                lookup_components
-        }
-    }
-
-    # FIXMEEEE
-}
-
 func project.ProjectFile.type_path_to_full_module_path(tpath) {
     var pfile_or_modpkgkey =
         self.global_scope.type_path_to_project_file(tpath)
@@ -63,7 +47,58 @@ func project.ProjectFile.type_path_to_full_module_path(tpath) {
     return t
 }
 
-func project.ProjectFile.get_type_or_enum_scope_from_node(
+func project.ProjectFile.try_lookup_symbol_path(
+        project_file, local_scope, name=none, type_path=none
+        ) {
+    if name == none and type_path == none {
+        throw new ValueError("Need to supply at least one of "
+            "name or type_path.")
+    }
+    var check_path = type_path
+    if check_path == none {
+        check_path = []
+    }
+    if typename(check_path) == "str" {
+        check_path = check_path.split(".")
+    }
+    if name != none {
+        check_path = check_path + [name]
+    }
+    if check_path.len == 0 {
+        return none
+    }
+    if local_scope != none and
+            local_scope.name_to_symbol_map.has(check_path[1]) {
+        if check_path.len > 1 {
+            return none
+        }
+        return new storage_ref.StorageRef(
+            storage_ref.ST_LOCAL,
+            local_scope.name_to_symbol_map[check_path[1]]
+        )
+    }
+    var entry = project_file.global_scope.type_path_to_entry(
+        check_path)
+    if entry != none {
+        project_file.global_scope.ensure_assigned_storage()
+        return new storage_ref.StorageRef(
+            storage_ref.ST_GLOBAL,
+            entry.symbol_info.storage_id
+        )
+    }
+    if check_path.len > 1 {
+        # This can no longer be resolved at this point.
+        return none
+    }
+    var builtin_id = cext.get_builtin_cext_storage_id(check_path[1])
+    if builtin_id != none {
+        return new storage_ref.StorageRef(
+            storage_ref.ST_BUILTIN, builtin_id)
+    }
+    return none
+}
+
+func project.ProjectFile.make_type_or_enum_scope_from_node(
         node, msgs=none, project_file=none) {
     assert(node.kind == ast.N_STMT_TYPE or
         node.kind == ast.N_STMT_TYPEEXTEND or

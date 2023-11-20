@@ -27,10 +27,12 @@
 
 import compiler.ast as ast
 import compiler.msg as msg
+import compiler.storage.scope as storage_scope
 import compiler.token as token
 
 type GlobalScope {
     var name_to_stmt_map = {->}
+    var storage_id_to_entry = {->}
 }
 
 func GlobalScope.as_str {
@@ -65,13 +67,48 @@ func GlobalScope.as_json_obj {
     return result
 }
 
-func GlobalScope.type_path_to_project_file(tpath) {
+func GlobalScope.ensure_assigned_storage {
+    if self.storage_id_to_entry.len > 0 or
+            self.name_to_stmt_map.len == 0 {
+        return
+    }
+    var storage_num = 1
+    for name in self.name_to_stmt_map {
+        var value = self.name_to_stmt_map[name]
+        if typename(value) == "list" {
+            for entry in value {
+                self.storage_id_to_entry[storage_num] = entry
+                var si = new storage_scope.SymbolInfo(name)
+                si.def_line = entry.line
+                si.def_col = entry.col
+                si.storage_id = storage_num
+                entry.symbol_info = si
+                storage_num += 1
+            }
+        } else {
+            self.storage_id_to_entry[storage_num] = value
+            var si = new storage_scope.SymbolInfo(name)
+            si.def_line = value.line
+            si.def_col = value.col
+            si.storage_id = storage_num
+            value.symbol_info = si
+            storage_num += 1
+        }
+    }
+}
+
+func GlobalScope.type_path_to_entry(tpath) {
     if typename(tpath) == "str" {
         tpath = tpath.split(".")
     }
-    if not self.name_to_stmt_map.has(tpath[1]) or
-            typename(self.name_to_stmt_map[tpath[1]]) != "list" {
+    if not self.name_to_stmt_map.has(tpath[1]) {
         return none
+    }
+    if typename(self.name_to_stmt_map[tpath[1]]) != "list" {
+        if tpath.len != 1 {
+            return none
+        }
+        return self.name_to_stmt_map[tpath[1]]
     }
     for entry in self.name_to_stmt_map[tpath[1]] {
         assert(entry.kind == ast.N_STMT_IMPORT)
@@ -83,7 +120,7 @@ func GlobalScope.type_path_to_project_file(tpath) {
                 return entry.cext_modname + "@" +
                     entry.cext_pkgname
             }
-            return entry.project_file
+            return entry
         }
         if entry.module_path.len != tpath.len {
             continue
@@ -98,10 +135,19 @@ func GlobalScope.type_path_to_project_file(tpath) {
             idx += 1
         }
         if not mismatch {
-            return entry.project_file
+            return entry
         }
     }
     return none
+}
+
+func GlobalScope.type_path_to_project_file(tpath) {
+    var entry = self.type_path_to_entry(tpath)
+    if entry == none or
+            entry.kind != ast.N_STMT_IMPORT {
+        return none
+    }
+    return entry.project_file
 }
 
 func has_global_scope_duplicate(
