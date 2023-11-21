@@ -35,6 +35,15 @@ const hvm_builtin_cext_funcs = {
     "typename"->"builtin_h64_typename",
     "print"->"builtin_h64_print",
     "assert"->"builtin_h64_assert",
+    "has_attr"->"builtin_h64_has_attr",
+}
+
+const hvm_builtin_cext_types = {
+    "RuntimeError"->"builtin_h64_runtimeerror",
+    "NotImplementedError"->"builtin_h64_notimplementederror",
+    "ValueError"->"builtin_h64_valueerror",
+    "TypeError"->"builtin_h64_valueerror",
+    "PathNotFoundError"->"builtin_h64_pathnotfounderror",
 }
 
 type CFunc {
@@ -50,20 +59,24 @@ func CFunc.as_str {
     return t
 }
 
-const hvm_builtin_cext_funcs_storage_map = {->}
+const hvm_builtin_cext_storage_map = {->}
 
 func get_builtin_cext_storage_id(name) {
-    if hvm_builtin_cext_funcs_storage_map.len == 0 {
+    if hvm_builtin_cext_storage_map.len == 0 {
         var st_id = 1
         for entry in hvm_builtin_cext_funcs {
-            hvm_builtin_cext_funcs_storage_map[entry] = st_id
+            hvm_builtin_cext_storage_map[entry] = st_id
+            st_id += 1
+        }
+        for entry in hvm_builtin_cext_types {
+            hvm_builtin_cext_storage_map[entry] = st_id
             st_id += 1
         }
     }
-    if not hvm_builtin_cext_funcs_storage_map.has(name) {
+    if not hvm_builtin_cext_storage_map.has(name) {
         return none
     }
-    return hvm_builtin_cext_funcs_storage_map[name]
+    return hvm_builtin_cext_storage_map[name]
 }
 
 type CModule {

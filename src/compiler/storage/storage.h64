@@ -131,7 +131,7 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                 if escope == none {
                     # Note: error has already been emitted by
                     # make_type_or_enum_scope_from_node().
-                    return later none
+                    return later node
                 }
                 var is_enum = if node.kind == ast.N_STMT_ENUM or
                     node.kind == ast.N_STMT_ENUMEXTEND (yes) else (no)
@@ -213,80 +213,84 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                                 ", expected var or func attributes.")
                         }
                     }
-                } else {
-                    var idx = 0
-                    for label in node.enum_entry_names {
-                        idx += 1
-                        if not escope.label_names.has(label) {
-                            escope.label_names.add(label)
-                            if node.kind == ast.N_STMT_ENUM and
-                                    escope.first_entry_pos == none {
-                                escope.first_entry_pos = idx
-                            }
-                            var numval =
-                                node.enum_entry_nums[idx]
-                            if numval == none or
-                                    not escope.label_nums.has(
-                                    numval) {
-                                escope.label_nums.add(
-                                    numval
-                                )
-                                continue
-                            }
-                            escope.label_nums.add(none)
-                            if msgs != none {
-                                msgs.add(new msg.FileMsg(
-                                    "Invalid enum entry "
-                                    "with duplicate number value " +
-                                    numval.as_str() +
-                                    " for label '" +
-                                    label + "', already used "
-                                    "previously.",
-                                    source_file=pfile,
-                                    line=node.line, col=node.col,
-                                ))
-                            } else {
-                                throw new ValueError("Invalid enum "
-                                    "entry with duplicate "
-                                    "number value.")
-                            }
+                    return later node
+                }
+                var idx = 0
+                for label in node.enum_entry_names {
+                    idx += 1
+                    if not escope.label_names.has(label) {
+                        escope.label_names.add(label)
+                        if node.kind == ast.N_STMT_ENUM and
+                                escope.first_entry_pos == none {
+                            escope.first_entry_pos = idx
+                        }
+                        var numval =
+                            node.enum_entry_nums[idx]
+                        if numval == none or
+                                not escope.label_nums.has(
+                                numval) {
+                            escope.label_nums.add(
+                                numval
+                            )
                             continue
                         }
-                        # If we arrive here, this name is taken.
+                        escope.label_nums.add(none)
                         if msgs != none {
                             msgs.add(new msg.FileMsg(
                                 "Invalid enum entry "
-                                "with duplicate name '" +
-                                label +
-                                "', already defined "
+                                "with duplicate number value " +
+                                numval.as_str() +
+                                " for label '" +
+                                label + "', already used "
                                 "previously.",
                                 source_file=pfile,
                                 line=node.line, col=node.col,
                             ))
                         } else {
                             throw new ValueError("Invalid enum "
-                                "entry with duplicate name.")
+                                "entry with duplicate "
+                                "number value.")
                         }
+                        continue
+                    }
+                    # If we arrive here, this name is taken.
+                    if msgs != none {
+                        msgs.add(new msg.FileMsg(
+                            "Invalid enum entry "
+                            "with duplicate name '" +
+                            label +
+                            "', already defined "
+                            "previously.",
+                            source_file=pfile,
+                            line=node.line, col=node.col,
+                        ))
+                    } else {
+                        throw new ValueError("Invalid enum "
+                            "entry with duplicate name.")
                     }
                 }
-                return
+                return later node
             }
-            if node.scope == none {
-                if has_attr(parent, "scope") {
-                    node.scope = parent.scope
-                } else {
-                    node.scope = none
-                }
+            if node.scope == none and has_attr(parent, "scope") {
+                node.scope = parent.scope
             }
-            if node.subblocks.len > 0 {
+            if node.subblocks.len > 0 and
+                    # (Note: The following is to skip "clause" nodes,
+                    # since these are handled later)
+                    (not hasattr(parent, "kind") or
+                     (parent.kind != ast.N_STMT_IF and
+                      parent.kind != ast.N_STMT_DO)) {
                 var inner_scope = new scope.LocalScope()
                 inner_scope.parent = node.scope
                 if inner_scope.parent != none and
                         has_attr(inner_scope.parent, "func_scope") {
                     inner_scope.func_scope = inner_scope.parent.func_scope
                 }
+                assert(node.kind != ast.N_STMT_IF or
+                    node.subblocks.len == 0)
                 for block in node.subblocks {
                     for stmt in block {
+                        assert(stmt.scope == none)
                         stmt.scope = inner_scope
                     }
                 }
@@ -322,6 +326,7 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                     }
                     for block in clause.subblocks {
                         for stmt in block {
+                            assert(stmt.scope == none)
                             stmt.scope = inner_scope
                         }
                     }

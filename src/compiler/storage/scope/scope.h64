@@ -68,6 +68,16 @@ type LocalScope {
     var func_scope
 }
 
+func LocalScope.lookup(name) {
+    if self.name_to_symbol_map.has(name) {
+        return self.name_to_symbol_map[name]
+    }
+    if self.parent == none {
+        return none
+    }
+    return self.parent.lookup(name)
+}
+
 extend ast.TreeNode {
     var scope
 }

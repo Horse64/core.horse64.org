@@ -141,7 +141,15 @@ func TreeNode.as_json_obj {
     return output
 }
 
+func TreeNode.is_stmt {
+    return no
+}
+
 type StmtNode base TreeNode {
+}
+
+func StmtNode.is_stmt {
+    return yes
 }
 
 enum NodeKind {

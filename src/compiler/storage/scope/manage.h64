@@ -67,15 +67,18 @@ func project.ProjectFile.try_lookup_symbol_path(
     if check_path.len == 0 {
         return none
     }
-    if local_scope != none and
-            local_scope.name_to_symbol_map.has(check_path[1]) {
-        if check_path.len > 1 {
-            return none
+    if local_scope != none {
+        var symbol_info =
+            local_scope.lookup(check_path[1])
+        if symbol_info != none {
+            if check_path.len > 1 {
+                return none
+            }
+            return new storage_ref.StorageRef(
+                storage_ref.ST_LOCAL,
+                symbol_info
+            )
         }
-        return new storage_ref.StorageRef(
-            storage_ref.ST_LOCAL,
-            local_scope.name_to_symbol_map[check_path[1]]
-        )
     }
     var entry = project_file.global_scope.type_path_to_entry(
         check_path)
