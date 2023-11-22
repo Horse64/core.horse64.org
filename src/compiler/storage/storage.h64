@@ -135,7 +135,8 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                 # nodes, set the type/enum scope to this copy as well:
                 if (node.kind == ast.N_STMT_ENUM or
                         node.kind == ast.N_STMT_TYPE) and
-                        pfile.global_scope.name_to_stmt_map.has(node.label) {
+                        pfile.global_scope.name_to_stmt_map.has(
+                            node.label) {
                     var gscope_node =
                         pfile.global_scope.name_to_stmt_map[node.label]
                     if typename(gscope_node) != "list" and
@@ -161,7 +162,8 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                                         new scope.SymbolInfo(label)
                                     symbol_info.def_ine = stmt.line
                                     symbol_info.def_col = stmt.col
-                                    symbol_info.def_uri = pfile.source_uri
+                                    symbol_info.def_uri =
+                                        pfile.source_uri
                                     symbol_info.storage_id =
                                         escope.name_to_symbol_map.len + 1
                                     if idx <= stmt.subexprs.len {
@@ -183,7 +185,8 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                                             old_symbol.def_line.as_str()
                                         if old_symbol.def_col != none {
                                             where += ":" +
-                                                old_symbol.def_col.as_str()
+                                                old_symbol.def_col.
+                                                as_str()
                                         }
                                     }
                                 }
@@ -292,9 +295,9 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                       parent.kind != ast.N_STMT_DO)) {
                 var inner_scope = new scope.LocalScope()
                 inner_scope.parent = node.scope
-                if inner_scope.parent != none and
-                        has_attr(inner_scope.parent, "func_scope") {
-                    inner_scope.func_scope = inner_scope.parent.func_scope
+                if inner_scope.parent != none {
+                    inner_scope.func_scope =
+                        inner_scope.parent.func_scope
                 }
                 assert(node.kind != ast.N_STMT_IF or
                     node.subblocks.len == 0)
@@ -306,11 +309,9 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                 }
                 if node.kind == ast.N_STMT_FUNC {
                     inner_scope.func_scope = new scope.FuncScope()
-                    if parent != none and has_attr(parent, "scope") and
-                            parent.scope != none and
-                            parent.scope.func_scope != none {
-                        inner_scope.func_scope.parent_scope =
-                            parent.scope.func_scope
+                    if inner_scope.parent != none {
+                        inner_scope.func_scope.parent =
+                            inner_scope.parent.func_scope
                     }
                     if node.type_path == none {
                         try_register_symbol(inner_scope,
