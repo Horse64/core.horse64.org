@@ -2164,6 +2164,11 @@ def _container_get_values(container):
         return list(container.values())
     return getattr(container, "values")
 
+def _container_get_keys(container):
+    if type(container) == dict:
+        return list(container.keys())
+    return getattr(container, "keys")
+
 def _container_squarebracketaccess(container, index):
     if type(container) == dict:
         return container[index]
