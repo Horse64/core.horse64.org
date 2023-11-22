@@ -394,7 +394,7 @@ func actionparser_compile(args) {
                 "msgs"-> [],
                 "result"-> tresult.as_json_obj(),
             }
-            for m in msgs {
+            for m in tresult.msgs {
                 output["msgs"].add(msg.as_json_obj())
             }
             if had_error {
@@ -559,7 +559,7 @@ func actionparser_compile(args) {
                             "Can't make directory using this "
                             "remote protocol.")
                     }
-                    write_folder_path = uri.to_file_or_vfs_path(
+                    var write_folder_path = uri.to_file_or_vfs_path(
                         write_folder_uri)
                     io.make_dir(uri.to_file_or_vfs_path(
                         write_folder_uri), allow_vfs=no,
@@ -578,7 +578,7 @@ func actionparser_compile(args) {
                     return later yes
                 }
                 assert(opt_output_dir != none)
-                success = aresult.project_file.project.
+                var success = aresult.project_file.project.
                     do_for_all_files(output_to_folder)
                 later:
 

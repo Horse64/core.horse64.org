@@ -117,9 +117,8 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             ) - 1)
         pos += possibleskiplen
         stmt.subexprs.add(new expr.InvalidExpr(
-            math.max(i - pos + 1, 1)
+            math.max(pos - startpos + 1, 1)
         ))
-        pos = i
     } else {
         stmt.label = tokens[pos].str
         pos += 2

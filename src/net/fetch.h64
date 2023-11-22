@@ -45,7 +45,6 @@ func _validate_uri_list(target_uri) {
     # Turn to a list, ensure it's really all strings:
     var uris_unclean = target_uri
     if typename(target_uri) != "list" {
-        was_single_uri = yes
         uris_unclean = [target_uri]
     }
     var uris = []
@@ -78,7 +77,6 @@ func _validate_uri_list(target_uri) {
 ##   to avoid any limit.
 func write_to_file(source_uri, path, max_size=(100 * 1024  * 1024)) {
     # Validate input:
-    var was_single_uri = {"bytes", "str"}.has(typename(source_uri))
     var uris = _validate_uri_list(source_uri)
     uris.reverse()  # So we can use .pop() to get it in order.
     if uris.len == 0 {
@@ -110,7 +108,7 @@ func write_to_file(source_uri, path, max_size=(100 * 1024  * 1024)) {
 
     # Do first chunk of read & write:
     var done = io.read_write_transfer(
-        src_obj, target_obj_next_uri,
+        src_obj, target_obj,
         error_prefix="Error on URI '" + next_uri + "':",
         close_on_error=yes
     )
@@ -205,10 +203,6 @@ func get_str(
         result.add(none)
 
         if not one_or_more or remain_unfailed <= 0 {
-            if not was_single_uri {  # User might wonder which URI:
-                e.msg = "Error while fetching '" +
-                    next_uri + "': " + e.msg
-            }
             throw e
         }
     } finally {

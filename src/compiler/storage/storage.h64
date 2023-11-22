@@ -26,7 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import compiler.ast as ast
-import compiler.ast.expr
+import compiler.ast.expr as ast_expr
 import compiler.ast.transform as transform
 import compiler.cext as cext
 import compiler.project as project
@@ -37,7 +37,7 @@ extend project.Project {
     var did_compute_scopes = no
 }
 
-extend ast.expr.IdRefExpr {
+extend ast_expr.IdRefExpr {
     var ref
 }
 
@@ -287,7 +287,7 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
             if node.subblocks.len > 0 and
                     # (Note: The following is to skip "clause" nodes,
                     # since these are handled later)
-                    (not hasattr(parent, "kind") or
+                    (not has_attr(parent, "kind") or
                      (parent.kind != ast.N_STMT_IF and
                       parent.kind != ast.N_STMT_DO)) {
                 var inner_scope = new scope.LocalScope()
@@ -386,7 +386,8 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
 
     await success
     func resolve_scope(pfile) {
-        pfile.global_scope.ensure_assigned_storage(msgs=msgs)
+        pfile.global_scope.ensure_assigned_storage(
+            msgs=msgs, project_file=pfile)
         func expr_idref_resolve_visitor(node, parent) {
             if node.kind == ast.N_EXPR_IDREF {
                 if parent.kind == ast.N_EXPR_BINOP and

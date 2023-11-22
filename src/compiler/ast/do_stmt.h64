@@ -89,7 +89,7 @@ func RescueClause.as_code(indent=0) {
     }
     var t = " rescue "
     var is_first = yes
-    idx = 0
+    var idx = 0
     for elabel in self.error_labels {
         idx += 1
         if is_first {
@@ -326,7 +326,7 @@ func parse_single_rescue_clause(
 
 func parse_all_rescue_clauses(
         stmt, tokens, tokens_len, pos, msgs,
-        project_file=project_file, debug=no) {
+        project_file=none, debug=no) {
     var result = []
     var rescue_clause = parse_single_rescue_clause(
         stmt, tokens, tokens_len, pos, msgs,

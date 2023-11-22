@@ -329,7 +329,7 @@ func get_build_options_from_file(path) {
     with io.open(path, "r") later as f {
         var file_str = f.read() later:
 
-        await result
+        await file_str
         return get_build_options_from_str(file_str)
     }
 }

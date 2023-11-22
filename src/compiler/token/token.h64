@@ -189,7 +189,7 @@ func parse_str_widechar_escaping(str, pos) {
         # It's not a valid escaping.
         return none
     }
-    hex_part = str.sub(pos + 2, pos + (escape_len - 1))
+    var hex_part = str.sub(pos + 2, pos + (escape_len - 1))
     assert(hex_part.len >= 4 and hex_part.len <= 8)
     var value = math.parse_hex(hex_part)
     if value > 0x10FFFF {
@@ -265,7 +265,7 @@ func parse_token_value(tok) {
         var toklen = tok.str.len
         var escaped = no
         var result = ""
-        i = 2
+        var i = 2
         while i <= toklen - 1 {
             if escaped {
                 escaped = no
@@ -323,7 +323,7 @@ func parse_token_value(tok) {
         var toklen = tok.str.len
         var escaped = no
         var result = b""
-        i = 3
+        var i = 3
         while i <= toklen - 1 {
             if escaped {
                 escaped = no
@@ -468,7 +468,7 @@ func surely_starts_stmt_even_in_bad_code(
 ## @returns [@Token] Resulting list of tokens
 func token_list_from_str_list(strlist, internal_labels=no) {
     var resultlist = []
-    token_no = 0
+    var token_no = 0
     for str in strlist {
         token_no += 1
         var result = tokenize_str(
@@ -667,7 +667,7 @@ func token_is_consumed_by_return_simple(t) {
             t, keep_whitespace=no,
             keep_comments=no,
             auto_recovery=no,
-            internal_labels=internal_labels,
+            internal_labels=no,
         )
         if result.tokens.len != 1 {
             throw new ValueError("not a single token")
@@ -894,7 +894,7 @@ func skip_code_block_if_any(
             }
         }
         var skiplen = get_naive_stmt_or_expr_len(
-            tokens, pos, bracket_depth=bracket_depth
+            tokens, pos, bracket_depth=block_depth
         )
         pos += skiplen
         if pos > token_len {
@@ -1079,7 +1079,7 @@ func reverse_brackets(value) {
         throw new TypeError("value must be bytes or str.")
     }
     var valuenew = ""
-    i = 1
+    var i = 1
     while i <= value.len {
         if value[i] == "(" {
             valuenew += ")"
@@ -1474,7 +1474,7 @@ func tokenize_str(
     while i < strlen {
         i += 1
         col += 1
-        c = str[i]
+        var c = str[i]
         if result.tokens.len > 0 and
                 not {T_WSPACE, T_COMMENT}.has(
                     result.tokens.last().kind
@@ -1686,10 +1686,10 @@ func tokenize_str(
             continue
         } elseif c == "#" {
             # A line comment:
-            start_line = line
-            start_col = col
+            var start_line = line
+            var start_col = col
             col += 1
-            start_pos = i
+            var start_pos = i
             i += 1
             while i < strlen and str[i] != "\n" and
                     str[i] != "\r" {

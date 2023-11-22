@@ -131,7 +131,7 @@ func TreeNode.as_json_obj {
     if self.subblocks.len > 0 {
         output["subblocks"] = []
         for subblock in self.subblocks {
-            block_statements = []
+            var block_statements = []
             for statement in subblock {
                 block_statements.add(statement.as_json_obj())
             }
@@ -300,7 +300,7 @@ func parse_statement(
 
 func parse_to_ast_ex(
         tokens, pos, project_file=none,
-        is_inside_block=no, debug=debug,
+        is_inside_block=no, debug=no,
         ) {
     var result = new ASTResult()
     const startpos = pos
@@ -453,7 +453,7 @@ func _tokenize_this_file_for_ast(
 }
 
 func _parse_tokens_file_to_ast_ex(
-        tokens_source, project_file=project_file,
+        tokens_source, project_file=none,
         source_is_uri=no,
         is_entrypoint=yes, force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
@@ -535,8 +535,7 @@ func parse_to_ast_from_uri(
         fileuri, project_file=none, default_to_diskpath=no,
         is_entrypoint=yes, force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
-        require_detect_project_dir=
-            require_detect_project_dir,
+        require_detect_project_dir=no,
         debug=no, debug_modules=no
         ) {
     var result = _parse_tokens_file_to_ast_ex(

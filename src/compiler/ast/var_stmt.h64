@@ -186,7 +186,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             return invalid_st
         } elseif tokens[pos].kind != token.T_COMMA and
                 tokens[pos].kind != token.T_ASSIGN {
-            i = 1
+            var i = 1
             while i <= varcount {
                 var lexpr = new expr.LiteralExpr()
                 lexpr.value = none

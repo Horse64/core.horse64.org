@@ -425,7 +425,7 @@ func parse_expression(
     inner_expr = wrapping_expr
     pos = origpos + inner_expr.token_len
 
-    wrapped_expr = parse_expression_unwrapped(
+    wrapping_expr = parse_expression_unwrapped(
         tokens, pos, msgs, project_file=project_file,
         left_hand=inner_expr,
         max_len=tokens_len, debug=debug,
@@ -701,7 +701,7 @@ func parse_expression_unwrapped(
             if next_expr == none {
                 if pos > tokens_len or
                         tokens[pos] != token.T_ENCLOSE or
-                        tokens[pos].str != closingbracket {
+                        tokens[pos].str != closebracket {
                     if not node.has_damage() {
                         msgs.add(new msg.FileMsg(
                             "Unexpected " + token.describe_token_at(
@@ -761,7 +761,7 @@ func parse_expression_unwrapped(
             }
             if had_fatal_error {
                 # Forward to final closing bracket and abort.
-                bdepth = 0
+                var bdepth = 0
                 while pos <= tokens_len and
                         (bdepth > 0 or
                         tokens[pos].kind != token.T_ENCLOSE or
@@ -1383,7 +1383,7 @@ func parse_expression_unwrapped(
                 assert(operand_parsed == none or
                        operand_parsed.token_len > 0)
                 var after_pos = operand[1] + (
-                    if operand_parsed != None
+                    if operand_parsed != none
                         (operand_parsed.token_len) else (0)
                 )
                 if operand_parsed == none or

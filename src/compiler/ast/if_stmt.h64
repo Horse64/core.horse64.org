@@ -100,7 +100,7 @@ func IfElseClause.as_code(indent=0, is_first=yes) {
 
 func parse_next_ifelse_clause_header(
         tokens, tokens_len, pos, msgs,
-        project_file=project_file, debug=no,
+        project_file=none, debug=no,
         is_first=yes, startpos=none) {
     if startpos == none {
         startpos = pos
@@ -193,7 +193,7 @@ func parse_next_ifelse_clause_header(
 
 func parse_next_ifelse_clause(
         tokens, tokens_len, pos, msgs,
-        project_file=project_file, debug=no,
+        project_file=none, debug=no,
         is_first=yes, startpos=none) {
     if startpos == none {
         startpos = pos

@@ -75,7 +75,7 @@ func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes) {
         }
         if new_node != next.node {
             if has_attr(next.parent, "subexprs") {
-                pos = 1
+                var pos = 1
                 while pos <= next.parent.subexprs.len {
                     if next.parent.subexprs[pos] == next.node {
                         if new_node != none {
@@ -89,7 +89,7 @@ func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes) {
                 }
             }
             if has_attr(next.parent, "stmts") {
-                pos = 1
+                var pos = 1
                 while pos <= next.parent.stmts.len {
                     if next.parent.stmts[pos] == next.node {
                         if new_node != none {
@@ -104,7 +104,7 @@ func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes) {
             }
             if has_attr(next.parent, "subblocks") {
                 for block in next.parent.subblocks {
-                    pos = 1
+                    var pos = 1
                     while pos <= block.len {
                         if block[pos] == next.node {
                             if new_node != none {

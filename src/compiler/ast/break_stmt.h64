@@ -56,7 +56,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             tokens[pos].str != "break" {
         return later none
     }
-    stmt = new BreakStmt()
+    var stmt = new BreakStmt()
     stmt.token_len = 1
     return stmt
 }

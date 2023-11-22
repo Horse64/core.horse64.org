@@ -60,7 +60,7 @@ func StorageRef.copy {
 
 func StorageRef.alike(other_ref) {
     if not has_attr(other_ref, "kind") or
-            not has_atr(other_ref, "id") {
+            not has_attr(other_ref, "id") {
         return no
     }
     return other_ref.kind == self.kind and

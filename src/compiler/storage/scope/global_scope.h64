@@ -69,7 +69,8 @@ func GlobalScope.as_json_obj {
     return result
 }
 
-func GlobalScope.ensure_assigned_storage(msgs=none) {
+func GlobalScope.ensure_assigned_storage(msgs=none,
+        project_file=none) {
     if self.storage_id_to_entry.len > 0 or
             self.name_to_stmt_map.len == 0 {
         return
@@ -117,13 +118,13 @@ func GlobalScope.ensure_assigned_storage(msgs=none) {
                         old_symbol = old_symbol[1]
                     }
                     msgs.add(new msg.FileMsg(
-                        "Unexpected duplicate name '" + symbol_name + "'"
+                        "Unexpected duplicate name '" + label + "'"
                         ", name was already used in same "
                         "scope in statement in line " +
                         old_symbol.line.as_str() +
                         ", column " + old_symbol.col.as_str() + ".",
-                        source_file=pfile,
-                        line=line, col=col
+                        source_file=project_file,
+                        line=value.line, col=value.col
                     ))
                 }
                 continue

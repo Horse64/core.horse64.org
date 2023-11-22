@@ -668,7 +668,7 @@ func Project.find_package_dir_uri(package_name,
     if not {"file", "vfs"}.has(uri.get_protocol(self.packages_dir_uri)) {
         # Can't enforce case sensitivty on this, so just return
         # the obvious path right awway:
-        return later uri.add_part(packages_dir_uri,
+        return later uri.add_part(self.packages_dir_uri,
             uri.encode_path(package_name))
     }
     # To enforce case sensitivity, do a file listing:

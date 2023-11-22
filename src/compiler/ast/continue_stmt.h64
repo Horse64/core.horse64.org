@@ -55,7 +55,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             tokens[pos].str != "continue" {
         return later none
     }
-    stmt = new ContinueStmt()
+    var stmt = new ContinueStmt()
     stmt.token_len = 1
     return stmt
 }
