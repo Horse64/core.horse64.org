@@ -97,6 +97,12 @@ func project.ProjectFile.try_lookup_symbol_path(
         return new storage_ref.StorageRef(
             storage_ref.ST_BUILTIN, builtin_id)
     }
+    if check_path[1] == "self" and
+            local_scope != none and local_scope.func_scope != none and
+            local_scope.func_scope.is_type_attr {
+        return new storage_ref.StorageRef(
+            storage_ref.ST_SELF, 0)
+    }
     return none
 }
 

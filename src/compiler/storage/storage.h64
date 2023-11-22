@@ -306,9 +306,13 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                 }
                 if node.kind == ast.N_STMT_FUNC {
                     inner_scope.func_scope = new scope.FuncScope()
-                    try_register_symbol(inner_scope,
-                        node.label, msgs,
-                        pfile, node.line, node.col)
+                    if node.type_path == none {
+                        try_register_symbol(inner_scope,
+                            node.label, msgs,
+                            pfile, node.line, node.col)
+                    } else {
+                        inner_scope.func_scope.is_type_attr = yes
+                    }
                     for label in node.arg_labels {
                         try_register_symbol(inner_scope,
                             label, msgs,

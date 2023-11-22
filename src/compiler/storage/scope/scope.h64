@@ -45,6 +45,7 @@ func SymbolInfo.init(name) {
 
 type FuncScope {
     var last_storage_id = 0
+    var is_type_attr = no
 }
 
 type TypeScope {
