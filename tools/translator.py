@@ -956,9 +956,9 @@ def translate_expression_tokens(s, sc,
             s[i] = "__contains__"
         elif s[i] == "throw" and previous_token != ".":
             s[i] = "raise"
-        elif s[i] == "is_num" and previous_token != ".":
+        elif s[i] == "alike_num" and previous_token != ".":
             s = s[:i] + ["_translator_runtime_helpers",
-                ".", "_is_num"] + s[i + 1:]
+                ".", "_alike_num"] + s[i + 1:]
         elif s[i] == "print" and previous_token != ".":
             s = s[:i] + ["_translator_runtime_helpers",
                 ".", "_h64_print"] + s[i + 1:]

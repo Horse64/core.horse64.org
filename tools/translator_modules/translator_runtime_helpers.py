@@ -2361,7 +2361,7 @@ def _wildcard_match(pattern, value,
     return fnmatch.fnmatch(value, pattern)
 
 
-def _is_num(v):
+def _alike_num(v):
     if type(v) in {float, int}:
         return True
     if type(v) == bytes:
@@ -2479,7 +2479,7 @@ def _as_hex(v, *args, **kwargs):
 def _to_num(v):
     if type(v) in {int, float}:
         return v
-    if not _is_num(v):
+    if not _alike_num(v):
         raise _ValueError("Given value can't "
             "be converted to number")
     if type(v) == bytes:
@@ -2506,7 +2506,7 @@ def _bignum_compare_nums(v1, v2):
         return str(v)
     v1 = conv(v1)
     v2 = conv(v2)
-    if not _is_num(v1) or not _is_num(v2):
+    if not _alike_num(v1) or not _alike_num(v2):
         raise _TypeError("parameters must contain "
             "properly formatted numbers")
     if ((len(v1) >= 2 and v1[1] == "x") or
