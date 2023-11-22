@@ -1286,10 +1286,10 @@ func add_neighbor_modules_to_result(
         if msgs != none {
             msgs.add(new msg.FileMsg(
                 "Failed to process neighbor imports in "
-                "folder " + uri.normalize(file_uri) + ", since "
+                "folder " + uri.normalize(folder_uri) + ", since "
                 "folder listing isn't supported for this type "
                 "of URI.",
-                source_file=self,
+                source_file=result.project_file,
                 line=import_line, col=import_col,
             ))
         } else {

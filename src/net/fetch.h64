@@ -109,7 +109,6 @@ func write_to_file(source_uri, path, max_size=(100 * 1024  * 1024)) {
     # Do first chunk of read & write:
     var done = io.read_write_transfer(
         src_obj, target_obj,
-        error_prefix="Error on URI '" + next_uri + "':",
         close_on_error=yes
     )
     later:
@@ -138,9 +137,8 @@ func write_to_file(source_uri, path, max_size=(100 * 1024  * 1024)) {
     }
 
     # Do next chunk of read & write:
-    done = read_and_write(
+    done = io.read_write_transfer(
         src_obj, target_obj,
-        error_prefix="Error on URI '" + next_uri + "':",
         close_on_error=yes)
     later repeat
 }

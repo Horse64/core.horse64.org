@@ -33,9 +33,6 @@
 ## @param src_obj Source @{file|io.File} to read from.
 ## @param target_obj Target @{file|io.File} to write to.
 ## @param amount (int or none)
-## @param error_prefix str A string to prepend to an
-##   encountered @{error|Error}'s `.msg` attribute before
-##   the error bubbles up.
 ## @param close_on_error bool Whether to close the files if
 ##   an error happens. The @{error|Error} will bubble up for
 ##   you to handle in any case.
@@ -45,7 +42,6 @@
 ##   up for you to handle.
 func read_write_transfer(
         src_obj, target_obj, amount=none,
-        error_prefix="",
         close_on_error=no
         ) {
     # First, read:
@@ -60,7 +56,6 @@ func read_write_transfer(
             src_obj.close()
             target_obj.close()
         }
-        e.msg = error_prefix + e.msg
         throw e
     }
     if data == "" {
@@ -76,7 +71,6 @@ func read_write_transfer(
             src_obj.close()
             target_obj.close()
         }
-        e.msg = error_prefix + e.msg
         throw e
     }
     return no  # Not end of file!

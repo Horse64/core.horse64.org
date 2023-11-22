@@ -53,6 +53,7 @@ type CFunc {
     var name
     var module_name
     var package_name
+    var storage_id
 }
 
 func CFunc.as_str {
@@ -64,7 +65,15 @@ func CFunc.as_str {
 
 const hvm_builtin_cext_storage_map = {->}
 
-func get_builtin_cext_storage_id(name) {
+var hvm_builtin_cext_max_storage_id = 0
+
+extend project.Project {
+    var last_id_offset_for_cext_storage = 0
+}
+
+func get_builtin_cext_storage_id(name,
+        in_module_name=none, in_package_name=none,
+        project=none) {
     if hvm_builtin_cext_storage_map.len == 0 {
         var st_id = 1
         for entry in hvm_builtin_cext_funcs {
@@ -75,11 +84,36 @@ func get_builtin_cext_storage_id(name) {
             hvm_builtin_cext_storage_map[entry] = st_id
             st_id += 1
         }
+        hvm_builtin_cext_max_storage_id = st_id - 1
     }
-    if not hvm_builtin_cext_storage_map.has(name) {
-        return none
+    if hvm_builtin_cext_storage_map.has(name) {
+        return hvm_builtin_cext_storage_map[name]
     }
-    return hvm_builtin_cext_storage_map[name]
+    if in_module_name != none and in_package_name != none {
+        if in_package_name == "core.horse64.org" and
+                project != none {
+            # Check for HVM built-ins:
+            assert(project.builtin_cexts != none)
+            var ref = in_module_name + "." + name
+            if project.builtin_cexts.name_to_cmodule_map.
+                    has(in_module_name) {
+                var cmod = project.builtin_cexts.name_to_cmodule_map[
+                    in_module_name]
+                if cmod.name_to_cfunc_map.has(name) {
+                    var cfunc = cmod.name_to_cfunc_map[name]
+                    if cfunc.storage_id == none {
+                        project.last_id_offset_for_cext_storage += 1
+                        cfunc.storage_id =
+                            project.last_id_offset_for_cext_storage +
+                            hvm_builtin_cext_max_storage_id
+                    }
+                    return cfunc.storage_id
+                }
+            }
+        }
+        # FIXME XXX Implement handling of other C extensions here.
+    }
+    return none
 }
 
 type CModule {
@@ -129,7 +163,7 @@ func CExtInfo.import_to_modname(importst, project=none) {
 func CExtInfo.as_str {
     var t = "<CExtInfo "
     var is_first = yes
-    for cmod in self.name_to_cmodule_map.values() {
+    for cmod in self.name_to_cfunc_map.values() {
         if is_first {
             is_first = no
         } else {
@@ -203,10 +237,11 @@ func scan_package_for_cexts(
                     invalid = yes
                 }
                 var cfunc_module
+                var cfunc_name
                 if not invalid {
                     cfunc_module = cfunc_ref.sub(
                         1, cfunc_ref.rfind(".") - 1)
-                    cfunc_ref = cfunc_ref.sub(
+                    cfunc_name = cfunc_ref.sub(
                         cfunc_ref.rfind(".") + 1)
                 }
                 if invalid and msgs != none {
@@ -217,6 +252,7 @@ func scan_package_for_cexts(
                         orig_ref,
                         kind=msg.M_WARNING
                     ))
+                    continue
                 } elseif invalid {
                     throw new ValueError(
                         "Malformed C extension reference found.")
@@ -228,14 +264,14 @@ func scan_package_for_cexts(
                 var cmod = cext_info.name_to_cmodule_map[cfunc_module]
                 cmod.module_name = cfunc_module
                 var duplicate = no
-                if cmod.name_to_cfunc_map.has(cfunc_ref) {
+                if cmod.name_to_cfunc_map.has(cfunc_name) {
                     duplicate = yes
                 } else {
                     var cfunc = new CFunc()
-                    cfunc.name = cfunc_ref
+                    cfunc.name = cfunc_name
                     cfunc.package_name = package_name
                     cfunc.module_name = cfunc_module
-                    cmod.name_to_cfunc_map[cfunc_ref] = cfunc
+                    cmod.name_to_cfunc_map[cfunc_name] = cfunc
                 }
                 if duplicate and msgs != none {
                     msgs.add(new msg.FileMsg(

@@ -92,7 +92,10 @@ func project.ProjectFile.try_lookup_symbol_path(
         # This can no longer be resolved at this point.
         return none
     }
-    var builtin_id = cext.get_builtin_cext_storage_id(check_path[1])
+    var builtin_id = cext.get_builtin_cext_storage_id(
+        check_path[1], in_module_name=project_file.modinfo.module_name,
+        in_package_name=project_file.modinfo.package_name,
+        project=project_file.project)
     if builtin_id != none {
         return new storage_ref.StorageRef(
             storage_ref.ST_BUILTIN, builtin_id)
