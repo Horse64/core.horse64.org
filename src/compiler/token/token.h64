@@ -1234,7 +1234,7 @@ func describe_token(t) {
 }
 
 func describe_token_str(s) {
-    if is_num(s) {
+    if alike_num(s) {
         return s
     }
     if s.glyph_len <= 1 {

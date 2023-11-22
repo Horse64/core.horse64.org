@@ -306,6 +306,12 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                 }
                 if node.kind == ast.N_STMT_FUNC {
                     inner_scope.func_scope = new scope.FuncScope()
+                    if parent != none and has_attr(parent, "scope") and
+                            parent.scope != none and
+                            parent.scope.func_scope != none {
+                        inner_scope.func_scope.parent_scope =
+                            parent.scope.func_scope
+                    }
                     if node.type_path == none {
                         try_register_symbol(inner_scope,
                             node.label, msgs,

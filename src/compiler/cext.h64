@@ -36,6 +36,8 @@ const hvm_builtin_cext_funcs = {
     "print"->"builtin_h64_print",
     "assert"->"builtin_h64_assert",
     "has_attr"->"builtin_h64_has_attr",
+    "to_num"->"builtin_h64_to_num",
+    "alike_num"->"builtin_h64_alike_num",
 }
 
 const hvm_builtin_cext_types = {
@@ -44,6 +46,7 @@ const hvm_builtin_cext_types = {
     "ValueError"->"builtin_h64_valueerror",
     "TypeError"->"builtin_h64_valueerror",
     "PathNotFoundError"->"builtin_h64_pathnotfounderror",
+    "PermissionError"->"builtin_h64_permissionerror",
 }
 
 type CFunc {

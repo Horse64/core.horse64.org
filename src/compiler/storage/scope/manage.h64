@@ -98,10 +98,19 @@ func project.ProjectFile.try_lookup_symbol_path(
             storage_ref.ST_BUILTIN, builtin_id)
     }
     if check_path[1] == "self" and
-            local_scope != none and local_scope.func_scope != none and
-            local_scope.func_scope.is_type_attr {
-        return new storage_ref.StorageRef(
-            storage_ref.ST_SELF, 0)
+            local_scope != none and local_scope.func_scope != none {
+        var nested_in_type_attr = no
+        var check_func_scope = local_scope.func_scope
+        while check_func_scope != none {
+            if check_func_scope.is_type_attr {
+                nested_in_type_attr = yes
+            }
+            check_func_scope = check_func_scope.parent
+        }
+        if nested_in_type_attr {
+            return new storage_ref.StorageRef(
+                storage_ref.ST_SELF, 0)
+        }
     }
     return none
 }
