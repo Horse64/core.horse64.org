@@ -25,7 +25,9 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import compiler.ast as cast
 import compiler.ast.transform as ast_transform
+import compiler.ast.type_stmt as type_stmt
 
 func first_pass_later_transform(project, msgs) {
     func transform_file(pfile) {

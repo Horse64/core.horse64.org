@@ -34,6 +34,7 @@ import uri from core.horse64.org
 
 import compiler.ast
 import compiler.ast.transform as ast_transform
+import compiler.ast.analyze as analyze
 import compiler.msg as msg
 import compiler.project as project
 import compiler.storage.scope
@@ -73,6 +74,7 @@ func tokenize_target_from_args(args) {
 }
 
 func parse_ast_target_from_args(args, checked_ast=no,
+        force_single_file=no,
         debug=no, debug_modules=no, debug_storage=no) {
     if args["--code"] != none {
         # Note: force_single_file=yes is implied and not a parameter,
@@ -91,7 +93,7 @@ func parse_ast_target_from_args(args, checked_ast=no,
 
     var tresult = compiler.ast.parse_to_ast_from_uri(
         src_path, default_to_diskpath=yes, is_entrypoint=yes,
-        force_single_file=no, allow_disk_access=yes,
+        force_single_file=force_single_file, allow_disk_access=yes,
         allow_vfs_access=no,
         require_detect_project_dir=yes,
         debug=debug, debug_modules=debug_modules
@@ -303,6 +305,11 @@ func actionparser_compile(args) {
         "--for-script",
         description="This switch formats horsec's terminal output (like"
             "e.g. the errors when compiling) as JSON.")
+    defs.add_switch(
+        "--single-file",
+        description="Always treat the target file not as part of a "
+            "project, but rather as a single standalone script file, "
+            "even if it wasn't auto-detected as a script file.")
     var result = argparse.parse(defs, args)
     if result.output != "" {
         print(result.output)
@@ -315,12 +322,19 @@ func actionparser_compile(args) {
 
     # Sanity check the provided options first:
 
-    if result.args["--code"] == none and
-            result.args["source file"] == none {
+    if (result.args["--code"] == none and
+            result.args["source file"] == none) or
+            (result.args["--code"] != none and
+             result.args["source file"] != none) {
         print(program_name + ": error: Must specify "
-            "source file or --code option.")
+            "either a source file, or --code option, but not both.")
         print("Use " + program_name + " compile --help to show usage.")
         return 1
+    }
+    var opt_is_single_file = no
+    if result.args["--single-file"] or
+            result.args["--code"] != none {
+        opt_is_single_file = yes
     }
     if result.args["--stage"] == none {
         result.args["--stage"] = "binary"
@@ -427,6 +441,7 @@ func actionparser_compile(args) {
             result.args["--stage"] == "global-scope" {
         var aresult = parse_ast_target_from_args(
             result.args, checked_ast=no,
+            force_single_file=opt_is_single_file,
             debug=result.args["--debug-ast"],
             debug_modules=result.args["--debug-modules"]
         )
@@ -455,6 +470,7 @@ func actionparser_compile(args) {
             result.args["--stage"] == "binary" {
         var aresult = parse_ast_target_from_args(
             result.args, checked_ast=yes,
+            force_single_file=opt_is_single_file,
             debug=result.args["--debug-ast"],
             debug_modules=result.args["--debug-modules"],
             debug_storage=result.args["--debug-storage"],
@@ -462,6 +478,12 @@ func actionparser_compile(args) {
         later:
 
         await aresult
+
+        # Apply code check and do basic analysis:
+        analyze.do_basic_check_and_analysis(
+            aresult.project_file.project,
+            aresult.msgs) later:
+
         if result.args["--stage"] == "checked-ast" {
             var finalresult =
                 show_ast_or_global_scope_result_to_terminal_or_file(

@@ -78,7 +78,7 @@ func IfElseClause.as_json_obj {
 
 func IfElseClause.as_code(indent=0, is_first=yes) {
     if self.damaged {
-        return " ".rep(indent) + "(damaged if else clause)"
+        return " ".rep(indent) + "(damaged ifelse clause)"
     }
     var t = ""
     if not self.is_else {

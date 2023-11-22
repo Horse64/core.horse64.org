@@ -1,0 +1,148 @@
+# @module compiler.ast.analyze
+# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import compiler.ast as cast
+import compiler.ast.type_stmt as type_stmt
+import compiler.limit as compiler_limit
+
+extend type_stmt.FuncStmt {
+    var is_later_func
+}
+
+func stmt_list_contains_later_call(
+        stmts, check_recursive=yes,
+        include_later_ignore=no,
+        recurse_into_funcs=no) {
+    for stmt in stmts {
+        if {cast.N_STMT_VAR, cast.N_STMT_CALL}.has(stmt.kind) and
+                stmt.has_later and
+                (include_later_ignore or
+                 not stmt.has_later_ignore) {
+            return yes
+        } elseif stmt.kind == cast.N_STMT_RETURN and
+                stmt.has_later {
+            return yes
+        } elseif check_recursive {
+            if stmt.kind == cast.N_STMT_IF or
+                    stmt.kind == cast.N_STMT_DO {
+                for clause in stmt.subexprs {
+                    for block in stmt.subblocks {
+                        if stmt_list_contains_later_call(block,
+                                check_recursive=yes,
+                                include_later_ignore=include_later_ignore) {
+                            return yes
+                        }
+                    }
+                }
+            } elseif (recurse_into_funcs or
+                    stmt.kind != cast.N_STMT_FUNC) and
+                    stmt.subblocks.len > 0 {
+                for block in stmt.subblocks {
+                    if stmt_list_contains_later_call(block,
+                            check_recursive=yes,
+                            include_later_ignore=include_later_ignore) {
+                        return yes
+                    }
+                }
+            }
+        }
+    }
+    return no
+}
+
+func _basic_check_and_analyze_do(
+        stmts, msgs=none, project_file=none
+        ) {
+    func check_and_analyze_recurse(
+            stmts, msgs, max_block_nesting_left,
+            max_expr_nesting_left
+            ) {
+        if max_block_nesting_left < 0 and stmts.len > 0 {
+            if msgs != none {
+                msgs.add(new msg.FileMsg(
+                    "Nesting of statements too deep here, "
+                    "exceeds maximum supported depth.",
+                    source_file=project_file,
+                    line=stmts[1].line, col=stmts[1].col
+                ))
+            }
+            return no
+        }
+        for stmt in stmts {
+            # Expressions (FIXME):
+
+            # Blocks:
+            if stmt.kind == cast.N_STMT_IF or
+                    stmt.kind == cast.N_STMT_DO {
+                for clause in stmt.subexprs {
+                    for block in stmt.subblocks {
+                        if not check_and_analyze_recurse(block, msgs,
+                                max_block_nesting_left - 1,
+                                max_expr_nesting_left) {
+                            return no
+                        }
+                    }
+                }
+            } elseif stmt.subblocks.len > 0 {
+                for block in stmt.subblocks {
+                    if not check_and_analyze_recurse(block, msgs,
+                            max_block_nesting_left - 1,
+                            max_expr_nesting_left) {
+                        return no
+                    }
+                }
+            }
+        }
+        return yes
+    }
+    return check_and_analyze_recurse(
+        stmts, msgs, compiler_limit.max_statement_nesting,
+        compiler_limit.max_expression_nesting
+    )
+}
+
+func do_basic_check_and_analysis(project, msgs) {
+    func process_file(pfile) {
+        pfile.ensure_ast() later:
+
+        if not _basic_check_and_analyze_do(pfile.ast.stmts, msgs,
+                project_file=pfile) {
+            return later no
+        }
+        return later yes
+    }
+    var check_went_ok = project.do_for_all_files(process_file)
+    later:
+
+    await check_went_ok
+    if not check_went_ok {
+        return later none
+    }
+
+    return later none
+}
+
