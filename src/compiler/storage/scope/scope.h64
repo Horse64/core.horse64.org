@@ -26,7 +26,9 @@
 # license, see accompanied LICENSE.md.
 
 import compiler.ast as ast
+import compiler.ast.enum_stmt as enum_stmt
 import compiler.ast.transform as transform
+import compiler.ast.type_stmt as type_stmt
 import compiler.msg as msg
 import compiler.project as project
 
@@ -80,6 +82,23 @@ func LocalScope.lookup(name) {
 
 extend ast.TreeNode {
     var scope
+    var symbol_info
+}
+
+extend type_stmt.TypeStmt {
+    var type_or_enum_scope
+}
+
+extend type_stmt.TypeExtendStmt {
+    var type_or_enum_scope
+}
+
+extend enum_stmt.EnumStmt {
+    var type_or_enum_scope
+}
+
+extend enum_stmt.EnumExtendStmt {
+    var type_or_enum_scope
 }
 
 extend project.Project {

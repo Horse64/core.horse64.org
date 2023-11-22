@@ -83,7 +83,6 @@ func project.ProjectFile.try_lookup_symbol_path(
     var entry = project_file.global_scope.type_path_to_entry(
         check_path)
     if entry != none {
-        project_file.global_scope.ensure_assigned_storage()
         return new storage_ref.StorageRef(
             storage_ref.ST_GLOBAL,
             entry.symbol_info.storage_id

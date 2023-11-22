@@ -33,10 +33,6 @@ import compiler.project as project
 import compiler.storage.scope as scope
 import compiler.storage.ref as storage_ref
 
-extend ast.TreeNode {
-    var symbol_info
-}
-
 extend project.Project {
     var did_compute_scopes = no
 }
@@ -132,6 +128,20 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                     # Note: error has already been emitted by
                     # make_type_or_enum_scope_from_node().
                     return later node
+                }
+                assert(node.type_or_enum_scope == none)
+                node.type_or_enum_scope = escope
+                # Since the global scope uses copied, separate stand-in
+                # nodes, set the type/enum scope to this copy as well:
+                if (node.kind == ast.N_STMT_ENUM or
+                        node.kind == ast.N_STMT_TYPE) and
+                        pfile.global_scope.name_to_stmt_map.has(node.label) {
+                    var gscope_node =
+                        pfile.global_scope.name_to_stmt_map[node.label]
+                    if typename(gscope_node) != "list" and
+                            gscope_node.kind == node.kind {
+                        gscope_node.type_or_enum_scope = escope
+                    }
                 }
                 var is_enum = if node.kind == ast.N_STMT_ENUM or
                     node.kind == ast.N_STMT_ENUMEXTEND (yes) else (no)
@@ -365,6 +375,14 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
 
         await success
         assert(success == yes)
+        return later yes
+    }
+    var success = self.do_for_all_files(compute_scope)
+    later:
+
+    await success
+    func resolve_scope(pfile) {
+        pfile.global_scope.ensure_assigned_storage(msgs=msgs)
         func expr_idref_resolve_visitor(node, parent) {
             if node.kind == ast.N_EXPR_IDREF {
                 if parent.kind == ast.N_EXPR_BINOP and
@@ -436,7 +454,7 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
         assert(success == yes)
         return later success
     }
-    var success = self.do_for_all_files(compute_scope)
+    success = self.do_for_all_files(resolve_scope)
     later:
 
     await success

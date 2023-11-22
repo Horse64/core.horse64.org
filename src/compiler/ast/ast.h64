@@ -36,7 +36,6 @@ import compiler.ast.do_stmt as do_stmt
 import compiler.ast.enum_stmt as enum_stmt
 import compiler.ast.for_stmt as for_stmt
 import compiler.ast.func_stmt as func_stmt
-import compiler.ast.global_scope as global_scope
 import compiler.ast.if_stmt as if_stmt
 import compiler.ast.import_stmt as import_stmt
 import compiler.ast.invalid_stmt as invalid_stmt
@@ -48,6 +47,7 @@ import compiler.ast.while_stmt as while_stmt
 import compiler.ast.with_stmt as with_stmt
 import compiler.msg as msg
 import compiler.project as project
+import compiler.storage.scope.global_scope as global_scope
 import compiler.token as token
 
 type TreeNode {
