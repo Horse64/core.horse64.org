@@ -29,6 +29,7 @@ import compiler.ast as ast
 import compiler.ast.transform as transform
 import compiler.msg as msg
 import compiler.project as project
+import compiler.storage.ref as storage_ref
 import compiler.storage.scope as scope
 
 func project.ProjectFile.type_path_to_full_module_path(tpath) {
@@ -153,18 +154,20 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
                 stmt_base_full_type_path = stmt_full_type_path
             }
             stmt_base_label = node.subexprs[1].label
-            if stmt_base_full_type_path == none and msgs != none {
-                msgs.add(new msg.FileMsg(
-                    "Unexpected type statement with invalid base type, "
-                    "module '" +
-                    node.subexprs[1].type_path.join(".") +
-                    "' wasn't imported anywhere.",
-                    source_file=self,
-                    line=node.line, col=node.col,
-                ))
-            } elseif stmt_base_full_type_path == none {
-                throw new ValueError("Couldn't resolve type's "
-                    "base type path.")
+            if stmt_base_full_type_path == none {
+                if msgs != none {
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected type statement with invalid base "
+                        "tyep, module '" +
+                        node.subexprs[1].type_path.join(".") +
+                        "' wasn't imported anywhere.",
+                        source_file=self,
+                        line=node.line, col=node.col,
+                    ))
+                } else {
+                    throw new ValueError("Couldn't resolve type's "
+                        "base type path.")
+                }
             }
         }
         key = stmt_full_type_path + "." + stmt_label
@@ -200,18 +203,20 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
             }
         }
         stmt_label = node.subexprs[1].label
-        if stmt_full_type_path == none and msgs != none {
-            msgs.add(new msg.FileMsg(
-                "Unexpected extend statement, "
-                "there isn't any import for this module: " +
-                node.subexprs[1].type_path.join("."),
-                source_file=self,
-                line=node.line, col=node.col,
-            ))
-            return none
-        } elseif stmt_full_type_path == none {
-            throw new ValueError("Couldn't resolve extend's "
-                "type path.")
+        if stmt_full_type_path == none {
+            if msgs != none {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected extend statement, "
+                    "there isn't any import for this module: " +
+                    node.subexprs[1].type_path.join("."),
+                    source_file=self,
+                    line=node.line, col=node.col,
+                ))
+                return none
+            } else {
+                throw new ValueError("Couldn't resolve extend's "
+                    "type path.")
+            }
         }
         key = stmt_full_type_path + "." + stmt_label
     }
