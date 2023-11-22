@@ -401,6 +401,13 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                         parent.optoken.str == "." {
                     return later node
                 }
+                if (parent.kind == ast.N_STMT_TYPE or
+                        parent.kind == ast.N_STMT_TYPEEXTEND or
+                        parent.kind == ast.N_STMT_ENUMEXTEND) and
+                        parent.subexprs.len > 0 and
+                        parent.subexprs[1] == node {
+                    return later none
+                }
                 var result = pfile.try_lookup_symbol_path(
                     pfile, node.scope,
                     name=node.label,
