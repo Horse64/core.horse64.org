@@ -380,6 +380,8 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
             }
             return later node
         }
+        pfile.ensure_ast() later:
+
         var success = transform.visit_ast_tree(
             pfile.ast, assign_local_scope
             ) later:
@@ -466,6 +468,8 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
             }
             return later node
         }
+        pfile.ensure_ast() later:
+
         success = transform.visit_ast_tree(
             pfile.ast, expr_idref_resolve_visitor) later:
 

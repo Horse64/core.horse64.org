@@ -33,6 +33,7 @@ import system from core.horse64.org
 import uri from core.horse64.org
 
 import compiler.ast
+import compiler.ast.transform as ast_transform
 import compiler.msg as msg
 import compiler.project as project
 import compiler.storage.scope
@@ -480,6 +481,9 @@ func actionparser_compile(args) {
         # If the AST wasn't succesfully created, abort:
 
         # Apply code transformation:
+        ast_transform.do_all_transformations(
+            aresult.project_file.project,
+            aresult.msgs, optimize=yes) later:
 
         # If we had an error at this stage then we need to abort:
         var had_error = no

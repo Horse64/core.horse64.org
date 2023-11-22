@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import compiler.ast as ast
+import compiler.ast.transform.later_transform as later_transform
 
 type VisitQueueEntry {
     var node
@@ -150,5 +151,12 @@ func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes) {
         return later yes
     }
     resume_queue = process_next_node() later repeat
+}
+
+func do_all_transformations(project, msgs, optimize=yes) {
+    later_transform.first_pass_later_transform(project, msgs)
+    later:
+
+    return later none
 }
 
