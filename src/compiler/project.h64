@@ -74,6 +74,8 @@ type Project {
     var builtin_cexts = none
 
     var entrypoint_is_inline = no
+
+    var entrypoint_is_known_single_file = no
 }
 
 type ModuleInfo {
@@ -770,8 +772,6 @@ func ProjectFile.init(
     self.project = project
     if force_single_file {
         self._is_single_file = yes
-    } elseif is_entrypoint {
-        self._is_single_file = no
     }
 }
 
@@ -903,7 +903,8 @@ func ProjectFile.check_is_single_file {
 }
 
 func ProjectFile.ensure_known_single_file_status {
-    if self.source_uri == none {
+    if self.source_uri == none or
+            self._is_single_file != none {
         return later
     }
 
@@ -1015,7 +1016,8 @@ func Project.ensure_builtin_cexts(
     var cfuncs = cext.scan_package_for_cexts(
         self, "hvm.horse64.org", msgs=msgs, debug=debug_modules,
         allow_project_independent_packages_fallback=
-            self.entrypoint_is_inline
+            (self.entrypoint_is_inline or
+            self.entrypoint_is_known_single_file)
     ) later:
 
     await cfuncs
@@ -1038,13 +1040,27 @@ func ProjectFile.ensure_project(msgs=none) {
 
     self.project.ensure_package_name() later:
 
+    var is_single_file = self.check_is_single_file()
+    later:
+
+    await is_single_file
+    if is_single_file {
+        self.project.entrypoint_is_known_single_file = yes
+    }
+
     self.project.ensure_builtin_cexts(
         msgs=msgs, debug_modules=self.project.debug_modules
     ) later:
 
-    if self.source_uri == none or self.modinfo != none {
+    if self.source_uri == none or self.modinfo != none or
+            is_single_file {
+        # We can't get full module info for this file, bail early:
         if self.source_uri == none {
             self.project.no_uri_files.add(self)
+        } elseif is_single_file {
+            self.project.module_uri_to_file_map[
+                uri.normalize(self.source_uri, absolute_file=yes)
+            ] = self
         }
         return later none
     }
@@ -1497,7 +1513,7 @@ func ProjectFile.resolve_all_imports(msgs=none,
     var imports_to_process = self.imports.copy()
 
     var file_rel_path = "<not on disk>"
-    if self.source_uri != none {
+    if self.source_uri != none and self._is_single_file != yes {
         assert(self.modinfo != none)
         file_rel_path = self.modinfo.rel_path
         assert(file_rel_path != none)
