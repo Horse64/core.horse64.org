@@ -76,28 +76,34 @@ func tokenize_target_from_args(args) {
 func parse_ast_target_from_args(args, checked_ast=no,
         force_single_file=no,
         debug=no, debug_modules=no, debug_storage=no) {
-    if args["--code"] != none {
-        # Note: force_single_file=yes is implied and not a parameter,
-        # since this is "str_to_ast":
-        var tresult = compiler.ast.parse_str_to_ast(
-            args["--code"], is_entrypoint=yes,
-            allow_disk_access=yes, allow_vfs_access=no,
+    func get_ast {
+        if args["--code"] != none {
+            # Note: force_single_file=yes is implied and not a parameter,
+            # since this is "str_to_ast":
+            var tresult = compiler.ast.parse_str_to_ast(
+                args["--code"], is_entrypoint=yes,
+                allow_disk_access=yes, allow_vfs_access=no,
+                require_detect_project_dir=yes,
+                debug=debug, debug_modules=no
+            ) later:
+
+            await tresult
+            return tresult
+        }
+        var src_path = args["source file"]
+
+        var tresult = compiler.ast.parse_to_ast_from_uri(
+            src_path, default_to_diskpath=yes, is_entrypoint=yes,
+            force_single_file=force_single_file, allow_disk_access=yes,
+            allow_vfs_access=no,
             require_detect_project_dir=yes,
-            debug=debug, debug_modules=no
+            debug=debug, debug_modules=debug_modules
         ) later:
 
         await tresult
         return tresult
     }
-    var src_path = args["source file"]
-
-    var tresult = compiler.ast.parse_to_ast_from_uri(
-        src_path, default_to_diskpath=yes, is_entrypoint=yes,
-        force_single_file=force_single_file, allow_disk_access=yes,
-        allow_vfs_access=no,
-        require_detect_project_dir=yes,
-        debug=debug, debug_modules=debug_modules
-    ) later:
+    var tresult = get_ast() later:
 
     await tresult
     if not checked_ast {
@@ -480,11 +486,12 @@ func actionparser_compile(args) {
         await aresult
 
         # Apply code check and do basic analysis:
-        analyze.do_basic_check_and_analysis(
+        var success = analyze.do_basic_check_and_analysis(
             aresult.project_file.project,
             aresult.msgs) later:
 
-        if result.args["--stage"] == "checked-ast" {
+        await success
+        if result.args["--stage"] == "checked-ast" or not success {
             var finalresult =
                 show_ast_or_global_scope_result_to_terminal_or_file(
                     aresult, aresult.msgs,
@@ -500,7 +507,6 @@ func actionparser_compile(args) {
         }
 
         # Continuing here, we want to transform the code.
-        # If the AST wasn't succesfully created, abort:
 
         # Apply code transformation:
         ast_transform.do_all_transformations(

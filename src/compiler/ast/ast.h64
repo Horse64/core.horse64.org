@@ -480,6 +480,9 @@ func _parse_tokens_file_to_ast_ex(
     ) later:
 
     await aresult
+    if tresult.project_file != none {
+        aresult.project_file = tresult.project_file
+    }
     aresult.msgs = tresult.msgs + aresult.msgs
     return aresult
 }

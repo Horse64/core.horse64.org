@@ -28,6 +28,7 @@
 import compiler.ast as cast
 import compiler.ast.type_stmt as type_stmt
 import compiler.limit as compiler_limit
+import compiler.msg as msg
 
 extend type_stmt.FuncStmt {
     var is_later_func
@@ -50,7 +51,7 @@ func stmt_list_contains_later_call(
             if stmt.kind == cast.N_STMT_IF or
                     stmt.kind == cast.N_STMT_DO {
                 for clause in stmt.subexprs {
-                    for block in stmt.subblocks {
+                    for block in clause.subblocks {
                         if stmt_list_contains_later_call(block,
                                 check_recursive=yes,
                                 include_later_ignore=include_later_ignore) {
@@ -78,8 +79,7 @@ func _basic_check_and_analyze_do(
         stmts, msgs=none, project_file=none
         ) {
     func check_and_analyze_recurse(
-            stmts, msgs, max_block_nesting_left,
-            max_expr_nesting_left
+            stmts, msgs, max_block_nesting_left
             ) {
         if max_block_nesting_left < 0 and stmts.len > 0 {
             if msgs != none {
@@ -99,10 +99,9 @@ func _basic_check_and_analyze_do(
             if stmt.kind == cast.N_STMT_IF or
                     stmt.kind == cast.N_STMT_DO {
                 for clause in stmt.subexprs {
-                    for block in stmt.subblocks {
+                    for block in clause.subblocks {
                         if not check_and_analyze_recurse(block, msgs,
-                                max_block_nesting_left - 1,
-                                max_expr_nesting_left) {
+                                max_block_nesting_left - 1) {
                             return no
                         }
                     }
@@ -110,8 +109,7 @@ func _basic_check_and_analyze_do(
             } elseif stmt.subblocks.len > 0 {
                 for block in stmt.subblocks {
                     if not check_and_analyze_recurse(block, msgs,
-                            max_block_nesting_left - 1,
-                            max_expr_nesting_left) {
+                            max_block_nesting_left - 1) {
                         return no
                     }
                 }
@@ -120,8 +118,7 @@ func _basic_check_and_analyze_do(
         return yes
     }
     return check_and_analyze_recurse(
-        stmts, msgs, compiler_limit.max_statement_nesting,
-        compiler_limit.max_expression_nesting
+        stmts, msgs, compiler_limit.max_statement_nesting
     )
 }
 
@@ -139,10 +136,12 @@ func do_basic_check_and_analysis(project, msgs) {
     later:
 
     await check_went_ok
-    if not check_went_ok {
-        return later none
+    for m in msgs {
+        if m.kind == msg.M_ERROR {
+            check_went_ok = no
+        }
     }
 
-    return later none
+    return later check_went_ok
 }
 
