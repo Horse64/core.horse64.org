@@ -27,6 +27,7 @@
 
 import compiler.ast as ast
 import compiler.ast.enum_stmt as enum_stmt
+import compiler.ast.func_stmt as func_stmt
 import compiler.ast.transform as transform
 import compiler.ast.type_stmt as type_stmt
 import compiler.msg as msg
@@ -46,7 +47,14 @@ func SymbolInfo.init(name) {
 type FuncScope {
     var last_storage_id = 0
     var is_type_attr = no
+    var is_later_func = no
+    var global_storage_id = 0
+    var owning_type_storage_id
     var parent
+}
+
+extend func_stmt.FuncStmt {
+    var func_scope
 }
 
 type TypeScope {
@@ -105,5 +113,7 @@ extend enum_stmt.EnumExtendStmt {
 
 extend project.Project {
     var type_or_enum_scope_map = {->}
+
+    var storage_id_to_global_scope_map = {->}
 }
 

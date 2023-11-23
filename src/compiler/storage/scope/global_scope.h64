@@ -27,6 +27,7 @@
 
 import compiler.ast as ast
 import compiler.ast.enum_stmt as enum_stmt
+import compiler.ast.func_stmt as func_stmt
 import compiler.ast.type_stmt as type_stmt
 import compiler.msg as msg
 import compiler.storage.scope as storage_scope
@@ -76,6 +77,10 @@ func GlobalScope.ensure_assigned_storage(msgs=none,
         return
     }
     var storage_num = 1
+    if project_file != none and project_file.project != none {
+        storage_num = project_file.project.
+            last_global_storage_id + 1
+    }
     for name in self.name_to_stmt_map {
         var value = self.name_to_stmt_map[name]
         if typename(value) == "list" {
@@ -97,6 +102,10 @@ func GlobalScope.ensure_assigned_storage(msgs=none,
             value.symbol_info = si
             storage_num += 1
         }
+    }
+    if project_file != none and project_file.project != none {
+        project_file.project.last_global_storage_id =
+            storage_num - 1
     }
     # Now register enum values in the global scope too:
     var names_unchanged = self.name_to_stmt_map.keys()
@@ -216,7 +225,7 @@ func has_global_scope_duplicate(
     return no
 }
 
-func get_statement_global_name(statement) {
+func get_statement_global_names(statement) {
     if statement.kind == ast.N_STMT_IMPORT {
         if statement.renamed_as != none {
             return [statement.renamed_as]
@@ -242,7 +251,7 @@ func process_toplevel_stmt(
         scope, statement, msgs,
         project_file=none, debug=no) {
     assert(statement != none)
-    var names = get_statement_global_name(statement)
+    var names = get_statement_global_names(statement)
     if names.len == 0 {
         return
     }
@@ -270,6 +279,8 @@ func process_toplevel_stmt(
                     stand_in_node = new type_stmt.TypeStmt()
                 } elseif statement.kind == ast.N_STMT_TYPEEXTEND {
                     stand_in_node = new type_stmt.TypeExtendStmt()
+                } elseif statement.kind == ast.N_STMT_FUNC {
+                    stand_in_node = new func_stmt.FuncStmt()
                 } else {
                     stand_in_node = new ast.StmtNode()
                 }

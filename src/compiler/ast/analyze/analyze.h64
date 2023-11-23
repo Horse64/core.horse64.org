@@ -75,7 +75,93 @@ func stmt_list_contains_later_call(
     return no
 }
 
-func _basic_check_and_analyze_do(
+func advanced_phase2_later_and_computevals(
+        stmts, msgs=none, project_file=none
+        ) {
+    func check_and_analyze_recurse(
+            stmts, msgs
+            ) {
+        for stmt in stmts {
+            if stmt.kind == cast.N_STMT_FUNC {
+                var is_later_func = no
+                for block in stmt.subblocks {
+                    if stmt_list_contains_later_call(
+                            block, check_recursive=yes,
+                            include_later_ignore=no,
+                            recurse_into_funcs=no) {
+                        is_later_func = yes
+                        break
+                    }
+                }
+                stmt.func_scope.is_later_func = is_later_func
+            }
+
+            # FIXME: go through all sorts of things we could already
+            # know the value of at compile-time, and try to iteratively
+            # find out as many values already as we can.
+
+            # Blocks:
+            if stmt.kind == cast.N_STMT_IF or
+                    stmt.kind == cast.N_STMT_DO {
+                for clause in stmt.subexprs {
+                    for block in clause.subblocks {
+                        if not check_and_analyze_recurse(block, msgs) {
+                            return no
+                        }
+                    }
+                }
+            } elseif stmt.subblocks.len > 0 {
+                for block in stmt.subblocks {
+                    if not check_and_analyze_recurse(block, msgs) {
+                        return no
+                    }
+                }
+            }
+        }
+        return yes
+    }
+    return check_and_analyze_recurse(
+        stmts, msgs
+    )
+}
+
+func advanced_phase1_globalrefs(
+        stmts, msgs=none, project_file=none
+        ) {
+    func check_and_analyze_recurse(
+            stmts, msgs) {
+        for stmt in stmts {
+            # FIXME
+            # IMPORTANT: we also want to auto-const all vrs here already.
+            # (Then the next state, the iteration stage, can do better
+            # guesses, especially inside functions.)
+
+            # Blocks:
+            if stmt.kind == cast.N_STMT_IF or
+                    stmt.kind == cast.N_STMT_DO {
+                for clause in stmt.subexprs {
+                    for block in clause.subblocks {
+                        if not check_and_analyze_recurse(block, msgs) {
+                            return no
+                        }
+                    }
+                }
+            } elseif stmt.subblocks.len > 0 {
+                for block in stmt.subblocks {
+                    if not check_and_analyze_recurse(block, msgs) {
+                        return no
+                    }
+                }
+            }
+        }
+        return yes
+    }
+    return check_and_analyze_recurse(
+        stmts, msgs
+    )
+}
+
+func basic_phase_nestingdepth_and_misc(
         stmts, msgs=none, project_file=none
         ) {
     func check_and_analyze_recurse(
@@ -93,9 +179,6 @@ func _basic_check_and_analyze_do(
             return no
         }
         for stmt in stmts {
-            # Expressions (FIXME):
-
-            # Blocks:
             if stmt.kind == cast.N_STMT_IF or
                     stmt.kind == cast.N_STMT_DO {
                 for clause in stmt.subexprs {
@@ -122,11 +205,41 @@ func _basic_check_and_analyze_do(
     )
 }
 
+func do_advanced_check_and_analysis(project, msgs) {
+    func process_file(pfile) {
+        pfile.ensure_ast() later:
+
+        if not advanced_phase1_globalrefs(
+                pfile.ast.stmts, msgs,
+                project_file=pfile) {
+            return later no
+        }
+        if not advanced_phase2_later_and_computevals(
+                pfile.ast.stmts, msgs,
+                project_file=pfile) {
+            return later no
+        }
+        return later yes
+    }
+    var check_went_ok = project.do_for_all_files(process_file)
+    later:
+
+    await check_went_ok
+    for m in msgs {
+        if m.kind == msg.M_ERROR {
+            check_went_ok = no
+        }
+    }
+
+    return later check_went_ok
+}
+
 func do_basic_check_and_analysis(project, msgs) {
     func process_file(pfile) {
         pfile.ensure_ast() later:
 
-        if not _basic_check_and_analyze_do(pfile.ast.stmts, msgs,
+        if not basic_phase_nestingdepth_and_misc(
+                pfile.ast.stmts, msgs,
                 project_file=pfile) {
             return later no
         }

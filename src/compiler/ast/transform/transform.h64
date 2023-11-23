@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import compiler.ast as ast
+import compiler.ast.analyze as ast_analyze
 import compiler.ast.transform.later_transform as later_transform
 
 type VisitQueueEntry {
@@ -154,9 +155,17 @@ func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes) {
 }
 
 func do_all_transformations(project, msgs, optimize=yes) {
-    later_transform.first_pass_later_transform(project, msgs)
+    var success = ast_analyze.do_advanced_check_and_analysis(
+        project, msgs) later:
+
+    await success
+    if not success {
+        return later none
+    }
+    success = later_transform.first_pass_later_transform(project, msgs)
     later:
 
-    return later none
+    await success
+    return later success
 }
 

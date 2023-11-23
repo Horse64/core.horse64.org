@@ -27,18 +27,28 @@
 
 import compiler.ast as ast
 import compiler.ast.expr as ast_expr
+import compiler.ast.func_stmt as func_stmt
 import compiler.ast.transform as transform
 import compiler.cext as cext
 import compiler.project as project
 import compiler.storage.scope as scope
+import compiler.storage.scope.global_scope as global_scope
 import compiler.storage.ref as storage_ref
 
 extend project.Project {
     var did_compute_scopes = no
+
+    var last_global_storage_id = 0
 }
 
 extend ast_expr.IdRefExpr {
     var ref
+}
+
+func project.Project.get_free_global_storage_slot {
+    var v = self.last_global_storage_id + 1
+    self.last_global_storage_id = v
+    return v
 }
 
 func project.Project.compute_all_scopes(msgs, debug=no) {
@@ -309,6 +319,7 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                 }
                 if node.kind == ast.N_STMT_FUNC {
                     inner_scope.func_scope = new scope.FuncScope()
+                    node.func_scope = inner_scope.func_scope
                     if inner_scope.parent != none {
                         inner_scope.func_scope.parent =
                             inner_scope.parent.func_scope
@@ -398,6 +409,52 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
         pfile.global_scope.ensure_assigned_storage(
             msgs=msgs, project_file=pfile)
         func expr_idref_resolve_visitor(node, parent) {
+            if node.kind == ast.N_STMT_FUNC and
+                    node.func_scope != none {
+                var is_global = no
+                var storage_id = 0
+                if (parent == none or not has_attr(parent, "kind")) and
+                        node.type_path == none {
+                    # Global function. Get it from global scope:
+                    is_global = yes
+                    if pfile.global_scope.
+                            name_to_stmt_map.has(node.label) {
+                        var el = pfile.global_scope.
+                            name_to_stmt_map[node.label]
+                        if typename(el) != "list" and
+                                el.kind == ast.N_STMT_FUNC and
+                                el.symbol_info.storage_id != none {
+                            storage_id = el.symbol_info.storage_id
+                        }
+                    }
+                    if storage_id > 0 {
+                        # Will only not get here as a run-on error
+                        # in damaged code.
+                        node.func_scope.global_storage_id = storage_id
+                    }
+                } else {
+                    assert(node.func_scope.global_storage_id == 0 or
+                        node.func_scope.global_storage_id == none)
+                    storage_id = self.get_free_global_storage_slot()
+                    assert(storage_id != 0 and storage_id != none)
+                    node.func_scope.global_storage_id = storage_id
+                }
+                if storage_id > 0 and not is_global {
+                    # Register this without a name, we need all funcs in
+                    # their global scope.
+                    var stand_in_node = new func_stmt.FuncStmt()
+                    pfile.global_scope.storage_id_to_entry[
+                        storage_id] = stand_in_node
+                    stand_in_node.line = node.line
+                    stand_in_node.col = node.col
+                }
+                if storage_id > 0 and
+                        pfile.global_scope.storage_id_to_entry.
+                        has(storage_id) {
+                    pfile.global_scope.storage_id_to_entry[storage_id].
+                        func_scope = node.func_scope
+                }
+            }
             if node.kind == ast.N_EXPR_IDREF {
                 if parent.kind == ast.N_EXPR_BINOP and
                         parent.optoken.str == "." {
@@ -474,6 +531,13 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
             pfile.ast, expr_idref_resolve_visitor) later:
 
         await success
+        for storage_id in pfile.global_scope.
+                storage_id_to_entry.keys() {
+            assert(not self.storage_id_to_global_scope_map.
+                   has(storage_id))
+            self.storage_id_to_global_scope_map[storage_id] =
+                pfile.global_scope
+        }
         assert(success == yes)
         return later success
     }
