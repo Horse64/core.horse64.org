@@ -25,10 +25,9 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-
 func yesno(text, default=none) {
     print(text)
-    var result = terminal.get_line()
+    var result = get_line()
     later:
 
     await result

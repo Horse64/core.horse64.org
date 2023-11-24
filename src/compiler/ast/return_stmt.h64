@@ -102,7 +102,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
 
     await v
     if v == none {
-        smt.token_len = 1
+        stmt.token_len = 1
         return stmt
     }
     pos += v.token_len

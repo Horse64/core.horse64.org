@@ -25,6 +25,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import math from core.horse64.org
+
 import compiler.ast as ast
 import compiler.ast.invalid_stmt as invalid_stmt
 import compiler.msg as msg

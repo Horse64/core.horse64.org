@@ -899,7 +899,7 @@ func ProjectFile.check_is_single_file {
     if self._is_single_file != none {
         return later self._is_single_file == yes
     }
-    sekf.ensure_known_single_file_status() later:
+    self.ensure_known_single_file_status() later:
     return later self._is_single_file == yes
 }
 

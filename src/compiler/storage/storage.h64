@@ -30,6 +30,7 @@ import compiler.ast.expr as ast_expr
 import compiler.ast.func_stmt as func_stmt
 import compiler.ast.transform as transform
 import compiler.cext as cext
+import compiler.msg as msg
 import compiler.project as project
 import compiler.storage.scope as scope
 import compiler.storage.scope.global_scope as global_scope
@@ -468,7 +469,7 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                     return later none
                 }
                 var result = pfile.try_lookup_symbol_path(
-                    pfile, node.scope,
+                    node.scope,
                     name=node.label,
                     type_path=node.type_path
                 )
@@ -520,8 +521,34 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                         return later node
                     }
                 }
+                var most_lefthand = type_path[1]
                 label = type_path.pop()
-
+                var omitted_righthands = 0
+                var ref
+                while yes {
+                    ref = pfile.try_lookup_symbol_path(
+                        node.scope, name=label, type_path=type_path)
+                    if ref != none or type_path.len == 0 {
+                        break
+                    }
+                    omitted_righthands += 1
+                    label = type_path.pop()
+                }
+                if ref == none {
+                    if msgs != none {
+                        msgs.add(new msg.FileMsg(
+                            "Unknown reference '" +
+                            most_lefthand +
+                            "', can't find what it refers to.",
+                            source_file=pfile,
+                            line=node.line, col=node.col,
+                        ))
+                    } else {
+                        throw new ValueError(
+                            "Unknown reference."
+                        )
+                    }
+                }
             }
             return later node
         }
