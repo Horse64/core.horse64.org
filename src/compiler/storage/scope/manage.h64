@@ -111,6 +111,9 @@ func project.ProjectFile.try_lookup_symbol_path(
                     entry.storage_info.storage_id]
             )
         }
+        if entry.symbol_info == none {
+            return none
+        }
         return new storage_ref.StorageRef(
             storage_ref.ST_GLOBAL,
             entry.symbol_info.storage_id
