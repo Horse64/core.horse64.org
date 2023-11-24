@@ -307,7 +307,7 @@ func parse_from_file(
         allow_disk=yes
         ) {
     if not allow_vfs and not allow_vfs {
-        throw new PathNotFoundError("File not found.")
+        throw new io.PathNotFoundError("File not found.")
     }
     var is_vfs = (not allow_disk) or
         (allow_vfs and io.exists(path, allow_disk=no))

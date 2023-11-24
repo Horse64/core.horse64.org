@@ -242,7 +242,7 @@ func check_exists(docuri) {
     #        return yes
     #    }
     #} rescue net.ClientError, PermissionError,
-    #        PathNotFoundError {
+    #        io.PathNotFoundError {
     #    print("HELLO")
     #    return no
     #}
