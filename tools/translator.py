@@ -936,10 +936,10 @@ def translate_expression_tokens(s, sc,
                 previous_token != "."):
             s = s[:i] + ["_translator_runtime_helpers",
                 ".", "_ResourceMisuseError"] + s[i + 1:]
-        elif (s[i] == "PathNotFoundError" and
+        elif (s[i:i + 3] == ["io", ".", "PathNotFoundError"] and
                 previous_token != "."):
             s = s[:i] + ["_translator_runtime_helpers",
-                ".", "_PathNotFoundError"] + s[i + 1:]
+                ".", "_PathNotFoundError"] + s[i + 3:]
         elif (s[i] == "PermissionError" and
                 previous_token != "."):
             s = s[:i] + ["_translator_runtime_helpers",
