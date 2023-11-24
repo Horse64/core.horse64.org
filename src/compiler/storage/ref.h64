@@ -29,6 +29,7 @@ enum StorageKind {
     ST_LOCAL,
     ST_GLOBAL,
     ST_BUILTIN,
+    ST_NUMLITERAL,
     ST_SELF,
 }
 

@@ -75,7 +75,8 @@ func tokenize_target_from_args(args) {
 
 func parse_ast_target_from_args(args, checked_ast=no,
         force_single_file=no,
-        debug=no, debug_modules=no, debug_storage=no) {
+        debug=no, debug_modules=no, debug_storage=no,
+        debug_global_storage=no) {
     func get_ast {
         if args["--code"] != none {
             # Note: force_single_file=yes is implied and not a parameter,
@@ -136,7 +137,8 @@ func parse_ast_target_from_args(args, checked_ast=no,
     }
 
     var success = tresult.project_file.project.check_all_storage(
-        tresult.msgs, debug=debug_storage)
+        tresult.msgs, debug=debug_storage,
+        debug_global_storage=debug_global_storage)
     later:
 
     await success
@@ -284,11 +286,16 @@ func actionparser_compile(args) {
             "Be warned, this will result in a lot of output.")
     defs.add_switch(
         "--debug-modules",
-        description="Enable debug module discovery. Prints out "
+        description="Enable debugging module discovery. Prints out "
         "all file paths and associated modules when processing.")
     defs.add_switch(
+        "--debug-global-storage",
+        description="Enable debugging global storage assignments.")
+    defs.add_switch(
         "--debug-storage",
-        description="Enable debug scope and storage computation.")
+        description="Enable debug scope and storage computation. "
+        "Be warned, this debugs all local scopes and will result "
+        "in a lot of output.")
     defs.add_switch(
         "--stage", takes_arg=yes,
         description="At which stage to stop. The default is "
@@ -480,6 +487,7 @@ func actionparser_compile(args) {
             debug=result.args["--debug-ast"],
             debug_modules=result.args["--debug-modules"],
             debug_storage=result.args["--debug-storage"],
+            debug_global_storage=result.args["--debug-global-storage"],
         )
         later:
 

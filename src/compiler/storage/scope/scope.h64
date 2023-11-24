@@ -45,10 +45,10 @@ func SymbolInfo.init(name) {
 }
 
 type FuncScope {
-    var last_storage_id = 0
+    var last_inner_storage_id = 0
     var is_type_attr = no
     var is_later_func = no
-    var global_storage_id = 0
+    var storage_id = 0
     var owning_type_storage_id
     var parent
 }
@@ -59,9 +59,11 @@ extend func_stmt.FuncStmt {
 
 type TypeScope {
     const is_enum = no
+    var storage_id = 0
     var node_map = {->}
     var name_to_symbol_map = {->}
     var base_key = none
+    var label
     var def_line, def_col, def_uri
 }
 
@@ -71,6 +73,7 @@ type EnumScope {
     var first_entry_pos
     var label_names = []
     var label_nums = []
+    var label
     var def_line, def_col, def_uri
 }
 
@@ -78,6 +81,12 @@ type LocalScope {
     var parent
     var name_to_symbol_map = {->}
     var func_scope
+}
+
+type GlobalScopeEnumEntry {
+    var is_enum_entry = yes
+    var enum_stmt_label
+    var symbol_info
 }
 
 func LocalScope.lookup(name) {

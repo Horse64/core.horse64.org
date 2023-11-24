@@ -27,6 +27,7 @@
 
 import uri from core.horse64.org
 
+import compiler.ast as ast
 import compiler.comment.scan as comment_scan
 import compiler.msg as msg
 import compiler.project as project
@@ -53,13 +54,29 @@ type CFunc {
     var name
     var module_name
     var package_name
-    var storage_id
+    var storage_info
 }
 
 func CFunc.as_str {
     var t = "<CFunc '" + self.module_name.as_str() +
         "." + self.name.as_str() + "'@'" +
         self.package_name.as_str() + "'>"
+    return t
+}
+
+type CTypeOrEnum {
+    var is_enum = no
+    var name
+    var module_name
+    var package_name
+    var storage_info
+}
+
+func CTypeOrEnum.as_str {
+    var t = "<CTypeOrEnum '" + self.module_name.as_str() +
+        "." + self.name.as_str() + "'@'" +
+        self.package_name.as_str() + "' is_enum=" +
+        self.is_enum.as_str() + ">"
     return t
 }
 
@@ -71,47 +88,96 @@ extend project.Project {
     var last_id_offset_for_cext_storage = 0
 }
 
-func get_builtin_cext_storage_id(name,
+type CExtStorageInfo {
+    var kind  # compiler.ast.N_STMT_ENUM, ..._TYPE, ..._FUNC
+    var storage_id
+}
+
+func get_cext_item_storage_info(name,
         in_module_name=none, in_package_name=none,
-        project=none) {
+        project=none, can_match_moduleless=yes) {
     if hvm_builtin_cext_storage_map.len == 0 {
         var st_id = 1
         for entry in hvm_builtin_cext_funcs {
-            hvm_builtin_cext_storage_map[entry] = st_id
+            var st_info = new CExtStorageInfo()
+            st_info.kind = ast.N_STMT_FUNC
+            st_info.storage_id = st_id
+            hvm_builtin_cext_storage_map[entry] = st_info
             st_id += 1
         }
         for entry in hvm_builtin_cext_types {
-            hvm_builtin_cext_storage_map[entry] = st_id
+            var st_info = new CExtStorageInfo()
+            st_info.storage_id = st_id
+            st_info.kind = ast.N_STMT_TYPE
+            hvm_builtin_cext_storage_map[entry] = st_info
             st_id += 1
         }
         hvm_builtin_cext_max_storage_id = st_id - 1
     }
-    if hvm_builtin_cext_storage_map.has(name) {
+    if can_match_moduleless and
+            hvm_builtin_cext_storage_map.has(name) {
         return hvm_builtin_cext_storage_map[name]
     }
-    if in_module_name != none and in_package_name != none {
-        if in_package_name == "core.horse64.org" and
-                project != none {
-            # Check for HVM built-ins:
-            assert(project.builtin_cexts != none)
-            var ref = in_module_name + "." + name
-            if project.builtin_cexts.name_to_cmodule_map.
-                    has(in_module_name) {
-                var cmod = project.builtin_cexts.name_to_cmodule_map[
-                    in_module_name]
-                if cmod.name_to_cfunc_map.has(name) {
-                    var cfunc = cmod.name_to_cfunc_map[name]
-                    if cfunc.storage_id == none {
-                        project.last_id_offset_for_cext_storage += 1
-                        cfunc.storage_id =
-                            project.last_id_offset_for_cext_storage +
-                            hvm_builtin_cext_max_storage_id
-                    }
-                    return cfunc.storage_id
+    if in_module_name != none and in_package_name != none and
+            project != none and
+            project.package_name_to_cext.has(in_package_name) {
+        var cext_info = project.package_name_to_cext[in_package_name]
+        assert(cext_info != none)
+        var ref = in_module_name + "." + name
+        if cext_info.name_to_cmodule_map.
+                has(in_module_name) {
+            var cmod = cext_info.name_to_cmodule_map[
+                in_module_name]
+            if cmod.name_to_cfunc_map.has(name) {
+                var cfunc = cmod.name_to_cfunc_map[name]
+                if cfunc.storage_info == none {
+                    project.last_id_offset_for_cext_storage += 1
+                    var storage_id =
+                        project.last_id_offset_for_cext_storage +
+                        hvm_builtin_cext_max_storage_id
+                    var st_info = new CExtStorageInfo()
+                    st_info.storage_id = storage_id
+                    st_info.kind = ast.N_STMT_FUNC
+                    cfunc.storage_info = st_info
                 }
+                return cfunc.storage_info
+            } elseif cmod.name_to_ctypeorenum_map.has(name) {
+                var ctypeorenum = cmod.name_to_ctypeorenum_map[name]
+                if ctypeorenum.storage_info == none {
+                    project.last_id_offset_for_cext_storage += 1
+                    var storage_id =
+                        project.last_id_offset_for_cext_storage +
+                        hvm_builtin_cext_max_storage_id
+                    var st_info = new CExtStorageInfo()
+                    st_info.storage_id = storage_id
+                    if ctypeorenum.is_enum {
+                        st_info.kind = ast.N_STMT_TYPE
+                    } else {
+                        st_info.kind = ast.N_STMT_ENUM
+                    }
+                    ctypeorenum.storage_info = st_info
+                }
+                return ctypeorenum.storage_info
             }
         }
-        # FIXME XXX Implement handling of other C extensions here.
+    }
+    return none
+}
+
+func get_cext_item_storage_id(name,
+        in_module_name=none, in_package_name=none,
+        project=none, can_match_moduleless=yes,
+        limit_to_kind=none) {
+    var storage_info = get_cext_item_storage_info(
+        name, in_module_name=in_module_name,
+        in_package_name=in_package_name, project=project,
+        can_match_moduleless=can_match_moduleless)
+    if storage_info != none and limit_to_kind != none and
+            storage_info.kind != limit_to_kind {
+        storage_info = none
+    }
+    if storage_info {
+        return storage_info.storage_id
     }
     return none
 }
@@ -120,6 +186,8 @@ type CModule {
     var module_name
 
     var name_to_cfunc_map = {->}
+
+    var name_to_ctypeorenum_map = {->}
 }
 
 func CModule.as_str {

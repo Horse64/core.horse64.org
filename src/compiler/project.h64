@@ -74,6 +74,8 @@ type Project {
 
     var builtin_cexts = none
 
+    var package_name_to_cext = {->}
+
     var entrypoint_is_inline = no
 
     var entrypoint_is_known_single_file = no
@@ -1014,16 +1016,22 @@ func Project.ensure_builtin_cexts(
     if self.builtin_cexts != none {
         return later
     }
-    var cfuncs = cext.scan_package_for_cexts(
+    if self.package_name_to_cext.has("core.horse64.org") {
+        self.builtin_cexts =
+            self.package_name_to_cext["core.horse64.org"]
+        return later
+    }
+    var cext_info = cext.scan_package_for_cexts(
         self, "hvm.horse64.org", msgs=msgs, debug=debug_modules,
         allow_project_independent_packages_fallback=
             (self.entrypoint_is_inline or
             self.entrypoint_is_known_single_file)
     ) later:
 
-    await cfuncs
-    cfuncs.package_name = "core.horse64.org"
-    self.builtin_cexts = cfuncs
+    await cext_info
+    cext_info.package_name = "core.horse64.org"
+    self.builtin_cexts = cext_info
+    self.package_name_to_cext[cext_info.package_name] = cext_info
 }
 
 func ProjectFile.ensure_project(msgs=none) {
@@ -1560,6 +1568,20 @@ func ProjectFile.resolve_all_imports(msgs=none,
         var project_file = none
         if process_result != none {
             project_file = process_result.project_file
+        }
+        if project_file == self {
+            if msgs != none {
+                msgs.add(new msg.FileMsg(
+                    "Import failed, can't import "
+                    "module from within itself.",
+                    source_file=self,
+                    line=importst.line, col=importst.col,
+                ))
+            } else {
+                throw new ModuleNotFoundError(
+                    "Import is invalid self-import."
+                )
+            }
         }
         if debug {
             print("compiler.project: resolve_all_imports() "

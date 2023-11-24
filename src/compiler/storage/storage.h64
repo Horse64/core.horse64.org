@@ -52,7 +52,8 @@ func project.Project.get_free_global_storage_slot {
     return v
 }
 
-func project.Project.compute_all_scopes(msgs, debug=no) {
+func project.Project.compute_all_scopes(msgs, debug=no,
+        debug_global_storage=no) {
     if self.did_compute_scopes {
         if debug {
             print("compiler.ast.storage: compute_all_scopes() " +
@@ -66,6 +67,123 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
             "starting...")
     }
     assert(msgs != none)
+
+    func finalize_enum_and_type_storage(project, msgs) {
+        for escope in project.type_or_enum_scope_map.values() {
+            if escope.is_enum {
+                # First, check the specified values aren't conflicting:
+                var nums_seen = {}
+                var pos = 1
+                while pos <= escope.label_names.len {
+                    if escope.label_nums[pos] == none {
+                        pos += 1
+                        continue
+                    }
+                    if nums_seen.has(escope.label_nums[pos]) {
+                        msgs.add(new msg.FileMsg(
+                            "Unexpected duplicate enum value in "
+                            "enum '" + escope.label + "'"
+                            ", value " +
+                            escope.label_nums[pos].as_str() +
+                            " was seen twice.",
+                            source_file=pfile,
+                            line=line, col=col
+                        ))
+                    } else {
+                        nums_seen.add(escope.label_nums[pos])
+                    }
+                    pos += 1
+                }
+                var last_used_num = 0
+                # Then, compute the unspecified values:
+                var first_run = yes
+                while yes {
+                    if first_run {
+                        pos = escope.first_entry_pos
+                    } else {
+                        pos = 1
+                    }
+                    while pos <= escope.label_names.len {
+                        if escope.label_nums[pos] != none {
+                            last_used_num = escope.label_nums[pos]
+                            pos += 1
+                            continue
+                        }
+                        last_used_num += 1
+                        while nums_seen.has(last_used_num) {
+                            last_used_num += 1
+                        }
+                        escope.label_nums[pos] = last_used_num
+                        pos += 1
+                    }
+                    if not first_run {
+                        break
+                    }
+                    first_run = no
+                }
+            } else {
+                escope.storage_id =
+                    project.get_free_global_storage_slot()
+                var gscope_entry_found = no
+                var search_set
+                if escope.def_uri == none {
+                    search_set = project.no_uri_files
+                } else {
+                    search_set = {project.module_uri_to_file_map[
+                        escope.def_uri]}
+                }
+                for pfile in search_set {
+                    if not pfile.global_scope.name_to_stmt_map.has(
+                            escope.label) {
+                        continue
+                    }
+                    var entry = pfile.global_scope.name_to_stmt_map[
+                        escope.label]
+                    if entry.type_or_enum_scope == escope {
+                        gscope_entry_found = yes
+                        var si = new scope.SymbolInfo(escope.label)
+                        si.def_line = escope.def_line
+                        si.def_col = escope.def_col
+                        si.storage_id = escope.storage_id
+                        break
+                    }
+                }
+                if not gscope_entry_found {
+                    var had_error = no
+                    for m in msgs {
+                        if m.kind == msg.M_ERROR {
+                            had_error = yes
+                        }
+                    }
+                    if not had_error and debug_global_storage {
+                        print("compiler.storage: "
+                            "project.Project.compute_all_scopes(): " +
+                            "Fatal problem, can't trace type '" +
+                            escope.label + "' to source file, it " +
+                            "has def_uri " + escope.def_uri.as_str() +
+                            " and we checked " + search_set.len.as_str() +
+                            " files without success.")
+                    }
+                    if not had_error {
+                        throw new RuntimeError("Internal error: "
+                            "Failed to trace back type definition to "
+                            "global scope entry despite no malformed "
+                            "AST, this should never happen!!")
+                    }
+                }
+                if debug_global_storage {
+                    print("compiler.storage: "
+                        "project.Project.compute_all_scopes(): " +
+                        "Assigning global storage id " +
+                        escope.storage_id.as_str() + " to "
+                        "type in file " +
+                        escope.def_uri.as_str() +
+                        " with name '" + escope.label + "'.")
+                }
+            }
+        }
+    }
+
     func try_register_symbol(
             local_scope, symbol_name, msgs, pfile, line, col
             ) {
@@ -95,10 +213,10 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
         local_scope.name_to_symbol_map[symbol_name] =
             new scope.SymbolInfo(symbol_name)
         local_scope.name_to_symbol_map[symbol_name].storage_id =
-            local_scope.func_scope.last_storage_id + 1
+            local_scope.func_scope.last_inner_storage_id + 1
         local_scope.name_to_symbol_map[symbol_name].line = line
         local_scope.name_to_symbol_map[symbol_name].col = col
-        local_scope.func_scope.last_storage_id += 1
+        local_scope.func_scope.last_inner_storage_id += 1
     }
     func compute_scope(pfile) {
         if debug {
@@ -133,7 +251,7 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                 node.scope = none
                 node.func_scope = none
                 var escope = pfile.make_type_or_enum_scope_from_node(
-                    node, msgs=msgs, project_file=pfile
+                    node, msgs=msgs, def_project_file=pfile
                 )
                 if escope == none {
                     # Note: error has already been emitted by
@@ -154,6 +272,12 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                             gscope_node.kind == node.kind {
                         gscope_node.type_or_enum_scope = escope
                     }
+                    # Since we might have run into an extend first,
+                    # we also want to reset the file URI being at the
+                    # "core" definition:
+                    escope.def_uri = pfile.source_uri
+                    escope.def_line = node.line
+                    escope.def_col = node.col
                 }
                 var is_enum = if node.kind == ast.N_STMT_ENUM or
                     node.kind == ast.N_STMT_ENUMEXTEND (yes) else (no)
@@ -406,9 +530,18 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
     later:
 
     await success
-    func resolve_scope(pfile) {
+    func ensure_global_storage_ids(pfile) {
         pfile.global_scope.ensure_assigned_storage(
-            msgs=msgs, project_file=pfile)
+            msgs=msgs, project_file=pfile,
+            debug_global_storage=debug_global_storage)
+        return later yes
+    }
+    success = self.do_for_all_files(ensure_global_storage_ids)
+    later:
+
+    await success
+    finalize_enum_and_type_storage(self, msgs)
+    func resolve_scope(pfile) {
         func expr_idref_resolve_visitor(node, parent) {
             if node.kind == ast.N_STMT_FUNC and
                     node.func_scope != none {
@@ -431,14 +564,14 @@ func project.Project.compute_all_scopes(msgs, debug=no) {
                     if storage_id > 0 {
                         # Will only not get here as a run-on error
                         # in damaged code.
-                        node.func_scope.global_storage_id = storage_id
+                        node.func_scope.storage_id = storage_id
                     }
                 } else {
-                    assert(node.func_scope.global_storage_id == 0 or
-                        node.func_scope.global_storage_id == none)
+                    assert(node.func_scope.storage_id == 0 or
+                        node.func_scope.storage_id == none)
                     storage_id = self.get_free_global_storage_slot()
                     assert(storage_id != 0 and storage_id != none)
-                    node.func_scope.global_storage_id = storage_id
+                    node.func_scope.storage_id = storage_id
                 }
                 if storage_id > 0 and not is_global {
                     # Register this without a name, we need all funcs in
@@ -579,7 +712,8 @@ extend project.Project {
     var did_compute_storage = no
 }
 
-func project.Project.check_all_storage(msgs, debug=no) {
+func project.Project.check_all_storage(msgs, debug=no,
+        debug_global_storage=no) {
     if self.did_compute_storage {
         if debug {
             print("compiler.ast.storage: check_all_storage() " +
@@ -592,7 +726,8 @@ func project.Project.check_all_storage(msgs, debug=no) {
         print("compiler.ast.storage: check_all_storage() " +
             "starting...")
     }
-    var success = self.compute_all_scopes(msgs, debug=debug) later:
+    var success = self.compute_all_scopes(msgs, debug=debug,
+        debug_global_storage=debug_global_storage) later:
 
     await success
     if not success {
