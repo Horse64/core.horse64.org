@@ -1,0 +1,1 @@
+can't import module from within itself
