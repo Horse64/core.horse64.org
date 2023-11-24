@@ -3326,6 +3326,8 @@ def translate_do_func(
                     append_t += ("    def __init__" +
                         untokenize(regtype.funcs
                             ["init"]["arguments"]) + ":\n")
+                    append_t += ("        _translator_runtime_helpers." +
+                        "_call_builtin_init_if_needed(self)\n")
                     if regtype.init_code != None:
                         append_t += regtype.init_code + "\n"
                     append_t += regtype.funcs["init"]["code"] + "\n"
@@ -3335,6 +3337,8 @@ def translate_do_func(
                         regtype.init_code))
                     if inner_indent is None:
                         inner_indent = "        "
+                    append_t += ("    __NO_USERDEFINED_INIT_" +
+                        gencode_nameprefix + regtype.name + " = True\n")
                     append_t += ("    def __init__(self, " +
                         "*args, **kwargs):\n")
                     # First, make sure to call super type constructor:

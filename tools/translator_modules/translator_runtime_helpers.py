@@ -2834,6 +2834,32 @@ def _async_final_bail_required_extra_bails(extra_bails):
     global _async_final_bails_need_extra_bail_count
     _async_final_bails_need_extra_bail_count = extra_bails
 
+def _call_builtin_init_if_needed(o):
+    bases = o.__class__.__bases__
+    debug = False
+    #if o.__class__.__name__ == "CFunc":
+    #    debug = True
+    #    print("!!!!!!!!!! CFUNC")
+    if debug:
+        print("_call_builtin_init_if_needed on: " + str(id(o)) +
+            ", class: " + o.__class__.__name__)
+    if len(bases) == 1 and bases[0].__name__ == "object":
+        return
+    for basecls in bases:
+        basename = basecls.__name__
+        if debug:
+            print("CHECKING BASE CLASS: " + basename)
+        for name in dir(basecls):
+            if debug:
+                print("CHECKING NAME: " + str(name))
+            if not "__NO_USERDEFINED_INIT_" in name:
+                continue
+            init_name = name.rpartition("__NO_USERDEFINED_INIT_")[2]
+            if debug:
+                print("CALLING INIT ON: " + str(init_name))
+            if init_name == basename:
+                basecls.__init__(o)
+
 def _async_final_bail_handler(err, result, funcname="main"):
     global _async_final_bails_need_extra_bail_count
     if err != None and not isinstance(err, SystemExit):
