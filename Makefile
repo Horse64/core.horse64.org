@@ -17,6 +17,10 @@ rebuild-hvm:
 	cd ./horse_modules/hvm.horse64.org/ && git reset --hard main && make veryclean && git pull && git submodule foreach --recursive git reset --hard && git submodule foreach --recursive git clean -xfd && git submodule update --init
 	rm -rf ./horse_modules/hvm.horse64.org/output/*.so
 	$(MAKE) ensure-hvm
+reset-deps:
+	git submodule foreach --recursive git reset --hard && git submodule foreach --recursive git clean -xfd && git submodule update --init
+	rm -rf horse_modules/
+	$(MAKE) ensure-hvm ensure-horp
 ensure-hvm:
 	@if [ ! -e ./horse_modules ]; then mkdir horse_modules; fi
 	@if [ ! -e ./horse_modules/hvm.horse64.org ]; then git clone https://codeberg.org/Horse64/hvm.horse64.org ./horse_modules/hvm.horse64.org; fi
