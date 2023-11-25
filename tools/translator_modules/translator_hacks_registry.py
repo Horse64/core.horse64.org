@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -24,7 +24,6 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-
 class HackInfo:
     def __init__(self,
             module=None, package=None,
@@ -39,8 +38,10 @@ class HackInfo:
         self.package = package
         self.start_t = [
             t for t in start_t if t.strip(" \r\n\t") != ""]
-        self.end_t = [
-            t for t in end_t if t.strip(" \r\n\t") != ""]
+        self.end_t = None
+        if end_t != None:
+            self.end_t = [
+                t for t in end_t if t.strip(" \r\n\t") != ""]
         self.insert_t = None
         if type(insert_t) is list:
             self.insert_t = [
@@ -54,9 +55,7 @@ class HackInfo:
         )
         assert(self.insert_t != None or self.insert_replacers != None)
 
-
 registered_hacks = []
-
 
 def register_hack(
         module=None, package=None,
@@ -71,7 +70,6 @@ def register_hack(
         apply_after_python_translate=
             apply_after_python_translate,
     ))
-
 
 def apply_hacks_on_file(
         toks, module, package, is_after_python_translate=None,
@@ -129,6 +127,10 @@ def apply_hacks_on_file(
             endbegin = endofstart - 1
             endmatch = False
             while endbegin < len(toks):
+                if hack.end_t == None:
+                    endmatch = True
+                    actualend = endbegin
+                    break
                 endbegin += 1
                 actualend = endbegin
                 endmatch = True

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -27,11 +27,14 @@
 
 from translator_hacks_registry import register_hack
 
-
-#register_hack(module="compiler.token", package="core.horse64.org",
-#    start_t=["_math_ops_single_char", "+", "{"], end_t=["}"],
-#    apply_after_python_translate=True,
-#    insert_replacers={
-#        "+": [".", "union", "("], "}":["}",")"],
-#    })
+register_hack(module="net.fetch", package="core.horse64.org",
+    start_t=["open", "("],
+    apply_after_python_translate=True,
+    insert_t=["_translator_runtime_helpers",
+        ".", "_net_fetch_open"],
+    #insert_replacers={
+    #    "open": ["_translator_runtime_helpers",
+    #        ".", "_net_fetch_open"],
+    #}
+    )
 
