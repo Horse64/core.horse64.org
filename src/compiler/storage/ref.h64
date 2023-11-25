@@ -28,8 +28,8 @@
 enum StorageKind {
     ST_LOCAL,
     ST_GLOBAL,
-    ST_BUILTIN,
     ST_NUMLITERAL,
+    ST_CEXT,
     ST_SELF,
 }
 
@@ -43,8 +43,12 @@ func StorageRef.as_str {
         return "L" + self.id.as_str()
     } elseif self.kind == ST_GLOBAL {
         return "G" + self.id.as_str()
-    } elseif self.kind == ST_BUILTIN {
-        return "B" + self.id.as_str()
+    } elseif self.kind == ST_NUMLITERAL {
+        return "NUM" + self.id.as_str()
+    } elseif self.kind == ST_CEXT {
+        return "C" + self.id.as_str()
+    } elseif self.kind == ST_SELF {
+        return "SELF"
     }
     throw new RuntimeError("Invalid StorageRef with "
         "incorrect kind set.")

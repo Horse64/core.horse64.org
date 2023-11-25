@@ -2037,7 +2037,7 @@ func tokenize_from_fileobj (
     if contents.len >= climit.max_source_file_size + 1 {
         result.msgs.add(new msg.FileMsg(
             "file exceeds maximum size limit of " +
-            limit.max_project_file_size +
+            climit.max_source_file_size +
             " characters",
             project_file=project_file
         ))

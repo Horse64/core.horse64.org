@@ -579,7 +579,7 @@ func parse_expression_unwrapped(
                 # If we're at a proper closing bracket, consume it:
                 if pos <= tokens_len and
                         tokens[pos].kind == token.T_ENCLOSE and
-                        {")", "]", "}"}.has(token[pos].str) {
+                        {")", "]", "}"}.has(tokens[pos].str) {
                     pos += 1  # Past whatever closing thing we found.
                 }
             } else {
@@ -1139,7 +1139,7 @@ func parse_expression_unwrapped(
                 # If we're at a proper closing bracket, consume it:
                 if pos <= tokens_len and
                         tokens[pos].kind == token.T_ENCLOSE and
-                        {")", "]", "}"}.has(token[pos].str) {
+                        {")", "]", "}"}.has(tokens[pos].str) {
                     pos += 1  # Past whatever closing thing we found.
                 }
                 node.subexprs.add(new InvalidExpr(pos - preskippos))

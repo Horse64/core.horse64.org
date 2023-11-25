@@ -52,6 +52,28 @@ func project.Project.get_free_global_storage_slot {
     return v
 }
 
+func project.Project.get_project_file_for_escope(escope) {
+    var search_set
+    if escope.def_uri == none {
+        search_set = project.no_uri_files
+    } else {
+        search_set = {project.module_uri_to_file_map[
+            escope.def_uri]}
+    }
+    for pfile in search_set {
+        if not pfile.global_scope.name_to_stmt_map.has(
+                escope.label) {
+            continue
+        }
+        var entry = pfile.global_scope.name_to_stmt_map[
+            escope.label]
+        if entry.type_or_enum_scope == escope {
+            return pfile
+        }
+    }
+    return none
+}
+
 func project.Project.compute_all_scopes(msgs, debug=no,
         debug_global_storage=no) {
     if self.did_compute_scopes {
@@ -86,8 +108,10 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                             ", value " +
                             escope.label_nums[pos].as_str() +
                             " was seen twice.",
-                            source_file=pfile,
-                            line=line, col=col
+                            source_file=
+                                project.get_project_file_for_escope(
+                                    escope),
+                            line=escope.def_line, col=escope.def_col
                         ))
                     } else {
                         nums_seen.add(escope.label_nums[pos])
@@ -121,10 +145,9 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                     }
                     first_run = no
                 }
-            } else {
-                escope.storage_id =
-                    project.get_free_global_storage_slot()
-                var gscope_entry_found = no
+            }
+            if escope.storage_id == none {
+                var gscope_entry_sinfo_found = no
                 var search_set
                 if escope.def_uri == none {
                     search_set = project.no_uri_files
@@ -140,15 +163,15 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                     var entry = pfile.global_scope.name_to_stmt_map[
                         escope.label]
                     if entry.type_or_enum_scope == escope {
-                        gscope_entry_found = yes
-                        var si = new scope.SymbolInfo(escope.label)
-                        si.def_line = escope.def_line
-                        si.def_col = escope.def_col
-                        si.storage_id = escope.storage_id
+                        if entry.symbol_info != none {
+                            gscope_entry_sinfo_found = yes
+                            escope.storage_id =
+                                entry.symbol_info.storage_id
+                        }
                         break
                     }
                 }
-                if not gscope_entry_found {
+                if not gscope_entry_sinfo_found {
                     var had_error = no
                     for m in msgs {
                         if m.kind == msg.M_ERROR {
@@ -159,7 +182,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                         print("compiler.storage: "
                             "project.Project.compute_all_scopes(): " +
                             "Fatal problem, can't trace type '" +
-                            escope.label + "' to source file, it " +
+                            escope.label + "' to storage id, it " +
                             "has def_uri " + escope.def_uri.as_str() +
                             " and we checked " + search_set.len.as_str() +
                             " files without success.")
@@ -167,16 +190,16 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                     if not had_error {
                         throw new RuntimeError("Internal error: "
                             "Failed to trace back type definition to "
-                            "global scope entry despite no malformed "
+                            "global scope storage id despite no malformed "
                             "AST, this should never happen!!")
                     }
                 }
                 if debug_global_storage {
                     print("compiler.storage: "
                         "project.Project.compute_all_scopes(): " +
-                        "Assigning global storage id " +
-                        escope.storage_id.as_str() + " to "
-                        "type in file " +
+                        "Found global storage id " +
+                        escope.storage_id.as_str() + " for "
+                        "type or enum in file " +
                         escope.def_uri.as_str() +
                         " with name '" + escope.label + "'.")
                 }
@@ -628,9 +651,11 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                 }
             } elseif node.kind == ast.N_EXPR_BINOP and
                     node.optoken.str == "." and
+                    node.subexprs.len == 2 and
                     (parent.kind != ast.N_EXPR_BINOP or
-                     parent.optoken.str != ".") {
-                var label = []
+                     parent.optoken.str != ".") and
+                    node.subexprs[2].kind == ast.N_EXPR_IDREF {
+                var label = node.subexprs[2].label
                 var type_path = []
                 var lefthand = node.subexprs[1]
                 while yes {
@@ -655,14 +680,32 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                     }
                 }
                 var most_lefthand = type_path[1]
-                label = type_path.pop()
                 var omitted_righthands = 0
+                var failed_item_name = most_lefthand
+                var failed_item_name_from_import = no
                 var ref
                 while yes {
                     ref = pfile.try_lookup_symbol_path(
                         node.scope, name=label, type_path=type_path)
                     if ref != none or type_path.len == 0 {
                         break
+                    }
+                    if not failed_item_name_from_import {
+                        var attempt_find_import =
+                            pfile.global_scope.type_path_to_entry(
+                                type_path)
+                        if attempt_find_import != none and
+                                attempt_find_import.kind ==
+                                    ast.N_STMT_IMPORT {
+                            failed_item_name_from_import = yes
+                            failed_item_name =
+                                type_path.join(".") + "." + label
+                            # We must still continue trying, because
+                            # with shadowing a local var might override
+                            # an import and then this will still work
+                            # out.
+                            # Therefore, no 'break' here.
+                        }
                     }
                     omitted_righthands += 1
                     label = type_path.pop()
@@ -671,7 +714,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                     if msgs != none {
                         msgs.add(new msg.FileMsg(
                             "Unknown reference '" +
-                            most_lefthand +
+                            failed_item_name +
                             "', can't find what it refers to.",
                             source_file=pfile,
                             line=node.line, col=node.col,

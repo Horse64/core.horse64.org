@@ -86,7 +86,7 @@ func GlobalScope.ensure_assigned_storage(msgs=none,
         if typename(value) == "list" {
             # Import entries have no storage or symbol info.
             continue
-        } elseif not {ast.N_STMT_ENUMEXTEND, ast.N_STMT_TYPE,
+        } elseif not {ast.N_STMT_ENUMEXTEND,
                 ast.N_STMT_TYPEEXTEND}.has(value.kind) {
             self.storage_id_to_entry[storage_num] = value
             var si = new storage_scope.SymbolInfo(name)
@@ -122,7 +122,7 @@ func GlobalScope.ensure_assigned_storage(msgs=none,
             continue
         }
         assert(value.type_or_enum_scope.is_enum)
-        pos = 0
+        var pos = 0
         for label in value.type_or_enum_scope.label_names {
             pos += 1
             if self.name_to_stmt_map.has(label) {
@@ -144,11 +144,13 @@ func GlobalScope.ensure_assigned_storage(msgs=none,
                 continue
             }
             var entry = new storage_scope.GlobalScopeEnumEntry()
+            assert(value.label != none)
             entry.enum_stmt_label = value.label
             var si = new storage_scope.SymbolInfo(label)
             si.def_line = value.line
             si.def_col = value.col
             si.storage_id = pos
+            entry.symbol_info = si
             self.name_to_stmt_map[label] = entry
         }
     }
@@ -284,14 +286,17 @@ func process_toplevel_stmt(
                 var stand_in_node = none
                 if statement.kind == ast.N_STMT_ENUM {
                     stand_in_node = new enum_stmt.EnumStmt()
+                    stand_in_node.label = statement.label
                 } elseif statement.kind == ast.N_STMT_ENUMEXTEND {
                     stand_in_node = new enum_stmt.EnumExtendStmt()
                 } elseif statement.kind == ast.N_STMT_TYPE {
                     stand_in_node = new type_stmt.TypeStmt()
+                    stand_in_node.label = statement.label
                 } elseif statement.kind == ast.N_STMT_TYPEEXTEND {
                     stand_in_node = new type_stmt.TypeExtendStmt()
                 } elseif statement.kind == ast.N_STMT_FUNC {
                     stand_in_node = new func_stmt.FuncStmt()
+                    stand_in_node.label = statement.label
                 } else {
                     stand_in_node = new ast.StmtNode()
                 }

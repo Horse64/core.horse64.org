@@ -423,7 +423,7 @@ func actionparser_compile(args) {
                 "result"-> tresult.as_json_obj(),
             }
             for m in tresult.msgs {
-                output["msgs"].add(msg.as_json_obj())
+                output["msgs"].add(m.as_json_obj())
             }
             if had_error {
                 output["error"] = "Code has errors."
@@ -537,7 +537,7 @@ func actionparser_compile(args) {
                     "result"-> none,
                 }
                 for m in aresult.msgs {
-                    output["msgs"].add(msg.as_json_obj())
+                    output["msgs"].add(m.as_json_obj())
                 }
                 print(json.dump(output))
                 return 1

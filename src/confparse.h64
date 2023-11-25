@@ -317,7 +317,7 @@ func parse_from_file(
     } else {
         conf_uri = uri.from_disk_path(path)
     }
-    var result = parse_from_uri(uri,
+    var result = parse_from_uri(conf_uri,
         allow_multiline=allow_multiline,
         allow_multiassign=allow_multiassign,
         error_on_mistakes=error_on_mistakes,

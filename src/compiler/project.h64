@@ -967,7 +967,7 @@ func check_file_existence(file_uri, project=none) {
         await result
         return result
     }
-    var result = net.fetch.test_readable(uri) later:
+    var result = net.fetch.check_exists(file_uri) later:
 
     await result
     _known_readable_files[file_uri] = result

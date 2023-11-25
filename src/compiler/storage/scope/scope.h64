@@ -59,7 +59,7 @@ extend func_stmt.FuncStmt {
 
 type TypeScope {
     const is_enum = no
-    var storage_id = 0
+    var storage_id = none
     var node_map = {->}
     var name_to_symbol_map = {->}
     var base_key = none
@@ -69,6 +69,7 @@ type TypeScope {
 
 type EnumScope {
     const is_enum = yes
+    var storage_id = none
     var node_map = {->}
     var first_entry_pos
     var label_names = []

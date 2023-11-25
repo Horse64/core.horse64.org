@@ -103,12 +103,13 @@ func project.ProjectFile.try_lookup_symbol_path(
                 name_to_stmt_map[entry.enum_stmt_label]
             assert(enum_stmt.kind == ast.N_STMT_ENUM)
             var escope = enum_stmt.type_or_enum_scope
-            assert(entry.storage_info.storage_id >= 1 and
-                entry.storage_info.storage_id <= escope.label_names)
+            assert(entry.symbol_info.storage_id >= 1 and
+                entry.symbol_info.storage_id <=
+                    escope.label_names.len)
             return new storage_ref.StorageRef(
                 storage_ref.ST_NUMLITERAL,
                 escope.label_nums[
-                    entry.storage_info.storage_id]
+                    entry.symbol_info.storage_id]
             )
         }
         if entry.symbol_info == none {
@@ -127,31 +128,60 @@ func project.ProjectFile.try_lookup_symbol_path(
         entry = self.global_scope.type_path_to_entry(
             module_item_path_without_item)
         if entry != none and entry.kind == ast.N_STMT_IMPORT {
+            var can_be_non_cext = yes
+            var stmt_map = none
             if entry.project_file == none or
                     entry.project_file.global_scope == none {
+                can_be_non_cext = no
+            } else {
+                stmt_map =
+                    entry.project_file.global_scope.name_to_stmt_map
+            }
+            var def_file
+            if not can_be_non_cext or not stmt_map.has(item_name) {
+                var in_module_name = entry.module_path.join(".")
+                var in_package_name = entry.package_name
+                if entry.project_file != none {
+                    def_file = entry.project_file
+                    in_module_name = def_file.modinfo.module_name
+                    in_package_name = def_file.modinfo.package_name
+                }
+                var storage_id = cext.get_cext_item_storage_id(
+                    item_name,
+                    in_module_name=in_module_name,
+                    in_package_name=in_package_name,
+                    project=self.project,
+                    can_match_moduleless=no)
+                if storage_id != none {
+                    return new storage_ref.StorageRef(
+                        storage_ref.ST_CEXT,
+                        storage_id
+                    )
+                }
                 return none
             }
-            var stmt_map =
-                entry.project_file.global_scope.name_to_stmt_map
-            if not stmt_map.has(item_name) {
-                return none
-            }
+            def_file = entry.project_file
             entry = stmt_map[item_name]
             if typename(entry) == "list" {
                 return none
             }
             if has_attr(entry, "is_enum_entry") and
                     entry.is_enum_entry {
-                var enum_stmt = self.global_scope.
+                if not def_file.global_scope.
+                        name_to_stmt_map.has(entry.enum_stmt_label) {
+                    return none
+                }
+                var enum_stmt = def_file.global_scope.
                     name_to_stmt_map[entry.enum_stmt_label]
                 assert(enum_stmt.kind == ast.N_STMT_ENUM)
                 var escope = enum_stmt.type_or_enum_scope
-                assert(entry.storage_info.storage_id >= 1 and
-                    entry.storage_info.storage_id <= escope.label_names)
+                assert(entry.symbol_info.storage_id >= 1 and
+                    entry.symbol_info.storage_id <=
+                        escope.label_names.len)
                 return new storage_ref.StorageRef(
                     storage_ref.ST_NUMLITERAL,
                     escope.label_nums[
-                        entry.storage_info.storage_id]
+                        entry.symbol_info.storage_id]
                 )
             }
             if entry.symbol_info == none {
@@ -171,14 +201,14 @@ func project.ProjectFile.try_lookup_symbol_path(
         in_module_name = self.modinfo.module_name
         in_package_name = self.modinfo.package_name
     }
-    var builtin_id = cext.get_cext_item_storage_id(
+    var st_id = cext.get_cext_item_storage_id(
         check_path[1], in_module_name=in_module_name,
         in_package_name=in_package_name,
         project=self.project,
         can_match_moduleless=yes)
-    if builtin_id != none {
+    if st_id != none {
         return new storage_ref.StorageRef(
-            storage_ref.ST_BUILTIN, builtin_id)
+            storage_ref.ST_CEXT, st_id)
     }
     if check_path[1] == "self" and
             local_scope != none and local_scope.func_scope != none {
@@ -249,7 +279,8 @@ func project.ProjectFile.check_item_exists_by_modpkg(
 ## over a project, and it will return the same scope if they refer
 ## to the same type.
 func project.ProjectFile.make_type_or_enum_scope_from_node(
-        node, msgs=none, def_project_file=none) {
+        node, msgs=none, def_project_file=none,
+        is_standin_node=no) {
     assert(node.kind == ast.N_STMT_TYPE or
         node.kind == ast.N_STMT_TYPEEXTEND or
         node.kind == ast.N_STMT_ENUM or

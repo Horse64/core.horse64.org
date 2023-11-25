@@ -42,19 +42,27 @@ const hvm_builtin_cext_funcs = {
 }
 
 const hvm_builtin_cext_types = {
+    "BaseError"->"builtin_h64_runtimeerror",
     "RuntimeError"->"builtin_h64_runtimeerror",
     "NotImplementedError"->"builtin_h64_notimplementederror",
     "ValueError"->"builtin_h64_valueerror",
     "TypeError"->"builtin_h64_valueerror",
-    "PathNotFoundError"->"builtin_h64_pathnotfounderror",
     "PermissionError"->"builtin_h64_permissionerror",
 }
 
-type CFunc {
+type CExtItem {
+    var kind
     var name
     var module_name
     var package_name
     var storage_info
+}
+
+type CFunc base CExtItem {
+}
+
+func CFunc.init {
+    self.kind = ast.N_STMT_FUNC
 }
 
 func CFunc.as_str {
@@ -64,27 +72,53 @@ func CFunc.as_str {
     return t
 }
 
-type CTypeOrEnum {
-    var is_enum = no
-    var name
-    var module_name
-    var package_name
-    var storage_info
+type CVar base CExtItem {
 }
 
-func CTypeOrEnum.as_str {
-    var t = "<CTypeOrEnum '" + self.module_name.as_str() +
+func CVar.init {
+    self.kind = ast.N_STMT_VAR
+}
+
+func CVar.as_str {
+    var t = "<CVar '" + self.module_name.as_str() +
+        "." + self.name.as_str() + "'@'" +
+        self.package_name.as_str() + "'>"
+    return t
+}
+
+type CType base CExtItem {
+}
+
+func CType.init {
+    self.kind = ast.N_STMT_TYPE
+}
+
+func CType.as_str {
+    var t = "<CType '" + self.module_name.as_str() +
         "." + self.name.as_str() + "'@'" +
         self.package_name.as_str() + "' is_enum=" +
         self.is_enum.as_str() + ">"
     return t
 }
 
-const hvm_builtin_cext_storage_map = {->}
+type CEnum base CExtItem {
+}
 
-var hvm_builtin_cext_max_storage_id = 0
+func CEnum.init {
+    self.kind = ast.N_STMT_ENUM
+}
+
+func CEnum.as_str {
+    var t = "<CEnum '" + self.module_name.as_str() +
+        "." + self.name.as_str() + "'@'" +
+        self.package_name.as_str() + "' is_enum=" +
+        self.is_enum.as_str() + ">"
+    return t
+}
 
 extend project.Project {
+    var cext_builtins_storage_map = {->}
+
     var last_id_offset_for_cext_storage = 0
 }
 
@@ -96,27 +130,28 @@ type CExtStorageInfo {
 func get_cext_item_storage_info(name,
         in_module_name=none, in_package_name=none,
         project=none, can_match_moduleless=yes) {
-    if hvm_builtin_cext_storage_map.len == 0 {
-        var st_id = 1
+    if project != none and
+            project.cext_builtins_storage_map.len == 0 {
+        var st_id = project.last_id_offset_for_cext_storage + 1
         for entry in hvm_builtin_cext_funcs {
             var st_info = new CExtStorageInfo()
             st_info.kind = ast.N_STMT_FUNC
             st_info.storage_id = st_id
-            hvm_builtin_cext_storage_map[entry] = st_info
+            project.cext_builtins_storage_map[entry] = st_info
             st_id += 1
         }
         for entry in hvm_builtin_cext_types {
             var st_info = new CExtStorageInfo()
             st_info.storage_id = st_id
             st_info.kind = ast.N_STMT_TYPE
-            hvm_builtin_cext_storage_map[entry] = st_info
+            project.cext_builtins_storage_map[entry] = st_info
             st_id += 1
         }
-        hvm_builtin_cext_max_storage_id = st_id - 1
+        project.last_id_offset_for_cext_storage = st_id - 1
     }
-    if can_match_moduleless and
-            hvm_builtin_cext_storage_map.has(name) {
-        return hvm_builtin_cext_storage_map[name]
+    if can_match_moduleless and project != none and
+            project.cext_builtins_storage_map.has(name) {
+        return project.cext_builtins_storage_map[name]
     }
     if in_module_name != none and in_package_name != none and
             project != none and
@@ -128,36 +163,18 @@ func get_cext_item_storage_info(name,
                 has(in_module_name) {
             var cmod = cext_info.name_to_cmodule_map[
                 in_module_name]
-            if cmod.name_to_cfunc_map.has(name) {
-                var cfunc = cmod.name_to_cfunc_map[name]
-                if cfunc.storage_info == none {
+            if cmod.name_to_item_map.has(name) {
+                var citem = cmod.name_to_item_map[name]
+                if citem.storage_info == none {
                     project.last_id_offset_for_cext_storage += 1
                     var storage_id =
-                        project.last_id_offset_for_cext_storage +
-                        hvm_builtin_cext_max_storage_id
+                        project.last_id_offset_for_cext_storage
                     var st_info = new CExtStorageInfo()
                     st_info.storage_id = storage_id
-                    st_info.kind = ast.N_STMT_FUNC
-                    cfunc.storage_info = st_info
+                    st_info.kind = citem.kind
+                    citem.storage_info = st_info
                 }
-                return cfunc.storage_info
-            } elseif cmod.name_to_ctypeorenum_map.has(name) {
-                var ctypeorenum = cmod.name_to_ctypeorenum_map[name]
-                if ctypeorenum.storage_info == none {
-                    project.last_id_offset_for_cext_storage += 1
-                    var storage_id =
-                        project.last_id_offset_for_cext_storage +
-                        hvm_builtin_cext_max_storage_id
-                    var st_info = new CExtStorageInfo()
-                    st_info.storage_id = storage_id
-                    if ctypeorenum.is_enum {
-                        st_info.kind = ast.N_STMT_TYPE
-                    } else {
-                        st_info.kind = ast.N_STMT_ENUM
-                    }
-                    ctypeorenum.storage_info = st_info
-                }
-                return ctypeorenum.storage_info
+                return citem.storage_info
             }
         }
     }
@@ -185,21 +202,19 @@ func get_cext_item_storage_id(name,
 type CModule {
     var module_name
 
-    var name_to_cfunc_map = {->}
-
-    var name_to_ctypeorenum_map = {->}
+    var name_to_item_map = {->}
 }
 
 func CModule.as_str {
     var t = "<CModule "
     var is_first = yes
-    for cfunc in self.name_to_cfunc_map.values() {
+    for citem in self.name_to_item_map.values() {
         if is_first {
             is_first = no
         } else {
             t += ","
         }
-        t += cfunc.as_str()
+        t += citem.as_str()
     }
     t += ">"
     return t
@@ -231,7 +246,7 @@ func CExtInfo.import_to_modname(importst, project=none) {
 func CExtInfo.as_str {
     var t = "<CExtInfo "
     var is_first = yes
-    for cmod in self.name_to_cfunc_map.values() {
+    for cmod in self.name_to_cmodule_map.values() {
         if is_first {
             is_first = no
         } else {
@@ -283,34 +298,53 @@ func scan_package_for_cexts(
     for group in comment_groups {
         # FIXME: finish this part, parse parameters and all later.
         for comment in group {
+            var comment_type = none
+            var citem_type = none
             if comment.starts("/// @h64func ") or
                     comment.starts("/** @h64func ") {
-                var cfunc_ref = comment.sub(comment.find("@h64func ") +
-                    "@h64func ".len).trim()
-                var orig_ref = cfunc_ref
-                var cfunc_package = package_name
-                if cfunc_ref.find("@") != none {
-                    cfunc_package = cfunc_ref.sub(
-                        cfunc_ref.find("@") + 1).trim()
-                    cfunc_ref = cfunc_ref.sub(
-                        1, cfunc_ref.find("@") - 1).trim()
+                comment_type = "h64func"
+                citem_type = ast.N_STMT_FUNC
+            } elseif comment.starts("/// @h64var ") or
+                    comment.starts("/** @h64var ") {
+                comment_type = "h64var"
+                citem_type = ast.N_STMT_VAR
+            } elseif comment.starts("/// @h64type ") or
+                    comment.starts("/** @h64type ") {
+                comment_type = "h64type"
+                citem_type = ast.N_STMT_TYPE
+            } elseif comment.starts("/// @h64enum ") or
+                    comment.starts("/** @h64enum ") {
+                comment_type = "h64enum"
+                citem_type = ast.N_STMT_ENUM
+            }
+            if comment_type != none {
+                var citem_ref = comment.sub(
+                    comment.find("@" + comment_type + " ") +
+                    ("@" + comment_type + " ").len).trim()
+                var orig_ref = citem_ref
+                var citem_package = package_name
+                if citem_ref.find("@") != none {
+                    citem_package = citem_ref.sub(
+                        citem_ref.find("@") + 1).trim()
+                    citem_ref = citem_ref.sub(
+                        1, citem_ref.find("@") - 1).trim()
                 }
                 var invalid = no
-                if cfunc_ref.starts(".") or
-                        cfunc_ref.ends(".") or
-                        cfunc_ref.find(".") == none or
-                        cfunc_package.find(".") == none or
-                        cfunc_ref.trim() != cfunc_ref or
-                        cfunc_package.trim() != cfunc_package {
+                if citem_ref.starts(".") or
+                        citem_ref.ends(".") or
+                        citem_ref.find(".") == none or
+                        citem_package.find(".") == none or
+                        citem_ref.trim() != citem_ref or
+                        citem_package.trim() != citem_package {
                     invalid = yes
                 }
-                var cfunc_module
-                var cfunc_name
+                var citem_module
+                var citem_name
                 if not invalid {
-                    cfunc_module = cfunc_ref.sub(
-                        1, cfunc_ref.rfind(".") - 1)
-                    cfunc_name = cfunc_ref.sub(
-                        cfunc_ref.rfind(".") + 1)
+                    citem_module = citem_ref.sub(
+                        1, citem_ref.rfind(".") - 1)
+                    citem_name = citem_ref.sub(
+                        citem_ref.rfind(".") + 1)
                 }
                 if invalid and msgs != none {
                     msgs.add(new msg.FileMsg(
@@ -325,21 +359,32 @@ func scan_package_for_cexts(
                     throw new ValueError(
                         "Malformed C extension reference found.")
                 }
-                if not cext_info.name_to_cmodule_map.has(cfunc_module) {
-                    cext_info.name_to_cmodule_map[cfunc_module] =
+                if not cext_info.name_to_cmodule_map.has(citem_module) {
+                    cext_info.name_to_cmodule_map[citem_module] =
                         new CModule()
                 }
-                var cmod = cext_info.name_to_cmodule_map[cfunc_module]
-                cmod.module_name = cfunc_module
+                var cmod = cext_info.name_to_cmodule_map[citem_module]
+                cmod.module_name = citem_module
                 var duplicate = no
-                if cmod.name_to_cfunc_map.has(cfunc_name) {
+                if cmod.name_to_item_map.has(citem_name) {
                     duplicate = yes
                 } else {
-                    var cfunc = new CFunc()
-                    cfunc.name = cfunc_name
-                    cfunc.package_name = package_name
-                    cfunc.module_name = cfunc_module
-                    cmod.name_to_cfunc_map[cfunc_name] = cfunc
+                    var citem = none
+                    if citem_type == ast.N_STMT_FUNC {
+                        citem = new CFunc()
+                    } elseif citem_type == ast.N_STMT_VAR {
+                        citem = new CVar()
+                    } elseif citem_type == ast.N_STMT_TYPE {
+                        citem = new CType()
+                    } elseif citem_type == ast.N_STMT_ENUM {
+                        citem = new CEnum()
+                    } else {
+                        throw new TypeError("Unknown citem_type.")
+                    }
+                    citem.name = citem_name
+                    citem.package_name = package_name
+                    citem.module_name = citem_module
+                    cmod.name_to_item_map[citem_name] = citem
                 }
                 if duplicate and msgs != none {
                     msgs.add(new msg.FileMsg(
