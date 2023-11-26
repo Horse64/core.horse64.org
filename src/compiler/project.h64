@@ -33,6 +33,7 @@ import text from core.horse64.org
 import uri from core.horse64.org
 
 import compiler.ast as ast
+import compiler.ast.expr as ast_expr
 import compiler.ast.func_stmt as func_stmt
 import compiler.ast.import_stmt as import_stmt
 import compiler.ast.transform as transform

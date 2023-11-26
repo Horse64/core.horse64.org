@@ -648,6 +648,8 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                             "Unknown reference."
                         )
                     }
+                } else {
+                    node.ref = result
                 }
             } elseif node.kind == ast.N_EXPR_BINOP and
                     node.optoken.str == "." and
@@ -723,6 +725,33 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                         throw new ValueError(
                             "Unknown reference."
                         )
+                    }
+                } else {
+                    var replacement_idref = new ast_expr.IdRefExpr()
+                    replacement_idref.line = node.line
+                    replacement_idref.col = node.col
+                    replacement_idref.label = label
+                    replacement_idref.type_path = type_path.join(".")
+                    if replacement_idref.type_path == "" {
+                        replacement_idref.type_path = none
+                    }
+                    replacement_idref.ref = ref
+
+                    if omitted_righthands == 0 {
+                        # Nuke the original node and subtree,
+                        # replace with a new consolidated one:
+                        return later replacement_idref
+                    } else {
+                        var lookat_parent = none
+                        var lookat_node = node
+                        var i = 1
+                        while i <= omitted_righthands {
+                            lookat_parent = lookat_node
+                            lookat_node = lookat_node.subexprs[1]
+                            i += 1
+                        }
+                        lookat_parent.subexprs[1] = lookat_node
+                        return later node
                     }
                 }
             }
