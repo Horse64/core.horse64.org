@@ -73,7 +73,7 @@ def register_hack(
 
 def apply_hacks_on_file(
         toks, module, package, is_after_python_translate=None,
-        output_hacks_notice=True
+        output_hacks_notice=False
         ):
     import translator_hacks
     from translator_syntaxhelpers import (
