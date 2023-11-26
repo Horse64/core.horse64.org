@@ -5,10 +5,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 MY_DIR = os.path.abspath(os.path.dirname(__file__))
 
-def prepare_test_dir(d):
+def prepare_test_dir(d, only_delete=False):
     if not os.path.isdir(d):
         return
     if not os.path.isdir(os.path.join(d,
@@ -24,6 +25,8 @@ def prepare_test_dir(d):
             continue
         print("Removing: " + entryp)
         shutil.rmtree(entryp)
+    if only_delete:
+        return
     main_modules_dir = os.path.join(MY_DIR, "..",
         "horse_modules")
     for entry in os.listdir(main_modules_dir):
@@ -42,10 +45,13 @@ def prepare_test_dir(d):
     temptarget = os.path.join(temptarget, "module")
     print("Copying " + entrysource + " -> " + entrytarget +
         " (via " + str(temptarget) + ")")
-    shutil.copytree(entrysource, temptarget)
-    shutil.copytree(temptarget, entrytarget)
+    try:
+        shutil.copytree(entrysource, temptarget)
+        shutil.copytree(temptarget, entrytarget)
+    finally:
+        shutil.rmtree(temptarget)
 
-def prepare_test_dirs():
+def prepare_test_dirs(only_delete=False):
     fail_dirs = [os.path.join(MY_DIR, "..", "tests",
         "compile-fail", l) for l in
         os.listdir(os.path.join(MY_DIR,
@@ -54,7 +60,7 @@ def prepare_test_dirs():
         if os.path.isdir(l)]
     success_dirs = []
     for d in fail_dirs + success_dirs:
-        prepare_test_dir(d)
+        prepare_test_dir(d, only_delete=only_delete)
     return [success_dirs, fail_dirs]
 
 def prepare_test_files():
@@ -79,7 +85,7 @@ def prepare_test_files():
     return [expand_folder_to_tests(dirs[0]),
         expand_folder_to_tests(dirs[1])]
 
-def run_tests():
+def run_tests_without_cleanup():
     files = prepare_test_files()
     error_count = 0
     print("*** run_tests_with_output_translated.py TESTS to work:")
@@ -88,7 +94,7 @@ def run_tests():
     for fail_file in files[1]:
         expected_output = None
         with open(fail_file[1], "r", encoding="utf-8") as f:
-            expected_output = f.read()
+            expected_output = f.read().strip()
         cmd = [sys.executable, os.path.join(
             "tools", "horsec.py"), "compile",
             "--stage", "transformed-code", "--",
@@ -103,7 +109,7 @@ def run_tests():
             result = e.output
         if type(result) != str:
             result = result.decode("utf-8", "replace")
-        if not expected_output.lower() in result.lower():
+        if result.lower().find(expected_output.lower()) < 0:
             print("!! TEST FAILED. DIDN'T FIND EXPECTED OUTPUT. !!")
             print("Failed output:\n" + result)
         else:
@@ -116,6 +122,13 @@ def run_tests():
     else:
         print("*** run_tests_with_output_translated.py TESTS ALL OK.")
         sys.exit(0)
+
+def run_tests():
+    try:
+        run_tests_without_cleanup()
+    finally:
+        time.sleep(1)
+        prepare_test_dirs(only_delete=True)
 
 if __name__ == "__main__":
     run_tests()
