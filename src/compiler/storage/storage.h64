@@ -148,63 +148,70 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                     first_run = no
                 }
             }
-            if escope.storage_id == none {
-                var gscope_entry_sinfo_found = no
-                var search_set
-                if escope.def_uri == none {
-                    search_set = project.no_uri_files
-                } else {
-                    search_set = {project.module_uri_to_file_map[
-                        uri.normalize(escope.def_uri, absolute_file=yes)]}
+
+            var gscope_entry_sinfo_found = no
+            var search_set
+            if escope.def_uri == none {
+                search_set = project.no_uri_files
+            } else {
+                search_set = {project.module_uri_to_file_map[
+                    uri.normalize(escope.def_uri, absolute_file=yes)]}
+            }
+            for pfile in search_set {
+                if not pfile.global_scope.name_to_stmt_map.has(
+                        escope.label) {
+                    continue
                 }
-                for pfile in search_set {
-                    if not pfile.global_scope.name_to_stmt_map.has(
-                            escope.label) {
-                        continue
-                    }
-                    var entry = pfile.global_scope.name_to_stmt_map[
-                        escope.label]
-                    if entry.type_or_enum_scope == escope {
-                        if entry.symbol_info != none {
-                            gscope_entry_sinfo_found = yes
+                var entry = pfile.global_scope.name_to_stmt_map[
+                    escope.label]
+                if entry.type_or_enum_scope == escope {
+                    if entry.symbol_info != none {
+                        gscope_entry_sinfo_found = yes
+                        if escope.storage_id != none {
+                            if escope.storage_id !=
+                                    entry.symbol_info.storage_id {
+                                throw new RuntimeError(
+                                    "Internal error.")
+                            }
+                        } else {
                             escope.storage_id =
                                 entry.symbol_info.storage_id
                         }
-                        break
+                    }
+                    break
+                }
+            }
+            if not gscope_entry_sinfo_found {
+                var had_error = no
+                for m in msgs {
+                    if m.kind == msg.M_ERROR {
+                        had_error = yes
                     }
                 }
-                if not gscope_entry_sinfo_found {
-                    var had_error = no
-                    for m in msgs {
-                        if m.kind == msg.M_ERROR {
-                            had_error = yes
-                        }
-                    }
-                    if not had_error and debug_global_storage {
-                        print("compiler.storage: "
-                            "project.Project.compute_all_scopes(): " +
-                            "Fatal problem, can't trace type '" +
-                            escope.label + "' to storage id, it " +
-                            "has def_uri " + escope.def_uri.as_str() +
-                            " and we checked " + search_set.len.as_str() +
-                            " files without success.")
-                    }
-                    if not had_error {
-                        throw new RuntimeError("Internal error: "
-                            "Failed to trace back type definition to "
-                            "global scope storage id despite no malformed "
-                            "AST, this should never happen!!")
-                    }
-                }
-                if debug_global_storage {
+                if not had_error and debug_global_storage {
                     print("compiler.storage: "
                         "project.Project.compute_all_scopes(): " +
-                        "Found global storage id " +
-                        escope.storage_id.as_str() + " for "
-                        "type or enum in file " +
-                        escope.def_uri.as_str() +
-                        " with name '" + escope.label + "'.")
+                        "Fatal problem, can't trace type '" +
+                        escope.label + "' to storage id, it " +
+                        "has def_uri " + escope.def_uri.as_str() +
+                        " and we checked " + search_set.len.as_str() +
+                        " files without success.")
                 }
+                if not had_error {
+                    throw new RuntimeError("Internal error: "
+                        "Failed to trace back type definition to "
+                        "global scope storage id despite no malformed "
+                        "AST, this should never happen!!")
+                }
+            }
+            if debug_global_storage {
+                print("compiler.storage: "
+                    "project.Project.compute_all_scopes(): " +
+                    "Found global storage id " +
+                    escope.storage_id.as_str() + " for "
+                    "type or enum in file " +
+                    escope.def_uri.as_str() +
+                    " with name '" + escope.label + "'.")
             }
         }
     }
