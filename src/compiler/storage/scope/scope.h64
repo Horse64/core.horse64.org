@@ -64,6 +64,7 @@ type TypeScope {
     var name_to_symbol_map = {->}
     var base_key = none
     var label
+    var based_on_cext_id = none
     var def_line, def_col, def_uri
 }
 

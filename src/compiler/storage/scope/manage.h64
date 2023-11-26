@@ -275,7 +275,7 @@ func project.ProjectFile.find_cext_injected_item_storage_id_by_modpkg(
 
 func project.ProjectFile.check_item_exists_by_modpkg(
         name, mod_pkg_path, origin_project_file=none,
-        limit_to_kind=none
+        limit_to_kind=none, project=none
         ) {
     if origin_project_file != none and
             origin_project_file.global_scope.
@@ -290,6 +290,23 @@ func project.ProjectFile.check_item_exists_by_modpkg(
             return no
         }
         return yes
+    } elseif origin_project_file != none or project != none {
+        if project == none {
+            project = origin_project_file.project
+        }
+        var storage_id = cext.get_cext_item_storage_id(
+            name,
+            in_module_name=mod_pkg_path.sub(
+                1, mod_pkg_path.find("@")
+            ), in_package_name=mod_pkg_path.sub(
+                mod_pkg_path.find("@") + 1
+            ),
+            project=project,
+            can_match_moduleless=no,
+            limit_to_kind=limit_to_kind)
+        if storage_id != none {
+            return yes
+        }
     }
     return (self.find_cext_injected_item_storage_id_by_modpkg(
         name, mod_pkg_path, limit_to_kind=limit_to_kind) != none)
@@ -312,11 +329,13 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
     var stmt_base_label
     var stmt_base_project_file
     var stmt_full_type_path
+    var stmt_project_file
     var stmt_label
 
     var key
     var result_scope
     var is_enum
+    var based_on_cext_id = none
     if node.kind == ast.N_STMT_TYPE or
             node.kind == ast.N_STMT_ENUM {
         # This is a self-contained original declaration and not an extends.
@@ -333,7 +352,9 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
         if node.kind == ast.N_STMT_TYPE and
                 node.subexprs.len >= 1 and
                 node.subexprs[1].kind == ast.N_EXPR_IDREF {
+            var had_type_path_specified = no
             if node.subexprs[1].type_path != none {
+                had_type_path_specified = yes
                 var result =
                     self.type_path_to_full_module_path_and_pfile(
                         node.subexprs[1].type_path)
@@ -344,6 +365,7 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
             } else {
                 stmt_base_full_type_path = stmt_full_type_path
                 assert(stmt_base_full_type_path != none)
+                stmt_base_project_file = self
             }
             stmt_base_label = node.subexprs[1].label
 
@@ -353,7 +375,21 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
                 item_exists = self.check_item_exists_by_modpkg(
                     stmt_base_label, stmt_base_full_type_path,
                     limit_to_kind=ast.N_STMT_TYPE,
-                    origin_project_file=stmt_base_project_file)
+                    origin_project_file=stmt_base_project_file,
+                    project=self.project)
+            }
+            if not item_exists {
+                var storage_id = cext.get_cext_item_storage_id(
+                    stmt_base_label,
+                    in_module_name=self.modinfo.module_name,
+                    in_package_name=stmt_base_project_file.
+                        modinfo.package_name,
+                    project=self.project,
+                    can_match_moduleless=yes)
+                if storage_id != none {
+                    item_exists = yes
+                    based_on_cext_id = storage_id
+                }
             }
             if stmt_base_full_type_path == none {
                 if msgs != none {
@@ -394,6 +430,8 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
             node.kind == ast.N_STMT_ENUMEXTEND)
         is_enum = if node.kind == ast.N_STMT_TYPEEXTEND (no)
                   else (yes)
+        var base_def_type = if is_enum (ast.N_STMT_ENUM) else
+                            (ast.N_STMT_TYPE)
 
         # See what enum or tyep we're extending:
         if node.subexprs.len < 1 or
@@ -417,9 +455,11 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
                     node.subexprs[1].type_path)
             if result != none {
                 stmt_full_type_path = result[1]
+                stmt_project_file = result[2]
             }
         } else {
             stmt_full_type_path = self.modinfo.module_name
+            stmt_project_file = self
             assert(stmt_full_type_path != none)
             if self.modinfo.package_name != none {
                 stmt_full_type_path += "@" + self.modinfo.package_name
@@ -430,8 +470,9 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
             if msgs != none {
                 msgs.add(new msg.FileMsg(
                     "Unexpected extend statement, "
-                    "there isn't any import for this module: " +
-                    node.subexprs[1].type_path.join("."),
+                    "given module path '" +
+                    node.subexprs[1].type_path.join(".") +
+                    "' doesn't match any import.",
                     source_file=def_project_file,
                     line=node.line, col=node.col,
                 ))
@@ -439,6 +480,43 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
             } else {
                 throw new ValueError("Couldn't resolve extend's "
                     "type path.")
+            }
+        } elseif stmt_project_file == none or
+                not stmt_project_file.global_scope.
+                    name_to_stmt_map.has(stmt_label) or
+                stmt_project_file.global_scope.
+                    name_to_stmt_map[stmt_label].kind !=
+                    base_def_type {
+            if msgs != none {
+                if self.check_item_exists_by_modpkg(
+                        stmt_label, stmt_full_type_path,
+                        origin_project_file=none,
+                        limit_to_kind=base_def_type,
+                        project=self.project
+                        ) {
+                    # It exists but is not in the scope,
+                    # this only happens for C extensions.
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected extend statement, "
+                        "cannot extend C extension " +
+                        if is_enum ("enums") else ("types") + ".",
+                        source_file=def_project_file,
+                        line=node.line, col=node.col,
+                    ))
+                } else {
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected extend statement, " +
+                        if is_enum ("enum") else ("type") + " '" +
+                        stmt_label + "' not found in "
+                        "referenced module.",
+                        source_file=def_project_file,
+                        line=node.line, col=node.col,
+                    ))
+                }
+                return none
+            } else {
+                throw new ValueError("Couldn't find extend's "
+                    "referenced type, or its a C extension.")
             }
         }
 
@@ -462,6 +540,10 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
             result_scope.base_key = base_key
         }
         self.project.type_or_enum_scope_map[key] = result_scope
+        if based_on_cext_id != none {
+            assert(not is_enum)
+            result_scope.based_on_cext_id = based_on_cext_id
+        }
     } else {
         result_scope = self.project.type_or_enum_scope_map[key]
     }
