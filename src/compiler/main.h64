@@ -164,7 +164,7 @@ func show_ast_or_global_scope_result_to_terminal_or_file(
             "result"-> aresult.as_json_obj(),
         }
         for m in msgs {
-            output["msgs"].add(msg.as_json_obj())
+            output["msgs"].add(m.as_json_obj())
         }
         if had_error {
             output["error"] = "Code has errors."

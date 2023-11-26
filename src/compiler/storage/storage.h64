@@ -55,9 +55,9 @@ func project.Project.get_free_global_storage_slot {
 func project.Project.get_project_file_for_escope(escope) {
     var search_set
     if escope.def_uri == none {
-        search_set = project.no_uri_files
+        search_set = self.no_uri_files
     } else {
-        search_set = {project.module_uri_to_file_map[
+        search_set = {self.module_uri_to_file_map[
             escope.def_uri]}
     }
     for pfile in search_set {
