@@ -624,7 +624,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                         parent.kind == ast.N_STMT_ENUMEXTEND) and
                         parent.subexprs.len > 0 and
                         parent.subexprs[1] == node {
-                    return later none
+                    return later node
                 }
                 var result = pfile.try_lookup_symbol_path(
                     node.scope,
@@ -653,6 +653,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                 } else {
                     node.ref = result
                 }
+                return later node
             } elseif node.kind == ast.N_EXPR_BINOP and
                     node.optoken.str == "." and
                     node.subexprs.len == 2 and

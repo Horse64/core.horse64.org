@@ -261,6 +261,14 @@ func parse_extend_or_enum_or_type_header(
             tokens[pos].kind == token.T_KEYWORD and
             tokens[pos].str == "base" {
         pos += 1
+        var base_line, base_col
+        if pos <= tokens_len {
+            base_line = tokens[pos].line
+            base_col = tokens[pos].col
+        } else {
+            base_line = tokens[pos - 1].line
+            base_col = tokens[pos - 1].col
+        }
         var basecount = 0
         while yes {
             if (pos > tokens_len or
@@ -302,6 +310,8 @@ func parse_extend_or_enum_or_type_header(
                 pos += 2
             }
             var iexp = new expr.IdRefExpr()
+            iexp.line = base_line
+            iexp.col = base_col
             iexp.label = base_type_name
             iexp.type_path = base_type_path
             stmt.subexprs.add(iexp)
