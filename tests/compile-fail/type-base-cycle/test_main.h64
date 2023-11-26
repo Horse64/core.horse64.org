@@ -25,15 +25,13 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-import time from core.horse64.org
+type A base B {
+}
 
-func test_basic_things {
-    # This is not allowed, because errors can't be
-    # constructed with a dynamic message:
-    var s = "a"
-    if time.ticks() > 100 {
-        s = "b"
-    }
-    var e = new ValueError("Abc: " + s)
+type B base A {
+}
+
+func main {
+    print("Hello World!")
 }
 
