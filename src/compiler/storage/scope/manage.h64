@@ -336,6 +336,7 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
     var result_scope
     var is_enum
     var based_on_cext_id = none
+    var base_escope_key = none
     if node.kind == ast.N_STMT_TYPE or
             node.kind == ast.N_STMT_ENUM {
         # This is a self-contained original declaration and not an extends.
@@ -387,8 +388,8 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
                 var self_module_name = "<inline>"
                 var self_pkg = none
                 if self.modinfo != none {
-                    self_module_name = self.module_name
-                    self_pkg = self.package_name
+                    self_module_name = self.modinfo.module_name
+                    self_pkg = self.modinfo.package_name
                 }
                 var storage_id = cext.get_cext_item_storage_id(
                     stmt_base_label,
@@ -430,6 +431,9 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
                     throw new ValueError("Base type module "
                         "doesn't contain given type.")
                 }
+            } else {
+                base_escope_key = stmt_base_full_type_path +
+                    "." + stmt_base_label
             }
         }
 
@@ -556,9 +560,10 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
             result_scope.base_key = base_key
         }
         self.project.type_or_enum_scope_map[key] = result_scope
-        if based_on_cext_id != none {
-            assert(not is_enum)
-            result_scope.based_on_cext_id = based_on_cext_id
+        assert(based_on_cext_id == none or not is_enum)
+        if not is_enum {
+            result_scope.base_cext_id = based_on_cext_id
+            result_scope._base_escope_key = base_escope_key
         }
     } else {
         result_scope = self.project.type_or_enum_scope_map[key]

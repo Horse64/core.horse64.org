@@ -316,12 +316,10 @@ func parse_extend_or_enum_or_type_header(
             iexp.type_path = base_type_path
             stmt.subexprs.add(iexp)
 
-            if pos <= tokens_len and
-                    tokens[pos].kind == token.T_COMMA {
-                pos += 1
-            } else {
-                break
-            }
+            # XXX: If we ever wanted to allow multiple base types
+            # again, here would be the place to check for
+            # token.T_COMMA and resume.
+            break
         }
     }
     if pos <= tokens_len and (

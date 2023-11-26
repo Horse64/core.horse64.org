@@ -60,7 +60,7 @@ func project.Project.get_project_file_for_escope(escope) {
         search_set = self.no_uri_files
     } else {
         search_set = {self.module_uri_to_file_map[
-            escope.def_uri]}
+            uri.normalize(escope.def_uri, absolute_file=yes)]}
     }
     for pfile in search_set {
         if not pfile.global_scope.name_to_stmt_map.has(
@@ -93,6 +93,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
     assert(msgs != none)
 
     func finalize_enum_and_type_storage(project, msgs) {
+        # Make sure all enums and types have a storage id:
         for escope in project.type_or_enum_scope_map.values() {
             if escope.is_enum {
                 # First, check the specified values aren't conflicting:
@@ -104,17 +105,23 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                         continue
                     }
                     if nums_seen.has(escope.label_nums[pos]) {
-                        msgs.add(new msg.FileMsg(
-                            "Unexpected duplicate enum value in "
-                            "enum '" + escope.label + "'"
-                            ", value " +
-                            escope.label_nums[pos].as_str() +
-                            " was seen twice.",
-                            source_file=
-                                project.get_project_file_for_escope(
-                                    escope),
-                            line=escope.def_line, col=escope.def_col
-                        ))
+                        if msgs != none {
+                            escope.damaged = yes
+                            msgs.add(new msg.FileMsg(
+                                "Unexpected duplicate enum value in "
+                                "enum '" + escope.label + "'"
+                                ", value " +
+                                escope.label_nums[pos].as_str() +
+                                " was seen twice.",
+                                source_file=
+                                    project.get_project_file_for_escope(
+                                        escope),
+                                line=escope.def_line, col=escope.def_col
+                            ))
+                        } else {
+                            throw new RuntimeError(
+                                "Duplicate enum value found.")
+                        }
                     } else {
                         nums_seen.add(escope.label_nums[pos])
                     }
@@ -165,19 +172,27 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                 var entry = pfile.global_scope.name_to_stmt_map[
                     escope.label]
                 if entry.type_or_enum_scope == escope {
-                    if entry.symbol_info != none {
-                        gscope_entry_sinfo_found = yes
-                        if escope.storage_id != none {
-                            if escope.storage_id !=
-                                    entry.symbol_info.storage_id {
-                                throw new RuntimeError(
-                                    "Internal error.")
-                            }
-                        } else {
-                            escope.storage_id =
-                                entry.symbol_info.storage_id
-                        }
+                    if entry.symbol_info == none {
+                        break
                     }
+                    gscope_entry_sinfo_found = yes
+                    if escope.storage_id != none {
+                        if escope.storage_id !=
+                                entry.symbol_info.storage_id {
+                            throw new RuntimeError(
+                                "Internal error.")
+                        }
+                    } else {
+                        escope.storage_id =
+                            entry.symbol_info.storage_id
+                    }
+                    assert(not project.
+                        storage_id_to_escope_map.has(
+                            escope.storage_id) or
+                        project.storage_id_to_escope_map[
+                            escope.storage_id] == escope)
+                    project.storage_id_to_escope_map[
+                        escope.storage_id] = escope
                     break
                 }
             }
@@ -212,6 +227,111 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                     "type or enum in file " +
                     escope.def_uri.as_str() +
                     " with name '" + escope.label + "'.")
+            }
+        }
+        # Set base type storage info for all types:
+        var had_invalid_base = no
+        for escope_key in project.type_or_enum_scope_map {
+            var escope = project.type_or_enum_scope_map[escope_key]
+            if escope.is_enum {
+                continue
+            }
+            if escope._base_escope_key != none and
+                    escope.base_global_id == none and
+                    escope.base_cext_id == none {
+                if not project.type_or_enum_scope_map.has(
+                        escope._base_escope_key) {
+                    if msgs != none {
+                        if not escope.damaged {
+                            escope.damaged = yes
+                            msgs.add(new msg.FileMsg(
+                                "Base type for type "
+                                "'" + escope_key + "' "
+                                "not found.",
+                                source_file=project.
+                                    get_project_file_for_escope(
+                                        escope),
+                                line=escope.def_line,
+                                col=escope.def_col
+                            ))
+                        }
+                    } else {
+                        throw new RuntimeError(
+                            "Base type not found.")
+                    }
+                    continue
+                }
+                var base_escope_key = escope._base_escope_key
+                var base_escope = project.type_or_enum_scope_map[
+                    escope._base_escope_key]
+                escope._base_escope_key = none
+                escope.base_global_id =
+                    base_escope.storage_id
+                # Verify that the base chain doesn't have a cycle:
+                var look_at_escope = escope
+                var seen_damaged = escope.damaged
+                while look_at_escope != none {
+                    if look_at_escope.base_global_id == none {
+                        break
+                    }
+                    if not project.storage_id_to_escope_map.has(
+                            look_at_escope.base_global_id) {
+                        # Should only be possible in case of error.
+                        # Nothing we can do.
+                        look_at_escope.damaged = yes
+                        break
+                    }
+                    if look_at_escope.base_global_id == look_at_escope.storage_id {
+                        had_invalid_base = yes
+                        if msgs != none {
+                            if not seen_damaged {
+                                msgs.add(new msg.FileMsg(
+                                    "Type '" + escope_key + "' can't "
+                                    "be based on itself.",
+                                    source_file=project.
+                                        get_project_file_for_escope(
+                                            escope),
+                                    line=escope.def_line,
+                                    col=escope.def_col
+                                ))
+                            }
+                            escope.damaged = yes
+                        } else {
+                            throw new RuntimeError(
+                                "Type found based on itself.")
+                        }
+                        break
+                    }
+                    look_at_escope = project.
+                        storage_id_to_escope_map[
+                            look_at_escope.base_global_id]
+                    if look_at_escope.damaged {
+                        seen_damaged = yes
+                    }
+                    if look_at_escope.storage_id ==
+                            escope.storage_id {
+                        had_invalid_base = yes
+                        if msgs != none {
+                            if not seen_damaged {
+                                msgs.add(new msg.FileMsg(
+                                    "Type '" + escope_key + "' has "
+                                    "base type cycle leading back "
+                                    "to itself, which isn't allowed.",
+                                    source_file=project.
+                                        get_project_file_for_escope(
+                                            escope),
+                                    line=escope.def_line,
+                                    col=escope.def_col
+                                ))
+                            }
+                            escope.damaged = yes
+                        } else {
+                            throw new RuntimeError(
+                                "Base type cycle found.")
+                        }
+                        break
+                    }
+                }
             }
         }
     }

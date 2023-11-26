@@ -59,17 +59,21 @@ extend func_stmt.FuncStmt {
 
 type TypeScope {
     const is_enum = no
+    var damaged = no
     var storage_id = none
     var node_map = {->}
     var name_to_symbol_map = {->}
     var base_key = none
     var label
-    var based_on_cext_id = none
+    var base_global_id = none
+    var base_cext_id = none
+    var _base_escope_key = none
     var def_line, def_col, def_uri
 }
 
 type EnumScope {
     const is_enum = yes
+    var damaged = no
     var storage_id = none
     var node_map = {->}
     var first_entry_pos
@@ -136,5 +140,7 @@ extend project.Project {
     var type_or_enum_scope_map = {->}
 
     var storage_id_to_global_scope_map = {->}
+
+    var storage_id_to_escope_map = {->}
 }
 
