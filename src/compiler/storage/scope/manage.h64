@@ -38,6 +38,25 @@ func project.ProjectFile.type_path_to_full_module_path_and_pfile(
     var pfile =
         self.global_scope.type_path_to_project_file(tpath)
     if pfile == none {
+        var entry = self.global_scope.type_path_to_entry(tpath)
+        if entry == none or entry.kind != ast.N_STMT_IMPORT {
+            return none
+        }
+        # If we arrive here, it could be a C extension.
+        var referenced_pkg = entry.package_name
+        if referenced_pkg == none {
+            referenced_pkg = self.project.package_name
+        }
+        if referenced_pkg == none or not self.project.
+                package_name_to_cext.has(referenced_pkg) {
+            return none
+        }
+        var modpath = self.project.
+            package_name_to_cext[referenced_pkg].
+                import_to_modname(entry)
+        if modpath != none {
+            return [modpath + "@" + referenced_pkg, none]
+        }
         return none
     }
     var t = pfile.modinfo.module_name
@@ -132,34 +151,38 @@ func project.ProjectFile.try_lookup_symbol_path(
             var stmt_map = none
             if entry.project_file == none or
                     entry.project_file.global_scope == none {
+                # An import, but not to any actual code file.
+                # This is only the case for C extension imports.
                 can_be_non_cext = no
             } else {
                 stmt_map =
                     entry.project_file.global_scope.name_to_stmt_map
             }
+            # First, check if this is a C extension item:
             var def_file
+            var in_module_name = entry.module_path.join(".")
+            var in_package_name = entry.package_name
+            if entry.project_file != none {
+                def_file = entry.project_file
+                in_module_name = def_file.modinfo.module_name
+                in_package_name = def_file.modinfo.package_name
+            }
+            var storage_id = cext.get_cext_item_storage_id(
+                item_name,
+                in_module_name=in_module_name,
+                in_package_name=in_package_name,
+                project=self.project,
+                can_match_moduleless=no)
+            if storage_id != none {
+                return new storage_ref.StorageRef(
+                    storage_ref.ST_CEXT,
+                    storage_id
+                )
+            }
             if not can_be_non_cext or not stmt_map.has(item_name) {
-                var in_module_name = entry.module_path.join(".")
-                var in_package_name = entry.package_name
-                if entry.project_file != none {
-                    def_file = entry.project_file
-                    in_module_name = def_file.modinfo.module_name
-                    in_package_name = def_file.modinfo.package_name
-                }
-                var storage_id = cext.get_cext_item_storage_id(
-                    item_name,
-                    in_module_name=in_module_name,
-                    in_package_name=in_package_name,
-                    project=self.project,
-                    can_match_moduleless=no)
-                if storage_id != none {
-                    return new storage_ref.StorageRef(
-                        storage_ref.ST_CEXT,
-                        storage_id
-                    )
-                }
                 return none
             }
+            # If we arrive here, it's not a C extension item.
             def_file = entry.project_file
             entry = stmt_map[item_name]
             if typename(entry) == "list" {

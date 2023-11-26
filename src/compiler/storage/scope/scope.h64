@@ -100,6 +100,16 @@ func LocalScope.lookup(name) {
     return self.parent.lookup(name)
 }
 
+func LocalScope.get_combined_names {
+    var names = {}
+    var scope = self
+    while scope != none {
+        names += scope.name_to_symbol_map.keys()
+        scope = scope.parent
+    }
+    return names
+}
+
 extend ast.TreeNode {
     var scope
     var symbol_info

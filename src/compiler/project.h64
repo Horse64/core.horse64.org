@@ -1096,7 +1096,7 @@ func ProjectFile.ensure_project(msgs=none) {
 func ProjectFile.get_relative_imports_to_test(
         full_original_import, msgs=none, external_package_name=none,
         import_line=none, import_col=none,
-        is_cross_pkg_import=no,
+        is_cross_pkg_import=no, forbid_rel_import_root=no
         ) {
     if external_package_name != none and (
             external_package_name.startswith(".") or
@@ -1131,9 +1131,6 @@ func ProjectFile.get_relative_imports_to_test(
     while rel_path.starts(path.sep) {
         rel_path = rel_path.sub(2)
     }
-    while rel_path.ends(path.sep) {
-        rel_path = rel_path.sub(1, rel_path.len - 1)
-    }
     if rel_path == "" or not rel_path.ends(".h64") {
         return []
     }
@@ -1141,6 +1138,15 @@ func ProjectFile.get_relative_imports_to_test(
     var folder_path = path.dirname(path.normalize(rel_path))
     while folder_path.ends(path.sep) {
         folder_path = folder_path.sub(1, folder_path.len - 1)
+    }
+    var in_source_nesting_dir = none
+    for possible_nesting_dir in valid_source_nesting_dirs {
+        if folder_path.lower().starts(
+                possible_nesting_dir + path.sep) or
+                folder_path.lower() == possible_nesting_dir {
+            in_source_nesting_dir = possible_nesting_dir
+            break
+        }
     }
     var levels_up = 0
     if folder_path != "" {
@@ -1154,17 +1160,20 @@ func ProjectFile.get_relative_imports_to_test(
         }
         prefix = "horse_modules" + path.sep +
             external_package_name + path.sep
-        if is_cross_pkg_import {
-            # Drop the folder_path part and bail early:
-            try_list += [
-                prefix + full_original_import.join(path.sep) +
-                    path.sep + full_original_import[
-                        full_original_import.len] + ".h64",
-                prefix +
-                    full_original_import.join(path.sep) + ".h64"
-            ]
-            return try_list
+    }
+    if is_cross_pkg_import or forbid_rel_import_root {
+        # Drop the folder_path part and bail early:
+        if in_source_nesting_dir != none {
+            prefix += in_source_nesting_dir + path.sep
         }
+        try_list += [
+            prefix + full_original_import.join(path.sep) +
+                path.sep + full_original_import[
+                    full_original_import.len] + ".h64",
+            prefix +
+                full_original_import.join(path.sep) + ".h64"
+        ]
+        return try_list
     }
     try_list += [
         prefix + folder_path + path.sep + full_original_import.join(path.sep) +
@@ -1193,11 +1202,10 @@ func ProjectFile.get_relative_imports_to_test(
         } else {
             assert(folder_path.len > 0 and folder_path.find(path.sep) == none)
             var skip_because_source_folder = no
-            for source_dir in valid_source_nesting_dirs {
-                if source_dir.lower() == folder_path.lower() {
-                    skip_because_source_folder = yes
-                    break
-                }
+            if in_source_nesting_dir != none and
+                    in_source_nesting_dir.lower() == folder_path.lower() {
+                skip_because_source_folder = yes
+                break
             }
             if not skip_because_source_folder {
                 try_list += [
@@ -1508,10 +1516,19 @@ func ProjectFile.resolve_all_imports(msgs=none,
         print("compiler.project: resolve_all_imports() "
             "processing file " +
             if self.source_uri != none (self.source_uri)
-                else ("<no uri>") +
-            " modinfo.package_name='" +
-            if self.modinfo != none (self.modinfo.package_name.as_str())
-                else ("<no modinfo>") + "'")
+                else ("<no uri>") + " "
+            "modinfo.package_name=" +
+            if self.modinfo != none
+                ("'" + self.modinfo.package_name.as_str() + "'")
+                else ("<no modinfo>") + " "
+            "modinfo.module_name=" +
+            if self.modinfo != none
+                ("'" + self.modinfo.module_name.as_str() + "'")
+                else ("<no modinfo>") + " "
+            "modinfo.rel_path=" +
+            if self.modinfo != none
+                ("'" + self.modinfo.rel_path.as_str() + "'")
+                else ("<no modinfo>"))
     }
     self.parse_for_imports_if_needed(
         msgs=msgs
@@ -1538,6 +1555,7 @@ func ProjectFile.resolve_all_imports(msgs=none,
         }
         importst.resolve_attempted = yes
         var external_name = importst.package_name
+        var forbid_rel_import_root = (external_name != none)
         var is_cross_pkg = if external_name != none (yes) else (no)
         if external_name == self.project.package_name and
                 external_name != none {
@@ -1553,6 +1571,7 @@ func ProjectFile.resolve_all_imports(msgs=none,
             importst.module_path, msgs=msgs,
             external_package_name=external_name,
             is_cross_pkg_import=is_cross_pkg,
+            forbid_rel_import_root=forbid_rel_import_root,
             import_line=importst.line, import_col=importst.col
         ) later:
 
