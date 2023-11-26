@@ -28,7 +28,9 @@ ensure-hvm:
 ensure-horp:
 	@if [ ! -e ./horse_modules ]; then mkdir horse_modules; fi
 	@if [ ! -e ./horse_modules/horp.horse64.org ]; then git clone https://codeberg.org/Horse64/core.horse64.org ./horse_modules/horp.horse64.org; fi
-test: test-translator
+test:
+	$(MAKE) test-translator
+	$(MAKE) test-translated-horsec
 test-translator:
 	@# Unit tests for bootstrap translator:
 	@echo -e "\033[95;40mTest via bootstrap translator unit tests...\033[0m"
@@ -39,3 +41,10 @@ test-translator:
 	tools/testfind_translated.py --exclude-dir tests/compile-fail --tl-opt stdlib,. .
 	@# Done!
 	@echo -e "\033[92;40mCompleted tests for bootstrap translator.\033[0m"
+test-translated-horsec:
+	@# Component tests for translated horsec:
+	@echo -e "\033[95;40mTest via translated horsec component tests...\033[0m"
+	python3 tests/run_tests_with_output_translated.py
+	@# Done!
+	@echo -e "\033[92;40mCompleted tests for translated horsec.\033[0m"
+

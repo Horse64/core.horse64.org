@@ -24,7 +24,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-import mymodule
+import test_mymodule
 
 func main {
     print("Oops")
