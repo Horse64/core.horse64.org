@@ -87,12 +87,6 @@ its instances.
   them again on your new type. However, you can never
   override `var` attributes.
 
-- If your type has multiple `base` types that all
-  provide a `func` attribute with the same name,
-  the type listed first in your `base` type list
-  will always be the one the attribute called is
-  picked from.
-
 - Using `base.some_func()` will call the overridden
   func attribute in your overriding function. If multiple
   base types had that function, it will call the one

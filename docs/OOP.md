@@ -109,16 +109,6 @@ func main {
 }
 ```
 
-It's possible to base your new type on multiple others in
-which case it inherits all their attributes, by listing
-them after the `base` keyword separated by commas:
-
-```Horse64
-type MySpecialBehavior base FunnyBehavior, Strangebehavior {
-    var new_value
-}
-```
-
 You can also base it on a type [imported from another
 module](/docs/Modules, Packages, Imports):
 
