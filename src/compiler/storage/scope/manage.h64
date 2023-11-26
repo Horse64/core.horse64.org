@@ -341,10 +341,15 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
         # This is a self-contained original declaration and not an extends.
         is_enum = if node.kind == ast.N_STMT_TYPE (no)
                   else (yes)
-        stmt_full_type_path = self.modinfo.module_name
-        assert(stmt_full_type_path != none)
-        if self.modinfo.package_name != none {
-            stmt_full_type_path += "@" + self.modinfo.package_name
+        stmt_full_type_path = "<inline>@<unknown>"
+        if self.modinfo != none {
+            stmt_full_type_path = self.modinfo.module_name
+            assert(stmt_full_type_path != none)
+            if self.modinfo.package_name != none {
+                stmt_full_type_path += "@" + self.modinfo.package_name
+            } else {
+                stmt_full_type_path += "@<unknown>"
+            }
         }
         stmt_label = node.label
 
@@ -379,11 +384,16 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
                     project=self.project)
             }
             if not item_exists {
+                var self_module_name = "<inline>"
+                var self_pkg = none
+                if self.modinfo != none {
+                    self_module_name = self.module_name
+                    self_pkg = self.package_name
+                }
                 var storage_id = cext.get_cext_item_storage_id(
                     stmt_base_label,
-                    in_module_name=self.modinfo.module_name,
-                    in_package_name=stmt_base_project_file.
-                        modinfo.package_name,
+                    in_module_name=self_module_name,
+                    in_package_name=self_pkg,
                     project=self.project,
                     can_match_moduleless=yes)
                 if storage_id != none {
@@ -458,12 +468,18 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
                 stmt_project_file = result[2]
             }
         } else {
-            stmt_full_type_path = self.modinfo.module_name
+            if self.modinfo != none {
+                stmt_full_type_path = self.modinfo.module_name
+                if self.modinfo.package_name != none {
+                    stmt_full_type_path += "@" + self.modinfo.package_name
+                } else {
+                    stmt_full_type_path += "@<unknown>"
+                }
+            } else {
+                stmt_full_type_path = "<inline>@<unknown>"
+            }
             stmt_project_file = self
             assert(stmt_full_type_path != none)
-            if self.modinfo.package_name != none {
-                stmt_full_type_path += "@" + self.modinfo.package_name
-            }
         }
         stmt_label = node.subexprs[1].label
         if stmt_full_type_path == none {

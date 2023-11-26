@@ -25,6 +25,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import uri from core.horse64.org
+
 import compiler.ast as ast
 import compiler.ast.expr as ast_expr
 import compiler.ast.func_stmt as func_stmt
@@ -153,7 +155,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                     search_set = project.no_uri_files
                 } else {
                     search_set = {project.module_uri_to_file_map[
-                        escope.def_uri]}
+                        uri.normalize(escope.def_uri, absolute_file=yes)]}
                 }
                 for pfile in search_set {
                     if not pfile.global_scope.name_to_stmt_map.has(
