@@ -314,7 +314,7 @@ remapped_uses = {
     "time@core.horse64.org": {
         "time.sleep":
             "_translator_runtime_helpers._time_sleep",
-        "time.ts":
+        "time.ticks":
             "_translator_runtime_helpers._ts",
     },
     "uri@core.horse64.org": {
