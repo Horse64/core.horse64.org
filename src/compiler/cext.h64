@@ -269,7 +269,7 @@ func scan_package_for_cexts(
             allow_project_independent_packages_fallback) later:
 
     await dir_uri
-    if dir_uri == none  {
+    if dir_uri == none {
         throw new ValueError("Package directory not "
             "found for: " + package_name)
     }

@@ -53,13 +53,16 @@ func get_comments_from_str(
         strip_noncommands=no, c_style_comments=no,
         group_comments=yes
         ) {
+    if typename(s) == "bytes" {
+        s = s.as_str()
+    }
     var code_a = text.code('a')
     var code_cap_a = text.code('A')
     var code_z = text.code('z')
     var code_cap_z = text.code('Z')
 
     func starts_comment(s, pos) {
-        if pos > s.len {
+        if pos > s.len or pos < 1 {
             return no
         }
         if c_style_comments and pos + 1 <= s.len and
@@ -253,7 +256,8 @@ func get_comments_from_str(
 func get_build_options_from_str(s) {
     var lines = get_comments_from_str(
         s, stop_at_noncomment=yes, only_doc_comments=yes,
-        strip_noncommands=yes, group_comments=no
+        strip_noncommands=yes, group_comments=no,
+        c_style_comments=no
     )
     var opts_lines = []
     for line in lines {

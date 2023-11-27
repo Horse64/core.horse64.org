@@ -651,12 +651,41 @@ func Project.find_package_dir_uri_fallback {
 
 func Project.find_package_dir_uri(package_name,
         allow_project_independent_fallback=no) {
-    if self.packages_dir_uri == none {
+    func return_package_dir_from_base_uri(base_uri, package_name) {
+        if not {"file", "vfs"}.has(uri.get_protocol(base_uri)) {
+            # Can't enforce case sensitivty on this, so just return
+            # the obvious path right awway:
+            return later uri.add_part(base_uri,
+                uri.encode_path(package_name))
+        }
+        # To enforce case sensitivity, do a file listing:
+        var modules_path = uri.to_file_or_vfs_path(base_uri)
+        var modules_in_vfs =
+            (uri.get_protocol(base_uri) == "vfs")
+        var file_names = io.list_dir(modules_path,
+            allow_vfs=modules_in_vfs, allow_disk=not modules_in_vfs)
+        later:
+
+        await file_names
+        if not file_names.has(package_name) {
+            return later none
+        }
+        return later uri.add_part(base_uri,
+            uri.encode_path(package_name))
+    }
+    if self.packages_dir_uri == none and
+            (self.package_name == none or
+             package_name != self.package_name or
+             self.base_dir_uri == none) {
         if not allow_project_independent_fallback {
             throw new RuntimeError("Must use guess_base_file_from_uri() "
                 "to set packages_dir_uri first.")
         }
         var result = self.find_package_dir_uri_fallback()
+        later:
+
+        await result
+        result = return_package_dir_from_base_uri(result, package_name)
         later:
 
         await result
@@ -671,26 +700,15 @@ func Project.find_package_dir_uri(package_name,
         }
         return later self.base_dir_uri
     }
-    if not {"file", "vfs"}.has(uri.get_protocol(self.packages_dir_uri)) {
-        # Can't enforce case sensitivty on this, so just return
-        # the obvious path right awway:
-        return later uri.add_part(self.packages_dir_uri,
-            uri.encode_path(package_name))
-    }
-    # To enforce case sensitivity, do a file listing:
-    var modules_path = uri.to_file_or_vfs_path(self.packages_dir_uri)
-    var modules_in_vfs =
-        (uri.get_protocol(self.packages_dir_uri) == "vfs")
-    var file_names = io.list_dir(modules_path,
-        allow_vfs=modules_in_vfs, allow_disk=not modules_in_vfs)
-    later:
-
-    await file_names
-    if not file_names.has(package_name) {
+    if self.packages_dir_uri == none {
         return later none
     }
-    return later uri.add_part(self.packages_dir_uri,
-        uri.encode_path(package_name))
+    var result = return_package_dir_from_base_uri(
+        self.packages_dir_uri, package_name)
+    later:
+
+    await result
+    return result
 }
 
 func try_workspace_modules_dir_for_single_file(file_uri) {
@@ -903,6 +921,7 @@ func ProjectFile.check_is_single_file {
         return later self._is_single_file == yes
     }
     self.ensure_known_single_file_status() later:
+
     return later self._is_single_file == yes
 }
 
