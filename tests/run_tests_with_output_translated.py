@@ -112,9 +112,9 @@ def run_tests_without_cleanup():
         if result.lower().find(expected_output.lower()) < 0:
             print("!! TEST FAILED. DIDN'T FIND EXPECTED OUTPUT. !!")
             print("Failed output:\n" + result)
+            error_count += 1
         else:
             print("OK, test succeeded.")
-        error_count += 1
     if error_count > 0:
         print("*** run_tests_with_output_translated.py TESTS FAIL, " +
             str(error_count) + " broke.")
