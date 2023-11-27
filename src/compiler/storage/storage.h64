@@ -86,12 +86,12 @@ func project.Project.is_ref_of_given_type_an_error(ref, node=none) {
 
 func project.Project.is_ref_an_enum(ref, node=none) {
     if ref.kind == storage_ref.ST_CEXT {
-        return cext.check_cext_is_enum_by_id(project, ref.id)
+        return cext.check_cext_is_enum_by_id(self, ref.id)
     } elseif ref.kind == storage_ref.ST_GLOBAL {
-        if not project.storage_id_to_escope_map.has(ref.id) {
+        if not self.storage_id_to_escope_map.has(ref.id) {
             return no
         }
-        var escope = project.storage_id_to_escope_map[ref.id]
+        var escope = self.storage_id_to_escope_map[ref.id]
         return escope.is_enum
     } elseif {storage_ref.ST_LOCAL, storage_ref.ST_BASE,
             storage_ref.ST_SELF,
@@ -323,10 +323,23 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                 escope._base_escope_key = none
                 escope.base_global_id =
                     base_escope.storage_id
+
                 # Verify that the base chain doesn't have a cycle:
                 var look_at_escope = escope
-                var seen_damaged = escope.damaged
+                var seen_nodes = [look_at_escope]
+                var have_seen_damaged = escope.damaged
                 while look_at_escope != none {
+                    if look_at_escope.base_cext_id != none and
+                            cext.check_cext_is_type_by_id(
+                            look_at_escope.base_cext_id) {
+                        if cext.check_cext_given_type_is_error_by_id(
+                                look_at_escope.base_cext_id) {
+                            for node in seen_nodes {
+                                node.is_error = yes
+                            }
+                        }
+                        break
+                    }
                     if look_at_escope.base_global_id == none {
                         break
                     }
@@ -340,7 +353,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                     if look_at_escope.base_global_id == look_at_escope.storage_id {
                         had_invalid_base = yes
                         if msgs != none {
-                            if not seen_damaged {
+                            if not have_seen_damaged {
                                 msgs.add(new msg.FileMsg(
                                     "Type '" + escope_key + "' can't "
                                     "be based on itself.",
@@ -362,13 +375,14 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                         storage_id_to_escope_map[
                             look_at_escope.base_global_id]
                     if look_at_escope.damaged {
-                        seen_damaged = yes
+                        have_seen_damaged = yes
                     }
+                    seen_nodes.add(look_at_escope)
                     if look_at_escope.storage_id ==
                             escope.storage_id {
                         had_invalid_base = yes
                         if msgs != none {
-                            if not seen_damaged {
+                            if not have_seen_damaged {
                                 msgs.add(new msg.FileMsg(
                                     "Type '" + escope_key + "' has "
                                     "base type cycle leading back "

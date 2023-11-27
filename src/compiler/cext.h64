@@ -209,7 +209,7 @@ func check_cext_given_type_is_error_by_id(project, storage_id) {
             }
             throw new ValueError("Cext storage id not found.")
         }
-        var citem = storage_id_to_citem_map[storage_id]
+        var citem = project.storage_id_to_citem_map[storage_id]
         if citem.kind != ast.N_STMT_TYPE {
             if project.debug_global_storage {
                 print("compiler.cext: "

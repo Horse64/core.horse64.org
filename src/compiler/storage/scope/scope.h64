@@ -61,13 +61,17 @@ type TypeScope {
     const is_enum = no
     var damaged = no
     var storage_id = none
+
     var node_map = {->}
     var name_to_symbol_map = {->}
     var base_key = none
     var label
+
     var base_global_id = none
     var base_cext_id = none
     var _base_escope_key = none
+    var is_error = no
+
     var def_line, def_col, def_uri
 }
 
@@ -75,11 +79,13 @@ type EnumScope {
     const is_enum = yes
     var damaged = no
     var storage_id = none
+
     var node_map = {->}
     var first_entry_pos
     var label_names = []
     var label_nums = []
     var label
+
     var def_line, def_col, def_uri
 }
 

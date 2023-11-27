@@ -114,6 +114,8 @@ func advanced_phase2_evaluate_global_scope(
     for name in stmt_map {
         var stmt = stmt_map[name]
         if typename(stmt) == "list" or
+                (has_attr(stmt, "is_enum_entry") and
+                 stmt.is_enum_entry) or
                 stmt.kind != cast.N_STMT_VAR or
                 stmt.initial_value_known {
             continue
@@ -149,14 +151,17 @@ func advanced_phase2_evaluate_global_scope(
 func do_simply_on_all_exprs(stmt, callback) {
     var queue = []
     for expr in stmt.subexprs {
-        queue.add([stmt, none, expr])
+        queue.add([[stmt], expr])
     }
     while queue.len > 0 {
         var entry = queue.pop()
-        var parent = entry[1]
-        var grandparent = entry[2]
-        var expr = entry[3]
-        var result_expr = callback(expr, parent, grandparent)
+        var parents = entry[1]
+        var parent = parents[1]
+        var expr = entry[2]
+        var result_expr = none
+        if expr != none {
+            result_expr = callback(expr, parents)
+        }
         if result_expr != expr {
             var i = 1
             while i <= parent.subexprs.len {
@@ -171,8 +176,12 @@ func do_simply_on_all_exprs(stmt, callback) {
                 i += 1
             }
         }
-        for subexpr in result_expr.subexprs {
-            queue.add([result_expr, parent, subexpr])
+        if result_expr != none and
+                result_expr.subexprs.len > 0 {
+            var new_parents = [result_expr] + parents
+            for subexpr in result_expr.subexprs {
+                queue.add([new_parents, subexpr])
+            }
         }
     }
 }
@@ -182,9 +191,10 @@ func advanced_phase3_later_and_computevals(
         ) {
     var globals_value_cb = get_global_storage_neighbor_closure(
         project_file.project)
+    var parents = []
     var project = project_file.project
     func check_and_analyze_recurse(
-            stmts, msgs
+            stmts, parents, msgs
             ) {
         for stmt in stmts {
             if stmt.kind == cast.N_STMT_FUNC {
@@ -201,7 +211,11 @@ func advanced_phase3_later_and_computevals(
                 stmt.func_scope.is_later_func = is_later_func
             }
 
-            func check_nested_constructors(expr, parent, grandparent) {
+            func check_nested_constructors(expr, parents) {
+                var parent = if parents.len >= 1 (parents[1])
+                    else (none)
+                var grandparent = if parents.len >= 2 (parents[2])
+                    else (none)
                 if expr.damaged {
                     return expr
                 }
@@ -278,9 +292,11 @@ func advanced_phase3_later_and_computevals(
             # Determine error message ahead of time for throws:
             if stmt.kind == cast.N_STMT_THROW and
                     stmt.aot_evaluated_message_str == none and
-                    not stmt.has_damage() {
+                    not stmt.has_damage() and
+                    stmt.subexprs.len > 0 {
                 var has_valid_error_arg = no
                 var callargs, callobj
+                assert(stmt.subexprs.len == 1)
                 if stmt.subexprs[1].kind == cast.N_EXPR_UNOP and
                         stmt.subexprs[1].optoken.str == "new" and
                         stmt.subexprs[1].subexprs[1].kind ==
@@ -356,6 +372,57 @@ func advanced_phase3_later_and_computevals(
                         stmt.aot_evaluated_message_str = v[2]
                     }
                 }
+            } elseif stmt.kind == cast.N_STMT_THROW and
+                    stmt.aot_evaluated_message_str == none and
+                    not stmt.has_damage() and
+                    stmt.subexprs.len == 0 {
+                var has_named_label = no
+                var parent_clause = none
+                var pos = 1
+                while pos <= parents.len {
+                    if parents[pos].kind == cast.N_STMT_FUNC {
+                        break
+                    } elseif parents[pos].kind == cast.N_EXPR_RESCUECLAUSE {
+                        parent_clause = parents[pos]
+                        for label in parent_clause.error_labels {
+                            if label != none {
+                                has_named_label = yes
+                                break
+                            }
+                        }
+                        break
+                    }
+                    pos += 1
+                }
+                if parent_clause == none {
+                    stmt.damaged = yes
+                    parent_clause.damaged = yes
+                    if msgs != none {
+                        msgs.add(new msg.FileMsg(
+                            "Invalid anonymous throw, "
+                            "not inside any rescue clause.",
+                            source_file=project_file,
+                            line=stmt.line,
+                            col=stmt.col
+                        ))
+                    }
+                } elseif has_named_label {
+                    stmt.damaged = yes
+                    parent_clause.damaged = yes
+                    if msgs != none {
+                        msgs.add(new msg.FileMsg(
+                            "Invalid anonymous throw, "
+                            "not allowed here because surrounding "
+                            "rescue clause at line " +
+                            parent_clause.line.as_str() +
+                            ", column " + parent_clause.col.as_str() +
+                            " has one or more named errors.",
+                            source_file=project_file,
+                            line=stmt.line,
+                            col=stmt.col
+                        ))
+                    }
+                }
             }
 
             # Blocks:
@@ -363,14 +430,16 @@ func advanced_phase3_later_and_computevals(
                     stmt.kind == cast.N_STMT_DO {
                 for clause in stmt.subexprs {
                     for block in clause.subblocks {
-                        if not check_and_analyze_recurse(block, msgs) {
+                        if not check_and_analyze_recurse(
+                                block, [stmt, clause] + parents, msgs) {
                             return no
                         }
                     }
                 }
             } elseif stmt.subblocks.len > 0 {
                 for block in stmt.subblocks {
-                    if not check_and_analyze_recurse(block, msgs) {
+                    if not check_and_analyze_recurse(
+                            block, [stmt] + parents, msgs) {
                         return no
                     }
                 }
@@ -379,7 +448,7 @@ func advanced_phase3_later_and_computevals(
         return yes
     }
     return check_and_analyze_recurse(
-        stmts, msgs
+        stmts, parents, msgs
     )
 }
 
@@ -542,8 +611,7 @@ func do_basic_check_and_analysis(project, msgs) {
             msgs.add(new msg.FileMsg(
                 "Internal error occured, we failed "
                 "analysis without a proper error message. "
-                "Please report this bug to the compiler team.",
-                source_file=project_file
+                "Please report this bug to the compiler team."
             ))
         }
     }

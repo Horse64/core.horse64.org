@@ -512,7 +512,7 @@ func parse_str_to_ast(
         allow_disk_access=yes, allow_vfs_access=no,
         require_detect_project_dir=yes,
         debug=no, debug_modules=no,
-        debug_global_storage=debug_global_storage,
+        debug_global_storage=no,
         ) {
     var result = _parse_tokens_file_to_ast_ex(
         codestr, project_file=project_file, source_is_uri=no,
