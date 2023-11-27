@@ -42,6 +42,11 @@ type VarStmt base ast.StmtNode {
     var has_later_repeat = no
     var var_labels = []
     var var_has_protect = []
+
+    var initial_value_known = no
+    var initial_value
+    var initial_type_known = no
+    var initial_type
 }
 
 func VarStmt.init {

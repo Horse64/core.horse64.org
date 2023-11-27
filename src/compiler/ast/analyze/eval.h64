@@ -1,0 +1,185 @@
+# @module compiler.ast.analyze.eval
+# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import limit from core.horse64.org
+import math from core.horse64.org
+
+import compiler.ast as ast
+import compiler.ast.expr as ast_expr
+
+func try_eval_ast_node_value(node, eval_by_storage_ref_callback=none) {
+    if node.kind == ast.N_EXPR_LIT {
+        return [yes, node.value]
+    } elseif node.kind == ast.N_EXPR_IDREF {
+        if eval_by_storage_ref_callback == none or node.ref == none {
+            return [no, none]
+        }
+        var v = eval_by_storage_ref_callback(node.ref)
+        if not v[1] {
+            return [no, none]
+        }
+        if {"num", "str", "bytes", "none"}.has(typename(v[2])) {
+            return [yes, v[2]]
+        }
+        return [no, none]
+    } elseif node.kind == ast.N_EXPR_CONTAINER {
+        if {ast_expr.C_SET, ast_expr.C_LIST}.has(node.container_kind) {
+            var assembled_item = {}
+            if node.container_kind == ast_expr.C_LIST {
+                assembled_item = []
+            }
+            for subnode in node.subexprs {
+                if {ast.N_EXPR_IDREF, ast.N_EXPR_BINOP,
+                        ast.N_EXPR_UNOP}.has(subnode.kind) {
+                    var v = try_eval_ast_node_value(
+                        subnode, eval_by_storage_ref_callback=
+                            eval_by_storage_ref_callback)
+                    if not v[1] or not {"num", "str",
+                            "bytes"}.has(typename(v[2])) {
+                        return [no, none]
+                    }
+                    assembled_item.add(v[2])
+                    continue
+                } elseif subnode.kind == ast.N_EXPR_LIT {
+                    assembled_item.add(subnode.value)
+                    continue
+                }
+                return [no, none]
+            }
+            return [yes, assembled_item]
+        }
+        return [no, none]
+    } elseif node.kind == ast.N_EXPR_BINOP {
+        if node.optoken.str == "+" {
+            var v1 = try_eval_ast_node_value(node.subexprs[1],
+                eval_by_storage_ref_callback=eval_by_storage_ref_callback)
+            var v2 = try_eval_ast_node_value(node.subexprs[2],
+                eval_by_storage_ref_callback=eval_by_storage_ref_callback)
+            if typename(v1) == "str" and typename(v2) == "str" {
+                return [yes, v1 + v2]
+            } elseif typename(v1) == "bytes" and typename(v2) == "bytes" {
+                return [yes, v1 + v2]
+            } elseif typename(v1) == "list" and typename(v2) == "list" {
+                return [yes, v1 + v2]
+            } elseif typename(v1) == "set" and typename(v2) == "set" {
+                return [yes, v1 + v2]
+            } elseif typename(v1) == "num" and typename(v2) == "num" {
+                if v1 > limit.num_max_safe_value or
+                        v2 > limit.num_max_safe_value or
+                        v1 < -limit.num_max_safe_value or
+                        v2 < -limit.num_max_safe_value {
+                    # Outside of the range that is guaranteed not overflowing.
+                    return [no, none]
+                }
+                return [yes, v1 + v2]
+            }
+            if {"num", "str", "bytes", "list", "set", "map",
+                    "vec", "none"}.has(typename(v1)) and
+                    typename(v1) != typename(v2) {
+                return "typeerror"
+            }
+            return [no, none]
+        } elseif {"-", "*"}.has(node.optoken.str) {
+            var v1 = try_eval_ast_node_value(node.subexprs[1],
+                eval_by_storage_ref_callback=eval_by_storage_ref_callback)
+            var v2 = try_eval_ast_node_value(node.subexprs[2],
+                eval_by_storage_ref_callback=eval_by_storage_ref_callback)
+            if typename(v1) != "num" or typename(v2) != "num" {
+                return [no, none]
+            }
+            if v1 > limit.num_max_safe_value or
+                    v2 > limit.num_max_safe_value or
+                    v1 < -limit.num_max_safe_value or
+                    v2 < -limit.num_max_safe_value {
+                # Outside of the range that is guaranteed not overflowing.
+                return [no, none]
+            }
+            if node.optoken.str == "-" {
+                return [yes, v1 - v2]
+            }
+            return [yes, v1 * v2]
+        } elseif node.optoken.str == "/" {
+            var v1 = try_eval_ast_node_value(node.subexprs[1],
+                eval_by_storage_ref_callback=eval_by_storage_ref_callback)
+            var v2 = try_eval_ast_node_value(node.subexprs[2],
+                eval_by_storage_ref_callback=eval_by_storage_ref_callback)
+            if typename(v1) != "num" or typename(v2) != "num" {
+                return [no, none]
+            }
+            if v1 > limit.num_max_safe_value or
+                    v2 > limit.num_max_safe_value or
+                    v1 < -limit.num_max_safe_value or
+                    v2 < -limit.num_max_safe_value or
+                    math.abs(v1) < 0.00001 or
+                    math.abs(v2) < 0.00001 {
+                # Outside of the range that is guaranteed not overflowing.
+                return [no, none]
+            }
+            return [yes, v1 / v2]
+        } elseif node.optoken.str == "." {
+            var v1 = try_eval_ast_node_value(node.subexprs[1],
+                eval_by_storage_ref_callback=eval_by_storage_ref_callback)
+            var v2 = node.subexprs[2]
+            if v2.kind == ast.N_EXPR_IDREF and
+                    v2.label == "len" and
+                    {"str", "bytes", "list", "vec",
+                     "map", "set"}.has(typename(v1)) {
+                return [yes, v1.len]
+            } elseif v2.kind == ast.N_EXPR_BINOP and
+                    v2.optoken.str == "(" and
+                    v2.subexprs[1].kind == ast.N_EXPR_IDREF and
+                    v2.subexprs[1].label == "as_str" and
+                    v2.subexprs[2].kind == ast.N_EXPR_CALLORDEFARGS and
+                    v2.subexprs[2].subexprs.len == 0 and
+                    typename(v1) == "num" {
+                return [yes, v1.as_str()]
+            }
+            return [no, none]
+        }
+        return [no, none]
+    } elseif node.kind == ast.N_EXPR_UNOP {
+        if node.optoken.str == "-" {
+            var v = try_eval_ast_node_value(node.subexprs[1],
+                eval_by_storage_ref_callback=eval_by_storage_ref_callback)
+            if typename(v) == "num" {
+                return -v
+            }
+            return [no, none]
+        }
+        return [no, none]
+    }
+    return [no, none]
+}
+
+func try_eval_ast_node_type(node, eval_by_storage_ref_callback=none) {
+    var v = try_eval_ast_node_value(node)
+    if v[1] and {"num", "str", "bytes", "none"}.has(typename(v[2])) {
+        return typename(v[2])
+    }
+    return none
+}
+

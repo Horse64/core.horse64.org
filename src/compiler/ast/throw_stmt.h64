@@ -37,6 +37,8 @@ import compiler.token as token
 
 type ThrowStmt base ast.StmtNode {
     var has_repeat = no
+
+    var aot_evaluated_message_str
 }
 
 func ThrowStmt.init {

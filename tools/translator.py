@@ -225,6 +225,7 @@ remapped_uses = {
             "_translator_runtime_helpers._base64_dump",
     },
     "math@core.horse64.org": {
+        "math.abs": "_translator_runtime_helpers._math_abs",
         "math.min": "_translator_runtime_helpers._math_min",
         "math.max": "_translator_runtime_helpers._math_max",
         "math.floor": "_translator_runtime_helpers._math_floor",

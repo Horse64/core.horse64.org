@@ -29,6 +29,7 @@ import compiler.ast as ast
 import compiler.ast.enum_stmt as enum_stmt
 import compiler.ast.func_stmt as func_stmt
 import compiler.ast.type_stmt as type_stmt
+import compiler.ast.var_stmt as var_stmt
 import compiler.msg as msg
 import compiler.storage.scope as storage_scope
 import compiler.token as token
@@ -268,43 +269,52 @@ func process_toplevel_stmt(
     if names.len == 0 {
         return
     }
+    var idx = 0
     for name in names {
-        if not has_global_scope_duplicate(
+        idx += 1
+        if has_global_scope_duplicate(
                 scope, statement, name, msgs,
                 project_file=project_file
                 ) {
-            if statement.kind == ast.N_STMT_IMPORT {
-                if not scope.name_to_stmt_map.has(name) {
-                    scope.name_to_stmt_map[name] = []
-                }
-                scope.name_to_stmt_map[name].add(statement.copy())
-            } else {
-                # Note: to avoid keeping the entire AST in memory
-                # indirectly through this global scope, we make a
-                # fake shallow stand-in node that only retains
-                # the info we care about later.
-                var stand_in_node = none
-                if statement.kind == ast.N_STMT_ENUM {
-                    stand_in_node = new enum_stmt.EnumStmt()
-                    stand_in_node.label = statement.label
-                } elseif statement.kind == ast.N_STMT_ENUMEXTEND {
-                    stand_in_node = new enum_stmt.EnumExtendStmt()
-                } elseif statement.kind == ast.N_STMT_TYPE {
-                    stand_in_node = new type_stmt.TypeStmt()
-                    stand_in_node.label = statement.label
-                } elseif statement.kind == ast.N_STMT_TYPEEXTEND {
-                    stand_in_node = new type_stmt.TypeExtendStmt()
-                } elseif statement.kind == ast.N_STMT_FUNC {
-                    stand_in_node = new func_stmt.FuncStmt()
-                    stand_in_node.label = statement.label
-                } else {
-                    stand_in_node = new ast.StmtNode()
-                }
-                stand_in_node.kind = statement.kind
-                stand_in_node.line = statement.line
-                stand_in_node.col = statement.col
-                scope.name_to_stmt_map[name] = stand_in_node
+            continue
+        }
+        if statement.kind == ast.N_STMT_IMPORT {
+            if not scope.name_to_stmt_map.has(name) {
+                scope.name_to_stmt_map[name] = []
             }
+            scope.name_to_stmt_map[name].add(statement.copy())
+        } else {
+            # Note: to avoid keeping the entire AST in memory
+            # indirectly through this global scope, we make a
+            # fake shallow stand-in node that only retains
+            # the info we care about later.
+            var stand_in_node = none
+            if statement.kind == ast.N_STMT_ENUM {
+                stand_in_node = new enum_stmt.EnumStmt()
+                stand_in_node.label = statement.label
+            } elseif statement.kind == ast.N_STMT_ENUMEXTEND {
+                stand_in_node = new enum_stmt.EnumExtendStmt()
+            } elseif statement.kind == ast.N_STMT_TYPE {
+                stand_in_node = new type_stmt.TypeStmt()
+                stand_in_node.label = statement.label
+            } elseif statement.kind == ast.N_STMT_TYPEEXTEND {
+                stand_in_node = new type_stmt.TypeExtendStmt()
+            } elseif statement.kind == ast.N_STMT_FUNC {
+                stand_in_node = new func_stmt.FuncStmt()
+                stand_in_node.label = statement.label
+            } elseif statement.kind == ast.N_STMT_VAR {
+                stand_in_node = new var_stmt.VarStmt()
+                stand_in_node.var_labels = [name]
+                stand_in_node.subexprs.add(
+                    statement.subexprs[idx]
+                )
+            } else {
+                stand_in_node = new ast.StmtNode()
+            }
+            stand_in_node.kind = statement.kind
+            stand_in_node.line = statement.line
+            stand_in_node.col = statement.col
+            scope.name_to_stmt_map[name] = stand_in_node
         }
     }
 }

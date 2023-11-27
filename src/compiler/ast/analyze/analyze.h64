@@ -26,9 +26,11 @@
 # license, see accompanied LICENSE.md.
 
 import compiler.ast as cast
+import compiler.ast.analyze.eval as ast_eval
 import compiler.ast.func_stmt as func_stmt
 import compiler.limit as compiler_limit
 import compiler.msg as msg
+import compiler.storage.ref as st_ref
 
 extend func_stmt.FuncStmt {
     var is_later_func
@@ -75,9 +77,79 @@ func stmt_list_contains_later_call(
     return no
 }
 
-func advanced_phase2_later_and_computevals(
+func get_global_storage_neighbor_closure(project) {
+    func try_get_neighbor_node_value(node_ref) {
+        if node_ref == none or node_ref.kind != st_ast.ST_GLOBAL {
+            return [no, none]
+        }
+        var st_id = node_ref.id
+        var gscope_map =
+            project.storage_id_to_global_scope_map
+        if not gscope_map.has(st_id) {
+            return [no, none]
+        }
+        var st_id_map = gscope_map[st_id].storage_id_to_entry
+        if not st_id_map.has(st_id) {
+            return [no, none]
+        }
+        var entry = st_id_map[st_id]
+        if entry.kind != cast.N_STMT_VAR or
+                not entry.initial_value_known {
+            return [no, none]
+        }
+        return [yes, entry.initial_value]
+    }
+    return try_get_neighbor_node_value
+}
+
+func advanced_phase2_evaluate_global_scope(
+        project_file, msgs=none
+        ) {
+    var globals_value_cb = get_global_storage_neighbor_closure(
+        project_file.project)
+    var had_error = yes
+    var had_change = no
+    var stmt_map = project_file.global_scope.
+        name_to_stmt_map
+    for name in stmt_map {
+        var stmt = stmt_map[name]
+        if typename(stmt) == "list" or
+                stmt.kind != cast.N_STMT_VAR or
+                stmt.initial_value_known {
+            continue
+        }
+        var v = ast_eval.try_eval_ast_node_value(
+            stmt.subexprs[1],
+            eval_by_storage_ref_callback=globals_value_cb)
+        if v[1] {
+            had_change = yes
+            stmt.initial_value_known = yes
+            stmt.initial_value = v[2]
+        } elseif v[2] == "typeerror" {
+            if msgs != none {
+                msgs.add(new msg.FileMsg(
+                    "Invalid assigned expression containing a "
+                    "type mismatch for operands. "
+                    "If intended, protect it with "
+                    "a rescue block that catches TypeError.",
+                    source_file=project_file,
+                    line=stmt.subexprs[1].line,
+                    col=stmt.subexprs[2].col
+                ))
+            }
+        }
+    }
+    if had_change {
+        return "changed"
+    }
+    return not had_error
+}
+
+func advanced_phase3_later_and_computevals(
         stmts, msgs=none, project_file=none
         ) {
+    var globals_value_cb = get_global_storage_neighbor_closure(
+        project_file.project)
     func check_and_analyze_recurse(
             stmts, msgs
             ) {
@@ -96,9 +168,56 @@ func advanced_phase2_later_and_computevals(
                 stmt.func_scope.is_later_func = is_later_func
             }
 
-            # FIXME: go through all sorts of things we could already
-            # know the value of at compile-time, and try to iteratively
-            # find out as many values already as we can.
+            # Determine error message ahead of time for throws:
+            if stmt.kind == cast.N_STMT_THROW and
+                    stmt.aot_evaluated_message_str == none and
+                    not stmt.has_damage() and
+                    stmt.subexprs[1].kind == cast.N_STMT_UNOP and
+                    stmt.subexprs[1].str == "new" and
+                    stmt.subexprs[1].subexprs[1].kind ==
+                        cast.N_STMT_BINOP and
+                    stmt.subexprs[1].subexprs[1].str == "(" and
+                    stmt.subexprs[1].subexprs[1].subexprs[2].kind ==
+                        cast.N_EXPR_CALLORDEFARGS {
+                var callargs = stmt.subexprs[1].subexprs[1].
+                    subexprs[2]
+                if callargs.subexprs.len != 1 or
+                        callargs.subexprs[1].kind ==
+                            cast.N_EXPR_CALLKWARG {
+                    if msgs != none {
+                        msgs.add(new msg.FileMsg(
+                            "Invalid error constructor call, "
+                            "must have single positional "
+                            "message string argument.",
+                            source_file=project_file,
+                            line=stmt.subexprs[1].line,
+                            col=stmt.subexprs[2].col
+                        ))
+                    }
+                    stmt.damaged = yes
+                    callargs.damaged = yes
+                } else {
+                    var v = ast_eval.try_eval_ast_node_value(
+                        callargs.subexprs[1],
+                        eval_by_storage_ref_callback=globals_value_cb)
+                    if not v[1] or typename(v[2]) != "str" {
+                        if msgs != none {
+                            msgs.add(new msg.FileMsg(
+                                "Invalid error constructor call, "
+                                "message string argument too dynamic "
+                                "to be determined at compile time.",
+                                source_file=project_file,
+                                line=stmt.subexprs[1].line,
+                                col=stmt.subexprs[2].col
+                            ))
+                        }
+                        stmt.damaged = yes
+                        callargs.subexprs[1].damaged = yes
+                    } else {
+                        stmt.aot_evaluated_message_str = v[2]
+                    }
+                }
+            }
 
             # Blocks:
             if stmt.kind == cast.N_STMT_IF or
@@ -214,7 +333,18 @@ func do_advanced_check_and_analysis(project, msgs) {
                 project_file=pfile) {
             return later no
         }
-        if not advanced_phase2_later_and_computevals(
+        while yes {
+            var result = advanced_phase2_evaluate_global_scope(
+                pfile, msgs
+            )
+            if result != "repeat" {
+                if result == no  {
+                    return later no
+                }
+                break
+            }
+        }
+        if not advanced_phase3_later_and_computevals(
                 pfile.ast.stmts, msgs,
                 project_file=pfile) {
             return later no
