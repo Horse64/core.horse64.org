@@ -86,6 +86,7 @@ type EnumScope {
 type LocalScope {
     var parent
     var name_to_symbol_map = {->}
+    var storage_id_to_symbol_map = {->}
     var func_scope
 }
 

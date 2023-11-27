@@ -48,6 +48,60 @@ extend ast_expr.IdRefExpr {
     var ref
 }
 
+func project.Project.is_ref_a_type(ref, node=none) {
+    if ref.kind == storage_ref.ST_CEXT {
+        return cext.check_cext_is_type_by_id(self, ref.id)
+    } elseif ref.kind == storage_ref.ST_GLOBAL {
+        if not self.storage_id_to_escope_map.has(ref.id) {
+            return no
+        }
+        var escope = self.storage_id_to_escope_map[ref.id]
+        return not escope.is_enum
+    } elseif {storage_ref.ST_LOCAL,
+            storage_ref.ST_NUMLITERAL}.has(ref.kind) {
+        return no
+    } elseif {storage_ref.ST_SELF, storage_ref.ST_BASE}.has(ref.kind) {
+        return yes
+    } else {
+        throw new RuntimeError("Unsupported kind of ref for check.")
+    }
+}
+
+func project.Project.is_ref_of_given_type_an_error(ref, node=none) {
+    if ref.kind == storage_ref.ST_CEXT {
+        return cext.check_cext_given_type_is_error_by_id(self, ref.id)
+    } elseif ref.kind == storage_ref.ST_GLOBAL {
+        if not self.storage_id_to_escope_map.has(ref.id) {
+            throw new RuntimeError("This ref doesn't refer to a type.")
+        }
+        var escope = self.storage_id_to_escope_map[ref.id]
+        if escope.is_enum {
+            throw new RuntimeError("This ref doesn't refer to a type.")
+        }
+        return escope.is_error
+    } else {
+        throw new RuntimeError("This ref doesn't refer to a type.")
+    }
+}
+
+func project.Project.is_ref_an_enum(ref, node=none) {
+    if ref.kind == storage_ref.ST_CEXT {
+        return cext.check_cext_is_enum_by_id(project, ref.id)
+    } elseif ref.kind == storage_ref.ST_GLOBAL {
+        if not project.storage_id_to_escope_map.has(ref.id) {
+            return no
+        }
+        var escope = project.storage_id_to_escope_map[ref.id]
+        return escope.is_enum
+    } elseif {storage_ref.ST_LOCAL, storage_ref.ST_BASE,
+            storage_ref.ST_SELF,
+            storage_ref.ST_NUMLITERAL}.has(ref.kind) {
+        return no
+    } else {
+        throw new RuntimeError("Unsupported kind of ref for check.")
+    }
+}
+
 func project.Project.get_free_global_storage_slot {
     var v = self.last_global_storage_id + 1
     self.last_global_storage_id = v
@@ -206,17 +260,19 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                 if not had_error and debug_global_storage {
                     print("compiler.storage: "
                         "project.Project.compute_all_scopes(): " +
-                        "Fatal problem, can't trace type '" +
+                        "Internal error occured, can't trace type '" +
                         escope.label + "' to storage id, it " +
                         "has def_uri " + escope.def_uri.as_str() +
                         " and we checked " + search_set.len.as_str() +
-                        " files without success.")
+                        " files without success. "
+                        "Please report this bug to the compiler team.")
                 }
                 if not had_error {
-                    throw new RuntimeError("Internal error: "
-                        "Failed to trace back type definition to "
+                    throw new RuntimeError("Internal error occured, "
+                        "failed to trace back type definition to "
                         "global scope storage id despite no malformed "
-                        "AST, this should never happen!!")
+                        "AST, this should never happen. "
+                        "Please report this bug to the compiler team.")
                 }
             }
             if debug_global_storage {

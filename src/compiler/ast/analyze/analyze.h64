@@ -79,7 +79,7 @@ func stmt_list_contains_later_call(
 
 func get_global_storage_neighbor_closure(project) {
     func try_get_neighbor_node_value(node_ref) {
-        if node_ref == none or node_ref.kind != st_ast.ST_GLOBAL {
+        if node_ref == none or node_ref.kind != st_ref.ST_GLOBAL {
             return [no, none]
         }
         var st_id = node_ref.id
@@ -107,7 +107,7 @@ func advanced_phase2_evaluate_global_scope(
         ) {
     var globals_value_cb = get_global_storage_neighbor_closure(
         project_file.project)
-    var had_error = yes
+    var had_error = no
     var had_change = no
     var stmt_map = project_file.global_scope.
         name_to_stmt_map
@@ -134,9 +134,10 @@ func advanced_phase2_evaluate_global_scope(
                     "a rescue block that catches TypeError.",
                     source_file=project_file,
                     line=stmt.subexprs[1].line,
-                    col=stmt.subexprs[2].col
+                    col=stmt.subexprs[1].col
                 ))
             }
+            had_error = yes
         }
     }
     if had_change {
@@ -145,11 +146,43 @@ func advanced_phase2_evaluate_global_scope(
     return not had_error
 }
 
+func do_simply_on_all_exprs(stmt, callback) {
+    var queue = []
+    for expr in stmt.subexprs {
+        queue.add([stmt, none, expr])
+    }
+    while queue.len > 0 {
+        var entry = queue.pop()
+        var parent = entry[1]
+        var grandparent = entry[2]
+        var expr = entry[3]
+        var result_expr = callback(expr, parent, grandparent)
+        if result_expr != expr {
+            var i = 1
+            while i <= parent.subexprs.len {
+                if parent.subexprs[i] == expr {
+                    if result_expr == none {
+                        parent.subexprs.pop(i)
+                    } else {
+                        parent.subexprs[i] = result_expr
+                    }
+                    break
+                }
+                i += 1
+            }
+        }
+        for subexpr in result_expr.subexprs {
+            queue.add([result_expr, parent, subexpr])
+        }
+    }
+}
+
 func advanced_phase3_later_and_computevals(
         stmts, msgs=none, project_file=none
         ) {
     var globals_value_cb = get_global_storage_neighbor_closure(
         project_file.project)
+    var project = project_file.project
     func check_and_analyze_recurse(
             stmts, msgs
             ) {
@@ -168,22 +201,115 @@ func advanced_phase3_later_and_computevals(
                 stmt.func_scope.is_later_func = is_later_func
             }
 
+            func check_nested_constructors(expr, parent, grandparent) {
+                if expr.damaged {
+                    return expr
+                }
+                var is_type_constructor = no
+                if expr.kind == cast.N_EXPR_IDREF and
+                        expr.ref != none and
+                        project.is_ref_a_type(expr.ref) {
+                    if parent == none or
+                            parent.kind != cast.N_EXPR_BINOP or
+                            parent.optoken.str != "(" or
+                            expr != parent.subexprs[1] or
+                            grandparent == none or
+                            grandparent.kind != cast.N_EXPR_UNOP or
+                            grandparent.subexprs[1] != parent {
+                        if msgs != none {
+                            msgs.add(new msg.FileMsg(
+                                "Invalid type reference, must be part of "
+                                "a new constructor.",
+                                source_file=project_file,
+                                line=stmt.subexprs[1].line,
+                                col=stmt.subexprs[1].col
+                            ))
+                        }
+                        expr.damaged = yes
+                    } else {
+                        is_type_constructor = yes
+                    }
+                }
+                if is_type_constructor and not expr.damaged and
+                        project.is_ref_of_given_type_an_error(
+                            expr.ref) {
+                    var callargs = parent.subexprs[1]
+                    if callargs.len == 0 {
+                        expr.damaged = yes
+                        return expr
+                    }
+                    var v = ast_eval.try_eval_ast_node_value(
+                        callargs.subexprs[1],
+                        eval_by_storage_ref_callback=
+                            globals_value_cb)
+                    if not v[1] or typename(v[2]) != "str" {
+                        expr.damaged = yes
+                        callargs.subexprs[1].damaged = yes
+                    } else {
+                        stmt.aot_evaluated_message_str = v[2]
+                    }
+                    if expr.damaged and msgs != none {
+                        msgs.add(new msg.FileMsg(
+                            "Invalid error constructor call, "
+                            "message string argument too dynamic "
+                            "to be determined at compile time.",
+                            source_file=project_file,
+                            line=stmt.subexprs[1].line,
+                            col=stmt.subexprs[1].col
+                        ))
+                    }
+                }
+                return expr
+            }
+            do_simply_on_all_exprs(stmt, check_nested_constructors)
+
             # Determine error message ahead of time for throws:
             if stmt.kind == cast.N_STMT_THROW and
                     stmt.aot_evaluated_message_str == none and
-                    not stmt.has_damage() and
-                    stmt.subexprs[1].kind == cast.N_STMT_UNOP and
-                    stmt.subexprs[1].str == "new" and
-                    stmt.subexprs[1].subexprs[1].kind ==
-                        cast.N_STMT_BINOP and
-                    stmt.subexprs[1].subexprs[1].str == "(" and
-                    stmt.subexprs[1].subexprs[1].subexprs[2].kind ==
-                        cast.N_EXPR_CALLORDEFARGS {
-                var callargs = stmt.subexprs[1].subexprs[1].
-                    subexprs[2]
-                if callargs.subexprs.len != 1 or
+                    not stmt.has_damage() {
+                var has_valid_error_arg = no
+                var callargs, callobj
+                if stmt.subexprs[1].kind == cast.N_EXPR_UNOP and
+                        stmt.subexprs[1].optoken.str == "new" and
+                        stmt.subexprs[1].subexprs[1].kind ==
+                            cast.N_EXPR_BINOP and
+                        stmt.subexprs[1].subexprs[1].optoken.str == "(" and
+                        stmt.subexprs[1].subexprs[1].subexprs[2].kind ==
+                            cast.N_EXPR_CALLORDEFARGS {
+                    callargs = stmt.subexprs[1].subexprs[1].
+                        subexprs[2]
+                    callobj = stmt.subexprs[1].subexprs[1].subexprs[1]
+                    if callobj.kind != cast.N_EXPR_IDREF or
+                            not project.is_ref_a_type(callobj.ref) or
+                            not project.is_ref_of_given_type_an_error(
+                                callobj.ref) {
+                        has_valid_error_arg = no
+                    } else {
+                        has_valid_error_arg = yes
+                    }
+                } elseif stmt.subexprs[1].kind == cast.N_EXPR_IDREF {
+                    has_valid_error_arg = yes
+                }
+                if not has_valid_error_arg {
+                    if msgs != none {
+                        msgs.add(new msg.FileMsg(
+                            "Invalid throw, must have a new "
+                            "constructor as argument that "
+                            "directly refers to an error type, "
+                            "or a variable containing an "
+                            "already thrown error.",
+                            source_file=project_file,
+                            line=stmt.subexprs[1].line,
+                            col=stmt.subexprs[1].col
+                        ))
+                    }
+                    stmt.damaged = yes
+                    callargs.damaged = yes
+                }
+                if not stmt.damaged and callargs != none and (
+                        callargs.subexprs.len != 1 or
                         callargs.subexprs[1].kind ==
-                            cast.N_EXPR_CALLKWARG {
+                            cast.N_EXPR_CALLKWARG) {
                     if msgs != none {
                         msgs.add(new msg.FileMsg(
                             "Invalid error constructor call, "
@@ -191,12 +317,13 @@ func advanced_phase3_later_and_computevals(
                             "message string argument.",
                             source_file=project_file,
                             line=stmt.subexprs[1].line,
-                            col=stmt.subexprs[2].col
+                            col=stmt.subexprs[1].col
                         ))
                     }
                     stmt.damaged = yes
                     callargs.damaged = yes
-                } else {
+                }
+                if not stmt.damaged and callargs != none {
                     var v = ast_eval.try_eval_ast_node_value(
                         callargs.subexprs[1],
                         eval_by_storage_ref_callback=globals_value_cb)
@@ -208,7 +335,7 @@ func advanced_phase3_later_and_computevals(
                                 "to be determined at compile time.",
                                 source_file=project_file,
                                 line=stmt.subexprs[1].line,
-                                col=stmt.subexprs[2].col
+                                col=stmt.subexprs[1].col
                             ))
                         }
                         stmt.damaged = yes
@@ -365,26 +492,49 @@ func do_advanced_check_and_analysis(project, msgs) {
 }
 
 func do_basic_check_and_analysis(project, msgs) {
-    func process_file(pfile) {
-        pfile.ensure_ast() later:
+    func do_unsafe {
+        func process_file(pfile) {
+            pfile.ensure_ast() later:
 
-        if not basic_phase_nestingdepth_and_misc(
-                pfile.ast.stmts, msgs,
-                project_file=pfile) {
-            return later no
+            if not basic_phase_nestingdepth_and_misc(
+                    pfile.ast.stmts, msgs,
+                    project_file=pfile) {
+                return later no
+            }
+            return later yes
         }
-        return later yes
-    }
-    var check_went_ok = project.do_for_all_files(process_file)
-    later:
+        var check_went_ok = project.do_for_all_files(process_file)
+        later:
 
-    await check_went_ok
-    for m in msgs {
-        if m.kind == msg.M_ERROR {
-            check_went_ok = no
+        await check_went_ok
+        for m in msgs {
+            if m.kind == msg.M_ERROR {
+                check_went_ok = no
+            }
+        }
+
+        return later check_went_ok
+    }
+    var result = do_unsafe() later:
+
+    await result
+    if result == no and msgs != none {
+        var had_error = no
+        for m in msgs {
+            if m.kind == msg.M_ERROR {
+                had_error = yes
+                break
+            }
+        }
+        if not had_error {
+            msgs.add(new msg.FileMsg(
+                "Internal error occured, we failed "
+                "analysis without a proper error message. "
+                "Please report this bug to the compiler team.",
+                source_file=project_file
+            ))
         }
     }
-
-    return later check_went_ok
+    return later result
 }
 

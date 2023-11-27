@@ -28,12 +28,8 @@
 import time from core.horse64.org
 
 func test_basic_things {
-    # This is not allowed, because errors can't be
-    # constructed with a dynamic message:
-    var s = "a"
-    if time.ticks() > 100 {
-        s = "b"
-    }
-    var e = new ValueError("Abc: " + s)
+    # This is not allowed, because errors can't have
+    # dynamic arguments:
+    var e = new ValueError("Abc.")
 }
 

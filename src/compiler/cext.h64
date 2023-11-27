@@ -41,13 +41,40 @@ const hvm_builtin_cext_funcs = {
     "alike_num"->"builtin_h64_alike_num",
 }
 
+type BuiltinTypeInfo {
+    var name
+    var is_error
+    var builtin_base_name
+}
+
+func BuiltinTypeInfo.init(name, c_symbol,
+        builtin_base_name=none, is_error=no) {
+    self.name = name
+    self.builtin_base_name = builtin_base_name
+    self.is_error = is_error
+}
+
 const hvm_builtin_cext_types = {
-    "BaseError"->"builtin_h64_runtimeerror",
-    "RuntimeError"->"builtin_h64_runtimeerror",
-    "NotImplementedError"->"builtin_h64_notimplementederror",
-    "ValueError"->"builtin_h64_valueerror",
-    "TypeError"->"builtin_h64_valueerror",
-    "PermissionError"->"builtin_h64_permissionerror",
+    "BaseError"->new BuiltinTypeInfo("BaseError",
+        "builtin_h64_baseerror", is_error=yes),
+    "RuntimeError"->new BuiltinTypeInfo("RuntimeError",
+        "builtin_h64_runtimeerror", is_error=yes,
+        builtin_base_name="BaseError"),
+    "NotImplementedError"->new BuiltinTypeInfo("NotImplementedError",
+        "builtin_h64_notimplementederror", is_error=yes,
+        builtin_base_name="RuntimeError"),
+    "ValueError"->new BuiltinTypeInfo("ValueError",
+        "builtin_h64_valueerror", is_error=yes,
+        builtin_base_name="RunimeError"),
+    "TypeError"->new BuiltinTypeInfo("TypeError",
+        "builtin_h64_typeerror", is_error=yes,
+        builtin_base_name="RuntimeError"),
+    "OSResourceError"->new BuiltinTypeInfo("OSResourceError",
+        "builtin_h64_osresourceerror", is_error=yes,
+        builtin_base_name="RuntimeError"),
+    "PermissionError"->new BuiltinTypeInfo("PermissionError",
+        "builtin_h64_permissionerror", is_error=yes,
+        builtin_base_name="RuntimeError"),
 }
 
 type CExtItem {
@@ -87,6 +114,7 @@ func CVar.as_str {
 }
 
 type CType base CExtItem {
+    var is_error
 }
 
 func CType.init {
@@ -117,9 +145,13 @@ func CEnum.as_str {
 }
 
 extend project.Project {
-    var cext_builtins_storage_map = {->}
+    var cext_builtins_storage_map_by_name = {->}
+
+    var cext_builtins_storage_id_to_name_map = {->}
 
     var last_id_offset_for_cext_storage = 0
+
+    var storage_id_to_citem_map = {->}
 }
 
 type CExtStorageInfo {
@@ -127,31 +159,83 @@ type CExtStorageInfo {
     var storage_id
 }
 
-func get_cext_item_storage_info(name,
-        in_module_name=none, in_package_name=none,
-        project=none, can_match_moduleless=yes) {
+func _ensure_builtins_storage(project) {
     if project != none and
-            project.cext_builtins_storage_map.len == 0 {
+            project.cext_builtins_storage_map_by_name.len == 0 {
         var st_id = project.last_id_offset_for_cext_storage + 1
         for entry in hvm_builtin_cext_funcs {
             var st_info = new CExtStorageInfo()
             st_info.kind = ast.N_STMT_FUNC
             st_info.storage_id = st_id
-            project.cext_builtins_storage_map[entry] = st_info
+            project.cext_builtins_storage_map_by_name[entry] = st_info
+            project.cext_builtins_storage_id_to_name_map[st_id] = entry
             st_id += 1
         }
         for entry in hvm_builtin_cext_types {
             var st_info = new CExtStorageInfo()
             st_info.storage_id = st_id
             st_info.kind = ast.N_STMT_TYPE
-            project.cext_builtins_storage_map[entry] = st_info
+            project.cext_builtins_storage_map_by_name[entry] = st_info
+            project.cext_builtins_storage_id_to_name_map[st_id] = entry
             st_id += 1
         }
         project.last_id_offset_for_cext_storage = st_id - 1
     }
+}
+
+func check_cext_given_type_is_error_by_id(project, storage_id) {
+    _ensure_builtins_storage(project)
+    if not project.cext_builtins_storage_id_to_name_map.has(storage_id) {
+        if not project.storage_id_to_citem_map.has(storage_id) {
+            throw new ValueError("Cext storage id not found.")
+        }
+        var citem = storage_id_to_citem_map[storage_id]
+        if citem.kind != ast.N_STMT_TYPE {
+            throw new TypeError("Cext storage id doesn't reference a type.")
+        }
+        return citem.is_error
+    }
+    var name = project.cext_builtins_storage_id_to_name_map[storage_id]
+    if not hvm_builtin_cext_types.has(name) {
+        throw new TypeError("Cext storage id doesn't reference a type.")
+    }
+    var builtin_type_info = hvm_builtin_cext_types[name]
+    return builtin_type_info.is_error
+}
+
+func check_cext_is_type_by_id(project, storage_id) {
+    _ensure_builtins_storage(project)
+    if not project.cext_builtins_storage_id_to_name_map.has(storage_id) {
+        if not project.storage_id_to_citem_map.has(storage_id) {
+            throw new ValueError("Cext storage id not found.")
+        }
+        var citem = storage_id_to_citem_map[storage_id]
+        return citem.kind == ast.N_STMT_TYPE
+    }
+    var name = project.cext_builtins_storage_id_to_name_map[storage_id]
+    return hvm_builtin_cext_types.has(name)
+}
+
+func check_cext_is_enum_by_id(project, storage_id) {
+    _ensure_builtins_storage(project)
+    if not project.cext_builtins_storage_id_to_name_map.has(storage_id) {
+        if not project.storage_id_to_citem_map.has(storage_id) {
+            return no
+        }
+        var citem = storage_id_to_citem_map[storage_id]
+        return citem.kind == ast.N_STMT_ENUM
+    }
+    # FIXME: handle built-in enums here if we should ever have any.
+    return no
+}
+
+func get_cext_item_storage_info(name,
+        in_module_name=none, in_package_name=none,
+        project=none, can_match_moduleless=yes) {
+    _ensure_builtins_storage(project)
     if can_match_moduleless and project != none and
-            project.cext_builtins_storage_map.has(name) {
-        return project.cext_builtins_storage_map[name]
+            project.cext_builtins_storage_map_by_name.has(name) {
+        return project.cext_builtins_storage_map_by_name[name]
     }
     if in_module_name != none and in_package_name != none and
             project != none and

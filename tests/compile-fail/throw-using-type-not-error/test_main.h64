@@ -1,5 +1,5 @@
-# @module compiler.storage.ref
 # Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+## @build_options --single-file
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -25,53 +25,11 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-enum StorageKind {
-    ST_LOCAL,
-    ST_GLOBAL,
-    ST_NUMLITERAL,
-    ST_CEXT,
-    ST_SELF,
-    ST_BASE,
+type MyType {
 }
 
-type StorageRef {
-    var kind
-    var id
-}
-
-func StorageRef.as_str {
-    if self.kind == ST_LOCAL {
-        return "L" + self.id.as_str()
-    } elseif self.kind == ST_GLOBAL {
-        return "G" + self.id.as_str()
-    } elseif self.kind == ST_NUMLITERAL {
-        return "NUM" + self.id.as_str()
-    } elseif self.kind == ST_CEXT {
-        return "C" + self.id.as_str()
-    } elseif self.kind == ST_SELF {
-        return "SELF"
-    } elseif self.kind == ST_BASE {
-        return "BASE"
-    }
-    throw new RuntimeError("Invalid StorageRef with "
-        "incorrect kind set.")
-}
-
-func StorageRef.init(kind, id) {
-    self.kind = kind
-    self.id = id
-}
-
-func StorageRef.copy {
-    return new StorageRef(self.kind, self.id)
-}
-
-func StorageRef.alike(other_ref) {
-    if not has_attr(other_ref, "kind") or
-            not has_attr(other_ref, "id") {
-        return no
-    }
-    return other_ref.kind == self.kind and
-        other_ref.id == self.id
+func test_basic_things {
+    # This is not allowed, since it's not an error:
+    throw new MyType("Abc.")
 }
 
