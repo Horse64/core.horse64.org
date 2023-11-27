@@ -233,8 +233,20 @@ func advanced_phase3_later_and_computevals(
                 if is_type_constructor and not expr.damaged and
                         project.is_ref_of_given_type_an_error(
                             expr.ref) {
-                    var callargs = parent.subexprs[1]
-                    if callargs.len == 0 {
+                    var callargs = parent.subexprs[2]
+                    if callargs.subexprs.len != 1 or
+                            callargs.subexprs[1].kind ==
+                            cast.N_EXPR_CALLKWARG {
+                        if msgs != none {
+                            msgs.add(new msg.FileMsg(
+                                "Invalid error constructor call, "
+                                "must have single positional "
+                                "message string argument.",
+                                source_file=project_file,
+                                line=callargs.line,
+                                col=callargs.col
+                            ))
+                        }
                         expr.damaged = yes
                         return expr
                     }

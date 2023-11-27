@@ -169,6 +169,13 @@ func _ensure_builtins_storage(project) {
             st_info.storage_id = st_id
             project.cext_builtins_storage_map_by_name[entry] = st_info
             project.cext_builtins_storage_id_to_name_map[st_id] = entry
+            if project.debug_global_storage {
+                print("compiler.cext: "
+                    "_ensure_builtins_storage(): " +
+                    "Assigning Cext storage id " +
+                    st_id.as_str() + " with "
+                    "name '" + entry + "'.")
+            }
             st_id += 1
         }
         for entry in hvm_builtin_cext_types {
@@ -177,6 +184,13 @@ func _ensure_builtins_storage(project) {
             st_info.kind = ast.N_STMT_TYPE
             project.cext_builtins_storage_map_by_name[entry] = st_info
             project.cext_builtins_storage_id_to_name_map[st_id] = entry
+            if project.debug_global_storage {
+                print("compiler.cext: "
+                    "_ensure_builtins_storage(): " +
+                    "Assigning Cext storage id " +
+                    st_id.as_str() + " with "
+                    "name '" + entry + "'.")
+            }
             st_id += 1
         }
         project.last_id_offset_for_cext_storage = st_id - 1
@@ -187,10 +201,24 @@ func check_cext_given_type_is_error_by_id(project, storage_id) {
     _ensure_builtins_storage(project)
     if not project.cext_builtins_storage_id_to_name_map.has(storage_id) {
         if not project.storage_id_to_citem_map.has(storage_id) {
+            if project.debug_global_storage {
+                print("compiler.cext: "
+                    "check_cext_given_type_is_error_by_id(): " +
+                    "Was passed invalid Cext storage id " +
+                    storage_id.as_str() + ", can't find the item.")
+            }
             throw new ValueError("Cext storage id not found.")
         }
         var citem = storage_id_to_citem_map[storage_id]
         if citem.kind != ast.N_STMT_TYPE {
+            if project.debug_global_storage {
+                print("compiler.cext: "
+                    "check_cext_given_type_is_error_by_id(): " +
+                    "Was passed invalid Cext storage id " +
+                    storage_id.as_str() + ", references kind " +
+                    ast.NodeKind.num_label(citem.kind) +
+                    "and not type.")
+            }
             throw new TypeError("Cext storage id doesn't reference a type.")
         }
         return citem.is_error
@@ -207,9 +235,15 @@ func check_cext_is_type_by_id(project, storage_id) {
     _ensure_builtins_storage(project)
     if not project.cext_builtins_storage_id_to_name_map.has(storage_id) {
         if not project.storage_id_to_citem_map.has(storage_id) {
+            if project.debug_global_storage {
+                print("compiler.cext: "
+                    "check_cext_given_type_is_error_by_id(): " +
+                    "Was passed invalid Cext storage id " +
+                    storage_id.as_str() + ", can't find the item.")
+            }
             throw new ValueError("Cext storage id not found.")
         }
-        var citem = storage_id_to_citem_map[storage_id]
+        var citem = project.storage_id_to_citem_map[storage_id]
         return citem.kind == ast.N_STMT_TYPE
     }
     var name = project.cext_builtins_storage_id_to_name_map[storage_id]
@@ -222,7 +256,7 @@ func check_cext_is_enum_by_id(project, storage_id) {
         if not project.storage_id_to_citem_map.has(storage_id) {
             return no
         }
-        var citem = storage_id_to_citem_map[storage_id]
+        var citem = project.storage_id_to_citem_map[storage_id]
         return citem.kind == ast.N_STMT_ENUM
     }
     # FIXME: handle built-in enums here if we should ever have any.
@@ -253,10 +287,18 @@ func get_cext_item_storage_info(name,
                     project.last_id_offset_for_cext_storage += 1
                     var storage_id =
                         project.last_id_offset_for_cext_storage
+                    if cext_info.debug_storage {
+                        print("compiler.cext: "
+                            "get_cext_item_storage_info(): " +
+                            "Assigning Cext storage id " +
+                            storage_id.as_str() + " with "
+                            "name '" + name + "'.")
+                    }
                     var st_info = new CExtStorageInfo()
                     st_info.storage_id = storage_id
                     st_info.kind = citem.kind
                     citem.storage_info = st_info
+                    project.storage_id_to_citem_map[storage_id] = citem
                 }
                 return citem.storage_info
             }
@@ -308,6 +350,12 @@ type CExtInfo {
     var package_name
 
     var name_to_cmodule_map = {->}
+
+    var debug_storage
+}
+
+func CExtInfo.init(debug_storage=no) {
+    self.debug_storage = debug_storage
 }
 
 func CExtInfo.import_to_modname(importst, project=none) {
@@ -343,9 +391,12 @@ func CExtInfo.as_str {
 }
 
 func scan_package_for_cexts(
-        base_project, package_name, msgs=none, debug=no,
-        allow_project_independent_packages_fallback=no) {
-    var cext_info = new CExtInfo()
+        base_project, package_name, msgs=none,
+        allow_project_independent_packages_fallback=no,
+        debug_storage=no, debug=no) {
+    var cext_info = new CExtInfo(
+        debug_storage=debug_storage
+    )
     cext_info.package_name = package_name
     var dir_uri = base_project.find_package_dir_uri(
         package_name,
@@ -360,6 +411,12 @@ func scan_package_for_cexts(
     if not {"file", "vfs"}.has(uri.get_protocol(dir_uri)) {
         throw new NotImplementedError("Scanning for cexts "
             "not supported for remote URIs.")
+    }
+
+    if debug {
+         print("compiler.cext: scan_package_for_cexts(): " +
+            "Scanning package '" + package_name +
+            "' via dir " + dir_uri + " for C extensions.")
     }
 
     var source_code_patterns =
@@ -377,6 +434,11 @@ func scan_package_for_cexts(
 
     await comment_groups
     if comment_groups == none {
+        if debug {
+            print("compiler.cext: scan_package_for_cexts(): " +
+                "Completed scanning package '" + package_name +
+                "' for C extensions.")
+        }
         return cext_info
     }
     for group in comment_groups {

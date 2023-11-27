@@ -382,7 +382,9 @@ func _tokenize_code_line_for_ast(
         source, project_file=none,
         is_entrypoint=yes, force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
-        require_detect_project_dir=yes
+        require_detect_project_dir=yes,
+        debug_modules=no,
+        debug_global_storage=no
         ) {
     if not force_single_file and is_entrypoint {
         throw new ValueError("Not setting force_single_file "
@@ -397,6 +399,8 @@ func _tokenize_code_line_for_ast(
         tresult.project_file = new project.ProjectFile(
             source_uri=none, is_entrypoint=is_entrypoint,
             force_single_file=force_single_file,
+            request_debug_modules=debug_modules,
+            request_debug_global_storage=debug_global_storage,
         )
     }
     func ensure_project_if_needed {
@@ -420,8 +424,8 @@ func _tokenize_this_file_for_ast(
         source, project_file=none, source_is_uri=no,
         is_entrypoint=yes, force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
-        debug_modules=no,
-        require_detect_project_dir=yes
+        require_detect_project_dir=yes,
+        debug_modules=no, debug_global_storage=no,
         ) {
     if not source_is_uri {
         var result = _tokenize_code_line_for_ast(
@@ -431,7 +435,9 @@ func _tokenize_this_file_for_ast(
             allow_disk_access=allow_disk_access,
             allow_vfs_access=allow_vfs_access,
             require_detect_project_dir=
-                require_detect_project_dir
+                require_detect_project_dir,
+            debug_modules=debug_modules,
+            debug_global_storage=debug_global_storage,
         ) later:
         await result
         return result
@@ -445,7 +451,8 @@ func _tokenize_this_file_for_ast(
         keep_whitespace=no,
         require_detect_project_dir=
             require_detect_project_dir,
-        debug_modules=debug_modules
+        debug_modules=debug_modules,
+        debug_global_storage=debug_global_storage
     ) later:
 
     await tresult
@@ -458,7 +465,8 @@ func _parse_tokens_file_to_ast_ex(
         is_entrypoint=yes, force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
         require_detect_project_dir=yes,
-        debug=no, debug_modules=no
+        debug=no, debug_modules=no,
+        debug_global_storage=no
         ) {
     var tresult = _tokenize_this_file_for_ast(
         tokens_source, project_file=project_file,
@@ -469,7 +477,8 @@ func _parse_tokens_file_to_ast_ex(
         force_single_file=force_single_file,
         require_detect_project_dir=
             require_detect_project_dir,
-        debug_modules=debug_modules
+        debug_modules=debug_modules,
+        debug_global_storage=debug_global_storage,
     )
     later:
 
@@ -502,7 +511,8 @@ func parse_str_to_ast(
         is_entrypoint=yes,
         allow_disk_access=yes, allow_vfs_access=no,
         require_detect_project_dir=yes,
-        debug=no, debug_modules=no
+        debug=no, debug_modules=no,
+        debug_global_storage=debug_global_storage,
         ) {
     var result = _parse_tokens_file_to_ast_ex(
         codestr, project_file=project_file, source_is_uri=no,
@@ -512,7 +522,8 @@ func parse_str_to_ast(
         is_entrypoint=is_entrypoint, debug=debug,
         require_detect_project_dir=
             require_detect_project_dir,
-        debug_modules=debug_modules
+        debug_modules=debug_modules,
+        debug_global_storage=debug_global_storage,
     ) later:
 
     await result
@@ -539,7 +550,8 @@ func parse_to_ast_from_uri(
         is_entrypoint=yes, force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
         require_detect_project_dir=no,
-        debug=no, debug_modules=no
+        debug=no, debug_modules=no,
+        debug_global_storage=no,
         ) {
     var result = _parse_tokens_file_to_ast_ex(
         uri.normalize(fileuri,
@@ -551,7 +563,8 @@ func parse_to_ast_from_uri(
         allow_vfs_access=allow_vfs_access,
         require_detect_project_dir=
             require_detect_project_dir,
-        debug=debug, debug_modules=debug_modules
+        debug=debug, debug_modules=debug_modules,
+        debug_global_storage=debug_global_storage,
     ) later:
 
     await result

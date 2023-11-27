@@ -2079,7 +2079,7 @@ func tokenize_from_uri(
         force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
         require_detect_project_dir=yes,
-        debug_modules=no
+        debug_modules=no, debug_global_storage=no
         ) {
     source_uri = uri.normalize(
         source_uri, guess_nonfiles=(not default_to_diskpath)
@@ -2102,7 +2102,8 @@ func tokenize_from_uri(
             source_uri=source_uri,
             is_entrypoint=is_entrypoint,
             force_single_file=force_single_file,
-            request_debug_modules=debug_modules
+            request_debug_modules=debug_modules,
+            request_debug_global_storage=debug_global_storage,
         )
     }
     var early_msgs = []

@@ -63,7 +63,9 @@ type Project {
 
     var allow_vfs_access = yes
 
-    var debug_modules = yes
+    var debug_modules = no
+
+    var debug_global_storage = no
 
     var packages_dir_uri = none
 
@@ -765,6 +767,7 @@ type ProjectFile {
     var source_uri protect = none
 
     var wants_debug_modules = no
+    var wants_debug_global_storage = no
 
     ## @types (Project, none)
     var project protect = none
@@ -784,8 +787,10 @@ type ProjectFile {
 func ProjectFile.init(
         source_uri=none, is_entrypoint=no,
         force_single_file=no, project=none,
-        request_debug_modules=no) {
+        request_debug_modules=no,
+        request_debug_global_storage=no) {
     self.wants_debug_modules = request_debug_modules
+    self.wants_debug_global_storage = request_debug_global_storage
     if source_uri != none {
         source_uri = uri.normalize(source_uri)
     }
@@ -1023,15 +1028,15 @@ func ProjectFile.ensure_project_base_dir {
     }
     self.project.guess_base_from_file_uri(self.source_uri) later:
     if self.wants_debug_modules {
-        print("compiler.project: ensure_project_base_dir() " +
-            "detected project dir: " +
+        print("compiler.project: ensure_project_base_dir(): " +
+            "Detected project dir " +
             self.project.base_dir_uri.as_str() +
-            " (from file: " + self.source_uri.as_str() + ")")
+            " (from file: " + self.source_uri.as_str() + ").")
     }
 }
 
 func Project.ensure_builtin_cexts(
-        msgs=none, debug_modules=no
+        msgs=none, debug_modules=no, debug_global_storage=no
         ) {
     if self.builtin_cexts != none {
         return later
@@ -1043,6 +1048,7 @@ func Project.ensure_builtin_cexts(
     }
     var cext_info = cext.scan_package_for_cexts(
         self, "hvm.horse64.org", msgs=msgs, debug=debug_modules,
+        debug_storage=debug_global_storage,
         allow_project_independent_packages_fallback=
             (self.entrypoint_is_inline or
             self.entrypoint_is_known_single_file)
@@ -1059,6 +1065,9 @@ func ProjectFile.ensure_project(msgs=none) {
         self.project = new Project()
         if self.wants_debug_modules {
             self.project.debug_modules = yes
+        }
+        if self.wants_debug_global_storage {
+            self.project.debug_global_storage = yes
         }
         if self.source_uri == none and
                 self.is_entrypoint {
@@ -1078,7 +1087,8 @@ func ProjectFile.ensure_project(msgs=none) {
     }
 
     self.project.ensure_builtin_cexts(
-        msgs=msgs, debug_modules=self.project.debug_modules
+        msgs=msgs, debug_modules=self.project.debug_modules,
+        debug_global_storage=self.project.debug_global_storage
     ) later:
 
     if self.source_uri == none or self.modinfo != none or
