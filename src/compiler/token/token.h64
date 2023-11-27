@@ -134,9 +134,7 @@ func op_str_to_token_kind(opstr) {
     if bool_compare_ops .has(opstr) {
         return T_BOOLCOMP
     }
-    throw new ValueError("Unknown op str: " +
-        as_escaped_code_string(opstr)
-    )
+    throw new ValueError("Unknown op str encountered.")
 }
 
 ## Get the length of a \uHHHH... escaping starting at the
@@ -480,8 +478,8 @@ func token_list_from_str_list(strlist, internal_labels=no) {
                 if token_no > 1 (resultlist.last()) else (none)
         )
         if result.tokens.len != 1 {
-            throw new ValueError("Str item #" + token_no.as_str() +
-                " doesn't translate to singular token")
+            throw new ValueError("Str item " +
+                "doesn't translate to singular token.")
         }
         resultlist.add(result.tokens[1])
     }
@@ -511,8 +509,8 @@ func get_naive_stmt_or_expr_len(
         for_expr=no
         ) {
     if bracket_depth < 0 {
-        throw new ValueError("initial bracket_depth must "
-            "be a non-negative number")
+        throw new ValueError("Initial bracket_depth must "
+            "be a non-negative number.")
     }
     var tokens_len = tokens.len
     if max_len != none {
@@ -670,7 +668,7 @@ func token_is_consumed_by_return_simple(t) {
             internal_labels=no,
         )
         if result.tokens.len != 1 {
-            throw new ValueError("not a single token")
+            throw new ValueError("Not a single token.")
         }
         t = result.tokens[1]
     }
@@ -1348,7 +1346,7 @@ func as_escaped_code_string(
         s, quote_type='"', never_escape_quotes=no
         ) {
     if quote_type != "'" and quote_type != '"' {
-        throw new ValueError("unsupported quote type")
+        throw new ValueError("Unsupported quote type.")
     }
     var is_bytes = no
     if typename(s) == "bytes" {
@@ -1448,7 +1446,7 @@ func tokenize_str(
         internal_labels=no,
         _assume_previous_token=none,
         ) {
-    var result = TokensResult()
+    var result = new TokensResult()
     result.project_file = project_file
     var strlen = str.len
 

@@ -211,7 +211,7 @@ func show_ast_or_global_scope_result_to_terminal_or_file(
 
 func actionparser_modinfo(args) {
     var program_name = "horsec modinfo"
-    var defs = argparse.ArgumentDefs(program_name=program_name)
+    var defs = new argparse.ArgumentDefs(program_name=program_name)
     defs.add_arg(
         "module path",
         description="The target path for which to print module info, "
@@ -273,7 +273,7 @@ func actionparser_modinfo(args) {
 
 func actionparser_compile(args) {
     var program_name = "horsec compile"
-    var defs = argparse.ArgumentDefs(program_name=program_name)
+    var defs = new argparse.ArgumentDefs(program_name=program_name)
     defs.add_arg(
         "source file", optional=yes,
         description="The target file to compile, "
@@ -661,7 +661,7 @@ func actionparser_compile(args) {
 }
 
 func main {
-    var defs = argparse.ArgumentDefs(program_name="horsec")
+    var defs = new argparse.ArgumentDefs(program_name="horsec")
     defs.add_arg(
         "action", description="Pick an available actions: "
         "compile, run. To see details for an action, use it with --help "

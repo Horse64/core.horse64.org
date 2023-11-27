@@ -61,7 +61,9 @@ func project.Project.is_ref_a_type(ref, node=none) {
             storage_ref.ST_NUMLITERAL}.has(ref.kind) {
         return no
     } elseif {storage_ref.ST_SELF, storage_ref.ST_BASE}.has(ref.kind) {
-        return yes
+        # Since this refers to an actual object instance,
+        # the correct answer here is it's not a type.
+        return no
     } else {
         throw new RuntimeError("Unsupported kind of ref for check.")
     }
@@ -578,9 +580,8 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                             ))
                         } else {
                             throw new ValueError("Invalid statement "
-                                "inside custom type of type " +
-                                ast.NodeKind.num_label(stmt.kind) +
-                                ", expected var or func attributes.")
+                                "inside custom type, "
+                                "expected var or func attributes.")
                         }
                     }
                     return later node
