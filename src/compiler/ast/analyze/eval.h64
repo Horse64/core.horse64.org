@@ -79,6 +79,14 @@ func try_eval_ast_node_value(node, eval_by_storage_ref_callback=none) {
                 eval_by_storage_ref_callback=eval_by_storage_ref_callback)
             var v2 = try_eval_ast_node_value(node.subexprs[2],
                 eval_by_storage_ref_callback=eval_by_storage_ref_callback)
+            if not v1[1] or not v2[1] {
+                if v1[2] == "typeerror" or v2[2] == "typeerror" {
+                    return [no, "typeerror"]
+                }
+                return [no, none]
+            }
+            v1 = v1[2]
+            v2 = v2[2]
             if typename(v1) == "str" and typename(v2) == "str" {
                 return [yes, v1 + v2]
             } elseif typename(v1) == "bytes" and typename(v2) == "bytes" {
@@ -100,7 +108,7 @@ func try_eval_ast_node_value(node, eval_by_storage_ref_callback=none) {
             if {"num", "str", "bytes", "list", "set", "map",
                     "vec", "none"}.has(typename(v1)) and
                     typename(v1) != typename(v2) {
-                return "typeerror"
+                return [no, "typeerror"]
             }
             return [no, none]
         } elseif {"-", "*"}.has(node.optoken.str) {
