@@ -395,6 +395,13 @@ func CExtInfo.as_str {
 
 func CExtInfo.finalize_after_scan(project, msgs) {
     assert(project != none)
+    var self_pkg_name = self.package_name
+    if self_pkg_name == "hvm.horse64.org" {
+        self_pkg_name = "core.horse64.org"
+    }
+    if not project.package_name_to_cext.has(self_pkg_name) {
+        project.package_name_to_cext[self_pkg_name] = self
+    }
     for cmod in self.name_to_cmodule_map.values() {
         for citem in cmod.name_to_item_map.values() {
             if citem.kind == ast.N_STMT_TYPE and
@@ -404,9 +411,9 @@ func CExtInfo.finalize_after_scan(project, msgs) {
                 var ref_pkg = none
                 if ref_name.find("@") != none {
                     ref_pkg = ref_name.sub(
-                        1, ref_name.find("@") - 1).trim()
-                    ref_name = ref_name.sub(
                         ref_name.find("@") + 1).trim()
+                    ref_name = ref_name.sub(
+                        1, ref_name.find("@") - 1).trim()
                 }
                 if ref_name.find(".") != none {
                     ref_module = ref_name.sub(
@@ -414,11 +421,15 @@ func CExtInfo.finalize_after_scan(project, msgs) {
                     ref_name = ref_name.sub(
                         ref_name.find(".") + 1).trim()
                 }
+                if ref_pkg == "core.horse64.org" and
+                        hvm_builtin_cext_types.has(ref_name) {
+                    ref_pkg = none
+                }
                 var st_info = get_cext_item_storage_info(
                     ref_name,
                     in_module_name=ref_module,
                     in_package_name=ref_pkg,
-                    project=none, can_match_moduleless=yes)
+                    project=project, can_match_moduleless=yes)
                 if st_info == none {
                     if msgs != none {
                         msgs.add(new msg.FileMsg(
@@ -441,7 +452,7 @@ func CExtInfo.finalize_after_scan(project, msgs) {
                             "base type '" +
                             citem._unresolved_base_type_name + "' "
                             "in package '" +
-                            package_name.as_str() + "', base "
+                            self.package_name.as_str() + "', base "
                             "must also be a custom type.",
                             kind=msg.M_WARNING
                         ))
@@ -462,7 +473,7 @@ func CExtInfo.finalize_after_scan(project, msgs) {
                 if citem.kind == ast.N_STMT_TYPE and
                         not citem.is_error and
                         citem.base_cext_id != none {
-                    if cext.check_cext_given_type_is_error_by_id(
+                    if check_cext_given_type_is_error_by_id(
                             project, citem.base_cext_id) {
                         had_change = yes
                         citem.is_error = yes
