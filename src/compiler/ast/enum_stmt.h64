@@ -62,7 +62,7 @@ func EnumStmt.as_code(indent=0, project=none) {
         while pos <= self.enum_entry_names.len {
             if self.enum_entry_nums[pos] == none {
                 var pos2 = 1
-                while pos2 < escope.label_nums.len {
+                while pos2 <= escope.label_nums.len {
                     if escope.label_names[pos2] ==
                             self.enum_entry_names[pos] {
                         self.enum_entry_nums[pos] =
