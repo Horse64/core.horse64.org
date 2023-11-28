@@ -45,7 +45,8 @@ func scan_uri_for_comments(file_uri, allow_vfs=no, allow_disk=yes,
         contents, stop_at_noncomment=no,
         only_doc_comments=only_doc_comments,
         strip_noncommands=strip_noncommands,
-        c_style_comments=c_style_comments
+        c_style_comments=c_style_comments,
+        group_comments=yes
     )
     return comments
 }

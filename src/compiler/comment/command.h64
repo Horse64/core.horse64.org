@@ -78,8 +78,9 @@ func get_comments_from_str(
     var comment_lines = []
     var i = 1
     while i <= s.len {
-        if not {" ", "\n", "\r", "\t"}.has(s[i]) and
-                not starts_comment(s, i) {
+        if {"\n", "\r"}.has(s[i]) or (
+                not {" ", "\t"}.has(s[i]) and
+                not starts_comment(s, i)) {
             # This is a non-comment line.
 
             if s[i] == '/' and c_style_comments {
