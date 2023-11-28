@@ -63,17 +63,17 @@ func _ArgumentInfo.init(
     }
     self.positional = not self.name.starts("-")
     if is_switch != (not self.positional) {
-        throw new ValueError("is_switch must be yes if "
-            "argument begins with dash, otherwise no")
+        throw new ValueError("Value of is_switch must be yes if "
+            "argument begins with dash, otherwise no.")
     }
     if not is_switch and repeatable != no {
-        throw new ValueError("multiple uses only allowed "
-            "for switches")
+        throw new ValueError("Multiple uses only allowed "
+            "for switches.")
     }
     self.repeatable = (repeatable == yes)
     if not is_switch and action_func != none {
-        throw new ValueError("action_func only allowed "
-            "for switches")
+        throw new ValueError("Setting action_func only allowed "
+            "for switches.")
     }
     self.action_func = action_func
     if takes_arg == "default" {
@@ -85,9 +85,9 @@ func _ArgumentInfo.init(
     } elseif takes_arg == "optional" or takes_arg == "catchall" {
         self.takes_arg = yes
         if not self.positional {
-            throw new ValueError("only positional arguments "
+            throw new ValueError("Only positional arguments "
                 "may take an argument value optionally or "
-                "as catchall")
+                "as catchall.")
         }
         if takes_arg == "optional" {
             self.optional = yes
@@ -96,20 +96,19 @@ func _ArgumentInfo.init(
         }
     } else {
         if typename(takes_arg) != "bool" {
-            throw new ValueError("unsupported value for "
-                "takes_arg of type: " + typename(takes_arg))
+            throw new TypeError("Unsupported value for "
+                "takes_arg, must be bool.")
         }
         if not takes_arg and self.positional {
             throw new ValueError(
-                "positonal arguments must take an "
-                "argument value at least optionally"
+                "Positional arguments must take an "
+                "argument value at least optionally."
             )
         }
         self.takes_arg = takes_arg
         self.optional = no
     }
 }
-
 
 func _ArgumentInfo.has_argname(names) {
     if names.has(self.name) {

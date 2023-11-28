@@ -560,14 +560,20 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
             result_scope.base_key = base_key
         }
         self.project.type_or_enum_scope_map[key] = result_scope
-        assert(based_on_cext_id == none or not is_enum)
-        if not is_enum {
-            result_scope.base_cext_id = based_on_cext_id
-            result_scope._base_escope_key = base_escope_key
-        }
     } else {
         result_scope = self.project.type_or_enum_scope_map[key]
     }
+
+    assert(based_on_cext_id == none or not is_enum)
+    if not is_enum {
+        if based_on_cext_id != none {
+            result_scope.base_cext_id = based_on_cext_id
+        }
+        if base_escope_key != none {
+            result_scope._base_escope_key = base_escope_key
+        }
+    }
+
     if result_scope.is_enum != is_enum {
         var stmt_name = if is_enum ("enum") else ("type")
         var opposite_name = if is_enum ("type") else ("enum")

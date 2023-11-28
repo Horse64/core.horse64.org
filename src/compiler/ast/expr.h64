@@ -463,7 +463,7 @@ func parse_expression_unwrapped(
         # First, handle the most trivial literals:
         if tokens[pos].kind == token.T_STR {
             # A string literal, e.g. "'test''
-            var node = LiteralExpr()
+            var node = new LiteralExpr()
             node.value = token.parse_token_value(tokens[pos])
             node.token_len = 1
             node.line = startline
@@ -477,7 +477,7 @@ func parse_expression_unwrapped(
             return node
         } elseif tokens[pos].kind == token.T_BYTES {
             # A bytes literal, e.g. "b'test'"
-            var node = LiteralExpr()
+            var node = new LiteralExpr()
             node.value = token.parse_token_value(tokens[pos])
             node.token_len = 1
             node.line = startline
@@ -1514,10 +1514,10 @@ func parse_expression_unwrapped(
                 # Create the operator's expression node:
                 var op_node
                 if op_has_lefthand {
-                    op_node = BinopExpr(tokens[op_entry[1]])
+                    op_node = new BinopExpr(tokens[op_entry[1]])
                     op_node.subexprs.add(op_left_child)
                 } else {
-                    op_node = UnopExpr(tokens[op_entry[1]])
+                    op_node = new UnopExpr(tokens[op_entry[1]])
                 }
                 op_node.subexprs.add(op_right_child)
                 op_node.line = token.get_line(tokens, op_entry[1])

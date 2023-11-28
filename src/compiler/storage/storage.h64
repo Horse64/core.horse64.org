@@ -294,18 +294,91 @@ func project.Project.compute_all_scopes(msgs, debug=no,
             if escope.is_enum {
                 continue
             }
-            if escope._base_escope_key != none and
-                    escope.base_global_id == none and
-                    escope.base_cext_id == none {
-                if not project.type_or_enum_scope_map.has(
-                        escope._base_escope_key) {
+            if escope.base_cext_id != none {
+                assert(escope.base_global_id == none)
+                escope._base_escope_key = none
+                if cext.check_cext_is_type_by_id(
+                            project, escope.base_cext_id) and
+                        cext.check_cext_given_type_is_error_by_id(
+                            project, escope.base_cext_id) {
+                    escope.is_error = yes
+                }
+            }
+            if escope._base_escope_key == none or
+                    escope.base_global_id != none {
+                continue
+            }
+            if not project.type_or_enum_scope_map.has(
+                    escope._base_escope_key) {
+                if msgs != none {
+                    if not escope.damaged {
+                        msgs.add(new msg.FileMsg(
+                            "Base type for type "
+                            "'" + escope_key + "' "
+                            "not found.",
+                            source_file=project.
+                                get_project_file_for_escope(
+                                    escope),
+                            line=escope.def_line,
+                            col=escope.def_col
+                        ))
+                    }
+                    escope.damaged = yes
+                } else {
+                    escope.damaged = yes
+                    throw new RuntimeError(
+                        "Base type not found.")
+                }
+                continue
+            }
+            var base_escope_key = escope._base_escope_key
+            var base_escope = project.type_or_enum_scope_map[
+                escope._base_escope_key]
+            escope._base_escope_key = none
+            escope.base_global_id =
+                base_escope.storage_id
+
+            # Verify that the base chain doesn't have a cycle:
+            var look_at_escope = escope
+            var seen_nodes = [look_at_escope]
+            var have_seen_damaged = escope.damaged
+            while look_at_escope != none {
+                if look_at_escope.base_cext_id != none and
+                        not cext.check_cext_is_type_by_id(
+                        look_at_escope.base_cext_id) {
+                    look_at_escope.damaged = yes
+                }
+                # See if this circle leads to an error type:
+                if look_at_escope.is_error or (
+                        look_at_escope.base_cext_id != none and
+                        cext.check_cext_is_type_by_id(
+                        look_at_escope.base_cext_id)) {
+                    if look_at_escope.is_error or
+                            cext.check_cext_given_type_is_error_by_id(
+                            look_at_escope.base_cext_id) {
+                        for node in seen_nodes {
+                            node.is_error = yes
+                        }
+                    }
+                    break
+                }
+                if look_at_escope.base_global_id == none {
+                    break
+                }
+                if not project.storage_id_to_escope_map.has(
+                        look_at_escope.base_global_id) {
+                    # Should only be possible in case of error.
+                    # Nothing we can do.
+                    look_at_escope.damaged = yes
+                    break
+                }
+                if look_at_escope.base_global_id == look_at_escope.storage_id {
+                    had_invalid_base = yes
                     if msgs != none {
-                        if not escope.damaged {
-                            escope.damaged = yes
+                        if not have_seen_damaged {
                             msgs.add(new msg.FileMsg(
-                                "Base type for type "
-                                "'" + escope_key + "' "
-                                "not found.",
+                                "Type '" + escope_key + "' can't "
+                                "be based on itself.",
                                 source_file=project.
                                     get_project_file_for_escope(
                                         escope),
@@ -313,96 +386,42 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                                 col=escope.def_col
                             ))
                         }
+                        escope.damaged = yes
                     } else {
                         throw new RuntimeError(
-                            "Base type not found.")
+                            "Type found based on itself.")
                     }
-                    continue
+                    break
                 }
-                var base_escope_key = escope._base_escope_key
-                var base_escope = project.type_or_enum_scope_map[
-                    escope._base_escope_key]
-                escope._base_escope_key = none
-                escope.base_global_id =
-                    base_escope.storage_id
-
-                # Verify that the base chain doesn't have a cycle:
-                var look_at_escope = escope
-                var seen_nodes = [look_at_escope]
-                var have_seen_damaged = escope.damaged
-                while look_at_escope != none {
-                    if look_at_escope.base_cext_id != none and
-                            cext.check_cext_is_type_by_id(
-                            look_at_escope.base_cext_id) {
-                        if cext.check_cext_given_type_is_error_by_id(
-                                look_at_escope.base_cext_id) {
-                            for node in seen_nodes {
-                                node.is_error = yes
-                            }
+                look_at_escope = project.
+                    storage_id_to_escope_map[
+                        look_at_escope.base_global_id]
+                if look_at_escope.damaged {
+                    have_seen_damaged = yes
+                }
+                seen_nodes.add(look_at_escope)
+                if look_at_escope.storage_id ==
+                        escope.storage_id {
+                    had_invalid_base = yes
+                    if msgs != none {
+                        if not have_seen_damaged {
+                            msgs.add(new msg.FileMsg(
+                                "Type '" + escope_key + "' has "
+                                "base type cycle leading back "
+                                "to itself, which isn't allowed.",
+                                source_file=project.
+                                    get_project_file_for_escope(
+                                        escope),
+                                line=escope.def_line,
+                                col=escope.def_col
+                            ))
                         }
-                        break
+                        escope.damaged = yes
+                    } else {
+                        throw new RuntimeError(
+                            "Base type cycle found.")
                     }
-                    if look_at_escope.base_global_id == none {
-                        break
-                    }
-                    if not project.storage_id_to_escope_map.has(
-                            look_at_escope.base_global_id) {
-                        # Should only be possible in case of error.
-                        # Nothing we can do.
-                        look_at_escope.damaged = yes
-                        break
-                    }
-                    if look_at_escope.base_global_id == look_at_escope.storage_id {
-                        had_invalid_base = yes
-                        if msgs != none {
-                            if not have_seen_damaged {
-                                msgs.add(new msg.FileMsg(
-                                    "Type '" + escope_key + "' can't "
-                                    "be based on itself.",
-                                    source_file=project.
-                                        get_project_file_for_escope(
-                                            escope),
-                                    line=escope.def_line,
-                                    col=escope.def_col
-                                ))
-                            }
-                            escope.damaged = yes
-                        } else {
-                            throw new RuntimeError(
-                                "Type found based on itself.")
-                        }
-                        break
-                    }
-                    look_at_escope = project.
-                        storage_id_to_escope_map[
-                            look_at_escope.base_global_id]
-                    if look_at_escope.damaged {
-                        have_seen_damaged = yes
-                    }
-                    seen_nodes.add(look_at_escope)
-                    if look_at_escope.storage_id ==
-                            escope.storage_id {
-                        had_invalid_base = yes
-                        if msgs != none {
-                            if not have_seen_damaged {
-                                msgs.add(new msg.FileMsg(
-                                    "Type '" + escope_key + "' has "
-                                    "base type cycle leading back "
-                                    "to itself, which isn't allowed.",
-                                    source_file=project.
-                                        get_project_file_for_escope(
-                                            escope),
-                                    line=escope.def_line,
-                                    col=escope.def_col
-                                ))
-                            }
-                            escope.damaged = yes
-                        } else {
-                            throw new RuntimeError(
-                                "Base type cycle found.")
-                        }
-                        break
-                    }
+                    break
                 }
             }
         }
