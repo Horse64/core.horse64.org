@@ -25,8 +25,6 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-import uri from core.horse64.org
-
 import compiler.ast as ast
 import compiler.ast.expr as ast_expr
 import compiler.ast.func_stmt as func_stmt
@@ -112,11 +110,16 @@ func project.Project.get_free_global_storage_slot {
 
 func project.Project.get_project_file_for_escope(escope) {
     var search_set
-    if escope.def_uri == none {
-        search_set = self.no_uri_files
+    if escope.def_file != none {
+        search_set = {escope.def_file}
     } else {
-        search_set = {self.module_uri_to_file_map[
-            uri.normalize(escope.def_uri, absolute_file=yes)]}
+        search_set = {}
+        for pfile in self.module_to_uri_file_map.values() {
+            search_set.add(pfile)
+        }
+        for pfile in self.no_uri_files {
+                search_set.add(pfile)
+        }
     }
     for pfile in search_set {
         if not pfile.global_scope.name_to_stmt_map.has(
@@ -214,11 +217,16 @@ func project.Project.compute_all_scopes(msgs, debug=no,
 
             var gscope_entry_sinfo_found = no
             var search_set
-            if escope.def_uri == none {
-                search_set = project.no_uri_files
+            if escope.def_file != none {
+                search_set = {escope.def_file}
             } else {
-                search_set = {project.module_uri_to_file_map[
-                    uri.normalize(escope.def_uri, absolute_file=yes)]}
+                search_set = {}
+                for pfile in self.module_uri_to_file_map.values() {
+                    search_set.add(pfile)
+                }
+                for pfile in self.no_uri_files {
+                    search_set.add(pfile)
+                }
             }
             for pfile in search_set {
                 if not pfile.global_scope.name_to_stmt_map.has(
@@ -264,7 +272,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                         "project.Project.compute_all_scopes(): " +
                         "Internal error occured, can't trace type '" +
                         escope.label + "' to storage id, it " +
-                        "has def_uri " + escope.def_uri.as_str() +
+                        "has def_file " + escope.def_file.as_str() +
                         " and we checked " + search_set.len.as_str() +
                         " files without success. "
                         "Please report this bug to the compiler team.")
@@ -283,7 +291,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                     "Found global storage id " +
                     escope.storage_id.as_str() + " for "
                     "type or enum in file " +
-                    escope.def_uri.as_str() +
+                    escope.def_file.as_str() +
                     " with name '" + escope.label + "'.")
             }
         }
@@ -518,7 +526,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                     # Since we might have run into an extend first,
                     # we also want to reset the file URI being at the
                     # "core" definition:
-                    escope.def_uri = pfile.source_uri
+                    escope.def_file = pfile
                     escope.def_line = node.line
                     escope.def_col = node.col
                 }
@@ -540,8 +548,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                                         new scope.SymbolInfo(label)
                                     symbol_info.def_ine = stmt.line
                                     symbol_info.def_col = stmt.col
-                                    symbol_info.def_uri =
-                                        pfile.source_uri
+                                    symbol_info.def_file = pfile
                                     symbol_info.storage_id =
                                         escope.name_to_symbol_map.len + 1
                                     if idx <= stmt.subexprs.len {
@@ -556,8 +563,11 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                                 var old_symbol =
                                     escope.name_to_symbol_map[label]
                                 var where = "elsewhere"
-                                if old_symbol.def_uri != none {
-                                    where = "in " + old_symbol.def_uri
+                                if old_symbol.def_file != none and
+                                        old_symbol.def_file.
+                                            source_uri != none {
+                                    where = "in " +
+                                        old_symbol.def_file.source_uri
                                     if old_symbol.def_line != none {
                                         where += ":" +
                                             old_symbol.def_line.as_str()
@@ -730,10 +740,17 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                         }
                     }
                     if clause.kind == ast.N_EXPR_RESCUECLAUSE {
+                        var elabels_seen = {}
                         for elabel in clause.error_labels {
                             if elabel == none {
                                 continue
                             }
+                            if elabels_seen.has(elabel) {
+                                # For rescue clauses, we allow duplicate
+                                # names. They'll be linked up then.
+                                continue
+                            }
+                            elabels_seen.add(elabel)
                             try_register_symbol(inner_scope,
                                 elabel, msgs,
                                 pfile, clause.line, clause.col)

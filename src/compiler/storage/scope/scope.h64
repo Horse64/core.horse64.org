@@ -36,7 +36,7 @@ import compiler.project as project
 type SymbolInfo {
     var name
     var storage_id
-    var def_line, def_col, def_uri
+    var def_line, def_col, def_file
     var value_node
 }
 
@@ -72,7 +72,7 @@ type TypeScope {
     var _base_escope_key = none
     var is_error = no
 
-    var def_line, def_col, def_uri
+    var def_line, def_col, def_file
 }
 
 type EnumScope {
@@ -86,7 +86,7 @@ type EnumScope {
     var label_nums = []
     var label
 
-    var def_line, def_col, def_uri
+    var def_line, def_col, def_file
 }
 
 type LocalScope {
@@ -110,6 +110,26 @@ func LocalScope.lookup(name) {
         return none
     }
     return self.parent.lookup(name)
+}
+
+func LocalScope.add_symbol_late(name,
+        def_file, def_line, def_col) {
+    if self.func_scope == none {
+        throw new RuntimeError(
+            "Cannot add symbols late this way for "
+            "scopes outside of functions.")
+    } elseif self.name_to_symbol_map.has(name) {
+        throw new ValueError("Name already used.")
+    }
+    self.func_scope.last_inner_storage_id += 1
+    var new_id = self.func_scope.last_inner_storage_id
+    var symbol_info = new SymbolInfo(name)
+    symbol_info.def_file = def_file
+    symbol_info.def_line = def_line
+    symbol_info.def_col = def_col
+    self.name_to_symbol_map[name] = symbol_info
+    self.storage_id_to_symbol_map[new_id] = symbol_info
+    return symbol_info
 }
 
 func LocalScope.get_combined_names {

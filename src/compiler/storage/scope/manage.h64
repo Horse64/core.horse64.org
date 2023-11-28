@@ -552,7 +552,7 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
         result_scope.def_line = node.line
         result_scope.def_col = node.col
         if def_project_file != none {
-            result_scope.def_uri = def_project_file.source_uri
+            result_scope.def_file = def_project_file
         }
         if stmt_base_full_type_path != none {
             var base_key = stmt_base_full_type_path + "." +
@@ -579,8 +579,9 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
         var opposite_name = if is_enum ("type") else ("enum")
         if msgs != none {
             var where = "elsewhere"
-            if result_scope.def_uri != none {
-                where = "in " + result_scope.def_uri
+            if result_scope.def_file != none and
+                    result_scope.def_file.source_uri != none {
+                where = "in " + result_scope.def_file.source_uri
                 if result_scope.def_line != none {
                     where += ":" + result_scope.def_line.as_str()
                     if result_scope.def_col != none {

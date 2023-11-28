@@ -25,8 +25,11 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import random from core.horse64.org
+
 import compiler.ast as cast
 import compiler.ast.analyze.eval as ast_eval
+import compiler.ast.expr as ast_expr
 import compiler.ast.func_stmt as func_stmt
 import compiler.limit as compiler_limit
 import compiler.msg as msg
@@ -184,6 +187,20 @@ func do_simply_on_all_exprs(stmt, callback) {
             }
         }
     }
+}
+
+func get_throw_statement_rescue_clause(stmt, parents) {
+    var parent_clause = none
+    var pos = 1
+    while pos <= parents.len {
+        if parents[pos].kind == cast.N_STMT_FUNC {
+            return none
+        } elseif parents[pos].kind == cast.N_EXPR_RESCUECLAUSE {
+            return parents[pos]
+        }
+        pos += 1
+    }
+    return none
 }
 
 func advanced_phase3_later_and_computevals(
@@ -380,26 +397,10 @@ func advanced_phase3_later_and_computevals(
                     not stmt.has_damage() and
                     stmt.subexprs.len == 0 {
                 var has_named_label = no
-                var parent_clause = none
-                var pos = 1
-                while pos <= parents.len {
-                    if parents[pos].kind == cast.N_STMT_FUNC {
-                        break
-                    } elseif parents[pos].kind == cast.N_EXPR_RESCUECLAUSE {
-                        parent_clause = parents[pos]
-                        for label in parent_clause.error_labels {
-                            if label != none {
-                                has_named_label = yes
-                                break
-                            }
-                        }
-                        break
-                    }
-                    pos += 1
-                }
+                var parent_clause = get_throw_statement_rescue_clause(
+                    stmt, parents)
                 if parent_clause == none {
                     stmt.damaged = yes
-                    parent_clause.damaged = yes
                     if msgs != none {
                         msgs.add(new msg.FileMsg(
                             "Invalid anonymous throw, "
@@ -409,7 +410,15 @@ func advanced_phase3_later_and_computevals(
                             col=stmt.col
                         ))
                     }
-                } elseif has_named_label {
+                }
+
+                for label in parent_clause.error_labels {
+                    if label != none {
+                        has_named_label = yes
+                        break
+                    }
+                }
+                if has_named_label {
                     stmt.damaged = yes
                     parent_clause.damaged = yes
                     if msgs != none {
@@ -424,6 +433,66 @@ func advanced_phase3_later_and_computevals(
                             line=stmt.line,
                             col=stmt.col
                         ))
+                    }
+                } else {
+                    var inner_scope = stmt.scope
+                    for block in parent_clause.subblocks {
+                        if block.len > 0 {
+                            inner_scope = block[1].scope
+                            break
+                        }
+                    }
+                    var new_name = "anonymous" + random.gen_id()
+                    while inner_scope.lookup(new_name) {
+                        new_name = "anonymous" + random.gen_id()
+                    }
+                    var new_sinfo = inner_scope.add_symbol_late(
+                        new_name, project_file, parent_clause.line,
+                        parent_clause.col)
+                    if new_sinfo == none {
+                        throw new RuntimeError("Internal error.")
+                    }
+                    var pos = 1
+                    while pos <= parent_clause.error_labels.len {
+                        parent_clause.error_labels[pos] = new_name
+                        pos += 1
+                    }
+                    func assign_label_to_all_empty_throws(stmts) {
+                        for stmt in stmts {
+                            if stmt.kind == cast.N_STMT_THROW and
+                                    stmt.subexprs.len == 0 {
+                                var node = new ast_expr.IdRefExpr()
+                                node.label = new_name
+                                node.ref = new st_ref.StorageRef(
+                                    st_ref.ST_LOCAL, new_sinfo.storage_id
+                                )
+                                stmt.subexprs.add(node)
+                            } elseif stmt.kind == cast.N_STMT_DO or
+                                    stmt.kind == cast.N_STMT_IF {
+                                for clause in stmt.subexprs {
+                                    if clause.kind ==
+                                            cast.N_EXPR_RESCUECLAUSE {
+                                        # Don't cross into rescue clauses.
+                                        continue
+                                    }
+                                    for block in clause.subblocks {
+                                        assign_label_to_all_empty_throws(
+                                            block)
+                                    }
+                                }
+                            } elseif stmt.kind == cast.N_STMT_FUNC {
+                                # Don't cross function boundaries.
+                                continue
+                            } elseif stmt.subblocks.len > 0 {
+                                for block in stmt.subblocks {
+                                    assign_label_to_all_empty_throws(
+                                        block)
+                                }
+                            }
+                        }
+                    }
+                    for block in parent_clause.subblocks {
+                        assign_label_to_all_empty_throws(block)
                     }
                 }
             }
