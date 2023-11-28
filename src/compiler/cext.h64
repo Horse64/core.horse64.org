@@ -83,6 +83,7 @@ type CExtItem {
     var module_name
     var package_name
     var storage_info
+    var csymbol_name
 }
 
 type CFunc base CExtItem {
@@ -115,6 +116,8 @@ func CVar.as_str {
 
 type CType base CExtItem {
     var is_error
+    var _unresolved_base_type_name
+    var base_cext_id
 }
 
 func CType.init {
@@ -390,6 +393,86 @@ func CExtInfo.as_str {
     return t
 }
 
+func CExtInfo.finalize_after_scan(project, msgs) {
+    assert(project != none)
+    for cmod in self.name_to_cmodule_map.values() {
+        for citem in cmod.name_to_item_map.values() {
+            if citem.kind == ast.N_STMT_TYPE and
+                    citem._unresolved_base_type_name != none {
+                var ref_name = citem._unresolved_base_type_name
+                var ref_module = none
+                var ref_pkg = none
+                if ref_name.find("@") != none {
+                    ref_pkg = ref_name.sub(
+                        1, ref_name.find("@") - 1).trim()
+                    ref_name = ref_name.sub(
+                        ref_name.find("@") + 1).trim()
+                }
+                if ref_name.find(".") != none {
+                    ref_module = ref_name.sub(
+                        1, ref_name.find(".") - 1).trim()
+                    ref_name = ref_name.sub(
+                        ref_name.find(".") + 1).trim()
+                }
+                var st_info = get_cext_item_storage_info(
+                    ref_name,
+                    in_module_name=ref_module,
+                    in_package_name=ref_pkg,
+                    project=none, can_match_moduleless=yes)
+                if st_info == none {
+                    if msgs != none {
+                        msgs.add(new msg.FileMsg(
+                            "Ignored malformed C extension "
+                            "base type '" +
+                            citem._unresolved_base_type_name + "' "
+                            "in package '" +
+                            self.package_name.as_str() + "'. "
+                            "Only other C extension types can be "
+                            "used as base types.",
+                            kind=msg.M_WARNING
+                        ))
+                    }
+                    citem._unresolved_base_type_name = none
+                    continue
+                } elseif st_info.kind != ast.N_STMT_TYPE {
+                    if msgs != none {
+                        msgs.add(new msg.FileMsg(
+                            "Ignored malformed C extension "
+                            "base type '" +
+                            citem._unresolved_base_type_name + "' "
+                            "in package '" +
+                            package_name.as_str() + "', base "
+                            "must also be a custom type.",
+                            kind=msg.M_WARNING
+                        ))
+                    }
+                    citem._unresolved_base_type_name = none
+                    continue
+                }
+                citem._unresolved_base_type_name = none
+                citem.base_cext_id = st_info.storage_id
+            }
+        }
+    }
+    var had_change = yes
+    while had_change {
+        had_change = no
+        for cmod in self.name_to_cmodule_map.values() {
+            for citem in cmod.name_to_item_map.values() {
+                if citem.kind == ast.N_STMT_TYPE and
+                        not citem.is_error and
+                        citem.base_cext_id != none {
+                    if cext.check_cext_given_type_is_error_by_id(
+                            project, citem.base_cext_id) {
+                        had_change = yes
+                        citem.is_error = yes
+                    }
+                }
+            }
+        }
+    }
+}
+
 func scan_package_for_cexts(
         base_project, package_name, msgs=none,
         allow_project_independent_packages_fallback=no,
@@ -439,11 +522,43 @@ func scan_package_for_cexts(
                 "Completed scanning package '" + package_name +
                 "' for C extensions.")
         }
+        cext_info.finalize_after_scan(base_project, msgs)
         return cext_info
     }
     for group in comment_groups {
         # FIXME: finish this part, parse parameters and all later.
+        var seen_item_ref = none
+        var seen_item_base_name = none
+        var seen_item_csymbol_name = none
         for comment in group {
+            if comment.starts("/// @h64base ") or
+                    comment.starts("/** @h64base ") {
+                seen_item_base_name = comment.sub(
+                    comment.find("@h64base") +
+                    ("@h64base ").len).trim()
+                if seen_item_base_name.find("@") == none and
+                        not hvm_builtin_cext_types.has(
+                            seen_item_base_name) and
+                        not hvm_builtin_cext_funcs.has(
+                            seen_item_base_name) {
+                    seen_item_base_name += "@" + package_name
+                }
+                if seen_item_ref != none and
+                        seen_item_ref.kind == ast.N_STMT_TYPE {
+                    seen_item_ref._unresolved_base_type_name =
+                        seen_item_base_name
+                }
+                continue
+            } elseif comment.starts("/// @func ") or
+                    comment.starts("/** @func ") {
+                seen_item_csymbol_name = comment.sub(
+                    comment.find("@func ") +
+                    ("@func ").len).trim()
+                if seen_item_ref != none {
+                    seen_item_ref.csymbol_name = seen_item_csymbol_name
+                }
+                continue
+            }
             var comment_type = none
             var citem_type = none
             if comment.starts("/// @h64func ") or
@@ -464,6 +579,18 @@ func scan_package_for_cexts(
                 citem_type = ast.N_STMT_ENUM
             }
             if comment_type != none {
+                if seen_item_ref != none {
+                    if msgs != none {
+                        msgs.add(new msg.FileMsg(
+                            "Found invalid C extension reference "
+                            "with two items in one block in package '" +
+                            package_name.as_str() + "'."
+                        ))
+                    } elseif duplicate {
+                        throw new ValueError(
+                            "Duplicate C extension reference found.")
+                    }
+                }
                 var citem_ref = comment.sub(
                     comment.find("@" + comment_type + " ") +
                     ("@" + comment_type + " ").len).trim()
@@ -481,16 +608,23 @@ func scan_package_for_cexts(
                         citem_ref.find(".") == none or
                         citem_package.find(".") == none or
                         citem_ref.trim() != citem_ref or
-                        citem_package.trim() != citem_package {
+                        citem_package.trim() != citem_package or
+                        citem_package.len == 0  {
                     invalid = yes
                 }
                 var citem_module
                 var citem_name
                 if not invalid {
                     citem_module = citem_ref.sub(
-                        1, citem_ref.rfind(".") - 1)
+                        1, citem_ref.rfind(".") - 1).trim()
                     citem_name = citem_ref.sub(
-                        citem_ref.rfind(".") + 1)
+                        citem_ref.rfind(".") + 1).trim()
+                }
+                if citem_module == none or
+                        citem_module.len == 0 or
+                        citem_name == none or
+                        citem_name.len == 0 {
+                    invalid = yes
                 }
                 if invalid and msgs != none {
                     msgs.add(new msg.FileMsg(
@@ -531,13 +665,23 @@ func scan_package_for_cexts(
                     citem.package_name = package_name
                     citem.module_name = citem_module
                     cmod.name_to_item_map[citem_name] = citem
+                    seen_item_ref = citem
+                    if seen_item_base_name != none and
+                            citem_type == ast.N_STMT_TYPE and
+                            seen_item_ref.kind == ast.N_STMT_TYPE {
+                        citem._unresolved_base_type_name =
+                            seen_item_base_name
+                    } elseif seen_item_csymbol_name != none {
+                        citem.csymbol_name = seen_item_csymbol_name
+                    }
                 }
                 if duplicate and msgs != none {
                     msgs.add(new msg.FileMsg(
                         "Found invalid duplicate C extension "
-                        "referemce in package '" +
+                        "reference in package '" +
                         package_name.as_str() + "': " +
                         orig_ref,
+                        kind=msg.M_WARNING
                     ))
                 } elseif duplicate {
                     throw new ValueError(
