@@ -130,6 +130,13 @@ func advanced_phase2_evaluate_global_scope(
             had_change = yes
             stmt.initial_value_known = yes
             stmt.initial_value = v[2]
+            if stmt.subexprs[1].kind != cast.N_EXPR_LIT {
+                var value_expr = new ast_expr.LiteralExpr()
+                value_expr.line = stmt.subexprs[1].line
+                value_expr.col = stmt.subexprs[1].col
+                value_expr.value = v[2]
+                stmt.subexprs[1] = value_expr
+            }
         } elseif v[2] == "typeerror" {
             if msgs != none {
                 msgs.add(new msg.FileMsg(
@@ -236,6 +243,18 @@ func advanced_phase3_later_and_computevals(
                 if expr.damaged {
                     return expr
                 }
+                # Replace enum references with their values:
+                if expr.kind == cast.N_EXPR_IDREF and
+                        expr.ref != none and
+                        expr.ref.kind == st_ref.ST_NUMLITERAL {
+                    var value_expr = new ast_expr.LiteralExpr()
+                    value_expr.line = expr.line
+                    value_expr.col = expr.col
+                    value_expr.value = expr.ref.id
+                    return value_expr
+                }
+
+                # Make sure types can't be directly referenced:
                 var is_type_constructor = no
                 if expr.kind == cast.N_EXPR_IDREF and
                         expr.ref != none and
@@ -261,6 +280,8 @@ func advanced_phase3_later_and_computevals(
                         is_type_constructor = yes
                     }
                 }
+
+                # Make sure errors are instantiated correctly:
                 if is_type_constructor and not expr.damaged and
                         project.is_ref_of_given_type_an_error(
                             expr.ref) {

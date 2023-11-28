@@ -52,9 +52,28 @@ func EnumStmt.as_json_obj {
     return output
 }
 
-func EnumStmt.as_code(indent=0) {
+func EnumStmt.as_code(indent=0, project=none) {
     if self.damaged {
         return " ".rep(indent) + "(damaged enum)"
+    }
+    if self.type_or_enum_scope != none {
+        var escope = self.type_or_enum_scope
+        var pos = 1
+        while pos <= self.enum_entry_names.len {
+            if self.enum_entry_nums[pos] == none {
+                var pos2 = 1
+                while pos2 < escope.label_nums.len {
+                    if escope.label_names[pos2] ==
+                            self.enum_entry_names[pos] {
+                        self.enum_entry_nums[pos] =
+                            escope.label_nums[pos2]
+                        break
+                    }
+                    pos2 += 1
+                }
+            }
+            pos += 1
+        }
     }
     var t = " ".rep(indent) + "enum " + self.label + " {\n"
     var i = 0
@@ -62,7 +81,7 @@ func EnumStmt.as_code(indent=0) {
         i += 1
         t += " ".rep(indent + 4) + entry
         if self.enum_entry_nums[i] != none {
-            t += "=" + self.enum_entry_nums[i] + ",\n"
+            t += "=" + self.enum_entry_nums[i].as_str() + ",\n"
         } else {
             t += ",\n"
         }
