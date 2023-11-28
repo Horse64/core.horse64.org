@@ -38,7 +38,8 @@ import compiler.token as token
 type ThrowStmt base ast.StmtNode {
     var has_repeat = no
 
-    var aot_evaluated_message_str
+    var error_msg_aot_evaluated
+    var error_msg_is_dynamic = no
 }
 
 func ThrowStmt.init {

@@ -174,7 +174,7 @@ func try_eval_ast_node_value(node, eval_by_storage_ref_callback=none) {
             var v = try_eval_ast_node_value(node.subexprs[1],
                 eval_by_storage_ref_callback=eval_by_storage_ref_callback)
             if typename(v) == "num" {
-                return -v
+                return [yes, 0 - v]
             }
             return [no, none]
         }
