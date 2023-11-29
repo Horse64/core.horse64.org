@@ -33,7 +33,7 @@ func test_more_basic_things {
     func my_func {
         return 2
     }
-    var value = if 1 == my_func() (yes) else (no)
+    value = if 1 == my_func() (yes) else (no)
     assert(typename(value) == "bool")
     assert(value == no)
 

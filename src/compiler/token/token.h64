@@ -97,7 +97,7 @@ func is_minus_after_this_token_unary(t) {
     if typename(t) != "str" {
         t = t.str
     }
-    if ({"(", "=", "[", "{"}.has(t) or
+    if ({"(", "=", "[", ",", "->", ":", "{"}.has(t) or
             (special_words.has(t) and
             not {"yes", "no", "none"}.has(t)) or
             math_assign_ops.has(t) or
