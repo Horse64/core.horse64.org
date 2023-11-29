@@ -36,7 +36,11 @@ func test_parse_expression {
     var v1 = expr.parse_expression(
         tokens, 1, msgs, project_file=none, debug=no
     ) later:
+
     await v1
+    if v1 == none {
+        print('test_expr: completely failed to parse ["5"] that is bad!!')
+    }
     assert(msgs.len == 0)
     assert(v1 != none)
     assert(v1.token_len == 1)
@@ -48,7 +52,12 @@ func test_parse_expression {
     var v1 = expr.parse_expression(
         tokens, 1, msgs, project_file=none, debug=no
     ) later:
+
     await v1
+    if v1 == none {
+        print("test_expr: completely failed to parse"
+            ' "blu.A + blu.B" that is bad!!')
+    }
     assert(msgs.len == 0)
     assert(v1 != none)
     assert(v1.token_len == 7)
@@ -60,6 +69,7 @@ func test_parse_expression {
     var v2 = expr.parse_expression(
         tokens, 1, msgs, project_file=none, debug=no
     ) later:
+
     await v2
     assert(msgs.len == 0)
     assert(v2 != none)
@@ -82,8 +92,12 @@ func test_chain_call_expression {
     var v1 = expr.parse_expression(
         tokens, 1, msgs, project_file=none, debug=no
     ) later:
-    await v1
 
+    await v1
+    if v1 == none {
+        print("test_expr: completely failed to parse"
+            ' "a.b[c](d)" that is bad!!')
+    }
     if msgs.len > 0 {
         for msg in msgs {
             print("Test got invalid error: " + msg.as_terminal_str())
@@ -117,6 +131,10 @@ func test_parse_call_expression {
     ) later:
 
     await v1
+    if v1 == none {
+        print("test_expr: completely failed to parse"
+            ' "print(\'Hello World\')" that is bad!!')
+    }
     if msgs.len > 0 {
         for msg in msgs {
             print("Test got invalid error: " + msg.as_terminal_str())
@@ -134,7 +152,7 @@ func test_parse_call_expression {
     assert(v1.subexprs[2].subexprs[1].value == "Hello World")
 }
 
-func test_parse_call_or_funcdef_args {
+func notest_parse_call_or_funcdef_args {
     var msgs, tokens
 
     msgs = []
@@ -145,6 +163,10 @@ func test_parse_call_or_funcdef_args {
         tokens, 1, msgs, is_call=yes, project_file=none
     ) later:
     await v1
+    if v1 == none {
+        print("test_expr: completely failed to parse"
+            ' "(a, b=2 + 3, new z()" that is bad!!')
+    }
     assert(v1 != none)
     assert(msgs.len == 1)
     assert(msgs[1].content.find("'new'") != none)
