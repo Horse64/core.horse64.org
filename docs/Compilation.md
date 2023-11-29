@@ -37,6 +37,9 @@ These are the current compilation stages of horsec as of 2023-11-02:
 5. `--stage bytecode` will take the fully resolved and transformed
    AST and generate the resulting bytecode.
 
-6. (Maybe upcoming at some point, another optimization stage on the
-   bytecode level.)
+   *(Upcoming maybe at some point, more optimizations here.)*
+
+6. `--stage binary` will write out the bytecode binary representation
+   attached to a VM binary.
+
 
