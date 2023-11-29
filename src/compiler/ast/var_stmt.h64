@@ -96,6 +96,15 @@ func VarStmt.as_code(indent=0) {
         t += value.as_code(indent=(indent + 4))
         is_first = no
     }
+    if self.has_later {
+        if self.has_later_ignore {
+            t += " later ignore"
+        } elseif self.has_later_repeat {
+            t += " later repeat"
+        } else {
+            t += " later:"
+        }
+    }
     return t
 }
 

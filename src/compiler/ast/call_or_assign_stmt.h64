@@ -94,9 +94,32 @@ func AssignStmt.as_code(indent=0) {
     if self.damaged {
         return " ".rep(indent) + "(damaged assign)"
     }
-    return " ".rep(indent) +
-        self.subexprs[1].as_code(indent=indent) + " = " +
-        self.subexprs[2].as_code(indent=indent)
+    var pairs_count = self.subexprs.len / 2
+    var lvalue_list = ""
+    var rvalue_list = ""
+    var i = 1
+    while i <= pairs_count {
+        if i > 1 {
+            lvalue_list += ", "
+            rvalue_list += ", "
+        }
+        lvalue_list += self.subexprs[i].as_code(indent=indent)
+        rvalue_list += self.subexprs[pairs_count + i].
+            as_code(indent=indent)
+        i += 1
+    }
+    var t = " ".rep(indent) +
+        lvalue_list + " = " + rvalue_list
+    if self.has_later {
+        if self.has_later_ignore {
+            t += " later ignore"
+        } elseif self.has_later_repeat {
+            t += " later repeat"
+        } else {
+            t += " later:"
+        }
+    }
+    return t
 }
 
 func check_call_or_assign_and_get_idx(
@@ -111,12 +134,17 @@ func check_call_or_assign_and_get_idx(
 
     # To check this is a call or assign, find the '(' or '=':
     var is_call = yes
+    var can_be_call = yes
     var assign_or_call_idx = -1
     var i = pos + 1
     while yes {
         if i > tokens_len {
             break
-        } elseif tokens[i].kind == token.T_DOT {
+        } elseif tokens[i].kind == token.T_DOT or
+                tokens[i].kind == token.T_COMMA {
+            if tokens[i].kind == token.T_COMMA {
+                can_be_call = no
+            }
             if i + 1 > tokens_len or
                     tokens[i + 1].kind != token.T_IDENT {
                 break
@@ -152,7 +180,8 @@ func check_call_or_assign_and_get_idx(
                      not {"(", "["}.has(tokens[i].str)) and
                     tokens[i].kind != token.T_MATHASSIGN and
                     tokens[i].kind != token.T_ASSIGN) {
-                if not only_assigns and tokens[bracket_pos].str == "(" {
+                if not only_assigns and can_be_call and
+                        tokens[bracket_pos].str == "(" {
                     return bracket_pos
                 }
                 return -1
@@ -213,6 +242,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
                 line=token.get_line(tokens, pos),
                 col=token.get_col(tokens, pos),
             ))
+            stmt.damaged = yes
         } elseif v1.optoken.str != "(" {
             msgs.add(new msg.FileMsg(
                 "Unexpected binary operator expression " +
@@ -226,6 +256,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
                 line=v1.optoken.line,
                 col=v1.optoken.col,
             ))
+            stmt.damaged = yes
         }
         if v1 == none {
             var skiplen = token.get_naive_stmt_or_expr_len(
@@ -245,99 +276,248 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     }
     assert(not is_call)
 
+    var assigned_lvalue_list = [v1]
     var stmt = new AssignStmt()
     stmt.line = token.get_line(tokens, startpos)
     stmt.col = token.get_col(tokens, startpos)
-    if v1 == none {
-        msgs.add(new msg.FileMsg(
-            "Unexpected token " +
-            token.describe_token_at(tokens,
-                assign_or_call_idx + 1) +
-            ", expected valid lvalue expression for " +
-            "assign operator at line " +
-            token.get_line(tokens, assign_or_call_idx).as_str() +
-            ", column " +
-            token.get_col(tokens, assign_or_call_idx).as_str() + ".",
-            source_file=project_file,
-            line=token.get_line(tokens, pos),
-            col=token.get_col(tokens, pos),
-        ))
-        var skiplen = token.get_naive_stmt_or_expr_len(
-            tokens, pos, for_expr=no
-        )
-        if skiplen < 1 {
-            skiplen = 1
+    func check_last_assigned_expr {
+        var last_assigned_expr = assigned_lvalue_list[
+            assigned_lvalue_list.len]
+        if last_assigned_expr == none {
+            if not stmt.has_damage() {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected token " +
+                    token.describe_token_at(tokens,
+                        assign_or_call_idx + 1) +
+                    ", expected valid lvalue expression for " +
+                    "assign operator at line " +
+                    token.get_line(tokens,
+                        assign_or_call_idx).as_str() +
+                    ", column " +
+                    token.get_col(tokens,
+                        assign_or_call_idx).as_str() + ".",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+            }
+            stmt.damaged = yes
+            var skiplen = token.get_naive_stmt_or_expr_len(
+                tokens, pos, for_expr=no
+            )
+            if skiplen < 1 {
+                skiplen = 1
+            }
+            last_assigned_expr = new expr.InvalidExpr(skiplen)
+            assigned_lvalue_list[
+                assigned_lvalue_list.len] = last_assigned_expr
         }
-        v1 = new expr.InvalidExpr(skiplen)
+        pos += last_assigned_expr.token_len
+        if pos >= assign_or_call_idx {
+            return
+        }
+        if pos != assign_or_call_idx {
+            if pos > tokens_len or tokens[pos].kind != token.T_COMMA {
+                if not stmt.has_damage() {
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected token " +
+                        token.describe_token_at(tokens,
+                            pos) +
+                        ", expected ',' (T_COMMA) for "
+                        "next lvalue expression for " +
+                        "assign operator at line " +
+                        token.get_line(tokens,
+                            assign_or_call_idx).as_str() +
+                        ", column " +
+                        token.get_col(tokens,
+                            assign_or_call_idx).as_str() + ".",
+                        source_file=project_file,
+                        line=token.get_line(tokens, pos),
+                        col=token.get_col(tokens, pos),
+                    ))
+                }
+                stmt.damaged = yes
+            } else {
+                pos += 1
+            }
+        }
+    }
+    func get_next_assigned_lvalue_expr {
+        assert(pos < tokens_len)
+        var next_assigned = expr.parse_expression(
+            tokens, pos,
+            msgs, max_len=assign_or_call_idx,
+            project_file=project_file, debug=debug
+        ) later:
+        await next_assigned
+
+        assigned_lvalue_list.add(next_assigned)
+        check_last_assigned_expr()
+        return later pos < assign_or_call_idx
+    }
+    func get_all_assigned_lvalue_exprs {
+        if pos >= assign_or_call_idx {
+            return later
+        }
+        var do_continue = get_next_assigned_lvalue_expr() later:
+
+        await do_continue
+        if not do_continue {
+            return later
+        }
+        do_continue = get_next_assigned_lvalue_expr() later repeat
     }
 
-    var v2 = expr.parse_expression(
-        tokens, assign_or_call_idx + 1,
-        msgs,
-        project_file=project_file, debug=debug
-    ) later:
-    await v2
+    check_last_assigned_expr()  # For the first one we already parsed.
+    # Now proceed with 2th+ assigned lvalues:
+    get_all_assigned_lvalue_exprs() later:
 
-    if v2 == none {
-        msgs.add(new msg.FileMsg(
-            "Unexpected token " +
-            token.describe_token_at(tokens,
-                assign_or_call_idx + 1) +
-            ", expected valid assigned expression for " +
-            "assign operator at line " +
-            token.get_line(tokens, assign_or_call_idx).as_str() +
-            ", column " +
-            token.get_col(tokens, assign_or_call_idx).as_str() + ".",
-            source_file=project_file,
-            line=token.get_line(tokens, assign_or_call_idx + 1),
-            col=token.get_col(tokens, assign_or_call_idx + 1),
-        ))
-        var skiplen = token.get_naive_stmt_or_expr_len(
-            tokens, assign_or_call_idx, for_expr=no
-        ) - 1
-        if skiplen < 1 {
-            skiplen = 1
+    pos = assign_or_call_idx + 1
+    var assigned_rvalue_list = []
+    func process_next_rvalue_expr {
+        if pos > tokens_len {
+            if not stmt.has_damage() {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected end of file or stream, "
+                    "expected valid assigned expression #" +
+                    (assigned_rvalue_list.len + 1).as_str() + " for " +
+                    "assign operator at line " +
+                    token.get_line(tokens,
+                        assign_or_call_idx).as_str() +
+                    ", column " +
+                    token.get_col(tokens,
+                        assign_or_call_idx).as_str() + ".",
+                    source_file=project_file,
+                    line=token.get_line(tokens, assign_or_call_idx + 1),
+                    col=token.get_col(tokens, assign_or_call_idx + 1),
+                ))
+            }
+            stmt.damaged = yes
+            var v2 = new expr.InvalidExpr(1)
+            assigned_rvalue_list.add(v2)
+            return later assigned_rvalue_list.len <
+                assigned_lvalue_list.len
         }
-        v2 = new expr.InvalidExpr(skiplen)
+        var v2 = expr.parse_expression(
+            tokens, pos, msgs,
+            project_file=project_file, debug=debug
+        ) later:
+        await v2
+
+        if v2 == none {
+            if not stmt.has_damage() {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected token " +
+                    token.describe_token_at(tokens,
+                        assign_or_call_idx + 1) +
+                    ", expected valid assigned expression #" +
+                    (assigned_rvalue_list.len + 1).as_str() + " for " +
+                    "assign operator at line " +
+                    token.get_line(tokens,
+                        assign_or_call_idx).as_str() +
+                    ", column " +
+                    token.get_col(tokens,
+                        assign_or_call_idx).as_str() + ".",
+                    source_file=project_file,
+                    line=token.get_line(tokens,
+                        assign_or_call_idx + 1),
+                    col=token.get_col(tokens,
+                        assign_or_call_idx + 1),
+                ))
+                stmt.damaged = yes
+            }
+            var skiplen = token.get_naive_stmt_or_expr_len(
+                tokens, assign_or_call_idx, for_expr=no
+            ) - 1
+            if skiplen < 1 {
+                skiplen = 1
+            }
+            v2 = new expr.InvalidExpr(skiplen)
+        }
+        assert(v2.token_len > 0)
+        pos += v2.token_len
+        assigned_rvalue_list.add(v2)
+        if assigned_rvalue_list.len >= assigned_lvalue_list.len {
+            return later no
+        }
+        if pos > tokens_len or tokens[pos].kind != token.T_COMMA {
+            if not stmt.has_damage() {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected token " +
+                    token.describe_token_at(tokens,
+                        pos) +
+                    ", expected ',' (T_COMMA) for "
+                    "next rvalue expression for " +
+                    "assign operator at line " +
+                    token.get_line(tokens,
+                        assign_or_call_idx).as_str() +
+                    ", column " +
+                    token.get_col(tokens,
+                        assign_or_call_idx).as_str() + ".",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+            }
+            stmt.damaged = yes
+        } else {
+            pos += 1
+        }
+        return later yes
     }
-    pos = assign_or_call_idx + v2.token_len + 1
+    func process_all_rvalues {
+        var do_continue = process_next_rvalue_expr() later:
+
+        await do_continue
+        if not do_continue {
+            return later
+        }
+        do_continue = process_next_rvalue_expr() later repeat
+    }
+    process_all_rvalues() later:
+
     stmt.token_len = (pos - startpos)
-    stmt.subexprs.add(v1)
-    stmt.subexprs.add(v2)
+    stmt.subexprs += assigned_lvalue_list + assigned_rvalue_list
 
     var newpos =
         later_parse.parse_later_postfix(tokens, pos, stmt, msgs,
             project_file=project_file, debug=debug)
 
     if newpos > pos and not stmt.has_damage() {
-        if v2.kind != ast.N_EXPR_BINOP or
-                v2.optoken.str != "(" {
-            msgs.add(new msg.FileMsg(
-                "Unexpected use of 'later' for assigned "
-                "expression " +
-                ast.NodeKind.num_label(v2.kind) +
-                if v2.kind == ast.N_EXPR_BINOP
-                    (" (of type '" + v2.optoken.str + "')")
-                    else ("") + ", "
-                "can only use 'later' after call expression.",
-                source_file=project_file,
-                line=token.get_line(tokens, pos),
-                col=token.get_col(tokens, pos),
-            ))
-            stmt.damaged = yes
+        for rvalue in assigned_rvalue_list {
+            if rvalue.kind != ast.N_EXPR_BINOP or
+                    rvalue.optoken.str != "(" {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected use of 'later' for assigned "
+                    "expression " +
+                    ast.NodeKind.num_label(rvalue.kind) +
+                    if rvalue.kind == ast.N_EXPR_BINOP
+                        (" (of type '" + rvalue.optoken.str + "')")
+                        else ("") + ", "
+                    "can only use 'later' after call expressions.",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+                stmt.damaged = yes
+                break
+            }
         }
-        if v1.kind != ast.N_EXPR_IDREF {
-            msgs.add(new msg.FileMsg(
-                "Unexpected use of 'later' for lvalue "
-                "of type " +
-                ast.NodeKind.num_label(v1.kind) + ", "
-                "can only use when directly assigning a "
-                "local variable name.",
-                source_file=project_file,
-                line=token.get_line(tokens, pos),
-                col=token.get_col(tokens, pos),
-            ))
-            stmt.damaged = yes
+        for lvalue in assigned_lvalue_list {
+            if lvalue.kind != ast.N_EXPR_IDREF {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected use of 'later' for lvalue "
+                    "of type " +
+                    ast.NodeKind.num_label(lvalue.kind) + ", "
+                    "can only use when directly assigning a "
+                    "local variable name.",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+                stmt.damaged = yes
+                break
+            }
         }
     }
     pos = newpos
