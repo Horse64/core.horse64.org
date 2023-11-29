@@ -1,6 +1,4 @@
-#!/usr/bin/python3
-
-# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -26,6 +24,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+#cython: language_level=3, boundscheck=False, infer_types=True, cdivision=True, overflowcheck=False
+
 VERSION="unknown"
 
 import math
@@ -47,12 +47,10 @@ from translator_syntaxhelpers import (
     get_statement_block_ranges,
 )
 
-
 translator_py_script_dir = (
     os.path.abspath(os.path.dirname(__file__))
 )
 translator_py_script_path = os.path.abspath(__file__)
-
 
 def statement_declared_identifiers(
         st, recurse=True, recurse_into_funcs=False,
@@ -123,7 +121,6 @@ def statement_declared_identifiers(
         return result + do_recurse()
     return result + do_recurse()
 
-
 def extract_all_imports(s):
     if type(s) == str:
         s = tokenize(s)
@@ -181,7 +178,6 @@ def extract_all_imports(s):
         continue
     return result
 
-
 def get_global_standalone_func_names(s,
         error_duplicates=False
         ):
@@ -191,7 +187,6 @@ def get_global_standalone_func_names(s,
         if scope[entry]["type"] == "func":
             result[entry] = scope[entry]
     return result
-
 
 def get_names_defined_in_func(
         st, is_anonymous_inline=False,
@@ -289,7 +284,6 @@ def get_names_defined_in_func(
     # We should have all names in the outermost scope now!
     return names
 
-
 def get_global_names(
         s, error_on_duplicates=False
         ):
@@ -349,8 +343,9 @@ def get_global_names(
                 )
     return result
 
-
 def make_kwargs_in_call_tailing(s):
+    from translator_syntaxhelpers import is_h64op_with_righthand,\
+        is_keyword
     was_str = False
     if type(s) == str:
         s = tokenize(s)
@@ -487,6 +482,7 @@ def make_kwargs_in_call_tailing(s):
         i += 1
         continue
     if was_str:
+        from translator_syntaxhelpers import untokenize
         return untokenize(s)
     return s
 

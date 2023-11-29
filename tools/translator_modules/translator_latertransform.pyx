@@ -1215,7 +1215,7 @@ def is_func_a_later_func(
         st, including_later_ignore=False
         ):
     if type(st) == str:
-        st = tokenize(St)
+        st = tokenize(st)
     if (type(st) == list and
             len(st) > 0 and type(st[0]) == list):
         st = flatten(st)

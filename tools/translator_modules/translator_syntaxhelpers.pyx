@@ -1,6 +1,4 @@
-#!/usr/bin/python3
-
-# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -26,6 +24,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+#cython: language_level=3, boundscheck=False, infer_types=True, cdivision=True, overflowcheck=False
+
 VERSION="unknown"
 
 import math
@@ -37,7 +37,6 @@ import sys
 import tempfile
 import textwrap
 import uuid
-
 
 translator_py_script_dir = (
     os.path.abspath(os.path.dirname(__file__))
@@ -1259,7 +1258,7 @@ def tokens_need_spacing(v1, v2):
     if v2 == "->":
         return False
     if (len(v1) == 2 and not has_any_ascii_letters(v1) and
-            len(v2) == 2 and not has_any_ascii_leters(v2)):
+            len(v2) == 2 and not has_any_ascii_letters(v2)):
         return False
     return True
 

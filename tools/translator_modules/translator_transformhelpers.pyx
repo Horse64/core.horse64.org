@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -24,6 +24,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+#cython: language_level=3
 
 import math
 import os
@@ -902,7 +903,7 @@ def transform_h64_misc_inline_to_python(s):
             inserted_left_end = True
             assert(inserted_left_end), (
                 "FAILED TO FIND LEFT END OF EXPRESSION FOR: " + str(
-                "cmd='" + str(cmd) + "', old_s=" + str(olds) +
+                "cmd='" + str(cmd) + "', old_s=" + str(old_s) +
                 "new_s=" + str(s) + ", i=" + str(i) +
                 ", istart=" + str(istart)))
             #print("Transformed for "
