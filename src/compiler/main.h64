@@ -30,6 +30,7 @@ import io from core.horse64.org
 import json from core.horse64.org
 import path from core.horse64.org
 import system from core.horse64.org
+import time from core.horse64.org
 import uri from core.horse64.org
 
 import compiler.ast
@@ -74,9 +75,15 @@ func tokenize_target_from_args(args) {
 }
 
 func parse_ast_target_from_args(args, checked_ast=no,
-        force_single_file=no,
+        force_single_file=no, print_stages=no,
+        program_name="horsec",
         debug=no, debug_modules=no, debug_storage=no,
-        debug_global_storage=no) {
+    debug_global_storage=no) {
+    if print_stages {
+        print(program_name + ": info: stage tokens: "
+            "Dispatching for parsing first file... "
+            "[t=" + time.ticks().as_str() + "]")
+    }
     func get_ast {
         if args["--code"] != none {
             # Note: force_single_file=yes is implied and not a parameter,
@@ -85,6 +92,7 @@ func parse_ast_target_from_args(args, checked_ast=no,
                 args["--code"], is_entrypoint=yes,
                 allow_disk_access=yes, allow_vfs_access=no,
                 require_detect_project_dir=yes,
+                print_stages=print_stages, program_name=program_name,
                 debug=debug, debug_modules=debug_modules,
                 debug_global_storage=debug_global_storage,
             ) later:
@@ -99,6 +107,7 @@ func parse_ast_target_from_args(args, checked_ast=no,
             force_single_file=force_single_file, allow_disk_access=yes,
             allow_vfs_access=no,
             require_detect_project_dir=yes,
+            print_stages=print_stages, program_name=program_name,
             debug=debug, debug_modules=debug_modules,
             debug_global_storage=debug_global_storage,
         ) later:
@@ -116,11 +125,23 @@ func parse_ast_target_from_args(args, checked_ast=no,
     tresult.project_file.set_data_from_ast_result(
         tresult
     )
+    if print_stages {
+        print(program_name + ": info: stage checked-ast: "
+            "Now starting to ensure all files are parsed... "
+            "[t=" + time.ticks().as_str() + "]")
+    }
+    tresult.project_file.project.print_stages = print_stages
+    tresult.project_file.project.
+        print_stages_program_name = program_name
     tresult.project_file.project.ensure_global_scope_for_full_project(
-        msgs=tresult.msgs,
-        debug=debug_modules
+        msgs=tresult.msgs, debug=debug_modules
     ) later:
 
+    if print_stages {
+        print(program_name + ": info: stage checked-ast: "
+            "Done ensuring all files are parsed. "
+            "[t=" + time.ticks().as_str() + "]")
+    }
     if debug_modules {
         print("compiler.main: parse_ast_target_from_args() " +
             "full list of project files that were processed: " +
@@ -291,6 +312,10 @@ func actionparser_compile(args) {
         description="Enable debugging module discovery. Prints out "
         "all file paths and associated modules when processing.")
     defs.add_switch(
+        "--print-stages",
+        description="Announce the various stages as they "
+            "are entered.")
+    defs.add_switch(
         "--debug-global-storage",
         description="Enable debugging global storage assignments.")
     defs.add_switch(
@@ -332,7 +357,8 @@ func actionparser_compile(args) {
     }
     const possible_stages = [
         "tokens", "ast", "global-scope", "checked-ast",
-        "transformed-code", "transformed-ast", "bytecode"
+        "transformed-code", "transformed-ast", "bytecode",
+        "binary"
     ]
 
     # Sanity check the provided options first:
@@ -346,6 +372,7 @@ func actionparser_compile(args) {
         print("Use " + program_name + " compile --help to show usage.")
         return 1
     }
+    var opt_print_stages = result.args["--print-stages"]
     var opt_is_single_file = no
     if result.args["--single-file"] or
             result.args["--code"] != none {
@@ -404,14 +431,29 @@ func actionparser_compile(args) {
     var opt_output_file = result.args["--output-file"]
     var opt_output_dir = result.args["--output-dir"]
     var opt_for_script = result.args["--for-script"]
+    if opt_print_stages {
+        print(program_name + ": info: stage init: "
+            "Launched & done parsing options. "
+            "[t=" + time.ticks().as_str() + "]")
+    }
 
     # Actually execute what was asked of us:
 
     if result.args["--stage"] == "tokens" {
+        if opt_print_stages {
+            print(program_name + ": info: stage tokens: "
+                "Tokenizing first target file. "
+                "[t=" + time.ticks().as_str() + "]")
+        }
         var tresult = tokenize_target_from_args(result.args)
         later:
 
         await tresult
+        if opt_print_stages {
+            print(program_name + ": info: stage tokens: "
+                "Printing result "
+                " [t=" + time.ticks().as_str() + ".")
+        }
         var had_error = no
         for m in tresult.msgs {
             if m.kind == msg.M_ERROR {
@@ -457,8 +499,10 @@ func actionparser_compile(args) {
         var aresult = parse_ast_target_from_args(
             result.args, checked_ast=no,
             force_single_file=opt_is_single_file,
+            print_stages=opt_print_stages,
+            program_name=program_name,
             debug=result.args["--debug-ast"],
-            debug_modules=result.args["--debug-modules"]
+            debug_modules=result.args["--debug-modules"],
         )
         later:
 
@@ -486,6 +530,8 @@ func actionparser_compile(args) {
         var aresult = parse_ast_target_from_args(
             result.args, checked_ast=yes,
             force_single_file=opt_is_single_file,
+            print_stages=opt_print_stages,
+            program_name=program_name,
             debug=result.args["--debug-ast"],
             debug_modules=result.args["--debug-modules"],
             debug_storage=result.args["--debug-storage"],

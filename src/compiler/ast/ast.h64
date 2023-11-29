@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import json from core.horse64.org
+import time from core.horse64.org
 import uri from core.horse64.org
 
 import compiler.ast.await_stmt as await_stmt
@@ -465,9 +466,17 @@ func _parse_tokens_file_to_ast_ex(
         is_entrypoint=yes, force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
         require_detect_project_dir=yes,
+        print_stages=no,
+        print_stages_file_caption="entry point file",
+        program_name="horsec",
         debug=no, debug_modules=no,
         debug_global_storage=no
         ) {
+    if print_stages {
+        print(program_name + ": info: stage tokens: "
+            "Now tokenizing " + print_stages_file_caption + "... "
+            "[t=" + time.ticks().as_str() + "]")
+    }
     var tresult = _tokenize_this_file_for_ast(
         tokens_source, project_file=project_file,
         source_is_uri=source_is_uri,
@@ -483,12 +492,23 @@ func _parse_tokens_file_to_ast_ex(
     later:
 
     await tresult
+    if print_stages {
+        print(program_name + ": info: stage ast: "
+            "Now parsing " + print_stages_file_caption + "... "
+            "[t=" + time.ticks().as_str() + "]")
+    }
     var aresult = parse_to_ast(
         tresult.tokens,
         project_file=tresult.project_file, debug=debug
     ) later:
 
     await aresult
+    if print_stages {
+        print(program_name + ": info: stage ast: "
+            "Parsed " + print_stages_file_caption +
+            " fully now. "
+            "[t=" + time.ticks().as_str() + "]")
+    }
     if tresult.project_file != none {
         aresult.project_file = tresult.project_file
     }
@@ -511,6 +531,9 @@ func parse_str_to_ast(
         is_entrypoint=yes,
         allow_disk_access=yes, allow_vfs_access=no,
         require_detect_project_dir=yes,
+        print_stages=no,
+        program_name="horsec",
+        print_stages_file_caption="entry point file",
         debug=no, debug_modules=no,
         debug_global_storage=no,
         ) {
@@ -522,6 +545,9 @@ func parse_str_to_ast(
         is_entrypoint=is_entrypoint, debug=debug,
         require_detect_project_dir=
             require_detect_project_dir,
+        print_stages=print_stages,
+        print_stages_file_caption=print_stages_file_caption,
+        program_name=program_name,
         debug_modules=debug_modules,
         debug_global_storage=debug_global_storage,
     ) later:
@@ -550,6 +576,9 @@ func parse_to_ast_from_uri(
         is_entrypoint=yes, force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
         require_detect_project_dir=no,
+        print_stages=no,
+        program_name="horsec",
+        print_stages_file_caption="entry point file",
         debug=no, debug_modules=no,
         debug_global_storage=no,
         ) {
@@ -563,6 +592,9 @@ func parse_to_ast_from_uri(
         allow_vfs_access=allow_vfs_access,
         require_detect_project_dir=
             require_detect_project_dir,
+        print_stages=print_stages,
+        print_stages_file_caption=print_stages_file_caption,
+        program_name=program_name,
         debug=debug, debug_modules=debug_modules,
         debug_global_storage=debug_global_storage,
     ) later:

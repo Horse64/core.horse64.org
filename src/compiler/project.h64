@@ -53,34 +53,27 @@ type ModuleNotFoundError base ValueError {
 }
 
 type Project {
-    var tried_loading_package_name = no
-
-    var base_dir_uri = none
-
-    var package_name = none
-
     var allow_disk_access = yes
-
     var allow_vfs_access = yes
 
     var debug_modules = no
-
     var debug_global_storage = no
+    var print_stages = no
+    var print_stages_program_name = "horsec"
 
     var packages_dir_uri = none
-
     var tried_find_modules_dir = no
+    var tried_loading_package_name = no
+    var base_dir_uri = none
+    var package_name = none
 
     var module_uri_to_file_map = {->}
-
     var no_uri_files = {}
 
     var builtin_cexts = none
-
     var package_name_to_cext = {->}
 
     var entrypoint_is_inline = no
-
     var entrypoint_is_known_single_file = no
 }
 
@@ -906,10 +899,22 @@ func ProjectFile.parse_for_imports_if_needed(msgs=none) {
             "since the imports should have already been set.")
     }
 
+    var print_stages = if self.project != none
+        (self.project.print_stages) else (no)
+    var program_name = if self.project != none
+        (self.project.print_stages_program_name) else (no)
+    var caption_uri = if self.source_uri == none
+        ("<unknown>") else (self.source_uri)
+    if caption_uri.len > 25 {
+        caption_uri = "..." + caption_uri.sub(25)
+    }
     var astresult = ast.parse_to_ast_from_uri(
         self.source_uri, project_file=self,
         is_entrypoint=self.is_entrypoint,
         force_single_file=force_single_file,
+        print_stages=print_stages,
+        program_name=program_name,
+        print_stages_file_caption="file " + caption_uri,
         allow_disk_access=allow_disk_access,
         allow_vfs_access=allow_vfs_access
     ) later:
