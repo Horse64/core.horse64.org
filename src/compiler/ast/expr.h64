@@ -30,6 +30,7 @@ import math from core.horse64.org
 import random from core.horse64.org
 
 import compiler.ast as ast
+import compiler.limit as climit
 import compiler.msg as msg
 import compiler.operator as operator
 import compiler.token as token
@@ -310,7 +311,7 @@ func token_continues_expr(t) {
 }
 
 func parse_container_entry(
-        tokens, pos, msgs, container_kind,
+        tokens, pos, nesting_depth, container_kind, msgs,
         container_start_line=none, container_start_col=none,
         project_file=none, max_len=none, debug=no
         ) {
@@ -319,8 +320,8 @@ func parse_container_entry(
         tokens_len = math.min(tokens_len, max_len)
     }
     var expr1 = _parse_expression_notlater(
-        tokens, pos, msgs, project_file=project_file,
-        max_len=tokens_len, debug=debug
+        tokens, pos, nesting_depth, msgs,
+        project_file=project_file, max_len=tokens_len, debug=debug
     )
 
     if expr1 == none {
@@ -355,7 +356,7 @@ func parse_container_entry(
     }
     pos += 1
     var expr2 = _parse_expression_notlater(
-        tokens, pos, msgs, project_file=project_file,
+        tokens, pos, nesting_depth, msgs, project_file=project_file,
         max_len=tokens_len, debug=debug
     )
 
@@ -367,7 +368,7 @@ func parse_expression(
         max_len=none, debug=no
         ) {
     var result = _parse_expression_notlater(
-        tokens, pos, msgs, project_file=project_file,
+        tokens, pos, 0, msgs, project_file=project_file,
         max_len=max_len, debug=debug
         )
     # XXX: If we ever support inline code blocks, they will
@@ -376,9 +377,20 @@ func parse_expression(
 }
 
 func _parse_expression_notlater(
-        tokens, pos, msgs, project_file=none,
+        tokens, pos, nesting_depth, msgs, project_file=none,
         max_len=none, debug=no
         ) {
+    nesting_depth += 1
+    if nesting_depth > climit.max_expression_nesting {
+        msgs.add(new msg.FileMsg(
+            "Nesting of expressions too deep here, "
+            "exceeds maximum supported depth.",
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+        return none
+    }
     var tokens_len = tokens.len
     if max_len != none {
         tokens_len = math.min(max_len, tokens_len)
@@ -401,8 +413,8 @@ func _parse_expression_notlater(
 
     while yes {
         var wrapping_expr = parse_expression_unwrapped(
-            tokens, pos, msgs, project_file=project_file,
-            left_hand=inner_expr,
+            tokens, pos, nesting_depth, msgs,
+            project_file=project_file, left_hand=inner_expr,
             max_len=tokens_len, debug=debug
         )
 
@@ -439,7 +451,7 @@ func _parse_expression_notlater(
 }
 
 func parse_expression_unwrapped(
-        tokens, pos, msgs, project_file=none,
+        tokens, pos, nesting_depth, msgs, project_file=none,
         left_hand=none, max_len=none, debug=no
         ) {
     var startpos = pos
@@ -525,7 +537,7 @@ func parse_expression_unwrapped(
                 tokens[pos].str == "(" {
             pos += 1
             var inner_expr = _parse_expression_notlater(
-                tokens, pos, msgs, project_file=none,
+                tokens, pos, nesting_depth, msgs, project_file=none,
                 max_len=tokens_len, debug=debug,
             )
 
@@ -694,7 +706,7 @@ func parse_expression_unwrapped(
 
             while yes {
                 var next_expr = parse_container_entry(
-                    tokens, pos, msgs, ckind,
+                    tokens, pos, nesting_depth, ckind, msgs,
                     container_start_line=startline,
                     container_start_col=startcol,
                     project_file=project_file,
@@ -827,7 +839,8 @@ func parse_expression_unwrapped(
             var had_error = no
 
             var cond_expr = _parse_expression_notlater(
-                tokens, pos, msgs, project_file=project_file,
+                tokens, pos, nesting_depth, msgs,
+                project_file=project_file,
                 max_len=(past_cond_idx - 1), debug=debug,
             )
 
@@ -851,7 +864,8 @@ func parse_expression_unwrapped(
             func extract_return_bracket_expr(pos, max_idx=none) {
                 var value_start = pos
                 var value_expr = _parse_expression_notlater(
-                    tokens, pos, msgs, project_file=project_file,
+                    tokens, pos, nesting_depth, msgs,
+                    project_file=project_file,
                     max_len=max_idx, debug=debug,
                 )
 
@@ -1009,7 +1023,8 @@ func parse_expression_unwrapped(
         pos += 1  # Go past opening bracket.
 
         var inner_expr = _parse_expression_notlater(
-            tokens, pos, msgs, project_file=project_file,
+            tokens, pos, nesting_depth, msgs,
+            project_file=project_file,
             max_len=tokens_len, debug=debug,
         )
         if inner_expr == none {
@@ -1070,8 +1085,8 @@ func parse_expression_unwrapped(
             if openbracket == '(' {
                 var parse_pos = pos - 1  # Revert back onto bracket
                 var inner_expr = _parse_call_or_funcdef_args_notlater(
-                    tokens, parse_pos, msgs, project_file=project_file,
-                    is_call=yes,
+                    tokens, parse_pos, nesting_depth, msgs,
+                    project_file=project_file, is_call=yes,
                     callordef_line=token.get_line(tokens, op_pos),
                     callordef_col=token.get_col(tokens, op_pos)
                 )
@@ -1103,7 +1118,8 @@ func parse_expression_unwrapped(
             # Parse until the expression naturally ends for '[':
             assert(openbracket == '[')
             var inner_expr = _parse_expression_notlater(
-                tokens, pos, msgs, project_file=project_file,
+                tokens, pos, nesting_depth, msgs,
+                project_file=project_file,
                 max_len=tokens_len, debug=debug,
             )
             return inner_expr
@@ -1380,7 +1396,8 @@ func parse_expression_unwrapped(
             # Get expression node for this operand's range:
             assert(operand[2] >= operand[1])
             var operand_parsed = _parse_expression_notlater(
-                tokens, operand[1], msgs, project_file=project_file,
+                tokens, operand[1], nesting_depth, msgs,
+                project_file=project_file,
                 max_len=operand[2], debug=debug
             )
 
@@ -1624,7 +1641,8 @@ func call_ast_error_info_suffix(call_line, call_pos, is_call=yes) {
 }
 
 func parse_single_call_or_funcdef_arg(
-        tokens, pos, msgs, is_call=no, project_file=none,
+        tokens, pos, nesting_depth, msgs,
+        is_call=no, project_file=none,
         callordef_line=none, callordef_col=none,
         max_len=none, debug=no
         ) {
@@ -1638,7 +1656,8 @@ func parse_single_call_or_funcdef_arg(
     var can_be_assign = yes
     var pre_assign_expr = none
     pre_assign_expr = _parse_expression_notlater(
-        tokens, pos, msgs, project_file=project_file,
+        tokens, pos, nesting_depth, msgs,
+        project_file=project_file,
         max_len=tokens_len
     )
 
@@ -1686,8 +1705,8 @@ func parse_single_call_or_funcdef_arg(
         assert(tokens[pos].kind == token.T_ASSIGN)
         pos += 1
         var assigned_expr = _parse_expression_notlater(
-            tokens, pos, msgs, project_file=project_file,
-            max_len=tokens_len
+            tokens, pos, nesting_depth, msgs,
+            project_file=project_file, max_len=tokens_len
         )
 
         if assigned_expr == none {
@@ -1791,12 +1810,13 @@ func parse_single_call_or_funcdef_arg(
 ## which must start with a '(' opening bracket.
 ## @returns CallOrDefArgsExpr
 func parse_call_or_funcdef_args(
-        tokens, pos, msgs, is_call=no, project_file=none,
+        tokens, pos, msgs,
+        is_call=no, project_file=none,
         callordef_line=none, max_len=none,
         callordef_col=none, debug=no
         ) {
     var result = _parse_call_or_funcdef_args_notlater(
-        tokens, pos, msgs, is_call=is_call, project_file=project_file,
+        tokens, pos, 0, msgs, is_call=is_call, project_file=project_file,
         callordef_line=callordef_line, max_len=max_len,
         callordef_col=callordef_col, debug=debug
         )
@@ -1806,7 +1826,8 @@ func parse_call_or_funcdef_args(
 }
 
 func _parse_call_or_funcdef_args_notlater(
-        tokens, pos, msgs, is_call=no, project_file=none,
+        tokens, pos, nesting_depth, msgs,
+        is_call=no, project_file=none,
         callordef_line=none, max_len=none,
         callordef_col=none, debug=no
         ) {
@@ -1857,7 +1878,7 @@ func _parse_call_or_funcdef_args_notlater(
     # Now parse first argument:
     while yes {
         var arg = parse_single_call_or_funcdef_arg(
-            tokens, pos, msgs, is_call=is_call,
+            tokens, pos, nesting_depth, msgs, is_call=is_call,
             project_file=project_file,
             callordef_line=callordef_line,
             callordef_col=callordef_col

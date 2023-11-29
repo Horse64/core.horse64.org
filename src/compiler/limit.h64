@@ -27,7 +27,7 @@
 
 var max_source_file_size = (1024 * 1024 * 5)  # 5 megabytes.
 
-var max_statement_nesting = 128
+var max_statement_nesting = 100
 
-var max_expression_nesting = 64
+var max_expression_nesting = 50
 
