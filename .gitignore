@@ -3,13 +3,4 @@
 *.bin
 __pycache__/
 /horse_modules/
-/tests/basic-1/horse_modules/core.horse64.org/
-/tests/basic-2/horse_modules/core.horse64.org/
-/tests/simple-base/horse_modules/core.horse64.org/
-/tests/args/horse_modules/core.horse64.org/
-/tests/rescue/horse_modules/core.horse64.org/
-/tests/inlinefunc/horse_modules/core.horse64.org/
-/tests/later/horse_modules/core.horse64.org/
-/tests/network/horse_modules/core.horse64.org/
-/tests/extend/horse_modules/core.horse64.org/
-/tests/cyclic-base/horse_modules/core.horse64.org/
+**/horse_modules/*
