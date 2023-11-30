@@ -37,6 +37,7 @@ import compiler.ast.expr as ast_expr
 import compiler.ast.func_stmt as func_stmt
 import compiler.ast.import_stmt as import_stmt
 import compiler.ast.transform as transform
+import compiler.build_options as build_options
 import compiler.cext as cext
 import compiler.comment.command as command_comment
 import compiler.msg as msg
@@ -55,6 +56,7 @@ type ModuleNotFoundError base ValueError {
 type Project {
     var allow_disk_access = yes
     var allow_vfs_access = yes
+    var build_options = new build_options.BuildOptions()
 
     var debug_modules = no
     var debug_global_storage = no
@@ -912,8 +914,7 @@ func ProjectFile.parse_for_imports_if_needed(msgs=none) {
         self.source_uri, project_file=self,
         is_entrypoint=self.is_entrypoint,
         force_single_file=force_single_file,
-        print_stages=print_stages,
-        program_name=program_name,
+        build_options=self.project.build_options,
         print_stages_file_caption="file " + caption_uri,
         allow_disk_access=allow_disk_access,
         allow_vfs_access=allow_vfs_access

@@ -31,6 +31,7 @@ import compiler.ast as cast
 import compiler.ast.analyze.eval as ast_eval
 import compiler.ast.expr as ast_expr
 import compiler.ast.func_stmt as func_stmt
+import compiler.ast.transform as ast_transform
 import compiler.limit as compiler_limit
 import compiler.msg as msg
 import compiler.storage.ref as st_ref
@@ -156,44 +157,6 @@ func advanced_phase2_evaluate_global_scope(
         return "changed"
     }
     return not had_error
-}
-
-func do_simply_on_all_exprs(stmt, callback) {
-    var queue = []
-    for expr in stmt.subexprs {
-        queue.add([[stmt], expr])
-    }
-    while queue.len > 0 {
-        var entry = queue.pop()
-        var parents = entry[1]
-        var parent = parents[1]
-        var expr = entry[2]
-        var result_expr = none
-        if expr != none {
-            result_expr = callback(expr, parents)
-        }
-        if result_expr != expr {
-            var i = 1
-            while i <= parent.subexprs.len {
-                if parent.subexprs[i] == expr {
-                    if result_expr == none {
-                        parent.subexprs.pop(i)
-                    } else {
-                        parent.subexprs[i] = result_expr
-                    }
-                    break
-                }
-                i += 1
-            }
-        }
-        if result_expr != none and
-                result_expr.subexprs.len > 0 {
-            var new_parents = [result_expr] + parents
-            for subexpr in result_expr.subexprs {
-                queue.add([new_parents, subexpr])
-            }
-        }
-    }
 }
 
 func get_throw_statement_rescue_clause(stmt, parents) {
@@ -326,7 +289,8 @@ func advanced_phase3_later_and_computevals(
                 }
                 return expr
             }
-            do_simply_on_all_exprs(stmt, check_nested_constructors)
+            ast_transform.do_simply_on_all_exprs(
+                stmt, check_nested_constructors)
 
             # Determine error message ahead of time for throws:
             if stmt.kind == cast.N_STMT_THROW and

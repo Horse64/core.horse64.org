@@ -1,4 +1,4 @@
-# @module compiler.ast.transform.later_transform
+# @module compiler.build_options
 # Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -25,47 +25,15 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-import compiler.ast as cast
-import compiler.ast.analyze as ast_analyze
-import compiler.ast.transform as ast_transform
-import compiler.ast.type_stmt as type_stmt
+enum OptimizationSetting {
+    OPTIMIZE_NONE=1,
+    OPTIMIZE_ALL_BUT_ASSERTS=2,
+    OPTIMIZE_ALL=3,
+}
 
-func first_pass_later_transform(project, msgs) {
-    func transform_file(pfile) {
-        func transform_node(node, parent) {
-            if node.scope == none or node.scope.func_scope == none or
-                    not node.scope.func_scope.is_later_func {
-                return later node
-            }
-            if node.kind == cast.N_STMT_IF {
-                var has_later = no
-                for clause in node.subexprs {
-                    for block in clause.subblocks {
-                        var clause_has_later = ast_analyze.
-                            stmt_list_contains_later_call(block)
-                        if clause_has_later {
-                            has_later = yes
-                        }
-                    }
-                }
-                #if has_later {
-                #    print("LATER IF: " + node.as_str())
-                #}
-            }
-            return later node
-        }
-        pfile.ensure_ast() later:
-
-        var success = ast_transform.visit_ast_tree(
-            pfile.ast, transform_node) later:
-
-        await success
-        assert(success == yes)
-        return later success
-    }
-    var success = project.do_for_all_files(transform_file)
-    later:
-
-    await success
+type BuildOptions {
+    var optimize_levels
+    var print_stages
+    var build_program_name
 }
 
