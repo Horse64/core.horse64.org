@@ -2466,6 +2466,15 @@ def _text_pos_from_line_col(s, line, col, start_line=1, start_col=1):
         i += 1
     return None
 
+def _as_list(v, *args, **kwargs):
+    if type(v) == set and len(args) == 0:
+        return list(v)
+    return v.as_list(*args, **kwargs)
+
+def _as_set(v, *args, **kwargs):
+    if type(v) == list and len(args) == 0:
+        return set(v)
+    return v.as_list(*args, **kwargs)
 
 def _as_hex(v, *args, **kwargs):
     if type(v) != int and type(v) != float:
