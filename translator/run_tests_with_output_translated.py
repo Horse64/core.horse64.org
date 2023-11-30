@@ -96,7 +96,7 @@ def run_tests_without_cleanup():
         with open(fail_file[1], "r", encoding="utf-8") as f:
             expected_output = f.read().strip()
         cmd = [sys.executable, os.path.join(
-            "tools", "horsec.py"), "compile",
+            "translator", "horsec.py"), "compile",
             "--stage", "transformed-code", "--",
             fail_file[0]]
         print("Running test: " + str(cmd))
