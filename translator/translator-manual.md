@@ -35,7 +35,7 @@ and then just bootstrap right away via:
 
 `make bootstrap`
 
-(Run that in the repository's main directory.)
+(Run that in the `translator` directory where also this manual is.)
 
 
 Shortcomings of Translator
