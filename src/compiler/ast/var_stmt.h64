@@ -75,7 +75,7 @@ func VarStmt.as_code(indent=0) {
     if self.damaged {
         return " ".rep(indent) + "(damaged var)"
     }
-    var t = " ".rep(indent) + "var "
+    var t = " ".rep(indent) + if self.is_const ("var ") else ("const ")
     var is_first = yes
     for label in self.var_labels {
         if is_first {

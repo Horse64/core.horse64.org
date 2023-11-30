@@ -45,12 +45,12 @@ const _math_ops_single_char = {
 }
 
 const math_ops = (
-    _math_ops_single_char + {"**", "<<", ">>"}
+    _math_ops_single_char + {"^^", "<<", ">>"}
 )
 
 const math_assign_ops = {
     "+=", "/=", "*=", "-=", "^=", "&=",
-    "|=", "**=", "~=", "<<=", ">>=",
+    "|=", "^^=", "~=", "<<=", ">>=",
 }
 
 const compare_ops = {
@@ -131,7 +131,7 @@ func op_str_to_token_kind(opstr) {
     if compare_ops.has(opstr) {
         return T_COMPARE
     }
-    if bool_compare_ops .has(opstr) {
+    if bool_compare_ops.has(opstr) {
         return T_BOOLCOMP
     }
     throw new ValueError("Unknown op str encountered.")
@@ -1807,7 +1807,7 @@ func tokenize_str(
             col += (oplen - 1)
             i += (oplen - 1)
             continue
-        } elseif {"*", "<", ">"}.has(str) and i + 2 <= strlen and
+        } elseif {"^", "<", ">"}.has(c) and i + 2 <= strlen and
                 math_assign_ops.has(str.sub(i, i + 3)) {
             # Special handling of 3 chars arithmetic assigns:
             result.tokens.add(new Token(

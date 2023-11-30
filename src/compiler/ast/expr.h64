@@ -270,7 +270,27 @@ func LiteralExpr.as_json_obj {
     if typename(self.value) == "bytes" {
         output["value-base64"] = base64.dump(self.value)
     } else {
-        output["value"] = self.value
+        if typename(self.value) == "list" {
+            output["value"] = {"list"->self.value}
+        } elseif typename(self.value) == "set" {
+            output["value"] = {"set"->self.value.as_list()}
+        } elseif typename(self.value) == "map" {
+            output["value"] = {"map"->self.value}
+        } elseif typename(self.value) == "vec" {
+            var vlen = self.value.len
+            if vlen == 4 {
+                output["value"] = {"vec"->[self.value[1],
+                    self.value[2], self.value[3], self.value[4]]}
+            } elseif vlen == 3 {
+                output["value"] = {"vec"->[self.value[1],
+                    self.value[2], self.value[3]]}
+            } else {
+                output["value"] = {
+                    "vec"->[self.value[1], self.value[2]]}
+            }
+        } else {
+            output["value"] = self.value
+        }
     }
     return output
 }

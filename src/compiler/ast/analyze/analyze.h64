@@ -83,24 +83,24 @@ func stmt_list_contains_later_call(
 func get_global_storage_neighbor_closure(project) {
     func try_get_neighbor_node_value(node_ref) {
         if node_ref == none or node_ref.kind != st_ref.ST_GLOBAL {
-            return [no, none]
+            return [ast_eval.AR_UNKNOWN]
         }
         var st_id = node_ref.id
         var gscope_map =
             project.storage_id_to_global_scope_map
         if not gscope_map.has(st_id) {
-            return [no, none]
+            return [ast_eval.AR_UNKNOWN]
         }
         var st_id_map = gscope_map[st_id].storage_id_to_entry
         if not st_id_map.has(st_id) {
-            return [no, none]
+            return [ast_eval.AR_UNKNOWN]
         }
         var entry = st_id_map[st_id]
         if entry.kind != cast.N_STMT_VAR or
                 not entry.initial_value_known {
-            return [no, none]
+            return [ast_eval.AR_UNKNOWN]
         }
-        return [yes, entry.initial_value]
+        return [ast_eval.AR_VALUE, entry.initial_value]
     }
     return try_get_neighbor_node_value
 }
@@ -126,7 +126,7 @@ func advanced_phase2_evaluate_global_scope(
         var v = ast_eval.try_eval_ast_node_value(
             stmt.subexprs[1],
             eval_by_storage_ref_callback=globals_value_cb)
-        if v[1] {
+        if v[1] == ast_eval.AR_VALUE {
             had_change = yes
             stmt.initial_value_known = yes
             stmt.initial_value = v[2]
@@ -137,7 +137,7 @@ func advanced_phase2_evaluate_global_scope(
                 value_expr.value = v[2]
                 stmt.subexprs[1] = value_expr
             }
-        } elseif v[2] == "typeerror" {
+        } elseif v[1] == ast_eval.AR_TYPEERROR {
             if msgs != none {
                 msgs.add(new msg.FileMsg(
                     "Invalid assigned expression containing a "
@@ -306,7 +306,7 @@ func advanced_phase3_later_and_computevals(
                         callargs.subexprs[1],
                         eval_by_storage_ref_callback=
                             globals_value_cb)
-                    if not v[1] {
+                    if v[1] != ast_eval.AR_VALUE {
                         expr.error_msg_is_dynamic = yes
                     } elseif typename(v[2]) != "str" {
                         expr.damaged = yes
@@ -395,7 +395,7 @@ func advanced_phase3_later_and_computevals(
                     var v = ast_eval.try_eval_ast_node_value(
                         callargs.subexprs[1],
                         eval_by_storage_ref_callback=globals_value_cb)
-                    if not v[1] {
+                    if v[1] != ast_eval.AR_VALUE {
                         stmt.error_msg_is_dynamic = yes
                     } elseif typename(v[2]) != "str" {
                         stmt.damaged = yes
