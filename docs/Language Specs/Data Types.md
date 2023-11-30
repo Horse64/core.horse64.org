@@ -18,12 +18,14 @@ Overview
 | str              | `"bla"`, `'bla'`, `""`    | no      | no      |
 | bytes            | `b"test"`, `b''`          | no      | no      |
 | bool             | `yes`, `no`               | no      | no      |
-| vector           | `[x:1, y:5, z:3, w:1.1]`  | no      | no      |
+| vec              | `[x:1, y:5, z:3, w:1.1]`  | no      | no      |
 | list             | `[]`, `[1, 2]`            | yes     | yes     |
 | map              | `{"price"-> 5.0}`, `{->}` | yes     | yes     |
 | set              | `{}`, `{1, 2}`            | yes     | yes     |
 | type             | `new MyCustomType()`      | yes     | yes     |
 | func             | `var f = func test {}`    | no      | no      |
+
+Mutable types are passed by reference, immutable ones by value.
 
 *(Read more [here about GC load](
 /docs/Runtime%20Concerns.md#garbage-collection).)*

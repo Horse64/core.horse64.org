@@ -16,9 +16,8 @@ you must pick the expansions with the **right-most** occurrence of the
 **highest precedence number** operator that is applicable.
 You must also always expand to an `operatorexpr` if possible, and only
 to other `expr` expansions if that isn't possible.
-For precedence numbers, check the [operators semantics section](
-/docs/Language%20Specs/Grammar.md#operators
-).
+For precedence numbers, check the [operators precedence section](
+/docs/Operators.md#operator-precedences).
 
 **Grammar formatting notes:**
 
