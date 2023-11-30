@@ -1,9 +1,9 @@
 *~
 *.o
 /*.bin
-/tools/translator_modules/*.c
-/tools/translator_modules/*.so
-/tools/translator_modules/*.md5.txt
+/translator/translator_modules/*.c
+/translator/translator_modules/*.so
+/translator/translator_modules/*.md5.txt
 __pycache__/
 /horse_modules/
 **/horse_modules/*

@@ -1,8 +1,10 @@
+
 Python Translator Manual
 ========================
 
 This is a brief manual for `tools/translator.py`, the Horse64-to Python
 translator used to bootstrap `horsec`, the official compiler.
+
 
 Dependencies To Run Translator
 ------------------------------
@@ -15,13 +17,25 @@ basic test suite:
 
 - Python 3.8+
 
-- Bash shell, GNU Make, Git
+- Bash shell, GNU Make, Git, gcc, Python development headers
 
-- `requests`, `pywildcard` packages (from PyPI)
+- `Cython`, `requests`, `pywildcard` packages (from PyPI)
 
 The following is additionally needed to bootstrap from scratch:
 
 - Git, GNU make, [all build dependencies of HVM](#FIXME)
+
+
+How to run it
+-------------
+
+You probably just want to check it with `make test`,
+and then just bootstrap right away via:
+
+`make bootstrap`
+
+(Run that in the repository's main directory.)
+
 
 Shortcomings of Translator
 --------------------------

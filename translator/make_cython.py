@@ -14,11 +14,12 @@ def filehash(path):
     return str(hashlib.md5(contents).hexdigest())
 
 if __name__ == "__main__":
-    for p in os.listdir(os.path.join(MY_DIR,
-            "tools", "translator_modules")):
+    print("Building Cython modules for translator...")
+    for p in os.listdir(os.path.join(MY_DIR, "..",
+            "translator", "translator_modules")):
         if not p.endswith(".pyx"):
             continue
-        fullp = os.path.join(MY_DIR, "tools",
+        fullp = os.path.join(MY_DIR, "..", "translator",
             "translator_modules", p)
         fullp_hash = fullp.rpartition(".pyx")[0] + ".md5.txt"
         fullp_c = fullp.rpartition(".pyx")[0] + ".c"
@@ -33,8 +34,6 @@ if __name__ == "__main__":
             if old_hash == source_hash:
                 print("Hash match for " + fullp + "!")
                 continue
-            print("Hash mismatch for " + fullp + ": " +
-                str([old_hash, source_hash]))
         subprocess.check_output([
             "cython", "-o", fullp_c, fullp
         ])
@@ -47,7 +46,7 @@ if __name__ == "__main__":
             "-Ofast", "-Wall", "-fno-strict-aliasing",
             "-I" + py_include, "-o", fullp_so,
             fullp_c
-        ])
+        ], stderr=subprocess.STDOUT)
         with open(fullp_hash, "w", encoding="utf-8") as f:
             f.write(source_hash)
 

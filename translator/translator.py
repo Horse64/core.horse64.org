@@ -27,7 +27,7 @@
 
 # !!!!!!!!! HEED THIS WARNING !!!!!!!!!
 HACKY_WARNING=(
-    "THIS TOOL (tools/translator.py) ONLY SUPPORTS A SUBSET OF " +
+    "THIS TOOL (translator.py) ONLY SUPPORTS A SUBSET OF " +
     "HORSE64 AND WILL OTHERWISE CRASH AND BURN. IT WON'T CATCH MANY " +
     "CODE ERRORS AND JUST EXPLODE OR RUN IT WRONG. " +
     "If you can, really use the official compiler horsec.")
@@ -400,7 +400,7 @@ def ensure_type(
             RegisteredType(type_name, module_path, package_name)
         )
         if DEBUGV.ENABLE and DEBUGV.ENABLE_TYPES:
-            print("tools/translator.py: debug: registered type " +
+            print("translator.py: debug: registered type " +
                 module_path + "." + type_name + package_name_part)
     if from_type_stmt:
         if known_types[module_path + "." +
@@ -419,7 +419,7 @@ def ensure_type(
             ensure_type_order_no
         )
         if DEBUGV.ENABLE and DEBUGV.ENABLE_TYPES:
-            print("tools/translator.py: debug: assigned order no. " +
+            print("translator.py: debug: assigned order no. " +
                 str(ensure_type_order_no) + " to type: " +
                 module_path + "." + type_name + package_name_part)
     return known_types[module_path + "." +
@@ -612,7 +612,7 @@ def find_matching_remap_module(s, i, sc):
 
     # Output some start info:
     if debug_details:
-        print("tools/translator.py: debug: " +
+        print("translator.py: debug: " +
             "find_matching_remap_module() " +
             "considering expression of: " +
             str(s[i:i + 5]))
@@ -629,7 +629,7 @@ def find_matching_remap_module(s, i, sc):
             continue
 
         if debug_details:
-            print("tools/translator.py: debug: " +
+            print("translator.py: debug: " +
                 "find_matching_remap_module() " +
                 "checking a remap that happens in our own " +
                 "module without import: " +
@@ -675,7 +675,7 @@ def find_matching_remap_module(s, i, sc):
         # Found remap that is exact match in our own module.
         # Return that early:
         if debug_details:
-            print("tools/translator.py: debug: " +
+            print("translator.py: debug: " +
                 "find_matching_remap_module() " +
                 "FOUND REMAP THAT BELONGS TO OWN MODULE " +
                 found_remapped_module)
@@ -711,7 +711,7 @@ def find_matching_remap_module(s, i, sc):
         )
         maybe_match = True
         if debug_details:
-            print("tools/translator.py: debug: " +
+            print("translator.py: debug: " +
                 "find_matching_remap_module() " +
                 "CHECKING " + str(s[i:i + 15]) +
                 " AGAINST IMPORT " + str(check_import))
@@ -872,35 +872,35 @@ def translate_expression_tokens(s, sc,
             idf = s[i]
             if "_" in idf:
                 idf = s[i].rpartition("_")[2]
-            print("tools/translator.py: warning: "
+            print("translator.py: warning: "
                 "Suspicious use in " +
                 sc.module_name + (" in " + sc.package_name
                 if sc.package_name != None else "") + ": "
                 "found \"" + idf + "\" identifier, if you "
                 "meant to use a bool, use: yes, no")
         elif s[i] in {"super", "_translator_renamed_super"}:
-            print("tools/translator.py: warning: "
+            print("translator.py: warning: "
                 "Suspicious use in " +
                 sc.module_name + (" in " + sc.package_name
                 if sc.package_name != None else "") + ": "
                 "found \"super\" identifier, if you meant to "
                 "use the base class please use \"base\".")
         elif s[i] in {"class", "_translator_renamed_class"}:
-            print("tools/translator.py: warning: "
+            print("translator.py: warning: "
                 "Suspicious use in " +
                 sc.module_name + (" in " + sc.package_name
                 if sc.package_name != None else "") + ": "
                 "found \"class\" identifier, if you meant to "
                 "declare a type please use \"type\".")
         elif s[i] in {"def", "_translator_renamed_def"}:
-            print("tools/translator.py: warning: "
+            print("translator.py: warning: "
                 "Suspicious use in " +
                 sc.module_name + (" in " + sc.package_name
                 if sc.package_name != None else "") + ": "
                 "found \"def\" identifier, if you meant to "
                 "declare a function please use \"func\".")
         elif s[i] in {"contains", "_translator_renamed_contains"}:
-            print("tools/translator.py: warning: "
+            print("translator.py: warning: "
                 "Suspicious use in " +
                 sc.module_name + (" in " + sc.package_name
                 if sc.package_name != None else "") + ": "
@@ -1135,13 +1135,13 @@ def translate_expression_tokens(s, sc,
                 match_import_module + "." + match_item
             )
             if DEBUGV.ENABLE_REMAPPED_USES:
-                print("tools/translator.py: debug: checking if " +
+                print("translator.py: debug: checking if " +
                     "use needs translation to remap: " +
                     remap_original_use + " in " + remap_module_key)
             for remapped_use in remapped_uses[remap_module_key]:
                 if remapped_use == remap_original_use:
                     if DEBUGV.ENABLE_REMAPPED_USES:
-                        print("tools/translator.py: debug: "
+                        print("translator.py: debug: "
                             "remapping use of "
                             "the overridden expression: " +
                             remap_original_use + " in " +
@@ -1323,7 +1323,7 @@ def queue_file_if_not_queued(
                 os.path.normpath(entry[0])):
             return
     if DEBUGV.ENABLE and DEBUGV.ENABLE_QUEUE:
-        print("tools/translator.py: debug: queuing item: " +
+        print("translator.py: debug: queuing item: " +
             str(entry) + (
             " due to reason: " + str(reason) if
             reason != None and len(reason) > 0 else
@@ -1414,7 +1414,7 @@ def translate(s, sc):
     if (len(sc.parent_statements) == 0 and DEBUGV.ENABLE and
             DEBUGV.ENABLE_FILE_PATHS):
         assert(sc.module_name != "")
-        print("tools/translator.py: debug: translating " +
+        print("translator.py: debug: translating " +
             "module \"" + sc.module_name + "\" in folder: " +
             sc.folder_path +
             (" (no package)" if sc.package_name is None else
@@ -2127,7 +2127,7 @@ def translate(s, sc):
             found_nonremapped_use = False
             found_remapped_use = False
             if DEBUGV.ENABLE_REMAPPED_USES:
-                print("tools/translator.py: debug: scanning \"" +
+                print("translator.py: debug: scanning \"" +
                     "import " + import_module +
                     (" from " + import_package
                     if import_package != None else "") + "\" for " +
@@ -2156,7 +2156,7 @@ def translate(s, sc):
                     remapped_uses_key += "@" + import_package
                 if remapped_uses_key not in remapped_uses:
                     if DEBUGV.ENABLE_REMAPPED_USES:
-                        print("tools/translator.py: debug: found " +
+                        print("translator.py: debug: found " +
                             "non-remapped use (no remaps for " +
                             "module " + str(remapped_uses_key) +
                             "): " + str(
@@ -2179,7 +2179,7 @@ def translate(s, sc):
                     found_nonremapped_use = True
                     if DEBUGV.ENABLE_REMAPPED_USES:
                         print(
-                            "tools/translator.py: debug: found "
+                            "translator.py: debug: found "
                             "non-remapped use: " +
                             str(tokens[i:i +
                                 len(import_module_elements) + 10])
@@ -2201,7 +2201,7 @@ def translate(s, sc):
             # Skip import code if it only has remapped uses:
             if not found_nonremapped_use and found_remapped_use:
                 if DEBUGV.ENABLE_REMAPPED_USES:
-                    print("tools/translator.py: debug: hiding " +
+                    print("translator.py: debug: hiding " +
                         "import since all uses are remapped: " +
                         str(import_module) + ("" if
                         import_package is None else
@@ -2349,11 +2349,11 @@ def translate(s, sc):
             i += 1
 
             if statement[-1] != "}":
-                print("tools/translator.py: error: " +
+                print("translator.py: error: " +
                     "got invalid func statement " +
                     "without closing bracket:", file=sys.stderr)
                 print(untokenize(statement_cpy), file=sys.stderr)
-                print("tools/translator.py: info: " +
+                print("translator.py: info: " +
                     "(statement repeated now as tokens list)",
                     file=sys.stderr)
                 print(str(statement_cpy), file=sys.stderr)
@@ -2802,7 +2802,7 @@ def run_translator_main():
             elif args[i] == "--horse-modules":
                 if (i + 1 >= len(args) or
                         args[i + 1].startswith("-")):
-                    print("tools/translator.py: error: " +
+                    print("translator.py: error: " +
                         "missing argument for --horse-modules")
                     sys.exit(1)
                 horse_mod_dir = args[i + 1]
@@ -2811,7 +2811,7 @@ def run_translator_main():
             elif args[i] == "--stdlib":
                 if (i + 1 >= len(args) or
                         args[i + 1].startswith("-")):
-                    print("tools/translator.py: error: " +
+                    print("translator.py: error: " +
                         "missing argument for "
                         "--stdlib")
                     sys.exit(1)
@@ -2832,17 +2832,17 @@ def run_translator_main():
                 output_file_linenos = True
             elif (args[i] == "--version" or args[i] == "-v" or
                     args[i] == "-V"):
-                print("tools/translator.py version " + VERSION)
+                print("translator.py version " + VERSION)
                 sys.exit(0)
             elif args[i] == "--override-package-name":
                 if i + 1 >= len(args):
-                    print("tools/translator.py: error: " +
+                    print("translator.py: error: " +
                         "missing argument for --override-package-name")
                     sys.exit(1)
                 if ("." not in args[i + 1] or
                         args[i + 1].startswith("-") or
                         args[i + 1].endswith(".h64")):
-                    print("tools/translator.py: error: " +
+                    print("translator.py: error: " +
                         "invalid name specified for " +
                         "--override-package-name")
                     sys.exit(1)
@@ -2869,7 +2869,7 @@ def run_translator_main():
             elif args[i] == "--keep-files":
                 keep_files = True
             else:
-                print("tools/translator.py: warning: unknown " +
+                print("translator.py: warning: unknown " +
                     "option: " + args[i], file=sys.stderr)
         elif target_file is None:
             target_file = args[i]
@@ -2907,7 +2907,7 @@ def run_translator_main():
     assembled_dir = tempfile.mkdtemp(prefix="h64-project-run-copy-")
     try:
         if DEBUGV.ENABLE:
-            print("tools/translator.py: debug: " +
+            print("translator.py: debug: " +
                 "path configuration: " + str({"repo dir":
                 repo_dir,
                 "horse_modules dir": horse_mod_dir,
@@ -3020,7 +3020,7 @@ def translate_do_func(
     assert(modname != None and modname != "")
     modfolder = os.path.abspath(os.path.dirname(target_file))
     if DEBUGV.ENABLE:
-        print("tools/translator.py: debug: " +
+        print("translator.py: debug: " +
             "detected repository folder: " +
             project_info.repo_folder)
     project_info.code_relpath = ""
@@ -3062,12 +3062,12 @@ def translate_do_func(
                                 project_info.licenses.append(
                                     (fname, text))
             else:
-                print("tools/translator.py: warning: " +
+                print("translator.py: warning: " +
                     "failed to get package name from horp.conf: " +
                     str(os.path.join(project_info.repo_folder,
                     "horp.conf")))
     if DEBUGV.ENABLE:
-        print("tools/translator.py: debug: " +
+        print("translator.py: debug: " +
             "detected package name: " +
             str(project_info.package_name))
 
@@ -3096,7 +3096,7 @@ def translate_do_func(
         if target_file in translated_files:
             continue
         if DEBUGV.ENABLE and DEBUGV.ENABLE_QUEUE:
-            print("tools/translator.py: debug: looking at "
+            print("translator.py: debug: looking at "
                 "queue item: " + str(
                 list(original_queue_tuple)[:-1]) +
                 " (queue reason" +
@@ -3239,7 +3239,7 @@ def translate_do_func(
         if target_filename != "__init__.py":
             disk_target_folder = os.path.dirname(disk_target_folder)
         if DEBUGV.ENABLE and DEBUGV.ENABLE_QUEUE:
-            print("tools/translator.py: debug: will write "
+            print("translator.py: debug: will write "
                 "queue item " + str(target_file) + " to "
                 "disk target folder: " + str(disk_target_folder))
         translated_files[target_file] = {
@@ -3451,7 +3451,7 @@ def translate_do_func(
                     test_funcs[tf]["is-later-func"]) for
                     tf in test_funcs if tf.startswith("test_")]
                 if len(test_funcs) == 0 and not output_py_file:
-                    print("tools/translator.py: error: "
+                    print("translator.py: error: "
                         "no test functions found in this file")
                     sys.exit(1)
 
@@ -3570,7 +3570,7 @@ def translate_do_func(
                 sys.exit(0)
 
             if DEBUGV.ENABLE and DEBUGV.ENABLE_CONTENTS:
-                print("tools/translator.py: debug: have output of " +
+                print("translator.py: debug: have output of " +
                     str(len(contents_result.splitlines())) +
                     " lines for: " +
                     translated_file + " (module: " +
@@ -3581,11 +3581,11 @@ def translate_do_func(
             #print(tokenize(b" \n\r test".decode("utf-8")))
         returncode = 0
         if keep_files:
-            print("tools/translator.py: info: writing " +
+            print("translator.py: info: writing " +
                 "translated files to (will be kept): " +
                 output_folder)
         elif DEBUGV.ENABLE and DEBUGV.ENABLE_FILE_PATHS:
-            print("tools/translator.py: debug: writing temporary " +
+            print("translator.py: debug: writing temporary " +
                 "result to (will be deleted): " +
                 output_folder)
         for helper_file in os.listdir(os.path.join(
@@ -3624,7 +3624,7 @@ def translate_do_func(
                     "w", encoding="utf-8") as f:
                 f.write(t)
             if DEBUGV.ENABLE and DEBUGV.ENABLE_FILE_PATHS:
-                print("tools/translator.py: debug: wrote file: " +
+                print("translator.py: debug: wrote file: " +
                     os.path.join(output_folder,
                     "_translator_runtime", "_" + helper_file))
         run_py_path = None
@@ -3643,7 +3643,7 @@ def translate_do_func(
             with open(target_filepath, "w", encoding="utf-8") as f:
                 f.write(contents)
             if DEBUGV.ENABLE and DEBUGV.ENABLE_FILE_PATHS:
-                print("tools/translator.py: debug: wrote file: " +
+                print("translator.py: debug: wrote file: " +
                     target_filepath + " (module: " +
                     translated_files[translated_file]["module-name"] + ")")
             if translated_files[translated_file]["path"] == mainfilepath:
@@ -3687,7 +3687,7 @@ def translate_do_func(
                 sys.executable, run_py_path
             ] + target_file_args
             if DEBUGV.ENABLE:
-                print("tools/translator.py: debug: launching program: " +
+                print("translator.py: debug: launching program: " +
                     str(launch_cmd))
             sys.stdout.flush()
             sys.stderr.flush()
