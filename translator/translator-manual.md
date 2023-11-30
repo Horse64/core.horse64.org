@@ -2,8 +2,9 @@
 Python Translator Manual
 ========================
 
-This is a brief manual for `tools/translator.py`, the Horse64-to Python
-translator used to bootstrap `horsec`, the official compiler.
+This is a brief manual for `translator/translator.py`, the 
+Horse64-to-Python translator used to bootstrap `horsec`,
+the official compiler.
 
 
 Dependencies To Run Translator
@@ -48,4 +49,7 @@ Here are some of its biggest shortcomings:
 - Needs strict indents, 4 spaces, max. one statement per line, etc.
 
 - Lacks lots of the standard lib, like audio, graphics, and UI.
+
+- Many concurrency corner cases are straight up broken. It really
+  can't run your every day programs properly.
 
