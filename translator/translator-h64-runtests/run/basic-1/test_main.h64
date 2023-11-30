@@ -1,0 +1,89 @@
+# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+func test_basic_things {
+    var l = [1 + 3, 2 + 3, 3 + 3]
+    assert(l.len == 3)
+    var test = ("complex string concat test: " + l[1].as_str())
+    assert(l[1] == 4)
+    assert(l[3] == 6)
+    assert(l.sublast().len == 1 and l.sublast()[1] == 6)
+    assert(l.last() == 6)
+    assert(l.first() == 4)
+    assert(l.subfirst().len == 1 and l.subfirst()[1] == 4)
+    assert(l.sub(2, 4).len == 2 and l.sub(2, 4)[1] == 5
+           and l.sub(2, 4)[2] == 6)
+    assert([].sublast().len == 0)
+    var had_error = no
+    do {
+        print("This should break: " + [].first().as_str())
+    } rescue IndexError {
+        had_error = yes
+    }
+    assert(had_error)
+
+    var a, b = 5, "test"
+    assert(a == 5)
+    assert(b == "test")
+
+    var myset = {}
+    assert(typename(myset) == "set")
+    myset.add(5)
+    assert(myset.len == 1)
+    assert(myset.has(5) and not myset.has(6))
+
+    var mymap = {->}
+    assert(typename(mymap) == "map")
+    mymap[5] = 3
+    assert(mymap.has(5) and not mymap.has(3))
+    mymap.del(5)
+    assert(not mymap.has(5))
+
+    var mymap2 = {2 -> 3}
+    assert(typename(mymap2) == "map")
+    assert(mymap2.has(2) and mymap2[2] == 3)
+
+    var myvec = [x: 0.2, y: -5]
+    assert(typename(myvec) == "vec")
+    assert(myvec.len == 2)
+    assert(myvec.x == 0.2)
+    assert(myvec[2] == -5)
+
+    var myvec2 = [1: 2, 2: 1.2, 3: -3, 4: 555]
+    assert(typename(myvec2) == "vec")
+    assert(myvec2.len == 4)
+    assert(myvec2.z == -3)
+
+    assert(b"a"[1] == b"a")
+    assert(typename(b"abc"[1]) == "bytes")
+
+    func some_func(a=[], b={}) {
+        assert(typename(a) == "list")
+        assert(typename(b) == "set")
+    }
+    some_func()
+}
+

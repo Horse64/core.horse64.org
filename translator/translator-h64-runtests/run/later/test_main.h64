@@ -1,0 +1,207 @@
+# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+var global_count = 0
+
+func call_my_callback_and_count(v) {
+    global_count += v
+    return later
+}
+
+func delayed_stuff {
+    return later global_count * 2
+}
+
+func inner_later_test {
+    assert(global_count == 0)
+    var had_repeat = no
+
+    call_my_callback_and_count(2) later:
+
+    assert(global_count == 2)
+
+    var x = delayed_stuff() later:
+
+    await x  # (Will throw any error that occurred in call_my_callback)
+    if not had_repeat {
+        print("[test_later (1/3)] First inner run. x=" +
+            x.as_str())
+        assert(x == 4)
+        global_count += 1
+        had_repeat = yes
+        x = delayed_stuff()
+        later repeat
+    } else {
+        print("[test_later (2/3)] Second inner run. x=" +
+            x.as_str())
+        assert(x == 6)
+    }
+}
+
+func test_later {
+    inner_later_test()
+    later:
+
+    print("[test_later (3/3)] Full test ran.")
+}
+
+func delayed_doubled(x) {
+    print("[test_later_dorescue (3/7)] In first later func.")
+    return later x * 2
+}
+
+func this_later_func_errors {
+    if yes {
+        print("[test_later_dorescue (5/7)] Erroring in second "
+            "later func.")
+        throw new RuntimeError("oops haha")
+    }
+    return later
+}
+
+func test_later_dorescue {
+    print("[test_later_dorescue (1/7)] Start.")
+    do {
+        print("[test_later_dorescue (2/7)] Before first jump.")
+        var y = delayed_doubled(5) later:
+        await y
+        print("[test_later_dorescue (4/7)] Before second jump.")
+        assert(y == 10)
+        this_later_func_errors() later:
+    } rescue any as e {
+        print("[test_later_dorescue (6/7)] "
+            "In error handler now: " + e.as_str())
+    } finally {
+        print("[test_later_dorescue (7/7)] This "
+            "shouldn't run before all lower-numbered parts. "
+            "It should also never run twice.")
+    }
+}
+
+func delayed_doubled_2(x) {
+    print("[test_later_dorescue_2 (5/6)] In first later func.")
+    return later x * 2
+}
+
+func test_later_dorescue_2 {
+    print("[test_later_dorescue_2 (1/5)] Start.")
+    do {
+        print("[test_later_dorescue_2 (2/5)] Before first jump.")
+        var y = delayed_doubled(5) later:
+        await y
+        do {
+            print("[test_later_dorescue_2 (3/5)] Before second jump.")
+        } finally {
+            print("[test_later_dorescue_2 (4/5)] Boop doop.")
+        }
+        assert(y == 10)
+    } rescue any {
+        print("THIS SHOULD NEVER, EVER SHOW UP!!")
+    } finally {
+        print("[test_later_dorescue_2 (5/5)] This "
+            "should run at the very end and only show ONCE!!")
+    }
+}
+
+func dosomething {
+    print("[test_later_dorescue_3 (3/9)] Doing nothing.")
+    return later
+}
+
+func breakme {
+    print("[test_later_dorescue_3 (5/9)] Before the error.")
+    if yes {
+        throw new ValueError("toast")
+    }
+    return later
+}
+
+func _test_later_dorescue_3_inner {
+    print("[test_later_dorescue_3 (1/9)] Start.")
+    do {
+        do {
+            print("[test_later_dorescue_3 (2/9)] Before 1st jump.")
+            dosomething() later:
+
+            print("[test_later_dorescue_3 (4/9)] Before 2nd jump.")
+            var y = breakme() later:
+
+            await y
+            print("SHOULDNT BE REACHED!")
+        } rescue ValueError as e {
+            print("[test_later_dorescue_3 (6/9)] Caught error!")
+            throw new IOError("oops")
+        }
+    } rescue TypeError as e {
+        print("SHOULDNT BE REACHED EITHER!!")
+    } finally {
+        print("[test_later_dorescue_3 (7/9)] Leaving the test.")
+    }
+}
+
+func test_later_dorescue_3 {
+    var x = _test_later_dorescue_3_inner() later:
+
+    do {
+        await x
+    } rescue IOError {
+        print("[test_later_dorescue_3 (8/9)] Got expected 2nd error!")
+    }
+    print("[test_later_dorescue_3 (9/9)] Done!")
+}
+
+var my_counter = 0
+var my_finally_counter = 0
+
+func pretend_async_func(v) {
+    my_counter += v
+    return later
+}
+
+func _test_later_repeat_with_finally_do {
+    do {
+        print("test_later_repeat_with_finally (2/): before jump")
+        pretend_async_func(2) later:
+
+        if my_counter < 4 {
+            print("test_later_repeat_with_finally (3/6): 2nd jump now...")
+            pretend_async_func(2) later repeat
+        }
+        print("test_later_repeat_with_finally (4/6): exiting later loop")
+    } finally {
+        print("test_later_repeat_with_finally (5/6): finally")
+        my_finally_counter += 1
+    }
+}
+
+func test_later_repeat_with_finally {
+    print("test_later_repeat_with_finally (1/6): start")
+    _test_later_repeat_with_finally_do() later:
+
+    print("test_later_repeat_with_finally (6/6): reached end")
+    assert(my_finally_counter == 1)
+}
+

@@ -1,0 +1,75 @@
+# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+func oopsie_func(v) {
+    if typename(v) != "num" {
+        throw new TypeError("oopsie, wrong value")
+    }
+    return v + 1
+}
+
+type ToCloseObj {
+    var closed = no
+}
+
+func ToCloseObj.close {
+    self.closed = yes
+}
+
+func test_rescue_examples {
+    var x = 1
+    do {
+        x = oopsie_func("abc")  # Shouldn't run
+    } rescue TypeError {
+        x += 2  # Should run, x now 3
+    }
+    assert(x == 3)
+    do {
+        do {
+            x = oopsie_func("florb")  # Shouldn't run
+        } rescue ValueError {
+            x += 2  # Shouldn't run
+        } finally {
+            x -= 1  # Should run, x now 2
+        }
+    } rescue TypeError {
+        x += 4  # Should run, x now 6
+    } finally {
+        x += 10  # Should run, x now 16
+    }
+    assert(x == 16)
+    oopsie_func(x)
+    assert(x == 16)
+    x = oopsie_func(x)
+    assert(x == 17)
+
+    # Test that with blocks also work:
+    with new ToCloseObj() as f {
+        assert(not f.closed)
+    }  # End bracket should call f.close()
+    assert(f.closed)
+}
+
