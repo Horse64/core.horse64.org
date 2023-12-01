@@ -2405,6 +2405,10 @@ def _alike_num(v):
         return False
     return digitseen
 
+def _container_copy_no_custom(v):
+    import copy
+    return copy.copy(v)
+
 def _container_copy(v, *args, **kwargs):
     if type(v) in {dict, list, set,
             _TranslatedSet} and len(args) == 0:
