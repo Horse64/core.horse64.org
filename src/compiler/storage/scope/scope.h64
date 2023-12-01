@@ -50,6 +50,7 @@ type FuncScope {
     var is_later_func = no
     var storage_id = 0
     var owning_type_storage_id
+    var inner_scope
     var parent
 }
 
@@ -110,6 +111,16 @@ func LocalScope.lookup(name) {
         return none
     }
     return self.parent.lookup(name)
+}
+
+func LocalScope.name_is_free(name, global_scope) {
+    if global_scope.name_to_stmt_map.has(name) {
+        return no
+    }
+    if self.lookup(name) != none {
+        return no
+    }
+    return yes
 }
 
 func LocalScope.add_symbol_late(name,

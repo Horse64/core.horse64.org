@@ -25,19 +25,148 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import random from core.horse64.org
+
 import compiler.ast as cast
 import compiler.ast.analyze as ast_analyze
+import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
+import compiler.ast.expr as ast_expr
+import compiler.ast.return_stmt as return_stmt
 import compiler.ast.transform as ast_transform
 import compiler.ast.type_stmt as type_stmt
+import compiler.storage.scope as st_scope
+import compiler.token as token
+
+type LaterExitInfo {
+    var is_func_return = yes
+    var exit_cb_label
+}
+
+extend st_scope.FuncScope {
+    var later_exit_info
+}
+
+extend st_scope.LocalScope {
+    var later_exit_info
+}
+
+func st_scope.LocalScope.get_later_exit_info {
+    var scope = self
+    while scope != none {
+        if scope.later_exit_info != none {
+            return scope.later_exit_info
+        }
+        scope = scope.parent
+    }
+    if self.func_scope != none {
+        return self.func_scope.later_exit_info
+    }
+}
 
 func first_pass_later_transform(project, msgs) {
+    var transformed_nodes = {}
+    func make_later_return_cb_call(exit_info, return_expr,
+            inner_scope, line, col) {
+        var callback_call = new call_or_assign_stmt.CallStmt()
+        callback_call.scope = inner_scope
+        callback_call.line = line
+        callback_call.col = col
+        var t = new token.Token(
+            "(", token.T_ENCLOSE, line, col)
+        var call_expr = new ast_expr.BinopExpr(t)
+        call_expr.scope = inner_scope
+        call_expr.line = line
+        call_expr.col = col
+        callback_call.subexprs.add(call_expr)
+        if return_expr == none {
+            return_expr = new ast_expr.LiteralExpr()
+            return_expr.scope = inner_scope
+            return_expr.line = line
+            return_expr.col = col
+        }
+        var idexpr = none
+        if exit_info.is_func_return {
+            idexpr = new ast_expr.IdRefExpr()
+            idexpr.scope = inner_scope
+            idexpr.label = "$schedule_later"
+            idexpr.line = line
+            idexpr.col = col
+        }
+        var idexpr2 = new ast_expr.IdRefExpr()
+        idexpr2.scope = inner_scope
+        idexpr2.label = exit_info.exit_cb_label
+        idexpr2.line = line
+        idexpr2.col = col
+        var callargs = new ast_expr.CallOrDefArgsExpr()
+        callargs.scope = inner_scope
+        callargs.line = line
+        callargs.col = col
+        if exit_info.is_func_return {
+            callargs.subexprs = [idexpr2, return_expr]
+            call_expr.subexprs = [idexpr, callargs]
+        } else {
+            callargs.subexprs = [return_expr]
+            call_expr.subexprs = [idexpr2, callargs]
+        }
+        var rt_stmt = new return_stmt.ReturnStmt()
+        rt_stmt.scope = inner_scope
+        rt_stmt.line = line
+        rt_stmt.col = col
+        return [callback_call, rt_stmt]
+    }
     func transform_file(pfile) {
         func transform_node(node, parent) {
-            if node.scope == none or node.scope.func_scope == none or
-                    not node.scope.func_scope.is_later_func {
+            if node.kind != cast.N_STMT_FUNC and (
+                    node.scope == none or node.scope.func_scope == none or
+                    not node.scope.func_scope.is_later_func) {
                 return later node
             }
-            if node.kind == cast.N_STMT_IF {
+            var inner_scope = node.scope
+            if node.kind == cast.N_STMT_FUNC and
+                    node.func_scope.is_later_func and
+                    node.func_scope.later_exit_info == none {
+                inner_scope = node.func_scope.inner_scope
+                var new_name = "latercb" + random.gen_id()
+                while not inner_scope.name_is_free(new_name,
+                        pfile.global_scope) {
+                    new_name = "latercb" + random.gen_id()
+                }
+                var einfo = new LaterExitInfo()
+                einfo.exit_cb_label = new_name
+                node.func_scope.later_exit_info = einfo
+                if node.subblocks[1].len == 0 or
+                        node.subblocks[1][node.subblocks[1].len].kind !=
+                        cast.N_STMT_RETURN {
+                    var line = node.line
+                    var col = node.col
+                    if node.subblocks[1].len > 0 {
+                        line = node.subblocks[1]
+                            [node.subblocks[1].len].line
+                        col = node.subblocks[1]
+                            [node.subblocks[1].len].col
+                    }
+                    var nodes = make_later_return_cb_call(
+                        einfo, none, inner_scope, line, col)
+                    for inner_node in nodes {
+                        transformed_nodes.add(inner_node)
+                    }
+                    node.subblocks[1] += nodes
+                }
+            }
+            if node.kind == cast.N_STMT_RETURN and
+                    not transformed_nodes.has(node) and
+                    node.scope.func_scope.is_later_func {
+                transformed_nodes.add(node)
+                assert(node.scope.func_scope.later_exit_info != none)
+                var line = node.line
+                var col = node.col
+                var nodes = make_later_return_cb_call(
+                    node.scope.func_scope.later_exit_info,
+                    if node.subexprs.len > 0 (node.subexprs[1])
+                        else (none), inner_scope, line, col)
+                return nodes
+            }
+            if node.kind == cast.N_STMT_IF and no {
                 var has_later = no
                 for clause in node.subexprs {
                     for block in clause.subblocks {

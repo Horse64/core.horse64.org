@@ -71,9 +71,10 @@ func split_if_to_single_clauses(project_file, node, parent) {
 
         if want_split_var_node {
             var vardef_node = new var_stmt.VarStmt()
-            var new_name = "anonymous" + random.gen_id()
-            while inner_scope.lookup(new_name) {
-                new_name = "anonymous" + random.gen_id()
+            var new_name = "splitifcond" + random.gen_id()
+            while not inner_scope.name_is_free(new_name,
+                    project_file.global_scope) {
+                new_name = "splitifcond" + random.gen_id()
             }
             var new_sinfo = inner_scope.add_symbol_late(
                 new_name, project_file, node.line,
@@ -88,9 +89,11 @@ func split_if_to_single_clauses(project_file, node, parent) {
             vardef_node.subexprs.add(conditional_node)
             vardef_node.line = conditional_node.line
             vardef_node.col = conditional_node.col
+            vardef_node.scope = inner_scope
             result.add(vardef_node)
 
             var idref = new ast_expr.IdRefExpr()
+            idref.scope = inner_scope
             idref.label = new_name
             idref.line = conditional_node.line
             idref.col = conditional_node.col
@@ -102,6 +105,7 @@ func split_if_to_single_clauses(project_file, node, parent) {
 
         result.add(node)
         var new_conditional = new if_stmt.IfStmt()
+        new_conditional.scope = inner_scope
         new_conditional.subexprs = node.subexprs.sub(2)
         assert(new_conditional.subexprs.len >= 1)
         node.subexprs = node.subexprs.sub(1, 1)
@@ -110,6 +114,7 @@ func split_if_to_single_clauses(project_file, node, parent) {
         new_conditional.col = first_clause.col
 
         var idref = new ast_expr.IdRefExpr()
+        idref.scope = inner_scope
         idref.label = refer_to_condition_label
         idref.line = new_conditional.line
         idref.col = new_conditional.col
@@ -119,6 +124,7 @@ func split_if_to_single_clauses(project_file, node, parent) {
         var t = new token.Token("not",
             token.T_KEYWORD, idref.line, idref.col)
         var negated = new ast_expr.UnopExpr(t)
+        negated.scope = inner_scope
         negated.subexprs.add(idref)
         negated.col = idref.col
         negated.line = idref.line
@@ -137,6 +143,7 @@ func split_if_to_single_clauses(project_file, node, parent) {
                     token.T_KEYWORD, clause.subexprs[1].line,
                     clause.subexprs[1].col)
                 var binop = new ast_expr.BinopExpr(t)
+                binop.scope = inner_scope
                 binop.line = t.line
                 binop.col = t.col
                 binop.subexprs.add(negated)
@@ -153,7 +160,6 @@ func split_if_to_single_clauses(project_file, node, parent) {
 }
 
 func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes) {
-    var seen = {}
     var visit_queue = [new VisitQueueEntry(node, none)]
     var aborted = no
     var is_first = yes
@@ -251,7 +257,37 @@ func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes) {
                 }
             }
         }
-        if new_node != none and has_attr(new_node, "subexprs") {
+        if new_node == none {
+            return later yes
+        }
+        # Handle queueing up the newly inserted node(s) children:
+        if typename(new_node) == "list" {
+            for node in new_node {
+                if node == none {
+                    continue
+                }
+                for expr in node.subexprs {
+                    if expr == none {
+                        continue
+                    }
+                    visit_queue.add(new VisitQueueEntry(
+                        expr, node
+                    ))
+                }
+                for block in node.subblocks {
+                    for expr in block {
+                        if expr == none {
+                            continue
+                        }
+                        visit_queue.add(new VisitQueueEntry(
+                            expr, node
+                        ))
+                    }
+                }
+            }
+            return later yes
+        }
+        if has_attr(new_node, "subexprs") {
             for expr in new_node.subexprs {
                 if expr == none {
                     continue
@@ -261,7 +297,7 @@ func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes) {
                 ))
             }
         }
-        if new_node != none and has_attr(new_node, "subblocks") {
+        if has_attr(new_node, "subblocks") {
             for block in new_node.subblocks {
                 for st in block {
                     visit_queue.add(new VisitQueueEntry(

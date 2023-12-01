@@ -81,6 +81,18 @@ func TreeNode.as_str {
     return "TreeNode" + json.dump(self.as_json_obj())
 }
 
+func TreeNode.copy {
+    var self_copy = base.copy()
+    self_copy.subexprs = []
+    for expr in self.subexprs {
+        self_copy.subexprs.add(expr.copy())
+    }
+    for stmt in self.subblocks {
+        self_copy.subblocks.add(stmt.copy())
+    }
+    return self_copy
+}
+
 func TreeNode.has_damage {
     if self.damaged {
         return yes

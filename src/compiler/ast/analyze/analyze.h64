@@ -381,6 +381,9 @@ func advanced_phase3_later_and_computevals(
                     not stmt.error_msg_is_dynamic and
                     not stmt.has_damage() and
                     stmt.subexprs.len == 0 {
+                # This is an anonymous throw. Transform it to have
+                # a named parameter!
+
                 var has_named_label = no
                 var parent_clause = get_throw_statement_rescue_clause(
                     stmt, parents)
@@ -427,9 +430,10 @@ func advanced_phase3_later_and_computevals(
                             break
                         }
                     }
-                    var new_name = "anonymous" + random.gen_id()
-                    while inner_scope.lookup(new_name) {
-                        new_name = "anonymous" + random.gen_id()
+                    var new_name = "autothrowlabel" + random.gen_id()
+                    while not inner_scope.name_is_free(new_name,
+                            project_file.global_scope) {
+                        new_name = "autothrowlabel" + random.gen_id()
                     }
                     var new_sinfo = inner_scope.add_symbol_late(
                         new_name, project_file, parent_clause.line,

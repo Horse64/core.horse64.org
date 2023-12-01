@@ -55,6 +55,8 @@ func ReturnStmt.as_code(indent=0) {
     var t = " ".rep(indent) + "return"
     if self.subexprs.len > 0 {
         t += " " + self.subexprs[1].as_code(indent=indent)
+    } else {
+        t += " none"
     }
     return t
 }

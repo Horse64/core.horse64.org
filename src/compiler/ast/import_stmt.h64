@@ -40,6 +40,8 @@ type ImportStmt base ast.StmtNode {
 
 func ImportStmt.copy {
     var new_stmt = new ImportStmt()
+    assert(new_stmt.subexprs.len == 0)
+    assert(new_stmt.subblocks.len == 0)
     new_stmt.module_path = self.module_path.copy()
     new_stmt.package_name = self.package_name
     new_stmt.renamed_as = self.renamed_as

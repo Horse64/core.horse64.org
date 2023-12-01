@@ -697,6 +697,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                 if node.kind == ast.N_STMT_FUNC {
                     inner_scope.func_scope = new scope.FuncScope()
                     node.func_scope = inner_scope.func_scope
+                    node.func_scope.inner_scope = inner_scope
                     if inner_scope.parent != none {
                         inner_scope.func_scope.parent =
                             inner_scope.parent.func_scope
