@@ -13,21 +13,21 @@ the supported types specified:
 
 ### Math operators (`T_MATH`)
 
-| Operator | Type   | Purpose                                        |
-|----------|--------|------------------------------------------------|
-| A `+` B  | Math   | Adds two numbers.                              |
-| A `-` B  | Math   | Substracts one number from the other.          |
-| `-`A     | Math   | Computes the negated inverse of a number.      |
-| A `*` B  | Math   | Multiplies two numbers.                        |
-| A `/` B  | Math   | Multiplies two numbers.                        |
-| A `%` B  | Math   | Computes the modulo of a divsion.              |
-| A `^` B  | Math   | Computes the exponent of `B` over `A`.         |
-| A `<<` B | Bitwise | Bit shifts `A` left `B` times, zero padded.   |
-| A `>>` B | Bitwise | Bit shifts `A` right `B` times, zero padded.  |
-| `~`A     | Bitwise | Inverts all the bits in `A`.                  |
-| A `&` B  | Bitwise | Computes bitwise "and" on the bits.           |
-| A `|` B  | Bitwise | Computes bitwise "or" on the bits.            |
-| A `^^` B | Bitwise | Computes bitwise "xor" on the bits.           |
+| Operator  | Type   | Purpose                                        |
+|-----------|--------|------------------------------------------------|
+| A `+` B   | Math   | Adds two numbers.                              |
+| A `-` B   | Math   | Substracts one number from the other.          |
+| `-`A      | Math   | Computes the negated inverse of a number.      |
+| A `*` B   | Math   | Multiplies two numbers.                        |
+| A `/` B   | Math   | Multiplies two numbers.                        |
+| A `%` B   | Math   | Computes the modulo of a divsion.              |
+| A `^` B   | Math   | Computes the exponent of `B` over `A`.         |
+| A `<<` B  | Bitwise | Bit shifts `A` left `B` times, zero padded.   |
+| A `>>` B  | Bitwise | Bit shifts `A` right `B` times, zero padded.  |
+| `~`A      | Bitwise | Inverts all the bits in `A`.                  |
+| A `&` B   | Bitwise | Computes bitwise "and" on the bits.           |
+| A &#124; B| Bitwise | Computes bitwise "or" on the bits.            |
+| A `^^` B  | Bitwise | Computes bitwise "xor" on the bits.           |
 
 *(All operators except for `-` always take a left-hand
 and right-hand side, so they're all binary operators)*
