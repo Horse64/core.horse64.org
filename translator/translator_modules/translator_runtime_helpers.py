@@ -2405,7 +2405,6 @@ def _alike_num(v):
         return False
     return digitseen
 
-
 def _container_copy(v, *args, **kwargs):
     if type(v) in {dict, list, set,
             _TranslatedSet} and len(args) == 0:
@@ -2418,8 +2417,8 @@ def _container_copy(v, *args, **kwargs):
         return list(v)
     if hasattr(v, "_translator_renamed_copy"):
         return v._translator_renamed_copy(*args, **kwargs)
-    return v.copy(*args, **kwargs)
-
+    import copy
+    return copy.copy(v)
 
 def _container_insert(v, *args, **kwargs):
     if type(v) == list:

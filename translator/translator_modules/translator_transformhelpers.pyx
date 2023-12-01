@@ -724,6 +724,28 @@ def transform_h64_misc_inline_to_python(s):
         replaced_one = False
         i = 0
         while i < len(s):
+            if (s[i] == "copy" and nextnonblank(s, i) == "(" and
+                    prevnonblank(s, i) == "." and
+                    prevnonblank(s, i, no=2) == "base"):
+                base_idx = prevnonblankidx(s,i, no=2)
+                bracket_idx = nextnonblankidx(s, i)
+                s = s[:base_idx] + ["_translator_runtime_helpers",
+                    ".", "_container_copy", "(", "self"] +\
+                    s[bracket_idx + 1:]
+                i = bracket_idx + 4
+                continue
+            elif (s[i] == "copy" and nextnonblank(s, i) == "(" and
+                    prevnonblank(s, i) == "." and
+                    prevnonblank(s, i, no=2) == ")" and
+                    prevnonblank(s, i, no=3) == "(" and
+                    prevnonblank(s, i, no=4) == "super"):
+                base_idx = prevnonblankidx(s,i, no=4)
+                bracket_idx = nextnonblankidx(s, i)
+                s = s[:base_idx] + ["_translator_runtime_helpers",
+                    ".", "_container_copy", "(", "self"] +\
+                    s[bracket_idx + 1:]
+                i = base_idx + 4
+                continue
             cmd = None
             if (prevnonblank(s, i) == "." and (
                     s[i] in ("len", "glyph_len") or (
@@ -753,6 +775,11 @@ def transform_h64_misc_inline_to_python(s):
             if (s[i] == "join" and
                     prevnonblank(s, i) == "." and
                     prevnonblank(s, i, no=2) == "path"):
+                i += 1
+                continue
+            if (s[i] == "copy" and
+                    prevnonblank(s, i) == "." and
+                    prevnonblank(s, i, no=2) == "base"):
                 i += 1
                 continue
             replaced_one = True
