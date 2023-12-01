@@ -134,6 +134,13 @@ func first_pass_later_transform(project, msgs) {
                 var einfo = new LaterExitInfo()
                 einfo.exit_cb_label = new_name
                 node.func_scope.later_exit_info = einfo
+
+                var pos_arg_count =
+                    node.arg_labels.len - node.kw_arg_count
+                node.arg_labels = node.arg_labels.sub(1, pos_arg_count) +
+                    [new_name] + node.arg_labels.sub(pos_arg_count + 1)
+
+                # Add return at the end if not present:
                 if node.subblocks[1].len == 0 or
                         node.subblocks[1][node.subblocks[1].len].kind !=
                         cast.N_STMT_RETURN {
