@@ -48,9 +48,10 @@ func first_pass_later_transform(project, msgs) {
                         }
                     }
                 }
-                #if has_later {
-                #    print("LATER IF: " + node.as_str())
-                #}
+                if has_later {
+                    return ast_transform.split_if_to_single_clauses(
+                        pfile, node, parent)
+                }
             }
             return later node
         }

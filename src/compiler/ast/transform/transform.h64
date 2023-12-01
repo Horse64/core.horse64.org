@@ -25,9 +25,16 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import random from core.horse64.org
+
 import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
+import compiler.ast.expr as ast_expr
+import compiler.ast.if_stmt as if_stmt
 import compiler.ast.transform.later_transform as later_transform
+import compiler.ast.var_stmt as var_stmt
+import compiler.storage.ref as st_ref
+import compiler.token as token
 
 type VisitQueueEntry {
     var node
@@ -37,6 +44,112 @@ type VisitQueueEntry {
 func VisitQueueEntry.init(node, parent) {
     self.node = node
     self.parent = parent
+}
+
+func split_if_to_single_clauses(project_file, node, parent) {
+    assert(node.kind == ast.N_STMT_IF)
+    if node.subexprs.len == 1 {
+        return [node]
+    }
+    var inner_scope = node.scope
+    assert(inner_scope != none)
+    var result = []
+    while node.subexprs.len > 1 {
+        var want_split_var_node = yes
+        var conditional_node = none
+        var refer_to_condition_label = none
+        var refer_to_storage_id = none
+        var clause = node.subexprs[1]
+        assert(not clause.is_else)
+        assert(clause.subexprs.len == 1)
+        conditional_node = clause.subexprs[1]
+
+        if {ast.N_EXPR_IDREF,
+                ast.N_EXPR_LIT}.has(conditional_node.kind) {
+            want_split_var_node = no
+        }
+
+        if want_split_var_node {
+            var vardef_node = new var_stmt.VarStmt()
+            var new_name = "anonymous" + random.gen_id()
+            while inner_scope.lookup(new_name) {
+                new_name = "anonymous" + random.gen_id()
+            }
+            var new_sinfo = inner_scope.add_symbol_late(
+                new_name, project_file, node.line,
+                node.col)
+            if new_sinfo == none {
+                throw new RuntimeError("Internal error.")
+            }
+            refer_to_condition_label = new_name
+            refer_to_storage_id = new_sinfo.storage_id
+
+            vardef_node.var_labels.add(new_name)
+            vardef_node.subexprs.add(conditional_node)
+            vardef_node.line = conditional_node.line
+            vardef_node.col = conditional_node.col
+            result.add(vardef_node)
+
+            var idref = new ast_expr.IdRefExpr()
+            idref.label = new_name
+            idref.line = conditional_node.line
+            idref.col = conditional_node.col
+            idref.ref = new st_ref.StorageRef(
+                st_ref.ST_LOCAL, new_sinfo.storage_id
+            )
+            clause.subexprs[1] = idref
+        }
+
+        result.add(node)
+        var new_conditional = new if_stmt.IfStmt()
+        new_conditional.subexprs = node.subexprs.sub(2)
+        assert(new_conditional.subexprs.len >= 1)
+        node.subexprs = node.subexprs.sub(1, 1)
+        var first_clause = new_conditional.subexprs[1]
+        new_conditional.line = first_clause.line
+        new_conditional.col = first_clause.col
+
+        var idref = new ast_expr.IdRefExpr()
+        idref.label = refer_to_condition_label
+        idref.line = new_conditional.line
+        idref.col = new_conditional.col
+        idref.ref = new st_ref.StorageRef(
+            st_ref.ST_LOCAL, refer_to_storage_id
+        )
+        var t = new token.Token("not",
+            token.T_KEYWORD, idref.line, idref.col)
+        var negated = new ast_expr.UnopExpr(t)
+        negated.subexprs.add(idref)
+        negated.col = idref.col
+        negated.line = idref.line
+
+        var pos = 1
+        while pos <= new_conditional.subexprs.len {
+            var clause = new_conditional.subexprs[pos]
+            if clause.subexprs.len == 0 {
+                assert(clause.is_else)
+                assert(pos == new_conditional.subexprs.len)
+                clause.is_else = no
+                clause.subexprs.add(negated)
+            } else {
+                assert(clause.subexprs.len == 1)
+                var t = new token.Token("and",
+                    token.T_KEYWORD, clause.subexprs[1].line,
+                    clause.subexprs[1].col)
+                var binop = new ast_expr.BinopExpr(t)
+                binop.line = t.line
+                binop.col = t.col
+                binop.subexprs.add(negated)
+                binop.subexprs.add(clause.subexprs[1])
+                clause.subexprs[1] = binop
+            }
+            pos += 1
+        }
+        node = new_conditional
+    }
+    assert(node.subexprs.len == 1)
+    result.add(node)
+    return result
 }
 
 func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes) {
@@ -93,31 +206,48 @@ func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes) {
             if has_attr(next.parent, "stmts") {
                 var pos = 1
                 while pos <= next.parent.stmts.len {
-                    if next.parent.stmts[pos] == next.node {
-                        if new_node != none {
-                            next.parent.stmts[pos] = new_node
-                        } else {
-                            next.parent.stmts.pop_at(pos)
-                        }
+                    if next.parent.stmts[pos] != next.node {
+                        pos += 1
+                        continue
+                    }
+                    if new_node == none {
+                        next.parent.stmts.pop_at(pos)
                         break
                     }
-                    pos += 1
+                    if typename(new_node) != "list" {
+                        next.parent.stmts[pos] = new_node
+                        break
+                    }
+                    next.parent.stmts =
+                        next.parent.stmts.sub(1, pos - 1) +
+                        new_node + next.parent.stmts.sub(pos + 1)
+                    break
                 }
             }
             if has_attr(next.parent, "subblocks") {
-                for block in next.parent.subblocks {
+                var blockpos = 1
+                while blockpos <= next.parent.subblocks.len {
+                    var block = next.parent.subblocks[blockpos]
                     var pos = 1
                     while pos <= block.len {
-                        if block[pos] == next.node {
-                            if new_node != none {
-                                block[pos] = new_node
-                            } else {
-                                block.pop_at(pos)
-                            }
+                        if block[pos] != next.node {
+                            pos += 1
+                            continue
+                        }
+                        if new_node == none {
+                            block.pop_at(pos)
                             break
                         }
-                        pos += 1
+                        if typename(new_node) != "list" {
+                            block[pos] = new_node
+                            break
+                        }
+                        var new_block = block.sub(1, pos - 1) +
+                            new_node + block.sub(pos + 1)
+                        next.parent.subblocks[blockpos] = new_block
+                        break
                     }
+                    blockpos += 1
                 }
             }
         }

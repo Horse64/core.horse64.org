@@ -73,6 +73,7 @@ func IfElseClause.init {
 
 func IfElseClause.as_json_obj {
     var output = base.as_json_obj()
+    output["is_else"] = self.is_else
     return output
 }
 
