@@ -25,7 +25,10 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import random from core.horse64.org
+
 import compiler.ast as ast
+import compiler.ast.func_stmt as func_stmt
 import compiler.ast.transform as transform
 import compiler.cext as cext
 import compiler.msg as msg
@@ -310,6 +313,27 @@ func project.ProjectFile.check_item_exists_by_modpkg(
     }
     return (self.find_cext_injected_item_storage_id_by_modpkg(
         name, mod_pkg_path, limit_to_kind=limit_to_kind) != none)
+}
+
+func project.ProjectFile.make_new_made_up_func_node(
+        in_inner_scope, name_prefix, line=none, col=none) {
+    var new_name = name_prefix + random.gen_id()
+    while not in_inner_scope.name_is_free(new_name,
+            self.global_scope) {
+        new_name = name_prefix + random.gen_id()
+    }
+    var func_scope = new scope.FuncScope()
+    func_scope.inner_scope = new scope.LocalScope()
+    func_scope.inner_scope.parent = in_inner_scope
+    self.project.last_global_storage_id += 1
+    func_scope.storage_id = self.project.last_global_storage_id
+    var func_node = new func_stmt.FuncStmt()
+    func_node.scope = in_inner_scope
+    func_node.func_scope = func_scope
+    func_node.line = line
+    func_node.col = col
+    func_node.label = new_name
+    return func_node
 }
 
 ## This function will obtain a project-wide, unique shared

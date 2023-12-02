@@ -199,9 +199,9 @@ func advanced_phase3_later_and_computevals(
             }
 
             func check_nested_constructors(expr, parents) {
-                var parent = if parents.len >= 1 (parents[1])
+                var parent = if parents.len >= 1 (parents[parents.len])
                     else (none)
-                var grandparent = if parents.len >= 2 (parents[2])
+                var grandparent = if parents.len >= 2 (parents[parents.len - 1])
                     else (none)
                 if expr.damaged {
                     return expr

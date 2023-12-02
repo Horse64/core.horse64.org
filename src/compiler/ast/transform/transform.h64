@@ -159,8 +159,10 @@ func split_if_to_single_clauses(project_file, node, parent) {
     return result
 }
 
-func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes) {
-    var visit_queue = [new VisitQueueEntry(node, none)]
+func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes,
+        parent_chain=no) {
+    var visit_queue = [new VisitQueueEntry(
+        node, if parent_chain ([]) else (none))]
     var aborted = no
     var is_first = yes
     func process_next_node {
@@ -172,9 +174,10 @@ func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes) {
                 has_attr(next.node, "stmts") {
             # Must be a root ASTResult item. Skip.
             if next.node != none and has_attr(next.node, "stmts") {
+                const supply_parent = if parent_chain ([]) else (none)
                 for st in next.node.stmts {
                     visit_queue.add(new VisitQueueEntry(
-                        st, next.node
+                        st, supply_parent
                     ))
                 }
             }
@@ -195,45 +198,53 @@ func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes) {
             return later no
         }
         if new_node != next.node {
-            if has_attr(next.parent, "subexprs") {
+            var parent = if parent_chain (next.parent[1]) else (next.parent)
+            if has_attr(parent, "subexprs") {
                 var pos = 1
-                while pos <= next.parent.subexprs.len {
-                    if next.parent.subexprs[pos] == next.node {
-                        if new_node != none {
-                            next.parent.subexprs[pos] = new_node
-                        } else {
-                            next.parent.subexprs.pop_at(pos)
-                        }
-                        break
-                    }
-                    pos += 1
-                }
-            }
-            if has_attr(next.parent, "stmts") {
-                var pos = 1
-                while pos <= next.parent.stmts.len {
-                    if next.parent.stmts[pos] != next.node {
+                while pos <= parent.subexprs.len {
+                    if parent.subexprs[pos] != next.node {
                         pos += 1
                         continue
                     }
                     if new_node == none {
-                        next.parent.stmts.pop_at(pos)
+                        parent.subexprs.pop_at(pos)
                         break
                     }
                     if typename(new_node) != "list" {
-                        next.parent.stmts[pos] = new_node
+                        parent.subexprs[pos] = new_node
                         break
                     }
-                    next.parent.stmts =
-                        next.parent.stmts.sub(1, pos - 1) +
-                        new_node + next.parent.stmts.sub(pos + 1)
+                    parent.stmts =
+                        parent.subexprs.sub(1, pos - 1) +
+                        new_node + parent.subexprs.sub(pos + 1)
                     break
                 }
             }
-            if has_attr(next.parent, "subblocks") {
+            if has_attr(parent, "stmts") {
+                var pos = 1
+                while pos <= parent.stmts.len {
+                    if parent.stmts[pos] != next.node {
+                        pos += 1
+                        continue
+                    }
+                    if new_node == none {
+                        parent.stmts.pop_at(pos)
+                        break
+                    }
+                    if typename(new_node) != "list" {
+                        parent.stmts[pos] = new_node
+                        break
+                    }
+                    parent.stmts =
+                        parent.stmts.sub(1, pos - 1) +
+                        new_node + parent.stmts.sub(pos + 1)
+                    break
+                }
+            }
+            if has_attr(parent, "subblocks") {
                 var blockpos = 1
-                while blockpos <= next.parent.subblocks.len {
-                    var block = next.parent.subblocks[blockpos]
+                while blockpos <= parent.subblocks.len {
+                    var block = parent.subblocks[blockpos]
                     var pos = 1
                     while pos <= block.len {
                         if block[pos] != next.node {
@@ -250,7 +261,7 @@ func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes) {
                         }
                         var new_block = block.sub(1, pos - 1) +
                             new_node + block.sub(pos + 1)
-                        next.parent.subblocks[blockpos] = new_block
+                        parent.subblocks[blockpos] = new_block
                         break
                     }
                     blockpos += 1
@@ -266,12 +277,14 @@ func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes) {
                 if node == none {
                     continue
                 }
+                const supply_parent =
+                    (if parent_chain (next.parent + [node]) else (node))
                 for expr in node.subexprs {
                     if expr == none {
                         continue
                     }
                     visit_queue.add(new VisitQueueEntry(
-                        expr, node
+                        expr, supply_parent
                     ))
                 }
                 for block in node.subblocks {
@@ -280,20 +293,22 @@ func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes) {
                             continue
                         }
                         visit_queue.add(new VisitQueueEntry(
-                            expr, node
+                            expr, supply_parent
                         ))
                     }
                 }
             }
             return later yes
         }
+        const supply_parent =
+            if parent_chain (next.parent + [new_node]) else (new_node)
         if has_attr(new_node, "subexprs") {
             for expr in new_node.subexprs {
                 if expr == none {
                     continue
                 }
                 visit_queue.add(new VisitQueueEntry(
-                    expr, new_node
+                    expr, supply_parent
                 ))
             }
         }
@@ -301,7 +316,7 @@ func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes) {
             for block in new_node.subblocks {
                 for st in block {
                     visit_queue.add(new VisitQueueEntry(
-                        st, new_node
+                        st, supply_parent
                     ))
                 }
             }
@@ -350,7 +365,7 @@ func do_simply_on_all_exprs(stmt, callback) {
         }
         if result_expr != none and
                 result_expr.subexprs.len > 0 {
-            var new_parents = [result_expr] + parents
+            var new_parents = parents + [result_expr]
             for subexpr in result_expr.subexprs {
                 queue.add([new_parents, subexpr])
             }

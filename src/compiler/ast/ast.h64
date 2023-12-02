@@ -158,6 +158,39 @@ func TreeNode.is_stmt {
     return no
 }
 
+func get_neighbor_statements_after(node, parent) {
+    if {N_STMT_DO, N_STMT_IF}.has(parent.kind) {
+        for clause in parent.subexprs {
+            assert(clause.subblocks.len == 1)
+            var block = clause.subblocks[1]
+            var pos = block.find(node)
+            if pos != none {
+                var result = []
+                pos += 1
+                while pos <= block.len {
+                    result.add(block[pos])
+                    pos += 1
+                }
+                return result
+            }
+        }
+        return []
+    }
+    for block in parent.subblocks {
+        var pos = block.find(node)
+        if pos != none {
+            var result = []
+            pos += 1
+            while pos <= block.len {
+                result.add(block[pos])
+                pos += 1
+            }
+            return result
+        }
+    }
+    return []
+}
+
 type StmtNode base TreeNode {
 }
 

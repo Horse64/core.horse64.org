@@ -27,6 +27,7 @@
 
 enum StorageKind {
     ST_LOCAL,
+    ST_CCAPTURE,
     ST_GLOBAL,
     ST_NUMLITERAL,
     ST_CEXT,

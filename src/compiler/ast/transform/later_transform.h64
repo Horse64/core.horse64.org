@@ -31,6 +31,7 @@ import compiler.ast as cast
 import compiler.ast.analyze as ast_analyze
 import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
 import compiler.ast.expr as ast_expr
+import compiler.ast.func_stmt as func_stmt
 import compiler.ast.return_stmt as return_stmt
 import compiler.ast.transform as ast_transform
 import compiler.ast.type_stmt as type_stmt
@@ -115,7 +116,7 @@ func first_pass_later_transform(project, msgs) {
         return [callback_call, rt_stmt]
     }
     func transform_file(pfile) {
-        func transform_node(node, parent) {
+        func transform_node(node, parents) {
             if node.kind != cast.N_STMT_FUNC and (
                     node.scope == none or node.scope.func_scope == none or
                     not node.scope.func_scope.is_later_func) {
@@ -123,8 +124,10 @@ func first_pass_later_transform(project, msgs) {
             }
             var inner_scope = node.scope
             if node.kind == cast.N_STMT_FUNC and
+                    not transformed_nodes.has(node) and
                     node.func_scope.is_later_func and
                     node.func_scope.later_exit_info == none {
+                transformed_nodes.add(node)
                 inner_scope = node.func_scope.inner_scope
                 var new_name = "latercb" + random.gen_id()
                 while not inner_scope.name_is_free(new_name,
@@ -160,15 +163,85 @@ func first_pass_later_transform(project, msgs) {
                     node.subblocks[1] += nodes
                 }
             }
+            if {cast.N_STMT_VAR,
+                    cast.N_STMT_ASSIGN}.has(node.kind) and
+                    not transformed_nodes.has(node) and
+                    node.has_later and not node.has_later_ignore and
+                    node.scope.func_scope.is_later_func and
+                    not node.has_later_repeat {
+                transformed_nodes.add(node)
+                var call_idx = 1
+                if node.kind == cast.N_STMT_ASSIGN {
+                    call_idx = node.subexprs.len / 2 + 1
+                }
+                var call_exprs = [node.subexprs[call_idx]]
+                assert(call_exprs[1].kind == cast.N_EXPR_BINOP and
+                        call_exprs[1].subexprs.len == 2 and
+                        call_exprs[1].subexprs[2].kind ==
+                            cast.N_EXPR_CALLORDEFARGS)
+                if node.kind == cast.N_STMT_VAR {
+                    for expr in node.subexprs.sub(2) {
+                        assert(expr.kind == cast.N_EXPR_BINOP)
+                        call_exprs.add(expr)
+                    }
+                } elseif node.kind == cast.N_STMT_ASSIGN {
+                    for expr in node.subexprs.sub(
+                            node.subexprs.len / 2 + 2) {
+                        assert(expr.kind == cast.N_EXPR_BINOP)
+                        call_exprs.add(expr)
+                    }
+                }
+                var stmts_after = []
+                var scan_node = node
+                var einfo = node.scope.get_later_exit_info()
+                assert(einfo != none)
+                var parents_idx = parents.len + 1
+                while yes {
+                    stmts_after += cast.get_neighbor_statements_after(
+                        scan_node, if parents_idx > 1
+                            (parents[parents_idx - 1]) else (none))
+                    parents_idx -= 1
+                    if parents_idx < 1 {
+                        break
+                    }
+                    scan_node = parents[parents_idx]
+                    if scan_node.kind == cast.N_STMT_FUNC or
+                            scan_node.scope.
+                                get_later_exit_info() != einfo {
+                        break
+                    }
+                }
+                var func_node = pfile.make_new_made_up_func_node(
+                    inner_scope, "laterfunc", line=node.line,
+                    col=node.line)
+                transformed_nodes.add(func_node)
+                func_node.subblocks = [stmts_after]
+                node.is_later = no
+                var continuation_idref = new ast_expr.IdRefExpr()
+                continuation_idref.scope = inner_scope
+                continuation_idref.line = node.line
+                continuation_idref.col = node.col
+                continuation_idref.label = func_node.label
+                call_exprs[1].subexprs[2].
+                    subexprs.add(continuation_idref)
+                var call_stmt_node = new call_or_assign_stmt.CallStmt()
+                call_stmt_node.scope = inner_scope
+                call_stmt_node.line = node.line
+                call_stmt_node.col = node.col
+                call_stmt_node.subexprs.add(call_exprs[1])
+                #return []
+                return [func_node, call_stmt_node]
+            }
             if node.kind == cast.N_STMT_RETURN and
                     not transformed_nodes.has(node) and
                     node.scope.func_scope.is_later_func {
                 transformed_nodes.add(node)
-                assert(node.scope.func_scope.later_exit_info != none)
                 var line = node.line
                 var col = node.col
+                var einfo = node.scope.get_later_exit_info()
+                assert(einfo != none)
                 var nodes = make_later_return_cb_call(
-                    node.scope.func_scope.later_exit_info,
+                    einfo,
                     if node.subexprs.len > 0 (node.subexprs[1])
                         else (none), inner_scope, line, col)
                 return nodes
@@ -186,7 +259,7 @@ func first_pass_later_transform(project, msgs) {
                 }
                 if has_later {
                     return ast_transform.split_if_to_single_clauses(
-                        pfile, node, parent)
+                        pfile, node, parents[parents.len])
                 }
             }
             return later node
@@ -194,7 +267,7 @@ func first_pass_later_transform(project, msgs) {
         pfile.ensure_ast() later:
 
         var success = ast_transform.visit_ast_tree(
-            pfile.ast, transform_node) later:
+            pfile.ast, transform_node, parent_chain=yes) later:
 
         await success
         assert(success == yes)
