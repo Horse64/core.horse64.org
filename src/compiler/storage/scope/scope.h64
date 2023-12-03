@@ -32,9 +32,12 @@ import compiler.ast.transform as transform
 import compiler.ast.type_stmt as type_stmt
 import compiler.msg as msg
 import compiler.project as project
+import compiler.storage.ref as st_ref
 
 type SymbolInfo {
     var name
+    var is_closure_captured = no
+    var is_ever_written_to = no
     var storage_id
     var def_line, def_col, def_file
     var value_node
@@ -46,6 +49,7 @@ func SymbolInfo.init(name) {
 
 type FuncScope {
     var last_inner_storage_id = 0
+    var last_inner_ccapture_id = 0
     var is_type_attr = no
     var is_later_func = no
     var storage_id = 0
@@ -94,6 +98,8 @@ type LocalScope {
     var parent
     var name_to_symbol_map = {->}
     var storage_id_to_symbol_map = {->}
+    var ccapture_id_to_symbol_map = {->}
+    var ccapture_name_to_id_map = {->}
     var func_scope
 }
 
@@ -103,14 +109,90 @@ type GlobalScopeEnumEntry {
     var symbol_info
 }
 
-func LocalScope.lookup(name) {
-    if self.name_to_symbol_map.has(name) {
-        return self.name_to_symbol_map[name]
+func LocalScope.reassign_after_move_into_closure(
+        storage_id, outside_closure_inner_scope
+        ) {
+    var outer_symbol_info = none
+    var found_in_outer_inner_scope = no
+    var lookat_scope = outside_closure_inner_scope
+    assert(lookat_scope.func_scope != none)
+    var reference_func_scope = lookat_scope.func_scope
+    while lookat_scope != none {
+        if lookat_scope.storage_id_to_symbol_map.has(storage_id) {
+            # Found it!
+            lookat_scope.storage_id_to_symbol_map[storage_id].
+                is_closure_captured = yes
+            outer_symbol_info =
+                lookat_scope.storage_id_to_symbol_map[storage_id]
+            found_in_outer_inner_scope = yes
+            break
+        }
+        lookat_scope = lookat_scope.parent
+        if lookat_scope != none and
+                lookat_scope.func_scope != reference_func_scope {
+            break
+        }
     }
-    if self.parent == none {
-        return none
+    if not found_in_outer_inner_scope {
+        throw new RuntimeError("Symbol unexpectedly not found.")
     }
-    return self.parent.lookup(name)
+    var result_pair = self.lookup(
+        outer_symbol_info.name, is_write_access=no, cross_func_scopes=no
+    )
+    if result_pair != none {
+        # Already added to inner scope.
+        return
+    }
+    self.func_scope.last_inner_ccapture_id += 1
+    var st_id = self.func_scope.last_inner_ccapture_id
+    self.ccapture_name_to_id_map[outer_symbol_info.name] = st_id
+    self.ccapture_id_to_symbol_map[st_id] = outer_symbol_info
+}
+
+func LocalScope.lookup(name,
+        is_write_access=yes, cross_func_scopes=yes) {
+    var ref
+    var lookup_scope = self
+    var our_func_scope = self.func_scope
+    assert(our_func_scope != none)
+    while yes {
+        if lookup_scope.name_to_symbol_map.has(name) {
+            assert(lookup_scope.func_scope != none)
+            if is_write_access {
+                lookup_scope.name_to_symbol_map[name].
+                    is_ever_written_to = yes
+            }
+            if lookup_scope.func_scope == our_func_scope {
+                ref = new st_ref.StorageRef(st_ref.ST_LOCAL,
+                    lookup_scope.name_to_symbol_map[name].storage_id)
+                return [ref, lookup_scope.name_to_symbol_map[name]]
+            } else {
+                # This is a closure capture.
+                var sinfo = lookup_scope.name_to_symbol_map[name]
+                sinfo.is_closure_captured = yes
+                self.func_scope.last_inner_ccapture_id += 1
+                var cap_id = self.func_scope.last_inner_ccapture_id
+                self.ccapture_id_to_symbol_map[cap_id] = sinfo
+                self.ccapture_name_to_id_map[name] = cap_id
+                ref = new st_ref.StorageRef(st_ref.ST_CCAPTURE, cap_id)
+                return [ref, sinfo]
+            }
+        } elseif lookup_scope.func_scope == our_func_scope and
+                lookup_scope.ccapture_name_to_id_map.has(name) {
+            var cap_id = lookup_scope.ccapture_name_to_id_map[name]
+            var sinfo = lookup_scope.ccapture_id_to_symbol_map[cap_id]
+            ref = new st_ref.StorageRef(st_ref.ST_CCAPTURE, cap_id)
+            return [ref, sinfo]
+        }
+        if lookup_scope.parent == none {
+            return none
+        }
+        lookup_scope = lookup_scope.parent
+        if not cross_func_scopes and
+                lookup_scope.func_scope != our_func_scope {
+            return none
+        }
+    }
 }
 
 func LocalScope.name_is_free(name, global_scope) {

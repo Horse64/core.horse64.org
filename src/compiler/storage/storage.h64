@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import compiler.ast as ast
+import compiler.ast.analyze as ast_analyze
 import compiler.ast.expr as ast_expr
 import compiler.ast.func_stmt as func_stmt
 import compiler.ast.transform as transform
@@ -55,7 +56,7 @@ func project.Project.is_ref_a_type(ref, node=none) {
         }
         var escope = self.storage_id_to_escope_map[ref.id]
         return not escope.is_enum
-    } elseif {storage_ref.ST_LOCAL,
+    } elseif {storage_ref.ST_LOCAL, storage_ref.ST_CCAPTURE,
             storage_ref.ST_NUMLITERAL}.has(ref.kind) {
         return no
     } elseif {storage_ref.ST_SELF, storage_ref.ST_BASE}.has(ref.kind) {
@@ -461,13 +462,14 @@ func project.Project.compute_all_scopes(msgs, debug=no,
             ))
             return
         }
-        local_scope.name_to_symbol_map[symbol_name] =
-            new scope.SymbolInfo(symbol_name)
-        local_scope.name_to_symbol_map[symbol_name].storage_id =
+        var sinfo = new scope.SymbolInfo(symbol_name)
+        sinfo.storage_id =
             local_scope.func_scope.last_inner_storage_id + 1
-        local_scope.name_to_symbol_map[symbol_name].line = line
-        local_scope.name_to_symbol_map[symbol_name].col = col
         local_scope.func_scope.last_inner_storage_id += 1
+        sinfo.line = line
+        sinfo.col = col
+        local_scope.name_to_symbol_map[symbol_name] = sinfo
+        local_scope.storage_id_to_symbol_map[sinfo.storage_id] = sinfo
     }
     func compute_scope(pfile) {
         if debug {
@@ -802,7 +804,9 @@ func project.Project.compute_all_scopes(msgs, debug=no,
     await success
     finalize_enum_and_type_storage(self, msgs)
     func resolve_scope(pfile) {
-        func expr_idref_resolve_visitor(node, parent) {
+        func expr_idref_resolve_visitor(node, parents) {
+            var parent = if parents.len > 0
+                (parents[parents.len]) else (none)
             if node.kind == ast.N_STMT_FUNC and
                     node.func_scope != none {
                 var is_global = no
@@ -861,10 +865,14 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                         parent.subexprs[1] == node {
                     return later node
                 }
+                var is_write_access =
+                    not ast_analyze.is_idref_readonly_access(
+                        node, parents)
                 var result = pfile.try_lookup_symbol_path(
                     node.scope,
                     name=node.label,
-                    type_path=node.type_path
+                    type_path=node.type_path,
+                    is_write_access=is_write_access,
                 )
                 if result == none {
                     var ref_name = node.label
@@ -895,6 +903,9 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                     (parent.kind != ast.N_EXPR_BINOP or
                      parent.optoken.str != ".") and
                     node.subexprs[2].kind == ast.N_EXPR_IDREF {
+                var is_write_access =
+                    not ast_analyze.is_idref_readonly_access(
+                        node, parents)
                 var label = node.subexprs[2].label
                 var type_path = []
                 var lefthand = node.subexprs[1]
@@ -926,7 +937,8 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                 var ref
                 while yes {
                     ref = pfile.try_lookup_symbol_path(
-                        node.scope, name=label, type_path=type_path)
+                        node.scope, name=label, type_path=type_path,
+                        is_write_access=is_write_access)
                     if ref != none or type_path.len == 0 {
                         break
                     }
@@ -998,7 +1010,8 @@ func project.Project.compute_all_scopes(msgs, debug=no,
         pfile.ensure_ast() later:
 
         success = transform.visit_ast_tree(
-            pfile.ast, expr_idref_resolve_visitor) later:
+            pfile.ast, expr_idref_resolve_visitor,
+            parent_chain=yes) later:
 
         await success
         for storage_id in pfile.global_scope.

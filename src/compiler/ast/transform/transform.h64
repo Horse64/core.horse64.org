@@ -160,11 +160,64 @@ func split_if_to_single_clauses(project_file, node, parent) {
 }
 
 func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes,
-        parent_chain=no) {
+        parent_chain=no, backward=no) {
     var visit_queue = [new VisitQueueEntry(
         node, if parent_chain ([]) else (none))]
     var aborted = no
     var is_first = yes
+
+    func queue_children_of_item(item, prev_parent) {
+        if typename(item) == "list" {
+            for node in item {
+                if node == none {
+                    continue
+                }
+                const supply_parent =
+                    (if parent_chain (prev_parent + [node]) else (node))
+                for expr in node.subexprs {
+                    if expr == none {
+                        continue
+                    }
+                    visit_queue.add(new VisitQueueEntry(
+                        expr, supply_parent
+                    ))
+                }
+                for block in node.subblocks {
+                    for expr in block {
+                        if expr == none {
+                            continue
+                        }
+                        visit_queue.add(new VisitQueueEntry(
+                            expr, supply_parent
+                        ))
+                    }
+                }
+            }
+            return
+        }
+        const supply_parent =
+            if parent_chain (prev_parent + [item]) else (item)
+        if has_attr(item, "subexprs") {
+            for expr in item.subexprs {
+                if expr == none {
+                    continue
+                }
+                visit_queue.add(new VisitQueueEntry(
+                    expr, supply_parent
+                ))
+            }
+        }
+        if has_attr(item, "subblocks") {
+            for block in item.subblocks {
+                for st in block {
+                    visit_queue.add(new VisitQueueEntry(
+                        st, supply_parent
+                    ))
+                }
+            }
+        }
+    }
+
     func process_next_node {
         if visit_queue.len == 0 {
             return later no
@@ -198,7 +251,8 @@ func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes,
             return later no
         }
         if new_node != next.node {
-            var parent = if parent_chain (next.parent[1]) else (next.parent)
+            var parent = if parent_chain
+                (next.parent[next.parent.len]) else (next.parent)
             if has_attr(parent, "subexprs") {
                 var pos = 1
                 while pos <= parent.subexprs.len {
@@ -272,54 +326,8 @@ func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes,
             return later yes
         }
         # Handle queueing up the newly inserted node(s) children:
-        if typename(new_node) == "list" {
-            for node in new_node {
-                if node == none {
-                    continue
-                }
-                const supply_parent =
-                    (if parent_chain (next.parent + [node]) else (node))
-                for expr in node.subexprs {
-                    if expr == none {
-                        continue
-                    }
-                    visit_queue.add(new VisitQueueEntry(
-                        expr, supply_parent
-                    ))
-                }
-                for block in node.subblocks {
-                    for expr in block {
-                        if expr == none {
-                            continue
-                        }
-                        visit_queue.add(new VisitQueueEntry(
-                            expr, supply_parent
-                        ))
-                    }
-                }
-            }
-            return later yes
-        }
-        const supply_parent =
-            if parent_chain (next.parent + [new_node]) else (new_node)
-        if has_attr(new_node, "subexprs") {
-            for expr in new_node.subexprs {
-                if expr == none {
-                    continue
-                }
-                visit_queue.add(new VisitQueueEntry(
-                    expr, supply_parent
-                ))
-            }
-        }
-        if has_attr(new_node, "subblocks") {
-            for block in new_node.subblocks {
-                for st in block {
-                    visit_queue.add(new VisitQueueEntry(
-                        st, supply_parent
-                    ))
-                }
-            }
+        if not backward {
+            queue_children_of_item(new_node, next.parent)
         }
         return later yes
     }

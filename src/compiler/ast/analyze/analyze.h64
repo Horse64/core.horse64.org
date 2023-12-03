@@ -173,6 +173,46 @@ func get_throw_statement_rescue_clause(stmt, parents) {
     return none
 }
 
+func is_idref_readonly_access(node, parent_chain) {
+    if node.kind != cast.N_EXPR_IDREF and
+            (node.kind != cast.N_EXPR_BINOP or
+            node.optoken.str != "." or
+            node.subexprs.len != 2 or
+            node.subexprs[2].kind != cast.N_EXPR_IDREF) {
+        throw new TypeError("Check only valid for identifiers.")
+    }
+    if parent_chain.len == 0 {
+        return no
+    }
+    var child = node
+    var parent_idx = 1
+    var parent = parent_chain[parent_idx]
+    while yes {
+        if parent.kind == cast.N_STMT_VAR {
+            return yes
+        }
+        if parent.kind == cast.N_STMT_ASSIGN {
+            var pair_count = parent.subexprs.len / 2
+            var pos = pair_count + 1
+            assert(pair_count >= 1)
+            while pos <= parent.subexprs.len {
+                if parent.subexprs[pos] == child {
+                    # It's an rvalue, that's a read-only access.
+                    return yes
+                }
+                pos += 1
+            }
+            return no
+        }
+        parent_idx += 1
+        if parent_idx > parent_chain.len {
+            return no
+        }
+        child = parent
+        parent = parent_chain[parent_idx]
+    }
+}
+
 func advanced_phase3_later_and_computevals(
         stmts, msgs=none, project_file=none
         ) {

@@ -43,12 +43,14 @@ type StorageRef {
 func StorageRef.as_str {
     if self.kind == ST_LOCAL {
         return "L" + self.id.as_str()
+    } elseif self.kind == ST_CCAPTURE {
+        return "CC" + self.id.as_str()
     } elseif self.kind == ST_GLOBAL {
         return "G" + self.id.as_str()
     } elseif self.kind == ST_NUMLITERAL {
         return "NUM" + self.id.as_str()
     } elseif self.kind == ST_CEXT {
-        return "C" + self.id.as_str()
+        return "CX" + self.id.as_str()
     } elseif self.kind == ST_SELF {
         return "SELF"
     } elseif self.kind == ST_BASE {

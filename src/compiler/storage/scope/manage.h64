@@ -70,7 +70,8 @@ func project.ProjectFile.type_path_to_full_module_path_and_pfile(
 }
 
 func project.ProjectFile.try_lookup_symbol_path(
-        local_scope, name=none, type_path=none
+        local_scope, name=none, type_path=none,
+        is_write_access=yes
         ) {
     if name == none and type_path == none {
         throw new ValueError("Need to supply at least one of "
@@ -90,16 +91,15 @@ func project.ProjectFile.try_lookup_symbol_path(
         return none
     }
     if local_scope != none {
-        var symbol_info =
-            local_scope.lookup(check_path[1])
-        if symbol_info != none {
+        var lookup_pair =
+            local_scope.lookup(check_path[1],
+                is_write_access=is_write_access)
+        if lookup_pair != none {
+            var symbol_ref = lookup_pair[1]
             if check_path.len > 1 {
                 return none
             }
-            return new storage_ref.StorageRef(
-                storage_ref.ST_LOCAL,
-                symbol_info
-            )
+            return symbol_ref
         }
     }
     var entry = self.global_scope.type_path_to_entry(
