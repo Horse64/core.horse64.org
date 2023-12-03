@@ -214,6 +214,7 @@ func first_pass_later_transform(project, msgs) {
                 var func_node = pfile.make_new_made_up_func_node(
                     inner_scope, "laterfunc", line=node.line,
                     col=node.line)
+                func_node.scope = inner_scope
                 transformed_nodes.add(func_node)
                 func_node.subblocks = [stmts_after]
                 node.is_later = no
@@ -229,8 +230,11 @@ func first_pass_later_transform(project, msgs) {
                 call_stmt_node.line = node.line
                 call_stmt_node.col = node.col
                 call_stmt_node.subexprs.add(call_exprs[1])
-                #return []
-                return [func_node, call_stmt_node]
+
+                ast_transform.reparent_nodes_into_closure(
+                    func_node, stmts_after, func_node.scope) later:
+
+                return later [func_node, call_stmt_node]
             }
             if node.kind == cast.N_STMT_RETURN and
                     not transformed_nodes.has(node) and
@@ -244,7 +248,7 @@ func first_pass_later_transform(project, msgs) {
                     einfo,
                     if node.subexprs.len > 0 (node.subexprs[1])
                         else (none), inner_scope, line, col)
-                return nodes
+                return later nodes
             }
             if node.kind == cast.N_STMT_IF and no {
                 var has_later = no
@@ -258,7 +262,7 @@ func first_pass_later_transform(project, msgs) {
                     }
                 }
                 if has_later {
-                    return ast_transform.split_if_to_single_clauses(
+                    return later ast_transform.split_if_to_single_clauses(
                         pfile, node, parents[parents.len])
                 }
             }
