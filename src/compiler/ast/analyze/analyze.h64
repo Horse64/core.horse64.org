@@ -491,6 +491,9 @@ func advanced_phase3_later_and_computevals(
                             if stmt.kind == cast.N_STMT_THROW and
                                     stmt.subexprs.len == 0 {
                                 var node = new ast_expr.IdRefExpr()
+                                node.scope = inner_scope
+                                node.line = stmt.line
+                                node.col = stmt.col
                                 node.label = new_name
                                 node.ref = new st_ref.StorageRef(
                                     st_ref.ST_LOCAL, new_sinfo.storage_id
