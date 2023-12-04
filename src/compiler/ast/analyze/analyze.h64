@@ -251,6 +251,7 @@ func advanced_phase3_later_and_computevals(
                         expr.ref != none and
                         expr.ref.kind == st_ref.ST_NUMLITERAL {
                     var value_expr = new ast_expr.LiteralExpr()
+                    value_expr.scope = expr.scope
                     value_expr.line = expr.line
                     value_expr.col = expr.col
                     value_expr.value = expr.ref.id

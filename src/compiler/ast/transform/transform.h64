@@ -166,52 +166,101 @@ func reparent_nodes_into_closure(func_node, stmts, outer_inner_scope) {
 
     var replaced_inner_scopes_map = {->}
 
-    func replace_scope_visitor(expr, parents) {
-        #if expr.scope == none {
-        #    print("This node is broken, no scope: " + [expr].as_str())
-        #}
-        assert(expr.scope != none)
-        if expr.scope.func_scope != outer_func_scope {
-            return later expr
-        }
-        if replaced_inner_scopes_map.has(expr.scope) {
-            expr.scope = replaced_inner_scopes_map[expr.scope]
-            return later expr
-        }
-        var new_inner_scope = new scope.LocalScope()
-        if expr.scope.parent != none {
-            if expr.scope.parent == outer_inner_scope {
-                new_inner_scope.parent = outer_inner_scope
-            } else {
-                if not replaced_inner_scopes_map.has(expr.scope.parent) {
-                    replaced_inner_scopes_map[expr.scope.parent] =
-                        new scope.LocalScope()
-                }
-                new_inner_scope.parent =
-                    replaced_inner_scopes_map[expr.scope.parent]
-            }
-        }
-        new_inner_scope.func_scope = closure_func_scope
-        expr.scope = new_inner_scope
-        return later expr
-    }
-    var queue = stmts.copy()
-    if queue.len == 0 {
-        return later
-    }
-    var next_node = queue.pop(1)
-    var result = visit_ast_tree(next_node, replace_scope_visitor,
-        pass_func_boundaries=yes, parent_chain=yes, backward=no)
-    later:
+    var vars_in_replaced_scope_st_ids = {->}
 
-    await result
-    if queue.len == 0 {
-        return later
+    func replace_scopes {
+        func replace_scope_visitor(expr, parents) {
+            assert(expr.scope != none)
+            if expr.scope.func_scope != outer_func_scope {
+                return later expr
+            }
+            if replaced_inner_scopes_map.has(expr.scope) {
+                expr.scope = replaced_inner_scopes_map[expr.scope]
+                return later expr
+            }
+            var new_inner_scope = new scope.LocalScope()
+            if expr.scope.parent != none {
+                if expr.scope.parent == outer_inner_scope {
+                    new_inner_scope.parent = outer_inner_scope
+                } else {
+                    if not replaced_inner_scopes_map.
+                            has(expr.scope.parent) {
+                        replaced_inner_scopes_map[expr.scope.parent] =
+                            new scope.LocalScope()
+                    }
+                    new_inner_scope.parent =
+                        replaced_inner_scopes_map[expr.scope.parent]
+                }
+            }
+            new_inner_scope.func_scope = closure_func_scope
+            replaced_inner_scopes_map[expr.scope] = new_inner_scope
+            for name in expr.scope.name_to_symbol_map {
+                var sinfo = expr.scope.name_to_symbol_map[name]
+                closure_func_scope.last_inner_storage_id += 1
+                var st_id = closure_func_scope.last_inner_storage_id
+                vars_in_replaced_scope_st_ids[sinfo.storage_id] = st_id
+                var new_sinfo = sinfo.copy()
+                new_sinfo.storage_id = sinfo.storage_id
+                new_inner_scope.name_to_symbol_map[
+                    new_sinfo.name] = new_sinfo
+                new_inner_scope.storage_id_to_symbol_map[
+                    st_id] = new_sinfo
+            }
+            expr.scope = new_inner_scope
+            return later expr
+        }
+        var queue = stmts.copy()
+        if queue.len == 0 {
+            return later
+        }
+        var next_node = queue.pop_at(1)
+        var result = visit_ast_tree(next_node, replace_scope_visitor,
+            pass_func_boundaries=yes, parent_chain=yes, backward=no)
+        later:
+
+        await result
+        if queue.len == 0 {
+            return later
+        }
+        next_node = queue.pop_at(1)
+        result = visit_ast_tree(next_node, replace_scope_visitor,
+            pass_func_boundaries=yes, parent_chain=yes, backward=no)
+        later repeat
     }
-    next_node = queue.pop(1)
-    result = visit_ast_tree(next_node, replace_scope_visitor,
-        pass_func_boundaries=yes, parent_chain=yes, backward=no)
-    later repeat
+    replace_scopes() later:
+
+    func adjust_storage {
+        func fix_storage_visitor(expr, parents) {
+            assert(expr.scope != none)
+            if expr.scope.func_scope != closure_func_scope {
+                return later expr
+            }
+            if expr.kind != ast.N_EXPR_IDREF {
+                return later expr
+            }
+            return later expr
+        }
+        var queue = stmts.copy()
+        if queue.len == 0 {
+            return later
+        }
+        var next_node = queue.pop_at(1)
+        var result = visit_ast_tree(next_node, fix_storage_visitor,
+            pass_func_boundaries=yes, parent_chain=yes, backward=no)
+        later:
+
+        await result
+        if queue.len == 0 {
+            return later
+        }
+        next_node = queue.pop_at(1)
+        result = visit_ast_tree(next_node, fix_storage_visitor,
+            pass_func_boundaries=yes, parent_chain=yes, backward=no)
+        later repeat
+    }
+    adjust_storage() later:
+
+    return later
 }
 
 func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes,

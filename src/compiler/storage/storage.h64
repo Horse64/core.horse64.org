@@ -978,6 +978,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                     }
                 } else {
                     var replacement_idref = new ast_expr.IdRefExpr()
+                    replacement_idref.scope = node.scope
                     replacement_idref.line = node.line
                     replacement_idref.col = node.col
                     replacement_idref.label = label
