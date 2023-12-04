@@ -462,14 +462,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
             ))
             return
         }
-        var sinfo = new scope.SymbolInfo(symbol_name)
-        sinfo.storage_id =
-            local_scope.func_scope.last_inner_storage_id + 1
-        local_scope.func_scope.last_inner_storage_id += 1
-        sinfo.line = line
-        sinfo.col = col
-        local_scope.name_to_symbol_map[symbol_name] = sinfo
-        local_scope.storage_id_to_symbol_map[sinfo.storage_id] = sinfo
+        local_scope.add_symbol(symbol_name, line, col)
     }
     func compute_scope(pfile) {
         if debug {

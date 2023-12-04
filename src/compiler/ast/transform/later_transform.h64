@@ -30,6 +30,7 @@ import random from core.horse64.org
 import compiler.ast as cast
 import compiler.ast.analyze as ast_analyze
 import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
+import compiler.ast.do_stmt as do_stmt
 import compiler.ast.expr as ast_expr
 import compiler.ast.func_stmt as func_stmt
 import compiler.ast.return_stmt as return_stmt
@@ -41,6 +42,7 @@ import compiler.token as token
 type LaterExitInfo {
     var is_func_return = yes
     var exit_cb_label
+    var exit_cb_storage_ref
 }
 
 extend st_scope.FuncScope {
@@ -67,7 +69,8 @@ func st_scope.LocalScope.get_later_exit_info {
 func first_pass_later_transform(project, msgs) {
     var transformed_nodes = {}
     func make_later_return_cb_call(exit_info, return_expr,
-            inner_scope, line, col) {
+            inner_scope, line, col, as_error=no,
+            transformed_nodes_set=none) {
         var callback_call = new call_or_assign_stmt.CallStmt()
         callback_call.scope = inner_scope
         callback_call.line = line
@@ -93,27 +96,88 @@ func first_pass_later_transform(project, msgs) {
             idexpr.line = line
             idexpr.col = col
         }
+        var noneexpr = new ast_expr.LiteralExpr()
+        noneexpr.scope = inner_scope
+        noneexpr.line = line
+        noneexpr.col = col
         var idexpr2 = new ast_expr.IdRefExpr()
         idexpr2.scope = inner_scope
         idexpr2.label = exit_info.exit_cb_label
         idexpr2.line = line
         idexpr2.col = col
+        idexpr2.ref = exit_info.exit_cb_storage_ref
         var callargs = new ast_expr.CallOrDefArgsExpr()
         callargs.scope = inner_scope
         callargs.line = line
         callargs.col = col
         if exit_info.is_func_return {
-            callargs.subexprs = [idexpr2, return_expr]
+            if not as_error {
+                callargs.subexprs = [idexpr2, noneexpr, return_expr]
+            } else {
+                callargs.subexprs = [idexpr2, return_expr, noneexpr]
+            }
             call_expr.subexprs = [idexpr, callargs]
         } else {
-            callargs.subexprs = [return_expr]
+            if not as_error {
+                callargs.subexprs = [noneexpr, return_expr]
+            } else {
+                callargs.subexprs = [return_expr, noneexpr]
+            }
             call_expr.subexprs = [idexpr2, callargs]
         }
         var rt_stmt = new return_stmt.ReturnStmt()
         rt_stmt.scope = inner_scope
         rt_stmt.line = line
         rt_stmt.col = col
+        if transformed_nodes_set != none {
+            transformed_nodes_set.add(rt_stmt)
+        }
         return [callback_call, rt_stmt]
+    }
+    func wrap_func_in_later_do_rescue(pfile, node, latercb_name,
+            transformed_nodes_set=none) {
+        assert(node.kind == cast.N_STMT_FUNC)
+        var inner_scope = node.func_scope.inner_scope
+
+        # Move it into do rescue to propagate error:
+        var doresc = new do_stmt.DoStmt()
+        doresc.scope = node.func_scope.inner_scope
+        doresc.line = node.line
+        doresc.col = node.col
+        var rescclause = new do_stmt.RescueClause()
+        rescclause.scope = doresc.scope
+        rescclause.line = doresc.line
+        rescclause.col = doresc.col
+        doresc.subexprs += [rescclause]
+        doresc.subblocks.add(node.subblocks[1])
+        node.subblocks = [[doresc]]
+        var err_name = "latererr" + random.gen_id()
+        while not inner_scope.name_is_free(err_name,
+                pfile.global_scope) {
+            err_name = "latererr" + random.gen_id()
+        }
+        var err_ref = inner_scope.add_symbol(
+            err_name, rescclause.line, rescclause.col)
+        rescclause.error_labels.add(err_name)
+        rescclause.subexprs.add(none)  # ='any'
+
+        # Inside rescue clause, return error to callback:
+        var error_idref = new ast_expr.IdRefExpr()
+        error_idref.scope = inner_scope
+        error_idref.line = doresc.line
+        error_idref.col = doresc.col
+        error_idref.label = err_name
+        error_idref.ref = err_ref
+        var nodes = make_later_return_cb_call(
+            node.func_scope.later_exit_info, error_idref,
+            inner_scope, node.line, node.col, as_error=yes,
+            transformed_nodes_set=transformed_nodes_set)
+        rescclause.subblocks = [nodes]
+        if transformed_nodes_set != none {
+            transformed_nodes_set.add(node)
+        }
+
+        return node
     }
     func transform_file(pfile) {
         func transform_node(node, parents) {
@@ -134,9 +198,11 @@ func first_pass_later_transform(project, msgs) {
                         pfile.global_scope) {
                     new_name = "latercb" + random.gen_id()
                 }
-                var einfo = new LaterExitInfo()
-                einfo.exit_cb_label = new_name
-                node.func_scope.later_exit_info = einfo
+                var exinfo = new LaterExitInfo()
+                exinfo.exit_cb_label = new_name
+                node.func_scope.later_exit_info = exinfo
+                exinfo.exit_cb_storage_ref =
+                    inner_scope.add_symbol(new_name, node.line, node.col)
 
                 var pos_arg_count =
                     node.arg_labels.len - node.kw_arg_count
@@ -156,12 +222,18 @@ func first_pass_later_transform(project, msgs) {
                             [node.subblocks[1].len].col
                     }
                     var nodes = make_later_return_cb_call(
-                        einfo, none, inner_scope, line, col)
+                        exinfo, none, inner_scope, line, col)
                     for inner_node in nodes {
                         transformed_nodes.add(inner_node)
                     }
                     node.subblocks[1] += nodes
                 }
+
+                node = wrap_func_in_later_do_rescue(
+                    pfile, node, new_name,
+                    transformed_nodes_set=transformed_nodes)
+                assert(transformed_nodes.has(node))
+                return node
             }
             if {cast.N_STMT_VAR,
                     cast.N_STMT_ASSIGN}.has(node.kind) and

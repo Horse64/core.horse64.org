@@ -149,6 +149,23 @@ func LocalScope.reassign_after_move_into_closure(
     self.ccapture_id_to_symbol_map[st_id] = outer_symbol_info
 }
 
+func LocalScope.add_symbol(symbol_name, line, col) {
+    if self.name_to_symbol_map.has(symbol_name) {
+        throw new ValueError("Symbol name already taken.")
+    }
+    var sinfo = new SymbolInfo(symbol_name)
+    sinfo.storage_id =
+        self.func_scope.last_inner_storage_id + 1
+    self.func_scope.last_inner_storage_id += 1
+    sinfo.line = line
+    sinfo.col = col
+    self.name_to_symbol_map[symbol_name] = sinfo
+    self.storage_id_to_symbol_map[sinfo.storage_id] = sinfo
+    return new st_ref.StorageRef(
+        st_ref.ST_LOCAL, sinfo.storage_id
+    )
+}
+
 func LocalScope.lookup(name,
         is_write_access=yes, cross_func_scopes=yes) {
     var ref
