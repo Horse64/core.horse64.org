@@ -235,8 +235,20 @@ func reparent_nodes_into_closure(func_node, stmts, outer_inner_scope) {
             if expr.scope.func_scope != closure_func_scope {
                 return later expr
             }
-            if expr.kind != ast.N_EXPR_IDREF {
+            if expr.kind != ast.N_EXPR_IDREF or expr.ref == none or
+                    expr.ref != st_ref.ST_LOCAL {
                 return later expr
+            }
+            if vars_in_replaced_scope_st_ids.has(expr.ref.id) {
+                expr.ref.id = vars_in_replaced_scope_st_ids[expr.ref.id]
+            } else {
+                # This crosses closure boundaries now.
+                var result_pair = expr.scope.lookup(expr.label,
+                    is_write_access=no, cross_func_scopes=yes)
+
+                assert(result_pair != none and
+                    result_pair[1].kind == st_ref.ST_CCAPTURE)
+                expr.ref = result_pair[1]
             }
             return later expr
         }
