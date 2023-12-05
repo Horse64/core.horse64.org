@@ -161,6 +161,7 @@ func split_if_to_single_clauses(project_file, node, parent) {
 }
 
 func reparent_nodes_into_closure(func_node, stmts, outer_inner_scope) {
+    assert(func_node.kind == ast.N_STMT_FUNC)
     var closure_func_scope = func_node.func_scope
     var outer_func_scope = outer_inner_scope.func_scope
 
