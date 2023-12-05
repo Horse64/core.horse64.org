@@ -27,7 +27,7 @@
 
 import random from core.horse64.org
 
-import compiler.ast as cast
+import compiler.ast as ast
 import compiler.ast.analyze.eval as ast_eval
 import compiler.ast.expr as ast_expr
 import compiler.ast.func_stmt as func_stmt
@@ -45,17 +45,17 @@ func stmt_list_contains_later_call(
         include_later_ignore=no,
         recurse_into_funcs=no) {
     for stmt in stmts {
-        if {cast.N_STMT_VAR, cast.N_STMT_CALL}.has(stmt.kind) and
+        if {ast.N_STMT_VAR, ast.N_STMT_CALL}.has(stmt.kind) and
                 stmt.has_later and
                 (include_later_ignore or
                  not stmt.has_later_ignore) {
             return yes
-        } elseif stmt.kind == cast.N_STMT_RETURN and
+        } elseif stmt.kind == ast.N_STMT_RETURN and
                 stmt.has_later {
             return yes
         } elseif check_recursive {
-            if stmt.kind == cast.N_STMT_IF or
-                    stmt.kind == cast.N_STMT_DO {
+            if stmt.kind == ast.N_STMT_IF or
+                    stmt.kind == ast.N_STMT_DO {
                 for clause in stmt.subexprs {
                     for block in clause.subblocks {
                         if stmt_list_contains_later_call(block,
@@ -65,8 +65,9 @@ func stmt_list_contains_later_call(
                         }
                     }
                 }
-            } elseif (recurse_into_funcs or
-                    stmt.kind != cast.N_STMT_FUNC) and
+            }
+            if (recurse_into_funcs or
+                    stmt.kind != ast.N_STMT_FUNC) and
                     stmt.subblocks.len > 0 {
                 for block in stmt.subblocks {
                     if stmt_list_contains_later_call(block,
@@ -97,7 +98,7 @@ func get_global_storage_neighbor_closure(project) {
             return [ast_eval.AR_UNKNOWN]
         }
         var entry = st_id_map[st_id]
-        if entry.kind != cast.N_STMT_VAR or
+        if entry.kind != ast.N_STMT_VAR or
                 not entry.initial_value_known {
             return [ast_eval.AR_UNKNOWN]
         }
@@ -120,7 +121,7 @@ func advanced_phase2_evaluate_global_scope(
         if typename(stmt) == "list" or
                 (has_attr(stmt, "is_enum_entry") and
                  stmt.is_enum_entry) or
-                stmt.kind != cast.N_STMT_VAR or
+                stmt.kind != ast.N_STMT_VAR or
                 stmt.initial_value_known {
             continue
         }
@@ -131,7 +132,7 @@ func advanced_phase2_evaluate_global_scope(
             had_change = yes
             stmt.initial_value_known = yes
             stmt.initial_value = v[2]
-            if stmt.subexprs[1].kind != cast.N_EXPR_LIT {
+            if stmt.subexprs[1].kind != ast.N_EXPR_LIT {
                 var value_expr = new ast_expr.LiteralExpr()
                 value_expr.line = stmt.subexprs[1].line
                 value_expr.col = stmt.subexprs[1].col
@@ -163,9 +164,9 @@ func get_throw_statement_rescue_clause(stmt, parents) {
     var parent_clause = none
     var pos = 1
     while pos <= parents.len {
-        if parents[pos].kind == cast.N_STMT_FUNC {
+        if parents[pos].kind == ast.N_STMT_FUNC {
             return none
-        } elseif parents[pos].kind == cast.N_EXPR_RESCUECLAUSE {
+        } elseif parents[pos].kind == ast.N_EXPR_RESCUECLAUSE {
             return parents[pos]
         }
         pos += 1
@@ -174,11 +175,11 @@ func get_throw_statement_rescue_clause(stmt, parents) {
 }
 
 func is_idref_readonly_access(node, parent_chain) {
-    if node.kind != cast.N_EXPR_IDREF and
-            (node.kind != cast.N_EXPR_BINOP or
+    if node.kind != ast.N_EXPR_IDREF and
+            (node.kind != ast.N_EXPR_BINOP or
             node.optoken.str != "." or
             node.subexprs.len != 2 or
-            node.subexprs[2].kind != cast.N_EXPR_IDREF) {
+            node.subexprs[2].kind != ast.N_EXPR_IDREF) {
         throw new TypeError("Check only valid for identifiers.")
     }
     if parent_chain.len == 0 {
@@ -188,10 +189,10 @@ func is_idref_readonly_access(node, parent_chain) {
     var parent_idx = 1
     var parent = parent_chain[parent_idx]
     while yes {
-        if parent.kind == cast.N_STMT_VAR {
+        if parent.kind == ast.N_STMT_VAR {
             return yes
         }
-        if parent.kind == cast.N_STMT_ASSIGN {
+        if parent.kind == ast.N_STMT_ASSIGN {
             var pair_count = parent.subexprs.len / 2
             var pos = pair_count + 1
             assert(pair_count >= 1)
@@ -224,7 +225,7 @@ func advanced_phase3_later_and_computevals(
             stmts, parents, msgs
             ) {
         for stmt in stmts {
-            if stmt.kind == cast.N_STMT_FUNC {
+            if stmt.kind == ast.N_STMT_FUNC {
                 var is_later_func = no
                 for block in stmt.subblocks {
                     if stmt_list_contains_later_call(
@@ -247,7 +248,7 @@ func advanced_phase3_later_and_computevals(
                     return expr
                 }
                 # Replace enum references with their values:
-                if expr.kind == cast.N_EXPR_IDREF and
+                if expr.kind == ast.N_EXPR_IDREF and
                         expr.ref != none and
                         expr.ref.kind == st_ref.ST_NUMLITERAL {
                     var value_expr = new ast_expr.LiteralExpr()
@@ -260,23 +261,23 @@ func advanced_phase3_later_and_computevals(
 
                 # Make sure types can't be directly referenced:
                 var is_type_constructor = no
-                if expr.kind == cast.N_EXPR_IDREF and
+                if expr.kind == ast.N_EXPR_IDREF and
                         expr.ref != none and
                         project.is_ref_a_type(expr.ref) {
                     if parent == none or
-                            parent.kind != cast.N_EXPR_BINOP or
+                            parent.kind != ast.N_EXPR_BINOP or
                             parent.optoken.str != "(" or
                             expr != parent.subexprs[1] or
                             grandparent == none or
-                            grandparent.kind != cast.N_EXPR_UNOP or
+                            grandparent.kind != ast.N_EXPR_UNOP or
                             grandparent.subexprs[1] != parent {
                         if msgs != none {
                             msgs.add(new msg.FileMsg(
                                 "Invalid type reference, must be part of "
                                 "a new constructor.",
                                 source_file=project_file,
-                                line=stmt.subexprs[1].line,
-                                col=stmt.subexprs[1].col
+                                line=expr.line,
+                                col=expr.col
                             ))
                         }
                         expr.damaged = yes
@@ -292,7 +293,7 @@ func advanced_phase3_later_and_computevals(
                     var callargs = parent.subexprs[2]
                     if callargs.subexprs.len != 1 or
                             callargs.subexprs[1].kind ==
-                            cast.N_EXPR_CALLKWARG {
+                            ast.N_EXPR_CALLKWARG {
                         if msgs != none {
                             msgs.add(new msg.FileMsg(
                                 "Invalid error constructor call, "
@@ -334,7 +335,7 @@ func advanced_phase3_later_and_computevals(
                 stmt, check_nested_constructors)
 
             # Determine error message ahead of time for throws:
-            if stmt.kind == cast.N_STMT_THROW and
+            if stmt.kind == ast.N_STMT_THROW and
                     stmt.error_msg_aot_evaluated == none and
                     not stmt.error_msg_is_dynamic and
                     not stmt.has_damage() and
@@ -342,17 +343,17 @@ func advanced_phase3_later_and_computevals(
                 var has_valid_error_arg = no
                 var callargs, callobj
                 assert(stmt.subexprs.len == 1)
-                if stmt.subexprs[1].kind == cast.N_EXPR_UNOP and
+                if stmt.subexprs[1].kind == ast.N_EXPR_UNOP and
                         stmt.subexprs[1].optoken.str == "new" and
                         stmt.subexprs[1].subexprs[1].kind ==
-                            cast.N_EXPR_BINOP and
+                            ast.N_EXPR_BINOP and
                         stmt.subexprs[1].subexprs[1].optoken.str == "(" and
                         stmt.subexprs[1].subexprs[1].subexprs[2].kind ==
-                            cast.N_EXPR_CALLORDEFARGS {
+                            ast.N_EXPR_CALLORDEFARGS {
                     callargs = stmt.subexprs[1].subexprs[1].
                         subexprs[2]
                     callobj = stmt.subexprs[1].subexprs[1].subexprs[1]
-                    if callobj.kind != cast.N_EXPR_IDREF or
+                    if callobj.kind != ast.N_EXPR_IDREF or
                             not project.is_ref_a_type(callobj.ref) or
                             not project.is_ref_of_given_type_an_error(
                                 callobj.ref) {
@@ -360,7 +361,7 @@ func advanced_phase3_later_and_computevals(
                     } else {
                         has_valid_error_arg = yes
                     }
-                } elseif stmt.subexprs[1].kind == cast.N_EXPR_IDREF {
+                } elseif stmt.subexprs[1].kind == ast.N_EXPR_IDREF {
                     has_valid_error_arg = yes
                 }
                 if not has_valid_error_arg {
@@ -382,7 +383,7 @@ func advanced_phase3_later_and_computevals(
                 if not stmt.damaged and callargs != none and (
                         callargs.subexprs.len != 1 or
                         callargs.subexprs[1].kind ==
-                            cast.N_EXPR_CALLKWARG) {
+                            ast.N_EXPR_CALLKWARG) {
                     if msgs != none {
                         msgs.add(new msg.FileMsg(
                             "Invalid error constructor call, "
@@ -417,7 +418,7 @@ func advanced_phase3_later_and_computevals(
                         ))
                     }
                 }
-            } elseif stmt.kind == cast.N_STMT_THROW and
+            } elseif stmt.kind == ast.N_STMT_THROW and
                     stmt.error_msg_aot_evaluated == none and
                     not stmt.error_msg_is_dynamic and
                     not stmt.has_damage() and
@@ -489,7 +490,7 @@ func advanced_phase3_later_and_computevals(
                     }
                     func assign_label_to_all_empty_throws(stmts) {
                         for stmt in stmts {
-                            if stmt.kind == cast.N_STMT_THROW and
+                            if stmt.kind == ast.N_STMT_THROW and
                                     stmt.subexprs.len == 0 {
                                 var node = new ast_expr.IdRefExpr()
                                 node.scope = inner_scope
@@ -500,11 +501,11 @@ func advanced_phase3_later_and_computevals(
                                     st_ref.ST_LOCAL, new_sinfo.storage_id
                                 )
                                 stmt.subexprs.add(node)
-                            } elseif stmt.kind == cast.N_STMT_DO or
-                                    stmt.kind == cast.N_STMT_IF {
+                            } elseif stmt.kind == ast.N_STMT_DO or
+                                    stmt.kind == ast.N_STMT_IF {
                                 for clause in stmt.subexprs {
                                     if clause.kind ==
-                                            cast.N_EXPR_RESCUECLAUSE {
+                                            ast.N_EXPR_RESCUECLAUSE {
                                         # Don't cross into rescue clauses.
                                         continue
                                     }
@@ -513,7 +514,7 @@ func advanced_phase3_later_and_computevals(
                                             block)
                                     }
                                 }
-                            } elseif stmt.kind == cast.N_STMT_FUNC {
+                            } elseif stmt.kind == ast.N_STMT_FUNC {
                                 # Don't cross function boundaries.
                                 continue
                             } elseif stmt.subblocks.len > 0 {
@@ -531,8 +532,8 @@ func advanced_phase3_later_and_computevals(
             }
 
             # Blocks:
-            if stmt.kind == cast.N_STMT_IF or
-                    stmt.kind == cast.N_STMT_DO {
+            if stmt.kind == ast.N_STMT_IF or
+                    stmt.kind == ast.N_STMT_DO {
                 for clause in stmt.subexprs {
                     for block in clause.subblocks {
                         if not check_and_analyze_recurse(
@@ -541,7 +542,8 @@ func advanced_phase3_later_and_computevals(
                         }
                     }
                 }
-            } elseif stmt.subblocks.len > 0 {
+            }
+            if stmt.subblocks.len > 0 {
                 for block in stmt.subblocks {
                     if not check_and_analyze_recurse(
                             block, [stmt] + parents, msgs) {
@@ -569,8 +571,8 @@ func advanced_phase1_globalrefs(
             # guesses, especially inside functions.)
 
             # Blocks:
-            if stmt.kind == cast.N_STMT_IF or
-                    stmt.kind == cast.N_STMT_DO {
+            if stmt.kind == ast.N_STMT_IF or
+                    stmt.kind == ast.N_STMT_DO {
                 for clause in stmt.subexprs {
                     for block in clause.subblocks {
                         if not check_and_analyze_recurse(block, msgs) {
@@ -611,8 +613,8 @@ func basic_phase_nestingdepth_and_misc(
             return no
         }
         for stmt in stmts {
-            if stmt.kind == cast.N_STMT_IF or
-                    stmt.kind == cast.N_STMT_DO {
+            if stmt.kind == ast.N_STMT_IF or
+                    stmt.kind == ast.N_STMT_DO {
                 for clause in stmt.subexprs {
                     for block in clause.subblocks {
                         if not check_and_analyze_recurse(block, msgs,
