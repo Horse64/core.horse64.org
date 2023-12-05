@@ -264,13 +264,29 @@ func advanced_phase3_later_and_computevals(
                 if expr.kind == ast.N_EXPR_IDREF and
                         expr.ref != none and
                         project.is_ref_a_type(expr.ref) {
-                    if parent == none or
+                    if parent != none and
+                            parent.kind == ast.N_EXPR_RESCUECLAUSE {
+                        if not project.
+                                is_ref_of_given_type_an_error(expr.ref) {
+                            if msgs != none {
+                                msgs.add(new msg.FileMsg(
+                                    "Invalid type reference, must be an "
+                                    "error type but it's a regular type.",
+                                    source_file=project_file,
+                                    line=expr.line,
+                                    col=expr.col
+                                ))
+                            }
+                            expr.damaged = yes
+                        }
+                    } elseif parent == none or
                             parent.kind != ast.N_EXPR_BINOP or
                             parent.optoken.str != "(" or
                             expr != parent.subexprs[1] or
                             grandparent == none or
                             grandparent.kind != ast.N_EXPR_UNOP or
-                            grandparent.subexprs[1] != parent {
+                            grandparent.subexprs[1] != parent or
+                            grandparent.optoken.str != "new" {
                         if msgs != none {
                             msgs.add(new msg.FileMsg(
                                 "Invalid type reference, must be part of "
