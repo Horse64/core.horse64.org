@@ -153,7 +153,7 @@ func _test_later_dorescue_3_inner {
             print("SHOULDNT BE REACHED!")
         } rescue ValueError as e {
             print("[test_later_dorescue_3 (6/9)] Caught error!")
-            throw new IOError("oops")
+            throw new NotImplementedError("oops")
         }
     } rescue TypeError as e {
         print("SHOULDNT BE REACHED EITHER!!")
@@ -167,7 +167,7 @@ func test_later_dorescue_3 {
 
     do {
         await x
-    } rescue IOError {
+    } rescue NotImplementedError {
         print("[test_later_dorescue_3 (8/9)] Got expected 2nd error!")
     }
     print("[test_later_dorescue_3 (9/9)] Done!")
