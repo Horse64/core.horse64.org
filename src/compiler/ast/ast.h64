@@ -174,7 +174,6 @@ func get_neighbor_statements_after(node, parent) {
                 return result
             }
         }
-        return []
     }
     for block in parent.subblocks {
         var pos = block.find(node)

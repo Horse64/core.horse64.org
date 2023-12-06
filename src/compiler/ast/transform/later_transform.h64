@@ -27,7 +27,7 @@
 
 import random from core.horse64.org
 
-import compiler.ast as cast
+import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
 import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
 import compiler.ast.do_stmt as do_stmt
@@ -54,16 +54,22 @@ extend st_scope.LocalScope {
 }
 
 func st_scope.LocalScope.get_later_exit_info {
+    var fscope = self.func_scope
     var scope = self
     while scope != none {
         if scope.later_exit_info != none {
             return scope.later_exit_info
         }
+        if scope.parent == none or
+                scope.parent.func_scope != fscope {
+            if fscope != none {
+                return fscope.later_exit_info
+            }
+            return none
+        }
         scope = scope.parent
     }
-    if self.func_scope != none {
-        return self.func_scope.later_exit_info
-    }
+    return none
 }
 
 func first_pass_later_transform(project, msgs) {
@@ -136,7 +142,7 @@ func first_pass_later_transform(project, msgs) {
     }
     func wrap_func_in_later_do_rescue(pfile, node, latercb_name,
             transformed_nodes_set=none) {
-        assert(node.kind == cast.N_STMT_FUNC)
+        assert(node.kind == ast.N_STMT_FUNC)
         var inner_scope = node.func_scope.inner_scope
 
         # Move it into do rescue to propagate error:
@@ -181,13 +187,13 @@ func first_pass_later_transform(project, msgs) {
     }
     func transform_file(pfile) {
         func transform_node(node, parents) {
-            if node.kind != cast.N_STMT_FUNC and (
+            if node.kind != ast.N_STMT_FUNC and (
                     node.scope == none or node.scope.func_scope == none or
                     not node.scope.func_scope.is_later_func) {
                 return later node
             }
             var inner_scope = node.scope
-            if node.kind == cast.N_STMT_FUNC and
+            if node.kind == ast.N_STMT_FUNC and
                     not transformed_nodes.has(node) and
                     node.func_scope.is_later_func and
                     node.func_scope.later_exit_info == none {
@@ -212,7 +218,7 @@ func first_pass_later_transform(project, msgs) {
                 # Add return at the end if not present:
                 if node.subblocks[1].len == 0 or
                         node.subblocks[1][node.subblocks[1].len].kind !=
-                        cast.N_STMT_RETURN {
+                        ast.N_STMT_RETURN {
                     var line = node.line
                     var col = node.col
                     if node.subblocks[1].len > 0 {
@@ -235,31 +241,31 @@ func first_pass_later_transform(project, msgs) {
                 assert(transformed_nodes.has(node))
                 return node
             }
-            if {cast.N_STMT_VAR,
-                    cast.N_STMT_ASSIGN}.has(node.kind) and
+            if {ast.N_STMT_VAR,
+                    ast.N_STMT_ASSIGN}.has(node.kind) and
                     not transformed_nodes.has(node) and
                     node.has_later and not node.has_later_ignore and
                     node.scope.func_scope.is_later_func and
                     not node.has_later_repeat {
                 transformed_nodes.add(node)
                 var call_idx = 1
-                if node.kind == cast.N_STMT_ASSIGN {
+                if node.kind == ast.N_STMT_ASSIGN {
                     call_idx = node.subexprs.len / 2 + 1
                 }
                 var call_exprs = [node.subexprs[call_idx]]
-                assert(call_exprs[1].kind == cast.N_EXPR_BINOP and
+                assert(call_exprs[1].kind == ast.N_EXPR_BINOP and
                         call_exprs[1].subexprs.len == 2 and
                         call_exprs[1].subexprs[2].kind ==
-                            cast.N_EXPR_CALLORDEFARGS)
-                if node.kind == cast.N_STMT_VAR {
+                            ast.N_EXPR_CALLORDEFARGS)
+                if node.kind == ast.N_STMT_VAR {
                     for expr in node.subexprs.sub(2) {
-                        assert(expr.kind == cast.N_EXPR_BINOP)
+                        assert(expr.kind == ast.N_EXPR_BINOP)
                         call_exprs.add(expr)
                     }
-                } elseif node.kind == cast.N_STMT_ASSIGN {
+                } elseif node.kind == ast.N_STMT_ASSIGN {
                     for expr in node.subexprs.sub(
                             node.subexprs.len / 2 + 2) {
-                        assert(expr.kind == cast.N_EXPR_BINOP)
+                        assert(expr.kind == ast.N_EXPR_BINOP)
                         call_exprs.add(expr)
                     }
                 }
@@ -269,7 +275,7 @@ func first_pass_later_transform(project, msgs) {
                 assert(einfo != none)
                 var parents_idx = parents.len + 1
                 while yes {
-                    stmts_after += cast.get_neighbor_statements_after(
+                    stmts_after += ast.get_neighbor_statements_after(
                         scan_node, if parents_idx > 1
                             (parents[parents_idx - 1]) else (none))
                     parents_idx -= 1
@@ -277,7 +283,7 @@ func first_pass_later_transform(project, msgs) {
                         break
                     }
                     scan_node = parents[parents_idx]
-                    if scan_node.kind == cast.N_STMT_FUNC or
+                    if scan_node.kind == ast.N_STMT_FUNC or
                             scan_node.scope.
                                 get_later_exit_info() != einfo {
                         break
@@ -308,7 +314,7 @@ func first_pass_later_transform(project, msgs) {
 
                 return later [func_node, call_stmt_node]
             }
-            if node.kind == cast.N_STMT_RETURN and
+            if node.kind == ast.N_STMT_RETURN and
                     not transformed_nodes.has(node) and
                     node.scope.func_scope.is_later_func {
                 transformed_nodes.add(node)
@@ -322,7 +328,7 @@ func first_pass_later_transform(project, msgs) {
                         else (none), inner_scope, line, col)
                 return later nodes
             }
-            if node.kind == cast.N_STMT_IF and no {
+            if node.kind == ast.N_STMT_IF and no {
                 var has_later = no
                 for clause in node.subexprs {
                     for block in clause.subblocks {
