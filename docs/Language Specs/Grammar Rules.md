@@ -118,7 +118,7 @@ varattrstmt ::= "var" identifier varattrprops? |
 
 enumlist ::= (enumentry_1, enumentry_2) enumlastitem
 enumitem ::= identifier enumnumberassign? ','
-enumnumberassign ::= '=' numberliteral
+enumnumberassign ::= '=' numliteral
 enumlastitem ::= identifier enumnumberassign? ','?
 ```
 
@@ -169,20 +169,23 @@ inlineifexpr ::= "if" expr '(' expr "else" expr ')'
 
 #### Grammar listing: literal constructors
 ```
-literalexpr ::= "none" | "yes" | "no" | numberliteral |
+literalexpr ::= "none" | "yes" | "no" | numliteral |
                 stringliteral | containerexpr
 
-containerexpr ::= setexpr | mapexpr | listexpr | vectorexpr
+containerexpr ::= setexpr | mapexpr | listexpr | vecexpr
 listexpr ::= '[' commaexprlist ']'
 setexpr ::= '{' commaexprlist '}'
 mapexpr ::= '{' mapitemlist '}'
 mapitemlist ::= (mapitem_1, mapitem_2, ...) maplastitem
 mapitem ::= expr '->' expr ','
 maplastitem ::= expr '->' expr
-vectorexpr ::= '[' vectoritemlist ']'
-vectoritemlist ::= (vectoritem_1, vectoritem_2, ...) vectorlastitem
-vectoritem ::= numberliteral ':' expr ','
-vectorlastitem ::= numberliteral ':' expr
+vecexpr ::= '[' vecitemlist ']'
+vecitemlist ::= vec2itemlist | vec3itemlist | vec4itemlist
+vec2itemlist ::= vecitem veclastitem
+vec3itemlist ::= vecitem vecitem veclastitem
+vec4itemlist ::= vecitem vecitem vecitem veclastitem
+vecitem ::= numliteral ':' expr ','
+veclastitem ::= numliteral ':' expr
 
 operatorexpr ::= binopexpr | unopexpr
 binopexpr ::= expr binop expr
@@ -206,12 +209,12 @@ choices of `binop`, since that one is handled by `callexpr`.
 using the index by expression operator, or the attribute by identifier
 operator, or a plain `identifier`. It cannot be any other expression.
 
-`vectorexpr` has some rules omitted above for brevity, e.g.
+`vecexpr` has some rules omitted above for brevity, e.g.
 the numbers need to start with `1` and count up:
 `[1: <expr>, 2: <expr>, ...]`. You can also optionally
 specify xyzw for the first three items, e.g. `[x: <expr>, y: <expr>]`.
 
-`numberliteral` can be anything that matches any of these regexes:
+`numliteral` can be anything that matches any of these regexes:
 ```
 -?[0-9]+(\.[0-9]+)?
 0x[0-9a-f]+
