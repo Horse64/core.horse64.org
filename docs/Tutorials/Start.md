@@ -1,8 +1,8 @@
 
 <!-- For license of this file, see LICENSE.md in the base folder. -->
 
-Start with Horse64
-==================
+Tutorials for Horse64
+=====================
 
 If you want to know how to set up Horse64 and write your first program,
 check out [FIXME](/FIXME.md).

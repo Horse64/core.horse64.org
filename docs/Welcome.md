@@ -22,11 +22,12 @@ func main {
 - Get [📩 Horse64 here](https://horse64.org/download).
 
 - **New beginner?**
-  Try the [🦸‍♀️ startup tutorial](/docs/FIXME)!
+  Try the [🦸‍♀️ startup help](/docs/FIXME)!
 
 - **Reference for more?**
-  Go here for [🌍 all standard library
-  functionality](/docs/FIXME).
+  Try more [🛠️ tutorials](
+  /docs/Tutorials/Start), or the
+  [🌍 standard library listing](/docs/FIXME).
 
 - **Undecided still?**
   Check the [⚖️ features comparison](/docs/Features.md)! Or
