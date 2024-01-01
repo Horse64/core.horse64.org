@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import datetime
 import os
 import shutil
 import subprocess
@@ -61,10 +62,12 @@ if __name__ == "__main__":
     # Preparations and helper functions:
     if dry_run:
         print("(NOT changing anything, just a test run)")
-    def update_misc_years(rpath, to_year=2023):
+    def update_misc_years(rpath, to_year="today"):
+        if to_year == "today":
+            to_year = int(datetime.date.today().year)
         contents = None
         def do_update_on_relpath(relpath):
-            if os.path.exists(os.path.join(rpath,
+            if not os.path.exists(os.path.join(rpath,
                     relpath)):
                 return
             with open(os.path.join(rpath, relpath), "r",
