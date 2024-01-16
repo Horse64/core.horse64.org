@@ -196,7 +196,7 @@ This is a syntax highlighting intended for kate and other KDE editors.
       <context name="quoteescape" attribute="String Char"
          lineEndContext="#stay">
         <RegExpr attribute="SpecialChar"
-         String="\\['&quot;ntr]" context="#stay"/>
+         String="\\['&quot;ntr\\]" context="#stay"/>
       </context>
 
       <context name="Error" attribute="Error" lineEndContext="#stay">
