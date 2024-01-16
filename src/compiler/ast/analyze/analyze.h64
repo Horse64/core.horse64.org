@@ -582,7 +582,7 @@ func advanced_phase1_globalrefs(
             stmts, msgs) {
         for stmt in stmts {
             # FIXME
-            # IMPORTANT: we also want to auto-const all vrs here already.
+            # IMPORTANT: we also want to auto-const all vars here already.
             # (Then the next state, the iteration stage, can do better
             # guesses, especially inside functions.)
 
