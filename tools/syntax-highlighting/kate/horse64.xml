@@ -154,17 +154,17 @@ This is a syntax highlighting intended for kate and other KDE editors.
         <Detect2Chars attribute="Error" context="#stay" char="." char1="="/>
         <DetectChar attribute="Error" context="#stay" char=";"/>
         <AnyChar attribute="OtherSymbol" context="#stay"
-         String="[](){}:"/>
+         String=",[](){}:"/>
         <Detect2Chars attribute="OtherSymbol" context="#stay"
          char="-" char1="&gt;"/>
         <AnyChar attribute="OperatorSymbol" context="#stay"
-         String=".,=~+-*/%&amp;|^&gt;&lt;"/>
+         String=".=~+-*/%&amp;|^&gt;&lt;"/>
       </context>
 
       <context name="NamedItem" attribute="Import" lineEndContext="#stay">
         <DetectSpaces/>
         <keyword String="keywords" context="#pop" lookAhead="true"/>
-        <DetectChar char="." attribute="Symbol" context="#stay"/>
+        <DetectChar char="." attribute="OtherSymbol" context="#stay"/>
         <RegExpr attribute="ItemName" context="#pop"
          String="&IDENT;(?=\s+&IDENT;)"/>
         <RegExpr attribute="ItemName" context="#stay"
@@ -181,7 +181,7 @@ This is a syntax highlighting intended for kate and other KDE editors.
         <keyword String="keywords" context="#pop" lookAhead="true"/>
         <RegExpr attribute="ModuleRef" context="#stay"
          String="&IDENT;"/>
-        <DetectChar char="." attribute="Symbol" context="#stay"/>
+        <DetectChar char="." attribute="OtherSymbol" context="#stay"/>
         <AnyChar String="#'&quot;(){}[]()+=-,/:&gt;&lt;;" context="#pop"
          lookAhead="true"/>
       </context>
