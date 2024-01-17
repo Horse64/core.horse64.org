@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE language>
+<!DOCTYPE language
+[
+  <!ENTITY IDENT "[a-zA-Z_][^\s\=\!\[\]\(\)}{#\@\&#37;\$\^\*\+\-\/\\\_\&quot;\'\:\;\.\,\?\|\&amp;]*">
+]>
 <!--
 Copyright (c) 2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 
@@ -35,23 +38,25 @@ This is a syntax highlighting intended for kate and other KDE editors.
   <highlighting>
     <list name="keywords">
       <item>and</item>
-      <item>func</item>
       <item>in</item>
       <item>new</item>
-      <item>var</item>
       <item>not</item>
       <item>or</item>
       <item>protect</item>
       <item>with</item>
       <item>as</item>
       <item>import</item>
-      <item>type</item>
-      <item>enum</item>
       <item>later</item>
       <item>repeat</item>
       <item>ignore</item>
       <item>base</item>
       <item>extend</item>
+    </list>
+    <list name="nameditemkeywords">
+      <item>func</item>
+      <item>type</item>
+      <item>enum</item>
+      <item>var</item>
       <item>const</item>
     </list>
 
@@ -75,7 +80,7 @@ This is a syntax highlighting intended for kate and other KDE editors.
       <item>HACK</item>
     </list>
 
-    <list name="specialvars">
+    <list name="specialvalues">
       <item>none</item>
       <item>no</item>
       <item>yes</item>
@@ -123,21 +128,24 @@ This is a syntax highlighting intended for kate and other KDE editors.
         <RegExpr attribute="Strings" context="StringSingle" String="b'"/>
         <WordDetect attribute="Import" context="Import"
          String="import" additionalDeliminator="."/>
-        <keyword attribute="BFunc" context="#stay" String="builtinfunc"/>
-        <keyword attribute="BVar" context="#stay" String="builtinvar"/>
+        <keyword attribute="BuiltinFunc" context="#stay" String="builtinfunc"/>
+        <keyword attribute="BuiltinVar" context="#stay" String="builtinvar"/>
+
+        <keyword attribute="DeclKeyword" context="NamedItem"
+         String="nameditemkeywords"/>
 
         <keyword attribute="Keyword" context="#stay" String="keywords"/>
-        <keyword attribute="SpecialVar" context="#stay"
-         String="specialvars" additionalDeliminator="."/>
+        <keyword attribute="SpecialValue" context="#stay"
+         String="specialvalues" additionalDeliminator="."/>
         <WordDetect attribute="SelfVar" context="#stay"
          String="self" additionalDeliminator="."/>
         <keyword attribute="Control" context="#stay" String="control"/>
 
         <RegExpr attribute="Identifier" context="#stay"
-         String="[a-zA-Z_][^\s\=\!\[\]\(\)}{#\@\$\%\^\*\+\-\/\\\_\&quot;\'\:\;\.\,\?\|\&amp;]*"/>
+         String="&IDENT;"/>
 
         <RegExpr attribute="Number" context="#stay"
-         String="[0-9]+(\.[0-9]+)?"/>
+         String="0(x[a-fA-F0-9]+|b[01]+|[0-9]*(\.[0-9]+)?)"/>
 
         <Detect2Chars attribute="Error" context="#stay" char="~" char1="="/>
         <Detect2Chars attribute="Error" context="#stay" char="+" char1="+"/>
@@ -145,19 +153,36 @@ This is a syntax highlighting intended for kate and other KDE editors.
         <Detect2Chars attribute="Error" context="#stay" char="*" char1="*"/>
         <Detect2Chars attribute="Error" context="#stay" char="." char1="="/>
         <DetectChar attribute="Error" context="#stay" char=";"/>
-        <AnyChar attribute="Symbol" context="#stay"
-         String=":[](){}.,=~+-*/%&amp;|^&gt;&lt;"/>
+        <AnyChar attribute="OtherSymbol" context="#stay"
+         String="[](){}:"/>
+        <Detect2Chars attribute="OtherSymbol" context="#stay"
+         char="-" char1="&gt;"/>
+        <AnyChar attribute="OperatorSymbol" context="#stay"
+         String=".,=~+-*/%&amp;|^&gt;&lt;"/>
+      </context>
+
+      <context name="NamedItem" attribute="Import" lineEndContext="#stay">
+        <DetectSpaces/>
+        <keyword String="keywords" context="#pop" lookAhead="true"/>
+        <DetectChar char="." attribute="Symbol" context="#stay"/>
+        <RegExpr attribute="ItemName" context="#pop"
+         String="&IDENT;(?=\s+&IDENT;)"/>
+        <RegExpr attribute="ItemName" context="#stay"
+         String="&IDENT;"/>
+        <AnyChar String="#'&quot;()[]{}()+=-,/:&gt;&lt;;" context="#pop"
+         lookAhead="true"/>
       </context>
 
       <context name="Import" attribute="Import" lineEndContext="#stay">
         <DetectSpaces/>
         <keyword attribute="Keyword"
          context="#stay" String="importinnerkeywords"/>
+        <keyword String="nameditemkeywords" context="#pop" lookAhead="true"/>
         <keyword String="keywords" context="#pop" lookAhead="true"/>
-        <RegExpr attribute="Identifier" context="#stay"
-         String="[a-zA-Z_][^\s.]*"/>
+        <RegExpr attribute="ModuleRef" context="#stay"
+         String="&IDENT;"/>
         <DetectChar char="." attribute="Symbol" context="#stay"/>
-        <AnyChar String="#'&quot;()[]()+=-,/:&gt;&lt;;" context="#pop"
+        <AnyChar String="#'&quot;(){}[]()+=-,/:&gt;&lt;;" context="#pop"
          lookAhead="true"/>
       </context>
 
@@ -207,23 +232,28 @@ This is a syntax highlighting intended for kate and other KDE editors.
       <itemData name="Import" defStyleNum="dsImport" spellChecking="false"/>
       <itemData name="DocAlertKeyword" defStyleNum="dsAlert"
        spellChecking="false"/>
+      <itemData name="DeclKeyword" defStyleNum="dsFunction"
+       spellChecking="false"/>
       <itemData name="NormalText" defStyleNum="dsNormal"
        spellChecking="false"/>
-      <itemData name="BFunc" defStyleNum="dsFunction" spellChecking="false"/>
-      <itemData name="BVar" defStyleNum="dsVariable" spellChecking="false"/>
+      <itemData name="BuiltinFunc" defStyleNum="dsBuiltIn" spellChecking="false"/>
+      <itemData name="BuiltinVar" defStyleNum="dsBuiltIn" spellChecking="false"/>
       <itemData name="Comment" defStyleNum="dsComment"/>
       <itemData name="DocComment" defStyleNum="dsDocumentation"/>
       <itemData name="Control" defStyleNum="dsControlFlow" spellChecking="false"/>
       <itemData name="Error" defStyleNum="dsError" spellChecking="false"/>
       <itemData name="Keyword" defStyleNum="dsKeyword" spellChecking="false"/>
+      <itemData name="ModuleRef" defStyleNum="dsVariable" spellChecking="false"/>
+      <itemData name="ItemName" defStyleNum="dsVariable" spellChecking="false"/>
       <itemData name="DocCommentKeyword" defStyleNum="dsAnnotation"
        spellChecking="false"/>
-      <itemData name="SpecialVar" defStyleNum="dsKeyword" spellChecking="false"/>
+      <itemData name="SpecialValue" defStyleNum="dsBuiltIn" spellChecking="false"/>
       <itemData name="Number" defStyleNum="dsDecVal" spellChecking="false"/>
       <itemData name="SpecialChar" defStyleNum="dsSpecialChar"
        spellChecking="false"/>
       <itemData name="Strings" defStyleNum="dsString"/>
-      <itemData name="Symbol" defStyleNum="dsOperator" spellChecking="false"/>
+      <itemData name="OperatorSymbol" defStyleNum="dsOperator" spellChecking="false"/>
+      <itemData name="OtherSymbol" defStyleNum="dsNormal" spellChecking="false"/>
       <itemData name="Identifier" defStyleNum="dsNormal" spellChecking="false"/>
       <itemData name="SelfVar" defStyleNum="dsVariable" spellChecking="false"/>
       <itemData name="Attribute" defStyleNum="dsAttribute" spellChecking="false"/>
