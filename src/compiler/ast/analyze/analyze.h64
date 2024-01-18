@@ -1,5 +1,5 @@
 # @module compiler.ast.analyze
-# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2023-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -548,6 +548,14 @@ func advanced_phase3_later_and_computevals(
             }
 
             # Blocks:
+            if stmt.subblocks.len > 0 {
+                for block in stmt.subblocks {
+                    if not check_and_analyze_recurse(
+                            block, [stmt] + parents, msgs) {
+                        return no
+                    }
+                }
+            }
             if stmt.kind == ast.N_STMT_IF or
                     stmt.kind == ast.N_STMT_DO {
                 for clause in stmt.subexprs {
@@ -556,14 +564,6 @@ func advanced_phase3_later_and_computevals(
                                 block, [stmt, clause] + parents, msgs) {
                             return no
                         }
-                    }
-                }
-            }
-            if stmt.subblocks.len > 0 {
-                for block in stmt.subblocks {
-                    if not check_and_analyze_recurse(
-                            block, [stmt] + parents, msgs) {
-                        return no
                     }
                 }
             }
@@ -587,6 +587,13 @@ func advanced_phase1_globalrefs(
             # guesses, especially inside functions.)
 
             # Blocks:
+            if stmt.subblocks.len > 0 {
+                for block in stmt.subblocks {
+                    if not check_and_analyze_recurse(block, msgs) {
+                        return no
+                    }
+                }
+            }
             if stmt.kind == ast.N_STMT_IF or
                     stmt.kind == ast.N_STMT_DO {
                 for clause in stmt.subexprs {
@@ -594,12 +601,6 @@ func advanced_phase1_globalrefs(
                         if not check_and_analyze_recurse(block, msgs) {
                             return no
                         }
-                    }
-                }
-            } elseif stmt.subblocks.len > 0 {
-                for block in stmt.subblocks {
-                    if not check_and_analyze_recurse(block, msgs) {
-                        return no
                     }
                 }
             }
@@ -629,6 +630,14 @@ func basic_phase_nestingdepth_and_misc(
             return no
         }
         for stmt in stmts {
+            if stmt.subblocks.len > 0 {
+                for block in stmt.subblocks {
+                    if not check_and_analyze_recurse(block, msgs,
+                            max_block_nesting_left - 1) {
+                        return no
+                    }
+                }
+            }
             if stmt.kind == ast.N_STMT_IF or
                     stmt.kind == ast.N_STMT_DO {
                 for clause in stmt.subexprs {
@@ -637,13 +646,6 @@ func basic_phase_nestingdepth_and_misc(
                                 max_block_nesting_left - 1) {
                             return no
                         }
-                    }
-                }
-            } elseif stmt.subblocks.len > 0 {
-                for block in stmt.subblocks {
-                    if not check_and_analyze_recurse(block, msgs,
-                            max_block_nesting_left - 1) {
-                        return no
                     }
                 }
             }
