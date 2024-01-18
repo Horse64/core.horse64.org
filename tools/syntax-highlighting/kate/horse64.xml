@@ -43,7 +43,6 @@ This is a syntax highlighting intended for kate and other KDE editors.
       <item>not</item>
       <item>or</item>
       <item>protect</item>
-      <item>with</item>
       <item>as</item>
       <item>import</item>
       <item>later</item>
@@ -52,12 +51,21 @@ This is a syntax highlighting intended for kate and other KDE editors.
       <item>base</item>
       <item>extend</item>
     </list>
+    <list name="withkeyword">
+      <item>with</item>
+    </list>
+    <list name="askeyword">
+      <item>as</item>
+    </list>
     <list name="nameditemkeywords">
       <item>func</item>
       <item>type</item>
       <item>enum</item>
       <item>var</item>
       <item>const</item>
+    </list>
+    <list name="nameditemcontrolkeywords">
+      <item>for</item>
     </list>
 
     <list name="importinnerkeywords">
@@ -89,11 +97,11 @@ This is a syntax highlighting intended for kate and other KDE editors.
     <list name="control">
       <item>break</item>
       <item>await</item>
+      <item>with</item>
       <item>continue</item>
       <item>do</item>
       <item>else</item>
       <item>elseif</item>
-      <item>for</item>
       <item>if</item>
       <item>return</item>
       <item>while</item>
@@ -131,9 +139,16 @@ This is a syntax highlighting intended for kate and other KDE editors.
         <keyword attribute="BuiltinFunc" context="#stay" String="builtinfunc"/>
         <keyword attribute="BuiltinVar" context="#stay" String="builtinvar"/>
 
+        <keyword attribute="Control" context="WithStmt"
+         String="withkeyword"/>
         <keyword attribute="DeclKeyword" context="NamedItem"
          String="nameditemkeywords"/>
-
+        <keyword attribute="Control" context="NamedItem"
+         String="nameditemcontrolkeywords"/>
+        <IncludeRules context="Expression"/>
+       </context>
+       <context name="Expression" attribute="NormalText"
+          lineEndContext="#stay">
         <keyword attribute="Keyword" context="#stay" String="keywords"/>
         <keyword attribute="SpecialValue" context="#stay"
          String="specialvalues" additionalDeliminator="."/>
@@ -171,6 +186,17 @@ This is a syntax highlighting intended for kate and other KDE editors.
          String="&IDENT;"/>
         <AnyChar String="#'&quot;()[]{}()+=-,/:&gt;&lt;;" context="#pop"
          lookAhead="true"/>
+      </context>
+
+      <context name="WithStmt" attribute="NormalText" lineEndContext="#stay">
+        <DetectSpaces/>
+        <keyword String="askeyword" context="NamedItem"
+         attribute="Keyword"/>
+        <keyword attribute="DeclKeyword" context="#pop"
+         String="nameditemkeywords"/>
+        <AnyChar String="#'&quot;()[]{}()+=-,/:&gt;&lt;;" context="#pop"
+         lookAhead="true"/>
+        <IncludeRules context="Expression"/>
       </context>
 
       <context name="Import" attribute="Import" lineEndContext="#stay">
