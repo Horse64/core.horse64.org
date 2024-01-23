@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -1148,6 +1148,13 @@ def get_next_statement(s, pos):
             bracket_nesting += 1
         if t in [")", "]", "}"]:
             bracket_nesting -= 1
+        if t == "extend":
+            while not s[i] in {"func", "enum", "type"}:
+                i += 1
+                if s[i].strip(" \t\r\n") != "":
+                    last_nonwhitespace_token = _future_last_token
+                    _future_last_token = s[i]
+                    t = s[i]
         if (bracket_nesting == 0 and
                 last_nonwhitespace_token != "" and (
                 t in must_stop_before_toks or (

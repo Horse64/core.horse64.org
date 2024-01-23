@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -953,6 +953,7 @@ def line_has_multi_stmts_for_sure(s):
     s = tokenize(s)
     hadnonblank = False
     bdepth = 0
+    prevnonblankstr = None
     i = 0
     while i < len(s):
         if s[i] in {"(", "[", "{"}:
@@ -961,11 +962,14 @@ def line_has_multi_stmts_for_sure(s):
             bdepth -= 1
         if (bdepth == 0 and hadnonblank and
                 s[i] in {"var", "const",
-                "return",
+                "return", "enum",
                 "do", "while", "for", "type",
-                "import", "with", "await"}):
+                "import", "with", "await"} and
+                (not s[i] in {"func", "type", "enum"} or
+                 prevnonblankstr != "extend")):
             return True
         if s[i].strip(" \r\n\t") != "":
+            prevnonblankstr = s[i]
             hadnonblank = True
         i += 1
     return False

@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -2300,14 +2300,19 @@ def translate(s, sc):
                 result += (enum_entry[0] + " = " +
                     str(enum_entry[1]) + "\n")
             continue
-        elif statement[0] == "func":
+        elif statement[0] == "func" or (
+                statement[0] == "extend" and
+                nextnonblankidx(statement, 0) == "func"):
             statement_cpy = list(statement)
+            is_extend = (statement[0] == "extend")
             interesting_nonlocals = (
                 get_func_interesting_nonlocals(
                     statement, sc.parent_statements
                 ))
             nameidx = nextnonblankidx(statement, 0)
             assert(nameidx >= 0)
+            if is_extend:
+                nameidx = nextnonblankidx(statement, nameidx)
 
             # Catch this programming error: type bla { func bli { } }
             for pstatement in sc.parent_statements:
@@ -2431,6 +2436,7 @@ def translate(s, sc):
                     "\n" + inner_code)
             inner_code += (inner_indent + "pass\n")
             if type_name is None:
+                assert(not is_extend)
                 result += (indent + "def " + name +
                     untokenize(cleaned_argument_tokens) + ":\n")
                 result += inner_code
@@ -2440,13 +2446,25 @@ def translate(s, sc):
                     type_name, type_module, type_package,
                     from_type_stmt=False
                 )
+                actual_name = name
+                if is_extend:
+                    actual_name = ("__extends__" + name +
+                        "__id" + str(uuid.uuid4()).replace("-", ""))
+                    regtype.funcs[name]["ever-extended"] = True
+                    ext_list = []
+                    if "extend-names" in regtype.funcs[name]:
+                        ext_list = regtype.funcs[name]["extend-names"]
+                    ext_list.append(actual_name)
+                    regtype.funcs[name]["extend-names"] = ext_list
                 regtype.funcs[name] = {
                     "arguments": cleaned_argument_tokens,
-                    "name": name,
+                    "name": actual_name,
                     "code": inner_code,
+                    "ever-extended": False,
                 }
             continue
-        elif statement[0] == "type" or statement[0] == "extend":
+        elif statement[0] == "type" or (statement[0] == "extend"
+                and nextnonblank(statement, 0) == "type"):
             statement_cpy = list(statement)
             namelbl = None
             is_extend = (statement[0] == "extend")
@@ -2466,6 +2484,8 @@ def translate(s, sc):
                         statement[i] != "{" and
                         statement[i] != "base"):
                     i += 1
+            elif is_extend:
+                i = nextnonblankidx(statement, 0)
             type_package = sc.package_name
             type_module = sc.module_name
             ext_tokens = None
@@ -2623,7 +2643,9 @@ def separate_func_keyword_arg_code(
 
 
 def get_func_interesting_nonlocals(st, parent_sts):
-    if firstnonblank(st) != "func":
+    if firstnonblank(st) != "func" and (
+            firstnonblank(st) != "extend" or
+            nextnonblank(st, firstnonblankidx(st)) != "func"):
         raise ValueError("meant to be used on funcs")
     current_inner_vars = statement_declared_identifiers(st)
     collect = set()
@@ -3112,7 +3134,8 @@ def translate_do_func(
         except FileNotFoundError as e:
             print("translator.py: error: trying to locate module " +
                 modname + " in package " + str(package_name) +
-                " but file is missing: " + str(target_file))
+                " but file is missing: " + str(target_file) + "\n" +
+                "translator.py: debug: import reason was: " + str(reason))
             import sys
             sys.exit(1)
         original_contents = contents
@@ -3357,12 +3380,46 @@ def translate_do_func(
                     if funcname == "init":
                         continue
                     assert(regtype.funcs[funcname]["arguments"][0] == "(")
+                    if funcname.startswith("__extends__"):
+                        continue
+                    def_name = funcname
+                    if regtype.funcs[funcname]["ever-extended"]:
+                        def_name = "__unextended__" + funcname
+                        prev_name = def_name
+                        idx = 0
+                        while idx < len(
+                                regtype.funcs[funcname]["extend-names"]):
+                            funcname2 = (
+                                regtype.funcs[funcname]
+                                    ["extend-names"][idx])
+                            is_last = idx + 1 >= len(
+                                regtype.funcs[funcname]["extend-names"])
+                            use_name = funcname2
+                            if is_last:
+                                use_name = funcname
+                            elif idx > 0:
+                                prev_name = (
+                                    regtype.funcs[funcname]
+                                        ["extend-names"][idx - 1])
+                            regtype.funcs[funcname2]["arguments"] = (
+                                regtype.funcs[funcname2]["arguments"][:1] +
+                                ["self", ",", " "] +
+                                regtype.funcs[funcname2]["arguments"][1:]
+                            )
+                            append_t += ("    def " + use_name +
+                                untokenize(regtype.funcs
+                                    [funcname2]["arguments"]) + ":\n")
+                            append_t += ("        extended = " +
+                                prev_name + "\n")
+                            append_t += (
+                                regtype.funcs[funcname2]["code"] + "\n")
+                            idx += 1
                     regtype.funcs[funcname]["arguments"] = (
                         regtype.funcs[funcname]["arguments"][:1] +
                         ["self", ",", " "] +
                         regtype.funcs[funcname]["arguments"][1:]
                     )
-                    append_t += ("    def " + funcname +
+                    append_t += ("    def " + def_name +
                         untokenize(regtype.funcs
                             [funcname]["arguments"]) + ":\n")
                     append_t += (
