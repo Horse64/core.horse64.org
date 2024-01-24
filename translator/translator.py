@@ -2315,7 +2315,7 @@ def translate(s, sc):
             continue
         elif statement[0] == "func" or (
                 statement[0] == "extend" and
-                nextnonblankidx(statement, 0) == "func"):
+                nextnonblank(statement, 0) == "func"):
             statement_cpy = list(statement)
             is_extend = (statement[0] == "extend")
             interesting_nonlocals = (
@@ -2460,21 +2460,24 @@ def translate(s, sc):
                     from_type_stmt=False
                 )
                 actual_name = name
+                if not name in regtype.funcs:
+                    regtype.funcs[name] = {"name": name}
                 if is_extend:
                     actual_name = ("__extends__" + name +
-                        "__id" + str(uuid.uuid4()).replace("-", ""))
+                        "__id_" + str(uuid.uuid4()).replace("-", ""))
+                    if not actual_name in regtype.funcs:
+                        regtype.funcs[actual_name] = {"name": actual_name}
                     regtype.funcs[name]["ever-extended"] = True
                     ext_list = []
                     if "extend-names" in regtype.funcs[name]:
                         ext_list = regtype.funcs[name]["extend-names"]
                     ext_list.append(actual_name)
                     regtype.funcs[name]["extend-names"] = ext_list
-                regtype.funcs[name] = {
-                    "arguments": cleaned_argument_tokens,
-                    "name": actual_name,
-                    "code": inner_code,
-                    "ever-extended": False,
-                }
+                regtype.funcs[actual_name]["arguments"] = \
+                    cleaned_argument_tokens
+                regtype.funcs[actual_name]["code"] = inner_code
+                if not "ever-extended" in regtype.funcs[actual_name]:
+                    regtype.funcs[actual_name]["ever-extended"] = False
             continue
         elif statement[0] == "type" or (statement[0] == "extend"
                 and nextnonblank(statement, 0) == "type"):
