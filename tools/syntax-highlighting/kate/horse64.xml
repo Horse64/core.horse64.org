@@ -289,8 +289,7 @@ This is a syntax highlighting intended for kate and other KDE editors.
     <comments>
       <comment name="singleLine" start="#"/>
     </comments>
-    <keywords casesensitive="1" weakDeliminator="."
-     additionalDeliminator="'&quot;"/>
+    <keywords casesensitive="1" additionalDeliminator=".'&quot;"/>
   </general>
 </language>
 <!-- kate: space-indent on; indent-width 2; replace-tabs on; -->
