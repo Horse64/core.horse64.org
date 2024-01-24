@@ -2130,7 +2130,8 @@ def translate(s, sc):
                 print("translator.py: debug: scanning \"" +
                     "import " + import_module +
                     (" from " + import_package
-                    if import_package != None else "") + "\" for " +
+                    if import_package != None else "") + "\" in " +
+                    "module " + str(sc.module_name) + " for " +
                     "remapped uses...")
             import_module_elements = import_module.split(".")
             assert(len(import_module_elements) >= 1)
@@ -2218,7 +2219,8 @@ def translate(s, sc):
                 "module " + str(sc.module_name) + (
                 "" if sc.package_name is None else
                     "@" + sc.package_name) +
-                    " with non-remapped uses")
+                    " with " + ("non-remapped uses" if
+                        found_nonremapped_use else "zero remapped uses"))
             queue_file_if_not_queued(sc.translate_file_queue,
                 (target_path, target_filename,
                 import_module, os.path.dirname(target_path),

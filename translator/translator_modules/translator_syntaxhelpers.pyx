@@ -1149,12 +1149,13 @@ def get_next_statement(s, pos):
         if t in [")", "]", "}"]:
             bracket_nesting -= 1
         if t == "extend":
-            while not s[i] in {"func", "enum", "type"}:
+            while not (s[i] in {"func", "enum", "type"}):
+                token_count += 1
                 i += 1
+                t = s[i]
                 if s[i].strip(" \t\r\n") != "":
                     last_nonwhitespace_token = _future_last_token
                     _future_last_token = s[i]
-                    t = s[i]
         if (bracket_nesting == 0 and
                 last_nonwhitespace_token != "" and (
                 t in must_stop_before_toks or (
