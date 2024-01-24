@@ -1149,16 +1149,23 @@ def get_next_statement(s, pos):
         if t in [")", "]", "}"]:
             bracket_nesting -= 1
         if t == "extend":
-            while not (s[i] in {"func", "enum", "type"}):
+            pre_i = i
+            while not (s[i] in {"func", "enum", "type"}) and \
+                    i + 1 < s_len:
                 token_count += 1
                 i += 1
                 t = s[i]
                 if s[i].strip(" \t\r\n") != "":
                     last_nonwhitespace_token = _future_last_token
                     _future_last_token = s[i]
+            if i + 1 >= s_len:
+                raise RuntimeError("Failed to find extend "
+                    "statement type: " + str(s[pre_i:pre_i + 10]) + "...")
         if (bracket_nesting == 0 and
                 last_nonwhitespace_token != "" and (
-                t in must_stop_before_toks or (
+                (t in must_stop_before_toks and
+                 (last_nonwhitespace_token != "extend" or
+                  (t not in {"func", "enum", "type"}))) or (
                 is_whitespace_token(t) and
                 nextnonblank(t, i) in
                 must_stop_before_toks))):
@@ -1220,6 +1227,13 @@ def split_toplevel_statements(s, skip_whitespace=True):
         next_stmt = get_next_statement(s, i)
         if len(next_stmt) == 0:
             return statements
+        if "extend" in next_stmt and \
+                not ("type" in next_stmt) and \
+                not ("func" in next_stmt) and \
+                not ("enum" in next_stmt):
+            raise RuntimeError("Unexpectedly got broken "
+                "extend result: " + str((
+                    s[i:i + 15], next_stmt)))
         if (not skip_whitespace or
                 not is_whitespace_statement(
                 next_stmt)):

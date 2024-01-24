@@ -435,7 +435,7 @@ def parse_type_import_ref(
             ref[i].strip(" \r\t\n") == ""):
         i += 1
     assert(i < len(ref) and is_identifier(ref[i])), (
-        "expected ref[" + str(i) + " to be identifier: " +
+        "expected ref[" + str(i) + "] to be identifier: " +
         "i=" + str(i) + ",ref=" + str(ref)
     )
     type_modpath = ""
@@ -1576,9 +1576,18 @@ def translate(s, sc):
                     value_expr if value_expr != None else ["None"]) +
                     [")", "\n"])
                 direct_parent_first_tok = None
+                direct_parent_2nd_tok = None
+                direct_parent_2nd_tok_idx = None
                 if len(sc.parent_statements) > 0:
                     direct_parent_first_tok = (
                         "".join(sc.parent_statements[0][:1]))
+                    nonblankidx = nextnonblankidx(
+                        sc.parent_statements[0], 0)
+                    if nonblankidx != None and nonblankidx > 0:
+                        direct_parent_2nd_tok_idx = nonblankidx
+                        direct_parent_2nd_tok = (
+                            "".join(sc.parent_statements[0][
+                                nonblankidx:nonblankidx + 1]))
                 type_name = None
                 type_module = None
                 type_package = None
@@ -1586,10 +1595,12 @@ def translate(s, sc):
                     type_name = nextnonblank(sc.parent_statements[0], 0)
                     type_module = sc.module_name
                     type_package = sc.package_name
-                elif direct_parent_first_tok == "extend":
+                elif (direct_parent_first_tok == "extend" and \
+                        direct_parent_2nd_tok == "type"):
                     type_info = parse_type_import_ref(
                         sc.parent_statements[0],
-                        nextnonblankidx(sc.parent_statements[0], 0),
+                        nextnonblankidx(sc.parent_statements[0],
+                            direct_parent_2nd_tok_idx),
                         sc=sc, is_func=False)
                     type_name = type_info["type-name"]
                     type_module = type_info["modpath"]
@@ -2486,16 +2497,20 @@ def translate(s, sc):
                         statement[i] != "{" and
                         statement[i] != "base"):
                     i += 1
-            elif is_extend:
+            else:
                 i = nextnonblankidx(statement, 0)
+                assert(statement[i] == "type")
             type_package = sc.package_name
             type_module = sc.module_name
             ext_tokens = None
             if is_extend or (i < len(statement) and
                     statement[i] == "base"):
                 ext_tokens = []
-                i += 1  # Past 'base' or 'extend' keyword.
+                assert(not is_extend or statement[i] == "type")
+                i = nextnonblankidx(
+                    statement, i)  # Past 'base' or 'extend' keyword.
                 assert(i < len(statement))
+                assert(not is_extend or statement[i] != "type")
                 start_idx = i
                 type_info = parse_type_import_ref(statement, i, sc=sc)
                 if is_extend:
