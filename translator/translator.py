@@ -3429,7 +3429,7 @@ def translate_do_func(
                             append_t += ("    def " + use_name +
                                 untokenize(regtype.funcs
                                     [funcname2]["arguments"]) + ":\n")
-                            append_t += ("        extended = " +
+                            append_t += ("        extended = self." +
                                 prev_name + "\n")
                             append_t += (
                                 regtype.funcs[funcname2]["code"] + "\n")
