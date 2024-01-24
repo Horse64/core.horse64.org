@@ -376,7 +376,10 @@ def get_statement_ranges_ex_with_confused_linebreaks(t,
         if i >= len(t):  # This can happen for 'return'.
             return []
         return [[i, len(t), t[i]]]
-    elif (t[i] in {"type"}):
+    elif (t[i] in {"type"}) or \
+            (t[i] == "extend" and
+            nextnonblank(t, i) == "type"):
+        is_extend = (t[i] == "extend")
         if range_type == "block":
             while (i < len(t) and
                     t[i] != "{"):
@@ -397,7 +400,7 @@ def get_statement_ranges_ex_with_confused_linebreaks(t,
             if i >= len(t) or t[i] != "}":
                 return []
             return [[block_start, i]]
-        elif range_type == "expr":
+        elif range_type == "expr" and not is_extend:
             while (i < len(t) and
                     t[i] != "{" and
                     t[i] != "base"):
@@ -1011,7 +1014,7 @@ def get_statement_inline_funcs(t):
             expr_range[1] <= len(t))
         i = expr_range[0]
         while i < expr_range[1]:
-            if t[i] != "func":
+            if t[i] != "func" or prevnonblank(t, i) == "extend":
                 i += 1
                 continue
             func_start = i
@@ -1402,7 +1405,7 @@ def separate_out_inline_funcs(s):
                     st[frange[2] - 1] == "}")
 
                 # Create new 'func' statement and extract arguments:
-                fname = "_f" + str(uuid.uuid4()).replace("-", "")
+                fname = "_f2anon" + str(uuid.uuid4()).replace("-", "")
                 prepend_st = [get_leading_whitespace(st),
                     "func", " ", fname]
                 params = st[frange[0] + 1:frange[1]]

@@ -230,7 +230,7 @@ def get_names_defined_in_func(
         # get_statement_block_ranges() only knows named
         # func statements, not anonymous inline funcs.
         st = st[:k] + [
-            "_f" + str(uuid.uuid4()).replace("-", ""),
+            "_fanon" + str(uuid.uuid4()).replace("-", ""),
             " "] + st[k:]
         k = nextnonblankidx(st, k)  # Skip past our insert.
     if exclude_inner:
