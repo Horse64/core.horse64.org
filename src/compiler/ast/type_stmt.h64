@@ -1,5 +1,5 @@
-# @module compiler.ast.type_stmt
-# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+## @module compiler.ast.type_stmt
+# Copyright (c) 2023-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -82,7 +82,7 @@ func TypeExtendStmt.as_code(indent=0) {
     if self.damaged {
         return " ".rep(indent) + "(damaged type extend)"
     }
-    var t = " ".rep(indent) + "extend " +
+    var t = " ".rep(indent) + "extend type " +
         self.subexprs[1].as_code(indent=indent) + " {\n"
     for stmt in self.subblocks[1] {
         t += stmt.as_code(indent=(indent + 4)) + "\n"
@@ -95,6 +95,7 @@ enum ExtendType {
     EXTEND_NONE,
     EXTEND_TYPE,
     EXTEND_ENUM,
+    EXTEND_FUNC,
     EXTEND_INVALID,
 }
 
@@ -108,46 +109,19 @@ func get_extend_variant(
         return EXTEND_NONE
     }
     pos += 1
-
-    # Check if this is an enum or type extend.
-    var had_block_bracket = no
-    var i = pos
-    while i <= tokens_len and
-            not token.surely_to_toplevel_even_in_bad_code(
-                tokens, i
-            ) and
-            (not token.surely_starts_stmt_even_in_bad_code(
-                tokens, i
-            ) or had_block_bracket) {
-        if tokens[i].kind == token.T_ENCLOSE and
-                tokens[i].str == "{" {
-            had_block_bracket = yes
-            i += 1
-            continue
+    if pos <= tokens_len {
+        if tokens[pos].str == "type" {
+            return EXTEND_TYPE
+        } elseif tokens[pos].str == "enum" {
+            return EXTEND_ENUM
+        } elseif tokens[pos].str == "func" {
+            return EXTEND_FUNC
         }
-        if had_block_bracket {
-            if tokens[i].kind == token.T_COMMA {
-                return EXTEND_ENUM
-            }
-            if tokens[i].kind == token.T_ASSIGN {
-                return EXTEND_ENUM
-            }
-            if tokens[i].kind == token.T_KEYWORD and
-                    {"var", "const", "func"}.has(tokens[i].str) {
-                return EXTEND_TYPE
-            }
-            if tokens[i].kind == token.T_ENCLOSE and
-                    {"{", "}"}.has(tokens[i].str) or
-                    i + 1 > tokens_len {
-                break
-            }
-        }
-        i += 1
     }
     if not had_damage {
         msgs.add(new msg.FileMsg(
             "Unexpected " + token.describe_token_at(
-                tokens, startpos + 1) +
+                tokens, pos) +
             ", expected either a valid custom type "
             "attribute or enum entry for 'extend' "
             "statement starting in line " +
@@ -186,10 +160,11 @@ func parse_extend_or_enum_or_type_header(
             project_file=project_file
         )
         if (must_be_type and variant != EXTEND_TYPE) or
-                (must_be_enum and variant != EXTEND_ENUM) {
+                (must_be_enum and variant != EXTEND_ENUM) or
+                variant == EXTEND_FUNC {
             return none
         } elseif variant == EXTEND_INVALID {
-            stmt.damage = yes
+            stmt.damaged = yes
             # Note: error message was emitted by get_extend_variant().
             var skiplen = math.max(1,
                 token.skip_in_broken_stmt_to_code_block(
@@ -205,8 +180,10 @@ func parse_extend_or_enum_or_type_header(
             assert(variant == EXTEND_ENUM)
             is_enum = yes
         }
+        pos += 2  # Go past "extend enum"/"extend func".
+    } else {
+        pos += 1  # Go past "enum"/"type".
     }
-    pos += 1
 
     if pos > tokens_len or
             tokens[pos].kind != token.T_IDENT {
@@ -356,7 +333,10 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var startpos = pos
     if pos > tokens_len or
             tokens[pos].kind != token.T_KEYWORD or
-            not {"type", "extend"}.has(tokens[pos].str) {
+            not {"extend", "type"}.has(tokens[pos].str) or
+            (tokens[pos].str == "extend" and
+             (pos + 1 > tokens_len or
+              tokens[pos + 1].str != "type")) {
         return later none
     }
 

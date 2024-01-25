@@ -1,5 +1,5 @@
-# @module compiler.ast.transform.later_transform
-# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+## @module compiler.ast.transform.later_transform
+# Copyright (c) 2023-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -45,11 +45,11 @@ type LaterExitInfo {
     var exit_cb_storage_ref
 }
 
-extend st_scope.FuncScope {
+extend type st_scope.FuncScope {
     var later_exit_info
 }
 
-extend st_scope.LocalScope {
+extend type st_scope.LocalScope {
     var later_exit_info
 }
 
@@ -73,7 +73,6 @@ func st_scope.LocalScope.get_later_exit_info {
 }
 
 func first_pass_later_transform(project, msgs) {
-    var transformed_nodes = {}
     func make_later_return_cb_call(exit_info, return_expr,
             inner_scope, line, col, as_error=no,
             transformed_nodes_set=none) {
@@ -186,6 +185,7 @@ func first_pass_later_transform(project, msgs) {
         return node
     }
     func transform_file(pfile) {
+        var transformed_nodes = {}
         func transform_node(node, parents) {
             if node.kind != ast.N_STMT_FUNC and (
                     node.scope == none or node.scope.func_scope == none or
@@ -309,8 +309,9 @@ func first_pass_later_transform(project, msgs) {
                 call_stmt_node.col = node.col
                 call_stmt_node.subexprs.add(call_exprs[1])
 
-                ast_transform.reparent_nodes_into_closure(
-                    func_node, stmts_after, func_node.scope) later:
+                ast_transform.reparent_stmts_into_closure(
+                    func_node, stmts_after, func_node.scope,
+                    clone_all_stmts=yes) later:
 
                 return later [func_node, call_stmt_node]
             }

@@ -1,5 +1,5 @@
-# @module compiler.ast.enum_stmt
-# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+## @module compiler.ast.enum_stmt
+# Copyright (c) 2023-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -44,6 +44,17 @@ type EnumStmt base ast.StmtNode {
 func EnumStmt.init {
     base.init()
     self.kind = ast.N_STMT_ENUM
+}
+
+func EnumStmt.copy {
+    var self_copy = base.copy()
+    for label in self.enum_entry_names {
+        self_copy.enum_entry_names.add(label)
+    }
+    for num in self.enum_entry_nums {
+        self_copy.enum_entry_nums.add(num)
+    }
+    return self_copy
 }
 
 func EnumStmt.as_json_obj {
@@ -109,7 +120,7 @@ func EnumExtendStmt.as_code(indent=0) {
     if self.damaged {
         return " ".rep(indent) + "(damaged enum extend)"
     }
-    var t = " ".rep(indent) + "extend "
+    var t = " ".rep(indent) + "extend enum "
     if self.subexprs[1].type_path != none {
         t += self.subexprs[1].type_path.join(".") + "."
     }
@@ -133,7 +144,10 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var startpos = pos
     if pos > tokens_len or
             tokens[pos].kind != token.T_KEYWORD or
-            not {"type", "enum"}.has(tokens[pos].str) {
+            not {"extend", "enum"}.has(tokens[pos].str) or
+            (tokens[pos].str == "extend" and
+             (pos + 1 > tokens_len or
+              tokens[pos + 1].str != "enum")) {
         return later none
     }
 

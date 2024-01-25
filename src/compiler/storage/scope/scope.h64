@@ -1,5 +1,5 @@
-# @module compiler.storage.scope
-# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+## @module compiler.storage.scope
+# Copyright (c) 2023-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -58,7 +58,7 @@ type FuncScope {
     var parent
 }
 
-extend func_stmt.FuncStmt {
+extend type func_stmt.FuncStmt {
     var func_scope
 }
 
@@ -252,28 +252,34 @@ func LocalScope.get_combined_names {
     return names
 }
 
-extend ast.TreeNode {
+extend type ast.TreeNode {
     var scope
     var symbol_info
 }
 
-extend type_stmt.TypeStmt {
+extend func ast.TreeNode.copy {
+    var self_copy = extended()
+    self_copy.symbol_info = self.symbol_info.copy()
+    return self_copy
+}
+
+extend type type_stmt.TypeStmt {
     var type_or_enum_scope
 }
 
-extend type_stmt.TypeExtendStmt {
+extend type type_stmt.TypeExtendStmt {
     var type_or_enum_scope
 }
 
-extend enum_stmt.EnumStmt {
+extend type enum_stmt.EnumStmt {
     var type_or_enum_scope
 }
 
-extend enum_stmt.EnumExtendStmt {
+extend type enum_stmt.EnumExtendStmt {
     var type_or_enum_scope
 }
 
-extend project.Project {
+extend type project.Project {
     var type_or_enum_scope_map = {->}
 
     var storage_id_to_global_scope_map = {->}

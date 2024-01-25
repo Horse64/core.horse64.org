@@ -1,5 +1,5 @@
-# @module compiler.storage
-# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+## @module compiler.storage
+# Copyright (c) 2023-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -37,13 +37,13 @@ import compiler.storage.scope as scope
 import compiler.storage.scope.global_scope as global_scope
 import compiler.storage.ref as storage_ref
 
-extend project.Project {
+extend type project.Project {
     var did_compute_scopes = no
 
     var last_global_storage_id = 0
 }
 
-extend ast_expr.IdRefExpr {
+extend type ast_expr.IdRefExpr {
     var ref
 }
 
@@ -1025,7 +1025,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
     return success
 }
 
-extend project.Project {
+extend type project.Project {
     var did_compute_storage = no
 }
 

@@ -1,4 +1,4 @@
-# @module compiler.ast.analyze
+## @module compiler.ast.analyze
 # Copyright (c) 2023-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +36,7 @@ import compiler.limit as compiler_limit
 import compiler.msg as msg
 import compiler.storage.ref as st_ref
 
-extend func_stmt.FuncStmt {
+extend type func_stmt.FuncStmt {
     var is_later_func
 }
 

@@ -1,5 +1,5 @@
-# @module compiler.ast.func_stmt
-# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+## @module compiler.ast.func_stmt
+# Copyright (c) 2023-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -47,6 +47,22 @@ func FuncStmt.init {
     self.kind = ast.N_STMT_FUNC
 }
 
+func FuncStmt.copy {
+    var self_copy = base.copy()
+    self_copy.type_path = self.type_path.copy()
+    for label in self.arg_labels {
+        self_copy.arg_labels.add(label)
+    }
+    for default_value in self.arg_defaults {
+        if default_value == none {
+            self_copy.arg_defaults.add(none)
+        } else {
+            self_copy.arg_defaults.add(default_value.copy())
+        }
+    }
+    return self_copy
+}
+
 func FuncStmt.as_json_obj {
     var output = base.as_json_obj()
     output["label"] = self.label
@@ -64,18 +80,24 @@ func FuncStmt.as_json_obj {
 }
 
 func FuncStmt.as_code(indent=0) {
-    if self.damaged {
+    return _func_stmt_to_code(
+        self, is_extend=no, indent=indent)
+}
+
+func _func_stmt_to_code(stmt, is_extend=no, indent=0) {
+    if stmt.damaged {
         return " ".rep(indent) + "(damaged func)"
     }
-    var t = " ".rep(indent) + "func "
-    if self.type_path != none {
-        t += self.type_path.join(".") + "."
+    var t = " ".rep(indent) +
+        if is_extend ("extend ") else ("") + "func "
+    if stmt.type_path != none {
+        t += stmt.type_path.join(".") + "."
     }
-    t += self.label
-    if self.arg_labels.len > 0 {
+    t += stmt.label
+    if stmt.arg_labels.len > 0 {
         t += "("
         var is_first = yes
-        var pos_arg_count = self.arg_labels.len - self.kw_arg_count
+        var pos_arg_count = stmt.arg_labels.len - stmt.kw_arg_count
         var i = 1
         while i <= pos_arg_count {
             if is_first {
@@ -83,17 +105,17 @@ func FuncStmt.as_code(indent=0) {
             } else {
                 t += ","
             }
-            t += self.arg_labels[i]
+            t += stmt.arg_labels[i]
             i += 1
         }
-        while i <= self.kw_arg_count + pos_arg_count {
+        while i <= stmt.kw_arg_count + pos_arg_count {
             if is_first {
                 is_first = no
             } else {
                 t += ","
             }
-            t += self.arg_labels[i] + "=" +
-                self.arg_defaults[i - pos_arg_count].as_code(
+            t += stmt.arg_labels[i] + "=" +
+                stmt.arg_defaults[i - pos_arg_count].as_code(
                     indent=indent
                 )
             i += 1
@@ -101,21 +123,73 @@ func FuncStmt.as_code(indent=0) {
         t += ")"
     }
     t += " {\n"
-    for stmt in self.subblocks[1] {
-        t += stmt.as_code(indent=(indent + 4)) + "\n"
+    for substmt in stmt.subblocks[1] {
+        t += substmt.as_code(indent=(indent + 4)) + "\n"
     }
     t += " ".rep(indent) + "}"
     return t
 }
 
+type FuncExtendStmt base ast.StmtNode {
+    var type_path = []
+    var arg_labels = []
+    var arg_defaults = []
+    var kw_arg_count = 0
+}
+
+func FuncExtendStmt.init {
+    base.init()
+    self.kind = ast.N_STMT_FUNCEXTEND
+}
+
+func FuncExtendStmt.copy {
+    var self_copy = base.copy()
+    self_copy.type_path = self.type_path.copy()
+    for label in self.arg_labels {
+        self_copy.arg_labels.add(label)
+    }
+    for default_value in self.arg_defaults {
+        if default_value == none {
+            self_copy.arg_defaults.add(none)
+        } else {
+            self_copy.arg_defaults.add(default_value.copy())
+        }
+    }
+    return self_copy
+}
+
+func FuncExtendStmt.as_json_obj {
+    var output = base.as_json_obj()
+    output["label"] = self.label
+    output["type_path"] = self.type_path
+    output["arg_labels"] = self.arg_labels
+    output["arg_defaults"] = []
+    for argdef in self.arg_defaults {
+        if argdef == none {
+            output["arg_defaults"].add(none)
+            continue
+        }
+        output["arg_defaults"].add(argdef.as_json_obj())
+    }
+    return output
+}
+
+func FuncExtendStmt.as_code(indent=0) {
+    return _func_stmt_to_code(
+        self, is_extend=yes, indent=indent)
+}
+
 func parse(tokens, pos, msgs, project_file=none, debug=no) {
-    var stmt = new FuncStmt()
+    var stmt
     var tokens_len = tokens.len
     var startpos = pos
 
     if pos > tokens_len or
             tokens[pos].kind != token.T_KEYWORD or
-            tokens[pos].str != "func" {
+            (tokens[pos].str != "func" and
+             (tokens[pos].str != "extend" or
+              pos + 1 > tokens_len or
+              tokens[pos + 1].str != "func")) {
         return later none
     }
     if debug {
@@ -124,9 +198,16 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             "... with pos=" + pos.as_str() + ", "
             "tokens.len=" + tokens.len.as_str())
     }
+    var is_extend = (tokens[pos].str == "extend")
+    pos += 1
+    if is_extend {
+        stmt = new FuncExtendStmt()
+        pos += 1
+    } else {
+        stmt = new FuncStmt()
+    }
     stmt.line = token.get_line(tokens, pos)
     stmt.col = token.get_col(tokens, pos)
-    pos += 1
 
     # Bail with error if no module path follows at all:
     if pos > tokens_len or

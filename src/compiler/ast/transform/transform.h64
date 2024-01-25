@@ -1,5 +1,5 @@
-# @module compiler.ast.transform
-# Copyright (c) 2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+## @module compiler.ast.transform
+# Copyright (c) 2023-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -160,7 +160,10 @@ func split_if_to_single_clauses(project_file, node, parent) {
     return result
 }
 
-func reparent_nodes_into_closure(func_node, stmts, outer_inner_scope) {
+func reparent_stmts_into_closure(
+        func_node, stmts, outer_inner_scope,
+        clone_all_stmts=yes
+        ) {
     assert(func_node.kind == ast.N_STMT_FUNC)
     var closure_func_scope = func_node.func_scope
     var outer_func_scope = outer_inner_scope.func_scope
@@ -168,6 +171,14 @@ func reparent_nodes_into_closure(func_node, stmts, outer_inner_scope) {
     var replaced_inner_scopes_map = {->}
 
     var vars_in_replaced_scope_st_ids = {->}
+
+    if clone_all_stmts {
+        var new_stmts = []
+        for stmt in stmts {
+            new_stmts.add(stmt.copy())
+        }
+        stmts = new_stmts
+    }
 
     func replace_scopes {
         func replace_scope_visitor(expr, parents) {
@@ -342,7 +353,7 @@ func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes,
         var next = visit_queue.pop_at(1)
         if not has_attr(next.node, "kind") and
                 has_attr(next.node, "stmts") {
-            # Must be a root ASTResult item. Skip.
+            # Must be a root ASTResult item. Skip, but queue children:
             if next.node != none and has_attr(next.node, "stmts") {
                 const supply_parent = if parent_chain ([]) else (none)
                 for st in next.node.stmts {
