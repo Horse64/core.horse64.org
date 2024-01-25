@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -2404,6 +2404,17 @@ def _alike_num(v):
             continue
         return False
     return digitseen
+
+def _container_copy_on_base(v, *args, **kwargs):
+    if type(v) in {dict, list, set,
+            _TranslatedSet}:
+        return _container_copy(v, *args, **kwargs)
+    if hasattr(v, "_translator_renamed_copy"):
+        base_obj = super(type(v, v))
+        if hasattr(base_obj, "_translator_renamed_copy"):
+            return base_obj._translator_renamed_copy(
+                *args, **kwargs)
+    return _container_copy(v, *args, **kwargs)
 
 def _container_copy_no_custom(v):
     import copy

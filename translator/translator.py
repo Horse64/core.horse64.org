@@ -2353,6 +2353,12 @@ def translate(s, sc):
             # Make sure the name of the func is valid:
             statement[nameidx] = make_valid_identifier(
                 statement[nameidx], sc=sc)
+            k = nameidx + 1
+            while k + 1 < len(statement) and statement[k] == ".":
+                k += 1
+                statement[k] = make_valid_identifier(
+                    statement[k], sc=sc)
+                k += 1
 
             # Transform to "def" and see where content begins:
             statement[0] = "def"
@@ -3557,9 +3563,6 @@ def translate_do_func(
                         "\nif __name__ == '__main__':")
                 else:
                     contents_result += (
-                        "\nif __name__ == '__main__':\n" +
-                        "    _generated_main()\n")
-                    contents_result += (
                         "\ndef _generated_main():")
                 contents_result += (
                     "\n    _translator_runtime_helpers."
@@ -3575,6 +3578,10 @@ def translate_do_func(
                     "\n    _remapped_sys.stdout.flush()"
                     "\n    _remapped_sys.stderr.flush()"
                     "\n    _remapped_sys.exit(v)\n")
+                if not force_separate_process:
+                    contents_result += (
+                        "\nif __name__ == '__main__':\n" +
+                        "    _generated_main()\n")
             # As final step, apply known per file hacks:
             contents_result = (
                 translator_hacks_registry.apply_hacks_on_file(
@@ -3640,6 +3647,10 @@ def translate_do_func(
                     "\n    _remapped_sys.stdout.flush()"
                     "\n    _remapped_sys.stderr.flush()"
                     "\n    _remapped_sys.exit(v)\n")
+                if not force_separate_process:
+                    contents_result += (
+                        "\nif __name__ == '__main__':\n" +
+                        "    _generated_main()\n")
             if is_main_file and output_py_file:
                 print(mainfilepath)
                 output_file_result = (
