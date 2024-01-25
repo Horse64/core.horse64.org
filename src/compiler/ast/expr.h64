@@ -220,7 +220,7 @@ func IdRefExpr.init {
 }
 
 func IdRefExpr.copy {
-    var self_copy = self.copy()
+    var self_copy = base.copy()
     self_copy.type_path = self.type_path.copy()
     return self_copy
 }
@@ -265,7 +265,7 @@ func LiteralExpr.init {
 }
 
 func LiteralExpr.copy {
-    var self_copy = self.copy()
+    var self_copy = base.copy()
     self_copy.value = self.value.copy()
     return self_copy
 }
