@@ -3557,6 +3557,9 @@ def translate_do_func(
                         "\nif __name__ == '__main__':")
                 else:
                     contents_result += (
+                        "\nif __name__ == '__main__':\n" +
+                        "    _generated_main()\n")
+                    contents_result += (
                         "\ndef _generated_main():")
                 contents_result += (
                     "\n    _translator_runtime_helpers."
