@@ -70,11 +70,11 @@ const _maybe_stmt_token_strs = {
     "continue", "break",
     "var", "const", "type", "import", "if",
     "return", "await", "throw",
-    "enum",
+    "enum", "extend"
 }
 
 const _guaranteed_outer_scope_tokens = {
-    "type", "import", "enum",
+    "type", "import", "enum", "extend"
 }
 
 const special_words = {
@@ -395,7 +395,8 @@ func surely_to_toplevel_even_in_bad_code(
         return yes
     }
     if (tokens[start_pos].kind == T_KEYWORD and
-            {"type", "import", "enum"}.has(tokens[start_pos].str) and
+            {"type", "import", "enum",
+            "extend"}.has(tokens[start_pos].str) and
             start_pos + 1 <= tokens.len and
             tokens[start_pos + 1].kind == T_IDENT) {
         return yes
@@ -427,7 +428,11 @@ func surely_starts_stmt_even_in_bad_code(
         return yes
     }
     if (tokens[start_pos].kind == T_KEYWORD and
-            {"type", "import", "enum"}.has(tokens[start_pos].str) and
+            {"type", "import", "enum", "extend"}.has(
+                tokens[start_pos].str) and
+            (tokens[start_pos].str == "extend" or
+             start_pos <= 1 or
+             tokens[start_pos - 1].str != "extend") and
             start_pos + 1 <= tokens.len and
             tokens[start_pos + 1].kind == T_IDENT) {
         return yes
