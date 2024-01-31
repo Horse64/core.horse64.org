@@ -439,8 +439,9 @@ def _h64_print(s):
             sys.stdout.buffer.write(sbytes + b"\r\n")
         else:
             sys.stdout.buffer.write(sbytes + b"\n")
+        sys.stdout.flush()
     else:
-        print(s)
+        print(s, flush=True)
 
 def _io_tree_list_walker(s, relative=True,
         allow_vfs=True, allow_disk=True,
@@ -1943,6 +1944,60 @@ def _net_lookup_name(name, cb, retries=0, retry_delay=0.5):
     _async_ops.append(op)
     _async_ops_lock.release()
 
+def _net_serve_http_sync(directory, port=8080):
+    server_address = ('', port)
+    import http.server
+    class RequestClass(http.server.SimpleHTTPRequestHandler):
+        def log_message(self, format, *args):
+            pass
+    directory = os.path.normpath(
+        os.path.realpath(os.path.abspath(directory)))
+    class MyServer(http.server.ThreadingHTTPServer):
+        def handle_one_request(self, *args, **kwargs):
+            result = None
+            try:
+                result = super().handle_one_request(*args, **kwargs)
+            except (ConnectionError, OSError):
+                pass
+            return result
+
+        def finish_request(self, request, client_address):
+            RequestClass(request, client_address, self,
+                directory=directory)
+    server = MyServer(server_address, RequestClass)
+    server.serve_forever()
+
+def _net_serve_http(*args, **kwargs):
+    def async_net_fetch_open_do(job):
+        _args = job.userdata["args"]
+        _kwargs = job.userdata["kwargs"]
+        result = [None, None]
+        try:
+            result[1] = _net_serve_http_sync(
+                *_args, **_kwargs
+            )
+        except Exception as e:
+            result[0] = e
+            result[1] = None
+        job.userdata2 = result
+        job.done = True
+    def done_cb(op):
+        result = op.userdata2
+        f = op.userdata["usercb"]
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        op.callback_func = None
+        return f(result[0], result[1])
+    assert(len(args) == 2)
+    op = _AsyncOperation({
+        "args": args[:-1],
+        "kwargs": kwargs,
+        "usercb": args[-1]},
+        async_net_fetch_open_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
 
 def _net_fetch_open(*args, **kwargs):
     def async_net_fetch_open_do(job):
@@ -1968,9 +2023,9 @@ def _net_fetch_open(*args, **kwargs):
         return f(result[0], result[1])
     assert(len(args) == 2)
     op = _AsyncOperation({
-        "args": args,
+        "args": args[:-1],
         "kwargs": kwargs,
-        "usercb": args[1]},
+        "usercb": args[-1]},
         async_net_fetch_open_do, done_cb)
     _async_ops_lock.acquire()
     _async_ops.append(op)

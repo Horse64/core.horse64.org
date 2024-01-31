@@ -244,6 +244,10 @@ remapped_uses = {
         "net.ClientError":
             "_translator_runtime_helpers._ClientError",
     },
+    "net.serve@core.horse64.org": {
+        "net.serve.http":
+            "_translator_runtime_helpers._net_serve_http",
+    },
     "net.fetch@core.horse64.org": {
         "net.fetch.open":
             "_translator_runtime_helpers._net_fetch_open",
