@@ -212,6 +212,10 @@ remapped_uses = {
         "io.make_tmpdir":
             "_translator_runtime_helpers._make_tmpdir",
     },
+    "html@core.horse64.org": {
+        "html.escape":
+            "_translator_runtime_helpers._html_escape",
+    },
     "json@core.horse64.org": {
         "json.dump":
             "_translator_runtime_helpers._json_dump",

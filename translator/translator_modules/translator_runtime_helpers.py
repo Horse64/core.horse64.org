@@ -1944,60 +1944,550 @@ def _net_lookup_name(name, cb, retries=0, retry_delay=0.5):
     _async_ops.append(op)
     _async_ops_lock.release()
 
-def _net_serve_http_sync(directory, port=8080):
-    server_address = ('', port)
-    import http.server
-    class RequestClass(http.server.SimpleHTTPRequestHandler):
-        def log_message(self, format, *args):
-            pass
-    directory = os.path.normpath(
-        os.path.realpath(os.path.abspath(directory)))
-    class MyServer(http.server.ThreadingHTTPServer):
-        def handle_one_request(self, *args, **kwargs):
-            result = None
-            try:
-                result = super().handle_one_request(*args, **kwargs)
-            except (ConnectionError, OSError):
-                pass
-            return result
+def _html_escape(s):
+    import html
+    return html.escape(s)
 
-        def finish_request(self, request, client_address):
-            RequestClass(request, client_address, self,
-                directory=directory)
-    server = MyServer(server_address, RequestClass)
-    server.serve_forever()
+_NET_SERVE_HREPLY_NONE = None
+_NET_SERVE_HREPLY_CONTENT = 1
+_NET_SERVE_HREPLY_REQUEST = 2
+_NET_SERVE_HREPLY_FILE = 3
 
-def _net_serve_http(*args, **kwargs):
-    def async_net_fetch_open_do(job):
-        _args = job.userdata["args"]
-        _kwargs = job.userdata["kwargs"]
-        result = [None, None]
+class _NetServeHTTPRequestCtx:
+    def __init__(self):
+        self.reply_type = _NET_SERVE_HREPLY_NONE
+        self.reply_payload = None
+
+    def reply_content(self, reply):
+        self.reply_type = _NET_SERVE_HREPLY_CONTENT
+        self.reply_payload = reply
+
+    def reply_request(self, reply):
+        self.reply_type = _NET_SERVE_HREPLY_REQUEST
+        self.reply_payload = reply
+
+    def reply_file(self, reply):
+        self.reply_type = _NET_SERVE_HREPLY_FILE
+        self.reply_payload = reply
+
+def _is_later_func(f):
+    import inspect
+    args_names = inspect.getfullargspec(f).args
+    for arg in args_names:
+        if (arg.startswith("_later_cb") and
+                len(arg) == 32 + len("_later_cb")):
+            return True
+    return False
+
+class _NetServeHTTPServer:
+    def __init__(self, directory=None, port=8080,
+            server_name=None):
+        if server_name == None:
+            server_name = "core.horse64.org/0.1"
+        self.server_name = str(server_name)
+        self._pyservers = []
+        self._handle_mutex = threading.Lock()
+        self.endpoint_mapping = []
+        if directory != None:
+            self.add_dir(directory)
+        self._stopped = False
+        self._ports = [port]
+        self._request_list = []
+
+    def add_dir(self, directory, map_to="/"):
+        self._handle_mutex.acquire()
         try:
-            result[1] = _net_serve_http_sync(
-                *_args, **_kwargs
-            )
-        except Exception as e:
-            result[0] = e
-            result[1] = None
-        job.userdata2 = result
-        job.done = True
-    def done_cb(op):
-        result = op.userdata2
-        f = op.userdata["usercb"]
-        op.userdata = None
-        op.userdata2 = None
-        op.do_func = None
-        op.callback_func = None
-        return f(result[0], result[1])
-    assert(len(args) == 2)
-    op = _AsyncOperation({
-        "args": args[:-1],
-        "kwargs": kwargs,
-        "usercb": args[-1]},
-        async_net_fetch_open_do, done_cb)
-    _async_ops_lock.acquire()
-    _async_ops.append(op)
-    _async_ops_lock.release()
+            map_to = self._clean_map_to(map_to)
+            if not map_to.endswith("/"):
+                raise ValueError("directory mapping "
+                    "must end with /")
+            directory = os.path.normpath(
+                os.path.abspath(
+                directory))
+            self.endpoint_mapping = [(
+                "disk", map_to, directory
+            )] + self.endpoint_mapping
+        finally:
+            self._handle_mutex.release()
+
+    def _clean_map_to(self, map_to):
+        map_to = map_to.replace("\\", "/")
+        if not map_to.startswith("/"):
+            map_to = "/" + map_to
+        if map_to.endswith("/..") or "/../" in map_to:
+            raise ValueError("invalid mapping")
+        while "//" in map_to:
+            map_to = map_to.replace("//", "/")
+        return map_to
+
+    def parse_endpoint(self, ep, match_path):
+        if ep[0] == "disk" or (not "/*/" in ep[1] and
+                not ep[1].endswith("/*") and
+                not ep[1].endswith("/**")):
+            if ep[1].endswith("/"):
+                if (match_path.startswith(ep[1]) or
+                        match_path + "/" ==  ep[1]):
+                    return (True, ())
+            else:
+                if ep[1] == match_path:
+                    return (True, ())
+            return (None, None)
+        assert("/*" in ep[1])
+        p = ep[1]
+        while "/*/*/" in p:
+            p = p.replace("/*/*/", "/*//*/")
+        if p.endswith("/*/*"):
+            p = p[:-1] + "/*"
+        match_parts = p.split("/*/")
+        last_catch_all = False
+        if match_parts[-1].endswith("/*"):
+            match_parts = match_parts[:-1] + [
+                match_parts[-1][:len(match_parts[-1]) -
+                len("/*")], None]
+        elif match_parts[-1].endswith("/**"):
+            last_catch_all = True
+            match_parts = match_parts[:-1] + [
+                match_parts[-1][:len(match_parts[-1]) -
+                len("/**")], None]
+        assert(len(match_parts) > 1)
+        args_found = []
+        path_left = match_path
+        i = 0
+        ilen = len(match_parts)
+        while i < ilen:
+            if i >= ilen - 1:
+                if match_parts[i] == None:
+                    if last_catch_all and path_left != "":
+                        args_found[-1] = (
+                            args_found[-1] + "/" + path_left)
+                        path_left = ""
+                    if path_left != "":
+                        return (False, None)
+                    break
+                elif path_left != match_parts[i]:
+                    return (False, None)
+            if match_parts[i] != "":
+                if not path_left.startswith(match_parts[i] + "/"):
+                    return (False, None)
+                path_left = path_left[len(match_parts[i] + "/"):]
+            arg_end = path_left.find("/")
+            strip_slash = True
+            if arg_end is None or arg_end < 0:
+                arg_end = len(path_left)
+            args_found.append(path_left[:arg_end])
+            path_left = path_left[arg_end:]
+            if path_left.startswith("/"):
+                path_left = path_left[1:]
+            i += 1
+        return (True, args_found)
+
+    def _translator_renamed_del(self, map_to):
+        self._handle_mutex.acquire()
+        try:
+            map_to = self._clean_map_to(map_to)
+            new_endpoint_list = []
+            for ep in self.endpoint_mapping:
+                if ep[1] != map_to:
+                    new_endpoint_list.append(ep)
+            self.endpoint_mapping = new_endpoint_list
+        finally:
+            self._handle_mutex.release()
+
+    def add_endpoint(self, callback, map_to="/"):
+        self._handle_mutex.acquire()
+        try:
+            map_to = self._clean_map_to(map_to)
+            self.endpoint_mapping = [(
+                "func", map_to, callback
+            )] + self.endpoint_mapping
+        finally:
+            self._handle_mutex.release()
+
+    def shutdown(self):
+        self._stopped = True
+
+    def _handle_requests(self):
+        self._handle_mutex.acquire()
+        req = None
+        try:
+            if len(self._request_list) == 0:
+                return False
+            req = self._request_list[0]
+            self._request_list = self._request_list[1:]
+        finally:
+            self._handle_mutex.release()
+        assert(req[0] == "func")
+        ctx = req[2]
+        args = list(req[3])
+        def result_func(error_obj, return_val):
+            if error_obj != None:
+                raise error_obj
+            if ctx.reply_type == None:
+                self._handle_mutex.acquire()
+                try:
+                    req[4] = (0, None)
+                finally:
+                    self._handle_mutex.release()
+                return
+            self._handle_mutex.acquire()
+            try:
+                req[4] = (ctx.reply_type, ctx.reply_payload)
+            finally:
+                self._handle_mutex.release()
+        def do_run(error, rval):
+            if error != None:
+                raise error
+            callback = req[1]
+            if _is_later_func(callback):
+                callback(*([ctx] + args + [result_func]))
+            else:
+                error_obj = None
+                try:
+                    return_value = callback(*([ctx] + args))
+                except Exception as e:
+                    error_obj = e
+                if error_obj != None:
+                    return_value = None
+                result_func(error_obj, return_value)
+        _time_sleep(0, do_run)
+        return True
+
+    def _run_sync(self):
+        serv_self = self
+        for port in self._ports:
+            server_address = ('', port)
+            import http.server
+            class RequestClass(http.server.SimpleHTTPRequestHandler):
+                def translate_path(self, path):
+                    return self.translate_path_ext(path,
+                        only_return_disk=True)
+
+                def translate_path_ext(self, path, only_return_disk=True):
+                    path = path.split('#',1)[0]
+                    options = {}
+                    if "?" in path:
+                        (path, _, options_str) = path.partition("?")
+                        for option_str in options_str.split("&"):
+                            (option_key, _, option_val) =\
+                                option_str.partition("=")
+                            option_key = urllib.parse.unquote_plus(
+                                option_key).strip()
+                            option_val = urllib.parse.unquote_plus(
+                                option_val)
+                            if (option_key == "" or
+                                    option_key in options):
+                                continue
+                            options[option_key] = option_val
+                    path = urllib.parse.unquote(path)
+                    path = path.replace("\\", "/")
+                    ended_slash = path.endswith("/")
+                    path = os.path.normpath(path.replace("/",
+                        os.path.sep)).replace(os.path.sep, "/")
+                    if ended_slash and not path.endswith("/"):
+                        path += "/"
+                    while "//" in path:
+                        path = path.replace("//", "/")
+                    if not path.startswith("/"):
+                        path = "/" + path
+                    while "/./" in path:
+                        path = path.replace("/./", "/")
+                    if "/../" in path:
+                        if only_return_disk:
+                            return None
+                        return (None, mapping, (), options)
+                    for mapping in self.current_mapping:
+                        (success, args) = serv_self.parse_endpoint(
+                            mapping, path
+                        )
+                        if not success:
+                            continue
+                        if only_return_disk and mapping[0] != "disk":
+                            continue
+                        if mapping[0] == "disk":
+                            subpath = path[len(mapping[1]):]
+                            diskpath = os.path.join(
+                                mapping[2],
+                                subpath.replace("/", os.path.sep)
+                            )
+                            if only_return_disk:
+                                return diskpath
+                            return (subpath, mapping,
+                                (diskpath,), options)
+                        else:
+                            return (path, mapping, args, options)
+                    if only_return_disk:
+                        return None
+                    return (None, None, (), options)
+
+                def do_HEAD(self):
+                    self.send_h64_response(True)
+
+                def do_GET(self):
+                    self.send_h64_response(False)
+
+                def respond_with_h64_request(self, request,
+                        strip_body, append_from_path=None,
+                        is_internal_error=False):
+                    append_len = 0
+                    if append_from_path:
+                        try:
+                            append_len = os.path.getsize(
+                                append_from_path)
+                        except OSError as e:
+                            if not is_internal_error:
+                                raise e
+                    if type(request) == str:
+                        request = request.encode("utf-8", "replace")
+                    def findlb(s):
+                        idx = s.find(b"\n")
+                        idx2 = s.find(b"\r\n")
+                        if idx2 >= 0 and idx2 < idx:
+                            idx = idx2
+                        idx3 = s.find(b"\r")
+                        if idx3 >= 0 and idx3 < idx:
+                            idx = idx3
+                        return idx
+                    def striplb(s):
+                        if s.startswith(b"\r\n"):
+                            return s[2:]
+                        if s.startswith(b"\n") or s.startswith(b"\r"):
+                            return s[1:]
+                        return s
+                    response_line = b"HTTP/1.1 200 OK"
+                    response_content = b""
+                    headers = [[b"Server", serv_self.server_name.
+                            encode("utf-8", "replace")],
+                        [b"Connection", b"close"],
+                        [b"Content-Length", b"0"]]
+                    if request.startswith(b"HTTP/1.1 "):
+                        end_line = findlb(request)
+                        if end_line < 0:
+                            end_line = len(request)
+                        response_line = request[:end_line]
+                        request = striplb(request[end_line:])
+                    def set_header(leftpart, rightpart):
+                        nonlocal headers
+                        found = False
+                        new_headers = []
+                        for old_header in headers:
+                            if old_header[0].lower() ==\
+                                    leftpart.lower():
+                                new_headers.append([
+                                    leftpart + b"",
+                                    rightpart + b""])
+                                found = True
+                                break
+                            new_headers.append(old_header)
+                        if not found:
+                            new_headers.append([
+                                left_part + b"",
+                                right_part + b""])
+                        headers = new_headers
+                    while True:
+                        end_header_line = findlb(request)
+                        if end_header_line <= 0:
+                            if end_header_line == 0:
+                                request = striplb(request)
+                            break
+                        header_line = request[:end_header_line]
+                        request = request[end_header_line:]
+                        colonpos = header_line.find(b":")
+                        if colonpos <= 0:
+                            continue
+                        leftpart = header_line[:colonpos]
+                        rightpart = header_ilne[colonpos:]
+                        set_header(left_part, right_part)
+                    set_header(b"Content-Length",
+                        str(len(request) + append_len).encode(
+                            "utf-8", "replace"))
+                    headers_str = b""
+                    for header in headers:
+                        headers_str += (header[0] + b": " +
+                            header[1] + b"\r\n")
+                    self.wfile.write(response_line + b"\r\n" +
+                        headers_str + b"\r\n")
+                    if not strip_body:
+                        try:
+                            self.wfile.write(request)
+                        except OSError:
+                            pass
+                    if not strip_body and append_len > 0:
+                        try:
+                            with open(append_from_path, "rb") as f:
+                                while True:
+                                    chunk = f.read(1024 * 1024)
+                                    if len(chunk) == 0:
+                                        break
+                                    self.wfile.write(chunk)
+                        except OSError:
+                            pass
+                    self.wfile.flush()
+
+                def send_error(self, code, title, text=None):
+                    import html
+                    title = title.strip()
+                    if (not title.endswith(".") and
+                            not title.endswith("!")):
+                        title += "."
+                    if text is None:
+                        text = title
+                    self.respond_with_h64_request(
+                        "HTTP/1.1 404 Not Found\n\n"
+                        "<!DOCTYPE HTML>" +
+                        "<html><head><title>" +
+                        html.escape(text) + "</title><style>" +
+                        "body {background-color:#520033; " +
+                        "color:#e2a9cc; font-family:Arial;} " +
+                        "hr {display:block; height:1px; " +
+                        "background-color:#e2a9cc; border:none;}"
+                        "</style></head>" +
+                        "<body><h1>" + str(code) +
+                        "</h1><p>" + html.escape(text) +
+                        "</p><hr><p><em>Served by " + html.escape(
+                        serv_self.server_name) + "</em></p></body>" +
+                        "</html>", False,
+                        is_internal_error=(code == 500))
+
+                def send_h64_response(self, strip_body):
+                    (fpath, mapping, args, options) =\
+                        self.translate_path_ext(
+                            self.path, only_return_disk=False)
+                    if mapping != None and mapping[0] == "disk":
+                        if strip_body:
+                            super().do_HEAD()
+                            return
+                        super().do_GET()
+                        return
+                    if mapping == None:
+                        self.send_error(404, "File not found")
+                        return
+                    assert(mapping[0] == "func")
+                    ctx = _NetServeHTTPRequestCtx()
+                    ctx.path = fpath
+                    ctx.options = options
+                    request = ["func", mapping[2], ctx, args, None]
+                    self._handle_mutex.acquire()
+                    try:
+                        serv_self._request_list.append(request)
+                    finally:
+                        self._handle_mutex.release()
+                    while True:
+                        done = False
+                        self._handle_mutex.acquire()
+                        try:
+                            done = (request[4] != None)
+                        finally:
+                            self._handle_mutex.release()
+                        if not done:
+                            time.sleep(0.1)
+                            continue
+                        break
+                    if request[4][0] == _NET_SERVE_HREPLY_FILE:
+                        try:
+                            self.respond_with_h64_request(
+                                "HTTP/1.1 200 OK\n\n",
+                                strip_body,
+                                append_from_path=requests[4][1],
+                                is_internal_error=False)
+                        except OSError:
+                            if not os.path.exists(request[4][1]):
+                                self.send_error(HTTPStatus.NOT_FOUND,
+                                    "File not found")
+                                return
+                            self.send_error(500, "Failed to return "
+                                "dynamic file.")
+                            return
+                    elif request[4][0] == _NET_SERVE_HREPLY_CONTENT:
+                        self.respond_with_h64_request(
+                            "HTTP/1.1 200 OK\n\n" +
+                            request[4][1], strip_body)
+                    elif request[4][0] == _NET_SERVE_HREPLY_REQUEST:
+                        self.respond_with_h64_request(
+                            request[4][1], strip_body)
+                    elif request[4][0] == _NET_SERVE_HREPLY_NONE:
+                        # We don't want to send any response.
+                        self.wfile.close()
+                    else:
+                        raise RuntimeError("unhandled response type")
+
+                def log_message(self, format, *args):
+                    pass
+
+                def handle_one_request(self, *args, **kwargs):
+                    import copy
+                    result = None
+                    self._handle_mutex = serv_self._handle_mutex
+                    self._handle_mutex.acquire()
+                    try:
+                        self.current_mapping = copy.copy(
+                            serv_self.endpoint_mapping)
+                    finally:
+                        self._handle_mutex.release()
+                    try:
+                        result = super().handle_one_request(
+                            *args, **kwargs)
+                    except (ConnectionError, OSError):
+                        pass
+                    return result
+
+                def version_string(self):
+                    return serv_self.server_name
+
+            class MyServer(http.server.ThreadingHTTPServer):
+                def version_string(self):
+                    return serv_self.server_name
+            pyserver = MyServer(server_address, RequestClass)
+            self._pyservers.append(pyserver)
+            def do_run():
+                pyserver.serve_forever()
+            t = threading.Thread(target=do_run)
+            t.start()
+        while True:
+            if self._stopped:
+                for pyserver in self._pyservers:
+                    pyserver.shutdown()
+                break
+            if self._handle_requests():
+                continue
+            time.sleep(0.1)
+
+    def run(self, *args, **kwargs):
+        def async_do(job):
+            _args = job.userdata["args"]
+            _kwargs = job.userdata["kwargs"]
+            selfref = job.userdata["selfref"]
+            result = [None, None]
+            try:
+                result[1] = selfref._run_sync(
+                    *_args, **_kwargs
+                )
+            except Exception as e:
+                result[0] = e
+                result[1] = None
+            job.userdata2 = result
+            job.done = True
+        def done_cb(op):
+            result = op.userdata2
+            f = op.userdata["usercb"]
+            op.userdata = None
+            op.userdata2 = None
+            op.do_func = None
+            op.callback_func = None
+            return f(result[0], result[1])
+        assert(len(args) == 1)
+        op = _AsyncOperation({
+            "args": args[:-1],
+            "kwargs": kwargs,
+            "selfref": self,
+            "usercb": args[-1]},
+            async_do, done_cb)
+        _async_ops_lock.acquire()
+        _async_ops.append(op)
+        _async_ops_lock.release()
+
+def _net_serve_http(directory=None, port=8080):
+    return _NetServeHTTPServer(
+        directory=directory, port=port)
 
 def _net_fetch_open(*args, **kwargs):
     def async_net_fetch_open_do(job):
