@@ -2984,7 +2984,14 @@ def run_translator_main():
             target_file_rel)
         if not single_file:
             shutil.copytree(repo_dir, os.path.join(
-                assembled_dir, "project"))
+                assembled_dir, "project"),
+                ignore=shutil.ignore_patterns('*.jpg',
+                    '*.xcf', '*.png', '*.mp3',
+                    '*.ttf', '*.svg', '*.zip',
+                    '*.tar', '*.gz', '*.woff',
+                    '*.eot', '*.woff2', '*.wav',
+                    '*.ogg', '*.flac', '*.bmp',
+                    '*.ico'))
         else:
             os.mkdir(os.path.join(assembled_dir, "project"))
             shutil.copyfile(old_target_file,
