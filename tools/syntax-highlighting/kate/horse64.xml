@@ -180,6 +180,10 @@ This is a syntax highlighting intended for kate and other KDE editors.
         <DetectSpaces/>
         <keyword String="keywords" context="#pop" lookAhead="true"/>
         <DetectChar char="." attribute="OtherSymbol" context="#stay"/>
+        <RegExpr attribute="SpecialItemName" context="#pop"
+         String="(init|as_str|copy|modinit_&IDENT;|modinit)(?=\s+&IDENT;)"/>
+        <RegExpr attribute="SpecialItemName" context="#stay"
+         String="(init|as_str|copy|modinit_&IDENT;|modinit)"/>
         <RegExpr attribute="ItemName" context="#pop"
          String="&IDENT;(?=\s+&IDENT;)"/>
         <RegExpr attribute="ItemName" context="#stay"
@@ -262,6 +266,7 @@ This is a syntax highlighting intended for kate and other KDE editors.
        spellChecking="false"/>
       <itemData name="NormalText" defStyleNum="dsNormal"
        spellChecking="false"/>
+      <itemData name="SpecialItemName" defStyleNum="dsBuiltIn" spellChecking="false"/>
       <itemData name="BuiltinFunc" defStyleNum="dsBuiltIn" spellChecking="false"/>
       <itemData name="BuiltinVar" defStyleNum="dsBuiltIn" spellChecking="false"/>
       <itemData name="Comment" defStyleNum="dsComment"/>
