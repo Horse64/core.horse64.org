@@ -107,6 +107,8 @@ following:
       your fork**, and click the "Pull Requests" tab and
       click "New Pull Request".
 
+      ![](Screenshot Codeberg Pull Request.png)
+
       For "merge into", make
       sure it's set to the project's original "main" branch.
       For "pull from", pick your personal fork and your
