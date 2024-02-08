@@ -128,7 +128,7 @@ If you contribute a pull request
 
 Whenever updating the git hooks, or the forms in the `.gitea` folder,
 or the workflows to disable pull requests in the `.github` folder,
-update them in this core.horse64.org repo first.
+update them in the core.horse64.org main repo first.
 
 Then run (in the main repo folder):
 ```bash
@@ -154,8 +154,9 @@ any release of what is part of the core tooling.
 expands and is made up of what is needed to build *horp*,
 *HVM*, and *the standard library*. **The authoritative latest
 list for what is part of that, is maintained as part of
-[tools/maintainer_helper_test_major_builds.h64](
-maintainer_helper_test_major_builds.h64).**
+`tools/maintainer_helper_test_major_builds.h64` in
+the [core.horse64.org main repo](
+/docs/Resources.md#standard-library).**
 
 **Steps required** before any official release of core tooling:
 
