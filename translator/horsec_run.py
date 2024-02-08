@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -25,7 +25,6 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-
 import os
 import sys
 
@@ -36,7 +35,6 @@ translator_py_script_dir = (
     os.path.abspath(os.path.dirname(__file__))
 )
 translator_py_script_path = os.path.abspath(__file__)
-
 
 if __name__ == "__main__":
     run_code = None
@@ -124,6 +122,7 @@ if __name__ == "__main__":
             while "  " in doc_comment:
                 doc_comment = doc_comment.replace("  ", " ")
             if ("@" in doc_comment and
+                    "@build_options" not in doc_comment and
                     "@option horsec-run" not in doc_comment and
                     "@module" not in doc_comment):
                 # Bail out once we reach any doc gen instructions
