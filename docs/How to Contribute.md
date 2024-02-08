@@ -36,7 +36,10 @@ following:
    how to change folders in a terminal, or you won't get
    very far):
 
-   1. Make an account on codeberg.org if you haven't yet.
+   1. Make an account on codeberg.org if you haven't yet:
+
+      ![](Screenshot Codeberg Signup.png)
+
       Also, install **git for Windows** and any text
       editor for editing code.
 
