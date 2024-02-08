@@ -205,6 +205,8 @@ remapped_uses = {
             "_translator_runtime_helpers._make_or_get_appcache",
         "io.remove_file":
             "_translator_runtime_helpers._io_remove_file",
+        "io.copy_dir":
+            "_translator_runtime_helpers._io_copy_dir",
         "io.remove_dir":
             "_translator_runtime_helpers._io_remove_dir",
         "io.rename":

@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import os
+import subprocess
 import sys
 
 from translator_modules.\
@@ -134,9 +135,14 @@ if __name__ == "__main__":
                 extra_opts += ["--single-file"]
         cmd = os.path.join(translator_py_script_dir, "translator.py")
         cmd_args = extra_opts + ["--"] + [target_file] + target_args
-        result = _process_run(
-            cmd, args=cmd_args,
-            print_output=True, with_input=True)
+        try:
+            result = _process_run(
+                cmd, args=cmd_args,
+                print_output=True, with_input=True)
+        except subprocess.CalledProcessError as e:
+            sys.stdout.flush()
+            sys.stderr.flush()
+            sys.exit(1)
         sys.stdout.flush()
         sys.stderr.flush()
         sys.exit(0)

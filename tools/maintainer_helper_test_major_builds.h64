@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import io from core.horse64.org
+import process from core.horse64.org
 import terminal from core.horse64.org
 
 func main {
@@ -95,7 +96,7 @@ func main {
     print("This script will now clear out the horse_modules folder "
         "inside this core.horse64.org repo folder, to test "
         "fetching and building these from scratch/from upstream.")
-    v = terminal.yesno("Continue and DELETE horse_modules [yes/NO]",
+    v = terminal.yesno("Continue and DELETE horse_modules? [yes/NO]",
         default=no)
     later:
 
@@ -104,6 +105,67 @@ func main {
         print("Aborting (by user request).")
         system.exit(1)
     }
+    print("Removing folders...")
+    io.remove_dir("horse_modules/horp.horse64.org",
+                  must_exist=no) later:
+    io.remove_dir("horse_modules/hvm.horse64.org",
+                  must_exist=no) later:
 
+    # Test 1:
+    print("")
+    print("[Test 1] Testing make get-deps of translator...")
+    print("")
+    print("$ make get-deps")
+    process.run("bash", args=["-c",
+        "cd translator && make get-deps"],
+        print_output=yes) later:
+    print("")
+    print("[Test 1] Success.")
+
+    # Test 2:
+    print("")
+    print("[Test 2] Testing horsec --help with translator...")
+    print("")
+    print("$ make test")
+    process.run("bash", args=["-c",
+        "python3 translator/horsec.py --help"],
+        print_output=yes) later:
+    print("")
+    print("[Test 2] Success.")
+
+    # Now insert actual updated core packages:
+    print("")
+    print("Copying over your custom versions of packages for "
+        "testing...")
+    io.remove_dir("horse_modules/horp.horse64.org",
+                  must_exist=no) later:
+    io.remove_dir("horse_modules/hvm.horse64.org",
+                  must_exist=no) later:
+    io.copy_dir("../hvm.horse64.org",
+        "horse_modules/horp.horse64.org") later:
+    io.copy_dir("../horp.horse64.org",
+        "horse_modules/hvm.horse64.org") later:
+
+    # Test 3:
+    print("")
+    print("[Test 3] Rerun horsec --help with translator...")
+    print("")
+    print("$ make test")
+    process.run("bash", args=["-c",
+        "python3 translator/horsec.py --help"],
+        print_output=yes) later:
+    print("")
+    print("[Test 3] Success.")
+
+    # Test 4:
+    print("")
+    print("[Test 4] Testing make test of translator...")
+    print("")
+    print("$ make test")
+    process.run("bash", args=["-c",
+        "cd translator && make test"],
+        print_output=yes) later:
+    print("")
+    print("[Test 4] Success.")
 }
 

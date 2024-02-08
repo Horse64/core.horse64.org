@@ -317,14 +317,17 @@ def _process_run_async(cmd, callback,
         info = op.userdata
         output = None
         err = None
+        op.userdata2 = [None, None]
         try:
             output = _process_run(
                 info["cmd"],
                 args=info["args"],
                 run_in_dir=info["run_in_dir"],
                 print_output=info["print_output"])
-        except subprocess.CalledProcessError as e:
+        except Exception as e:
             err = e
+            if isinstance(e, subprocess.CalledProcessError):
+                output = e.output
         _async_ops_lock.acquire()
         op.userdata2 = [err, output]
         op.done = True
@@ -400,7 +403,9 @@ def _process_run(cmd, args=[], run_in_dir=None,
     # Return result:
     return_code = process.wait()
     if return_code:
-        raise subprocess.CalledProcessError(return_code, cmd)
+        eobj = subprocess.CalledProcessError(return_code, cmd)
+        eobj.output = output[0].decode("utf-8", "replace")
+        raise eobj
     output = output[0].decode("utf-8", "replace")
     return output
 
@@ -1280,8 +1285,54 @@ def _io_remove_file(v, cb, allow_vfs=True, allow_disk=True):
     _async_ops.append(op)
     _async_ops_lock.release()
 
+def _io_copy_dir(v, v2, cb, allow_vfs=True, allow_disk=True):
+    def async_remove_dir_do(job):
+        v = job.userdata["v"]
+        v2 = job.userdata["v2"]
+        allow_vfs = job.userdata["allow_vfs"]
+        allow_disk = job.userdata["allow_disk"]
+        if v == "":
+            v = "."
+        if not allow_disk:
+            if v2 == ".":
+                result = [
+                    _PermissionDeniedError("Read-only target."), None
+                ]
+            else:
+                result = [
+                    _PathNotFoundError("Path doesn't exist."), None
+                ]
+        else:
+            result = [None, None]
+            try:
+                import shutil
+                result[1] = _wrap_io(shutil.copytree)(v, v2)
+            except Exception as e:
+                result[0] = e
+                result[1] = None
+        job.userdata2 = result
+        job.done = True
+    def done_cb(op):
+        result = op.userdata2
+        f = op.userdata["usercb"]
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        op.callback_func = None
+        return f(result[0], result[1])
+    op = _AsyncOperation({
+        "v": v,
+        "v2": v2,
+        "allow_disk": allow_disk,
+        "allow_vfs": allow_vfs,
+        "usercb": cb},
+        async_remove_dir_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
 
-def _io_remove_dir(v, cb, allow_vfs=True, allow_disk=True):
+def _io_remove_dir(v, cb, allow_vfs=True, allow_disk=True,
+        must_exist=True):
     def async_remove_dir_do(job):
         v = job.userdata["v"]
         allow_vfs = job.userdata["allow_vfs"]
@@ -1303,8 +1354,14 @@ def _io_remove_dir(v, cb, allow_vfs=True, allow_disk=True):
                 import shutil
                 result[1] = _wrap_io(shutil.rmtree)(v)
             except Exception as e:
-                result[0] = e
-                result[1] = None
+                if ((isinstance(e, FileNotFoundError) or
+                        isinstance(e, _PathNotFoundError)) and
+                        not job.userdata["must_exist"]):
+                    result[0] = None
+                    result[1] = None
+                else:
+                    result[0] = e
+                    result[1] = None
         job.userdata2 = result
         job.done = True
     def done_cb(op):
@@ -1319,6 +1376,7 @@ def _io_remove_dir(v, cb, allow_vfs=True, allow_disk=True):
         "v": v,
         "allow_disk": allow_disk,
         "allow_vfs": allow_vfs,
+        "must_exist": must_exist,
         "usercb": cb},
         async_remove_dir_do, done_cb)
     _async_ops_lock.acquire()
