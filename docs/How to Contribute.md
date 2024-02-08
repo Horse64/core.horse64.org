@@ -17,8 +17,8 @@ following:
 1. Most deeper testing of the core tooling expects to be
    run *on Linux.* If you contribute a more complicated
    feature, you will be expected to test your pull request
-   on Linux according to the [#maintainer-checklists](
-   checklists below). **It's however possible to do
+   on Linux according to the [checklists below](
+   #maintainer-checklists). **It's however possible to do
    more basic code changes and tests on Windows,
    even without using WSL2, as long as your code changes
    concern only Horse64 code and not the C parts of the
