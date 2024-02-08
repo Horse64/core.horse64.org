@@ -7,6 +7,14 @@ to Horse64. If you want to fix a problem, help with
 the documentation, etc., then please read on.
 
 
+Contribute as a tester
+----------------------
+
+If you want to help testing, [get the SDK](
+/docs/Resources.md#sdk) and [report bugs](
+report-bugs).
+
+
 Contribute code
 ---------------
 
@@ -36,11 +44,13 @@ following:
    how to change folders in a terminal, or you won't get
    very far):
 
-   1. Make an account on codeberg.org if you haven't yet:
+   1. Make an account on [codeberg.org](
+      https://codeberg.org/) if you haven't yet:
 
       ![](Screenshot Codeberg Signup.png)
 
-      Also, install **git for Windows** and any text
+      Also, install [**git for Windows**](
+      https://git-scm.com/download/win) and any text
       editor for editing code.
 
    2. Go to the respective Horse64 project repository for
@@ -114,6 +124,10 @@ following:
       For "pull from", pick your personal fork and your
       `name-for-your-branch` branch.
 
+If you want to talk to other developers to discuss new
+features and patches, [join the 💬 community chat](
+https://horse64.org/chat).
+
 
 Maintainer checklists
 ---------------------
@@ -122,7 +136,7 @@ These are maintainer checklists for all the core projects.
 
 ### Pull request checklist for core tooling
 
-If you contribute a pull request
+If you contribute a pull request... FIXME
 
 ### Updating git hooks or issue forms
 
@@ -182,3 +196,4 @@ the [core.horse64.org main repo](
    `make test`, and for the others that would usually be via
    `horp test`. If there are any errors, make sure to investigate
    if any are new!
+

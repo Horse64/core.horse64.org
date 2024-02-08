@@ -144,6 +144,13 @@ https://en.wikipedia.org/wiki/C_%28programming_language%29),
 it's maintained as part of the Horse64 project.
 
 
+Contributing
+------------
+
+For info on how to contribute, [read here](
+/docs/How%20to%20Contribute.md).
+
+
 Creators
 --------
 
