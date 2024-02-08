@@ -24,7 +24,7 @@ following:
    concern only Horse64 code and not the C parts of the
    tooling.**
 
-2. [LICENSE.md](Read the licensing carefully) and make
+2. [Read the licensing carefully](LICENSE.md) and make
    sure you agree to contribute your code under the given
    terms.
 
@@ -33,7 +33,8 @@ following:
 
    To set up a new pull request, try these steps (**warning**,
    you should know how to run commands in a terminal and
-   how to change folders, or you won't get very far):
+   how to change folders in a terminal, or you won't get
+   very far):
 
    1. Make an account on codeberg.org if you haven't yet.
       Also, install **git for Windows** and any text
