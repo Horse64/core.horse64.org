@@ -24,12 +24,12 @@ following:
    concern only Horse64 code and not the C parts of the
    tooling.**
 
-2. [Read the licensing carefully](LICENSE.md) and make
-   sure you agree to contribute your code under the given
-   terms.
+2. [Read the licensing carefully](/docs/Resources.md#license)
+   and make sure you agree to contribute your code under
+   the given terms.
 
 3. Changes can be suggested via **pull requests** in the
-   [respective repositories](Resources.md).
+   [respective repositories](/docs/Resources.md).
 
    To set up a new pull request, try these steps (**warning**,
    you should know how to run commands in a terminal and
@@ -74,7 +74,8 @@ following:
    7. Now use `git commit -a` to describe your change and
       store it to your local repository. Make sure to
       [add the developer certificiate of origin
-      signature]( If you added any
+      signature as specified in the license file](
+      /docs/Resources.md#license). If you added any
       new files, you might first need to use
       `git add name-of-file`. Then use
       `push origin name-for-your-branch` to push your

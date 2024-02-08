@@ -48,9 +48,27 @@ Documentation
 -------------
 
 If you're reading this, you found the documentation! If you got
-some offline copy, [switch to the latest documentation
-online copy](https://horse64.org/docs/Welcome).
+some offline copy, [switch to the latest online copy of the
+documentation](https://horse64.org/docs/Welcome).
 
+
+License
+-------
+
+**The licenses for all core projects are almost the
+same,** but feel free to check the license for each one
+yourself.
+
+The license files can be found in the respective code
+repository, where the code is located. This is listed
+for each sub project in this file, e.g. [go here for
+the standard library source code](#standard-library).
+Then, browse to the `LICENSE.md` file inside the code,
+right at the top level.
+
+[For example, here's core.horse64.org's `LICENSE.md`
+file.](
+https://codeberg.org/Horse64/core.horse64.org/src/branch/main/LICENSE.md).
 
 Standard library
 ----------------
