@@ -60,8 +60,8 @@ same,** but feel free to check the license for each one
 yourself.
 
 **LICENSING:** All projects are dual-licensed under either a
-BSD-style license or the Apache 2 license, with minor
-exceptions (like the official artwork). **Check the
+BSD-style license or the Apache 2 license, with the minor
+exception to that being the official artwork. **Check the
 respective license files for details:**
 
 - Here's [the `LICENSE.md` file for the core.horse64.org

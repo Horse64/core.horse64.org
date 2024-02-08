@@ -48,7 +48,10 @@ following:
       fork, which is your own separate copy of the project.
 
    4. Clone your personal fork to your local machine with:
-      `git clone ...url-to-your-repo-fork-on-codeberg...`
+
+      ```bash
+      git clone ...url-to-your-repo-fork-on-codeberg...
+      ```
 
       (Run that in a terminal, on Windows
       e.g. the **git terminal**, in some folder where
@@ -57,7 +60,9 @@ following:
 
       Then switch to a new branch in your local repo with:
 
-      `git checkout -b name-for-your-branch`
+      ```bash
+      git checkout -b name-for-your-branch
+      ```
 
       (This needs to be run *inside* your new repo folder.)
 
@@ -68,18 +73,32 @@ following:
       made this change. For that, you can run this in
       your local repo folder:
 
-      `git config user.name "John Doe"`
-      `git config user.email "my-mail@example.com"`
+      ```bash
+      git config user.name "John Doe"`
+      git config user.email "my-mail@example.com"
+      ```
 
-   7. Now use `git commit -a` to describe your change and
-      store it to your local repository. Make sure to
+   7. Now use:
+
+      ```bash
+      git commit -a
+      ```
+      ...to save and describe your changes
+      to your local repository. Make sure to
       [add the developer certificiate of origin
       signature as specified in the license file](
-      /docs/Resources.md#license). If you added any
-      new files, you might first need to use
-      `git add name-of-file`. Then use
-      `push origin name-for-your-branch` to push your
-      change to your personal fork.
+      /docs/Resources.md#license).
+
+      (If you added any new files, you might first
+      need to use `git add name-of-file`.)
+
+      Then use:
+
+      ```bash
+      git push origin name-for-your-branch
+      ```
+      ...to push your change to your personal fork on
+      the code hoster.
 
    8. Now go to the original repository on Codeberg, **not
       your fork**, and click the "Pull Requests" tab and
@@ -96,27 +115,32 @@ Maintainer checklists
 
 These are maintainer checklists for all the core projects.
 
-## Pull request checklist for core tooling
+### Pull request checklist for core tooling
 
 If you contribute a pull request
 
-## Updating git hooks or issue forms
+### Updating git hooks or issue forms
 
 Whenever updating the git hooks, or the forms in the `.gitea` folder,
 or the workflows to disable pull requests in the `.github` folder,
-update them in this core.horse64.org repo first and then
-run `python3 maintainer-helper-update-repos.py` in this folder
-to propagate the changes to all the other repos. (The other
-repos need to be cloned to neighboring repo folders,
+update them in this core.horse64.org repo first.
+
+Then run (in the main repo folder):
+```bash
+python3 maintainer-helper-update-repos.py
+```
+...to propagate the changes to all the other repos.
+
+(The other repos need to be cloned to neighboring repo folders,
 neighboring your core.horse64.org repo folder.)
 
-## Update all copyright notices for the next year
+### Update all copyright notices for the next year
 
 To update all copyright notices for the next year,
 do the same steps as for [updating the git hooks for
 all repos](#updating-git-hooks-or-issue-forms).
 
-## Release checklist for core tooling
+### Release checklist for core tooling
 
 This release checklist should be completed before attempting
 any release of what is part of the core tooling.
@@ -126,7 +150,7 @@ expands and is made up of what is needed to build *horp*,
 *HVM*, and *the standard library*. **The authoritative latest
 list for what is part of that, is maintained as part of
 [tools/maintainer_helper_test_major_builds.h64](
-maintainer_helper_test_major_builds.h64).
+maintainer_helper_test_major_builds.h64).**
 
 **Steps required** before any official release of core tooling:
 
