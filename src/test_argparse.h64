@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2024,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -25,14 +25,32 @@
 # license, see accompanied LICENSE.md.
 
 import argparse from core.horse64.org
-import system from core.horse64.org
 
-func main {
-    var defs = new argparse.ArgumentDefs()
-    var result = argparse.parse(arg_defs=defs)
-    if result.output != "" {
-        print(result.output)
-        system.exit(result.exit_code)
-    }
+func test_argparse {
+    var defs, result
+
+    result = argparse.parse(
+        args=["-a", "--b", "--", "-c", "e"]
+    )
+    assert(result.output == "")
+    assert("args" in result.args)
+    assert(result.args["args"].len == 2)
+    assert("-a" in result.args and result.args["-a"] == yes)
+    assert("--b" in result.args and result.args["--b"] == yes)
+    assert(not "-c" in result.args)
+
+    defs = new argparse.ArgumentDefs(program_name="bla")
+    defs.add_catchall(
+        "args", can_be_empty=yes)
+    result = argparse.parse(arg_defs=defs, args=[])
+    assert(result.output == "")
+    assert("args" in result.args)
+    assert(result.args["args"].len == 0)
+
+    defs = new argparse.ArgumentDefs(program_name="bla")
+    defs.add_catchall(
+        "args", can_be_empty=no)
+    result = argparse.parse(arg_defs=defs, args=[])
+    assert("missing" in result.output.lower())
 }
 

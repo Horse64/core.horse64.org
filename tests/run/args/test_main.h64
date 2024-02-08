@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -29,8 +29,7 @@ import compiler from core.horse64.org
 import path from core.horse64.org
 import system from core.horse64.org
 
-
-func test_args_things {
+func test_args_launch_program {
     # Test if it works as a standalone separate program:
     var output = compiler.run_file(
         "args_program_main.h64", args=["--help"],
@@ -39,44 +38,72 @@ func test_args_things {
 
     await output
     assert(output.lower().has("usage") and
-        output.lower().has("available options"))
+        output.lower().has("available for \"options\""))
     print("Launching program with --help worked!")
+}
 
-    # Test a basic scenario with optional and catchall args:
+func test_args_catchall_nonempty {
+    # Test a scenario where a catch-all arg can't be empty:
+
     var defs = argparse.ArgumentDefs()
     defs.add_switch("--flob")
     defs.add_arg("arg1", optional=yes)
     defs.add_arg("arg2")
-    defs.add_catchall("trailingargs")
+    defs.add_catchall("trailingargs", can_be_empty=no)
 
-    var result = argparse.parse(defs, ["--flob"])
+    var result = argparse.parse(arg_defs=defs, args=["--flob"])
     assert(result.exit_code != none)  # (missing positional arg)
 
-    result = argparse.parse(defs, ["--", "--flob"])
+    result = argparse.parse(arg_defs=defs, args=["--", "--flob"])
+    assert(result.exit_code != none)
+    assert(result.output != "")
+    assert("missing" in result.output.lower() and
+           "trailingargs" in result.output.lower())
+
+    result = argparse.parse(arg_defs=defs, args=["--", "--flob", "eee"])
+    assert(result.exit_code == none)
+    assert(result.args["arg1"] == none)
+    assert(result.args["arg2"] == "--flob")
+    assert(result.args["trailingargs"].len == 1)
+}
+
+func test_args_catchall_and_otional {
+    # Test a basic scenario with optional and catch-all args:
+
+    var defs = argparse.ArgumentDefs()
+    defs.add_switch("--flob")
+    defs.add_arg("arg1", optional=yes)
+    defs.add_arg("arg2")
+    defs.add_catchall("trailingargs", can_be_empty=yes)
+
+    var result = argparse.parse(arg_defs=defs, args=["--flob"])
+    assert(result.exit_code != none)  # (missing positional arg)
+
+    result = argparse.parse(arg_defs=defs, args=["--", "--flob"])
     assert(result.exit_code == none)
     assert(result.args["arg1"] == none)
     assert(result.args["arg2"] == "--flob")
     assert(result.args["trailingargs"].len == 0)
 
-    result = argparse.parse(defs, ["--", "--flob", "flubb"])
+    result = argparse.parse(arg_defs=defs, args=["--", "--flob", "flubb"])
     assert(result.exit_code == none)
     assert(result.args["arg1"] == "--flob")
     assert(result.args["arg2"] == "flubb")
     assert(result.args["trailingargs"].len == 0)
 
-    result = argparse.parse(defs, ["--flob", "--flubb"])
+    result = argparse.parse(arg_defs=defs, args=["--flob", "--flubb"])
     assert(result.exit_code != none)  # (unknown switch --flub)
 
-    result = argparse.parse(defs,
-        ["--flob", "--", "--flubb", "fleb", "--flob"])
+    result = argparse.parse(arg_defs=defs,
+        args=["--flob", "--", "--flubb", "fleb", "--flob"])
     assert(result.exit_code == none)
     assert(result.args["arg1"] == "--flubb")
     assert(result.args["arg2"] == "fleb")
     assert(result.args["trailingargs"].len == 1)
     assert(result.args["trailingargs"][1] == "--flob")
 
-    result = argparse.parse(defs,
-        ["--flob", "urgh", "orgh", "--", "test"])
+    result = argparse.parse(arg_defs=defs,
+        args=["--flob", "urgh", "orgh", "--", "test"])
     assert(result.exit_code == none)
     assert(result.args["arg1"] == "urgh")
     assert(result.args["arg2"] == "orgh")
@@ -84,8 +111,8 @@ func test_args_things {
     assert(result.args["trailingargs"][1] == "--")
     assert(result.args["trailingargs"][2] == "test")
 
-    result = argparse.parse(defs,
-        ["--flob", "urgh", "--", "orgh", "--", "test"])
+    result = argparse.parse(arg_defs=defs,
+        args=["--flob", "urgh", "--", "orgh", "--", "test"])
     assert(result.exit_code == none)
     assert(result.args["--flob"] == yes)
     assert(result.args["arg1"] == "urgh")
@@ -93,16 +120,18 @@ func test_args_things {
     assert(result.args["trailingargs"].len == 2)
     assert(result.args["trailingargs"][1] == "--")
     assert(result.args["trailingargs"][2] == "test")
+}
 
-    # Tests focused around a switch with parameter:
+func test_switch_arg {
+    # Tests focused around a switch with an argument:
     defs = argparse.ArgumentDefs()
     defs.add_switch("--flob", takes_arg=yes)
     defs.add_arg("arg1")
     defs.add_arg("arg2", optional=yes)
     defs.add_catchall("trailingargs")
 
-    result = argparse.parse(defs,
-        ["urgh", "--", "orgh", "--", "test"])
+    result = argparse.parse(arg_defs=defs,
+        args=["urgh", "--", "orgh", "--", "test"])
     assert(result.exit_code == none)
     assert(result.args["arg1"] == "urgh")
     assert(result.args["arg2"] == "orgh")
@@ -110,8 +139,8 @@ func test_args_things {
     assert(result.args["trailingargs"][1] == "--")
     assert(result.args["trailingargs"][2] == "test")
 
-    result = argparse.parse(defs,
-        ["urgh", "--", "--flob", "--", "orgh", "test"])
+    result = argparse.parse(arg_defs=defs,
+        args=["urgh", "--", "--flob", "--", "orgh", "test"])
     assert(result.exit_code == none)
     assert(result.args["--flob"] == none)
     assert(result.args["arg1"] == "urgh")
@@ -121,19 +150,21 @@ func test_args_things {
     assert(result.args["trailingargs"][2] == "orgh")
     assert(result.args["trailingargs"][3] == "test")
 
-    result = argparse.parse(defs,
-        ["urgh", "--flob", "--", "orgh", "test"])
+    result = argparse.parse(arg_defs=defs,
+        args=["urgh", "--flob", "--", "orgh", "test"])
     assert(result.exit_code != none)  # --flob has no non-dash following!
 
-    result = argparse.parse(defs,
-        ["urgh", "--flob", "bla", "--", "orgh", "test"])
+    result = argparse.parse(arg_defs=defs,
+        args=["urgh", "--flob", "bla", "--", "orgh", "test"])
     assert(result.exit_code == none)
     assert(result.args["--flob"] == "bla")
     assert(result.args["arg1"] == "urgh")
     assert(result.args["arg2"] == "orgh")
     assert(result.args["trailingargs"].len == 1)
     assert(result.args["trailingargs"][1] == "test")
+}
 
+func test_catchall_only {
     # Tests with different with catchall but NO optional args:
     defs = argparse.ArgumentDefs()
     defs.add_switch("--flob", takes_arg=yes, repeatable=yes)
@@ -141,8 +172,8 @@ func test_args_things {
     defs.add_switch("--flib", repeatable=yes)
     defs.add_catchall("trailingargs")
 
-    result = argparse.parse(defs,
-        ["urgh", "--flob", "bla", "--", "--flob", "test"])
+    result = argparse.parse(arg_defs=defs,
+        args=["urgh", "--flob", "bla", "--", "--flob", "test"])
     assert(result.exit_code == none)
     assert(result.args["--flob"].len == 0)
     assert(result.args["--flib"] == 0)
@@ -150,8 +181,8 @@ func test_args_things {
     assert(result.args["trailingargs"].len == 5)
     assert(result.args["trailingargs"][1] == "--flob")
 
-    result = argparse.parse(defs,
-        ["--flob", "bla", "--", "--flib", "--flob", "test"])
+    result = argparse.parse(arg_defs=defs,
+        args=["--flob", "bla", "--", "--flib", "--flob", "test"])
     assert(result.exit_code == none)
     assert(result.args["--flob"].len == 1)
     assert(result.args["--flob"][1] == "bla")
@@ -161,8 +192,8 @@ func test_args_things {
     assert(result.args["trailingargs"][1] == "--flob")
     assert(result.args["trailingargs"][2] == "test")
 
-    result = argparse.parse(defs,
-        ["--flob", "bla", "--flib", "--", "--flob", "test"])
+    result = argparse.parse(arg_defs=defs,
+        args=["--flob", "bla", "--flib", "--", "--flob", "test"])
     assert(result.exit_code == none)
     assert(result.args["--flob"].len == 1)
     assert(result.args["--flob"][1] == "bla")
@@ -170,7 +201,9 @@ func test_args_things {
     assert(result.args["arg1"] == "--flob")
     assert(result.args["trailingargs"].len == 1)
     assert(result.args["trailingargs"][1] == "test")
+}
 
+func test_switch_repeated {
     # Tests around repeatable switches:
     defs = argparse.ArgumentDefs()
     defs.add_switch("--flob", takes_arg=yes, repeatable=yes)
@@ -178,8 +211,8 @@ func test_args_things {
     defs.add_switch("--flib", repeatable=yes)
     defs.add_arg("arg2")
 
-    result = argparse.parse(defs,
-        ["--flob", "bla", "--flib", "--", "--flob", "test"])
+    result = argparse.parse(arg_defs=defs,
+        args=["--flob", "bla", "--flib", "--", "--flob", "test"])
     assert(result.exit_code == none)
     assert(result.args["--flob"].len == 1)
     assert(result.args["--flob"][1] == "bla")
@@ -187,19 +220,22 @@ func test_args_things {
     assert(result.args["arg1"] == "--flob")
     assert(result.args["arg2"] == "test")
 
-    result = argparse.parse(defs,
-        ["--flob", "bla", "--flib", "--", "--flob", "te", "st"])
+    result = argparse.parse(arg_defs=defs,
+        args=["--flob", "bla", "--flib", "--", "--flob", "te", "st"])
     assert(result.exit_code != none)  # Too many positional args.
+}
 
+func test_switch_aliases {
     # Tests around switch aliases:
+
     defs = argparse.ArgumentDefs()
     defs.add_switch("--flob", takes_arg=yes, repeatable=yes)
     defs.add_arg("arg1")
     defs.add_switch("--flib", aliases=["-f"])
     defs.add_arg("arg2")
 
-    result = argparse.parse(defs,
-        ["--flob", "bla", "-f", "--", "--flob", "test"])
+    result = argparse.parse(arg_defs=defs,
+        args=["--flob", "bla", "-f", "--", "--flob", "test"])
     assert(result.exit_code == none)
     assert(result.args["--flob"].len == 1)
     assert(result.args["--flob"][1] == "bla")
@@ -207,8 +243,8 @@ func test_args_things {
     assert(result.args["arg1"] == "--flob")
     assert(result.args["arg2"] == "test")
 
-    result = argparse.parse(defs,
-        ["--flob", "bla", "-f", "--", "--flib", "test"])
+    result = argparse.parse(arg_defs=defs,
+        args=["--flob", "bla", "-f", "--", "--flib", "test"])
     assert(result.exit_code == none)
     assert(result.args["--flob"].len == 1)
     assert(result.args["--flob"][1] == "bla")
@@ -216,8 +252,8 @@ func test_args_things {
     assert(result.args["arg1"] == "--flib")
     assert(result.args["arg2"] == "test")
 
-    result = argparse.parse(defs,
-        ["--flob", "bla", "-f", "--flib", "test"])
+    result = argparse.parse(arg_defs=defs,
+        args=["--flob", "bla", "-f", "--flib", "test"])
     assert(result.exit_code != none)  # --flib/f specified twice.
 }
 

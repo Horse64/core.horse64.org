@@ -252,7 +252,7 @@ func actionparser_modinfo(args) {
         "--debug-modules",
         description="Enable debug module discovery. Prints out "
             "all file paths and associated modules when processing.")
-    var result = argparse.parse(defs, args)
+    var result = argparse.parse(arg_defs=defs, args=args)
     if result.output != "" {
         print(result.output)
         return result.exit_code
@@ -359,7 +359,7 @@ func actionparser_compile(args) {
         description="Always treat the target file not as part of a "
             "project, but rather as a single standalone script file, "
             "even if it wasn't auto-detected as a script file.")
-    var result = argparse.parse(defs, args)
+    var result = argparse.parse(arg_defs=defs, args=args)
     if result.output != "" {
         print(result.output)
         return result.exit_code
@@ -372,12 +372,17 @@ func actionparser_compile(args) {
 
     # Sanity check the provided options first:
 
-    if (result.args["--code"] == none and
-            result.args["source file"] == none) or
-            (result.args["--code"] != none and
-             result.args["source file"] != none) {
+    if result.args["--code"] != none and
+             result.args["source file"] != none {
         print(program_name + ": error: Must specify "
             "either a source file, or --code option, but not both.")
+        print("Use " + program_name + " compile --help to show usage.")
+        return 1
+    }
+    if result.args["--code"] == none and
+            result.args["source file"] == none {
+        print(program_name + ": error: Must specify "
+            "either a source file, or --code option, but neither were given.")
         print("Use " + program_name + " compile --help to show usage.")
         return 1
     }
@@ -736,7 +741,7 @@ func main {
         "like e.g.: horse compile --help")
     defs.add_catchall(
         "action args", description="List of "
-        "arguments for the specified action")
+        "arguments for the specified action", can_be_empty=yes)
     defs.add_switch(
         "--license",
         description="Print out the program's licensing.",
@@ -745,7 +750,7 @@ func main {
         "--version", aliases=["-V", "-version"],
         description="Print out the program version.",
         action_func=version_output_for_terminal)
-    var result = argparse.parse(defs)
+    var result = argparse.parse(arg_defs=defs)
     if result.output != "" {
         print(result.output)
         return result.exit_code
