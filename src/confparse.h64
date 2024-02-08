@@ -309,8 +309,12 @@ func parse_from_file(
     if not allow_vfs and not allow_vfs {
         throw new io.PathNotFoundError("File not found.")
     }
+    var exists_in_vfs = io.exists(path, allow_disk=no,
+        allow_vfs=allow_vfs) later:
+
+    await exists_in_vfs
     var is_vfs = (not allow_disk) or
-        (allow_vfs and io.exists(path, allow_disk=no))
+        (allow_vfs and exists_in_vfs)
     var conf_uri
     if is_vfs {
         conf_uri = uri.from_vfs_path(path)
