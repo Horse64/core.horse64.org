@@ -1,5 +1,5 @@
 
-.PHONY: .test-translator
+.PHONY: .test-translator ensure-hvm rebuild-hvm ensure-hvm-built
 
 intro-message:
 	@echo -e "\033[95;40mWelcome to core.horse64.org bootstrap.\033[0m"
@@ -12,7 +12,7 @@ intro-message:
 	@echo "Check translator/translator-manual.md for dependencies,"
 	@echo "as well as HVM's documentation. (The Horse64 VM.)"
 bootstrap: ensure-hvm ensure-horp
-	$(MAKE) ensure-cython-built
+	$(MAKE) ensure-cython-built ensure-hvm-built
 	cd .. && translator/horsec.py compile src/compiler/main.h64
 get-deps: ensure-hvm ensure-horp ensure-cython-built
 ensure-cython-built:
@@ -28,7 +28,8 @@ reset-deps:
 ensure-hvm:
 	@if [ ! -e ../horse_modules ]; then mkdir ../horse_modules; fi
 	@if [ ! -e ../horse_modules/hvm.horse64.org ]; then git clone https://codeberg.org/Horse64/hvm.horse64.org ../horse_modules/hvm.horse64.org; fi
-	@if [ ! -e ../horse_modules/hvm.horse64.org/output/HVM-headless.so ]; then cd ../horse_modules/hvm.horse64.org/ && git submodule update --init && $(MAKE) build-headless; fi
+ensure-hvm-built:
+	@if [ ! -e ../horse_modules/hvm.horse64.org/output/HVM-headless.so ]; then cd ../horse_modules/hvm.horse64.org/ && git submodule update --init && HORSERUN="python3 '$(PWD)/horsec_run.py'" $(MAKE) build-headless; fi
 ensure-horp:
 	@if [ ! -e ../horse_modules ]; then mkdir ../horse_modules; fi
 	@if [ ! -e ../horse_modules/horp.horse64.org ]; then git clone https://codeberg.org/Horse64/core.horse64.org ../horse_modules/horp.horse64.org; fi

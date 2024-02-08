@@ -5,7 +5,9 @@ Resources
 =========
 
 This section has various external resources useful when using the
-[Horse64 programming language](https://horse64.org).
+[Horse64 programming language](https://horse64.org). This
+includes the code location for all the core tooling, where
+to report bugs, etc.
 
 
 SDK

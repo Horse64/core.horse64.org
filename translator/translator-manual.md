@@ -30,12 +30,31 @@ The following is additionally needed to bootstrap from scratch:
 How to run it
 -------------
 
-You probably just want to check it with `make test`,
-and then just bootstrap right away via:
+You probably just want to check it with `make test`.
 
-`make bootstrap`
+After that, you might want to bootstrap. To do that,
+go through the following steps:
 
-(Run that in the `translator` directory where also this manual is.)
+1. Run in this `translator` folder (not the repository root):
+
+   `make get-deps`
+
+2. You should now have a sub-repository of HVM inside
+   `horse_modules/hvm.horse64.org` (path relative to the repository
+   root!).
+
+   **Ensure this is the HVM version you want. You can move
+   to a different commit, or replace this entire sub-repository
+   folder with a fork.**
+
+3. Either build HVM in that sub-repository manually for full control,
+   or otherwise you can now bootstrap right away:
+
+   `make bootstrap` (Run this here inside the `translator` folder!)
+
+   This command will attempt to build HVM automatically for you if
+   needed. However, you might need to read HVM's build instructions
+   and to it yourself if it fails.
 
 
 Shortcomings of Translator

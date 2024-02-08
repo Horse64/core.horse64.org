@@ -1,0 +1,109 @@
+# Copyright (c) 2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+## @build_options --single-file
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import io from core.horse64.org
+import terminal from core.horse64.org
+
+func main {
+    var exists = io.exists(
+        "tools/maintainer_helper_test_major_builds.h64") later:
+
+    await exists
+    if not exists {
+        print("*** FAILED to find expected item in repo folder. ***")
+        print("")
+        print("*** READ THIS TO FIX IT:***")
+        print("Please re-run this script in the repo main folder, like "
+            "this:\n")
+        print("")
+        print("    horserun tools/maintainer_helper_test_major_builds.h64")
+        print("")
+        print("...and don't run it from inside the tools folder!")
+        return 1
+    }
+    print("Because these packages are all interdependent, make sure\n"
+        "that the following neighbor folders next to your core.horse64.org\n"
+        "folder with respective repo clones exist:\n"
+        "\n"
+        "horp.horse64.org, hvm.horse64.org, Spew3D, Spew3D-Web.\n"
+        "\n"
+        "Make sure these are all set to the versions you want to test. "
+        "Do this by using git clone ...repo_url... for each of the "
+        "respective upstream repositories, and make sure to run that "
+        "OUTSIDE of this core.horse64.org folder in its direct parent.")
+    print("")
+    var v = terminal.yesno("Are all folders set up? [yes/NO]", default=no)
+    later:
+
+    await v
+    if not v {
+        print("Aborting (by user request).")
+        system.exit(1)
+    }
+    exists = io.exists("../hvm.horse64.org") later:
+
+    await exists
+    if not exists {
+        print("Can't find hvm.horse64.org neighbor folder, aborting.")
+        return 1
+    }
+    exists = io.exists("../horp.horse64.org") later:
+
+    await exists
+    if not exists {
+        print("Can't find horp.horse64.org neighbor folder, aborting.")
+        return 1
+    }
+    exists = io.exists("../Spew3D") later:
+
+    await exists
+    if not exists {
+        print("Can't find Spew3D neighbor folder, aborting.")
+        return 1
+    }
+    exists = io.exists("../Spew3D-Web") later:
+
+    await exists
+    if not exists {
+        print("Can't find Spew3D-Web neighbor folder, aborting.")
+        return 1
+    }
+    print("This script will now clear out the horse_modules folder "
+        "inside this core.horse64.org repo folder, to test "
+        "fetching and building these from scratch/from upstream.")
+    v = terminal.yesno("Continue and DELETE horse_modules [yes/NO]",
+        default=no)
+    later:
+
+    await v
+    if not v {
+        print("Aborting (by user request).")
+        system.exit(1)
+    }
+
+}
+

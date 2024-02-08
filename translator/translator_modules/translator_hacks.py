@@ -38,3 +38,14 @@ register_hack(module="net.fetch", package="core.horse64.org",
     #}
     )
 
+register_hack(module="terminal", package="core.horse64.org",
+    start_t=["get_line", "("],
+    apply_after_python_translate=True,
+    insert_t=["_translator_runtime_helpers",
+        ".", "_terminal_get_line"],
+    #insert_replacers={
+    #    "open": ["_translator_runtime_helpers",
+    #        ".", "_net_fetch_open"],
+    #}
+    )
+
