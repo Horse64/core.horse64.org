@@ -55,20 +55,24 @@ documentation](https://horse64.org/docs/Welcome).
 License
 -------
 
-**The licenses for all core projects are almost the
+**The license files for all core projects are almost the
 same,** but feel free to check the license for each one
 yourself.
 
-The license files can be found in the respective code
-repository, where the code is located. This is listed
-for each sub project in this file, e.g. [go here for
-the standard library source code](#standard-library).
-Then, browse to the `LICENSE.md` file inside the code,
-right at the top level.
+**LICENSING:** All projects are dual-licensed under either a
+BSD-style license or the Apache 2 license, with minor
+exceptions (like the official artwork). **Check the
+respective license files for details:**
 
-[For example, here's core.horse64.org's `LICENSE.md`
-file.](
-https://codeberg.org/Horse64/core.horse64.org/src/branch/main/LICENSE.md).
+- Here's [the `LICENSE.md` file for the core.horse64.org
+  package.](
+  https://codeberg.org/Horse64/core.horse64.org/src/branch/main/LICENSE.md)
+
+- For the respective other projects, **check the
+  `LICENSE.md` file for each.** It's part of each
+  project's code. **E.g. here's [horp's code](
+  #horp).**
+
 
 Standard library
 ----------------
@@ -86,8 +90,12 @@ the `core.horse64.org` can be found in the same location as
 Horp
 ----
 
-The **Hor**se **p**ackage manager, [see code here](
-https://codeberg.org/Horse64/horp.horse64.org/).
+This is the **Hor**se **p**ackage manager.
+
+- Get horp by fetching the **SDK**.
+
+- [Find the 🧬 horp code here](
+  https://codeberg.org/Horse64/horp.horse64.org/).
 
 
 Horsec
