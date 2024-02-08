@@ -171,6 +171,9 @@ the [core.horse64.org main repo](
    translator/horsec_run.py tools/maintainer_helper_test_major_builds.h64
    ```
 
+   (Run it in the core.horse64.org **even if your change is in a
+   different package.)**
+
 4. If it reports an error at any point, it should be fixed
    before a release.
 
