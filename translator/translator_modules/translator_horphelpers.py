@@ -1,6 +1,5 @@
 #!/usr/bin/python3
-
-# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -37,12 +36,10 @@ import sys
 import tempfile
 import textwrap
 
-
 translator_py_script_dir = (
     os.path.abspath(os.path.dirname(__file__))
 )
 translator_py_script_path = os.path.abspath(__file__)
-
 
 def horp_ini_string_get_package_key(s, key):
     lines = s.replace("\r\n", "\n").replace("\r", "\n").split("\n")

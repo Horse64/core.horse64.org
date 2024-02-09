@@ -25,6 +25,12 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import os
+import subprocess
+import sys
+
 if __name__ == "__main__":
+    subprocess.check_output([sys.executable,
+        os.path.join(os.path.dirname(__file__), "make_cython.py")])
     import translator_main
     translator_main.run_translator_main()

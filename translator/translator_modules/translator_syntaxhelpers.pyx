@@ -24,7 +24,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-#cython: language_level=3, boundscheck=False, infer_types=True, cdivision=True, overflowcheck=False
+#cython: language_level=3, boundscheck=True, infer_types=True, cdivision=True, overflowcheck=False
 
 VERSION="unknown"
 

@@ -1,6 +1,5 @@
 #!/usr/bin/python3
-
-# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -25,6 +24,8 @@
 #
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
+
+#cython: language_level=3, boundscheck=True, infer_types=True, cdivision=True, overflowcheck=False
 
 VERSION="unknown"
 
