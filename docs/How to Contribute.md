@@ -87,7 +87,7 @@ following:
       your local repo folder:
 
       ```bash
-      git config user.name "John Doe"`
+      git config user.name "John Doe"
       git config user.email "my-mail@example.com"
       ```
 
