@@ -15,19 +15,23 @@ def filehash(path):
 
 if __name__ == "__main__":
     print("Building Cython modules for translator...")
+    items = [os.path.join(MY_DIR, "..",
+        "translator", "translator_main.pyx")]
     for p in os.listdir(os.path.join(MY_DIR, "..",
             "translator", "translator_modules")):
         if not p.endswith(".pyx"):
             continue
         fullp = os.path.join(MY_DIR, "..", "translator",
             "translator_modules", p)
+        items.append(fullp)
+    for fullp in items:
         fullp_hash = fullp.rpartition(".pyx")[0] + ".md5.txt"
         fullp_c = fullp.rpartition(".pyx")[0] + ".c"
         fullp_so = fullp.rpartition(".pyx")[0] + ".so"
 
         source_hash = filehash(fullp)
-        if os.path.exists(fullp_hash) and \
-                os.path.exists(fullp_so):
+        if (os.path.exists(fullp_hash) and
+                os.path.exists(fullp_so)):
             old_hash = None
             with open(fullp_hash, "r", encoding="utf-8") as f:
                 old_hash = f.read().strip()

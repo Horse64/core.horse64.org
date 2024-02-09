@@ -25,13 +25,11 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-
 import os
 import subprocess
 import sys
 
 my_dir = os.path.abspath(os.path.dirname(__file__))
-
 
 if __name__ == "__main__":
     args = sys.argv[1:]
@@ -59,6 +57,7 @@ if __name__ == "__main__":
         else:
             break
     process = subprocess.Popen([
+        sys.executable,
         os.path.join(my_dir, "translator.py")] +
         (["--paranoid"] if use_paranoid_translator else []) +
         (["--debug"] if use_debug else []) +

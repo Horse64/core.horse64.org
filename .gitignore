@@ -1,6 +1,9 @@
 *~
 *.o
 /*.bin
+/translator/*.md5.txt
+/translator/translator_main.c
+/translator/translator_main.so
 /translator/translator_modules/*.c
 /translator/translator_modules/*.so
 /translator/translator_modules/*.md5.txt
