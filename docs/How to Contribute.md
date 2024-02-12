@@ -41,7 +41,7 @@ following:
 
    To set up a new pull request, try these steps (**warning**,
    you should know how to run commands in a terminal and
-   how to change folders in a terminal, or you won't get
+   how to change directories in a terminal, or you won't get
    very far):
 
    1. Make an account on [codeberg.org](
@@ -67,24 +67,26 @@ following:
       ```
 
       (Run that in a terminal, on Windows
-      e.g. the **git terminal**, in some folder where
-      you keep your software projects. Check what folder
+      e.g. the **git terminal**, in some directory where
+      you keep your software projects. Check what directory
       your terminal is in first, via `pwd` or such!)
 
-      Then switch to a new branch in your local repo with:
+      Then switch to a new branch in your local repository
+      with:
 
       ```bash
       git checkout -b name-for-your-branch
       ```
 
-      (This needs to be run *inside* your new repo folder.)
+      (This needs to be run *inside* your new repo
+      directory.)
 
    5. Implement and **test** your change.
 
    6. Make sure to set up a name and e-mail with your
       local git if you haven't yet, so people know who
       made this change. For that, you can run this in
-      your local repo folder:
+      your local repository directory:
 
       ```bash
       git config user.name "John Doe"
@@ -140,24 +142,26 @@ If you contribute a pull request... FIXME
 
 ### Updating git hooks or issue forms
 
-Whenever updating the git hooks, or the forms in the `.gitea` folder,
-or the workflows to disable pull requests in the `.github` folder,
-update them in the core.horse64.org main repo first.
+Whenever updating the git hooks, or the forms in the `.gitea`
+directory, or the workflows to disable pull requests in the
+`.github` directory, update them in the core.horse64.org main
+repository first.
 
-Then run (in the main repo folder):
+Then run (in the main repository directory):
 ```bash
 python3 maintainer-helper-update-repos.py
 ```
-...to propagate the changes to all the other repos.
+...to propagate the changes to all the other repository.
 
-(The other repos need to be cloned to neighboring repo folders,
-neighboring your core.horse64.org repo folder.)
+(The other repositories need to be cloned to neighboring
+repository directories, neighboring your core.horse64.org
+repository directory.)
 
 ### Update all copyright notices for the next year
 
 To update all copyright notices for the next year,
 do the same steps as for [updating the git hooks for
-all repos](#updating-git-hooks-or-issue-forms).
+all repositories](#updating-git-hooks-or-issue-forms).
 
 ### Release checklist for core tooling
 
@@ -169,15 +173,16 @@ expands and is made up of what is needed to build *horp*,
 *HVM*, and *the standard library*. **The authoritative latest
 list for what is part of that, is maintained as part of
 `tools/maintainer_helper_test_major_builds.h64` in
-the [core.horse64.org main repo](
+the [core.horse64.org main repository](
 /docs/Resources.md#standard-library).**
 
 **Steps required** before any official release of core tooling:
 
 1. Be on Linux.
 
-2. Set up all the core tooling repo folders next to each other in
-   the versions to be tested, including what you plan to release.
+2. Set up all the core tooling repository directories next to
+   each other in the versions to be tested, including what
+   you plan to release.
 
 3. Run this and follow the instructions:
 

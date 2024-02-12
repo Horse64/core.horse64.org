@@ -1,5 +1,5 @@
 
-<!-- For license of this file, see LICENSE.md in the base folder. -->
+<!-- For license of this file, see LICENSE.md in the base dir. -->
 
 Modules, Packages, Imports
 ==========================
@@ -15,14 +15,14 @@ How a project is organized
 --------------------------
 
 A **package** is Horse64's name for a more-or-less complete project,
-e.g. a project folder holding your piece of software or library
+e.g. a project directory holding your piece of software or library
 would be a package. (Or as another example, `core.horse64.org` is
 the package holding all the standard library functionality,
 with things like I/O and math basics likely needed by most
 programs.)
 
 A **module** is Horse64's name for what you organize in either a single
-code file, or whatever is then grouped in a folder. For example, the
+code file, or whatever is then grouped in a directory. For example, the
 `math` module in `core.horse64.org` is implemented in a respective
 `math.h64` file. The `compiler.main` module sits in a `compiler/main.h64`
 file, and it's a **submodule** of the `compiler` module.
@@ -52,15 +52,15 @@ program main entrypoint starts.
 The **main entrypoint is the `main` function** you have to declare
 somewhere for your program.
 
-Summed up: `my/random/folder/codefile.h64` becomes a module
-that can be imported as `my.random.folder.codefile` for use.
+Summed up: `my/random/dir/codefile.h64` becomes a module
+that can be imported as `my.random.dir.codefile` for use.
 
 
 Neighboring modules are automatically imported
 ----------------------------------------------
 
-Neighbor modules in the same subfolder also always get pulled in
-and processed. Example:
+Neighbor modules in the same subdirectory also always get pulled
+in and processed. Example:
 
 *In file `mymodule/neighbor.h64`:*
 ```Horse64
@@ -82,18 +82,18 @@ var attributes `brooms` and `buckets`, even if you never
 explicitly import `mymodule.neighbor` anywhere.
 
 This is because **any import of a module also processes
-all the ones in the same folder,** allowing easy use
+all the ones in the same directory,** allowing easy use
 of [extending types](/docs/OOP.md#extend-types) like
 in the example above. However, anything in deeper
-subfolders or outside of the folder won't be pulled in.
+subdirectories or outside of the directory won't be pulled in.
 
 
 Folder init module files
 ------------------------
 
 As a special case, when a code file has the same name as the
-surrounding folder e.g. named `mymodule`, it sort of
-"represents" the functions of that folder module.
+surrounding directory e.g. named `mymodule`, it sort of
+"represents" the functions of that module directory.
 
 See here, an example:
 
@@ -118,7 +118,7 @@ How to get more packages
 ------------------------
 
 To download packages for your project, use [horp](
-/docs/Resources.md#horp) in your project folder:
+/docs/Resources.md#horp) in your project directory:
 ```bash
 $ horp install my.package.name
 ```

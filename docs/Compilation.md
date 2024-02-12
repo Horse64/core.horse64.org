@@ -1,5 +1,5 @@
 
-<!-- For license of this file, see LICENSE.md in the base folder. -->
+<!-- For license of this file, see LICENSE.md in the base dir. -->
 
 Compilation
 ===========
