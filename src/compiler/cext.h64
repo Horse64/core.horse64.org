@@ -518,12 +518,16 @@ func scan_package_for_cexts(
         project.get_source_code_patterns(dir_uri) later:
 
     await source_code_patterns
+    var exclude_patterns =
+        project.get_exclude_file_patterns(dir_uri) later:
 
+    await exclude_patterns
     var scanner = new comment_scan.TreeCommentScanner(
         dir_uri, strip_noncommands=yes,
-        exclude_dir_names=["horse_modules", "vendor"],
+        exclude_dir_names=["horse_modules"],
         exclude_dot_names=yes,
         include_patterns=source_code_patterns,
+        exclude_patterns=exclude_patterns,
         allow_vfs=allow_vfs, allow_disk=allow_disk,
     )
     var comment_groups = scanner.produce_next_comments() later:

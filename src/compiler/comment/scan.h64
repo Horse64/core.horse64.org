@@ -60,12 +60,15 @@ type TreeCommentScanner {
     var dir_path
     var dir_is_vfs = no
     var include_patterns = ["*"]
-    var _include_apply = no
+    var exclude_patterns = []
+    var _include_apply protect = no
+    var _exclude_apply protect = no
     var c_style_patterns = ["*.c", "*.h", "*.cpp", "*.hpp"]
 }
 
 func TreeCommentScanner.init(dir_uri, strip_noncommands=no,
         exclude_dir_names=[], exclude_dot_names=yes,
+        exclude_patterns=[],
         include_patterns=["**"], c_style_patterns=["*.c", "*.h",
             "*.cpp", "*.hpp"], allow_disk=yes, allow_vfs=yes) {
     if not {"file", "vfs"}.has(uri.get_protocol(dir_uri)) {
@@ -86,6 +89,12 @@ func TreeCommentScanner.init(dir_uri, strip_noncommands=no,
     self.c_style_patterns = []
     for pattern in c_style_patterns {
         self.c_style_patterns +=
+            wildcard.transform_for_rel_paths(pattern)
+    }
+    self.exclude_patterns = []
+    for pattern in exclude_patterns {
+        self._exclude_apply = yes
+        self.exclude_patterns +=
             wildcard.transform_for_rel_paths(pattern)
     }
     self.dir_path = uri.to_file_or_vfs_path(dir_uri)
@@ -111,6 +120,15 @@ func TreeCommentScanner.produce_next_file_path {
         return none
     }
     for entry in entries {
+        var must_exclude = no
+        if self._exclude_apply {
+            for pattern in self.exclude_patterns {
+                if wildcard.match(pattern, entry) {
+                    must_exclude = yes
+                    break
+                }
+            }
+        }
         var match_found = yes
         if self._include_apply {
             match_found = no

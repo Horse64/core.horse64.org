@@ -490,6 +490,10 @@ func Project.get_modinfo_for_file(file_uri, rel_path=none) {
 }
 
 func get_source_code_patterns(package_uri) {
+    # XXX Note: We don't just rely on horp here, because
+    # it might make bootstrapping horsec too complicated if
+    # the most basic compilation run would already need horp.
+
     var source_code_patterns = ["*"]
     var horp_conf_uri = none
     if package_uri != none {
@@ -524,6 +528,47 @@ func get_source_code_patterns(package_uri) {
         }
     }
     return later source_code_patterns
+}
+
+func get_exclude_file_patterns(package_uri) {
+    # XXX Note: We don't just rely on horp here, because
+    # it might make bootstrapping horsec too complicated if
+    # the most basic compilation run would already need horp.
+
+    var exclude_patterns = ["vendor/**"]
+    var horp_conf_uri = none
+    if package_uri != none {
+        horp_conf_uri = uri.add_part(package_uri, "horp.conf")
+    }
+    if horp_conf_uri == none {
+        return exclude_patterns
+    }
+    var conf_exists = check_file_existence(
+        horp_conf_uri
+    ) later:
+
+    await conf_exists
+    if not conf_exists {
+        return later exclude_patterns
+    }
+    var conf_contents = confparse.parse_from_uri(
+        horp_conf_uri, error_on_mistakes=no
+    ) later:
+
+    await conf_contents
+    if conf_contents.has("package") and
+            conf_contents["package"].has("exclude files") and
+            typename(conf_contents["package"]["exclude files"]) == "str" {
+        exclude_patterns = []
+        var patterns = conf_contents["package"]["exclude files"].split(",")
+        for pattern in patterns {
+            pattern = pattern.trim()
+            if pattern.len > 0 {
+                exclude_patterns.add(pattern)
+            }
+        }
+    }
+    return later exclude_patterns
 }
 
 func Project.ensure_package_name {
