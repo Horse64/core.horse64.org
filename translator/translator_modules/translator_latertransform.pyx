@@ -356,6 +356,7 @@ def return_style_call_as_call_stmts(
 def transform_later_to_closure_funccontents(
         sts, h64_indent="    ",
         outer_callback_name=None,
+        outer_func_name=None,
         callback_delayed_func_name=None,
         await_error_name=None,
         closest_scope_later_func_name=None,
@@ -477,6 +478,7 @@ def transform_later_to_closure_funccontents(
                             split_toplevel_statements(
                                 st[brange[0]:brange[1]]
                             ),
+                            outer_func_name = outer_func_name,
                             h64_indent=h64_indent,
                             outer_callback_name=outer_callback_name,
                             callback_delayed_func_name=
@@ -630,6 +632,7 @@ def transform_later_to_closure_funccontents(
                     transform_later_to_closure_funccontents(
                         do_block_sts,
                         h64_indent=h64_indent,
+                        outer_func_name=outer_func_name,
                         outer_callback_name=outer_callback_name,
                         callback_delayed_func_name=
                             callback_delayed_func_name,
@@ -706,6 +709,7 @@ def transform_later_to_closure_funccontents(
                             st[brange[0]:brange[1]]
                         ),
                         h64_indent=h64_indent,
+                        outer_func_name=outer_func_name,
                         outer_callback_name=outer_callback_name,
                         callback_delayed_func_name=
                             callback_delayed_func_name,
@@ -841,7 +845,11 @@ def transform_later_to_closure_funccontents(
         funcname = None
         await_error_name = None
         if not is_a_repeat:
-            funcname = "_latersection" + str(uuid.uuid4()).replace("-", "")
+            descriptor = "unknown"
+            if outer_func_name != None:
+                descriptor = outer_func_name
+            funcname = ("_latersection_" + descriptor + "_" +
+                str(uuid.uuid4()).replace("-", ""))
             await_error_name = ("_awerr" +
                 str(uuid.uuid4()).replace("-", ""))
         indent = get_indent(st)
@@ -865,6 +873,7 @@ def transform_later_to_closure_funccontents(
                         tokenize(func_inner_content_str)
                     ),
                     h64_indent=h64_indent,
+                    outer_func_name=outer_func_name,
                     outer_callback_name=outer_callback_name,
                     callback_delayed_func_name=
                         callback_delayed_func_name,
@@ -1273,6 +1282,21 @@ def transform_later_to_closure_unnested(
                     "'func' name.")
             new_sts.append(st)
             continue
+        had_error = False
+        func_name = st[i]
+        while i < len(st) and is_identifier(st[i]) and \
+                nextnonblank(st, i) == ".":
+            i = nextnonblankidx(st, i, no=2)
+            if i > len(st) or not is_identifier(st[i]):
+                had_error = True
+                break
+            func_name += "__" + st[i]
+        if had_error:
+            if not ignore_erroneous_code:
+                raise ValueError("Syntax error parsing "
+                    "type prefix of func.")
+            new_sts.append(st)
+            continue
         i += 1  # Past func name.
         arg_start = i
         while (i < len(st) and
@@ -1357,6 +1381,7 @@ def transform_later_to_closure_unnested(
             transform_later_to_closure_funccontents(
                 inner_statements,
                 h64_indent=h64_indent,
+                outer_func_name=func_name,
                 callback_delayed_func_name=
                     callback_delayed_func_name,
                 outer_callback_name=(
