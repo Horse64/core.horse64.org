@@ -1355,7 +1355,16 @@ def _io_remove_dir(v, cb, allow_vfs=True, allow_disk=True,
             result = [None, None]
             try:
                 import shutil
-                result[1] = _wrap_io(shutil.rmtree)(v)
+                import os
+                def _remove_tree(v):
+                    if os.is_link(v):
+                        # This allows a race-condition, but the
+                        # outcome should just be that it isn't
+                        # deleted at all.
+                        os.unlink(v)
+                        return
+                    shutil.rmtree(v)
+                result[1] = _wrap_io(_remove_tree)(v)
             except Exception as e:
                 if ((isinstance(e, FileNotFoundError) or
                         isinstance(e, _PathNotFoundError)) and
