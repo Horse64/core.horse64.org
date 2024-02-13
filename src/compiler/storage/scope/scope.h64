@@ -171,7 +171,14 @@ func LocalScope.lookup(name,
     var ref
     var lookup_scope = self
     var our_func_scope = self.func_scope
-    assert(our_func_scope != none)
+    if our_func_scope == none {
+        print("horsec: error: Critical internal error, "
+            "LocalScope.lookup called on scope with no func_scope "
+            "set. Looked up name: \"" + name + "\", other "
+            "known names: " + self.name_to_symbol_map.keys().as_str())
+        throw new RuntimeError("Internal error, "
+            "self.func_scope must be not none.")
+    }
     while yes {
         if lookup_scope.name_to_symbol_map.has(name) {
             assert(lookup_scope.func_scope != none)
