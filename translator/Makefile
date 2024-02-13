@@ -32,7 +32,7 @@ ensure-hvm-built:
 	@if [ ! -e ../horse_modules/hvm.horse64.org/output/HVM-headless.so ]; then cd ../horse_modules/hvm.horse64.org/ && git submodule update --init && HORSERUN="python3 '$(PWD)/horsec_run.py'" $(MAKE) build-headless; fi
 ensure-horp:
 	@if [ ! -e ../horse_modules ]; then mkdir ../horse_modules; fi
-	@if [ ! -e ../horse_modules/horp.horse64.org ]; then git clone https://codeberg.org/Horse64/core.horse64.org ../horse_modules/horp.horse64.org; fi
+	@if [ ! -e ../horse_modules/horp.horse64.org ]; then git clone https://codeberg.org/Horse64/horp.horse64.org ../horse_modules/horp.horse64.org; fi
 test:
 	$(MAKE) test-translator
 	$(MAKE) test-translated-horsec

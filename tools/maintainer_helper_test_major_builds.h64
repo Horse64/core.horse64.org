@@ -142,9 +142,9 @@ func main {
     io.remove_dir("horse_modules/hvm.horse64.org",
                   must_exist=no) later:
     io.copy_dir("../hvm.horse64.org",
-        "horse_modules/horp.horse64.org") later:
-    io.copy_dir("../horp.horse64.org",
         "horse_modules/hvm.horse64.org") later:
+    io.copy_dir("../horp.horse64.org",
+        "horse_modules/horp.horse64.org") later:
 
     # Test 3:
     print("")

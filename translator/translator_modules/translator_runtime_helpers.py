@@ -488,6 +488,8 @@ def _io_tree_list_walker(s, relative=True,
                         for f in subdirs + subfiles:
                             fpath = os.path.join(basepath, f).\
                                 replace("/", os.path.sep)
+                            while fpath.startswith(os.path.sep):
+                                fpath = fpath[1:]
                             its_a_dir = os.path.isdir(os.path.join(
                                 _self.path, fpath
                             ))
@@ -519,7 +521,8 @@ def _io_tree_list_walker(s, relative=True,
                                 fpath = os.path.normpath(os.path.join(
                                     _self.path, fpath
                                 ))
-                            returnlist.append(fpath)
+                            returnlist.append(
+                                fpath.replace("/", os.path.sep))
                     result[1] = returnlist
                 except Exception as e:
                     result[0] = e
