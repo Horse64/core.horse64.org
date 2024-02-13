@@ -487,6 +487,7 @@ func CExtInfo.finalize_after_scan(project, msgs) {
 func scan_package_for_cexts(
         base_project, package_name, msgs=none,
         allow_project_independent_packages_fallback=no,
+        allow_disk=yes, allow_vfs=yes,
         debug_storage=no, debug=no) {
     var cext_info = new CExtInfo(
         debug_storage=debug_storage
@@ -523,6 +524,7 @@ func scan_package_for_cexts(
         exclude_dir_names=["horse_modules", "vendor"],
         exclude_dot_names=yes,
         include_patterns=source_code_patterns,
+        allow_vfs=allow_vfs, allow_disk=allow_disk,
     )
     var comment_groups = scanner.produce_next_comments() later:
 

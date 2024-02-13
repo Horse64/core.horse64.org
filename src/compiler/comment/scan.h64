@@ -66,8 +66,8 @@ type TreeCommentScanner {
 
 func TreeCommentScanner.init(dir_uri, strip_noncommands=no,
         exclude_dir_names=[], exclude_dot_names=yes,
-        include_patterns=["*"], c_style_patterns=["*.c", "*.h",
-            "*.cpp", "*.hpp"]) {
+        include_patterns=["**"], c_style_patterns=["*.c", "*.h",
+            "*.cpp", "*.hpp"], allow_disk=yes, allow_vfs=yes) {
     if not {"file", "vfs"}.has(uri.get_protocol(dir_uri)) {
         throw new NotImplementedError("Protocol not "
             "implemented for scanning.")
@@ -96,8 +96,7 @@ func TreeCommentScanner.init(dir_uri, strip_noncommands=no,
         return_dirs=no,
         exclude_dot_names=exclude_dot_names,
         exclude_dir_names=exclude_dir_names,
-        allow_vfs=self.dir_is_vfs,
-        allow_disk=not self.dir_is_vfs)
+        allow_vfs=allow_vfs, allow_disk=allow_disk)
     self.strip_noncommands = strip_noncommands
 }
 
