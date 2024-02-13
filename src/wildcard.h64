@@ -35,20 +35,50 @@ func transform_for_rel_paths(pattern) {
         while pattern.len >= offset and pattern[offset] == path.sep {
             offset += 1
         }
-        return [pattern.sub(offset)]
+        return [pattern.sub(offset), pattern.sub(offset) + path.sep + "**"]
     }
     if pattern.find(path.sep) == none {
-        # Treat as a pattern applying on a file level rather than
+        # Treat as a pattern applying on a per-file level rather than
         # full path level.
         var new_pattern = ""
         if not pattern.starts("**") {
             if pattern.starts("*") {
-                return ["*" + pattern]
+                var result = ["*" + pattern]
+                if not pattern.ends("**") {
+                    result += ["*" + pattern + path.sep + "**"]
+                }
+                return result
             }
-            return ["**" + path.sep + pattern, pattern]
+            var result = ["**" + path.sep + pattern, pattern]
+            if not pattern.ends("**") {
+                result += ["**" + path.sep + pattern + path.sep + "**",
+                    pattern + path.sep + "**"]
+            }
+            return result
         }
-        return [pattern]
+        var result = [pattern]
+        if not pattern.ends("**") {
+            result += [pattern + path.sep + "**"]
+        }
+        return result
     }
-    return [pattern]
+    var result = []
+    if pattern.ends(path.sep) {
+        result += [pattern + "**"]
+    } else {
+        result += [pattern]
+    }
+    if not pattern.ends("**") {
+        result += [pattern + path.sep + "**"]
+    }
+    return result
+}
+
+func transform_list_for_rel_paths(patterns) {
+    var result = []
+    for pattern in patterns {
+        result += transform_for_rel_paths(pattern)
+    }
+    return result
 }
 
