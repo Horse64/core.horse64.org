@@ -110,7 +110,6 @@ class _HonseTmplObj:
                 autoescape=self.escape_for_html
             )
             tmpl = env.from_string(self.jinja_tmpl)
-
         finally:
             shutil.rmtree(_some_dir)
         return template.render(vars)
