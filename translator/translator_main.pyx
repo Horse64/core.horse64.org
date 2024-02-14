@@ -316,9 +316,12 @@ remapped_uses = {
         "text.code":
             "(lambda x: int(ord(x)))",
     },
-    "textformat@core.horse64.org": {
-        "textformat.outdent":
+    "textfmt@core.horse64.org": {
+        "textfmt.outdent":
             "_translator_runtime_helpers._textformat_outdent",
+        "textfmt.template_from_str":
+            "_translator_runtme_helpers_templating." +
+                "load_honse_html_tmpl_from_str",
     },
     "threading@core.horse64.org": {
         "threading.make_lock":
