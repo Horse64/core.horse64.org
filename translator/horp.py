@@ -32,6 +32,34 @@ import sys
 
 my_dir = os.path.abspath(os.path.dirname(__file__))
 
+def check_if_pkg_local_linked(pkg_name):
+    if (not os.path.exists(os.path.join(my_dir, "..",
+            "horse_modules", pkg_name)) or
+            not os.path.islink(os.path.join(my_dir, "..",
+            "horse_modules", pkg_name))) and \
+            os.path.exists(os.path.join(my_dir,
+            "..", "..", pkg_name)):
+        return False
+    return True
+
+def link_local_pkg(pkg_name):
+    if os.path.exists(os.path.join(my_dir, "..", "..",
+            pkg_name)):
+        if os.path.exists(os.path.join(my_dir, "..",
+                "horse_modules", pkg_name)):
+            if os.path.islink(os.path.join(my_dir, "..",
+                    "horse_modules", pkg_name)):
+                os.unlink(os.path.join(my_dir, "..",
+                    "horse_modules", pkg_name))
+            else:
+                shutil.rmtree(os.path.join(my_dir, "..",
+                    "horse_modules", pkg_name))
+        os.system("ln -s " + shlex.quote(
+                os.path.join("..", "..", pkg_name)) + " " +
+            shlex.quote(os.path.join(my_dir, "..",
+            "horse_modules", pkg_name),
+            ))
+
 def run_horp(args):
     keep_files = False
     symlink_existing = False
@@ -45,30 +73,23 @@ def run_horp(args):
             args = args[1:]
             continue
         break
-    if (not os.path.exists(os.path.join(my_dir, "..",
-            "horse_modules", "horp.horse64.org")) or
-            not os.path.islink(os.path.join(my_dir, "..",
-            "horse_modules", "horp.horse64.org"))) and \
-            os.path.exists(os.path.join(my_dir,
-            "..", "..", "horp.horse64.org")):
+    if not check_if_pkg_local_linked("horp.horse64.org") or \
+            not check_if_pkg_local_linked("hvm.horse64.org"):
         if not symlink_existing:
             print("horp.py: warning: Found neighboring horp install "
-                "at ../horp.horse64.org/ but it's not the one "
+                "at ../horp.horse64.org/ and/or neighboring hvm install "
+                "at ../hvm.horse64.org, but they're not both "
                 "present in horse_modules folder. Use --force-link "
-                "to change ./horse_modules/horp.horse64.org to "
-                "link to that install.", file=sys.stderr,
+                "to change ./horse_modules/ to "
+                "link to these local installs.", file=sys.stderr,
                 flush=True)
         else:
-            if os.path.exists(os.path.join(my_dir, "..",
-                    "horse_modules", "horp.horse64.org")):
-                shutil.rmtree(os.path.join(my_dir, "..",
-                    "horse_modules", "horp.horse64.org"))
-            os.system("ln -s " + shlex.quote(
-                    os.path.join("..", "..",
-                        "horp.horse64.org")) + " " +
-                shlex.quote(os.path.join(my_dir, "..",
-                "horse_modules", "horp.horse64.org"),
-                ))
+            if os.path.exists(os.path.join(my_dir, "..", "..",
+                    "horp.horse64.org")):
+                link_local_pkg("horp.horse64.org")
+            if os.path.exists(os.path.join(my_dir, "..", "..",
+                    "hvm.horse64.org")):
+                link_local_pkg("hvm.horse64.org")
     translator_opt_str = ""
     if keep_files:
         translator_opt_str += " --keep-files"
