@@ -359,7 +359,7 @@ def transform_later_to_closure_funccontents(
         outer_func_name=None,
         callback_delayed_func_name=None,
         await_error_name=None,
-        closest_scope_later_func_name=None,
+        closest_scope_later_func_name_chain=None,
         cleanup_code_insert_info=None,
         ignore_erroneous_code=True,
         ):
@@ -484,8 +484,8 @@ def transform_later_to_closure_funccontents(
                             callback_delayed_func_name=
                                 callback_delayed_func_name,
                             await_error_name=await_error_name,
-                            closest_scope_later_func_name=
-                                closest_scope_later_func_name,
+                            closest_scope_later_func_name_chain=
+                                closest_scope_later_func_name_chain,
                             cleanup_code_insert_info=
                                 cleanup_code_insert_info,
                             ignore_erroneous_code=
@@ -637,8 +637,8 @@ def transform_later_to_closure_funccontents(
                         callback_delayed_func_name=
                             callback_delayed_func_name,
                         await_error_name=await_error_name,
-                        closest_scope_later_func_name=
-                            closest_scope_later_func_name,
+                        closest_scope_later_func_name_chain=
+                            closest_scope_later_func_name_chain,
                         cleanup_code_insert_info=
                             cleanup_code_insert_info,
                         ignore_erroneous_code=
@@ -714,8 +714,8 @@ def transform_later_to_closure_funccontents(
                         callback_delayed_func_name=
                             callback_delayed_func_name,
                         await_error_name=await_error_name,
-                        closest_scope_later_func_name=
-                            closest_scope_later_func_name,
+                        closest_scope_later_func_name_chain=
+                            closest_scope_later_func_name_chain,
                         cleanup_code_insert_info=
                             cleanup_code_insert_info,
                         ignore_erroneous_code=
@@ -867,6 +867,8 @@ def transform_later_to_closure_funccontents(
             has_await = (stmt_list_uses_await_before_later(
                 sts[st_idx + 1:]
             ) is True)  # (can return True, False, None)
+            if closest_scope_later_func_name_chain == None:
+                closest_scope_later_func_name_chain = []
             func_inner_lines = (
                 transform_later_to_closure_funccontents(
                     split_toplevel_statements(
@@ -878,8 +880,9 @@ def transform_later_to_closure_funccontents(
                     callback_delayed_func_name=
                         callback_delayed_func_name,
                     await_error_name=await_error_name,
-                    closest_scope_later_func_name=
-                        funcname,
+                    closest_scope_later_func_name_chain=
+                        closest_scope_later_func_name_chain +
+                        [[funcname, arg_name]],
                     cleanup_code_insert_info=
                         cleanup_code_insert_info,
                     ignore_erroneous_code=
@@ -1058,7 +1061,24 @@ def transform_later_to_closure_funccontents(
         # If this is a repeat, call back ourselves!
         call_to = funcname
         if is_a_repeat:
-            assert(closest_scope_later_func_name != None)
+            assert(closest_scope_later_func_name_chain != None and
+                   len(closest_scope_later_func_name_chain) > 0)
+            i = len(closest_scope_later_func_name_chain) - 1
+            closest_scope_later_func_name = None
+            while i >= 0:
+                if closest_scope_later_func_name_chain[i][1] == arg_name:
+                    closest_scope_later_func_name = (
+                        closest_scope_later_func_name_chain[i][0]
+                    )
+                    break
+                i -= 1
+            assert(closest_scope_later_func_name != None), (
+                "failed to find chain entry for later repeat "
+                "afer unsuccessfully scanning back to find "
+                "var assign to: " + str(arg_name) + "  -> "
+                "chain is: " + str(closest_scope_later_func_name_chain))
+            closest_scope_later_func_name_chain =\
+                closest_scope_later_func_name_chain[:i]
             call_to = closest_scope_later_func_name
 
         # Now add the call that had the 'later', but stripped off:
