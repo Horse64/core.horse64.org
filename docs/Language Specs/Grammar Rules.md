@@ -146,16 +146,20 @@ finallyblock ::= "finally" codeblock
 expr ::= '(' expr ')' | callexpr | literalexpr |
          operatorexpr | inlineifexpr
 
-callexpr ::= expr '(' commaexprlist kwarglist? ')'
+callexpr ::= expr '(' terminatedcommaexprlist kwarglist ')' |
+             expr '(' commaexprlist ')' |
+             expr '(' kwarglist ')'
 latercallexpr ::= callexpr "later:" |
                   callexpr "later" "repeat" |
                   callexpr "later" "ignore"
+
+terminatedcommaexprlist ::= (commaitem_1, commaitem_2, ...)
 
 commaexprlist ::= (commaitem_1, commaitem_2, ...) commalastitem?
 commaitem ::= expr ','
 commalastitem ::= expr
 
-kwarglist ::= (kwargitem_1, kwargitem_2, ...) kwarglastitem
+kwarglist ::= (kwargitem_1, kwargitem_2, ...) kwarglastitem?
 kwargitem ::= identifier '=' expr ','
 kwarglastitem ::= identifier '=' expr
 
