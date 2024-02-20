@@ -67,11 +67,11 @@ importstmt ::= "import" typepath_identifier importlibinfo?
 typestmt ::= "type" identifier
              baseinfo? (typeprop_1, typeprop_2, ...)
              typecodeblock
-enumstmt ::= "enum" identifier
-             enumlist
-extendtypestmt ::= "extend" typepath_identifier
+enumstmt ::= "enum" identifier '{'
+             enumlist '}'
+extendtypestmt ::= "extend" "type" typepath_identifier
                    typecodeblock
-extendenumstmt ::= "extend" typepath_identifier
+extendenumstmt ::= "extend" "enum" typepath_identifier
                    enumlist
 ```
 
