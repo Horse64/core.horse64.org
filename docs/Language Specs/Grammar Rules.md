@@ -151,7 +151,7 @@ latercallexpr ::= callexpr "later:" |
                   callexpr "later" "repeat" |
                   callexpr "later" "ignore"
 
-commaexprlist ::= (commaitem_1, commaitem_2, ...) commalastitem
+commaexprlist ::= (commaitem_1, commaitem_2, ...) commalastitem?
 commaitem ::= expr ','
 commalastitem ::= expr
 
@@ -163,7 +163,7 @@ operatorexpr ::= binopexpr | unopexpr
 binopexpr ::= expr binop expr
 unopexpr ::= unop expr
 
-inlineifexpr ::= "if" expr '(' expr "else" expr ')'
+inlineifexpr ::= "if" expr '(' expr ')' "else" '(' expr ')'
 ```
 
 #### Grammar listing: literal constructors
@@ -175,7 +175,7 @@ containerexpr ::= setexpr | mapexpr | listexpr | vecexpr
 listexpr ::= '[' commaexprlist ']'
 setexpr ::= '{' commaexprlist '}'
 mapexpr ::= '{' mapitemlist '}'
-mapitemlist ::= (mapitem_1, mapitem_2, ...) maplastitem
+mapitemlist ::= (mapitem_1, mapitem_2, ...) maplastitem?
 mapitem ::= expr '->' expr ','
 maplastitem ::= expr '->' expr
 vecexpr ::= '[' vecitemlist ']'
@@ -184,13 +184,7 @@ vec2itemlist ::= vecitem veclastitem
 vec3itemlist ::= vecitem vecitem veclastitem
 vec4itemlist ::= vecitem vecitem vecitem veclastitem
 vecitem ::= numliteral ':' expr ','
-veclastitem ::= numliteral ':' expr
-
-operatorexpr ::= binopexpr | unopexpr
-binopexpr ::= expr binop expr
-unopexpr ::= unop expr
-
-inlineifexpr ::= "if" expr '(' expr "else" expr ')'
+veclastitem ::= numliteral ':' expr ','?
 ```
 
 ### A few missing rules in writing
