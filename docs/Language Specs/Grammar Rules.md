@@ -84,8 +84,7 @@ innerstmt ::= vardefstmt | funcdefstmt | callstmt | assignstmt |
               awaitstmt
 callstmt ::= callexpr
 assignstmt ::= lvalueexpr '=' expr |
-               lvalueexpr assignbinop expr |
-               lvalueexpr '=' expr |
+               lvalueexpr assignbinop expr
 ifstmt ::= "if" expr codeblock elseifblocklist? elseblock?
 whilestmt ::= "while" expr codeblock
 forstmt ::= "for" identifier "in" expr codeblock
