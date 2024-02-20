@@ -77,11 +77,11 @@ extendenumstmt ::= "extend" typepath_identifier
 
 #### Grammar listing: code blocks and general statements
 ```
-codeblock ::= '{' (stmt_1, stmt_2, ...) '}'
-stmt ::= toplevelstmt | callstmt | assignstmt |
-         ifstmt | whilestmt | forstmt | withstmt |
-         dorescuefinallystmt | vardefstmt |
-         awaitstmt
+codeblock ::= '{' (innerstmt_1, innerstmt_2, ...) '}'
+innerstmt ::= vardefstmt | funcdefstmt | callstmt | assignstmt |
+              ifstmt | whilestmt | forstmt | withstmt |
+              dorescuefinallystmt | vardefstmt |
+              awaitstmt
 callstmt ::= callexpr
 assignstmt ::= lvalueexpr '=' expr |
                lvalueexpr assignbinop expr |
