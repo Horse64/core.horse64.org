@@ -180,7 +180,7 @@ Example: `left_hand_called_side(right_hand_argument_side)`
 If operators aren't clearly nested via parenthesis to indicate
 evaluation order, then it is determined by operator precedence.
 For simplicity, precedence is presented here by pasting the
-according implementation code of [horsec](../horsec/horsec.md)
+according implementation code of [horsec](/Resources.md#horsec.md)
 found in `src/compiler/operator.h64`:
 
 ```
