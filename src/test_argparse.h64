@@ -52,5 +52,17 @@ func test_argparse {
         "args", can_be_empty=no)
     result = argparse.parse(arg_defs=defs, args=[])
     assert("missing" in result.output.lower())
+
+    defs = new argparse.ArgumentDefs(program_name="bla")
+    defs.add_arg("action")
+    defs.add_catchall(
+        "args", can_be_empty=no)
+    result = argparse.parse(arg_defs=defs, args=["test", "--help"])
+    assert(result.output == "")
+    assert("args" in result.args)
+    assert("action" in result.args)
+    assert(result.args["args"].len == 1)
+    assert(result.args["args"][1] == "--help")
+    assert(result.args["action"] == "test")
 }
 

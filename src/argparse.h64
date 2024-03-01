@@ -616,14 +616,14 @@ func parse(arg_defs=none, args=none) {
     # Count number of positional arguments in advance:
     # (We need the total in advance to handle optional ones right)
     var double_dash_idx = none
-    var positional_args_total = 0
+    var positional_args_preliminary_total = 0
     var i = 1
     while i <= args.len {
         var argstr = args[i]
         if not args[i].starts("-") or
                 (double_dash_idx != none and
                 i >= double_dash_idx) {
-            positional_args_total += 1
+            positional_args_preliminary_total += 1
         } elseif args[i] == "--" {
             if double_dash_idx == none {
                 double_dash_idx = i
@@ -641,18 +641,37 @@ func parse(arg_defs=none, args=none) {
         i += 1
     }
 
-    # See from where everything needs to go into the catch-all:
+    # See from where everything needs to go into the catch-all,
+    # and based on that figure out the actual count of pos args:
     # (Basically, everything after the last regular positional arg,
     # when a catch-all follows, everything including switches should
-    # go into it)
+    # go into that catch-all and counts as a pos arg to it.)
     var catchall_start_index = none
+    var positional_args_total = 0
+    var had_any_nondash_arg = no
     var _posarg_no = 0
     i = 1
     while i <= args.len {
         var argstr = args[i]
+        if not args[i].starts("-") {
+            had_any_nondash_arg = yes
+        }
         if (not args[i].starts("-") or
+                # Past a double dash, everything is a pos arg:
                 (double_dash_idx != none and
-                i >= double_dash_idx)) {
+                i >= double_dash_idx) or
+                # Starting from a catch-all, everything MIGHT be a pos arg:
+                (arg_defs.get_nth_posarg(
+                _posarg_no + 1,
+                positional_args_preliminary_total) != none and
+                arg_defs.get_nth_posarg(
+                _posarg_no + 1,
+                positional_args_preliminary_total).catchall and (
+                    # From any non-dash on, if in doubt it goes to catch-all:
+                    had_any_nondash_arg or
+                    # If it's clearly not "our" option, put into catch-all:
+                    arg_defs.get_namedarg(args[i]) == none
+                ))) {
             # This is a positional arg. See if it maps to catch-all:
             if args[i] == "--" and
                     i == double_dash_idx {
@@ -660,10 +679,11 @@ func parse(arg_defs=none, args=none) {
                 i += 1
                 continue
             }
+            positional_args_total += 1
             _posarg_no += 1
             var target_arg =
                 arg_defs.get_nth_posarg(
-                    _posarg_no, positional_args_total)
+                    _posarg_no, positional_args_preliminary_total)
             if target_arg != none and
                     target_arg.catchall {
                 # Special case: first positional arg is already catch-all.
@@ -674,6 +694,7 @@ func parse(arg_defs=none, args=none) {
                         double_dash_idx >= i {
                     double_dash_idx = none
                 }
+                positional_args_total += (args.len - i) + 1
                 break
             } else {
                 # Regular case: we reached the last positional arg
@@ -681,7 +702,7 @@ func parse(arg_defs=none, args=none) {
                 # should go inside.
                 var followup_arg =
                     arg_defs.get_nth_posarg(
-                        _posarg_no + 1, positional_args_total)
+                        _posarg_no + 1, positional_args_preliminary_total)
                 if followup_arg != none and
                         followup_arg.catchall {
                     catchall_start_index = i + 1
@@ -689,6 +710,7 @@ func parse(arg_defs=none, args=none) {
                             double_dash_idx >= i + 1 {
                         double_dash_idx = none
                     }
+                    positional_args_total += (args.len - (i + 1)) + 1
                     break
                 }
             }
