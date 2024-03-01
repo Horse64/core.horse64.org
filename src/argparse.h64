@@ -972,7 +972,7 @@ func parse(arg_defs=none, args=none) {
         )
         result.output += arg_defs.program_name + ": error: "
             "Missing positional argument: " +
-            target_arg.name + "\n"
+            target_arg.name.replace(" ", "_") + "\n"
         result.output += (
             "Use " + arg_defs.program_name +
             " --help to show usage.\n"
@@ -986,7 +986,7 @@ func parse(arg_defs=none, args=none) {
                 result_args[catch_all.name].len == 0 {
             result.output += arg_defs.program_name + ": error: "
                 "Missing positional argument: " +
-                catch_all.name + "\n"
+                catch_all.name.replace(" ", "_") + "\n"
             result.output += (
                 "Use " + arg_defs.program_name +
                 " --help to show usage.\n"
