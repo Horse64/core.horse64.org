@@ -3504,6 +3504,14 @@ def _async_final_bail_handler(err, result, funcname="main"):
         print("Unhandled error in 'later' function: " + str(err))
         print(''.join(traceback.format_exception(
             type(err), err, err.__traceback__)))
+        if (isinstance(err, subprocess.CalledProcessError) and
+                hasattr(err, "output")):
+            output_str = err.output
+            if hasattr(output_str, "decode"):
+                output_str = output_str.decode("utf-8", "replace")
+            output_str = str(output_str)
+            print("Unhandled subprocess.CalledProcessError tail output:")
+            print(output_str[-500:])
         sys.exit(1)
     if result is True or result is None:
         result = 0

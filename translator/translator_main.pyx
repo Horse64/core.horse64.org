@@ -53,7 +53,9 @@ import uuid
 translator_py_script_dir = (
     os.path.abspath(os.path.dirname(__file__))
 )
-translator_py_script_path = os.path.abspath(__file__)
+translator_py_script_path = os.path.join(
+    translator_py_script_dir, "translator.py"
+)
 
 sys.path.insert(1, os.path.join(translator_py_script_dir,
     "translator_modules"))
@@ -112,11 +114,6 @@ from translator_latertransform import (
     transform_later_ifs_to_closures,
 )
 
-
-translator_py_script_dir = (
-    os.path.abspath(os.path.dirname(__file__))
-)
-translator_py_script_path = os.path.abspath(__file__)
 translated_files = {}
 
 # Set version:
