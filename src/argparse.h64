@@ -190,13 +190,14 @@ func ArgumentDefs.get_catchall_arg {
 
 func ArgumentDefs.get_nth_posarg(index, total_posargs_assigned=none) {
     var non_optional_count = 0
+    assert(index > 0)
     for arg in self.args {
         if (arg.positional or arg.catchall) and not arg.optional {
             non_optional_count += 1
         }
     }
     var optional_args_filled = 0
-    if total_posargs_assigned {
+    if total_posargs_assigned != none {
         optional_args_filled =
             math.max(0,
                 total_posargs_assigned - non_optional_count
@@ -208,6 +209,9 @@ func ArgumentDefs.get_nth_posarg(index, total_posargs_assigned=none) {
                 optional_args_filled > 0) {
             if index > 1 {
                 index -= 1
+                if arg.optional and optional_args_filled > 0 {
+                    optional_args_filled -= 1
+                }
             } else {
                 return arg
             }
@@ -656,17 +660,16 @@ func parse(arg_defs=none, args=none) {
         if not args[i].starts("-") {
             had_any_nondash_arg = yes
         }
+        var target_arg =
+            arg_defs.get_nth_posarg(
+                _posarg_no + 1, positional_args_preliminary_total)
         if (not args[i].starts("-") or
                 # Past a double dash, everything is a pos arg:
                 (double_dash_idx != none and
                 i >= double_dash_idx) or
                 # Starting from a catch-all, everything MIGHT be a pos arg:
-                (arg_defs.get_nth_posarg(
-                _posarg_no + 1,
-                positional_args_preliminary_total) != none and
-                arg_defs.get_nth_posarg(
-                _posarg_no + 1,
-                positional_args_preliminary_total).catchall and (
+                (target_arg != none and
+                target_arg.catchall and (
                     # From any non-dash on, if in doubt it goes to catch-all:
                     had_any_nondash_arg or
                     # If it's clearly not "our" option, put into catch-all:
@@ -674,16 +677,16 @@ func parse(arg_defs=none, args=none) {
                 ))) {
             # This is a positional arg. See if it maps to catch-all:
             if args[i] == "--" and
-                    i == double_dash_idx {
+                    i == double_dash_idx and
+                    (target_arg == none or
+                    not target_arg.catchall) {
                 # We're supposed to ignore this one
                 i += 1
                 continue
             }
             positional_args_total += 1
             _posarg_no += 1
-            var target_arg =
-                arg_defs.get_nth_posarg(
-                    _posarg_no, positional_args_preliminary_total)
+
             if target_arg != none and
                     target_arg.catchall {
                 # Special case: first positional arg is already catch-all.
@@ -694,7 +697,7 @@ func parse(arg_defs=none, args=none) {
                         double_dash_idx >= i {
                     double_dash_idx = none
                 }
-                positional_args_total += (args.len - i) + 1
+                positional_args_total += (args.len - i)
                 break
             } else {
                 # Regular case: we reached the last positional arg
@@ -710,7 +713,7 @@ func parse(arg_defs=none, args=none) {
                             double_dash_idx >= i + 1 {
                         double_dash_idx = none
                     }
-                    positional_args_total += (args.len - (i + 1)) + 1
+                    positional_args_total += (args.len - i)
                     break
                 }
             }
@@ -728,11 +731,43 @@ func parse(arg_defs=none, args=none) {
     if double_dash_idx != none {
         assert(double_dash_idx >= 1 and
             double_dash_idx <= args.len)
-        args = args.sub(1, double_dash_idx - 1) +
-            args.sub(double_dash_idx + 1)
-        if catchall_start_index != none and
-                catchall_start_index > double_dash_idx {
-            catchall_start_index -= 1
+        # But if we know by now that the double dash maps to a
+        # catch-all argument, leave it in place:
+        var dash_maps_to_catchall = no
+        var at_pos_arg = 0
+        var k = 1
+        while k <= args.len {
+            if k >= double_dash_idx or
+                    not args[k].starts("-") {
+                at_pos_arg += 1
+                var target_arg = arg_defs.get_nth_posarg(
+                    at_pos_arg, positional_args_total
+                )
+                if target_arg != none and target_arg.catchall {
+                    dash_maps_to_catchall = yes
+                    break
+                } elseif k >= double_dash_idx {
+                    break
+                }
+            } else {
+                assert(args[k].starts("-"))
+                var target_arg = arg_defs.get_namedarg(args[k])
+                if target_arg != none and target_arg.takes_arg {
+                    k += 2
+                    continue
+                }
+            }
+            k += 1
+            continue
+        }
+        if not dash_maps_to_catchall {
+            # Remove the double dash as planned:
+            args = args.sub(1, double_dash_idx - 1) +
+                args.sub(double_dash_idx + 1)
+            if catchall_start_index != none and
+                    catchall_start_index > double_dash_idx {
+                catchall_start_index -= 1
+            }
         }
     }
 
@@ -929,7 +964,7 @@ func parse(arg_defs=none, args=none) {
         }
     }
     # Check if we even have the minimum number of required arguments:
-    # (Needs to be after action switches, so e.g. --help still works)
+    # (Needs to happen after action switches, so e.g. --help still works!)
     if positional_args_total < arg_defs.min_positional_args and
             result.exit_code == none {
         var target_arg = arg_defs.get_nth_posarg(
@@ -944,6 +979,21 @@ func parse(arg_defs=none, args=none) {
         )
         result.exit_code = -1
         return result
+    }
+    if result.exit_code == none {  # Extra-check non-empty catch-all is happy:
+        var catch_all = arg_defs.get_catchall_arg()
+        if catch_all != none and not catch_all.optional and
+                result_args[catch_all.name].len == 0 {
+            result.output += arg_defs.program_name + ": error: "
+                "Missing positional argument: " +
+                catch_all.name + "\n"
+            result.output += (
+                "Use " + arg_defs.program_name +
+                " --help to show usage.\n"
+            )
+            result.exit_code = -1
+            return result
+        }
     }
     # Return result:
     result.args = result_args
