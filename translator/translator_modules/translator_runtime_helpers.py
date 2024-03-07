@@ -68,7 +68,6 @@ def _run_delayed_modinit():
                 new_failed_runs.append(f)
         failed_runs = new_failed_runs
 
-
 class _LicenseObj:
     def __init__(self, file_name, text=""):
         self.file_name = file_name
@@ -149,14 +148,12 @@ class _ResourceMisuseError(_ValueError):
         super().__init__(msg)
         self.msg = msg
 
-
 class _PermissionError(_ResourceMisuseError):
     def __init__(self, msg):
         if msg is None:
             msg = ("PermissionDenied.")
         super().__init__(msg)
         self.msg = msg
-
 
 class _PathNotFoundError(_ResourceMisuseError):
     def __init__(self, msg):
@@ -165,14 +162,12 @@ class _PathNotFoundError(_ResourceMisuseError):
         super().__init__(msg)
         self.msg = msg
 
-
 class _PathAlreadyExistsError(_ResourceMisuseError):
     def __init__(self, msg):
         if msg is None:
             msg = ("Target path already exists.")
         super().__init__(msg)
         self.msg = msg
-
 
 class _PathIsWrongTypeError(_ResourceMisuseError):
     def __init__(self, msg):
@@ -181,10 +176,8 @@ class _PathIsWrongTypeError(_ResourceMisuseError):
         super().__init__(msg)
         self.msg = msg
 
-
 def _return_licenses():
     return __translator_licenses_list
-
 
 ever_disabled_stdin_buffer = False
 unbuffered_stdin = None
@@ -249,7 +242,6 @@ def _terminal_do_read(callback, amount=None, binary=False,
     _async_ops.append(op)
     _async_ops_lock.release()
 
-
 def _terminal_open_input(cb, binary=False, unbuffered=None):
     global _async_ops_lock, _async_delayed_calls
     class _TerminalFobj():
@@ -270,7 +262,6 @@ def _terminal_open_input(cb, binary=False, unbuffered=None):
             unbuffered=unbuffered)]
     ))
     _async_ops_lock.release()
-
 
 def _terminal_get_line(callback):
     global _async_ops_lock, _async_ops
@@ -303,7 +294,6 @@ def _terminal_get_line(callback):
     _async_ops_lock.acquire()
     _async_ops.append(op)
     _async_ops_lock.release()
-
 
 def _process_run_async(cmd, callback,
         args=[], run_in_dir=None,
@@ -345,7 +335,6 @@ def _process_run_async(cmd, callback,
     _async_ops_lock.acquire()
     _async_ops.append(op)
     _async_ops_lock.release()
-
 
 def _process_run(cmd, args=[], run_in_dir=None,
         print_output=False, with_input=False):
@@ -409,7 +398,6 @@ def _process_run(cmd, args=[], run_in_dir=None,
     output = output[0].decode("utf-8", "replace")
     return output
 
-
 def _compiler_run_file(cmd, callback,
         args=[], run_in_dir=None,
         print_output=False):
@@ -426,7 +414,6 @@ def _base64_parse(x):
         return _TypeError("argument must be bytes or str")
     import base64
     return base64.b64decode(x)
-
 
 def _base64_dump(x):
     if type(x) not in {bytes, bytearray}:
@@ -576,13 +563,11 @@ def h64_type(v):
         return "none"
     return str(result)
 
-
 def _container_add(container, item):
     if (not hasattr(container, "add") and
             hasattr(container, "append")):
         return container.append(item)
     return container.add(item)
-
 
 def _container_sort(container, *args, **kwargs):
     if (type(container) in {list}):
@@ -652,7 +637,6 @@ def _container_sort(container, *args, **kwargs):
         return _TypeError("cannot sort this container")
     return container.sort(*args, **kwargs)
 
-
 def _container_reverse(container, *args, **kwargs):
     if (type(container) in {list}):
         sorted_container = list(reversed(container))
@@ -664,7 +648,6 @@ def _container_reverse(container, *args, **kwargs):
     elif type(container) in {tuple, set}:
         return _TypeError("cannot reverse this container")
     return container.sort(*args, **kwargs)
-
 
 def _value_to_str(value):
     if type(value) == bytes:
@@ -686,7 +669,6 @@ def _value_to_str(value):
         return v
     return str(value)
 
-
 def _value_as_bytes(value):
     if type(value) == str:
         return value.encode("utf-8",
@@ -694,7 +676,6 @@ def _value_as_bytes(value):
     else:
         return NotImplementedError("conversion not handled "
             "by this runtime")
-
 
 def _container_repeat(container, *args, **kwargs):
     if type(container) in {bytes, str} and \
@@ -706,7 +687,6 @@ def _container_repeat(container, *args, **kwargs):
         return container * int(round(args[0]))
     return container.repeat(*args, **kwargs)
 
-
 def _container_ltrim(container, *args, **kwargs):
     if type(container) in {bytes, str} and \
             len(args) <= 1:
@@ -716,7 +696,6 @@ def _container_ltrim(container, *args, **kwargs):
             return container.lstrip(" \t\r\n")
         return container.lstrip(args[0])
     return container.ltrim(*args, **kwargs)
-
 
 def _container_rtrim(container, *args, **kwargs):
     if type(container) in {bytes, str} and \
@@ -728,7 +707,6 @@ def _container_rtrim(container, *args, **kwargs):
         return container.rstrip(args[0])
     return container.rtrim(*args, **kwargs)
 
-
 def _container_trim(container, *args, **kwargs):
     if type(container) in {bytes, str} and \
             len(args) <= 1:
@@ -739,7 +717,6 @@ def _container_trim(container, *args, **kwargs):
         return container.strip(args[0])
     return container.trim(*args, **kwargs)
 
-
 def _container_join(container, *args, **kwargs):
     if (hasattr(container, "join") and
             type(container) not in {list, set, map}):
@@ -748,7 +725,6 @@ def _container_join(container, *args, **kwargs):
             type(args[0]) == bytes):
         return args[0].join(container)
     return container.join(*args)
-
 
 def _container_pop_at(container, *args, **kwargs):
     if (type(container) in {list} and
@@ -789,7 +765,6 @@ def _container_find(container, *args, **kwargs):
             return None
     return container.find(*args, **kwargs)
 
-
 def _container_rfind(container, *args, **kwargs):
     if (type(container) in {str, bytes} and
             len(args) == 1):
@@ -807,7 +782,6 @@ def _container_rfind(container, *args, **kwargs):
         except ValueError:
             return None
     return container.rfind(*args, **kwargs)
-
 
 def _container_sub(container, *args, **kwargs):
     if len(args) >= 1 and type(container) in {bytes, str, list}:
@@ -830,13 +804,11 @@ def _container_sub(container, *args, **kwargs):
         return container[i1 - 1:i2]
     return container.sub(*args, **kwargs)
 
-
 def _container_subfirst(container, *args, **kwargs):
     if (len(args) == 0 and
             type(container) in {bytes, str, list}):
         return container[:1]
     return container.subfirst(*args, **kwargs)
-
 
 def _container_sublast(container, *args, **kwargs):
     if (len(args) == 0 and
@@ -844,13 +816,11 @@ def _container_sublast(container, *args, **kwargs):
         return container[-1:]
     return container.sublast(*args, **kwargs)
 
-
 def _container_first(container, *args, **kwargs):
     if (len(args) == 0 and
             type(container) in {bytes, str, list}):
         return container[0]
     return container.first(*args, **kwargs)
-
 
 def _container_last(container, *args, **kwargs):
     if (len(args) == 0 and
@@ -858,26 +828,20 @@ def _container_last(container, *args, **kwargs):
         return container[-1]
     return container.last(*args, **kwargs)
 
-
 def _math_floor(v1):
     return math.floor(v1)
-
 
 def _math_ceil(v1):
     return math.ceil(v1)
 
-
 def _math_max(v1, v2):
     return max(v1, v2)
-
 
 def _math_min(v1, v2):
     return min(v1, v2)
 
-
 def _math_round(v1):
     return int(round(v1))
-
 
 def _is_digits(v):
     if len(v) == 0:
@@ -886,7 +850,6 @@ def _is_digits(v):
         if ord(c) < ord("0") or ord(c) > ord("9"):
             return False
     return True
-
 
 def _looks_like_uri(v):
     if (v.find("://") >= 2 and
@@ -925,17 +888,14 @@ def _looks_like_uri(v):
         return True
     return False
 
-
 def _file_uri_from_vfs_path(v):
     v = _file_uri_from_path(v)
     return "vfs://" + v.partition("://")[2]
-
 
 def _uri_get_protocol(v):
     if not "://" in v:
         return None
     return v.partition("://")[0].lower()
-
 
 def _file_uri_from_path(v):
     if v == "" or v == ".":
@@ -1233,7 +1193,6 @@ def _uri_to_file_or_vfs_path(v):
     resource = os.path.normpath(resource)
     return resource
 
-
 def _io_open(fpath, mode, cb, allow_vfs=True, allow_disk=True):
     def async_open_do(job):
         v = job.userdata["v"]
@@ -1279,7 +1238,6 @@ def _io_open(fpath, mode, cb, allow_vfs=True, allow_disk=True):
     _async_ops_lock.acquire()
     _async_ops.append(op)
     _async_ops_lock.release()
-
 
 def _io_rename(v1, v2, cb, allow_vfs=True, allow_disk=True):
     def async_rename_do(job):
@@ -1328,7 +1286,6 @@ def _io_rename(v1, v2, cb, allow_vfs=True, allow_disk=True):
     _async_ops_lock.acquire()
     _async_ops.append(op)
     _async_ops_lock.release()
-
 
 def _io_remove_file(v, cb, allow_vfs=True, allow_disk=True):
     def async_remove_file_do(job):
@@ -1480,7 +1437,6 @@ def _io_remove_dir(v, cb, allow_vfs=True, allow_disk=True,
     _async_ops.append(op)
     _async_ops_lock.release()
 
-
 def _io_ls_dir(v, cb, allow_vfs=True, allow_disk=True):
     def async_ls_dir_do(job):
         v = job.userdata["v"]
@@ -1522,7 +1478,6 @@ def _io_ls_dir(v, cb, allow_vfs=True, allow_disk=True):
     _async_ops.append(op)
     _async_ops_lock.release()
 
-
 def _io_is_dir(v, cb, allow_vfs=True, allow_disk=True):
     def async_is_dir_do(job):
         v = job.userdata["v"]
@@ -1563,7 +1518,6 @@ def _io_is_dir(v, cb, allow_vfs=True, allow_disk=True):
     _async_ops_lock.acquire()
     _async_ops.append(op)
     _async_ops_lock.release()
-
 
 def _make_lock():
     class _TranslatorLock:
@@ -1689,7 +1643,6 @@ def _io_exists(v, cb, allow_vfs=True, allow_disk=True):
     _async_ops.append(op)
     _async_ops_lock.release()
 
-
 def _wrap_io(f):
     def wrapped_func(*args, **kwargs):
         import shutil
@@ -1717,13 +1670,11 @@ def _wrap_io(f):
         return result
     return wrapped_func
 
-
 def _async_delay_call(f, args):
     global _async_delayed_calls, async_ops_lock
     _async_ops_lock.acquire()
     _async_delayed_calls.append((f, args))
     _async_ops_lock.release()
-
 
 class _FileObjFromDisk:
     def __init__(self, path, mode,
@@ -1861,7 +1812,6 @@ class _FileObjFromDisk:
         except (IOError, OSError) as e:
             raise _IOError()
 
-
 class _AsyncOperation:
     def __init__(self, userdata, do_func, callback_func):
         self.started = False
@@ -1870,7 +1820,6 @@ class _AsyncOperation:
         self.userdata2 = None
         self.do_func = do_func
         self.callback_func = callback_func
-
 
 class _RequestsFetchObj:
     def __init__(self, uri,
@@ -1977,10 +1926,8 @@ class _RequestsFetchObj:
             pass
         self.rawobj = None
 
-
 def _time_ts():
     return time.monotonic()
-
 
 def _time_sleep(duration, cb):
     assert(type(duration) in {float, int})
@@ -2003,7 +1950,6 @@ def _time_sleep(duration, cb):
     _async_ops_lock.acquire()
     _async_ops.append(op)
     _async_ops_lock.release()
-
 
 def _net_lookup_name(name, cb, retries=0, retry_delay=0.5):
     returnasdict = True
@@ -2676,7 +2622,6 @@ def _net_fetch_open(*args, **kwargs):
     _async_ops.append(op)
     _async_ops_lock.release()
 
-
 def _net_fetch_open_sync(uri, extra_headers=None,
         user_agent="core.horse64.org net.fetch/0.1 (translator)",
         allow_disk=True, allow_vfs=True):
@@ -2705,7 +2650,6 @@ def _net_fetch_open_sync(uri, extra_headers=None,
     return _RequestsFetchObj(
         uri=uri, extra_headers=extra_headers
     )
-
 
 def _run_main(main_func):
     global DEBUGV, _async_ops_stop_threads,\
@@ -2886,7 +2830,6 @@ def _container_squarebracketaccess(container, index):
         "not implemented for '[' indexing: " +
         str(type(container)))
 
-
 def _container_squarebracketassign(container, index,
         assign_type, value):
     recognized_type = False
@@ -2932,7 +2875,6 @@ def _container_squarebracketassign(container, index,
         "not imlemented for '[' assign: " +
         str(type(container)))
 
-
 def _system_osname():
     import sys
     if "linux" in sys.platform.lower():
@@ -2951,7 +2893,6 @@ def _system_osname():
     raise NotImplementedError("Not implemented on "
         "this platform, please file an issue to "
         "get it fixed.")
-
 
 def _textformat_outdent(s):
     if not type(s) in {str, bytes}:
@@ -3000,7 +2941,6 @@ def _textformat_outdent(s):
         new_s = new_s.encode("utf-8", "surrogateescape")
     return new_s
 
-
 class _ModuleObject:
     def __init__(self, base_module, base_library,
             renamed=None):
@@ -3039,7 +2979,6 @@ class _ModuleObject:
             name = "_h64mod_" + name
         return getattr(basemod, name)
 
-
 def _wildcard_match(pattern, value,
         doublestar_for_paths=False,
         backslash_paths=False,
@@ -3060,7 +2999,6 @@ def _wildcard_match(pattern, value,
             "/" in value):
         return (len(pywildcard.filter([value], pattern)) == 1)
     return fnmatch.fnmatch(value, pattern)
-
 
 def _alike_num(v):
     if type(v) in {float, int}:
@@ -3143,7 +3081,6 @@ def _container_insert(v, *args, **kwargs):
         return v.insert(idx, args[1])
     return v.insert(*args, **kwargs)
 
-
 def _container_del(v, *args, **kwargs):
     if type(v) == list or type(v) == set:
         v.remove(args[0])
@@ -3153,7 +3090,6 @@ def _container_del(v, *args, **kwargs):
         return
     if hasattr(v, "_translator_renamed_del"):
         return v._translator_renamed_del(*args, **kwargs)
-
 
 def _text_pos_from_line_col(s, line, col, start_line=1, start_col=1):
     # XXX: The translator implementation of this intentionally
@@ -3199,7 +3135,6 @@ def _as_hex(v, *args, **kwargs):
     vstr = '{:x}'.format(v)
     return vstr
 
-
 def _to_num(v):
     if type(v) in {int, float}:
         return v
@@ -3217,7 +3152,6 @@ def _to_num(v):
     if "." in v:
         return float(v)
     return int(v)
-
 
 def _bignum_compare_nums(v1, v2):
     def conv(v):
@@ -3248,7 +3182,6 @@ def _bignum_compare_nums(v1, v2):
         return -1
     return 0
 
-
 def _make_or_get_appcache(v):
     def async_make_or_get_appcache_do(job):
         v = job.userdata["v"]
@@ -3275,7 +3208,6 @@ def _make_or_get_appcache(v):
     _async_ops_lock.acquire()
     _async_ops.append(op)
     _async_ops_lock.release()
-
 
 def _make_tmpdir(cb, suffix="", prefix=""):
     def async_make_tmpdir_do(job):
@@ -3309,7 +3241,6 @@ def _make_tmpdir(cb, suffix="", prefix=""):
     _async_ops.append(op)
     _async_ops_lock.release()
 
-
 def _make_or_get_appcache_sync(v):
     forbidden_chars = {"/", "\\", "*", ":",
         "\"", "~", "?", "|", "<", ">", "\0"}
@@ -3330,7 +3261,6 @@ def _make_or_get_appcache_sync(v):
             raise _ResourceError("Home dir doesn't exist.")
         os.makedirs(os.path.join(home_dir, ".cache", v))
         return os.path.join(home_dir, ".cache", v)
-
 
 class _TranslatedVec(collections.abc.Sequence):
     def __init__(self, v):
@@ -3428,7 +3358,6 @@ class _TranslatedVec(collections.abc.Sequence):
                 return idx
         raise ValueError("value not found in vec")
 
-
 class _TranslatedSet(collections.abc.MutableSet):
     def __init__(self, v=None):
         self.contents = set()
@@ -3468,10 +3397,8 @@ class _TranslatedSet(collections.abc.MutableSet):
             self.contents.add(value)
         return self
 
-
 def _make_vec(v):
     return _TranslatedVec(v)
-
 
 def _make_set(v):
     t = _TranslatedSet()
@@ -3482,12 +3409,10 @@ def _make_set(v):
     assert(oldid == id(t))
     return t
 
-
 def _has_attr(v, name):
     if name == "str":
         name = "_translator_renamed_str"
     return hasattr(v, name)
-
 
 def _ensure_all_mods_load(output_dir, mainfilepath, debug=False):
     output_dir = os.path.normpath(os.path.abspath(output_dir))
@@ -3529,7 +3454,6 @@ def _ensure_all_mods_load(output_dir, mainfilepath, debug=False):
             m = importlib.util.module_from_spec(spec)
             sys.modules[modname] = m
             spec.loader.exec_module(m)
-
 
 def _math_parse_hex(v):
     if type(v) not in {bytes, str}:
