@@ -170,14 +170,30 @@ def s_to_tokens(s):
         i += len(t)
     return result
 
-def _next_t(ts, i=None):
+def _next_t(ts, i=None, no=1):
     if i == None:
-        i = 0
+        i = -1
+    i = max(0, i + 1)
     tslen = len(ts)
     while i < tslen:
         if ts[i].strip(" \n\r\t") != "":
-            return ts[i]
+            no -= 1
+            if no <= 0:
+                return ts[i]
         i += 1
+    return None
+
+def _prev_t(ts, i=None, no=1):
+    if i == None:
+        i = len(ts)
+    i = min(len(ts) - 1, i - 1)
+    tslen = len(ts)
+    while i >= 0:
+        if ts[i].strip(" \n\r\t") != "":
+            no -= 1
+            if no <= 0:
+                return ts[i]
+        i -= 1
     return None
 
 def honse_tmpl_expr_to_jinja2(inner_expr):
@@ -186,16 +202,22 @@ def honse_tmpl_expr_to_jinja2(inner_expr):
     tokens = s_to_tokens(inner_expr)
     if _next_t(tokens) in ["if", "for", "endif", "endfor"]:
         is_control_flow = True
+    i = -1
     for t in tokens:
+        i += 1
         if t == "none":
             t = "None"
         elif t == "yes":
             t = "True"
         elif t == "no":
-            t = False
+            t = "False"
+        elif (t == "len" and
+                _prev_t(tokens, i=i) == "." and
+                _next_t(tokens, i=i) != "("):
+            t = "__len__()"
         result += t
     if is_control_flow:
-        return "{" + "% " + ("".join(tokens)).strip("") + " %" + "}"
+        return "{" + "% " + result.strip("") + " %" + "}"
     else:
-        return "{" + "{ " + ("".join(tokens)).strip("") + " }" + "}"
+        return "{" + "{ " + result.strip("") + " }" + "}"
 
