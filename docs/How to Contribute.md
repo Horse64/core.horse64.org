@@ -7,8 +7,8 @@ to Horse64. If you want to fix a problem, help with
 the documentation, etc., then please read on.
 
 
-Contribute as a tester
-----------------------
+Contribute testing feedback
+---------------------------
 
 If you want to help testing, [get the SDK](
 /docs/Resources.md#sdk) and [report bugs](
