@@ -29,7 +29,9 @@ import os
 import subprocess
 import sys
 
-my_dir = os.path.abspath(os.path.dirname(__file__))
+my_dir = os.path.abspath(os.path.dirname(
+    os.path.realpath(__file__)
+))
 
 if __name__ == "__main__":
     args = sys.argv[1:]

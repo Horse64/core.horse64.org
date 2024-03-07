@@ -31,6 +31,7 @@ import sys
 
 if __name__ == "__main__":
     subprocess.check_output([sys.executable,
-        os.path.join(os.path.dirname(__file__), "make_cython.py")])
+        os.path.join(os.path.dirname(
+        os.path.realpath(__file__)), "make_cython.py")])
     import translator_main
     translator_main.run_translator_main()

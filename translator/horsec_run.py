@@ -33,9 +33,13 @@ from translator_modules.\
     translator_runtime_helpers import _process_run
 
 translator_py_script_dir = (
-    os.path.abspath(os.path.dirname(__file__))
+    os.path.abspath(os.path.dirname(
+        os.path.realpath(__file__)
+    ))
 )
-translator_py_script_path = os.path.abspath(__file__)
+translator_py_script_path = os.path.abspath(
+    os.path.realpath(__file__)
+)
 
 if __name__ == "__main__":
     run_code = None

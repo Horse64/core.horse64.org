@@ -30,7 +30,9 @@ import shlex
 import shutil
 import sys
 
-my_dir = os.path.abspath(os.path.dirname(__file__))
+my_dir = os.path.abspath(os.path.dirname(
+    os.path.realpath(__file__)
+))
 
 def check_if_pkg_local_linked(pkg_name):
     if (not os.path.exists(os.path.join(my_dir, "..",
