@@ -167,5 +167,16 @@ func main {
         print_output=yes) later:
     print("")
     print("[Test 4] Success.")
+
+    # Test 5:
+    print("")
+    print("[Test 5] Test build HVM and other dependencies.")
+    print("")
+    print("$ make ensure-hvm-built")
+    process.run("bash", args=["-c",
+        "cd translator && makeensure-hvm-built"],
+        print_output=yes) later:
+    print("")
+    print("[Test 5] Success.")
 }
 
