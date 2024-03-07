@@ -2411,6 +2411,11 @@ def translate(s, sc):
             type_package = type_info["package"]
             type_name = type_info["type-name"]
             name = type_info["func-name"]
+            register_as_modinit = (
+                type_name == None and (
+                name == "modinit" or
+                name.startswith("modinit_"))
+            )
             start_arguments_idx = type_info["index-after"]
             while (start_arguments_idx < len(statement) and
                     statement[start_arguments_idx].
@@ -2470,6 +2475,11 @@ def translate(s, sc):
                 result += (indent + "def " + name +
                     untokenize(cleaned_argument_tokens) + ":\n")
                 result += inner_code
+                if register_as_modinit:
+                    result += (
+                        "_translator_runtime_helpers.regmodinit(" +
+                        name + ")"
+                    )
             else:
                 assert(type_module != None)
                 regtype = ensure_type(

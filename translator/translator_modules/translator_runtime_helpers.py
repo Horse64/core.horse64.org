@@ -1442,7 +1442,7 @@ def _io_remove_dir(v, cb, allow_vfs=True, allow_disk=True,
                 import shutil
                 import os
                 def _remove_tree(v):
-                    if os.is_link(v):
+                    if os.path.islink(v):
                         # This allows a race-condition, but the
                         # outcome should just be that it isn't
                         # deleted at all.
@@ -2713,6 +2713,7 @@ def _run_main(main_func):
         _async_delayed_calls, _async_ops_lowprio, \
         _async_ops_in_processing, _async_ops_done
     _run_delayed_modinit()
+    runmodinits()
     def async_jobs_worker(no):
         global _async_ops_stop_threads,\
             _async_ops_lock, _async_ops, \
@@ -3582,6 +3583,17 @@ def _call_builtin_init_if_needed(o):
                 print("CALLING INIT ON: " + str(init_name))
             if init_name == basename:
                 basecls.__init__(o)
+
+_modinitfuncs = []
+
+def regmodinit(func_ref):
+    global _modinitfuncs
+    _modinitfuncs.append(func_ref)
+
+def runmodinits():
+    _modinitfuncs
+    for modinitfunc in _modinitfuncs:
+        modinitfunc()
 
 def _async_final_bail_handler(err, result, funcname="main"):
     global _async_final_bails_need_extra_bail_count
