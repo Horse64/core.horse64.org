@@ -45,7 +45,7 @@ import compiler.token
 func version_output_for_terminal {
     return "horsec v" + system.program_version() + ", built by " +
         system.program_compiler_name + ".\n" +
-        "Copyright (c) 2020-2023, ellie/@ell1e & Horse64 Team."
+        "Copyright (c) 2020-2024, ellie/@ell1e & Horse64 Team."
 }
 
 func license_output_for_terminal {
