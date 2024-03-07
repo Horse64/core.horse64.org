@@ -99,20 +99,28 @@ class _HonseTmplObj:
     def apply(self, vars):
         if type(vars) != dict:
             raise TypeError("vars must be a dict")
-        import jinja2
-        import shutil
-        import tempfile
-        _some_dir = tempfile.mkdtemp()
+        result = None
         try:
-            env = jinja2.Environment(
-                loader=(_some_dir if self.search_dir is None else
+            import jinja2
+            import shutil
+            import tempfile
+            _some_dir = tempfile.mkdtemp()
+            try:
+                env = jinja2.Environment(
+                    loader=(_some_dir
+                        if self.search_dir is None else
                         self.search_dir),
-                autoescape=self.escape_for_html
-            )
-            tmpl = env.from_string(self.jinja_tmpl)
-        finally:
-            shutil.rmtree(_some_dir)
-        return template.render(vars)
+                    autoescape=self.escape_for_html
+                )
+                tmpl = env.from_string(self.jinja_tmpl)
+            finally:
+                shutil.rmtree(_some_dir)
+            result = tmpl.render(vars)
+        except Exception as e:
+            print("translator.py: warning: "
+                "Templating error: " + str(e))
+            raise e
+        return result
 
 def get_identifier_len(s, pos):
     len_s = len(s)

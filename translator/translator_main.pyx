@@ -127,7 +127,6 @@ if os.path.exists(os.path.join(translator_py_script_dir,
         if _get_version:
             VERSION = _get_version
 
-
 # XXX HACK alert (written by ell1e):
 # The mpath() function is needed because python's module handling is
 # hazardously simplistic, and if any submodule anywhere matches a
@@ -159,14 +158,12 @@ def mpath(p, sep="/"):
             parts[i] = "_h64mod_" + parts[i]
     return sep.join(parts)
 
-
 def _splitpath(p):
     if os.path.sep == "\\" or platform.system().lower == "windows":
         p = p.replace("\\", "/")
     while p.endswith("/") and len(p) > 1:
         p = p[:-1]
     return p.split("/")
-
 
 DEBUGV.ENABLE = False
 DEBUGV.ENABLE_CONTENTS = False
@@ -258,8 +255,10 @@ remapped_uses = {
             "_translator_runtime_helpers._net_fetch_open",
     },
     "path@core.horse64.org": {
+        "path.make_abs": "_remapped_os.path.abspath",
         "path.normalize":
             "_remapped_os.path.normpath",
+        "path.is_abs": "_remapped_os.path.isabs",
         "path.join":
             "_remapped_os.path.join",
         "path.basename" : "_remapped_os.path.basename",
@@ -317,7 +316,7 @@ remapped_uses = {
         "textfmt.outdent":
             "_translator_runtime_helpers._textformat_outdent",
         "textfmt.template_from_str":
-            "_translator_runtme_helpers_templating." +
+            "_translator_runtime_helpers_templating." +
                 "load_honse_html_tmpl_from_str",
     },
     "threading@core.horse64.org": {
@@ -3350,7 +3349,8 @@ def translate_do_func(
                     "unknown") + ";" +
                 "_translated_program_main_script_file = " +
                 as_escaped_code_string(mainfilepath) + ";" +
-                "import _translator_runtime_helpers;\n"
+                "import _translator_runtime_helpers;\n" +
+                "import _translator_runtime_helpers_templating;\n"
                 ) + translated_files[translated_file]["output"]
             _modname = (translated_files
                         [translated_file]["module-name"])

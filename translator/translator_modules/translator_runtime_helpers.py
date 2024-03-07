@@ -1137,8 +1137,93 @@ def _json_dump(obj):
         raise _TypeError("Failed to run json.dump on: " + str(obj))
 
 def _json_parse(s):
-    return json.loads(s)
-
+    s_clean = ""
+    in_quote = None
+    i = 0
+    while i < len(s):
+        if (in_quote == None and s[i] in ["'", "\""]):
+            in_quote = s[i]
+            s_clean += "\""
+            i += 1
+            continue
+        elif in_quote == "'" and s[i] == "\"":
+            s_clean += "\\\""
+            i += 1
+            continue
+        elif in_quote != None and s[i] == "\\":
+            s_clean += "\\"
+            if i + 1 < len(s):
+                s_clean += s[i + 1]
+            i += 2
+            continue
+        elif s[i] == in_quote:
+            in_quote = None
+            s_clean += "\""
+            i += 1
+            continue
+        elif (in_quote == None and s[i] == "/" and
+                i + 1 < len(s) and s[i + 1] == "/"):
+            s_clean += "  "
+            i += 2
+            while i < len(s):
+                if s[i] in ["\r", "\n"]:
+                    break
+                s_clean += " "
+                i += 1
+            continue
+        elif (in_quote == None and s[i] == "/" and
+                i + 1 < len(s) and s[i + 1] == "*"):
+            s_clean += "  "
+            i += 2
+            while i < len(s):
+                if (s[i] == "*" and i + 1 < len(s) and
+                        s[i + 1] == "/"):
+                    s_clean += "  "
+                    i += 2
+                    break
+                elif s[i] in ["\r", "\n"]:
+                    s_clean += s[i]
+                    i += 1
+                    continue
+                s_clean += " "
+                i += 1
+            continue
+        elif in_quote != None and s[i] in ["\r", "\n"]:
+            if (s[i] == "\r" and i + 1 < len(s) and
+                    s[i + 1] == "\n"):
+                s_clean += "\\n"
+                i += 2
+                continue
+            s_clean += "\\n"
+            i += 1
+            continue
+        elif in_quote == None and s[i] == ",":
+            trailing_comma = False
+            k = i + 1
+            while k < len(s):
+                if s[k] == "}" or s[k] == "]":
+                    trailing_comma = True
+                    break
+                elif s[k] in [" ", "\r", "\n", "\t"]:
+                    k += 1
+                    continue
+                break
+            if trailing_comma:
+                s_clean += " "
+            else:
+                s_clean += ","
+            i += 1
+            continue
+        else:
+            s_clean += s[i]
+        i += 1
+    try:
+        result = json.loads(s_clean)
+        return result
+    except Exception as e:
+        #print("translator_runtime_helper.py: warning: "
+        #    "JSON parsing error: " + str(e))
+        raise e
 
 def _uri_to_file_or_vfs_path(v):
     if (not v.lower().startswith("file://") and
