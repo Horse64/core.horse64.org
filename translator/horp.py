@@ -56,6 +56,10 @@ def link_local_pkg(pkg_name):
             else:
                 shutil.rmtree(os.path.join(my_dir, "..",
                     "horse_modules", pkg_name))
+        if not os.path.exists(os.path.join(my_dir, "..",
+                "horse_modules")):
+            os.mkdir(os.path.join(my_dir, "..",
+                "horse_modules"))
         os.system("ln -s " + shlex.quote(
                 os.path.join("..", "..", pkg_name)) + " " +
             shlex.quote(os.path.join(my_dir, "..",
