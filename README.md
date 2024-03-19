@@ -41,5 +41,5 @@ https://horse64.org/download), and then to use [horp](
 base tools including *horp* are shipped with the SDK.)
 
 If you're interested in helping the project, [check how
-to contribute here](/docs/How to Contribute.md).
+to contribute here](/docs/How%20to%20Contribute.md).
 
