@@ -55,21 +55,22 @@ documentation](https://horse64.org/docs/Welcome).
 License
 -------
 
-**The license files for all core projects are almost the
-same,** but feel free to check the license for each one
-yourself.
+All projects are **dual-licensed under either a
+BSD-style license or the Apache 2 license,** with the minor
+exception to that being the official artwork. **Read the
+respective license files** for details, the licenses
+of all projects are almost the same.
 
-**LICENSING:** All projects are dual-licensed under either a
-BSD-style license or the Apache 2 license, with the minor
-exception to that being the official artwork. **Check the
-respective license files for details:**
+- Here's [the **core.horse64.org license** as an example](
+  https://codeberg.org/Horse64/core.horse64.org/src/branch/main/LICENSE.md).
 
-- Here's [the `LICENSE.md` file for the core.horse64.org
-  package.](
-  https://codeberg.org/Horse64/core.horse64.org/src/branch/main/LICENSE.md)
+- **Read about the Developer Certificate of Origin here](
+  https://codeberg.org/Horse64/core.horse64.org/src/branch/main/LICENSE.md#contributions).
 
-- For the respective other projects, **check the
-  `LICENSE.md` file for each.** It's part of each
+  Please note we currently want to avoid AI code contributions.
+
+- For the respective other projects, check the
+  `LICENSE.md` file for each. It's part of each
   project's code. **E.g. here's [horp's code](
   #horp).**
 
