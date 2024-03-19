@@ -578,9 +578,16 @@ func get_usage_text(options) {
 ##   "args".
 ## @param args list (Optional) The list of supplied command line
 ##   arguments to parse. If unspecified, @{process.args} is used.
-func parse(arg_defs=none, args=none) {
+## @param debug bool (Optional) If specified as `yes`, then the parser
+##   will output details about how the arguments are matched. This may
+##   help you figure out why the parsing isn't behaving as you expect.
+func parse(arg_defs=none, args=none, debug=no) {
     if args == none {
         args = process.args
+    }
+    if debug {
+        print("argparse.h64: debug: Parsing arguments: args=" +
+            args.as_str())
     }
     if arg_defs != none and
             not has_attr(arg_defs, "max_positional_args") {
@@ -592,10 +599,14 @@ func parse(arg_defs=none, args=none) {
     var result = new ParseResult()
     var result_args = {->}
     var posargs_seen = 0
-    var debug = no
 
     if arg_defs == none {
         # Special default parsing when we have no argument definitions.
+        if debug {
+            print("argparse.h64: debug: Processing arguments given "
+                "without arg defs, will use "
+                "fallback default behavior...")
+        }
         assert(args != none)
         result.args = {"args"-> []}
         var seen_double_dash = no
@@ -615,6 +626,10 @@ func parse(arg_defs=none, args=none) {
             i += 1
         }
         return result
+    }
+    if debug {
+        print("argparse.h64: debug: Processing arguments given "
+            "with arg defs with advanced parser...")
     }
 
     # Count number of positional arguments in advance:
@@ -770,6 +785,15 @@ func parse(arg_defs=none, args=none) {
             }
         }
     }
+    if debug {
+        print("argparse.h64: debug: Analyzed counts, results: "
+            "catchall_start_index=" +
+                catchall_start_index.as_str() + " "
+            "positional_args_total=" +
+                positional_args_total.as_str() + " "
+            "positional_args_preliminary_total=" +
+                positional_args_preliminary_total.as_str())
+    }
 
     #print("argparse.h64: debug: extracting args: " +
     #    args.as_str() + ", catchall_start_index=" +
@@ -782,7 +806,7 @@ func parse(arg_defs=none, args=none) {
     while i <= args.len {
         var argstr = args[i]
         if debug {
-            print("argparse.h64: debug: looking at args[" +
+            print("argparse.h64: debug: Looking at args[" +
                 i.as_str() + "]: " + argstr)
         }
         if (not args[i].starts("-")) or (catchall_start_index != none and
@@ -822,7 +846,7 @@ func parse(arg_defs=none, args=none) {
             assert(target_arg != none)
 
             if debug {
-                print("argparse.h64: debug: feeding into "
+                print("argparse.h64: debug: Feeding into "
                     "arg \"" + target_arg.name +
                     "\" => " + argstr)
             }
