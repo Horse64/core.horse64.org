@@ -28,6 +28,7 @@
 from Cython.Build import cythonize
 import hashlib
 import os
+import platform
 import subprocess
 
 MY_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -66,9 +67,37 @@ if __name__ == "__main__":
         subprocess.check_output([
             "cython", "-o", fullp_c, fullp
         ])
-        py_include = "/usr/include/" + list(reversed(sorted(
-            [l for l in os.listdir("/usr/include")
-            if l.startswith("python")])))[0]
+        py_include = None
+        if (platform.system().lower() == "darwin" or
+                not os.path.exists("/usr/include")):
+            # Headers are in a non-Linux location, therefore
+            # use python3-config to find out where:
+
+            include_flags = subprocess.check_output([
+                "python3-config", "--include"
+            ])
+            if type(include_flags) in [bytes, bytearray]:
+                include_flags = include_flags.decode("utf-8", "replace")
+            switch_idx = include_flags.find("-I")
+            if switch_idx < 0:
+                raise RuntimeError("-I switch not found in "
+                    "python3-config output")
+            path = include_flags[switch_idx + len("-I"):]
+            if " -" in path:
+                path = path.partition(" -")[0]
+            # FIXME: handle spaces properly here.
+
+            if (not path.startswith("/") or
+                    not os.path.exists(path)):
+                raise RuntimeError("Obtained Python dev include "
+                    "path appears to be invalid: " + path)
+
+            py_include = path
+        else:
+            # Find the newest headers inside /usr/include that we can.
+            py_include = "/usr/include/" + list(reversed(sorted(
+                [l for l in os.listdir("/usr/include")
+                if l.startswith("python")])))[0]
         print("Compiling changed file " + fullp + "...")
         subprocess.check_output([
             "gcc", "-shared", "-pthread", "-fPIC", "-fwrapv",
