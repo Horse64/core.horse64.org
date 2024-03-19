@@ -64,7 +64,7 @@ of all projects are almost the same.
 - Here's [the **core.horse64.org license** as an example](
   https://codeberg.org/Horse64/core.horse64.org/src/branch/main/LICENSE.md).
 
-- **Read about the Developer Certificate of Origin here](
+- Read about the [**Developer Certificate of Origin** here](
   https://codeberg.org/Horse64/core.horse64.org/src/branch/main/LICENSE.md#contributions).
 
   Please note we currently want to avoid AI code contributions.
