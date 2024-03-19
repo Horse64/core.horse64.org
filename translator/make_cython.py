@@ -51,9 +51,11 @@ if __name__ == "__main__":
             "translator_modules", p)
         items.append(fullp)
     shared_flags = ["-shared"]
+    symlink_from = None
     lib_ext = ".so"
     if platform.system().lower() == "darwin":
         lib_ext = ".dylib"
+        symlink_from = ".so"  # Work around Python module loader bug. Sigh.
         shared_flags = ["-dynamiclib",
             "-undefined", "dynamic_lookup"]
     elif platform.system().lower() == "windows":
@@ -62,6 +64,9 @@ if __name__ == "__main__":
         fullp_hash = fullp.rpartition(".pyx")[0] + ".md5.txt"
         fullp_c = fullp.rpartition(".pyx")[0] + ".c"
         fullp_lib = fullp.rpartition(".pyx")[0] + lib_ext
+        fullp_lib_link = None
+        if symlink_from != None:
+            fullp_lib_link = fullp.rpartition(".pyx")[0] + symlink_from
 
         source_hash = filehash(fullp)
         if (os.path.exists(fullp_hash) and
@@ -71,6 +76,10 @@ if __name__ == "__main__":
                 old_hash = f.read().strip()
             if old_hash == source_hash:
                 print("Hash match for " + fullp + "!")
+                if fullp_lib_link != None:
+                    if os.path.exists(fullp_lib_link):
+                        os.remove(fullp_lib_link)
+                    os.symlink(fullp_lib, fullp_lib_link)
                 continue
         subprocess.check_output([
             "cython", "-o", fullp_c, fullp
@@ -115,6 +124,10 @@ if __name__ == "__main__":
             "-I" + py_include, "-o", fullp_lib,
             fullp_c
         ], stderr=subprocess.STDOUT)
+        if fullp_lib_link != None:
+            if os.path.exists(fullp_lib_link):
+                os.remove(fullp_lib_link)
+            os.symlink(fullp_lib, fullp_lib_link)
         with open(fullp_hash, "w", encoding="utf-8") as f:
             f.write(source_hash)
 
