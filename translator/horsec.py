@@ -65,7 +65,8 @@ if __name__ == "__main__":
         (["--debug"] if use_debug else []) +
         (["--debug-python-output"] if use_debug_python_output else []) +
         (["--keep-files"] if use_debug_keep_files else []) +
-        [os.path.join("src", "compiler", "main.h64")] + args)
+        [os.path.join(my_dir, "..",
+            "src", "compiler", "main.h64")] + args)
     exit_code = process.wait()
     sys.exit(exit_code)
 
