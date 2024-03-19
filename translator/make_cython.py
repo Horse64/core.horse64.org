@@ -50,14 +50,21 @@ if __name__ == "__main__":
         fullp = os.path.join(MY_DIR, "..", "translator",
             "translator_modules", p)
         items.append(fullp)
+    shared_flag = "-shared"
+    lib_ext = ".so"
+    if platform.system().lower() == "darwin":
+        lib_ext = ".dylib"
+        shared_flag = "-dynamiclib"
+    elif platform.system().lower() == "windows":
+        lib_ext = ".dll"
     for fullp in items:
         fullp_hash = fullp.rpartition(".pyx")[0] + ".md5.txt"
         fullp_c = fullp.rpartition(".pyx")[0] + ".c"
-        fullp_so = fullp.rpartition(".pyx")[0] + ".so"
+        fullp_lib = fullp.rpartition(".pyx")[0] + lib_ext
 
         source_hash = filehash(fullp)
         if (os.path.exists(fullp_hash) and
-                os.path.exists(fullp_so)):
+                os.path.exists(fullp_lib)):
             old_hash = None
             with open(fullp_hash, "r", encoding="utf-8") as f:
                 old_hash = f.read().strip()
@@ -100,9 +107,9 @@ if __name__ == "__main__":
                 if l.startswith("python")])))[0]
         print("Compiling changed file " + fullp + "...")
         subprocess.check_output([
-            "gcc", "-shared", "-pthread", "-fPIC", "-fwrapv",
+            "gcc", shared_flag, "-pthread", "-fPIC", "-fwrapv",
             "-Ofast", "-Wall", "-fno-strict-aliasing",
-            "-I" + py_include, "-o", fullp_so,
+            "-I" + py_include, "-o", fullp_lib,
             fullp_c
         ], stderr=subprocess.STDOUT)
         with open(fullp_hash, "w", encoding="utf-8") as f:
