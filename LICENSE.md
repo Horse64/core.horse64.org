@@ -280,7 +280,10 @@ Contributions
 
 If you contribute to the Horse64 project, you **permit licensing as
 described in the respective files** and agree to the
-[DCO](#developer-certificate-of-origin) below.
+[DCO](#developer-certificate-of-origin) below. Using AI tools might
+interfere with this depending on how the training data was collected,
+so we ask that you **avoid contributing code made with involvement
+of AI code generation (like Co-Pilot)** for now.
 
 For this, sign your commit messages:
 
