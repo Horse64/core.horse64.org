@@ -50,11 +50,12 @@ if __name__ == "__main__":
         fullp = os.path.join(MY_DIR, "..", "translator",
             "translator_modules", p)
         items.append(fullp)
-    shared_flag = "-shared"
+    shared_flags = ["-shared"]
     lib_ext = ".so"
     if platform.system().lower() == "darwin":
         lib_ext = ".dylib"
-        shared_flag = "-dynamiclib"
+        shared_flags = ["-dynamiclib",
+            "-undefined", "dynamic_lookup"]
     elif platform.system().lower() == "windows":
         lib_ext = ".dll"
     for fullp in items:
@@ -106,8 +107,10 @@ if __name__ == "__main__":
                 [l for l in os.listdir("/usr/include")
                 if l.startswith("python")])))[0]
         print("Compiling changed file " + fullp + "...")
+        print("*** WARNING, THIS MAY TAKE VERY LONG. ON SLOW MACHINES, "
+            "IT MAY TAKE HALF AN HOUR OR LONGER. ***", flush=True)
         subprocess.check_output([
-            "gcc", shared_flag, "-pthread", "-fPIC", "-fwrapv",
+            "gcc"] + shared_flags + ["-pthread", "-fPIC", "-fwrapv",
             "-Ofast", "-Wall", "-fno-strict-aliasing",
             "-I" + py_include, "-o", fullp_lib,
             fullp_c
