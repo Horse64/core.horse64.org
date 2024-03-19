@@ -267,6 +267,8 @@ remapped_uses = {
     },
     "process@core.horse64.org": {
         "process.args": "(_remapped_sys.argv[1:])",
+        "process.get_env":
+            "_translator_runtime_helpers._get_env",
         "process.run":
             "_translator_runtime_helpers._process_run_async",
     },

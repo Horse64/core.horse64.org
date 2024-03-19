@@ -297,10 +297,13 @@ def _terminal_get_line(callback):
 
 def _process_run_async(cmd, callback,
         args=[], run_in_dir=None,
-        print_output=False):
+        print_output=False,
+        error_on_nonzero_exit_code=True):
     global _async_ops_lock, _async_ops
     info = {"cmd": cmd, "callback": callback,
         "args": args, "run_in_dir": run_in_dir,
+        "error_on_nonzero_exit_code":
+            error_on_nonzero_exit_code,
         "print_output": print_output}
     def run_do(op):
         global _async_ops_lock
@@ -318,6 +321,8 @@ def _process_run_async(cmd, callback,
             err = e
             if isinstance(e, subprocess.CalledProcessError):
                 output = e.output
+                if not info["error_on_nonzero_exit_code"]:
+                    err = None
         _async_ops_lock.acquire()
         op.userdata2 = [err, output]
         op.done = True
@@ -335,6 +340,13 @@ def _process_run_async(cmd, callback,
     _async_ops_lock.acquire()
     _async_ops.append(op)
     _async_ops_lock.release()
+
+def _get_env(val):
+    import os
+    vals = dict(os.environ)
+    if val in vals:
+        return vals[val]
+    return None
 
 def _process_run(cmd, args=[], run_in_dir=None,
         print_output=False, with_input=False):
