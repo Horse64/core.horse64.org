@@ -278,7 +278,7 @@ remapped_uses = {
     "system@core.horse64.org": {
         "system.exit" : "_remapped_sys.exit",
         "system.osname":
-            "_translator_runtime_helpers._system_osname",
+            "(_translator_runtime_helpers._system_osname())",
         "system.program_compiler_name":
             "(\"horse64-translator-py v\" + " +
             as_escaped_code_string(VERSION) + ")",

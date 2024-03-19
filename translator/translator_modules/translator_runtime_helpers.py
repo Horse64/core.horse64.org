@@ -2878,18 +2878,18 @@ def _container_squarebracketassign(container, index,
 def _system_osname():
     import sys
     if "linux" in sys.platform.lower():
-        return "linux"
+        return "Linux"
     if ("darwin" in sys.platform.lower() or
             "mac" in sys.platform.lower()):
-        return "macos"
+        return "macOS"
     if "freebsd" in sys.platform.lower():
-        return "freebsd"
+        return "FreeBSD"
     if "win" in sys.platform.lower():
-        return "windows"
+        return "Windows"
     if "openbsd" in sys.platform.lower():
-        return "openbsd"
+        return "OpenBSD"
     if "netbsd" in sys.platform.lower():
-        return "netbsd"
+        return "NetBSD"
     raise NotImplementedError("Not implemented on "
         "this platform, please file an issue to "
         "get it fixed.")
