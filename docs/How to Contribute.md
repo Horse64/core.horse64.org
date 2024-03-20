@@ -34,7 +34,9 @@ following:
 
 2. [Read the licensing carefully](/docs/Resources.md#license)
    and make sure you agree to contribute your code under
-   the given terms.
+   the given terms. **This currently includes avoiding any
+   AI-based code generation, including Co-Pilot or smart
+   auto-complete.**
 
 3. Changes can be suggested via **pull requests** in the
    [respective repositories](/docs/Resources.md).
