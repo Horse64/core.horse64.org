@@ -101,6 +101,8 @@ type LocalScope {
     var ccapture_id_to_symbol_map = {->}
     var ccapture_name_to_id_map = {->}
     var func_scope
+
+    var start_line, start_col
 }
 
 type GlobalScopeEnumEntry {
@@ -166,6 +168,15 @@ func LocalScope.add_symbol(symbol_name, line, col) {
     )
 }
 
+func LocalScope.as_str {
+    var t = "<LocalScope name_to_symbol_map.keys()=" +
+        self.name_to_symbol_map.keys().as_str() +
+        " start_line=" + self.start_line.as_str() +
+        " start_col=" + self.start_col.as_str()
+    t += ">"
+    return t
+}
+
 func LocalScope.lookup(name,
         is_write_access=yes, cross_func_scopes=yes) {
     var ref
@@ -174,8 +185,9 @@ func LocalScope.lookup(name,
     if our_func_scope == none {
         print("horsec: error: Critical internal error, "
             "LocalScope.lookup called on scope with no func_scope "
-            "set. Looked up name: \"" + name + "\", other "
-            "known names: " + self.name_to_symbol_map.keys().as_str())
+            "set. Looked up name: \"" + name + "\", "
+            "self=" + self.as_str() +
+            " self.parent: " + self.parent.as_str())
         throw new RuntimeError("Internal error, "
             "self.func_scope must be not none.")
     }

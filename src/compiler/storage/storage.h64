@@ -676,6 +676,8 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                      (parent.kind != ast.N_STMT_IF and
                       parent.kind != ast.N_STMT_DO)) {
                 var inner_scope = new scope.LocalScope()
+                inner_scope.start_line = node.line
+                inner_scope.start_col = node.col
                 inner_scope.parent = node.scope
                 if inner_scope.parent != none {
                     inner_scope.func_scope =
@@ -723,6 +725,8 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                     node.kind == ast.N_STMT_DO {
                 for clause in node.subexprs {
                     var inner_scope = new scope.LocalScope()
+                    inner_scope.start_line = node.line
+                    inner_scope.start_col = node.col
                     inner_scope.parent = node.scope
                     if inner_scope.parent != none and
                             has_attr(inner_scope.parent, "func_scope") {
