@@ -365,7 +365,7 @@ func advanced_phase3_later_and_computevals(
                             ast.N_EXPR_BINOP and
                         stmt.subexprs[1].subexprs[1].optoken.str == "(" and
                         stmt.subexprs[1].subexprs[1].subexprs[2].kind ==
-                            ast.N_EXPR_CALLORDEFARGS {
+                            ast.N_EXPR_CALLARGS {
                     callargs = stmt.subexprs[1].subexprs[1].
                         subexprs[2]
                     callobj = stmt.subexprs[1].subexprs[1].subexprs[1]
