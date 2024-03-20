@@ -118,6 +118,19 @@ func _ArgumentInfo.init(
     }
 }
 
+func _ArgumentInfo.as_str {
+    var t = "<argparse._ArgumentInfo"
+    t += " name=" + if self.name != none
+        ("'" + self.name.as_str() + "'") else ("none")
+    t += " positional=" + self.positional.as_str()
+    t += " repeatable=" + self.repeatable.as_str()
+    t += " optional=" + self.optional.as_str()
+    t += " takes_arg=" + self.takes_arg.as_str()
+    t += " catchall=" + self.catchall.as_str()
+    t += ">"
+    return t
+}
+
 func _ArgumentInfo.has_argname(names) {
     if names.has(self.name) {
         return yes
@@ -188,7 +201,9 @@ func ArgumentDefs.get_catchall_arg {
     return none
 }
 
-func ArgumentDefs.get_nth_posarg(index, total_posargs_assigned=none) {
+func ArgumentDefs.get_nth_posarg(
+        index, total_posargs_assigned=none
+        ) {
     var non_optional_count = 0
     assert(index > 0)
     for arg in self.args {
@@ -206,7 +221,8 @@ func ArgumentDefs.get_nth_posarg(index, total_posargs_assigned=none) {
     for arg in self.args {
         if (arg.positional or arg.catchall) and
                 (not arg.optional or
-                optional_args_filled > 0) {
+                optional_args_filled > 0 or
+                (arg.catchall and index <= 1)) {
             if index > 1 {
                 index -= 1
                 if arg.optional and optional_args_filled > 0 {
@@ -677,7 +693,16 @@ func parse(arg_defs=none, args=none, debug=no) {
         }
         var target_arg =
             arg_defs.get_nth_posarg(
-                _posarg_no + 1, positional_args_preliminary_total)
+                _posarg_no + 1,
+                total_posargs_assigned=positional_args_preliminary_total
+            )
+        if debug {
+            print("argparse.h64: debug: Mapping index i=" +
+                i.as_str() + " to target_arg=" + target_arg.as_str() +
+                " with positional_args_preliminary_total=" +
+                positional_args_preliminary_total.as_str() + ", "
+                "_posarg_no + 1=" + (_posarg_no + 1).as_str())
+        }
         if (not args[i].starts("-") or
                 # Past a double dash, everything is a pos arg:
                 (double_dash_idx != none and
@@ -720,7 +745,9 @@ func parse(arg_defs=none, args=none, debug=no) {
                 # should go inside.
                 var followup_arg =
                     arg_defs.get_nth_posarg(
-                        _posarg_no + 1, positional_args_preliminary_total)
+                        _posarg_no + 1,
+                        total_posargs_assigned=positional_args_preliminary_total
+                    )
                 if followup_arg != none and
                         followup_arg.catchall {
                     catchall_start_index = i + 1
@@ -756,7 +783,8 @@ func parse(arg_defs=none, args=none, debug=no) {
                     not args[k].starts("-") {
                 at_pos_arg += 1
                 var target_arg = arg_defs.get_nth_posarg(
-                    at_pos_arg, positional_args_total
+                    at_pos_arg,
+                    total_posargs_assigned=positional_args_total
                 )
                 if target_arg != none and target_arg.catchall {
                     dash_maps_to_catchall = yes
@@ -839,7 +867,9 @@ func parse(arg_defs=none, args=none, debug=no) {
 
             # Check what exactly this maps to:
             var target_arg = arg_defs.get_nth_posarg(
-                posargs_seen + 1, positional_args_total)
+                posargs_seen + 1,
+                total_posargs_assigned=positional_args_total
+            )
             if target_arg == none {
                 target_arg = arg_defs.get_catchall_arg()
             }
@@ -847,7 +877,7 @@ func parse(arg_defs=none, args=none, debug=no) {
 
             if debug {
                 print("argparse.h64: debug: Feeding into "
-                    "arg \"" + target_arg.name +
+                    "positional arg \"" + target_arg.name +
                     "\" => " + argstr)
             }
 

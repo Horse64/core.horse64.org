@@ -110,8 +110,26 @@ func test_argparse {
     defs.add_switch("--test")
     defs.add_arg("action", optional=yes)
     defs.add_catchall(
+        "args", can_be_empty=yes)
+    result = argparse.parse(
+        arg_defs=defs, args=["test", "--test"], debug=yes
+    )
+    assert(result.output == "")
+    assert("args" in result.args)
+    assert("action" in result.args)
+    assert(result.args["args"].len == 1)
+    assert(result.args["args"][1] == "--test")
+    assert(result.args["--test"] == no)
+    assert(result.args["action"] == "test")
+
+    defs = new argparse.ArgumentDefs(program_name="bla")
+    defs.add_switch("--test")
+    defs.add_arg("action", optional=yes)
+    defs.add_catchall(
         "args", can_be_empty=no)
-    result = argparse.parse(arg_defs=defs, args=["--test", "test"])
+    result = argparse.parse(
+        arg_defs=defs, args=["--test", "test"], debug=yes
+    )
     assert(result.output == "")
     assert(result.args["args"].len == 1)
     assert(result.args["args"][1] == "test")
@@ -122,7 +140,9 @@ func test_argparse {
     defs.add_arg("action")
     defs.add_catchall(
         "args", can_be_empty=no)
-    result = argparse.parse(arg_defs=defs, args=["test", "--", "--help"])
+    result = argparse.parse(
+        arg_defs=defs, args=["test", "--", "--help"], debug=yes
+    )
     assert(result.output == "")
     assert("args" in result.args)
     assert("action" in result.args)
@@ -135,7 +155,9 @@ func test_argparse {
     defs.add_arg("action", optional=yes)
     defs.add_catchall(
         "args", can_be_empty=no)
-    result = argparse.parse(arg_defs=defs, args=["test", "--help", "--"])
+    result = argparse.parse(
+        arg_defs=defs, args=["test", "--help", "--"], debug=yes
+    )
     assert(result.output == "")
     assert("args" in result.args)
     assert("action" in result.args)
@@ -148,7 +170,9 @@ func test_argparse {
     defs.add_arg("action")
     defs.add_catchall(
         "args", can_be_empty=no)
-    result = argparse.parse(arg_defs=defs, args=["--", "test", "--help"])
+    result = argparse.parse(
+        arg_defs=defs, args=["--", "test", "--help"], debug=yes
+    )
     assert(result.output == "")
     assert("args" in result.args)
     assert("action" in result.args)
