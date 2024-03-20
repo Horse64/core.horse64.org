@@ -1634,15 +1634,15 @@ func ArgNameExpr.as_code(indent=0) {
     return self.label
 }
 
-type CallOrDefArgsExpr base ast.TreeNode {
+type CallArgsExpr base ast.TreeNode {
 }
 
-func CallOrDefArgsExpr.init {
+func CallArgsExpr.init {
     base.init()
-    self.kind = ast.N_EXPR_CALLORDEFARGS
+    self.kind = ast.N_EXPR_CALLARGS
 }
 
-func CallOrDefArgsExpr.as_code(indent=0) {
+func CallArgsExpr.as_code(indent=0) {
     if self.damaged {
         return ""
     }
@@ -1840,7 +1840,7 @@ func parse_single_call_or_funcdef_arg(
 
 ## Parse a func call or func definition argument expression,
 ## which must start with a '(' opening bracket.
-## @returns CallOrDefArgsExpr
+## @returns CallArgsExpr
 func parse_call_or_funcdef_args(
         tokens, pos, msgs,
         is_call=no, project_file=none,
@@ -1881,7 +1881,7 @@ func _parse_call_or_funcdef_args_notlater(
     }
 
     # Preparations:
-    var node = new CallOrDefArgsExpr()
+    var node = new CallArgsExpr()
     node.line = token.get_line(tokens, pos)
     node.col = token.get_col(tokens, pos)
     var startpos = pos

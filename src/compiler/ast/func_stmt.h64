@@ -277,10 +277,10 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     }
 
     func get_func_arguments {
-        var args = new expr.CallOrDefArgsExpr()
-        args.token_len = 0
         if tokens[pos].kind != token.T_ENCLOSE or
                 tokens[pos].str != "(" {
+            var args = new expr.CallArgsExpr()
+            args.token_len = 0
             return args
         }
         var v = expr.parse_call_or_funcdef_args(
@@ -319,7 +319,9 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         }
         pos += args.token_len
     }
-    stmt.subexprs.add(args)
+    # We're not retaining the actual arg item,
+    # since this isn't a call.
+    args = none
 
     # Now parse the required code block opening with '{' here:
     var block_result = block.parse(
