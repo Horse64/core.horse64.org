@@ -379,8 +379,8 @@ func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes,
             return later no
         }
         if new_node != next.node {
-            assert(typename(parent_chain) != "bool")
-            var parent = if parent_chain != none
+            assert(typename(parent_chain) == "bool")
+            var parent = if parent_chain
                 (next.parent[next.parent.len]) else (next.parent)
             if has_attr(parent, "subexprs") {
                 var pos = 1
