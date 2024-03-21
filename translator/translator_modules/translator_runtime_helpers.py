@@ -3056,15 +3056,19 @@ def _alike_num(v):
         return False
     return digitseen
 
-def _container_copy_on_base(v, *args, **kwargs):
+def _container_copy_on_base(v, v_cls, *args, **kwargs):
     if type(v) in {dict, list, set,
             _TranslatedSet}:
         return _container_copy(v, *args, **kwargs)
     if hasattr(v, "_translator_renamed_copy"):
-        base_obj = super(type(v, v))
-        if hasattr(base_obj, "_translator_renamed_copy"):
-            return base_obj._translator_renamed_copy(
-                *args, **kwargs)
+        for base_cls in v_cls.__bases__:
+            if hasattr(base_cls, "_translator_renamed_copy"):
+                result = base_cls._translator_renamed_copy(
+                    v, *args, **kwargs
+                )
+                return result
+        import copy
+        return copy.copy(v)
     return _container_copy(v, *args, **kwargs)
 
 def _container_copy_no_custom(v):
@@ -3530,6 +3534,9 @@ def runmodinits():
     _modinitfuncs
     for modinitfunc in _modinitfuncs:
         modinitfunc()
+
+def _internals_get_addr(v):
+    return int(id(v))
 
 def _async_final_bail_handler(err, result, funcname="main"):
     global _async_final_bails_need_extra_bail_count

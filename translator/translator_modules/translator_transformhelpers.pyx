@@ -730,7 +730,8 @@ def transform_h64_misc_inline_to_python(s):
                 base_idx = prevnonblankidx(s,i, no=2)
                 bracket_idx = nextnonblankidx(s, i)
                 s = s[:base_idx] + ["_translator_runtime_helpers",
-                    ".", "_container_copy_on_base", "(", "self"] +\
+                    ".", "_container_copy_on_base", "(", "self",
+                    ",", "__h64_cls_ref__"] +\
                     s[bracket_idx + 1:]
                 i = bracket_idx + 4
                 continue
@@ -742,7 +743,8 @@ def transform_h64_misc_inline_to_python(s):
                 base_idx = prevnonblankidx(s,i, no=4)
                 bracket_idx = nextnonblankidx(s, i)
                 s = s[:base_idx] + ["_translator_runtime_helpers",
-                    ".", "_container_copy_on_base", "(", "self"] +\
+                    ".", "_container_copy_on_base", "(", "self",
+                    ",", "__h64_cls_ref__"] +\
                     s[bracket_idx + 1:]
                 i = base_idx + 4
                 continue

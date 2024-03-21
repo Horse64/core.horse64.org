@@ -182,6 +182,10 @@ remapped_uses = {
         "compiler.run_file":
             "_translator_runtime_helpers._compiler_run_file",
     },
+    "debugger@core.horse64.org": {
+        "debugger.get_addr":
+            "_translator_runtime_helpers._internals_get_addr",
+    },
     "io@core.horse64.org": {
         "io.working_dir":
             "_remapped_os.getcwd",
@@ -3468,6 +3472,8 @@ def translate_do_func(
                                     [funcname2]["arguments"]) + ":\n")
                             append_t += ("        extended = self." +
                                 prev_name + "\n")
+                            append_t += ("        __h64_cls_ref__ = " +
+                                gencode_nameprefix + regtype.name + "\n")
                             append_t += (
                                 regtype.funcs[funcname2]["code"] + "\n")
                             idx += 1
@@ -3479,6 +3485,8 @@ def translate_do_func(
                     append_t += ("    def " + def_name +
                         untokenize(regtype.funcs
                             [funcname]["arguments"]) + ":\n")
+                    append_t += ("        __h64_cls_ref__ = " +
+                        gencode_nameprefix + regtype.name + "\n")
                     append_t += (
                         regtype.funcs[funcname]["code"] + "\n")
                 if not maybe_extends_nonlocal:
