@@ -2953,6 +2953,8 @@ def run_translator_main():
         i += 1
     if target_file is None:
         raise RuntimeError("please provide target file argument")
+    target_file = os.path.abspath(target_file)
+    original_target_file = target_file
 
     # Locate code repository:
     repo_dir_override = None
@@ -3054,6 +3056,7 @@ def run_translator_main():
 
         # Now translate and run the actual program:
         translate_do_func(
+            original_h64_file_path=original_target_file,
             output_h64_file=output_h64_file,
             output_py_file=output_py_file,
             output_file_linenos=output_file_linenos,
@@ -3070,6 +3073,7 @@ def run_translator_main():
 
 
 def translate_do_func(
+        original_h64_file_path=None,
         output_h64_file=False,
         output_py_file=False,
         output_file_linenos=True,
@@ -3364,7 +3368,7 @@ def translate_do_func(
                     project_info.package_version != None else
                     "unknown") + ";" +
                 "_translated_program_main_script_file = " +
-                as_escaped_code_string(mainfilepath) + ";" +
+                as_escaped_code_string(original_h64_file_path) + ";" +
                 "import _translator_runtime_helpers;\n" +
                 "import _translator_runtime_helpers_templating;\n"
                 ) + translated_files[translated_file]["output"]
