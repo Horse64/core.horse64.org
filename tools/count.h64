@@ -1,0 +1,214 @@
+# Copyright (c) 2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+## @build_options --single-file
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import io from core.horse64.org
+import path from core.horse64.org
+import system from core.horse64.org
+import wildcard from core.horse64.org
+
+func _count_lines_single_file(file_path) {
+    var f = io.open(file_path, "r")
+    later:
+
+    await f
+    var contents = f.read()
+    later:
+
+    await contents
+    f.close()
+    if contents.ends("\n") {
+        contents = contents.sub(1, contents.len - 1)
+    }
+    return contents.splitlines().len
+}
+
+func count_files(dir_or_multiple, patterns=["*.h64"],
+        exclude_dir_names=["vendor"],
+        exclude_patterns=[]
+        ) {
+    if typename(dir_or_multiple) != "list" {
+        dir_or_multiple = [dir_or_multiple]
+    }
+    var result = 0
+    dir_or_multiple = dir_or_multiple.copy()
+    if dir_or_multiple.len == 0 {
+        return result
+    }
+    var inner_result = _count_files_single_dir(
+        dir_or_multiple.pop(), patterns=patterns,
+        exclude_dir_names=exclude_dir_names,
+        exclude_patterns=exclude_patterns
+    ) later:
+
+    await inner_result
+    result += inner_result
+    if dir_or_multiple.len == 0 {
+        return result
+    }
+    inner_result = _count_files_single_dir(
+        dir_or_multiple.pop(), patterns=patterns,
+        exclude_dir_names=exclude_dir_names,
+        exclude_patterns=exclude_patterns
+    ) later repeat
+}
+
+func _count_files_single_dir(
+        dir,
+        patterns=["*.h64"],
+        exclude_dir_names=["vendor", "horse_modules"],
+        exclude_patterns=[]
+        ) {
+    patterns = wildcard.transform_list_for_rel_paths(
+        patterns
+    )
+    exclude_patterns = wildcard.transform_list_for_rel_paths(
+        exclude_patterns
+    )
+    var total_lines = 0
+    var walker = io.tree_list_walker(
+        dir, relative=no, return_dirs=no,
+        exclude_dot_names=yes,
+        exclude_dir_names=exclude_dir_names
+    )
+    func count_all_entries(entries, patterns,
+            exclude_patterns) {
+        var entries_matched = []
+        for entry in entries {
+            var match = no
+            for pattern in patterns {
+                if wildcard.match(pattern, entry) {
+                    match = yes
+                }
+            }
+            for pattern in exclude_patterns {
+                if wildcard.match(pattern, entry) {
+                    match = no
+                }
+            }
+            if match {
+                entries_matched.append(entry)
+            }
+        }
+        entries = entries_matched
+        if entries.len == 0 {
+            return 0
+        }
+        var count = 0
+        var entry_count = _count_lines_single_file(
+            entries[1]
+        ) later:
+
+        await entry_count
+        entries = entries.sub(2)
+        count += entry_count
+        if entries.len == 0 {
+            return count
+        }
+        entry_count = _count_lines_single_file(
+            entries[1]
+        ) later repeat
+    }
+    var entries = walker.walk() later:
+
+    await entries
+    if entries == none {
+        return later total_lines
+    }
+    var inner_count = count_all_entries(
+        entries, patterns, exclude_patterns
+    ) later:
+
+    await inner_count
+    total_lines += inner_count
+
+    entries = walker.walk() later repeat
+}
+
+func main {
+    print("core.horse64.org code count")
+    print("---------------------------")
+    print("")
+    var our_dir = path.make_abs(
+        path.dirname(system.self_exec_path())
+    )
+    var stdlib_lines = count_files(
+        path.join(our_dir, "..",
+            "src"), patterns=["**.h64"],
+        exclude_patterns=["test_*.h64"]
+    ) later:
+
+    await stdlib_lines
+    print("Stdlib and compiler: " +
+        stdlib_lines.as_str() + " lines (*.h64)")
+
+    var translator_lines = count_files(
+        path.join(our_dir, "..",
+            "translator"), patterns=["**.py",
+            "**.pyx"],
+        exclude_patterns=["test_*.py"]
+    ) later:
+
+    await translator_lines
+    print("Bootstrap translator: " +
+        translator_lines.as_str() + " lines (*.py, *.pyx)")
+    var unit_test_lines = count_files(
+        [path.join(our_dir, "..", "src"),
+        path.join(our_dir, "..", "translator")],
+        patterns=["test_*.py", "test_*.h64"],
+        exclude_dir_names=["vendor", "tools",
+            "translator-h64-runtests"]
+    ) later:
+
+    await unit_test_lines
+    print("Unit tests: " +
+        unit_test_lines.as_str() + " lines (*.h64, *.py)")
+    var tools_lines = count_files(
+        path.join(our_dir, "..", "tools"),
+        patterns=["*.py", "*.h64"],
+        exclude_dir_names=["vendor",
+            "translator-h64-runtests"]
+    ) later:
+
+    await tools_lines
+    print("Tools and helper scripts: " +
+        tools_lines.as_str() + " (*.h64, *.py)")
+    var component_test_lines = count_files(
+        path.join(our_dir, "..", "tests"),
+        patterns=["*.h64"],
+        exclude_dir_names=["vendor", "horse_modules"]
+    ) later:
+
+    await component_test_lines
+    print("Component tests: " +
+        component_test_lines.as_str() + " lines (*.h64)")
+    print("Total code: " +
+        (translator_lines + stdlib_lines +
+        unit_test_lines + tools_lines +
+        component_test_lines).as_str() +
+        " lines (*.h64, *.py, *.pyx)")
+}
+
