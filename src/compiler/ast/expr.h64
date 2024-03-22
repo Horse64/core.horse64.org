@@ -1852,7 +1852,7 @@ func parse_call_or_funcdef_args(
         callordef_line=callordef_line, max_len=max_len,
         callordef_col=callordef_col, debug=debug
         )
-    # XXX: If we ever support inline code blocks, they will
+    # Note/XXX: If we ever support inline code blocks, they will
     # have to be handled here.
     return later result
 }

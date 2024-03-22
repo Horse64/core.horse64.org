@@ -161,12 +161,26 @@ func parse_ast_target_from_args(args, checked_ast=no,
         return tresult
     }
 
-    var success = tresult.project_file.project.check_all_storage(
-        tresult.msgs, debug=debug_storage,
-        debug_global_storage=debug_global_storage)
+    if build_options.print_stages {
+        print(build_options.build_program_name +
+            ": info: stage checked-ast: "
+            "Now computing and checking all storage... "
+            "[t=" + time.ticks().as_str() + "]")
+    }
+    var success = tresult.project_file.project.
+        compute_and_check_all_storage(
+            tresult.msgs, build_options=build_options,
+            debug=debug_storage,
+            debug_global_storage=debug_global_storage)
     later:
 
     await success
+    if build_options.print_stages {
+        print(build_options.build_program_name +
+            ": info: stage checked-ast: "
+            "Done computing storage for all files. "
+            "[t=" + time.ticks().as_str() + "]")
+    }
     assert(success == yes)
     return tresult
 }
@@ -593,10 +607,18 @@ func actionparser_compile(args) {
 
         # Continuing here, we want to transform the code.
 
+        if boptions.print_stages {
+            print(boptions.build_program_name +
+                ": info: stage transformed-code: "
+                "Now applying code transformations... "
+                "[t=" + time.ticks().as_str() + "]")
+        }
+
         # Apply code transformation:
         ast_transform.do_all_transformations(
             aresult.project_file.project,
-            aresult.msgs, optimize=yes) later:
+            aresult.msgs, build_options=boptions,
+            optimize=yes) later:
 
         # If we had an error at this stage then we need to abort:
         var had_error = no
@@ -628,6 +650,12 @@ func actionparser_compile(args) {
                 result.args["--stage"] == "transformed-ast") and
                 (boptions.output_file != none or
                  boptions.output_dir != none) {
+            if boptions.print_stages {
+                print(boptions.build_program_name +
+                    ": info: stage transformed-code: "
+                    "Preparing to output result... "
+                    "[t=" + time.ticks().as_str() + "]")
+            }
             func output_code {
                 if boptions.output_file != none {
                     assert(boptions.output_dir == none)

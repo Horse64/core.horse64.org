@@ -95,7 +95,7 @@ func try_eval_ast_node_maybe_sideeffects(node,
                 node.subexprs[1].optoken.str == "." and
                 node.subexprs[1].subexprs[2].kind == ast.N_EXPR_IDREF and
                 node.subexprs[1].subexprs[2].label == "as_str" and
-                node.subexprs[2].kind == ast.N_EXPR_CALLORDEFARGS and
+                node.subexprs[2].kind == ast.N_EXPR_CALLARGS and
                 node.subexprs[2].subexprs.len == 0 {
             var v = try_eval_ast_node_maybe_sideeffects(node,
                 eval_by_storage_ref_callback=eval_by_storage_ref_callback)
@@ -279,7 +279,7 @@ func try_eval_ast_node_value(node, eval_by_storage_ref_callback=none) {
                 node.subexprs[1].optoken.str == "." and
                 node.subexprs[1].subexprs[2].kind == ast.N_EXPR_IDREF and
                 node.subexprs[1].subexprs[2].label == "as_str" and
-                node.subexprs[2].kind == ast.N_EXPR_CALLORDEFARGS and
+                node.subexprs[2].kind == ast.N_EXPR_CALLARGS and
                 node.subexprs[2].subexprs.len == 0 {
             var v = try_eval_ast_node_value(node.subexprs[1].subexprs[1],
                 eval_by_storage_ref_callback=eval_by_storage_ref_callback)

@@ -51,9 +51,12 @@ type FuncScope {
     var last_inner_storage_id = 0
     var last_inner_ccapture_id = 0
     var is_type_attr = no
+    var is_type_extend_attr = no
     var is_later_func = no
     var storage_id = 0
     var owning_type_storage_id
+    var owning_type_scope
+    var extends_storage_id = 0
     var inner_scope
     var parent
 }
@@ -63,19 +66,22 @@ extend type func_stmt.FuncStmt {
 }
 
 type TypeScope {
+    var label
+    var display_name = none
+    var base_display_name = none
+
     const is_enum = no
     var damaged = no
-    var storage_id = none
+    var is_error = no
 
-    var node_map = {->}
+    var func_attr_name_to_arg_labels = {->}
+    var func_attr_name_to_kwarg_count = {->}
     var name_to_symbol_map = {->}
-    var base_key = none
-    var label
 
+    var storage_id = none
     var base_global_id = none
     var base_cext_id = none
     var _base_escope_key = none
-    var is_error = no
 
     var def_line, def_col, def_file
 }
@@ -85,7 +91,6 @@ type EnumScope {
     var damaged = no
     var storage_id = none
 
-    var node_map = {->}
     var first_entry_pos
     var label_names = []
     var label_nums = []

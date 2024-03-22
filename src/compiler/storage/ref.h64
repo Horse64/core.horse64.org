@@ -33,6 +33,7 @@ enum StorageKind {
     ST_CEXT,
     ST_SELF,
     ST_BASE,
+    ST_EXTENDED,
 }
 
 type StorageRef {

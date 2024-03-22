@@ -661,7 +661,15 @@ func Project.do_for_all_files(callback) {
         var next_file = file_queue.pop()
         var resume_process = callback(next_file) later:
 
-        await resume_process
+        do {
+            await resume_process
+        } rescue any as e {
+            print("horsec: error: Unexpected unrecoverable "
+                "internal error in do_for_all_files(), processing "
+                "file " + next_file.source_uri.as_str() + " -> " +
+                e.as_str())
+            throw e
+        }
         if not resume_process {
             finished_with_no_abort = no
             return later no

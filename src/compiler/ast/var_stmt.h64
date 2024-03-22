@@ -56,9 +56,11 @@ func VarStmt.init {
 
 func VarStmt.copy {
     var self_copy = base.copy()
+    self_copy.var_labels = []
     for label in self.var_labels {
         self_copy.var_labels.add(label)
     }
+    self_copy.var_has_protect = []
     for has_protect in self.var_has_protect {
         self_copy.var_has_protect.add(has_protect)
     }

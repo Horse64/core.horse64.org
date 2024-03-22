@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import random from core.horse64.org
+import time from core.horse64.org
 
 import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
@@ -510,7 +511,14 @@ func do_simply_on_all_exprs(stmt, callback) {
     }
 }
 
-func do_all_transformations(project, msgs, optimize=yes) {
+func do_all_transformations(project, msgs, build_options=none,
+        optimize=yes) {
+    if build_options != none and build_options.print_stages {
+        print(build_options.build_program_name +
+            ": info: stage transformed-code: "
+            "Entering initial checks and analysis... "
+            "[t=" + time.ticks().as_str() + "]")
+    }
     var success = ast_analyze.do_advanced_check_and_analysis(
         project, msgs) later:
 
@@ -518,10 +526,24 @@ func do_all_transformations(project, msgs, optimize=yes) {
     if not success {
         return later none
     }
-    success = later_transform.first_pass_later_transform(project, msgs)
+    if build_options != none and build_options.print_stages {
+        print(build_options.build_program_name +
+            ": info: stage transformed-code: "
+            "Entering later transform... "
+            "[t=" + time.ticks().as_str() + "]")
+    }
+    success = later_transform.first_pass_later_transform(
+        project, msgs, build_options=build_options
+    )
     later:
 
     await success
+    if build_options != none and build_options.print_stages {
+        print(build_options.build_program_name +
+            ": info: stage transformed-code: "
+            "All analysis and transformations done."
+            "[t=" + time.ticks().as_str() + "]")
+    }
     return later success
 }
 

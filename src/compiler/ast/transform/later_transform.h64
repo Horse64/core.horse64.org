@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import random from core.horse64.org
+import time from core.horse64.org
 
 import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
@@ -72,7 +73,9 @@ func st_scope.LocalScope.get_later_exit_info {
     return none
 }
 
-func first_pass_later_transform(project, msgs) {
+func first_pass_later_transform(
+        project, msgs, build_options=none
+        ) {
     func make_later_return_cb_call(exit_info, return_expr,
             inner_scope, line, col, as_error=no,
             transformed_nodes_set=none) {
@@ -111,7 +114,7 @@ func first_pass_later_transform(project, msgs) {
         idexpr2.line = line
         idexpr2.col = col
         idexpr2.ref = exit_info.exit_cb_storage_ref
-        var callargs = new ast_expr.CallOrDefArgsExpr()
+        var callargs = new ast_expr.CallArgsExpr()
         callargs.scope = inner_scope
         callargs.line = line
         callargs.col = col
@@ -185,6 +188,20 @@ func first_pass_later_transform(project, msgs) {
         return node
     }
     func transform_file(pfile) {
+        if build_options != none and build_options.print_stages {
+            var print_name = "<unknown>"
+            if pfile.source_uri != none {
+                print_name = pfile.source_uri
+            }
+            if print_name.len > 30 {
+                print_name = "..." +
+                    print_name.sub(print_name.len - 30)
+            }
+            print(build_options.build_program_name +
+                ": info: stage transformed-code: "
+                "Later transforming file " + print_name + "... "
+                "[t=" + time.ticks().as_str() + "]")
+        }
         var transformed_nodes = {}
         func transform_node(node, parents) {
             if node.kind != ast.N_STMT_FUNC and (
@@ -256,7 +273,7 @@ func first_pass_later_transform(project, msgs) {
                 assert(call_exprs[1].kind == ast.N_EXPR_BINOP and
                         call_exprs[1].subexprs.len == 2 and
                         call_exprs[1].subexprs[2].kind ==
-                            ast.N_EXPR_CALLORDEFARGS)
+                            ast.N_EXPR_CALLARGS)
                 if node.kind == ast.N_STMT_VAR {
                     for expr in node.subexprs.sub(2) {
                         assert(expr.kind == ast.N_EXPR_BINOP)

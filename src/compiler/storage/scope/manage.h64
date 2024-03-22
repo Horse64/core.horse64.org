@@ -90,6 +90,8 @@ func project.ProjectFile.try_lookup_symbol_path(
     if check_path.len == 0 {
         return none
     }
+
+    # First, try local scopes:
     if local_scope != none {
         var lookup_pair =
             local_scope.lookup(check_path[1],
@@ -102,6 +104,40 @@ func project.ProjectFile.try_lookup_symbol_path(
             return symbol_ref
         }
     }
+
+    # Then, try 'self' and 'extended' built in names:
+    if check_path[1] == "extended" and
+            local_scope != none and local_scope.func_scope != none {
+        var nested_in_type_extend_attr = no
+        var check_func_scope = local_scope.func_scope
+        while check_func_scope != none {
+            if check_func_scope.is_type_extend_attr {
+                nested_in_type_extend_attr = yes
+            }
+            check_func_scope = check_func_scope.parent
+        }
+        if nested_in_type_extend_attr {
+            return new storage_ref.StorageRef(
+                storage_ref.ST_EXTENDED, 0)
+        }
+    }
+    if check_path[1] == "self" and
+            local_scope != none and local_scope.func_scope != none {
+        var nested_in_type_attr = no
+        var check_func_scope = local_scope.func_scope
+        while check_func_scope != none {
+            if check_func_scope.is_type_attr {
+                nested_in_type_attr = yes
+            }
+            check_func_scope = check_func_scope.parent
+        }
+        if nested_in_type_attr {
+            return new storage_ref.StorageRef(
+                storage_ref.ST_SELF, 0)
+        }
+    }
+
+    # Then, try global scopes:
     var entry = self.global_scope.type_path_to_entry(
         check_path)
     if entry != none and has_attr(entry, "kind") and
@@ -236,21 +272,6 @@ func project.ProjectFile.try_lookup_symbol_path(
         return new storage_ref.StorageRef(
             storage_ref.ST_CEXT, st_id)
     }
-    if check_path[1] == "self" and
-            local_scope != none and local_scope.func_scope != none {
-        var nested_in_type_attr = no
-        var check_func_scope = local_scope.func_scope
-        while check_func_scope != none {
-            if check_func_scope.is_type_attr {
-                nested_in_type_attr = yes
-            }
-            check_func_scope = check_func_scope.parent
-        }
-        if nested_in_type_attr {
-            return new storage_ref.StorageRef(
-                storage_ref.ST_SELF, 0)
-        }
-    }
     return none
 }
 
@@ -338,15 +359,185 @@ func project.ProjectFile.make_new_made_up_func_node(
     return func_node
 }
 
+## Like @{compiler.project.ProjectFile.make_type_or_enum_scope_from_node},
+## but instead of taking the N_STMT_TYPE or N_STMT_TYPEEXTEND node,
+## this works from any N_STMT_FUNC or N_STMT_FUNCEXTEND node of
+## the given type.
+func project.ProjectFile.make_type_or_enum_scope_from_funcattr(
+        node, msgs=none, def_project_file=none
+        ) {
+    assert(node.kind == ast.N_STMT_FUNC or
+        node.kind == ast.N_STMT_FUNCEXTEND)
+    assert(node.type_path != none)
+    var info = self.get_gscope_type_node_info_from_funcattr(
+        node, msgs=msgs, def_project_file=def_project_file
+    )
+    var type_node = info[1]
+    var type_file = info[2]
+    if type_node == none {
+        return none
+    }
+    return self.make_type_or_enum_scope_from_node(
+        type_node, msgs=msgs, def_project_file=type_file
+    )
+}
+
+## Find the type underlying the given func attribute AST node,
+## and get its stand-in global scope AST node from whatever
+## project file it actually is defined in.
+func project.ProjectFile.get_gscope_type_node_info_from_funcattr(
+        func_attr_node, msgs=none, def_project_file=none
+        ) {
+    var node = func_attr_node
+    assert(node.kind == ast.N_STMT_FUNC or
+        node.kind == ast.N_STMT_FUNCEXTEND)
+    var action = "declared"
+    if node.kind == ast.N_STMT_FUNCEXTEND {
+        action = "extended"
+    }
+    assert(node.type_path != none)
+    if node.func_scope != none and
+            node.func_scope.owning_type_storage_id != none and
+            def_project_file != none and
+            def_project_file.project != none {
+        # We can obvious this obvious and lazy path since it's set.
+        var pr = def_project_file.project
+        assert(pr.storage_id_to_entry.has(
+            node.func_scope.owning_type_storage_id))
+        var type_node = pr.storage_id_to_entry[
+            node.func_scope.owning_type_storage_id
+        ]
+        var type_file = pr.storage_id_to_project_file[
+            node.func_scope.owning_type_storage_id
+        ]
+        assert(node.kind == ast.N_STMT_TYPE)
+        return [type_node, type_file]
+    }
+    if def_project_file == none or node.type_path.len <= 0 {
+        return [none, none]
+    }
+    var global_entry_file = def_project_file
+    var global_entry = none
+    if node.type_path.len > 1 {
+        var type_path_without_type_name =
+            node.type_path.sub(1, node.type_path.len - 1)
+        global_entry = def_project_file.global_scope.
+            type_path_to_entry(type_path_without_type_name)
+    } else {
+        global_entry = def_project_file.global_scope.
+            type_path_to_entry(node.type_path.sub(1, 1))
+    }
+
+    if global_entry == none {
+        if msgs != none {
+            var tpath = node.type_path + [node.label]
+            assert(typename(tpath) == "list")
+            var emsg =
+                "Unexpected func "
+                "attribute '" + node.label +
+                "' " + action +
+                " while referencing invalid "
+                "type, "
+            if node.type_path.len > 1 {
+                emsg += "type '" + node.type_path.join(".") +
+                    "' wasn't imported or found anywhere."
+            } else {
+                emsg += "base type '" + node.type_path[1] +
+                    "' not found anywhere."
+            }
+            if not func_attr_node.damaged {
+                msgs.add(new msg.FileMsg(
+                    emsg,
+                    source_file=def_project_file,
+                    line=node.line, col=node.col,
+                ))
+            }
+        } else {
+            throw new ValueError("Couldn't resolve func "
+                "attribute's type path.")
+        }
+        return [none, none]
+    }
+    if global_entry.kind == ast.N_STMT_IMPORT {
+        # We have to access the target file this is in,
+        # since it's not ours, to find out what this is.
+        var pfile = global_entry.project_file
+        var type_name = node.type_path[node.type_path.len]
+        var type_module = node.type_path.sub(
+            1, node.type_path.len - 1
+        )
+        if not pfile.global_scope.name_to_stmt_map.
+                    has(type_name) or
+                pfile.global_scope.
+                    name_to_stmt_map[type_name].kind !=
+                    ast.N_STMT_TYPE {
+            if msgs != none {
+                assert(typename(node.type_path) == "list")
+                var emsg =
+                    "Unexpected func "
+                    "attribute '" + node.label +
+                    "' " + action +
+                    " while referencing invalid "
+                    "type, "
+                    "module '" + type_module.join(".") +
+                    "' doesn't contain a type named '" +
+                    type_name + "'."
+                if not func_attr_node.damaged {
+                    msgs.add(new msg.FileMsg(
+                        emsg,
+                        source_file=def_project_file,
+                        line=node.line, col=node.col,
+                    ))
+                }
+            } else {
+                throw new ValueError("Couldn't resolve func "
+                    "attribute's type path.")
+            }
+            return [none, none]
+        }
+        global_entry =
+            pfile.global_scope.name_to_stmt_map[type_name]
+        global_entry_file = pfile
+    } elseif global_entry.kind != ast.N_STMT_TYPE {
+        if msgs != none {
+            assert(typename(node.type_path) == "list")
+            var emsg =
+                "Unexpected func "
+                "attribute '" + node.label +
+                "' " + action +
+                " while referencing invalid "
+                "type, "
+                "since '" + node.label + "' was found but "
+                "isn't a type."
+            if not func_attr_node.damaged {
+                msgs.add(new msg.FileMsg(
+                    emsg,
+                    source_file=def_project_file,
+                    line=node.line, col=node.col,
+                ))
+            }
+        } else {
+            throw new ValueError("Couldn't resolve func "
+                "attribute's type path.")
+        }
+    }
+    assert(global_entry != none and
+        global_entry.kind == ast.N_STMT_TYPE)
+    return [global_entry, global_entry_file]
+}
+
 ## This function will obtain a project-wide, unique shared
 ## instance of a compiler.scope.EnumScope or compiler.scope.TypeScope
 ## type to store everything about a type or enum.
 ## It can do this from both extends and enum or type definitions all
 ## over a project, and it will return the same scope if they refer
 ## to the same type.
+## These project-wide scopes are stored in the map stored in
+## @{compiler.project.Project.type_or_enum_scope_map} associated
+## with a respective project.
 func project.ProjectFile.make_type_or_enum_scope_from_node(
-        node, msgs=none, def_project_file=none,
-        is_standin_node=no) {
+        node, msgs=none, def_project_file=none
+        ) {
     assert(node.kind == ast.N_STMT_TYPE or
         node.kind == ast.N_STMT_TYPEEXTEND or
         node.kind == ast.N_STMT_ENUM or
@@ -369,11 +560,17 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
         is_enum = if node.kind == ast.N_STMT_TYPE (no)
                   else (yes)
         stmt_full_type_path = "<inline>@<unknown>"
-        if self.modinfo != none {
-            stmt_full_type_path = self.modinfo.module_name
+        var mod_info = none
+        if def_project_file != none and def_project_file.modinfo != none {
+            mod_info = def_project_file.modinfo
+        } elseif self.modinfo != none {
+            mod_info = self.modinfo
+        }
+        if mod_info != none {
+            stmt_full_type_path = mod_info.module_name
             assert(stmt_full_type_path != none)
-            if self.modinfo.package_name != none {
-                stmt_full_type_path += "@" + self.modinfo.package_name
+            if mod_info.package_name != none {
+                stmt_full_type_path += "@" + mod_info.package_name
             } else {
                 stmt_full_type_path += "@<unknown>"
             }
@@ -443,6 +640,7 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
                     throw new ValueError("Couldn't resolve type's "
                         "base type path.")
                 }
+                return none
             } elseif not item_exists {
                 if msgs != none {
                     msgs.add(new msg.FileMsg(
@@ -457,14 +655,15 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
                     throw new ValueError("Base type module "
                         "doesn't contain given type.")
                 }
+                return none
             } else {
                 base_escope_key = stmt_base_full_type_path +
-                    "." + stmt_base_label
+                    "@" + stmt_base_label
             }
         }
 
         # Project-wide unique key to look up this definition's scope:
-        key = stmt_full_type_path + "." + stmt_label
+        key = stmt_full_type_path + "@" + stmt_label
     } else {
         assert(node.kind == ast.N_STMT_TYPEEXTEND or
             node.kind == ast.N_STMT_ENUMEXTEND)
@@ -478,7 +677,7 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
                 node.subexprs[1].kind != ast.N_EXPR_IDREF {
             if msgs != none {
                 msgs.add(new msg.FileMsg(
-                    "Invalid extend statement with "
+                    "Unexpected extend statement with "
                     "no specified base.",
                     source_file=def_project_file,
                     line=node.line, col=node.col,
@@ -498,10 +697,16 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
                 stmt_project_file = result[2]
             }
         } else {
-            if self.modinfo != none {
-                stmt_full_type_path = self.modinfo.module_name
-                if self.modinfo.package_name != none {
-                    stmt_full_type_path += "@" + self.modinfo.package_name
+            var mod_info = none
+            if def_project_file != none and def_project_file.modinfo != none {
+                mod_info = def_project_file.modinfo
+            } elseif self.modinfo != none {
+                mod_info = self.modinfo
+            }
+            if mod_info != none {
+                stmt_full_type_path = mod_info.module_name
+                if mod_info.package_name != none {
+                    stmt_full_type_path += "@" + mod_info.package_name
                 } else {
                     stmt_full_type_path += "@<unknown>"
                 }
@@ -567,12 +772,15 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
         }
 
         # Project-wide unique key of the type or enum we're extending:
-        key = stmt_full_type_path + "." + stmt_label
+        key = stmt_full_type_path + "@" + stmt_label
     }
     if not self.project.type_or_enum_scope_map.has(key) {
         # Not seen before, therefore add a new definition:
         result_scope = if not is_enum (new scope.TypeScope())
                 else (new scope.EnumScope())
+        result_scope.display_name =
+            "'" + stmt_label + "' from " +
+            key.sub(1, key.rfind("@") - 1)
         result_scope.label = stmt_label
         assert(result_scope.is_enum == is_enum)
         result_scope.def_line = node.line
@@ -580,12 +788,8 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
         if def_project_file != none {
             result_scope.def_file = def_project_file
         }
-        if stmt_base_full_type_path != none {
-            var base_key = stmt_base_full_type_path + "." +
-                stmt_base_label
-            result_scope.base_key = base_key
-        }
         self.project.type_or_enum_scope_map[key] = result_scope
+        assert(self.project.type_or_enum_scope_map.has(key))
     } else {
         result_scope = self.project.type_or_enum_scope_map[key]
     }
@@ -595,7 +799,13 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
         if based_on_cext_id != none {
             result_scope.base_cext_id = based_on_cext_id
         }
+        if stmt_base_full_type_path != none {
+            var base_display_name = "'" + stmt_base_label + "' " +
+                "from " + stmt_base_full_type_path
+            result_scope.base_display_name = base_display_name
+        }
         if base_escope_key != none {
+            assert(result_scope.base_display_name != none)
             result_scope._base_escope_key = base_escope_key
         }
     }

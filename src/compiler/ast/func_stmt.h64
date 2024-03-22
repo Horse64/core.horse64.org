@@ -50,9 +50,11 @@ func FuncStmt.init {
 func FuncStmt.copy {
     var self_copy = base.copy()
     self_copy.type_path = self.type_path.copy()
+    self_copy.arg_labels = []
     for label in self.arg_labels {
         self_copy.arg_labels.add(label)
     }
+    self_copy.arg_defaults = []
     for default_value in self.arg_defaults {
         if default_value == none {
             self_copy.arg_defaults.add(none)
@@ -131,7 +133,7 @@ func _func_stmt_to_code(stmt, is_extend=no, indent=0) {
 }
 
 type FuncExtendStmt base ast.StmtNode {
-    var type_path = []
+    var type_path = none
     var arg_labels = []
     var arg_defaults = []
     var kw_arg_count = 0

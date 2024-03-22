@@ -25,6 +25,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import debugger from core.horse64.org
 import json from core.horse64.org
 import time from core.horse64.org
 import uri from core.horse64.org
@@ -57,7 +58,7 @@ type TreeNode {
     var sibling_pos = 1
 
     ## @types (TreeNode, none)
-    var parent = none
+    #var parent = none
 
     ## @type [TreeNode]
     var subexprs = []
@@ -83,10 +84,12 @@ func TreeNode.as_str {
 
 func TreeNode.copy {
     var self_copy = base.copy()
+    assert(debugger.get_addr(self_copy) != debugger.get_addr(self))
     self_copy.subexprs = []
     for expr in self.subexprs {
         self_copy.subexprs.add(expr.copy())
     }
+    self_copy.subblocks = []
     for stmt in self.subblocks {
         self_copy.subblocks.add(stmt.copy())
     }
@@ -550,7 +553,7 @@ func _parse_tokens_file_to_ast_ex(
 
     await aresult
     if build_options.print_stages {
-        print(build_options.program_name +
+        print(build_options.build_program_name +
             ": info: stage ast: "
             "Parsed " + print_stages_file_caption +
             " fully now. "

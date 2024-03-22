@@ -48,9 +48,11 @@ func EnumStmt.init {
 
 func EnumStmt.copy {
     var self_copy = base.copy()
+    self_copy.enum_entry_names = []
     for label in self.enum_entry_names {
         self_copy.enum_entry_names.add(label)
     }
+    self.enum_entry_nums = []
     for num in self.enum_entry_nums {
         self_copy.enum_entry_nums.add(num)
     }

@@ -55,6 +55,12 @@ func CodeBlockResult.has_damage {
     return no
 }
 
+func CodeBlockResult.copy {
+    var self_copy = base.copy()
+    self_copy.stmts = self.stmts.copy()
+    return self_copy
+}
+
 func parse(tokens, pos, msgs, project_file=none, debug=no,
         had_damage=no, block_purpose_name="") {
     var startpos = pos

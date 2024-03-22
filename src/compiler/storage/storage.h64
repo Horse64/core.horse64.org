@@ -41,6 +41,8 @@ extend type project.Project {
     var did_compute_scopes = no
 
     var last_global_storage_id = 0
+    var storage_id_to_entry = {->}
+    var storage_id_to_project_file = {->}
 }
 
 extend type ast_expr.IdRefExpr {
@@ -59,7 +61,8 @@ func project.Project.is_ref_a_type(ref, node=none) {
     } elseif {storage_ref.ST_LOCAL, storage_ref.ST_CCAPTURE,
             storage_ref.ST_NUMLITERAL}.has(ref.kind) {
         return no
-    } elseif {storage_ref.ST_SELF, storage_ref.ST_BASE}.has(ref.kind) {
+    } elseif {storage_ref.ST_SELF, storage_ref.ST_BASE,
+            storage_ref.ST_EXTENDED}.has(ref.kind) {
         # Since this refers to an actual object instance,
         # the correct answer here is it's not a type.
         return no
@@ -95,7 +98,7 @@ func project.Project.is_ref_an_enum(ref, node=none) {
         var escope = self.storage_id_to_escope_map[ref.id]
         return escope.is_enum
     } elseif {storage_ref.ST_LOCAL, storage_ref.ST_BASE,
-            storage_ref.ST_SELF,
+            storage_ref.ST_SELF, storage_ref.ST_EXTENDED,
             storage_ref.ST_NUMLITERAL}.has(ref.kind) {
         return no
     } else {
@@ -236,30 +239,41 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                 }
                 var entry = pfile.global_scope.name_to_stmt_map[
                     escope.label]
-                if entry.type_or_enum_scope == escope {
-                    if entry.symbol_info == none {
-                        break
+                if entry.type_or_enum_scope != escope or
+                        entry.symbol_info == none {
+                    if search_set.len == 1 {
+                        print("horsec: error: Fatal internal "
+                            "inconsistency, it looks like this "
+                            "type had the TypeScope() instantiated "
+                            "twice: entry=" + entry.as_str() + " "
+                            "entry.type_or_enum_scope=" +
+                            entry.type_or_enum_scope.as_str() +
+                            " vs expected escope=" + escope.as_str())
+                        throw new RuntimeError("Internal error occured, "
+                            "internal type registry is corrupted. "
+                            "Please report this bug to the compiler team.")
                     }
-                    gscope_entry_sinfo_found = yes
-                    if escope.storage_id != none {
-                        if escope.storage_id !=
-                                entry.symbol_info.storage_id {
-                            throw new RuntimeError(
-                                "Internal error.")
-                        }
-                    } else {
-                        escope.storage_id =
-                            entry.symbol_info.storage_id
-                    }
-                    assert(not project.
-                        storage_id_to_escope_map.has(
-                            escope.storage_id) or
-                        project.storage_id_to_escope_map[
-                            escope.storage_id] == escope)
-                    project.storage_id_to_escope_map[
-                        escope.storage_id] = escope
-                    break
+                    continue
                 }
+                gscope_entry_sinfo_found = yes
+                if escope.storage_id != none {
+                    if escope.storage_id !=
+                            entry.symbol_info.storage_id {
+                        throw new RuntimeError(
+                            "Internal error.")
+                    }
+                } else {
+                    escope.storage_id =
+                        entry.symbol_info.storage_id
+                }
+                assert(not project.
+                    storage_id_to_escope_map.has(
+                        escope.storage_id) or
+                    project.storage_id_to_escope_map[
+                        escope.storage_id] == escope)
+                project.storage_id_to_escope_map[
+                    escope.storage_id] = escope
+                break
             }
             if not gscope_entry_sinfo_found {
                 var had_error = no
@@ -268,15 +282,27 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                         had_error = yes
                     }
                 }
-                if not had_error and debug_global_storage {
-                    print("compiler.storage: "
+                if not had_error {
+                    print("horsec: error: Fatal error in "
                         "project.Project.compute_all_scopes(): " +
                         "Internal error occured, can't trace type '" +
                         escope.label + "' to storage id, it " +
-                        "has def_file " + escope.def_file.as_str() +
-                        " and we checked " + search_set.len.as_str() +
-                        " files without success. "
+                        "has def_file=" +
+                        escope.def_file.as_str() + " "
+                        "and we checked " +
+                        search_set.len.as_str() + " "
+                        "file(s) without success. "
+                        "Full set of files: " +
+                        search_set.as_str() + " "
                         "Please report this bug to the compiler team.")
+                    for pfile in search_set {
+                        print("horsec: debug: Will now dump " +
+                            "symbols in global scope of file " +
+                            pfile.as_str() + ": file.global_scope."
+                            "name_to_stmt_map.keys()=" +
+                            pfile.global_scope.
+                            name_to_stmt_map.keys().as_str())
+                    }
                 }
                 if not had_error {
                     throw new RuntimeError("Internal error occured, "
@@ -322,9 +348,11 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                 if msgs != none {
                     if not escope.damaged {
                         msgs.add(new msg.FileMsg(
-                            "Base type for type "
-                            "'" + escope_key + "' "
-                            "not found.",
+                            "Unexpected type " +
+                            escope.display_name + " "
+                            "deriving from a base type " +
+                            escope.base_display_name + " "
+                            "that can't be found.",
                             source_file=project.
                                 get_project_file_for_escope(
                                     escope),
@@ -670,8 +698,8 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                 node.scope = parent.scope
             }
             if node.subblocks.len > 0 and
-                    # (Note: The following is to skip "clause" nodes,
-                    # since these are handled later)
+                    # (Note: The following is to skip "clause"
+                    # nodes since these are handled later)
                     (not has_attr(parent, "kind") or
                      (parent.kind != ast.N_STMT_IF and
                       parent.kind != ast.N_STMT_DO)) {
@@ -691,25 +719,246 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                         stmt.scope = inner_scope
                     }
                 }
-                if node.kind == ast.N_STMT_FUNC {
+                if node.kind == ast.N_STMT_FUNC or
+                        node.kind == ast.N_STMT_FUNCEXTEND {
+                    var is_extend =
+                        (node.kind == ast.N_STMT_FUNCEXTEND)
                     inner_scope.func_scope = new scope.FuncScope()
                     node.func_scope = inner_scope.func_scope
                     node.func_scope.inner_scope = inner_scope
+                    var is_toplevel = yes
                     if inner_scope.parent != none {
                         inner_scope.func_scope.parent =
                             inner_scope.parent.func_scope
+                        assert(node.type_path == none)
+                        is_toplevel = no
                     }
                     if node.type_path == none {
+                        assert(node.kind == ast.N_STMT_FUNC)
                         try_register_symbol(inner_scope,
                             node.label, msgs,
                             pfile, node.line, node.col)
                     } else {
                         inner_scope.func_scope.is_type_attr = yes
+                        inner_scope.func_scope.
+                            is_type_extend_attr = is_extend
                     }
-                    for label in node.arg_labels {
+                    # Make sure our own FuncScope() is found via
+                    # the global scope, which has a copy of the node:
+                    var base_arg_labels = []
+                    var base_kw_arg_count = 0
+                    var gscope = pfile.global_scope
+                    if is_toplevel and node.type_path == none {
+                        assert(gscope.name_to_stmt_map.has(
+                            node.label))
+                        var gnode = gscope.name_to_stmt_map[node.label]
+                        assert(gnode.kind == ast.N_STMT_FUNC)
+                        assert(gnode.func_scope == none)
+                        gnode.func_scope = node.func_scope
+                        if is_extend {
+                            base_arg_labels = gnode.arg_labels.copy()
+                            base_kw_arg_count = gnode.kw_arg_count
+                        }
+                    } elseif is_toplevel and node.type_path != none {
+                        var tpath = node.type_path.copy()
+                        tpath += [node.label]
+                        var action = if is_extend ("extended")
+                            else ("declared")
+                        var type_gnode = none
+                        if node.type_path.len == 1 and
+                                gscope.name_to_stmt_map.has(
+                                    node.type_path[1]
+                                ) {
+                            type_gnode =
+                                gscope.name_to_stmt_map[
+                                    node.type_path[1]
+                                ]
+                        } else {
+                            var type_path_without_type =
+                                node.type_path.sub(
+                                    1, node.type_path.len - 1
+                                )
+                            var type_name =
+                                node.type_path[node.type_path.len]
+                            var target_pfile = pfile.global_scope.
+                                type_path_to_project_file(
+                                    type_path_without_type
+                                )
+                            if target_pfile != none and
+                                    target_pfile.global_scope.
+                                    name_to_stmt_map.has(type_name) {
+                                type_gnode =
+                                    target_pfile.global_scope.
+                                    name_to_stmt_map[type_name]
+                            }
+                        }
+                        if type_gnode == none {
+                            if msgs != none {
+                                if not node.damaged {
+                                    msgs.add(new msg.FileMsg(
+                                        "Unexpected " + action +
+                                        " func attribute '" +
+                                        node.label +
+                                        "' where underlying type '" +
+                                        node.type_path.join(".") +
+                                        "' wasn't found.",
+                                        source_file=pfile,
+                                        line=node.line, col=node.col,
+                                    ))
+                                }
+                                node.damaged = yes
+                            } else {
+                                throw new ValueError(
+                                    "Trying to add func attr to item "
+                                    "that isn't a type."
+                                )
+                            }
+                        } elseif type_gnode.kind !=
+                                ast.N_STMT_TYPE {
+                            if msgs != none {
+                                if not node.damaged {
+                                    msgs.add(new msg.FileMsg(
+                                        "Unexpected " + action + " "
+                                        "func attribute '" +
+                                        node.label + "', '" +
+                                        node.type_path.join(".").as_str() +
+                                        "' exists but isn't a "
+                                        "type.",
+                                        source_file=pfile,
+                                        line=node.line, col=node.col,
+                                    ))
+                                }
+                                node.damaged = yes
+                            } else {
+                                throw new ValueError(
+                                    "Trying to add func attr to item "
+                                    "that isn't a type."
+                                )
+                            }
+                        }
+                    }
+                    # If this is a func attribute, set association
+                    # with the owning type:
+                    var in_escope = none
+                    if is_toplevel and node.type_path != none {
+                        var gnode_info =
+                            pfile.get_gscope_type_node_info_from_funcattr(
+                                node, def_project_file=pfile,
+                                msgs=msgs
+                            )
+                        var gnode = gnode_info[1]
+                        if gnode == none {
+                            node.damaged = yes
+                        }
+                        if gnode != none and
+                                gnode.symbol_info != none {
+                            # (In case of wrong code, this can be none.)
+                            assert(gnode.symbol_info.storage_id != none and
+                                gnode.symbol_info.storage_id > 0)
+                            node.func_scope.owning_type_storage_id =
+                                gnode.symbol_info.storage_id
+                        }
+                        var in_escope =
+                            pfile.make_type_or_enum_scope_from_funcattr(
+                                node, def_project_file=pfile,
+                                msgs=msgs
+                            )
+                        if in_escope == none {
+                            node.damaged = yes
+                        }
+                        node.func_scope.owning_type_scope = in_escope
+                        if in_escope != none and
+                                node.kind == ast.N_STMT_FUNCEXTEND and
+                                in_escope.
+                                func_attr_name_to_arg_labels.has(
+                                    node.label
+                                ) {
+                            base_arg_labels =
+                                in_escope.func_attr_name_to_arg_labels[
+                                    node.label
+                                ]
+                            base_kw_arg_count =
+                                in_escope.func_attr_name_to_kwarg_count[
+                                    node.label
+                                ]
+                        }
+                    }
+
+                    # Determine the final func arg list:
+                    var final_arg_labels = node.arg_labels
+                    var final_kw_arg_count = node.kw_arg_count
+                    var invalid = no
+                    if node.kind == ast.N_STMT_FUNCEXTEND and
+                            node.kw_arg_count < node.arg_labels.len {
+                        if msgs != none {
+                            if not node.damaged {
+                                msgs.add(new msg.FileMsg(
+                                    "Unexpectedly seeing new positional "
+                                    "arguments in extend func statement, "
+                                    "this is not allowed.",
+                                    source_file=pfile,
+                                    line=node.line, col=node.col,
+                                ))
+                            }
+                            node.damaged = yes
+                        } else {
+                            throw new ValueError(
+                                "Invalid extend func that adds "
+                                "pos args."
+                            )
+                        }
+                        invalid = yes
+                    }
+                    if node.kind == ast.N_STMT_FUNCEXTEND {
+                        var base_pos_args = []
+                        if base_kw_arg_count < base_pos_args.len {
+                            base_pos_args = base_arg_labels.sub(
+                                1, base_pos_args.len - base_kw_arg_count
+                            )
+                        }
+                        for new_arg_label in node.arg_labels {
+                            if not base_pos_args.has(new_arg_label) {
+                                final_arg_labels.add(new_arg_label)
+                                final_kw_arg_count += 1
+                                continue
+                            }
+                            if msgs != none {
+                                msgs.add(new msg.FileMsg(
+                                    "Unexpectedly seeing "
+                                    "positional argument '" +
+                                    new_arg_label +
+                                    "' overridden in "
+                                    "extend func statement, "
+                                    "this is not allowed.",
+                                    source_file=pfile,
+                                    line=node.line, col=node.col,
+                                ))
+                                node.damaged = yes
+                            } else {
+                                throw new ValueError(
+                                    "Invalid extend func that "
+                                    "overrides a pos arg."
+                                )
+                            }
+                            invalid = yes
+                            break
+                        }
+                    }
+                    for label in final_arg_labels {
                         try_register_symbol(inner_scope,
                             label, msgs,
                             pfile, node.line, node.col)
+                    }
+                    # If this is a func attr, make sure the
+                    # argument list is registered with the escope:
+                    if in_escope != none and
+                            node.kind == ast.N_STMT_FUNC {
+                        in_escope.func_attr_name_to_arg_labels[
+                            node.label
+                        ] = final_arg_labels
+                        in_escope.func_attr_name_to_kwarg_count[
+                            node.label
+                        ] = final_kw_arg_count
                     }
                 } elseif node.kind == ast.N_STMT_FOR {
                     try_register_symbol(inner_scope,
@@ -1033,11 +1282,13 @@ extend type project.Project {
     var did_compute_storage = no
 }
 
-func project.Project.check_all_storage(msgs, debug=no,
-        debug_global_storage=no) {
+func project.Project.compute_and_check_all_storage(
+        msgs, build_options=none, debug=no,
+        debug_global_storage=no
+        ) {
     if self.did_compute_storage {
         if debug {
-            print("compiler.ast.storage: check_all_storage() " +
+            print("compiler.ast.storage: compute_and_check_all_storage() " +
                 "got nothing to do, scopes already checked.")
         }
         return later yes
@@ -1049,29 +1300,6 @@ func project.Project.check_all_storage(msgs, debug=no,
     }
     var success = self.compute_all_scopes(msgs, debug=debug,
         debug_global_storage=debug_global_storage) later:
-
-    await success
-    if not success {
-        return later no
-    }
-    func check_scope(pfile) {
-        if debug {
-            print("compiler.ast.storage: check_all_storage() " +
-                "check_scope() on: " + pfile.as_str())
-        }
-        func check_node_scope(node, parent) {
-            return later node
-        }
-        var success = transform.visit_ast_tree(
-            pfile.ast, check_node_scope
-            ) later:
-
-        await success
-        assert(success == yes)
-        return later success
-    }
-    success = self.do_for_all_files(check_scope)
-    later:
 
     await success
     return later success
