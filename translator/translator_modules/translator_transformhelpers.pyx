@@ -80,7 +80,7 @@ def func_args_find_last_positional(st, i):
         else:
             if st[i] in {"(", "{", "["}:
                 bracket_depth += 1
-                if (st[i] == "{" and bracket_depth == 1 and
+                if (st[i] == "{" and bracket_depth <= 1 and
                         i > 0 and
                         not is_h64op_with_righthand(
                             prevnonblank(st, i)) and
@@ -103,10 +103,10 @@ def func_args_find_last_positional(st, i):
                 if current_arg_nonempty:
                     had_any_positional_arg = True
             break
-        elif st[i] == "=" and bracket_depth <= 1:
+        elif st[i] == "=" and bracket_depth <= 0:
             current_arg_had_assign = True
             current_arg_nonempty = True
-        elif st[i] == "," and bracket_depth <= 1:
+        elif st[i] == "," and bracket_depth <= 0:
             if not current_arg_had_assign:
                 last_nonkw_arg_end = i
                 had_any_positional_arg = True
