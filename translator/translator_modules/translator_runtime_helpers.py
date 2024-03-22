@@ -673,7 +673,9 @@ def _value_to_str(value):
         return "none"
     if (hasattr(value, "as_str") and
             callable(value.as_str)):
-        return str(value.as_str())
+        import inspect
+        if not inspect.isclass(value):
+            return str(value.as_str())
     if type(value) == type(set()):
         v = repr(value)
         if v.strip().lower() == "set()":
@@ -3066,9 +3068,11 @@ def _container_copy_on_base(v, v_cls, *args, **kwargs):
                 result = base_cls._translator_renamed_copy(
                     v, *args, **kwargs
                 )
+                assert(id(result) != id(v))
                 return result
         import copy
-        return copy.copy(v)
+        result = copy.copy(v)
+        return result
     return _container_copy(v, *args, **kwargs)
 
 def _container_copy_no_custom(v):
