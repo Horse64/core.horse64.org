@@ -304,9 +304,31 @@ func reparent_stmts_into_closure(
 }
 
 func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes,
-        parent_chain=no, backward=no) {
-    var visit_queue = [new VisitQueueEntry(
-        node, if parent_chain ([]) else (none))]
+        parent_chain=no, backward=no, subtree_parent=none,
+        return_new_root=no) {
+    if subtree_parent != none {
+        if parent_chain and typename(subtree_parent) != "list" {
+            throw new TypeError("For parent_chain=yes, "
+                "subtree_parent must also be set to a parent list if "
+                "not none.")
+        } elseif not parent_chain and
+                typename(subtree_parent) == "list" {
+            throw new TypeError("For parent_chain=no, "
+                "subtree_parent shouldn't be set to a list if "
+                "not none.")
+        }
+    }
+    var root_to_return = none
+    if return_new_root {
+        root_to_return = node
+    }
+    var default_parent = if parent_chain ([]) else (none)
+    if subtree_parent != none {
+        default_parent = subtree_parent
+    }
+    var visit_queue = [
+        new VisitQueueEntry(node, default_parent)
+    ]
     var aborted = no
     var is_first = yes
 
@@ -466,6 +488,9 @@ func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes,
                     blockpos += 1
                 }
             }
+            if next.node == root_to_return {
+                root_to_return = new_node
+            }
         }
         if new_node == none {
             return later yes
@@ -482,6 +507,9 @@ func visit_ast_tree(node, visit_cb, pass_func_boundaries=yes,
     if not resume_queue {
         if aborted {
             return later no
+        }
+        if return_new_root {
+            return root_to_return
         }
         return later yes
     }

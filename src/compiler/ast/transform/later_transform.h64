@@ -312,9 +312,12 @@ func first_pass_later_transform(
                 while yes {
                     stmts_after += ast.get_neighbor_statements_after(
                         scan_node, if parents_idx > 1
-                            (parents[parents_idx - 1]) else (none))
+                            (parents[parents_idx - 1]) else (none),
+                        stop_at_return=yes)
                     parents_idx -= 1
-                    if parents_idx < 1 {
+                    if parents_idx < 1 or (stmts_after.len > 0 and
+                            stmts_after[stmts_after.len].kind ==
+                                ast.N_STMT_RETURN) {
                         break
                     }
                     scan_node = parents[parents_idx]
@@ -366,15 +369,18 @@ func first_pass_later_transform(
                         }
                     }
                 }
-                var result = later_transform_node(
-                    func_node, parents
+                var new_root = ast_transform.visit_ast_tree(
+                    func_node, later_transform_node, parent_chain=yes,
+                    subtree_parent=parents, return_new_root=yes
                 ) later:
 
-                await result
-                if typename(result) != "list" {
-                    result = [result]
+                await new_root
+                assert(new_root != no and new_root != none)
+                if typename(new_root) != "list" {
+                    new_root = [new_root]
                 }
-                func_node = result[1]
+                func_node = new_root[1]
+                var result = new_root
                 result += [call_stmt_node]
 
                 assert(not func_node.func_scope.is_later_func or
