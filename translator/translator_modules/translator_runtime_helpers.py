@@ -808,6 +808,8 @@ def _container_sub(container, *args, **kwargs):
         if (type(i1) not in {float, int} and
                 type(i2) not in {float, int}):
             raise _TypeError("indexes must be type num")
+        i1 = int(round(i1))
+        i2 = int(round(i2))
         i1 = max(1, i1)
         if i2 < i1:
             if type(container) == bytes:

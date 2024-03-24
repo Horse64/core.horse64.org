@@ -183,6 +183,8 @@ remapped_uses = {
             "_translator_runtime_helpers._compiler_run_file",
     },
     "debugger@core.horse64.org": {
+        "debugger.is_debug_build":
+            "(lambda: True)",
         "debugger.get_addr":
             "_translator_runtime_helpers._internals_get_addr",
     },
