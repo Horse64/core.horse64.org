@@ -25,6 +25,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import debugger from core.horse64.org
 import random from core.horse64.org
 import time from core.horse64.org
 
@@ -167,7 +168,9 @@ func reparent_stmts_into_closure(
         ) {
     assert(func_node.kind == ast.N_STMT_FUNC)
     var closure_func_scope = func_node.func_scope
+    assert(closure_func_scope != none)
     var outer_func_scope = outer_inner_scope.func_scope
+    assert(outer_func_scope != closure_func_scope)
 
     var replaced_inner_scopes_map = {->}
 
@@ -181,34 +184,38 @@ func reparent_stmts_into_closure(
         stmts = new_stmts
     }
 
-    func replace_scopes {
-        func replace_scope_visitor(expr, parents) {
-            assert(expr.scope != none)
-            if expr.scope.func_scope != outer_func_scope {
-                return later expr
+    func replace_scopes(stmts) {
+        func replace_scope_visitor(node, parents) {
+            assert(node.scope != none)
+            assert(node.scope.func_scope != none)
+            if node.scope.func_scope != outer_func_scope {
+                return later node
             }
-            if replaced_inner_scopes_map.has(expr.scope) {
-                expr.scope = replaced_inner_scopes_map[expr.scope]
-                return later expr
+            if replaced_inner_scopes_map.has(node.scope) {
+                node.scope = replaced_inner_scopes_map[node.scope]
+                assert(node.scope.func_scope == closure_func_scope)
+                return later node
             }
             var new_inner_scope = new scope.LocalScope()
-            if expr.scope.parent != none {
-                if expr.scope.parent == outer_inner_scope {
+            if node.scope.parent != none {
+                if node.scope.parent == outer_inner_scope {
                     new_inner_scope.parent = outer_inner_scope
                 } else {
                     if not replaced_inner_scopes_map.
-                            has(expr.scope.parent) {
-                        replaced_inner_scopes_map[expr.scope.parent] =
+                            has(node.scope.parent) {
+                        replaced_inner_scopes_map[node.scope.parent] =
                             new scope.LocalScope()
+                        replaced_inner_scopes_map[node.scope.parent].
+                            func_scope = closure_func_scope
                     }
                     new_inner_scope.parent =
-                        replaced_inner_scopes_map[expr.scope.parent]
+                        replaced_inner_scopes_map[node.scope.parent]
                 }
             }
             new_inner_scope.func_scope = closure_func_scope
-            replaced_inner_scopes_map[expr.scope] = new_inner_scope
-            for name in expr.scope.name_to_symbol_map {
-                var sinfo = expr.scope.name_to_symbol_map[name]
+            replaced_inner_scopes_map[node.scope] = new_inner_scope
+            for name in node.scope.name_to_symbol_map {
+                var sinfo = node.scope.name_to_symbol_map[name]
                 closure_func_scope.last_inner_storage_id += 1
                 var st_id = closure_func_scope.last_inner_storage_id
                 vars_in_replaced_scope_st_ids[sinfo.storage_id] = st_id
@@ -219,8 +226,9 @@ func reparent_stmts_into_closure(
                 new_inner_scope.storage_id_to_symbol_map[
                     st_id] = new_sinfo
             }
-            expr.scope = new_inner_scope
-            return later expr
+            node.scope = new_inner_scope
+            assert(node.scope.func_scope == closure_func_scope)
+            return later node
         }
         var queue = stmts.copy()
         if queue.len == 0 {
@@ -232,6 +240,7 @@ func reparent_stmts_into_closure(
         later:
 
         await result
+        assert(result == yes)
         if queue.len == 0 {
             return later
         }
@@ -240,30 +249,35 @@ func reparent_stmts_into_closure(
             pass_func_boundaries=yes, parent_chain=yes, backward=no)
         later repeat
     }
-    replace_scopes() later:
+    replace_scopes(stmts) later:
 
+    if debugger.is_debug_build {
+        for stmt in stmts {
+            assert(stmt.scope.func_scope == closure_func_scope)
+        }
+    }
     func adjust_storage {
-        func fix_storage_visitor(expr, parents) {
-            assert(expr.scope != none)
-            if expr.scope.func_scope != closure_func_scope {
-                return later expr
+        func fix_storage_visitor(node, parents) {
+            assert(node.scope != none)
+            if node.scope.func_scope != closure_func_scope {
+                return later node
             }
-            if expr.kind != ast.N_EXPR_IDREF or expr.ref == none or
-                    expr.ref != st_ref.ST_LOCAL {
-                return later expr
+            if node.kind != ast.N_EXPR_IDREF or node.ref == none or
+                    node.ref != st_ref.ST_LOCAL {
+                return later node
             }
-            if vars_in_replaced_scope_st_ids.has(expr.ref.id) {
-                expr.ref.id = vars_in_replaced_scope_st_ids[expr.ref.id]
+            if vars_in_replaced_scope_st_ids.has(node.ref.id) {
+                node.ref.id = vars_in_replaced_scope_st_ids[node.ref.id]
             } else {
                 # This crosses closure boundaries now.
-                var result_pair = expr.scope.lookup(expr.label,
+                var result_pair = node.scope.lookup(node.label,
                     is_write_access=no, cross_func_scopes=yes)
 
                 assert(result_pair != none and
                     result_pair[1].kind == st_ref.ST_CCAPTURE)
-                expr.ref = result_pair[1]
+                node.ref = result_pair[1]
             }
-            return later expr
+            return later node
         }
         var queue = stmts.copy()
         if queue.len == 0 {
@@ -285,6 +299,7 @@ func reparent_stmts_into_closure(
     }
     adjust_storage() later:
 
+    func_node.subblocks = [stmts]
     return later
 }
 

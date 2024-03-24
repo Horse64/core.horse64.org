@@ -345,6 +345,7 @@ func project.ProjectFile.make_new_made_up_func_node(
     }
     var func_scope = new scope.FuncScope()
     func_scope.inner_scope = new scope.LocalScope()
+    func_scope.inner_scope.func_scope = func_scope
     func_scope.inner_scope.start_line = line
     func_scope.inner_scope.start_col = col
     func_scope.inner_scope.parent = in_inner_scope

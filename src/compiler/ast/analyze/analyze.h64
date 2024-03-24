@@ -45,7 +45,8 @@ func stmt_list_contains_later_call(
         include_later_ignore=no,
         recurse_into_funcs=no) {
     for stmt in stmts {
-        if {ast.N_STMT_VAR, ast.N_STMT_CALL}.has(stmt.kind) and
+        if {ast.N_STMT_VAR, ast.N_STMT_ASSIGN,
+                ast.N_STMT_CALL}.has(stmt.kind) and
                 stmt.has_later and
                 (include_later_ignore or
                  not stmt.has_later_ignore) {
@@ -214,6 +215,22 @@ func is_idref_readonly_access(node, parent_chain) {
     }
 }
 
+func analyze_and_configure_newly_added_func(
+        node, msgs=none, project_file=none
+        ) {
+    var is_later_func = no
+    for block in node.subblocks {
+        if stmt_list_contains_later_call(
+                block, check_recursive=yes,
+                include_later_ignore=no,
+                recurse_into_funcs=no) {
+            is_later_func = yes
+            break
+        }
+    }
+    node.func_scope.is_later_func = is_later_func
+}
+
 func advanced_phase3_later_and_computevals(
         stmts, msgs=none, project_file=none
         ) {
@@ -226,17 +243,9 @@ func advanced_phase3_later_and_computevals(
             ) {
         for stmt in stmts {
             if stmt.kind == ast.N_STMT_FUNC {
-                var is_later_func = no
-                for block in stmt.subblocks {
-                    if stmt_list_contains_later_call(
-                            block, check_recursive=yes,
-                            include_later_ignore=no,
-                            recurse_into_funcs=no) {
-                        is_later_func = yes
-                        break
-                    }
-                }
-                stmt.func_scope.is_later_func = is_later_func
+                analyze_and_configure_newly_added_func(
+                    stmt, msgs=msgs, project_file=project_file
+                )
             }
 
             func check_nested_constructors(expr, parents) {

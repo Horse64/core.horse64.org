@@ -25,6 +25,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import debugger from core.horse64.org
 import random from core.horse64.org
 import time from core.horse64.org
 
@@ -188,6 +189,11 @@ func first_pass_later_transform(
         return node
     }
     func transform_file(pfile) {
+        var debug = no
+        #debug = (
+        #    pfile.source_uri != none and
+        #    pfile.source_uri.has("somefile.h64")
+        #)
         if build_options != none and build_options.print_stages {
             var print_name = "<unknown>"
             if pfile.source_uri != none {
@@ -203,7 +209,11 @@ func first_pass_later_transform(
                 "[t=" + time.ticks().as_str() + "]")
         }
         var transformed_nodes = {}
-        func transform_node(node, parents) {
+        func later_transform_node(node, parents) {
+            if debug {
+                print("later_transform.h64: debug: "
+                    "Visiting node: " + node.as_str())
+            }
             if node.kind != ast.N_STMT_FUNC and (
                     node.scope == none or node.scope.func_scope == none or
                     not node.scope.func_scope.is_later_func) {
@@ -265,8 +275,10 @@ func first_pass_later_transform(
                     node.scope.func_scope.is_later_func and
                     not node.has_later_repeat {
                 transformed_nodes.add(node)
+                var assigned_or_declared_names = []
                 var call_idx = 1
                 if node.kind == ast.N_STMT_ASSIGN {
+                    assert(node.subexprs.len >= 2)
                     call_idx = node.subexprs.len / 2 + 1
                 }
                 var call_exprs = [node.subexprs[call_idx]]
@@ -275,11 +287,17 @@ func first_pass_later_transform(
                         call_exprs[1].subexprs[2].kind ==
                             ast.N_EXPR_CALLARGS)
                 if node.kind == ast.N_STMT_VAR {
+                    assigned_or_declared_names += node.var_labels
                     for expr in node.subexprs.sub(2) {
                         assert(expr.kind == ast.N_EXPR_BINOP)
                         call_exprs.add(expr)
                     }
                 } elseif node.kind == ast.N_STMT_ASSIGN {
+                    for expr in node.subexprs.sub(
+                            1, node.subexprs.len / 2) {
+                        assert(expr.kind == ast.N_EXPR_IDREF)
+                        assigned_or_declared_names.add(expr.label)
+                    }
                     for expr in node.subexprs.sub(
                             node.subexprs.len / 2 + 2) {
                         assert(expr.kind == ast.N_EXPR_BINOP)
@@ -309,8 +327,9 @@ func first_pass_later_transform(
                 var func_node = pfile.make_new_made_up_func_node(
                     inner_scope, "laterfunc", line=node.line,
                     col=node.line)
+                assert(func_node.func_scope != none)
+                assert(func_node.func_scope.inner_scope != none)
                 func_node.scope = inner_scope
-                transformed_nodes.add(func_node)
                 func_node.subblocks = [stmts_after]
                 node.is_later = no
                 var continuation_idref = new ast_expr.IdRefExpr()
@@ -330,7 +349,39 @@ func first_pass_later_transform(
                     func_node, stmts_after, func_node.scope,
                     clone_all_stmts=yes) later:
 
-                return later [func_node, call_stmt_node]
+                ast_analyze.analyze_and_configure_newly_added_func(
+                    func_node, msgs=msgs, project_file=pfile
+                )
+                assert(not transformed_nodes.has(func_node))
+                assert(func_node.func_scope != none)
+                if debugger.is_debug_build {
+                    for stmt in func_node.subblocks[1] {
+                        assert(stmt.scope != none)
+                        if stmt.scope.func_scope !=
+                                func_node.func_scope {
+                            print("later_transform.h64: error: "
+                                "Statement has wrong func_scope: " +
+                                stmt.as_str())
+                            throw new RuntimeError("Internal error.")
+                        }
+                    }
+                }
+                var result = later_transform_node(
+                    func_node, parents
+                ) later:
+
+                await result
+                if typename(result) != "list" {
+                    result = [result]
+                }
+                func_node = result[1]
+                result += [call_stmt_node]
+
+                assert(not func_node.func_scope.is_later_func or
+                    func_node.func_scope.later_exit_info != none)
+                assert(func_node.scope == call_stmt_node.scope)
+                assert(not func_node.subblocks[1].has(call_stmt_node))
+                return later result
             }
             if node.kind == ast.N_STMT_RETURN and
                     not transformed_nodes.has(node) and
@@ -367,7 +418,8 @@ func first_pass_later_transform(
         pfile.ensure_ast() later:
 
         var success = ast_transform.visit_ast_tree(
-            pfile.ast, transform_node, parent_chain=yes) later:
+            pfile.ast, later_transform_node, parent_chain=yes
+        ) later:
 
         await success
         assert(success == yes)
