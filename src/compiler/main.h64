@@ -767,7 +767,7 @@ func main {
     defs.add_arg(
         "action", description="Pick an available actions: "
         "compile, run. To see details for an action, use it with --help "
-        "like e.g.: horse compile --help")
+        "like e.g.: horsec compile --help")
     defs.add_catchall(
         "action args", description="List of "
         "arguments for the specified action", can_be_empty=yes)
