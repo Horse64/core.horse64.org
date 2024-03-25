@@ -161,6 +161,34 @@ func TreeNode.is_stmt {
     return no
 }
 
+func get_node_parent_block(node, parent) {
+    if parent == none {
+        return none
+    }
+    var search_blocks = []
+    if parent.kind == N_STMT_IF or
+            parent.kind == N_STMT_DO {
+        for clause in parent.subexprs {
+            if not {N_EXPR_IFELSECLAUSE,
+                    N_EXPR_RESCUECLAUSE,
+                    N_EXPR_FINALLYCLAUSE
+                    }.has(clause.kind) {
+                continue
+            }
+            search_blocks += clause.subblocks
+        }
+    }
+    search_blocks += parent.subblocks
+    for block in search_blocks {
+        var idx = block.find(node)
+        if idx == none {
+            continue
+        }
+        return block
+    }
+    return none
+}
+
 func get_neighbor_statements_after(
         node, parent, stop_at_return=yes
         ) {

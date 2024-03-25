@@ -82,44 +82,25 @@ func first_pass_later_transform(
             ) {
         assert(parents != none and typename(parents) == "list")
         var parent = parents[parents.len]
-        var found_before = no
-        var stmt_before = none
-        var search_blocks = []
-        if parent.kind == ast.N_STMT_IF or
-                parent.kind == ast.N_STMT_DO {
-            for clause in parent.subexprs {
-                if found_before {
-                    break
-                }
-                if not {ast.N_EXPR_IFELSECLAUSE,
-                        ast.N_EXPR_RESCUECLAUSE,
-                        ast.N_EXPR_FINALLYCLAUSE
-                        }.has(clause.kind) {
-                    continue
-                }
-                search_blocks += clause.subblocks
-            }
+        var block = ast.get_node_parent_block(
+            return_stmt_node, parent
+        )
+        var idx = none
+        if block != none {
+            idx = block.find(return_stmt_node)
         }
-        search_blocks += parent.subblocks
-        for block in search_blocks {
-            var idx = block.find(return_stmt_node)
-            if idx == none {
-                continue
-            }
-            found_before = yes
-            if idx <= 1 {
-                stmt_before = none
-            } else {
-                stmt_before = block[idx - 1]
-            }
-            break
-        }
-        if not found_before {
+        if block == none or idx == none {
             throw new RuntimeError("Internal error: "
                 "Failed to find "
                 "position of return statement in parent, "
                 "malformed AST tree?")
         }
+        assert(idx >= 1)
+        var stmt_before = none
+        if idx > 1 {
+            stmt_before = block[idx - 1]
+        }
+
         if stmt_before != none and
                 stmt_before.kind == ast.N_STMT_CALL and
                 stmt_before.subexprs.len >= 1 and
@@ -135,7 +116,18 @@ func first_pass_later_transform(
                     call_subexprs[2].subexprs[1].kind ==
                         ast.N_EXPR_IDREF and
                     call_subexprs[2].subexprs[1].
-                        label.starts("$_laterreturncb") {
+                        label.starts("$laterreturncb") {
+                return no
+            }
+        }
+        return yes
+    }
+    func func_was_obviously_not_later_transformed(
+            func_node
+            ) {
+        for arg in func_node.arg_labels {
+            if arg.starts("$latererr") or
+                    arg.starts("$laterreturn") {
                 return no
             }
         }
@@ -273,10 +265,14 @@ func first_pass_later_transform(
                 "[t=" + time.ticks().as_str() + "]")
         }
         var transformed_nodes = {}
+        var to_be_deleted_nodes = {}
         func later_transform_node(node, parents) {
             if debug {
                 print("later_transform.h64: debug: "
                     "Visiting node: " + node.as_str())
+            }
+            if to_be_deleted_nodes.has(node) {
+                return later none
             }
             if node.kind != ast.N_STMT_FUNC and (
                     node.scope == none or node.scope.func_scope == none or
@@ -287,19 +283,31 @@ func first_pass_later_transform(
             if node.kind == ast.N_STMT_FUNC and
                     not transformed_nodes.has(node) and
                     node.func_scope.is_later_func and
-                    node.func_scope.later_exit_info == none {
+                    (node.func_scope.later_exit_info == none or
+                    func_was_obviously_not_later_transformed(node)) {
                 transformed_nodes.add(node)
+                assert(node.kind == ast.N_STMT_FUNC)
+                var is_generated_latercb = (
+                    node.label.starts("$laterfunc")
+                )
                 inner_scope = node.func_scope.inner_scope
-                var new_name = "$_laterreturncb" + random.gen_id()
+                assert(not is_generated_latercb or
+                    node.func_scope.later_exit_info != none)
+                var new_name = "$laterreturncb" + random.gen_id()
                 while not inner_scope.name_is_free(new_name,
                         pfile.global_scope) {
-                    new_name = "$_laterreturncb" + random.gen_id()
+                    new_name = "$laterreturncb" + random.gen_id()
                 }
-                var exinfo = new LaterExitInfo()
-                exinfo.exit_cb_label = new_name
-                node.func_scope.later_exit_info = exinfo
-                exinfo.exit_cb_storage_ref =
-                    inner_scope.add_symbol(new_name, node.line, node.col)
+                var exinfo = none
+                if not is_generated_latercb {
+                    exinfo = new LaterExitInfo()
+                    exinfo.exit_cb_label = new_name
+                    node.func_scope.later_exit_info = exinfo
+                    exinfo.exit_cb_storage_ref =
+                        inner_scope.add_symbol(new_name, node.line, node.col)
+                } else {
+                    exinfo = node.func_scope.later_exit_info
+                }
 
                 var pos_arg_count =
                     node.arg_labels.len - node.kw_arg_count
@@ -309,11 +317,7 @@ func first_pass_later_transform(
                 # Add return at the end if not present:
                 if node.subblocks[1].len == 0 or
                         node.subblocks[1][node.subblocks[1].len].kind !=
-                        ast.N_STMT_RETURN or
-                        does_return_need_callback(
-                            node.subblocks[1][node.subblocks[1].len],
-                            parents + [node]
-                        ) {
+                        ast.N_STMT_RETURN {
                     var line = node.line
                     var col = node.col
                     if node.subblocks[1].len > 0 {
@@ -342,7 +346,7 @@ func first_pass_later_transform(
                 assert(transformed_nodes.has(node))
                 return node
             }
-            if {ast.N_STMT_VAR,
+            if {ast.N_STMT_VAR, ast.N_STMT_CALL,
                     ast.N_STMT_ASSIGN}.has(node.kind) and
                     not transformed_nodes.has(node) and
                     node.has_later and not node.has_later_ignore and
@@ -401,13 +405,27 @@ func first_pass_later_transform(
                         break
                     }
                 }
+                var err_param_name = "$latererr" + random.gen_id()
+                var param_name_return = none
+                if assigned_or_declared_names.len == 1 {
+                    param_name_return = assigned_or_declared_names[1]
+                } elseif assigned_or_declared_names.len > 1 {
+                    param_name_return = "$latervaluearray"
+                } else {
+                    param_name_return = "$unused" + random.gen_id()
+                }
                 var func_node = pfile.make_new_made_up_func_node(
-                    inner_scope, "laterfunc", line=node.line,
+                    inner_scope, "$laterfunc", line=node.line,
                     col=node.line)
                 assert(func_node.func_scope != none)
                 assert(func_node.func_scope.inner_scope != none)
                 func_node.scope = inner_scope
                 func_node.subblocks = [stmts_after]
+                func_node.arg_labels = [err_param_name,
+                    param_name_return]
+                func_node.kw_arg_count = 0
+                func_node.func_scope.later_exit_info =
+                    node.scope.func_scope.later_exit_info
                 node.is_later = no
                 var continuation_idref = new ast_expr.IdRefExpr()
                 continuation_idref.scope = inner_scope
@@ -421,6 +439,10 @@ func first_pass_later_transform(
                 call_stmt_node.line = node.line
                 call_stmt_node.col = node.col
                 call_stmt_node.subexprs.add(call_exprs[1])
+                var return_stmt_node = new return_stmt.ReturnStmt()
+                return_stmt_node.scope = inner_scope
+                return_stmt_node.line = node.line
+                return_stmt_node.col = node.col
 
                 ast_transform.reparent_stmts_into_closure(
                     func_node, stmts_after, func_node.scope,
@@ -429,6 +451,7 @@ func first_pass_later_transform(
                 ast_analyze.analyze_and_configure_newly_added_func(
                     func_node, msgs=msgs, project_file=pfile
                 )
+                func_node.func_scope.is_later_func = yes
                 assert(not transformed_nodes.has(func_node))
                 assert(func_node.func_scope != none)
                 if debugger.is_debug_build {
@@ -455,12 +478,26 @@ func first_pass_later_transform(
                 }
                 func_node = new_root[1]
                 var result = new_root
-                result += [call_stmt_node]
+                result += [call_stmt_node, return_stmt_node]
 
                 assert(not func_node.func_scope.is_later_func or
                     func_node.func_scope.later_exit_info != none)
                 assert(func_node.scope == call_stmt_node.scope)
                 assert(not func_node.subblocks[1].has(call_stmt_node))
+
+                var parent = parents[parents.len]
+                var block = ast.get_node_parent_block(
+                    node, parent
+                )
+                assert(block != none)
+                var idx = block.find(node)
+                assert(idx >= 1)
+                var stmt_before = none
+                idx += 1
+                while idx <= block.len {
+                    to_be_deleted_nodes.add(block[idx])
+                    idx += 1
+                }
                 return later result
             }
             if node.kind == ast.N_STMT_RETURN and
