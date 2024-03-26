@@ -52,7 +52,15 @@ func AwaitStmt.as_code(indent=0) {
     }
     var t = " ".rep(indent) + "await"
     if self.subexprs.len > 0 {
-        t += " " + self.subexprs[1].as_code(indent=indent)
+        var is_first = yes
+        for expr in self.subexprs {
+            if not is_first {
+                t += ","
+            } else {
+                is_first = no
+            }
+            t += " " + expr.as_code(indent=indent)
+        }
     }
     return t
 }
@@ -94,7 +102,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
                     (" (of type '" +
                      stmt.subexprs[2].optoken.str + "')")
                     else ("") + ", "
-                "await must be used on a simple local variable "
+                "await must be used on simple local variables "
                 "specified as N_EXPR_IDREF.",
                 source_file=project_file,
                 line=token.get_line(tokens, pos),
@@ -111,7 +119,15 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     }
     pos += v.token_len
     stmt.subexprs.add(v)
-    stmt.token_len = (pos - startpos)
-    return later stmt
+    if pos > tokens_len or tokens[pos].kind != token.T_COMMA {
+        stmt.token_len = (pos - startpos)
+        return later stmt
+    }
+    pos += 1  # Past ','
+
+    var v = expr.parse_expression(
+        tokens, pos, msgs,
+        project_file=project_file
+    ) later repeat
 }
 

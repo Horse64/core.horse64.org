@@ -225,6 +225,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
         } elseif tokens[pos].kind == token.T_ASSIGN {
             break
         }
+        assert(tokens[pos].kind == token.T_COMMA)
         pos += 1  # Go past ','
     }
     pos += 1  # Past '='
