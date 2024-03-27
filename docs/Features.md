@@ -106,7 +106,6 @@ for any particular purpose** of these lists at all.*
 If you find a mistake or want to
 suggest an improvement, [please file a documentation issue](
 /docs/Resources.md#report-bugs).
-).
 
 If you want to learn Horse64 and you can already code,
 [check this introduction for programmers](
