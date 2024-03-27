@@ -121,7 +121,7 @@ Python, JavaScript, or Lua. A quick overview:
   passed by value. The unicode string operates on
   unicode code points as units, while a bytes
   string is made up of 8-bit bytes. (Unlike Lua,
-  which defaults to byte strings fore verything.)
+  which defaults to byte strings for everything.)
 
 
 Object-oriented programming
