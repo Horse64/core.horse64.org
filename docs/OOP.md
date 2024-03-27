@@ -181,7 +181,7 @@ extend func some_other_module.some_existing_func(
     // Do something additional here that you wish
     // to do, somehow relating to your new parameter.
 
-    return inner_result.
+    return inner_result
 }
 ```
 
