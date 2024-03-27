@@ -47,9 +47,16 @@ Program structure
 -----------------
 
 In comparison, Horse64 is probably most similar to a Python
-program with its layout. Any program will have a main function:
+program with its layout. Any program will have a main function,
+surrounded by other funcs and various other top-level items:
 
 ```Horse64
+var abc = 5
+
+type MyType {
+    var my_little_attribute = 2.5
+}
+
 func main {
     print("Hello World! My program started in the main func.")
 }
@@ -58,7 +65,7 @@ func main {
 From then on, you can import any neigboring code files for
 use as modules.
 
-**Note:** In Horse64, **code can't be outside
+**Note:** In Horse64, **regular code can't be outside
 a `func`** like it could in Python, Javascript, or Lua.
 
 Even a simple script must have a `func main` starting point!
