@@ -86,12 +86,12 @@ Here's a more in-depth comparison of differences:
 Here is an **async example in JavaScript**:
 
 ```JavaScript
-function my_function() {
-    var delayed_result = some_func_that_is_async_but_you_wouldnt_see()
-    do_something()  // This call runs automatically in parallel with
-                    // the above, but you can't easily see that.
-    await delayed_result  // May cause a time skip if by now, your
-                          // original async call hasn't completed.
+async function my_function() {
+    var result = some_func_that_is_async_but_you_wouldnt_see();
+    do_something();  // This call runs automatically in parallel with
+                     // the above, but you can't easily see that.
+    result = await result;  // May cause a time skip if by now, your
+                            // earlier async call hasn't completed.
 }
 ```
 
