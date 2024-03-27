@@ -117,9 +117,8 @@ suggest an improvement, [please file a documentation issue](
 |✔|✔|✔|✔| |✔|**Garbage-Collector** to make avoiding leaks easier.      |
 |✔| |〰|✔| | |**1st-class type extending without inheritance.**         |
 |✔|✔| | |✔| |**1st-class multiple base types inheritance.**            |
-| |✔|✔|✔|✔|✔|**Floating-point decimals** for larger numeric range.     |
+|✔| | |✔| | |**Parallel threaded execution** of all async calls.       |
 | | | | | |✔|**Tail-call optimization** (always used by default).      |
-|✔| | | | | |**Fixed-point decimals** default, for numeric stability.  |
 |✔| | | | |✔|**1-based indexing** to be more beginner-friendly.        |
 
 ### Libraries and Desktop App Features
@@ -182,7 +181,7 @@ suggest an improvement, [please file a documentation issue](
 |✔|✔|✔| | |✔|**Bytecode interpreter** for high portability.            |
 |✔| | |✔|✔| |**Attribute lookups largely AOT**, to avoid bottlenecks.  |
 |✔| |❓|✔|✔| |**Compiler made for AOT optimizations.**                  |
-| |〰| |✔|✔| |**Full memory-shared threads** for extra flexibity.       |
+| |〰| |✔|✔| |**Largely lock-free memory sharing** for fast threading.  |
 | | |✔|✔|✔| |**Always uses JIT** for speed, or 100% AOT compiled.      |
 | | | |✔|✔| |**Outputs machine code** always, for extreme speed.       |
 | | | | |✔| |**Inline assembly and manual allocation** easy to do.     |
