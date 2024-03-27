@@ -121,8 +121,8 @@ type MySpecialType base my_other_module.BaseType {
 ```
 
 
-Extend types and functions
---------------------------
+Extend things
+-------------
 
 **(⚠️ Warning, this is very advanced functionality for
 large projects. If this sounds strange to you,
@@ -159,7 +159,7 @@ type](#base-types) is that instead of having your own
 specialized variant for just your own uses, it allows
 expanding types for already pre-existing code using them.
 
-### `extend type`
+### `extend enum`
 
 Similarly, you can use `extend enum` to add new enum
 entries. Any extended enum entries without an explicit

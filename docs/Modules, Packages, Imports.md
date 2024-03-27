@@ -83,7 +83,7 @@ explicitly import `mymodule.neighbor` anywhere.
 
 This is because **any import of a module also processes
 all the ones in the same directory,** allowing easy use
-of [extending types](/docs/OOP.md#extend-types) like
+of [extending types](/docs/OOP.md#extend-things) like
 in the example above. However, anything in deeper
 subdirectories or outside of the directory won't be pulled in.
 
