@@ -121,15 +121,17 @@ type MySpecialType base my_other_module.BaseType {
 ```
 
 
-Extend types
-------------
+Extend types and functions
+--------------------------
 
 **(⚠️ Warning, this is very advanced functionality for
 large projects. If this sounds strange to you,
 just don't use it and make [new types based on others
 instead](#base-types).)**
 
-You can also split up a very complex type across multiple
+### `extend type`
+
+You can split up a very complex type across multiple
 modules, by declaring it and some of its attributes in one
 module, but then extending it with more attributes in the
 other module:
@@ -147,7 +149,7 @@ type MyType {
 
 import module_a
 
-extend module_a.MyType {
+extend type module_a.MyType {
     var value2 = 6
 }
 ```
@@ -156,4 +158,58 @@ The difference to [basing a new type on an existing
 type](#base-types) is that instead of having your own
 specialized variant for just your own uses, it allows
 expanding types for already pre-existing code using them.
+
+### `extend type`
+
+Similarly, you can use `extend enum` to add new enum
+entries. Any extended enum entries without an explicit
+numbering may have any arbitrary number, there's no longer
+any guarantee of them maintaining a specific order.
+
+### `extend func`
+
+Similarly, you can also use `extend func` to extent
+functions:
+
+```
+extend func some_other_module.some_existing_func(
+        added_new_parameter=5
+        ) {
+    var inner_result = extended(original_parameter1,
+        original_parameter2)
+
+    // Do something additional here that you wish
+    // to do, somehow relating to your new parameter.
+
+    return inner_result.
+}
+```
+
+Conceptually, you're replacing the original function
+with your wrapped one that gets all the original parameters
+plus some additional ones, then calls the original
+now-extended function via `extended(...)` somewhere.
+
+Please note:
+
+- Extending funcs is a powerful tool for plugins
+  and other third-party added functionality **that
+  should be used sparingly. Of all extend variants,
+  it will impact readability the most.**
+
+- Multiple `extend func`s targeting the same function
+  will be applied in arbitrary order.
+
+- Only **optional keyword parameters** can be added when
+  extending a function. Positional parameters can't be
+  added.
+
+- The original function parameters
+  **still exist, even though your `extend func` statement
+  doesn't list them.** They **keep their original names**
+  as in the original function definition.
+
+- Any parameters that the original
+  function should get, **including its original ones**,
+  you must **pass through to the `extended()` call.**
 
