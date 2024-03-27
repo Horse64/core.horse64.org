@@ -90,7 +90,7 @@ function my_function() {
     var delayed_result = some_func_that_is_async_but_you_wouldnt_see()
     do_something()  // This call runs automatically in parallel with
                     // the above, but you can't easily see that.
-    await delayed_result  // May do a time skip if by now, your
+    await delayed_result  // May cause a time skip if by now, your
                           // original async call hasn't completed.
 }
 ```
@@ -111,25 +111,24 @@ func my_function {
 ```
 
 As you can see, in Horse64 the time skips and concurrent calls are,
-unlike in other languages, syntactically obvious and not hidden.
-
+unlike in many other languages, syntactically obvious and not hidden.
 This makes the code flow easy and transparent to the reader.
 
-**If you wanted `do_something` in parallel in Horse64 like above**:
+**If you wanted `do_something()` run in parallel** in Horse64 too:
 
 ```Horse64
 func my_function {
-    var delayed_result, _unused = some_func_that_is_async(),
+    var delayed_result, other_result = some_func_that_is_async(),
         do_something()
     later:
 
-    ...
+    await delayed_result, other_result
 }
 ```
 
 As you can see, Horse64 can run things at the same time just like
 Python or JS can, but you'll have to be obvious about it.
 
-[**Continue reading here for more concurrency** explained
-more in-depth for Horse64](/docs/Concurrency.md).
+[**Continue reading here for more concurrency**](
+/docs/Concurrency.md) to see how to use it in practice in Horse64.
 
