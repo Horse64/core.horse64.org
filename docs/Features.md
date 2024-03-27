@@ -111,21 +111,22 @@ suggest an improvement, [please file a documentation issue](
 |✔|✔|✔| | |✔|**Dynamic types** as a beginner-friendly default.         |
 |✔|✔| |✔|✔|✔|**Strongly typed** to avoid silent harmful conversions.   |
 |✔|✔| |✔| |✔|**Minimal, clean syntax** without line terminators.       |
-|✔|✔|✔| | |✔|**Avoids concurrency crashes** from threading bugs.       |
+| |✔|❓|✔|✔| |**Type annotations** can be used for extra verbosity.     |
+|✔|✔|✔| | |✔|**Minimizes concurrency crashes** in buggy code.          |
 |✔| |✔|〰|✔|✔|**Line breaks optional** for versatile code layout.       |
 |✔| |〰|✔| | |**Concurrency** of all I/O and network default APIs.      |
 |✔|✔|✔|✔| |✔|**Garbage-Collector** to make avoiding leaks easier.      |
 |✔| |〰|✔| | |**1st-class type extending without inheritance.**         |
-|✔|✔| | |✔| |**1st-class multiple base types inheritance.**            |
+| |✔| | |✔| |**1st-class multiple base types inheritance** for mixins. |
 |✔| | |✔| | |**Parallel threaded execution** of all async calls.       |
-| | | | | |✔|**Tail-call optimization** (always used by default).      |
+| | | | | |✔|**Tail-call optimization** enabled by default.            |
 |✔| | | | |✔|**1-based indexing** to be more beginner-friendly.        |
 
-### Libraries and Desktop App Features
+### Multimedia and Desktop App Features
 
 |Horse64|Python|JS|Go|C++|Lua|Libraries and Desktop App Features       |
 |-------|------|--|--|---|---|-----------------------------------------|
-|✔|✔|〰|✔|〰| |**Big standard library** even without extra setup.        |
+|✔|✔|〰|✔|〰| |**Big standard library** without extra setup.             |
 |✔| |✔| | | |**UI and graphics integrated** for easy graphical apps.   |
 |✔|✔|✔|✔| | |**High-level networking by default** for servers etc.     |
 |✔|✔|✔|✔|❓| |**Unicode with full grapheme support** by default.        |
@@ -140,6 +141,7 @@ suggest an improvement, [please file a documentation issue](
 |✔|✔|✔|❓| |✔|**Compiler trivially usable at runtime**, if needed.      |
 |✔| | |❓|❓| |**Easily bake in all binary resources** like images.      |
 |✔| | |❓| | |**Virtual archive mounting** for all standard I/O.        |
+| |❓|❓|✔|✔| |**Can make C API libraries** easily for C/C++ program use.|
 
 ### Scripting Features
 
@@ -150,7 +152,7 @@ suggest an improvement, [please file a documentation issue](
 |✔|✔|✔|❓| |✔|**Compiler trivially usable at runtime**, if needed.      |
 |〰|✔|✔| | |✔|**Instant script use** for fast script helper launch.     |
 | |〰|✔| | |✔|**Easy runtime `eval()`** for trivial script injection.   |
-| | |✔| | | |**Runs in web browser** by default for simple web use.    |
+| | |✔| | | |**Runs in web browser** by default, for simple web use.   |
 | |✔|✔| | |✔|**Embedded easily** for integrated, subordinate scripts.  |
 | |✔|✔| | |✔|**Easy runtime module loading** for trivial mutability.   |
 | |✔|✔| | |✔|**Dynamic global scope** at runtime, extreme mutability.  |
@@ -184,7 +186,7 @@ suggest an improvement, [please file a documentation issue](
 | |〰| |✔|✔| |**Largely lock-free memory sharing** for fast threading.  |
 | | |✔|✔|✔| |**Always uses JIT** for speed, or 100% AOT compiled.      |
 | | | |✔|✔| |**Outputs machine code** always, for extreme speed.       |
-| | | | |✔| |**Inline assembly and manual allocation** easy to do.     |
+| | | | |✔| |**Fully manual allocations** easily available.            |
 
 *(AOT refers to Ahead-of-Time, handled at compile time rather than
 runtime.)*
