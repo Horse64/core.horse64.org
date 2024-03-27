@@ -11,10 +11,10 @@ functions. These usually depend on external I/O or networking.
 Basic concurrent call
 ---------------------
 
-To avoid stalling external resources freeze your program,
-functionality like disk or network access in Horse64 is
+To avoid that any external resources stalling will freeze your
+program, functionality like disk or network access in Horse64 is
 *concurrent*. This means that while it happens, other code
-in your program continues.
+in your program can continue to run.
 
 You call any concurrent functions annotated with the `later`
 keyword, indicating a **time skip, see this call example:**
@@ -100,8 +100,8 @@ things in parallel, which will then not interrupt each other:
 
 **Don't want to wait?** If you don't care about a later
 function's return value or its success, you can follow
-the call up with `later ignore` which will also make
-them run in the background:
+the call up with `later ignore`. This will make
+them run in the background in parallel as well:
 
   ```Horse64
   import net.fetch from core.horse64.org
