@@ -11,6 +11,12 @@ Then, try out these tutorials if you're a beginner:
 
 - [FIXME](/FIXME.md).
 
+Or if you're coming from other programming languages:
+
+- [Migrating from other languages to Horse64](
+     /docs/Tutorial/Migrating%20from%20Other%20Languages.md
+  ).
+
 
 Advanced concepts
 -----------------
