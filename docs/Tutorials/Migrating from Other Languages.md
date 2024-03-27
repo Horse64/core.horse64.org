@@ -5,7 +5,8 @@ Migrating from Other Languages
 ==============================
 
 **This is a tutorial for people who can already program in
-Python, Javascript, or Lua,** but aren't familiar with Horse64 yet.
+Python, Javascript, or Lua,** but who aren't familiar with Horse64
+yet.
 
 This tutorial will go over the main differences that you might
 not be expecting.
@@ -77,8 +78,10 @@ Concurrency and its differences
 
 You'll notice pretty early that Horse64 often uses so-called
 "later functions" that must be called with `later:` or similar.
-These are like **async in Python or Javascript** (or coroutines
-in Lua), with here a more in-depth comparison of differences:
+These are like **async in Python or Javascript** or like
+coroutines in Lua.
+
+Here's a more in-depth comparison of differences:
 
 Here is an **async example in JavaScript**:
 
