@@ -580,6 +580,10 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                                     }
                                     escope.name_to_symbol_map[label] =
                                         symbol_info
+                                    if stmt.symbol_info == none {
+                                        stmt.symbol_info = []
+                                    }
+                                    stmt.symbol_info.add(symbol_info)
                                     continue
                                 }
                                 # If we arrive here, this name is taken.
@@ -1072,7 +1076,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                         }
                     }
                     if storage_id > 0 {
-                        # Will only not get here as a run-on error
+                        # Will only not get here as a follow-up error
                         # in damaged code.
                         node.func_scope.storage_id = storage_id
                     }

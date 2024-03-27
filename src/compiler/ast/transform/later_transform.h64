@@ -38,40 +38,346 @@ import compiler.ast.func_stmt as func_stmt
 import compiler.ast.return_stmt as return_stmt
 import compiler.ast.transform as ast_transform
 import compiler.ast.type_stmt as type_stmt
+import compiler.msg as msg
+import compiler.storage.ref as storage_ref
 import compiler.storage.scope as st_scope
 import compiler.token as token
 
 type LaterExitInfo {
-    var is_func_return = yes
     var exit_cb_label
     var exit_cb_storage_ref
 }
 
 extend type st_scope.FuncScope {
-    var later_exit_info
+    var later_transform_info
+}
+
+func st_scope.FuncScope.get_later_transform_info {
+    return self.later_transform_info
+}
+
+type LaterTransformInfo {
+    var _exit_info
+    var owning_local_scope
+}
+
+func LaterTransformInfo.exit_info {
+    var limit_to_fscope = none
+    if self.owning_local_scope != none {
+        limit_to_fscope = self.owning_local_scope.func_scope
+    }
+    var check_info = self
+    while check_info._exit_info == none and
+            check_info.owning_local_scope != none {
+        assert(limit_to_fscope != none)
+        var scope = check_info.owning_local_scope
+        while scope.parent != none {
+            scope = scope.parent
+            if scope == none or scope.func_scope !=
+                    limit_to_fscope {
+                if limit_to_fscope.later_transform_info != none {
+                    return limit_to_fscope.later_transform_info._exit_info
+                }
+                return none
+            }
+            if scope.later_transform_info != none and
+                    scope.later_transform_info._exit_info != none {
+                return scope.later_transform_info._exit_info
+            }
+        }
+        if limit_to_fscope.later_transform_info != none {
+            return limit_to_fscope.later_transform_info._exit_info
+        }
+        return none
+    }
+    return check_info._exit_info
 }
 
 extend type st_scope.LocalScope {
-    var later_exit_info
+    var later_transform_info
 }
 
-func st_scope.LocalScope.get_later_exit_info {
-    var fscope = self.func_scope
-    var scope = self
-    while scope != none {
-        if scope.later_exit_info != none {
-            return scope.later_exit_info
-        }
-        if scope.parent == none or
-                scope.parent.func_scope != fscope {
-            if fscope != none {
-                return fscope.later_exit_info
-            }
-            return none
-        }
-        scope = scope.parent
+func st_scope.LocalScope.get_later_transform_info {
+    if self.later_transform_info == none {
+        self.later_transform_info =
+            new LaterTransformInfo()
+        self.later_transform_info.owning_local_scope = self
     }
-    return none
+    return self.later_transform_info
+}
+
+func find_await_after_later_call_stmt(
+        call_stmt, parents, msgs=none,
+        project_file=none
+        ) {
+    assert({ast.N_STMT_ASSIGN,
+        ast.N_STMT_VAR}.has(call_stmt.kind))
+    var async_return_value_storage_refs = []
+    if call_stmt.kind == ast.N_STMT_VAR {
+        if (typename(call_stmt.symbol_info) != "list") {
+            print("horsec: error: CRITICAL ERROR IN "
+                "src/compiler/ast/transform/"
+                "later_transform.h64: "
+                "Encountered var statement without "
+                "symbol info, which shouldn't be possible "
+                "at this stage: " +
+                call_stmt.as_str())
+            throw new RuntimeError(
+                "Internal error: Encountered N_STMT_VAR "
+                "with incomplete symbol info, this is invalid. "
+                "Please report this bug to the compiler "
+                "team."
+            )
+        }
+        for sinfo in call_stmt.symbol_info {
+            async_return_value_storage_refs.add(
+                new storage_ref.StorageRef(
+                    storage_ref.ST_LOCAL, sinfo.ref
+                )
+            )
+        }
+    } else {
+        assert(call_stmt.kind == ast.N_STMT_ASSIGN)
+        var pairs_count = call_stmt.subexprs.len / 2
+        assert(pairs_count >= 1)
+        var i = 1
+        while i <= pairs_count {
+            if call_stmt.subexprs[i].ref == none {
+                print("horsec: error: CRITICAL ERROR IN "
+                    "src/compiler/ast/transform/"
+                    "later_transform.h64: "
+                    "Encountered assignment target without "
+                    "ref info, which shouldn't be possible "
+                    "at this stage: " +
+                    [call_stmt, call_stmt.subexprs[i]].as_str())
+                throw new RuntimeError(
+                    "Internal error: Encountered N_STMT_ASSIGN "
+                    "with incomplete storage ref, this is invalid. "
+                    "Please report this bug to the compiler "
+                    "team."
+                )
+            }
+            async_return_value_storage_refs.add(
+                call_stmt.subexprs[i].ref
+            )
+            i += 1
+        }
+    }
+    var block = none
+    if parents.len > 0 {
+        block = ast.get_node_parent_block(
+            call_stmt, parents[parents.len]
+        )
+    }
+    if block == none {
+        throw new RuntimeError("Internal error: "
+            "Can't find parent block of later call, "
+            "unexpectedly malformed AST?!")
+    }
+    var idx = block.find(call_stmt)
+    assert(idx != none)
+    idx += 1
+    func find_awaits_in_subblock(
+            call_stmt, block, msgs=none,
+            is_invalid_if_found=yes,
+            is_invalid_block_name="<unspecified>",
+            project_file=none,
+            start_idx=1) {
+        var awaits = []
+        var idx = start_idx
+        while idx <= block.len {
+            var node = block[idx]
+            if {ast.N_STMT_CALL, ast.N_STMT_ASSIGN,
+                    ast.N_STMT_VAR}.has(node.kind) and
+                    node.has_later and
+                    not node.has_later_ignore {
+                if msgs != none {
+                    if not call_stmt.damaged {
+                        msgs.add(new msg.FileMsg(
+                            "Unexpected later call, expected "
+                            "await statement here for previous "
+                            "later call "
+                            "in line " + call_stmt.line.as_str() +
+                            ", column " + call_stmt.col.as_str() +
+                            ".",
+                            source_file=project_file,
+                            line=node.line,
+                            col=node.col,
+                        ))
+                    }
+                    call_stmt.damaged = yes
+                } else {
+                    throw new ValueError(
+                        "Later call after other "
+                        "later call before await."
+                    )
+                }
+                return none
+            }
+            if node.kind == ast.N_STMT_IF {
+                for clause in node.subexprs {
+                    for subblock in clause.subblocks {
+                        var inner_awaits = find_awaits_in_subblock(
+                            call_stmt, subblock, msgs=msgs,
+                            is_invalid_if_found=yes,
+                            is_invalid_block_name="if",
+                        )
+                        if inner_awaits == none {
+                            return none
+                        }
+                        assert(inner_awaits.len == 0)
+                    }
+                }
+                idx += 1
+                continue
+            }
+            if node.kind == ast.N_STMT_FOR or
+                    node.kind == ast.N_STMT_WHILE {
+                for subblock in node.subblocks {
+                    var inner_awaits = find_awaits_in_subblock(
+                        call_stmt, subblock, msgs=msgs,
+                        is_invalid_if_found=yes,
+                        is_invalid_block_name=
+                            if node.kind == ast.N_STMT_FOR
+                                ("for") else ("while"),
+                    )
+                    if inner_awaits == none {
+                        return none
+                    }
+                    assert(inner_awaits.len == 0)
+                }
+                idx += 1
+                continue
+            }
+            if node.kind == ast.N_STMT_AWAIT {
+                var await_matches_us = no
+                for subexpr in node.subexprs {
+                    assert(subexpr.kind == ast.N_EXPR_IDREF)
+                    if subexpr.ref == none {
+                        continue
+                    }
+                    for known_ref in
+                            async_return_value_storage_refs {
+                        if known_ref.alike(subexpr.ref) {
+                            await_matches_us = yes
+                        }
+                    }
+                }
+                if not await_matches_us {
+                    if msgs != none {
+                        if not call_stmt.damaged {
+                            msgs.add(new msg.FileMsg(
+                                "Unexpected mismatched await, the "
+                                "arguments don't match any of the "
+                                "assigned values of the corresponding "
+                                "preceding "
+                                "later call "
+                                "in line " + call_stmt.line.as_str() +
+                                ", column " + call_stmt.col.as_str() +
+                                ".",
+                                source_file=project_file,
+                                line=node.line,
+                                col=node.col,
+                            ))
+                        }
+                        call_stmt.damaged = yes
+                    } else {
+                        throw new ValueError(
+                            "Await doesn't match previous later call."
+                        )
+                    }
+                    return none
+                }
+                if is_invalid_if_found {
+                    if msgs != none {
+                        if not call_stmt.damaged {
+                            msgs.add(new msg.FileMsg(
+                                "Unexpected misplaced await, can't "
+                                "be nested inside " +
+                                is_invalid_block_name + " "
+                                "code block when the corresponding "
+                                "preceding later call "
+                                "in line " + call_stmt.line.as_str() +
+                                ", column " +
+                                call_stmt.col.as_str() + " "
+                                "isn't also part of this code block.",
+                                source_file=project_file,
+                                line=node.line,
+                                col=node.col,
+                            ))
+                        }
+                        call_stmt.damaged = yes
+                    } else {
+                        throw new ValueError(
+                            "Await doesn't match previous later call."
+                        )
+                    }
+                }
+                awaits.add(node)
+                idx += 1
+                continue
+            }
+            if node.kind == ast.N_STMT_DO {
+                for clause in node.subexprs {
+                    for subblock in clause.subblocks {
+                        var inner_awaits = find_awaits_in_subblock(
+                            call_stmt, subblock, msgs=msgs
+                        )
+                        if inner_awaits == none {
+                            return none
+                        }
+                        awaits += inner_awaits
+                    }
+                }
+            }
+            for subblock in node.subblocks {
+                var inner_awaits = find_awaits_in_subblock(
+                    call_stmt, subblock, msgs=msgs,
+                )
+                if inner_awaits == none {
+                    return none
+                }
+                awaits += inner_awaits
+            }
+            idx += 1
+        }
+        return awaits
+    }
+    var awaits = find_awaits_in_subblock(
+        call_stmt, block, msgs=msgs,
+        project_file=project_file,
+        start_idx=idx
+    )
+    if awaits != none and awaits.len == 0 {
+        var end_of_block_line = none
+        var end_of_block_col = none
+        if block.len > 0 {
+            end_of_block_line = block[block.len].line
+            end_of_block_col = block[block.len].col
+        }
+        if msgs != none {
+            if not call_stmt.damaged {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected end of block, "
+                    "expected await before end of this "
+                    "block for preceding later call "
+                    "in line " + call_stmt.line.as_str() +
+                    ", column " +
+                    call_stmt.col.as_str() + " "
+                    ".",
+                    source_file=project_file,
+                    line=end_of_block_line,
+                    col=end_of_block_col,
+                ))
+            }
+            call_stmt.damaged = yes
+        } else {
+            throw new RuntimeError("Missing await after "
+                "later call.")
+        }
+        return none
+    }
+    return awaits
 }
 
 func first_pass_later_transform(
@@ -135,7 +441,9 @@ func first_pass_later_transform(
     }
     func make_later_return_cb_call(exit_info, return_expr,
             inner_scope, line, col, as_error=no,
-            transformed_nodes_set=none) {
+            transformed_nodes_set=none, call_delayed=yes) {
+        assert(exit_info != none)
+        assert(inner_scope != none)
         var callback_call = new call_or_assign_stmt.CallStmt()
         callback_call.scope = inner_scope
         callback_call.line = line
@@ -154,7 +462,7 @@ func first_pass_later_transform(
             return_expr.col = col
         }
         var idexpr = none
-        if exit_info.is_func_return {
+        if call_delayed {
             idexpr = new ast_expr.IdRefExpr()
             idexpr.scope = inner_scope
             idexpr.label = "$schedule_later"
@@ -175,7 +483,7 @@ func first_pass_later_transform(
         callargs.scope = inner_scope
         callargs.line = line
         callargs.col = col
-        if exit_info.is_func_return {
+        if call_delayed {
             if not as_error {
                 callargs.subexprs = [idexpr2, noneexpr, return_expr]
             } else {
@@ -233,9 +541,19 @@ func first_pass_later_transform(
         error_idref.col = doresc.col
         error_idref.label = err_name
         error_idref.ref = err_ref
+        assert(
+            node.func_scope.
+                get_later_transform_info()._exit_info != none
+        )
+        assert(
+            node.func_scope.get_later_transform_info().
+                exit_info() != none
+        )
         var nodes = make_later_return_cb_call(
-            node.func_scope.later_exit_info, error_idref,
+            node.func_scope.get_later_transform_info().exit_info(),
+            error_idref,
             inner_scope, node.line, node.col, as_error=yes,
+            call_delayed=yes,
             transformed_nodes_set=transformed_nodes_set)
         rescclause.subblocks = [nodes]
         if transformed_nodes_set != none {
@@ -279,11 +597,17 @@ func first_pass_later_transform(
                     not node.scope.func_scope.is_later_func) {
                 return later node
             }
+            if node.kind == ast.N_STMT_FUNC and
+                    node.func_scope.later_transform_info == none {
+                node.func_scope.later_transform_info =
+                    new LaterTransformInfo()
+            }
             var inner_scope = node.scope
             if node.kind == ast.N_STMT_FUNC and
                     not transformed_nodes.has(node) and
                     node.func_scope.is_later_func and
-                    (node.func_scope.later_exit_info == none or
+                    (node.func_scope.
+                        later_transform_info._exit_info == none or
                     func_was_obviously_not_later_transformed(node)) {
                 transformed_nodes.add(node)
                 assert(node.kind == ast.N_STMT_FUNC)
@@ -291,8 +615,13 @@ func first_pass_later_transform(
                     node.label.starts("$laterfunc")
                 )
                 inner_scope = node.func_scope.inner_scope
-                assert(not is_generated_latercb or
-                    node.func_scope.later_exit_info != none)
+                assert(
+                    not is_generated_latercb or (
+                    node.func_scope.
+                        later_transform_info != none and
+                    node.func_scope.
+                        later_transform_info._exit_info != none)
+                )
                 var new_name = "$laterreturncb" + random.gen_id()
                 while not inner_scope.name_is_free(new_name,
                         pfile.global_scope) {
@@ -302,11 +631,22 @@ func first_pass_later_transform(
                 if not is_generated_latercb {
                     exinfo = new LaterExitInfo()
                     exinfo.exit_cb_label = new_name
-                    node.func_scope.later_exit_info = exinfo
+                    if node.func_scope.later_transform_info == none {
+                        node.func_scope.later_transform_info =
+                            new LaterTransformInfo()
+                        # Note/XXX:
+                        # Don't set .owning_local_scope whenever
+                        # LaterTransformInfo() belongs to func scope.
+                    }
+                    node.func_scope.later_transform_info._exit_info = (
+                        exinfo
+                    )
                     exinfo.exit_cb_storage_ref =
-                        inner_scope.add_symbol(new_name, node.line, node.col)
+                        inner_scope.add_symbol(new_name, node.line,
+                            node.col)
                 } else {
-                    exinfo = node.func_scope.later_exit_info
+                    exinfo = node.func_scope.
+                        later_transform_info._exit_info
                 }
 
                 var pos_arg_count =
@@ -327,7 +667,9 @@ func first_pass_later_transform(
                             [node.subblocks[1].len].col
                     }
                     var nodes = make_later_return_cb_call(
-                        exinfo, none, inner_scope, line, col)
+                        exinfo, none, inner_scope, line, col,
+                        call_delayed=yes
+                    )
                     for inner_node in nodes {
                         transformed_nodes.add(inner_node)
                     }
@@ -350,6 +692,7 @@ func first_pass_later_transform(
                     ast.N_STMT_ASSIGN}.has(node.kind) and
                     not transformed_nodes.has(node) and
                     node.has_later and not node.has_later_ignore and
+                    node.scope != none and
                     node.scope.func_scope.is_later_func and
                     not node.has_later_repeat {
                 transformed_nodes.add(node)
@@ -361,9 +704,9 @@ func first_pass_later_transform(
                 }
                 var call_exprs = [node.subexprs[call_idx]]
                 assert(call_exprs[1].kind == ast.N_EXPR_BINOP and
-                        call_exprs[1].subexprs.len == 2 and
-                        call_exprs[1].subexprs[2].kind ==
-                            ast.N_EXPR_CALLARGS)
+                    call_exprs[1].subexprs.len == 2 and
+                    call_exprs[1].subexprs[2].kind ==
+                        ast.N_EXPR_CALLARGS)
                 if node.kind == ast.N_STMT_VAR {
                     assigned_or_declared_names += node.var_labels
                     for expr in node.subexprs.sub(2) {
@@ -384,8 +727,17 @@ func first_pass_later_transform(
                 }
                 var stmts_after = []
                 var scan_node = node
-                var einfo = node.scope.get_later_exit_info()
+                if node.scope.later_transform_info == none {
+                    node.scope.later_transform_info =
+                        new LaterTransformInfo()
+                    node.scope.later_transform_info.
+                        owning_local_scope = node.scope
+                }
+                var einfo = node.scope.
+                    get_later_transform_info().exit_info()
                 assert(einfo != none)
+
+                # Collect contents for new, made-up closure:
                 var parents_idx = parents.len + 1
                 while yes {
                     stmts_after += ast.get_neighbor_statements_after(
@@ -400,8 +752,10 @@ func first_pass_later_transform(
                     }
                     scan_node = parents[parents_idx]
                     if scan_node.kind == ast.N_STMT_FUNC or
-                            scan_node.scope.
-                                get_later_exit_info() != einfo {
+                            scan_node.scope == none or
+                            scan_node.scope.func_scope.
+                                get_later_transform_info().exit_info() !=
+                                einfo {
                         break
                     }
                 }
@@ -414,18 +768,40 @@ func first_pass_later_transform(
                 } else {
                     param_name_return = "$unused" + random.gen_id()
                 }
+
+                # Find where the awaits are:
+                var awaits = []
+                if node.kind != ast.N_STMT_CALL {
+                    awaits = find_await_after_later_call_stmt(
+                        node, parents, msgs=msgs,
+                        project_file=pfile
+                    )
+                }
+                if awaits == none {
+                    return later node
+                }
+
+                # Actually construct made-up closure:
                 var func_node = pfile.make_new_made_up_func_node(
                     inner_scope, "$laterfunc", line=node.line,
                     col=node.line)
                 assert(func_node.func_scope != none)
                 assert(func_node.func_scope.inner_scope != none)
+                assert(inner_scope != none)
                 func_node.scope = inner_scope
                 func_node.subblocks = [stmts_after]
                 func_node.arg_labels = [err_param_name,
                     param_name_return]
                 func_node.kw_arg_count = 0
-                func_node.func_scope.later_exit_info =
-                    node.scope.func_scope.later_exit_info
+                if func_node.func_scope.later_transform_info == none {
+                    func_node.func_scope.later_transform_info =
+                        new LaterTransformInfo()
+                    # Note/XXX:
+                    # Don't set .owning_local_scope whenever
+                    # LaterTransformInfo() belongs to func scope.
+                }
+                func_node.func_scope.later_transform_info._exit_info =
+                    node.scope.func_scope.later_transform_info._exit_info
                 node.is_later = no
                 var continuation_idref = new ast_expr.IdRefExpr()
                 continuation_idref.scope = inner_scope
@@ -480,8 +856,13 @@ func first_pass_later_transform(
                 var result = new_root
                 result += [call_stmt_node, return_stmt_node]
 
-                assert(not func_node.func_scope.is_later_func or
-                    func_node.func_scope.later_exit_info != none)
+                assert(
+                    not func_node.func_scope.is_later_func or (
+                    func_node.func_scope.
+                        later_transform_info != none and
+                    func_node.func_scope.later_transform_info.
+                        _exit_info != none)
+                )
                 assert(func_node.scope == call_stmt_node.scope)
                 assert(not func_node.subblocks[1].has(call_stmt_node))
 
@@ -502,6 +883,7 @@ func first_pass_later_transform(
             }
             if node.kind == ast.N_STMT_RETURN and
                     not transformed_nodes.has(node) and
+                    node.scope != none and
                     node.scope.func_scope.is_later_func and
                     does_return_need_callback(
                         node, parents
@@ -509,12 +891,25 @@ func first_pass_later_transform(
                 transformed_nodes.add(node)
                 var line = node.line
                 var col = node.col
-                var einfo = node.scope.get_later_exit_info()
+                if node.scope.later_transform_info == none {
+                    node.scope.later_transform_info =
+                        new LaterTransformInfo()
+                    node.scope.later_transform_info.
+                        owning_local_scope = node.scope
+                }
+                var einfo = node.scope.
+                    get_later_transform_info().exit_info()
+                assert(
+                    node.scope.get_later_transform_info().
+                        owning_local_scope == node.scope
+                )
                 assert(einfo != none)
                 var nodes = make_later_return_cb_call(
                     einfo,
                     if node.subexprs.len > 0 (node.subexprs[1])
-                        else (none), inner_scope, line, col)
+                        else (none), inner_scope, line, col,
+                    call_delayed=yes
+                )
                 return later nodes
             }
             if node.kind == ast.N_STMT_IF and no {
