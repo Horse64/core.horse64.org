@@ -28,7 +28,7 @@ indentation, but the compiler won't get in your way if you do.
 Program structure
 -----------------
 
-When compared, Horse64 is probably most similar to a Python
+In comparison, Horse64 is probably most similar to a Python
 program with its layout. Any program will have a main function:
 
 ```Horse64
@@ -60,14 +60,11 @@ When using Horse64, instead you'll want to compile the program
 first (which allows better safety analysis and optimization):
 
 ```bash
-horsec compile -o program.exe my_project/my_horse64_program.h64
-program.exe
+horsec compile -o program my_project/my_horse64_program.h64
+./program
 ```
 
-**Note:** the `.exe` assumes Windows, on Linux or macOS you
-would commonly use `.bin` or no file extension.
-
-You can also run a Horse64 script directly, but the start
+You can also run a Horse64 script directly, but the launch
 might be slightly delayed:
 
 ```bash
