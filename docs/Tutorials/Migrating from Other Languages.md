@@ -5,7 +5,7 @@ Migrating from Other Languages
 ==============================
 
 **This is a tutorial for people who can already program in
-Python, Javascript, or Lua, but aren't familiar with Horse64 yet.**
+Python, Javascript, or Lua,** but aren't familiar with Horse64 yet.
 
 This tutorial will go over the main differences that you might
 not be expecting.
