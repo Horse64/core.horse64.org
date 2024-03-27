@@ -25,6 +25,27 @@ It's not encouraged to write everyhing in one line or to avoid
 indentation, but the compiler won't get in your way if you do.
 
 
+Program structure
+-----------------
+
+When compared, Horse64 is probably most similar to a Python
+program with its layout. Any program will have a main function:
+
+```Horse64
+func main {
+    print("Hello World! My program started in the main func.")
+}
+```
+
+From then on, you can import any neigboring code files for
+use as modules.
+
+**Note:** In Horse64, **code can't be outside
+a `func`** like it could in Python, Javascript, or Lua.
+
+Even a simple script must have a `func main` starting point!
+
+
 Starting a program
 ------------------
 
