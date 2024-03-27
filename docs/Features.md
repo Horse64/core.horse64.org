@@ -81,6 +81,10 @@ When to use Horse64
 For the [design goals, go here](
 /docs/Language%20Specs/Overview#design-goals).
 
+For an [introduction for programmers of other
+languages, go here](
+/docs/Tutorials/Migrating%20from%20Other%20Languages.md).
+
 
 Comparison with other languages and use cases
 ---------------------------------------------
@@ -103,6 +107,10 @@ If you find a mistake or want to
 suggest an improvement, [please file a documentation issue](
 /docs/Resources.md#report-bugs).
 ).
+
+If you want to learn Horse64 and you can already code,
+[check this introduction for programmers](
+/docs/Tutorials/Migrating%20from%20Other%20Languages.md).
 
 ### Syntax, Core, and Code Flow Features
 
