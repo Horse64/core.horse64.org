@@ -92,6 +92,8 @@ async function my_function() {
                      // the above, but you can't easily see that.
     result = await result;  // May cause a time skip if by now, your
                             // earlier async call hasn't completed.
+    console.log("Intermediate result: " + result)
+    // ...do something further with result here...
 }
 ```
 
@@ -99,14 +101,16 @@ Here is a **later call example in Horse64**:
 
 ```Horse64
 func my_function {
-    var delayed_result = some_func_that_is_async()
+    var result = some_func_that_is_async()
     later:  # This marker is mandatory and tells you the call above is
             # concurrent, and it marks a clear expected time skip.
 
     do_something()  # This will actually NOT run in parallel but after
                     # above call fully completed.
-    await delayed_result  # Make result available and bubble up errors.
-                          # This will never cause a delay or time skip.
+    await result  # Make result available and bubble up errors.
+                  # This will never cause a delay or time skip.
+    print("Intermediate result: " + result.as_str())
+    # ...do something further with result here...
 }
 ```
 
