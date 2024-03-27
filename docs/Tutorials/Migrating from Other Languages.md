@@ -92,7 +92,7 @@ async function my_function() {
                      // the above, but you can't easily see that.
     result = await result;  // May cause a time skip if by now, your
                             // earlier async call hasn't completed.
-    console.log("Intermediate result: " + result)
+    console.log("Intermediate result: " + result);
     // ...do something further with result here...
 }
 ```
