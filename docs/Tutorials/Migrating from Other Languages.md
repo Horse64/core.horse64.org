@@ -16,7 +16,7 @@ Feature comparison
 
 There's an [overall feature overview here](
 /docs/Features.md#comparison-with-other-languages-and-use-cases), and
-a [setup guide here](/docs/Initial Setup.md).
+a [setup guide here](/docs/Tutorials/nitial Setup.md).
 
 Read on for a more detailed look at various parts:
 

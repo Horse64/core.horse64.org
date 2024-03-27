@@ -5,7 +5,7 @@ Tutorials for Horse64
 =====================
 
 If you want to know how to set up Horse64 and write your first program,
-check out [the initial setup tutorial](/docs/Initial Setup.md).
+check out [the initial setup tutorial](/docs/Tutorials/Initial Setup.md).
 
 Then, try out these tutorials if you're a beginner:
 

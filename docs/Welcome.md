@@ -22,7 +22,7 @@ func main {
 - Get [📩 Horse64 here](https://horse64.org/download).
 
 - **New beginner?**
-  Try the [🦸‍♀️ startup help](/docs/Initial Setup.md)!
+  Try the [🦸‍♀️ startup help](/docs/Tutorials/Initial Setup.md)!
 
 - **Reference for more?**
   Try more [🛠️ tutorials](
