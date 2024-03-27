@@ -661,7 +661,7 @@ def _container_reverse(container, *args, **kwargs):
         return _TypeError("cannot reverse this container")
     return container.sort(*args, **kwargs)
 
-def _value_to_str(value):
+def _value_to_str(value, seen_containers=None):
     if type(value) == bytes:
         return value.decode("utf-8",
             errors="surrogateescape")
@@ -681,6 +681,40 @@ def _value_to_str(value):
         if v.strip().lower() == "set()":
             return "{}"
         return v
+    if type(value) in [list, set, dict,
+            _TranslatedSet]:
+        if seen_containers is None:
+            seen_containers = []
+        seen_containers.append(id(value))
+        is_dict = (type(value) == dict)
+        is_list = (type(value) == list)
+        is_first = True
+        t = "{" if not is_list else "["
+        for entry in value:
+            if is_first:
+                is_first = False
+            else:
+                t += ", "
+            key_str = None
+            if id(entry) in seen_containers:
+                key_str = "..."
+            else:
+                key_str = _value_to_str(
+                    entry, seen_containers=seen_containers
+                )
+            t += key_str
+            if is_dict:
+                key_value_str = None
+                key_value = value[entry]
+                if id(key_value) in seen_containers:
+                    key_value_str = "..."
+                else:
+                    key_value_str = _value_to_str(
+                        key_value, seen_containers=seen_containers
+                    )
+                t += " -> " + key_value_str
+        t += "}" if not is_list else "]"
+        return t
     return str(value)
 
 def _value_as_bytes(value):
