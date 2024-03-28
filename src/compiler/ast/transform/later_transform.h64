@@ -130,7 +130,7 @@ func find_await_after_later_call_stmt(
                 "team."
             )
         }
-        index = 0
+        var index = 0
         for sinfo in call_stmt.symbol_info {
             index += 1
             async_return_value_storage_refs.add(
@@ -240,7 +240,7 @@ func find_await_after_later_call_stmt(
                         if inner_awaits == none {
                             return none
                         }
-                        assert(inner_awaits.len == 0)
+                        assert(inner_awaits[1].len == 0)
                     }
                 }
                 idx += 1
@@ -259,7 +259,7 @@ func find_await_after_later_call_stmt(
                     if inner_awaits == none {
                         return none
                     }
-                    assert(inner_awaits.len == 0)
+                    assert(inner_awaits[1].len == 0)
                 }
                 idx += 1
                 continue
@@ -427,6 +427,9 @@ func find_await_after_later_call_stmt(
             throw new RuntimeError("Missing await after "
                 "later call.")
         }
+        return none
+    }
+    if awaits_result == none {
         return none
     }
     return awaits_result[1]

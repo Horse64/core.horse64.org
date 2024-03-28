@@ -125,7 +125,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     }
     pos += 1  # Past ','
 
-    var v = expr.parse_expression(
+    v = expr.parse_expression(
         tokens, pos, msgs,
         project_file=project_file
     ) later repeat
