@@ -215,7 +215,7 @@ keyword. It's dangerous to use for calling funcs that aren't
 designed to handle the consequences.**
 
 For the standard library, the documentation lists for
-each function if it is made to deal being called in `parallel`,
+each function if it is made to handle running in `parallel`,
 but for almost all functions this is the case.
 Check [net.fetch.get_str() for example, you'll see its
 support confirmed here](/docs/FIXME).
