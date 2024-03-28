@@ -8,22 +8,76 @@ Horse64's concurrency model has the following properties:
 
 - It has two types of functions, the concurrent *"later functions"*
   and the regular ones, while the former ones need to be called
-  differently.
+  differently. Regular ones can always also be called as later func.
 
-- Any concurrent execution is interleaved, but not threaded
-  as in not parallel. Interleaving happens only at the `later`
-  call points or when one execution chain fully ends.
+- Any concurrent execution is interleaved, and it may also be
+  in parallel if you ever launch things in parallel.
 
-- The concurrency is handled fully at compile time and
+- **If your program ever launches things in parallel,
+  [be careful to avoid race conditions](#avoiding-race-conditions).**
+
+- However, parallel execution isn't guaranteed and only happens
+  if there is a free worker. If there isn't one, parallel functions
+  might **stall and wait**.
+
+  In practice, this is only a problem if you have multiple long-running
+  functions without any internal `later` calls to break them up,
+  all running at the same time, hogging all available [VM workers](
+  /docs/Runtime%20Concerns.md#vm-worker-threads).
+
+  To work around that, break up particularly long-running computations
+  up into multiple later functions that you call sequentially.
+
+- Technically, concurrency is handled fully at compile time and
   reshaped by the compiler into closures under the hood.
 
-- The concurrency has no promise objects or greenlet objects
-  of any kind to pass around, it's a very lightweight and minimal
-  model.
 
-- All standard library functionality that might be blocked on
-  external resources aims to be concurrent, and so should you
-  in that case.
+Avoiding race conditions
+------------------------
+
+If you never launch things in parallel, other funcs can only
+ever intervene  during `later:` time skips. Therefore, you
+don't need any special precautions if you avoid parallelism.
+
+**If you [use parallelism](/docs/Concurrency#running-code-in-parallel),
+then continue reading:**
+
+Basic access like indexing, setting or getting an attribute or
+a variable, and so on are all thread-safe. Basically, each
+single operation seen in a Horse64 code file is made to be
+atomic, including `+=` and similar operators. Any other
+truly parallel later call will either see the old value
+or the new one, never any corrupted in-between.
+
+However, you'll need a [threading lock (mutex)](/docs/FIXME) if:
+
+1. You launch funcs truly in parallel, e.g. via launching
+   two or more at once or via `later ignore`.
+
+2. More than one of these funcs are written to use a shared
+   object or value (see next point).
+
+3. And this shared complex object or value is ever accessed via
+   multiple operations that depend on each other.
+
+   This is e.g. the case if you get the length of
+   a list in one line (which in itself is thread-safe), and then
+   index the list based on the obtained index in a separate line.
+
+   This is e.g. also the case if you want to change two
+   attributes on a [custom object](#custom-typesin-horse64) and
+   other parallel funcs are meant to only access the object
+   with either none, or both of these values changed.
+
+**Not using a threading lock for parallel access
+can cause severe program errors like unpredictable results and
+crashes of your code.** ([HVM itself](/docs/Resources.md#hvm)
+should handle it fine.)
+
+Make sure to check any third-party Horse64 libraries to ensure
+they won't run multiple funcs of yours in parallel either.
+The official integrated functionality doesn't do this without
+a warning in its documentation and also doesn't do this by default.
 
 
 Formal rules for later `func`s

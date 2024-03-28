@@ -61,6 +61,8 @@ to bubble up that happened in the call, if any.
 Running code in parallel
 ------------------------
 
+### Parallelism via combined launches
+
 The real gain from concurrency comes from running multiple
 things in parallel, which will then not interrupt each other:
 
@@ -94,9 +96,14 @@ things in parallel, which will then not interrupt each other:
   }
   ```
 
+**Warning:** Running any of your funcs like in this example
+[causes parallelism that can expose
+race conditions in your code](
+/docs/Language%20Specs/Concurrency%20Model.md#avoiding-race-conditions).
+**If you are beginner, it's best to avoid launching more
+than one later func at the same time.**
 
-`later ignore`
---------------
+### Parallelism via `later ignore`
 
 **Don't want to wait?** If you don't care about a later
 function's return value or its success, you can follow
@@ -120,12 +127,18 @@ In this case, the execution won't be delayed until the
 later call fully completes but instead continue without
 a possibly long time skip.
 
+**Warning:** Running any of your funcs in the background
+via `later ignore` [causes parallelism that can expose
+race conditions in your code](
+/docs/Language%20Specs/Concurrency%20Model.md#avoiding-race-conditions).
+**If you are beginner, it's best to avoid `later ignore`.**
+
 
 `later repeat`
 --------------
 
 Since later calls aren't supported by [horsec](/docs/Resources.md#horsec)
-inside loops like `for` or `while`, whenever you need to
+inside loops, like any `for` or `while` loop, whenever you need to
 call later functions in some repeating block,
 use `later repeat` instead in a pair like this:
 
@@ -174,9 +187,10 @@ Further reading
 For the [formal calling rules, go here](
 /docs/Language%20Specs/Concurrency%20Model.md#formal-rules-for-later-funcs).
 
-**Note on race conditions:** concurrent functions don't run
-truly in parallel. Only during the time skips, so during
-your `later` calls, can other interleaved later functions run.
-[See more on the formal concurrency model here.](
-/docs/Language%20Specs/Concurrency%20Model.md)
+For avoiding [**dangerous race conditions** if you ever
+run things in parallel, read here](
+/docs/Language%20Specs/Concurrency%20Model.md#avoiding-race-conditions).
+
+For the full [formal concurrency model, go here](
+/docs/Language%20Specs/Concurrency%20Model.md).
 
