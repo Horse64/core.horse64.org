@@ -55,12 +55,12 @@ or the new one, never any corrupted in-between.
 
 However, you'll need a [threading lock (mutex)](/docs/FIXME) if:
 
-1. You launch funcs truly in parallel by using `later parallel`.
+1. You launch funcs truly in parallel by using `later parallel`,
 
-2. More than one of these funcs are written to use a shared
-   object or value (see next point).
+2. **and** more than one of these funcs are written to use a shared
+   object or value (see next point),
 
-3. And this shared complex object or value is ever accessed via
+3. **and** this shared complex object or value is ever accessed via
    multiple operations that depend on each other.
 
    This is e.g. the case if you get the length of
@@ -72,15 +72,17 @@ However, you'll need a [threading lock (mutex)](/docs/FIXME) if:
    other parallel funcs are meant to only access the object
    with either none, or both of these values changed.
 
-**Not using a threading lock for parallel access
-can cause severe program errors like unpredictable results and
+**Note:** not using a threading lock for parallel access
+can cause **⚠️ severe and insideous program errors** like
+unpredictable wrong results, timing-induced failures, and
 crashes of your code.** ([HVM itself](/docs/Resources.md#hvm)
-should handle it fine.)
+should handle it fine, but your code may not.)
 
-Make sure to check any third-party Horse64 libraries to ensure
-they won't run multiple funcs of yours in parallel either.
-The official integrated functionality doesn't do this without
-a warning in its documentation and also doesn't do this by default.
+**Note:** make sure to check any third-party Horse64 libraries
+to ensure they won't unexpectedly run funcs of your own in
+parallel either, for example via callbacks. The official
+integrated functionality doesn't do this without a warning in
+its documentation and also shouldn't ever do this by default.
 
 
 Formal rules for later `func`s
