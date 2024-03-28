@@ -181,7 +181,7 @@ As you can see, in Horse64 the time skips and concurrent calls are,
 unlike in many other languages, syntactically obvious and not hidden.
 This makes the code flow easy and transparent to the reader.
 
-**If you wanted `do_something()` run interleaved** in Horse64 too:
+**If you wanted `do_something()` running interleaved** in Horse64 too:
 
 ```Horse64
 func my_function {

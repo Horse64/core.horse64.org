@@ -32,9 +32,8 @@ keyword, indicating a **time skip, see this call example:**
   ```
 
 Concurrent functions in Horse64 are also called *"later functions"*.
-During the time skip, any other code can still run which will keep
-[any parallel executions your program has still going](
-#running-code-in-parallel) resuming smoothly.
+During the time skip, any other code can still run which will make
+any interleaved executions your program has going resume smoothly.
 
 The `await` keyword extracts the results, and causes errors
 to bubble up that happened in the call, if any.
@@ -62,7 +61,7 @@ Concurrently call multiple functions
 ------------------------------------
 
 The real gain from concurrency comes from running multiple
-things in one go, which will then interleave them:
+things at a time, which will interleave them:
 
   ```Horse64
   import net.fetch from core.horse64.org
