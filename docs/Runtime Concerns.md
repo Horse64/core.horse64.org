@@ -35,9 +35,10 @@ and therefore may make your code faster if used instead.
 VM worker threads
 -----------------
 
-[HVM](/docs/Resources.md#Hvm) will run multiple concurrent executions
-at all times, as long as more than one is currently scheduled of
-course. It uses a pool of multiple worker threads using
+[HVM](/docs/Resources.md#Hvm) can run multiple concurrent executions,
+as long as any are [scheduled via `parallel` keyword](
+/docs/Concurrency.md#running-code-in-parallel).
+HVM uses a pool of multiple worker threads using
 hardware threading to run with true parallelism. The amount
 of workers depends on the detected amount of CPU cores, but
 a minimum of two threads is used.

@@ -181,7 +181,7 @@ Running code in parallel
 
 **⚠️⚠️ Using this might break your program. See the notes below.**
 
-To call any later function truly parallel, use the `parallel`
+To call any later function truly in parallel, use the `parallel`
 keyword:
 
   ```Horse64

@@ -12,7 +12,8 @@ Contribute testing feedback
 
 If you want to help testing, [get the SDK](
 /docs/Resources.md#sdk) and [report bugs](
-report-bugs).
+report-bugs). For a more detailed [setup guide,
+go here](/docs/Tutorials/Initial%20Setup.md).
 
 
 Contribute code
@@ -131,6 +132,18 @@ following:
 If you want to talk to other developers to discuss new
 features and patches, [join the 💬 community chat](
 https://horse64.org/chat).
+
+
+Contribute documentation
+------------------------
+
+You can find the documentation, including this file itself,
+in the [main repository of the core.horse64.org package](
+/docs/Resources.md#standard-library), it's inside the `docs`
+folder. Feel free to suggest improvements. Keep in mind the
+[license currently asks you not to submit any AI-generated
+suggestions. This includes no AI-generated documentation
+text](/docs/Resources.md#license).
 
 
 Maintainer checklists

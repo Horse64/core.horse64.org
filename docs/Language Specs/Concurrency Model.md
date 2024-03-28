@@ -68,7 +68,8 @@ However, you'll need a [threading lock (mutex)](/docs/FIXME) if:
    index the list based on the obtained index in a separate line.
 
    This is e.g. also the case if you want to change two
-   attributes on a [custom object](#custom-types-in-horse64) and
+   attributes on a [custom object](
+   /docs/OOP.md#custom-types-in-horse64) and
    other parallel funcs are meant to only access the object
    with either none, or both of these values changed.
 

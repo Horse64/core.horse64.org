@@ -125,7 +125,7 @@ If you want to learn Horse64 and you can already code,
 |✔|✔|✔|✔| |✔|**Garbage-Collector** to make avoiding leaks easier.      |
 |✔| |〰|✔| | |**1st-class type extending without inheritance.**         |
 | |✔| | |✔| |**1st-class multiple base types inheritance** for mixins. |
-|✔| | |✔| | |**Parallel threaded execution** of all async calls.       |
+|✔| | |✔| | |**Parallel threaded execution** for async calls.          |
 | | | | | |✔|**Tail-call optimization** enabled by default.            |
 |✔| | | | |✔|**1-based indexing** to be more beginner-friendly.        |
 
