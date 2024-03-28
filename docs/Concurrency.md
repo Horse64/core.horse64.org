@@ -58,13 +58,11 @@ to bubble up that happened in the call, if any.
   ```
 
 
-Running code in parallel
-------------------------
-
-### Parallelism via combined launches
+Concurrently call multiple functions
+------------------------------------
 
 The real gain from concurrency comes from running multiple
-things in parallel, which will then not interrupt each other:
+things in one go, which will then interleave them:
 
   ```Horse64
   import net.fetch from core.horse64.org
@@ -96,19 +94,19 @@ things in parallel, which will then not interrupt each other:
   }
   ```
 
-**Warning:** Running any of your funcs like in this example
-[causes parallelism that can expose
-race conditions in your code](
-/docs/Language%20Specs/Concurrency%20Model.md#avoiding-race-conditions).
-**If you are beginner, it's best to avoid launching more
-than one later func at the same time.**
+**Note:** this alone won't run them truly in parallel yet,
+only interleaved during e.g. any `later:` time skips
+they use. To run this [faster and truly in parallel, add the
+`parallel` keyword](#running-code-in-parallel).
 
-### Parallelism via `later ignore`
+
+`later ignore`
+--------------
 
 **Don't want to wait?** If you don't care about a later
 function's return value or its success, you can follow
 the call up with `later ignore`. This will make
-them run in the background in parallel as well:
+them run in the background interleaved as well:
 
   ```Horse64
   import net.fetch from core.horse64.org
@@ -127,11 +125,52 @@ In this case, the execution won't be delayed until the
 later call fully completes but instead continue without
 a possibly long time skip.
 
-**Warning:** Running any of your funcs in the background
-via `later ignore` [causes parallelism that can expose
-race conditions in your code](
+For [true parallelism and higher speed, add in
+the `parallel` keyword](#running-code-in-parallel).
+
+
+Running code in parallel
+------------------------
+
+To call any later function truly parallel, use the `parallel`
+keyword:
+
+  ```Horse64
+  import net.fetch from core.horse64.org
+
+  func main {
+     var contents = net.fetch.get_str(
+         "https://horse64.org"
+     ) later parallel:
+
+     await contents
+  }
+  ```
+
+This also works with `later ignore`:
+
+  ```Horse64
+  import net.fetch from core.horse64.org
+
+  func main {
+      net.fetch.get_str(
+         "https://horse64.org"
+      ) later ignore parallel
+  }
+  ```
+
+**Warning:** Running any of your funcs via [true parallelism
+can expose **dangerous race conditions** in your code](
 /docs/Language%20Specs/Concurrency%20Model.md#avoiding-race-conditions).
-**If you are beginner, it's best to avoid `later ignore`.**
+**If you are beginner, it's best to avoid the `parallel`
+keyword. It's dangerous to use for calling funcs that aren't
+desigend to handle the consequences.**
+
+For the standard library, the documentation lists for
+each function if it is made to deal being called in `parallel`,
+but for almost all functions this is the case.
+Check [net.fetch.get_str() for example, you'll see its
+support confirmed here](/docs/FIXME).
 
 
 `later repeat`

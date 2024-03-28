@@ -10,20 +10,22 @@ Horse64's concurrency model has the following properties:
   and the regular ones, while the former ones need to be called
   differently. Regular ones can always also be called as later func.
 
-- Any concurrent execution is interleaved, and it may also be
-  in parallel if you ever launch things in parallel.
+- Any concurrent execution is interleaved, with execution switching
+  over at any `later:` time skip.
 
-- **If your program ever launches things in parallel,
+- **If your program ever launches things [in parallel](
+  /docs/Concurrency.md#running-code-in-parallel), then
   [be careful to avoid race conditions](#avoiding-race-conditions).**
 
-- However, parallel execution isn't guaranteed and only happens
-  if there is a free worker. If there isn't one, parallel functions
-  might **stall and wait**.
+- However, immediate parallel execution isn't guaranteed even with
+  `later parallel`. It only happens if there is a free [worker](
+  /docs/Runtime%20Concerns.md#vm-worker-threads).
+  If there isn't one, parallel functions might **stall and wait**.
 
   In practice, this is only a problem if you have multiple long-running
   functions without any internal `later` calls to break them up,
-  all running at the same time, hogging all available [VM workers](
-  /docs/Runtime%20Concerns.md#vm-worker-threads).
+  all running at the same time, and enough that each occupies one
+  of the [VM workers](/docs/Runtime%20Concerns.md#vm-worker-threads).
 
   To work around that, break up particularly long-running computations
   up into multiple later functions that you call sequentially.
@@ -36,10 +38,12 @@ Avoiding race conditions
 ------------------------
 
 If you never launch things in parallel, other funcs can only
-ever intervene  during `later:` time skips. Therefore, you
-don't need any special precautions if you avoid parallelism.
+ever interleave during `later:` time skips. Therefore, you
+don't need any special precautions if you **never use `parallel`.**
 
-**If you [use parallelism](/docs/Concurrency#running-code-in-parallel),
+**If anywhere in your code you [use parallelism via
+the `parallel` keyword](
+/docs/Concurrency.md#running-code-in-parallel),
 then continue reading:**
 
 Basic access like indexing, setting or getting an attribute or
@@ -51,8 +55,7 @@ or the new one, never any corrupted in-between.
 
 However, you'll need a [threading lock (mutex)](/docs/FIXME) if:
 
-1. You launch funcs truly in parallel, e.g. via launching
-   two or more at once or via `later ignore`.
+1. You launch funcs truly in parallel by using `later parallel`.
 
 2. More than one of these funcs are written to use a shared
    object or value (see next point).
@@ -65,7 +68,7 @@ However, you'll need a [threading lock (mutex)](/docs/FIXME) if:
    index the list based on the obtained index in a separate line.
 
    This is e.g. also the case if you want to change two
-   attributes on a [custom object](#custom-typesin-horse64) and
+   attributes on a [custom object](#custom-types-in-horse64) and
    other parallel funcs are meant to only access the object
    with either none, or both of these values changed.
 
