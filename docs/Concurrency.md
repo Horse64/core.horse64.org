@@ -212,7 +212,7 @@ can expose **⚠️ dangerous race conditions** in your code](
 /docs/Language%20Specs/Concurrency%20Model.md#avoiding-race-conditions).
 **If you are beginner, it's best to avoid the `parallel`
 keyword. It's dangerous to use for calling funcs that aren't
-desigend to handle the consequences.**
+designed to handle the consequences.**
 
 For the standard library, the documentation lists for
 each function if it is made to deal being called in `parallel`,
