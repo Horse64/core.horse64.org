@@ -73,9 +73,9 @@ However, you'll need a [threading lock (mutex)](/docs/FIXME) if:
    with either none, or both of these values changed.
 
 **Note:** not using a threading lock for parallel access
-can cause **⚠️ severe and insideous program errors** like
+can cause **⚠️ severe and insidious program errors** like
 unpredictable wrong results, timing-induced failures, and
-crashes of your code.** ([HVM itself](/docs/Resources.md#hvm)
+crashes of your code. ([HVM itself](/docs/Resources.md#hvm)
 should handle it fine, but your code may not.)
 
 **Note:** make sure to check any third-party Horse64 libraries
