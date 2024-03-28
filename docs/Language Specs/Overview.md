@@ -32,9 +32,9 @@ partially ahead-of-time
   /docs/Language%20Specs/Concurrency%20Model.md),
   or read [an introduction on concurrency](/docs/Concurrency.md).
 
-- Check also [the advanced concepts making up Horse64](
-  /docs/Tutorials/Start#advanced-concepts) beyond just the
-  core specifications.
+- Check also [the various concepts making up Horse64](
+  /docs/Tutorials/Start#basic-concepts-and-topics) beyond just
+  the core specifications.
 
 
 Design Goals

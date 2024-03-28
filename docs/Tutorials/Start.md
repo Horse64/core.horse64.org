@@ -18,10 +18,10 @@ Or if you're coming from other programming languages:
   ).
 
 
-Advanced concepts
------------------
+Basic concepts and topics
+-------------------------
 
-If you want a slightly more advanced dive into various concepts
+If you want a more thorough dive into various concepts
 used in Horse64, check out this list:
 
 - [Modules, Packages, and Imports in Horse64

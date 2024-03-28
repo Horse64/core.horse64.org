@@ -129,7 +129,7 @@ https://en.wikipedia.org/wiki/C_%28programming_language%29).
   https://codeberg.org/Horse64/hvm.horse64.org/src/branch/main/src/
   ).
 
-- Read here on [advanced technical runtime concerns](
+- Read here about [advanced technical runtime concerns](
   /docs/Runtime%20Concerns.md).
 
 
