@@ -151,7 +151,7 @@ Here is an **async example in JavaScript**:
 ```JavaScript
 async function my_function() {
     var result = some_func_that_is_async_but_you_wouldnt_see();
-    do_something();  // This call runs automatically in parallel with
+    do_something();  // This call runs automatically interleaved with
                      // the above, but you can't easily see that.
     result = await result;  // May cause a time skip if by now, your
                             // earlier async call hasn't completed.
@@ -168,8 +168,8 @@ func my_function {
     later:  # This marker is mandatory and tells you the call above is
             # concurrent, and it marks a clear expected time skip.
 
-    do_something()  # This will actually NOT run in parallel but after
-                    # above call fully completed.
+    do_something()  # This will actually not run interleaved but only
+                    # after above call fully completed.
     await result  # Make result available and bubble up errors.
                   # This will never cause a delay or time skip.
     print("Intermediate result: " + result.as_str())
@@ -181,7 +181,7 @@ As you can see, in Horse64 the time skips and concurrent calls are,
 unlike in many other languages, syntactically obvious and not hidden.
 This makes the code flow easy and transparent to the reader.
 
-**If you wanted `do_something()` run in parallel** in Horse64 too:
+**If you wanted `do_something()` run interleaved** in Horse64 too:
 
 ```Horse64
 func my_function {
@@ -192,6 +192,9 @@ func my_function {
     await delayed_result, other_result
 }
 ```
+
+And you can use true [parallelism with the `parallel`
+keyword](/docs/Concurrency.md#running-code-in-parallel), too.
 
 As you can see, Horse64 can run things at the same time just like
 Python or JS can, but you'll have to be obvious about it.
