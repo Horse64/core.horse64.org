@@ -60,15 +60,12 @@ from translator_transformhelpers import (
     func_args_find_last_positional,
 )
 
-
 translator_py_script_dir = (
     os.path.abspath(os.path.dirname(__file__))
 )
 translator_py_script_path = os.path.abspath(__file__)
 
-
 DEBUG_LATER_TRANSFORM_INSERT = False
-
 
 class CleanupCodeInsertInfo:
     def __init__(self):
@@ -100,7 +97,6 @@ def _func_sts_end_in_return(sts):
         return True
     return False
 
-
 def wrap_later_func_for_global_rescue(
         s, exit_callback_name,
         h64_indent="    ",
@@ -131,7 +127,6 @@ def wrap_later_func_for_global_rescue(
         "throw", " ", "e", "\n"])
     new_s += [orig_indent, "}", "\n"]
     return new_s
-
 
 def wrap_later_func_for_user_rescue(
         s, outer_indent="",
@@ -223,7 +218,6 @@ def wrap_later_func_for_user_rescue(
 
     return s
 
-
 def add_wrapped_later_call_for_rescue(
         indent, call_name=None,
         call_stmt=None, h64_indent="    ",
@@ -302,7 +296,6 @@ def add_wrapped_later_call_for_rescue(
         sts.append(return_stmt)
     return sts
 
-
 def return_style_call_as_call_stmts(
         name, return_arg_tokens=None, delayed=True,
         indent="", h64_indent="    ",
@@ -351,7 +344,6 @@ def return_style_call_as_call_stmts(
             [indent] + ["return", "\n"]
         )
     return call_stmts
-
 
 def transform_later_to_closure_funccontents(
         sts, h64_indent="    ",
@@ -668,7 +660,9 @@ def transform_later_to_closure_funccontents(
             if await_error_name is None:
                 if not ignore_erroneous_code:
                     raise ValueError("Found 'await' "
-                        "in forbidden location.")
+                        "in forbidden location. "
+                        "Statements right before: " +
+                        str(sts[max(0, st_idx - 3):st_idx]))
                 new_sts.append(st)
                 continue
             indent_tokens = st[:firstnonblankidx(st)]
@@ -691,7 +685,8 @@ def transform_later_to_closure_funccontents(
                 bracket_depth += 1
             elif t in {")", "}", "]"}:
                 bracket_depth -= 1
-            if t == "later" and bracket_depth == 0:
+            if (t == "later" and
+                    bracket_depth == 0):
                 later_indexes.append(i)
 
         if len(later_indexes) != 1:
@@ -729,15 +724,18 @@ def transform_later_to_closure_funccontents(
         # code is valid in the first place:
         later_index = later_indexes[0]
         if (not nextnonblank(st, later_index) in {
-                ":", "repeat", "ignore"} or
+                ":", "repeat", "later", "ignore"} or
                 nextnonblank(st, later_index, no=2) != ""):
             if not ignore_erroneous_code:
                 raise ValueError("Found invalid 'later' "
-                    "not followed by ':' or 'repeat'.")
+                    "not followed by ':' or 'later' or 'repeat'.")
             new_sts.append(st)
             continue
-        is_a_repeat = (nextnonblank(st, later_index) == "repeat")
-        is_an_ignore = (nextnonblank(st, later_index) == "ignore")
+        past_parallel_idx = nextnonblankidx(st, later_index)
+        while st[past_parallel_idx] in ("later", "parallel"):
+            past_parallel_idx = nextnonblankidx(st, past_parallel_idx)
+        is_a_repeat = (st[past_parallel_idx] == "repeat")
+        is_an_ignore = (st[past_parallel_idx] == "ignore")
 
         # Store info we will need later:
         rescue_disablers_OUTERCALL_len = None
@@ -769,6 +767,11 @@ def transform_later_to_closure_funccontents(
 
         # See where in the 'later'ed call to insert the callback:
         later_preceding_call_close = prevnonblankidx(st, later_index)
+        if (later_preceding_call_close >= 0 and
+                st[later_preceding_call_close] == "parallel"):
+            later_preceding_call_close = prevnonblankidx(
+                st, later_preceding_call_close
+            )
         if (later_preceding_call_close < 0 or
                 st[later_preceding_call_close] != ")"):
             if not ignore_erroneous_code:
@@ -780,9 +783,9 @@ def transform_later_to_closure_funccontents(
             continue
         later_preceding_call_noargs = False
         later_preceding_call_args_have_trailing_comma = False
-        if prevnonblank(st, later_index, no=2) == "(":
+        if prevnonblank(st, later_preceding_call_close) == "(":
             later_preceding_call_noargs = True
-        elif prevnonblank(st, later_index, no=2) == ",":
+        elif prevnonblank(st, later_preceding_call_close) == ",":
             later_preceding_call_args_have_trailing_comma = True
 
         # Get argument name from var/const declaration if any:
@@ -1138,7 +1141,6 @@ def transform_later_to_closure_funccontents(
         new_sts.append([first_st_indent, "ASS2", "\n"])
     return new_sts
 
-
 def stmt_inner_blocks_use_await_before_later(st):
     ranges = get_statement_block_ranges(st)
     for block_range in ranges:
@@ -1149,7 +1151,6 @@ def stmt_inner_blocks_use_await_before_later(st):
         if result != None:
             return result
     return False
-
 
 def stmt_has_later(st):
     assert(type(st) == list and (
@@ -1165,7 +1166,6 @@ def stmt_has_later(st):
             bdepth -=1
         i += 1
     return False
-
 
 def stmt_list_uses_await_before_later(sts):
     if (type(sts) == list and len(sts) > 0 and
@@ -1192,7 +1192,6 @@ def stmt_list_uses_await_before_later(sts):
         if stmt_inner_blocks_use_await_before_later(st):
             return True
     return None
-
 
 def stmt_inner_blocks_use_later(
         st, including_later_ignore=True
@@ -1240,7 +1239,6 @@ def stmt_inner_blocks_use_later(
                 return True
     return False
 
- 
 def is_func_a_later_func(
         st, including_later_ignore=False
         ):
@@ -1260,7 +1258,6 @@ def is_func_a_later_func(
             including_later_ignore)
     #func_name = nextnonblank(st, firstnonblankidx(st))
     return result
-
 
 def transform_later_to_closure_unnested(
         sts, h64_indent="    ",
@@ -1465,7 +1462,6 @@ def transform_later_to_closure_unnested(
         (len(new_sts[0]) == 0 or type(new_sts[0][0]) == str))))
     return new_sts
 
-
 def transform_later_to_closures(
         s, callback_delayed_func_name=None,
         ignore_erroneous_code=True):
@@ -1478,7 +1474,6 @@ def transform_later_to_closures(
     s = tree_transform_statements(s, do_transform_later,
         inside_out=True)
     return s
-
 
 def transform_later_ifs_to_closures_inner(
         sts, h64_indent="    ",
@@ -1568,7 +1563,6 @@ def transform_later_ifs_to_closures_inner(
 
         break  # We 'consumed' all follow-up statements anyway
     return new_sts
-
 
 def transform_later_ifs_to_closures(
         s, ignore_erroneous_code=True,

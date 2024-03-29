@@ -885,6 +885,11 @@ def translate_expression_tokens(s, sc,
                 previous_token != "."):
             s = s[:i] + ["_translator_runtime_helpers",
                 ".", "h64_type"] + s[i + 1:]
+        elif (s[i] == "later" and
+                previous_token == "return"):
+            # Simply skip this.
+            s = s[:i] + s[i + 1:]
+            continue
         elif s[i].lower() in {"true",
                 "_translator_renamed_true", "false",
                 "_translator_renamed_false"}:

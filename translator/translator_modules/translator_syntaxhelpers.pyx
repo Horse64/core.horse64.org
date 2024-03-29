@@ -50,7 +50,7 @@ def is_keyword(x):
             "return", "await", "throw", "repeat",
             "var", "const", "elseif", "while",
             "any", "ignore", "with", "later",
-            "new", "enum",
+            "new", "enum", "parallel",
             "for", "in", "not", "and", "or"}:
         return True
     return False
@@ -1118,8 +1118,8 @@ must_continue_after_toks = {
     "rescue", "finally", "elseif",
     "enum", "await"}
 must_continue_before_toks = {
-    "->", "(", "[", ":", "later",
-    "repeat", "elseif",
+    "->", "(", "[", ":", "later", "parallel",
+    "repeat", "elseif", "ignore",
     ",", "else", "as", "in", "from",
     "rescue", "finally", "elseif"
 }
