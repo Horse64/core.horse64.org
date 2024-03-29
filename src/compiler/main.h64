@@ -60,7 +60,7 @@ func tokenize_target_from_args(args) {
         var tresult = compiler.token.tokenize_str(
             args["--code"], keep_whitespace=no
         )
-        return tresult
+        return later tresult
     } else {
         var src_path = args["source file"]
 
@@ -69,7 +69,7 @@ func tokenize_target_from_args(args) {
             keep_whitespace=no,
             default_to_diskpath=yes,
             require_detect_project_dir=no
-        ) later:
+        ) parallel later:
 
         await tresult
         return tresult
@@ -97,7 +97,7 @@ func parse_ast_target_from_args(args, checked_ast=no,
                 build_options=build_options,
                 debug=debug, debug_modules=debug_modules,
                 debug_global_storage=debug_global_storage,
-            ) later:
+            ) parallel later:
 
             await tresult
             return tresult
@@ -112,16 +112,16 @@ func parse_ast_target_from_args(args, checked_ast=no,
             build_options=build_options,
             debug=debug, debug_modules=debug_modules,
             debug_global_storage=debug_global_storage,
-        ) later:
+        ) parallel later:
 
         await tresult
-        return tresult
+        return later tresult
     }
-    var tresult = get_ast() later:
+    var tresult = get_ast() parallel later:
 
     await tresult
     if not checked_ast {
-        return tresult
+        return later tresult
     }
 
     tresult.project_file.set_data_from_ast_result(
@@ -136,7 +136,7 @@ func parse_ast_target_from_args(args, checked_ast=no,
     tresult.project_file.project.build_options = build_options
     tresult.project_file.project.ensure_global_scope_for_full_project(
         msgs=tresult.msgs, debug=debug_modules
-    ) later:
+    ) parallel later:
 
     if build_options.print_stages {
         print(build_options.build_program_name +
@@ -392,14 +392,14 @@ func actionparser_compile(args) {
         print(program_name + ": error: Must specify "
             "either a source file, or --code option, but not both.")
         print("Use " + program_name + " compile --help to show usage.")
-        return 1
+        return later 1
     }
     if result.args["--code"] == none and
             result.args["source file"] == none {
         print(program_name + ": error: Must specify "
             "either a source file, or --code option, but neither were given.")
         print("Use " + program_name + " compile --help to show usage.")
-        return 1
+        return later 1
     }
     var boptions = new build_options.BuildOptions()
     boptions.optimize_level = build_options.OPTIMIZE_ALL_BUT_ASSERTS
@@ -418,7 +418,7 @@ func actionparser_compile(args) {
             "stage: " + result.args["--stage"])
         print("Use " + program_name + " compile --help to show "
             "available stages.")
-        return 1
+        return later 1
     }
     if result.args["--optimize-level"] == none {
         result.args["--optimize-level"] = "all-but-asserts"
@@ -434,14 +434,14 @@ func actionparser_compile(args) {
             "optimization level: " + result.args["--optimize-level"])
         print("Use " + program_name + " compile --help to show "
             "available optimization levels.")
-        return
+        return later 1
     }
     if result.args["--output-dir"] != none and
             result.args["--output-file"] != none {
         print(program_name + ": error: Can't combine "
             "--output-file and --output-dir options.")
         print("Use " + program_name + " compile --help to show usage.")
-        return 1
+        return later 1
     }
     if result.args["--output-dir"] != none and
             not {"transformed-code", "checked-ast",
@@ -449,7 +449,7 @@ func actionparser_compile(args) {
         print(program_name + ": error: This stage doesn't support "
             "the --output-dir option.")
         print("Use " + program_name + " compile --help to show usage.")
-        return 1
+        return later 1
     }
     if result.args["--output-file"] != none {
         if {"checked-ast", "ast", "transformed-ast",
@@ -459,21 +459,21 @@ func actionparser_compile(args) {
             print(program_name + ": error: Expected "
                 "--output-file to be a .json file for this stage.")
             print("Use " + program_name + " compile --help to show usage.")
-            return 1
+            return later 1
         } elseif {"transformed-code"}.has(
                 result.args["--stage"]) and
                 not result.args["--output-file"].lower().ends(".h64") {
             print(program_name + ": error: Expected "
                 "--output-file to be a .h64 file for this stage.")
             print("Use " + program_name + " compile --help to show usage.")
-            return 1
+            return later 1
         } elseif {"bytecode"}.has(
                 result.args["--stage"]) and
                 not result.args["--output-file"].lower().ends(".hasm") {
             print(program_name + ": error: Expected "
                 "--output-file to be a .hasm file for this stage.")
             print("Use " + program_name + " compile --help to show usage.")
-            return 1
+            return later 1
         }
     }
     boptions.output_file = result.args["--output-file"]
@@ -494,7 +494,7 @@ func actionparser_compile(args) {
                 "[t=" + time.ticks().as_str() + "]")
         }
         var tresult = tokenize_target_from_args(result.args)
-        later:
+        parallel later:
 
         await tresult
         if boptions.print_stages {
@@ -520,10 +520,10 @@ func actionparser_compile(args) {
             if had_error {
                 output["error"] = "Code has errors."
                 print(json.dump(output))
-                return 1
+                return later 1
             }
             print(json.dump(output))
-            return 0
+            return later 0
         } else {
             for m in tresult.msgs {
                 print(m.as_terminal_str(prefix=program_name))
@@ -538,9 +538,9 @@ func actionparser_compile(args) {
                         describe_token_str(t.str)
                 }
                 print(output)
-                return 0
+                return later 0
             }
-            return 1
+            return later 1
         }
     } elseif result.args["--stage"] == "ast" or
             result.args["--stage"] == "global-scope" {
@@ -551,7 +551,7 @@ func actionparser_compile(args) {
             debug=result.args["--debug-ast"],
             debug_modules=result.args["--debug-modules"],
         )
-        later:
+        parallel later:
 
         await aresult
         var is_global_scope = (
@@ -564,10 +564,10 @@ func actionparser_compile(args) {
                 build_options=boptions,
                 for_script=opt_for_script,
                 is_global_scope=is_global_scope
-            ) later:
+            ) parallel later:
 
         await finalresult
-        return finalresult
+        return later finalresult
     } elseif result.args["--stage"] == "checked-ast" or
             result.args["--stage"] == "transformed-code" or
             result.args["--stage"] == "transformed-ast" or
@@ -582,7 +582,7 @@ func actionparser_compile(args) {
             debug_storage=result.args["--debug-storage"],
             debug_global_storage=result.args["--debug-global-storage"],
         )
-        later:
+        parallel later:
 
         await aresult
 
@@ -602,7 +602,7 @@ func actionparser_compile(args) {
                 ) later:
 
             await finalresult
-            return finalresult
+            return later finalresult
         }
 
         # Continuing here, we want to transform the code.
@@ -618,7 +618,7 @@ func actionparser_compile(args) {
         ast_transform.do_all_transformations(
             aresult.project_file.project,
             aresult.msgs, build_options=boptions,
-            optimize=yes) later:
+            optimize=yes) parallel later:
 
         # If we had an error at this stage then we need to abort:
         var had_error = no
@@ -639,12 +639,12 @@ func actionparser_compile(args) {
                     output["msgs"].add(m.as_json_obj())
                 }
                 print(json.dump(output))
-                return 1
+                return later 1
             }
             for m in aresult.msgs {
                 print(m.as_terminal_str(prefix=program_name))
             }
-            return 1
+            return later 1
         }
         if (result.args["--stage"] == "transformed-code" or
                 result.args["--stage"] == "transformed-ast") and
@@ -667,7 +667,7 @@ func actionparser_compile(args) {
                     } finally {
                         f.close()
                     }
-                    return
+                    return later
                 }
                 boptions.output_dir = uri.normalize(
                     boptions.output_dir, absolute_file=yes)
@@ -709,16 +709,17 @@ func actionparser_compile(args) {
                         write_folder_uri)
                     io.make_dir(uri.to_file_or_vfs_path(
                         write_folder_uri), allow_vfs=no,
-                        allow_nested=yes, ignore_exists=yes) later:
+                        allow_nested=yes, ignore_exists=yes
+                    ) parallel later:
 
-                    var code = pfile.dump_as_code() later:
+                    var code = pfile.dump_as_code() parallel later:
 
                     await code
                     var f = io.open(uri.to_file_or_vfs_path(
-                        write_furi), "w") later:
+                        write_furi), "w") parallel later:
 
                     await f
-                    f.write(code) later:
+                    f.write(code) parallel later:
 
                     f.close()
                     return later yes
@@ -726,18 +727,18 @@ func actionparser_compile(args) {
                 assert(boptions.output_dir != none)
                 var success = aresult.project_file.project.
                     do_for_all_files(output_to_folder)
-                later:
+                parallel later:
 
                 await success
-                return
+                return later
             }
-            output_code() later:
+            output_code() parallel later:
 
-            return 0
+            return later 0
         }
         if result.args["--stage"] == "transformed-code" {
             print(aresult.dump_as_code())
-            return 0
+            return later 0
         }
         if result.args["--stage"] == "transformed-ast" {
             var finalresult =
@@ -746,16 +747,16 @@ func actionparser_compile(args) {
                     build_options=boptions,
                     for_script=opt_for_script,
                     is_global_scope=no
-                ) later:
+                ) parallel later:
 
             await finalresult
-            return finalresult
+            return later finalresult
         }
         assert(result.args["--stage"] == "bytecode" or
             result.args["--stage"] == "binary")
         # Continuing here, we want the actual byte code.
         # Apply bytecode transformation:
-        return 0
+        return later 0
     } else {
         throw new NotImplementedError("Compiler "
             "stage not implemented.")
@@ -782,12 +783,12 @@ func main {
     var result = argparse.parse(arg_defs=defs)
     if result.output != "" {
         print(result.output)
-        return result.exit_code
+        return later result.exit_code
     }
     if result.args["action"] == "compile" {
         var result = actionparser_compile(
             result.args["action args"]
-        ) later:
+        ) parallel later:
 
         await result
         return result

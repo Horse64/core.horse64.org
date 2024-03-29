@@ -39,6 +39,7 @@ type VarStmt base ast.StmtNode {
     var is_const = no
     var has_later = no
     var has_later_ignore = no
+    var has_later_parallel = no
     var has_later_repeat = no
     var var_labels = []
     var var_has_protect = []

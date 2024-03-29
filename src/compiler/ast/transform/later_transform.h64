@@ -188,11 +188,13 @@ func find_await_after_later_call_stmt(
     assert(idx != none)
     idx += 1
     func find_awaits_in_subblock(
-            call_stmt, block, msgs=none,
+            call_stmt, block, start_idx=1,
+            msgs=none,
+            had_previous_awaits=no,
+            project_file=none,
             is_invalid_if_found=no,
             is_invalid_block_name="<unspecified>",
-            project_file=none,
-            start_idx=1) {
+            ) {
         var awaits = []
         var idx = start_idx
         while idx <= block.len {
@@ -201,7 +203,8 @@ func find_await_after_later_call_stmt(
                     ast.N_STMT_VAR}.has(node.kind) and
                     node.has_later and
                     not node.has_later_ignore {
-                if awaits.len > 0 {
+                if awaits.len > 0 or
+                        had_previous_awaits {
                     # Bail here, further valid awaits can't be past
                     # another later call like this.
                     return [awaits, no]
@@ -234,6 +237,8 @@ func find_await_after_later_call_stmt(
                     for subblock in clause.subblocks {
                         var inner_awaits = find_awaits_in_subblock(
                             call_stmt, subblock, msgs=msgs,
+                            project_file=project_file,
+                            had_previous_awaits=had_previous_awaits,
                             is_invalid_if_found=yes,
                             is_invalid_block_name="if",
                         )
@@ -251,6 +256,8 @@ func find_await_after_later_call_stmt(
                 for subblock in node.subblocks {
                     var inner_awaits = find_awaits_in_subblock(
                         call_stmt, subblock, msgs=msgs,
+                        project_file=project_file,
+                        had_previous_awaits=had_previous_awaits,
                         is_invalid_if_found=yes,
                         is_invalid_block_name=
                             if node.kind == ast.N_STMT_FOR
@@ -329,6 +336,7 @@ func find_await_after_later_call_stmt(
                     }
                     return none
                 }
+                had_previous_awaits = yes
                 awaits.add(node)
                 idx += 1
                 continue
@@ -337,7 +345,9 @@ func find_await_after_later_call_stmt(
                 for clause in node.subexprs {
                     for subblock in clause.subblocks {
                         var inner_result = find_awaits_in_subblock(
-                            call_stmt, subblock, msgs=msgs
+                            call_stmt, subblock, msgs=msgs,
+                            project_file=project_file,
+                            had_previous_awaits=had_previous_awaits
                         )
                         if inner_result == none {
                             return none
@@ -354,6 +364,8 @@ func find_await_after_later_call_stmt(
             for subblock in node.subblocks {
                 var inner_result = find_awaits_in_subblock(
                     call_stmt, subblock, msgs=msgs,
+                    project_file=project_file,
+                    had_previous_awaits=had_previous_awaits
                 )
                 if inner_result == none {
                     return none
@@ -370,9 +382,9 @@ func find_await_after_later_call_stmt(
         return [awaits, yes]
     }
     var awaits_result = find_awaits_in_subblock(
-        call_stmt, block, msgs=msgs,
+        call_stmt, block, start_idx=idx,
+        msgs=msgs,
         project_file=project_file,
-        start_idx=idx
     )
     var missing_ref_names = []
     var have_missing_ref = no
