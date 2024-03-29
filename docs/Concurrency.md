@@ -189,7 +189,7 @@ keyword:
   func main {
      var contents = net.fetch.get_str(
          "https://horse64.org"
-     ) later parallel:
+     ) parallel later:
 
      await contents
   }
@@ -203,7 +203,7 @@ This also works with `later ignore`:
   func main {
       net.fetch.get_str(
          "https://horse64.org"
-      ) later ignore parallel
+      ) parallel later ignore
   }
   ```
 
