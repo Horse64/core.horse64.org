@@ -182,7 +182,7 @@ unlike in many other languages, syntactically obvious and not hidden.
 This makes the code flow easy and transparent to the reader.
 
 **If you wanted `do_something()` running [in parallel](
-/docs/Concurreny.md#running-code-in-parallel)** in Horse64 too:
+/docs/Concurrency.md#running-code-in-parallel)** in Horse64 too:
 
 ```Horse64
 func my_function {
