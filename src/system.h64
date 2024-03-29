@@ -28,7 +28,6 @@
 import math from core.horse64.org
 import textfmt from core.horse64.org
 
-
 func program_license_text(
         layout_width=79, blank_lines_at_end=1,
         linebreak="\n"
@@ -36,6 +35,9 @@ func program_license_text(
     var output = ""
     var is_first = yes
     var licenses = program_licenses_as_list()
+    later:
+
+    await licenses
     for license in licenses {
         var target_len = layout_width
         var side_len = math.max(0, math.floor(
@@ -53,3 +55,4 @@ func program_license_text(
     }
     return output
 }
+

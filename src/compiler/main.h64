@@ -43,16 +43,21 @@ import compiler.storage.scope
 import compiler.token
 
 func version_output_for_terminal {
-    return "horsec v" + system.program_version() + ", built by " +
+    return later "horsec v" + system.program_version + ", built by " +
         system.program_compiler_name + ", running on " +
         system.osname + ".\n" +
         "Copyright (c) 2020-2024, ellie/@ell1e & Horse64 Team."
 }
 
 func license_output_for_terminal {
-    return "All horsec license info, no guarantee of "
-        "completeness or accuracy:\n" +
-        system.program_license_text(layout_width=79)
+    var t = "All horsec license info, no guarantee of "
+        "completeness or accuracy:\n"
+    var t2 = system.program_license_text(layout_width=79)
+    later:
+
+    await t2
+    t += t2
+    return t
 }
 
 func tokenize_target_from_args(args) {
@@ -267,7 +272,9 @@ func actionparser_modinfo(args) {
         "--debug-modules",
         description="Enable debug module discovery. Prints out "
             "all file paths and associated modules when processing.")
-    var result = argparse.parse(arg_defs=defs, args=args)
+    var result = argparse.parse(arg_defs=defs, args=args) later:
+
+    await result
     if result.output != "" {
         print(result.output)
         return result.exit_code
@@ -374,7 +381,9 @@ func actionparser_compile(args) {
         description="Always treat the target file not as part of a "
             "project, but rather as a single standalone script file, "
             "even if it wasn't auto-detected as a script file.")
-    var result = argparse.parse(arg_defs=defs, args=args)
+    var result = argparse.parse(arg_defs=defs, args=args) later:
+
+    await result
     if result.output != "" {
         print(result.output)
         return result.exit_code
@@ -780,7 +789,9 @@ func main {
         "--version", aliases=["-V", "-version"],
         description="Print out the program version.",
         action_func=version_output_for_terminal)
-    var result = argparse.parse(arg_defs=defs)
+    var result = argparse.parse(arg_defs=defs) later:
+
+    await result
     if result.output != "" {
         print(result.output)
         return later result.exit_code

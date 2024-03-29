@@ -176,7 +176,7 @@ func ArgumentDefs.init(program_name=none, description=none) {
             "be none or string.")
     }
     if program_name == none {
-        program_name = path.basename(system.self_exec_path())
+        program_name = path.basename(system.self_exec_path)
         if program_name == "none" {
             program_name = "unknown"
         }
@@ -261,7 +261,8 @@ func ArgumentDefs.get_namedarg(name) {
 ## ```horse64
 ## var defs = argparse.ArgumentDefs()
 ## defs.add_arg("target_file")
-## var result = argparse.parse(defs, ["some_file.txt"])
+## var result = argparse.parse(defs, ["some_file.txt"]) later:
+## await result
 ## print(result["target_file"])  # That will output: some_file.txt
 ## ```
 ##
@@ -387,7 +388,8 @@ func _check_switch_name(name) {
 ## var defs = argparse.ArgumentDefs()
 ## defs.add_switch("--switch-1")
 ## defs.add_switch("--switch-2")
-## var parsed_values = argparse.parse(defs, ["--switch-2"])
+## var parsed_values = argparse.parse(defs, ["--switch-2"]) later:
+## await parsed_values
 ## print(parsed_values["switch-1"])  # will print out "no"!
 ## print(parsed_values["switch-2"])  # will print out "yes"!
 ## ```
@@ -579,6 +581,30 @@ func get_usage_text(options) {
     }
 
     return output
+}
+
+## Internal helper function to run all the given action funcs while
+## returning the value the first one gives us that isn't just
+## a @{none} value.
+func _run_action_funcs(funcs) {
+    var queue = funcs.copy()
+    var final_result = none
+    if queue.len == 0 {
+        return later final_result
+    }
+    var next_entry = queue.pop()
+    var result = next_entry()
+    later:
+
+    await result
+    if result != none and final_result == none {
+        final_result = result
+    }
+    if queue.len == 0 {
+        return later final_result
+    }
+    next_entry = queue.pop()
+    result = next_entry() later repeat
 }
 
 ## @func parse
@@ -1009,13 +1035,13 @@ func parse(arg_defs=none, args=none, debug=no) {
         }
     }
     # Run each action_func in order:
-    for action_func in action_funcs_in_order {
-        var result_value = action_func()
-        if typename(result_value) == "str" and
-                result.exit_code == none {
-            result.output = result_value
-            result.exit_code = 0
-        }
+    var funcs_result = _run_action_funcs(action_funcs_in_order)
+    later:
+
+    await funcs_result
+    if typename(funcs_result) == "str" and result.exit_code == none {
+        result.output = funcs_result
+        result.exit_code = 0
     }
     # Check if we even have the minimum number of required arguments:
     # (Needs to happen after action switches, so e.g. --help still works!)

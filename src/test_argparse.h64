@@ -31,7 +31,9 @@ func test_argparse {
 
     result = argparse.parse(
         args=["-a", "--b", "--", "-c", "e"]
-    )
+    ) later:
+
+    await result
     assert(result.output == "")
     assert("args" in result.args)
     assert(result.args["args"].len == 2)
@@ -42,7 +44,9 @@ func test_argparse {
     defs = new argparse.ArgumentDefs(program_name="bla")
     defs.add_catchall(
         "args", can_be_empty=yes)
-    result = argparse.parse(arg_defs=defs, args=[])
+    result = argparse.parse(arg_defs=defs, args=[]) later:
+
+    await result
     assert(result.output == "")
     assert("args" in result.args)
     assert(result.args["args"].len == 0)
@@ -50,14 +54,20 @@ func test_argparse {
     defs = new argparse.ArgumentDefs(program_name="bla")
     defs.add_catchall(
         "args", can_be_empty=no)
-    result = argparse.parse(arg_defs=defs, args=[])
+    result = argparse.parse(arg_defs=defs, args=[]) later:
+
+    await result
     assert("missing" in result.output.lower())
 
     defs = new argparse.ArgumentDefs(program_name="bla")
     defs.add_arg("action")
     defs.add_catchall(
         "args", can_be_empty=no)
-    result = argparse.parse(arg_defs=defs, args=["test", "--help"])
+    result = argparse.parse(
+        arg_defs=defs, args=["test", "--help"]
+    ) later:
+
+    await result
     assert(result.output == "")
     assert("args" in result.args)
     assert("action" in result.args)
@@ -70,7 +80,11 @@ func test_argparse {
     defs.add_arg("action", optional=yes)
     defs.add_catchall(
         "args", can_be_empty=no)
-    result = argparse.parse(arg_defs=defs, args=["test", "--test"])
+    result = argparse.parse(
+        arg_defs=defs, args=["test", "--test"]
+    ) later:
+
+    await result
     assert(result.output == "")
     assert("args" in result.args)
     assert("action" in result.args)
@@ -84,7 +98,11 @@ func test_argparse {
     defs.add_arg("action", optional=yes)
     defs.add_catchall(
         "args", can_be_empty=no)
-    result = argparse.parse(arg_defs=defs, args=["--test", "test"])
+    result = argparse.parse(
+        arg_defs=defs, args=["--test", "test"]
+    ) later:
+
+    await result
     assert(result.output == "")
     assert("args" in result.args)
     assert("action" in result.args)
@@ -98,7 +116,11 @@ func test_argparse {
     defs.add_arg("action", optional=yes)
     defs.add_catchall(
         "args", can_be_empty=yes)
-    result = argparse.parse(arg_defs=defs, args=["--test", "test"])
+    result = argparse.parse(
+        arg_defs=defs, args=["--test", "test"]
+    ) later:
+
+    await result
     assert(result.output == "")
     assert("args" in result.args)
     assert("action" in result.args)
@@ -113,7 +135,9 @@ func test_argparse {
         "args", can_be_empty=yes)
     result = argparse.parse(
         arg_defs=defs, args=["test", "--test"], debug=yes
-    )
+    ) later:
+
+    await result
     assert(result.output == "")
     assert("args" in result.args)
     assert("action" in result.args)
@@ -129,7 +153,9 @@ func test_argparse {
         "args", can_be_empty=no)
     result = argparse.parse(
         arg_defs=defs, args=["--test", "test"], debug=yes
-    )
+    ) later:
+
+    await result
     assert(result.output == "")
     assert(result.args["args"].len == 1)
     assert(result.args["args"][1] == "test")
@@ -142,7 +168,9 @@ func test_argparse {
         "args", can_be_empty=no)
     result = argparse.parse(
         arg_defs=defs, args=["test", "--", "--help"], debug=yes
-    )
+    ) later:
+
+    await result
     assert(result.output == "")
     assert("args" in result.args)
     assert("action" in result.args)
@@ -157,7 +185,9 @@ func test_argparse {
         "args", can_be_empty=no)
     result = argparse.parse(
         arg_defs=defs, args=["test", "--help", "--"], debug=yes
-    )
+    ) later:
+
+    await result
     assert(result.output == "")
     assert("args" in result.args)
     assert("action" in result.args)
@@ -172,7 +202,9 @@ func test_argparse {
         "args", can_be_empty=no)
     result = argparse.parse(
         arg_defs=defs, args=["--", "test", "--help"], debug=yes
-    )
+    ) later:
+
+    await result
     assert(result.output == "")
     assert("args" in result.args)
     assert("action" in result.args)
