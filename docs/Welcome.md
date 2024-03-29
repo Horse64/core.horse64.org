@@ -9,7 +9,7 @@ Welcome to Horse64's documentation!
 > **Horse64** is a high-level language that combines readability, clean dynamic
   typing, and readiness for large projects. **A more grounded rethinking
   of Python.** It's [free](
-  https://horse64.org/download).
+  https://horse64.org/get).
 
 Example:
 
@@ -19,7 +19,7 @@ func main {
 }
 ```
 
-- Get [📩 Horse64 here](https://horse64.org/download).
+- Get [📩 Horse64 here](https://horse64.org/get).
 
 - **New beginner?**
   Try the [🦸‍♀️ startup help](/docs/Tutorials/Initial Setup.md)!

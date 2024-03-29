@@ -36,7 +36,7 @@ Install & Build
 ---------------
 
 The recommended way to install is [to get the prebuilt SDK](
-https://horse64.org/download), and then to use [horp](
+https://horse64.org/get), and then to use [horp](
 /docs/Runtime.md#horp) to update or switch versions. (All
 base tools including *horp* are shipped with the SDK.)
 

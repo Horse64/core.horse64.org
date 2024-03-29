@@ -15,7 +15,7 @@ SDK
 
 If you want to get started, [**go here for
 the SDK** (Software Development Kit) for Horse64](
-https://horse64.org/download
+https://horse64.org/get
 ).
 
 
