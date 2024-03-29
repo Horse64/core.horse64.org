@@ -104,24 +104,26 @@ Formal rules for later `func`s
 on calling so-called "later functions", [go here
 for examples](/docs/Concurrency.md).)*
 
-The rules for calling later functions are as follows:
+The rules for calling later functions, in the form of
+so-called "later calls", are as follows:
 
-### Rule 1: All "later" calls need special syntax.
+### Rule 1: All later calls need special syntax.
 
 Calls to later functions must be followed by either `later:`
 or `later ignore`, or `later repeat`. Calls to regular
-functions can use this syntax, or regular calls.
-This means you need to know in advance if the
-function you're calling is possibly a later function, **but
-the compiler will in many cases tell you when you did it wrong**
-before you even run the program. For the other uncaught
-cases, you'll get an `InvalidCallError` whenever you
-call a later function incorrectly.
+functions can use this later call syntax as well, in which case
+the func will just be called regularly.
+In summary, you need to know in advance if the
+function you're calling can possibly be a later function, but
+you don't need to know if it *isn't* a later function.
+If you accidentally call a later function without using a later
+call, and the compiler doesn't already catch it and warn you
+when compiling, then you'll get an `InvalidCallError` at
+runtime instead.
 
-### Rule 2: You can't inline nest later calls.
+### Rule 2: You can't assign later calls to complex expressions.
 
-Any later call cannot be a nested inline call inside a
-bigger expression. It needs to be a standalone call statement,
+Any later call needs to be a standalone call statement,
 or right-hand to a variable definition, or
 right-hand to simple assignment to
 a local variable. A `later ignore` call's return value must be
@@ -154,11 +156,13 @@ ignored. Examples:
   }
   ```
 
-A `later ignore` call's return value needs to be ignored.
 After a regular `later:` call, the return value that was
-assigned needs to be `await`ed.
+assigned needs to be `await`ed (if it wasn't a `later ignore`).
+The `await` can be nested inside `do`/`rescue` and other
+code can come first, but it can't be inside an optional `if`
+and it must happen timely.
 
-### Rule 3: Calling later marks a function.
+### Rule 3: Using later calls marks the surrounding function.
 
 Calling anything with `later:` or `later repeat`
 makes the surrounding calling function also a later function.
@@ -166,7 +170,7 @@ This excludes `later ignore` calls, making this the only
 way to call a later function while keeping the caller
 a regular function.
 
-### Rule 4: Return later marks a function.
+### Rule 4: Using `return later` marks tehe surrounding function.
 
 A `return later ...value...` denotes after a return after a
 time skip, and also makes the surrounding function a later
@@ -174,40 +178,41 @@ function.
 Any function with neither a later call or a return later
 is automatically a normal function.
 
-### Rule 5: A later function has implicit delayed returns:
+### Rule 5: A later function has implicit delayed returns.
 
 Once a function is a later function, for any `return`,
 a `return later` is assumed. This means if you already have
 `later:` calls in the same function, you can omit the
 explicit `return later` use if you want.
 
-### Rule 6: A time skip can cause interleaved execution.
+### Rule 6: Anything in parallel executions can interfere.
 
-Any later call and any later return may cause both a
-time delay, and for other functions and program runs to run
-in between, excluding only `later ignore` calls.
+Anything run [truly in parallel](
+/docs/Concurrency.md#running-code-in-parallel
+) can mess with your program's state between each line
+of code and even various expressions in a single line.
 **Write your code accordingly to avoid race conditions.**
 Neither regular later calls nor
 `later ignore` calls **have any guarantees to run any code
 immediately** of the called function, or in any specific
-time frame, it's merely run timely on a best-effort basis.
+time frame, or guaranteed to be always parallel,
+it's merely all scheduled on a best-effort basis.
 Also, for all the later functions waiting to run
 or resume, there's **no guaranteed ordering** of execution.
+Execution is only partially pre-emptive.
 
-### Rule 7: `later repeat` replaces later inside loops.
+### Rule 7: `later repeat` must be used for looped later calls.
 
 Later calls can't be inside a `while` or `for`
 loop due to technical limitations. While this might
-change at some point, there are currently no plans.
-Instead, you can use a `later:` ...code... `later repeat`
+change at some point, there are currently no plans for that.
+Instead, use a `later:` ...code... `later repeat`
 loop whenever needed.
 
-### Rule 8: You can't nest later repeats.
-
-You mustn't nest `later:` ...code... `later repeat`
-loops inside each
-other. Both paired calls must be in the same code block.
-Both paired calls must assign their return value, and they
+Both calls of such a repeat pair must be in the same code block,
+although nested other code blocks can appear in between,
+as well as any other unrelated later calls.
+Both calls must assign their return value, and they
 must assign it to the same local variable. [See here for an
 example of `later repeat` loops.](
 /docs/Concurrency.md#later-repeat)

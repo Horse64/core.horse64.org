@@ -168,7 +168,7 @@ func my_function {
     later:  # This marker is mandatory and tells you the call above is
             # concurrent, and it marks a clear expected time skip.
 
-    do_something()  # This will actually not run interleaved but only
+    do_something()  # This will actually not run in parallel but only
                     # after above call fully completed.
     await result  # Make result available and bubble up errors.
                   # This will never cause a delay or time skip.
@@ -181,7 +181,8 @@ As you can see, in Horse64 the time skips and concurrent calls are,
 unlike in many other languages, syntactically obvious and not hidden.
 This makes the code flow easy and transparent to the reader.
 
-**If you wanted `do_something()` running interleaved** in Horse64 too:
+**If you wanted `do_something()` running [in parallel](
+/docs/Concurreny.md#running-code-in-parallel)** in Horse64 too:
 
 ```Horse64
 func my_function {
@@ -192,9 +193,6 @@ func my_function {
     await delayed_result, other_result
 }
 ```
-
-And you can use true [parallelism with the `parallel`
-keyword](/docs/Concurrency.md#running-code-in-parallel), too.
 
 As you can see, Horse64 can run things at the same time just like
 Python or JS can, but you'll have to be obvious about it.
