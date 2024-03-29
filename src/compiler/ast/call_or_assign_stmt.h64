@@ -36,7 +36,6 @@ import compiler.token as token
 type CallStmt base ast.StmtNode {
     var has_later = no
     var has_later_ignore = no
-    var has_later_parallel = no
     var has_later_repeat = no
 }
 

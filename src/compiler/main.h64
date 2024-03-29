@@ -69,7 +69,7 @@ func tokenize_target_from_args(args) {
             keep_whitespace=no,
             default_to_diskpath=yes,
             require_detect_project_dir=no
-        ) parallel later:
+        ) later:
 
         await tresult
         return tresult
@@ -97,7 +97,7 @@ func parse_ast_target_from_args(args, checked_ast=no,
                 build_options=build_options,
                 debug=debug, debug_modules=debug_modules,
                 debug_global_storage=debug_global_storage,
-            ) parallel later:
+            ) later:
 
             await tresult
             return tresult
@@ -112,12 +112,12 @@ func parse_ast_target_from_args(args, checked_ast=no,
             build_options=build_options,
             debug=debug, debug_modules=debug_modules,
             debug_global_storage=debug_global_storage,
-        ) parallel later:
+        ) later:
 
         await tresult
         return later tresult
     }
-    var tresult = get_ast() parallel later:
+    var tresult = get_ast() later:
 
     await tresult
     if not checked_ast {
@@ -136,7 +136,7 @@ func parse_ast_target_from_args(args, checked_ast=no,
     tresult.project_file.project.build_options = build_options
     tresult.project_file.project.ensure_global_scope_for_full_project(
         msgs=tresult.msgs, debug=debug_modules
-    ) parallel later:
+    ) later:
 
     if build_options.print_stages {
         print(build_options.build_program_name +
@@ -494,7 +494,7 @@ func actionparser_compile(args) {
                 "[t=" + time.ticks().as_str() + "]")
         }
         var tresult = tokenize_target_from_args(result.args)
-        parallel later:
+        later:
 
         await tresult
         if boptions.print_stages {
@@ -551,7 +551,7 @@ func actionparser_compile(args) {
             debug=result.args["--debug-ast"],
             debug_modules=result.args["--debug-modules"],
         )
-        parallel later:
+        later:
 
         await aresult
         var is_global_scope = (
@@ -564,7 +564,7 @@ func actionparser_compile(args) {
                 build_options=boptions,
                 for_script=opt_for_script,
                 is_global_scope=is_global_scope
-            ) parallel later:
+            ) later:
 
         await finalresult
         return later finalresult
@@ -582,7 +582,7 @@ func actionparser_compile(args) {
             debug_storage=result.args["--debug-storage"],
             debug_global_storage=result.args["--debug-global-storage"],
         )
-        parallel later:
+        later:
 
         await aresult
 
@@ -618,7 +618,7 @@ func actionparser_compile(args) {
         ast_transform.do_all_transformations(
             aresult.project_file.project,
             aresult.msgs, build_options=boptions,
-            optimize=yes) parallel later:
+            optimize=yes) later:
 
         # If we had an error at this stage then we need to abort:
         var had_error = no
@@ -710,16 +710,16 @@ func actionparser_compile(args) {
                     io.make_dir(uri.to_file_or_vfs_path(
                         write_folder_uri), allow_vfs=no,
                         allow_nested=yes, ignore_exists=yes
-                    ) parallel later:
+                    ) later:
 
-                    var code = pfile.dump_as_code() parallel later:
+                    var code = pfile.dump_as_code() later:
 
                     await code
                     var f = io.open(uri.to_file_or_vfs_path(
-                        write_furi), "w") parallel later:
+                        write_furi), "w") later:
 
                     await f
-                    f.write(code) parallel later:
+                    f.write(code) later:
 
                     f.close()
                     return later yes
@@ -727,12 +727,12 @@ func actionparser_compile(args) {
                 assert(boptions.output_dir != none)
                 var success = aresult.project_file.project.
                     do_for_all_files(output_to_folder)
-                parallel later:
+                later:
 
                 await success
                 return later
             }
-            output_code() parallel later:
+            output_code() later:
 
             return later 0
         }
@@ -747,7 +747,7 @@ func actionparser_compile(args) {
                     build_options=boptions,
                     for_script=opt_for_script,
                     is_global_scope=no
-                ) parallel later:
+                ) later:
 
             await finalresult
             return later finalresult
@@ -788,7 +788,7 @@ func main {
     if result.args["action"] == "compile" {
         var result = actionparser_compile(
             result.args["action args"]
-        ) parallel later:
+        ) later:
 
         await result
         return result

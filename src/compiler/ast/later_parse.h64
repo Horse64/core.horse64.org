@@ -38,27 +38,7 @@ func parse_later_postfix(tokens, pos, stmt, msgs,
     const tokens_len = tokens.len
     if pos <= tokens_len and
             tokens[pos].kind == token.T_KEYWORD and
-            {"later", "parallel"}.has(tokens[pos].str) {
-        var has_parallel = (tokens[pos].str == "parallel")
-        var parallel_idx = pos
-        if has_parallel and (
-                pos + 1 > tokens_len or
-                tokens[pos + 1].kind != token.T_KEYWORD or
-                tokens[pos + 1].str != "later") {
-            msgs.add(new msg.FileMsg(
-                "Unexpected " +
-                if pos + 1 <= tokens_len
-                    (token.describe_token(tokens[pos + 1])) else
-                    ("end of tokens") +
-                ", expected 'later' following 'parallel'.",
-                source_file=project_file,
-                line=token.get_line(tokens, pos + 1),
-                col=token.get_col(tokens, pos + 1),
-            ))
-            stmt.damaged = yes
-        } elseif has_parallel {
-            pos += 1
-        }
+            tokens[pos].str == "later" {
         pos += 1
         if pos > tokens_len or
                 (tokens[pos].kind != token.T_COLON and
@@ -80,7 +60,6 @@ func parse_later_postfix(tokens, pos, stmt, msgs,
             stmt.damaged = yes
         } else {
             stmt.has_later = yes
-            stmt.has_later_parallel = has_parallel
             stmt.has_later_ignore = (
                 tokens[pos + 1].kind == token.T_KEYWORD and
                 tokens[pos + 1].str == "ignore"
@@ -89,18 +68,6 @@ func parse_later_postfix(tokens, pos, stmt, msgs,
                 tokens[pos + 1].kind == token.T_KEYWORD and
                 tokens[pos + 1].str == "repeat"
             )
-            if stmt.has_later_parallel and stmt.has_later_repeat {
-                msgs.add(new msg.FileMsg(
-                    "Unexpected 'parallel' in 'later repeat' "
-                    "call. The 'parallel' setting must be "
-                    "set by the original call and not "
-                    "by the repeat call.",
-                    source_file=project_file,
-                    line=token.get_line(tokens, parallel_idx),
-                    col=token.get_col(tokens, parallel_idx),
-                ))
-                stmt.damaged = yes
-            }
             pos += 1
         }
     }

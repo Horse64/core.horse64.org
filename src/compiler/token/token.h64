@@ -82,7 +82,7 @@ const special_words = {
     "while", "do", "func", "for", "with",
     "continue", "break",
     "var", "const", "type", "import", "if",
-    "return", "await", "later", "parallel", "rescue",
+    "return", "await", "later", "rescue",
     "finally", "as", "in", "base", "extend",
     "throw", "any", "from", "protect",
     "repeat", "elseif", "else", "ignore", "enum",
@@ -763,10 +763,6 @@ func can_stmt_or_expr_end_before_token(
         return yes
     }
     if tokens[tok_pos - 1].kind == T_KEYWORD and
-            tokens[tok_pos - 1].str == "parallel" {
-        return no
-    }
-    if tokens[tok_pos - 1].kind == T_KEYWORD and
             tokens[tok_pos - 1].str == "later" {
         if (tokens[tok_pos].kind == T_KEYWORD and
                 {"ignore", "repeat"}.has(
@@ -967,7 +963,7 @@ func token_has_righthand(t) {
         return yes
     }
     if (t.kind == T_KEYWORD and {"func", "import",
-            "type", "later", "parallel", "extend", "in",
+            "type", "later", "extend", "in",
             "as", "from", "with", "for", "if",
             "elseif", "else", "do", "rescue",
             "finally", "await",
@@ -998,7 +994,7 @@ func token_has_lefthand(t) {
     if t.kind == T_KEYWORD and {
             "as", "from", "in",
             "elseif", "else", "rescue",
-            "finally", "later", "parallel",
+            "finally", "later",
             "protect"}.has(t.str) {
         return yes
     }

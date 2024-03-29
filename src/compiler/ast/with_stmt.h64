@@ -36,7 +36,6 @@ import compiler.token as token
 
 type WithStmt base ast.StmtNode {
     var has_later = no
-    var has_later_parallel = no
     var label
 }
 
@@ -94,7 +93,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     var bracket_depth = 0
     while pos <= tokens_len and (bracket_depth > 0 or (
             (tokens[pos].kind != token.T_KEYWORD or
-             not {"as", "parallel", "later"}.has(
+             not {"as", "later"}.has(
                  tokens[pos].str
              )) and
             (tokens[pos].kind != token.T_ENCLOSE or
@@ -119,7 +118,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     }
     if pos >= tokens_len or (
             (tokens[pos].kind != token.T_KEYWORD or
-             not {"as", "parallel", "later"}.has(
+             not {"as", "later"}.has(
                  tokens[pos].str
              )) and
             (tokens[pos].kind != token.T_ENCLOSE or
@@ -167,7 +166,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
                 "Unexpected " + token.describe_token_at(
                     tokens, with_expr_start +
                     with_expr.token_len) +
-                ", expected 'as', 'parallel', or 'later' to "
+                ", expected 'as' or 'later' to "
                 "continue "
                 "the with statement starting in line " +
                 token.get_line(tokens, startpos).as_str() +
@@ -187,30 +186,6 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
             tokens[pos].str == "later" {
         stmt.has_later = yes
         pos += 1
-    } elseif pos <= tokens_len and
-            tokens[pos].kind == token.T_KEYWORD and
-            tokens[pos].str == "parallel" {
-        stmt.has_later = yes
-        stmt.has_later_parallel = yes
-        pos += 1
-        if pos >= tokens_len or
-                tokens[pos].kind != token.T_KEYWORD or
-                tokens[pos].str != "later" {
-            if not stmt.has_damage() {
-                msgs.add(new msg.FileMsg(
-                    "Unexpected " + token.describe_token_at(
-                        tokens, with_expr_start +
-                        with_expr.token_len) +
-                    ", expected 'later' to follow 'parallel'.",
-                    source_file=project_file,
-                    line=token.get_line(tokens, pos),
-                    col=token.get_col(tokens, pos),
-                ))
-            }
-            stmt.damaged = yes
-        } else {
-            pos += 1
-        }
     }
 
     # Read the 'as' label:
