@@ -57,77 +57,6 @@ to bubble up that happened in the call, if any.
   ```
 
 
-Concurrently call multiple functions
-------------------------------------
-
-The real gain from concurrency comes from running multiple
-things at a time, which will interleave them:
-
-  ```Horse64
-  import net.fetch from core.horse64.org
-  import time from core.horse64.org
-
-  func parallel_counter {
-      print("This is my parallel logic!")
-      var i = 1
-      while i < 10 {
-          print("Tick")
-          time.sleep(0.5)
-          i += 1
-      }
-      return i
-  }
-
-  func main {
-     var contents, count = net.fetch.get_str(
-         "https://horse64.org"
-     ), parallel_counter()
-     later:  # Execution after this runs later, after a time skip.
-
-     do {
-         await contents, count  # Errors bubble up here.
-         print("Obtained website contents: " + contents)
-     } rescue NetworkIOError {
-         print("Oops, our download failed!")
-     }
-  }
-  ```
-
-**Note:** this alone won't run them truly in parallel yet,
-only interleaved during e.g. any `later:` time skips
-they use. To run this [faster and truly in parallel, add the
-`parallel` keyword](#running-code-in-parallel).
-
-
-`later ignore`
---------------
-
-*Don't want to wait?* If you don't care about a later
-function's return value or its success, you can follow
-the call up with `later ignore`. This will make
-them run in the background interleaved as well:
-
-  ```Horse64
-  import net.fetch from core.horse64.org
-
-  func main {
-      net.fetch.get_str(
-         "https://horse64.org"
-      ) later ignore  # <- We don't care about success or return value.
-
-      print("The internet fetch is likely still in progress now,
-            but we don't care.")
-  }
-  ```
-
-In this case, the execution won't be delayed until the
-later call fully completes but instead continue without
-a possibly long time skip.
-
-For [true parallelism and higher speed, add in
-the `parallel` keyword](#running-code-in-parallel).
-
-
 `later repeat`
 --------------
 
@@ -178,24 +107,57 @@ but a later function can't be called *without* `later`.)
 Running code in parallel
 ------------------------
 
-**⚠️⚠️ Using this might break your program. See the notes below.**
+**⚠️⚠️ Using any of this without care
+might break your program. See the notes below.**
 
-To call any later function truly in parallel, use the `parallel`
-keyword:
+### Concurrently call multiple functions
+
+The real gain from concurrency comes from running multiple
+things at a time, which will run them in parallel:
 
   ```Horse64
   import net.fetch from core.horse64.org
+  import time from core.horse64.org
+
+  func parallel_counter {
+      print("This is my parallel logic!")
+      var i = 1
+      while i < 10 {
+          print("Tick")
+          time.sleep(0.5)
+          i += 1
+      }
+      return i
+  }
 
   func main {
-     var contents = net.fetch.get_str(
+     var contents, count = net.fetch.get_str(
          "https://horse64.org"
-     ) parallel later:
+     ), parallel_counter()
+     later:  # Execution after this runs later, after a time skip.
 
-     await contents
+     do {
+         await contents, count  # Errors bubble up here.
+         print("Obtained website contents: " + contents)
+     } rescue NetworkIOError {
+         print("Oops, our download failed!")
+     }
   }
   ```
 
-This also works with `later ignore`:
+**Note:** Running any of your funcs via [true parallelism
+can expose **⚠️ dangerous race conditions** in your code](
+/docs/Language%20Specs/Concurrency%20Model.md#avoiding-race-conditions).
+**If you are beginner, it's best to avoid this functionality.
+
+
+`later ignore`
+--------------
+
+*Don't want to wait?* If you don't care about a later
+function's return value or its success, you can follow
+the call up with `later ignore`. This will make
+them run in the background in parallel as well:
 
   ```Horse64
   import net.fetch from core.horse64.org
@@ -203,22 +165,21 @@ This also works with `later ignore`:
   func main {
       net.fetch.get_str(
          "https://horse64.org"
-      ) parallel later ignore
+      ) later ignore  # <- We don't care about success or return value.
+
+      print("The internet fetch is likely still in progress now,
+            but we don't care.")
   }
   ```
+
+In this case, the execution won't be delayed until the
+later call fully completes but instead continue without
+a possibly long time skip.
 
 **Note:** Running any of your funcs via [true parallelism
 can expose **⚠️ dangerous race conditions** in your code](
 /docs/Language%20Specs/Concurrency%20Model.md#avoiding-race-conditions).
-**If you are beginner, it's best to avoid the `parallel`
-keyword. It's dangerous to use for calling funcs that aren't
-designed to handle the consequences.**
-
-For the standard library, the documentation lists for
-each function if it is made to handle running in `parallel`,
-but for almost all functions this is the case.
-Check [net.fetch.get_str() for example, you'll see its
-support confirmed here](/docs/FIXME).
+**If you are beginner, it's best to avoid this functionality.
 
 
 Further reading
