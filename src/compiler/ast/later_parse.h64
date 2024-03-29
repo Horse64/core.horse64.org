@@ -61,12 +61,12 @@ func parse_later_postfix(tokens, pos, stmt, msgs,
         } else {
             stmt.has_later = yes
             stmt.has_later_ignore = (
-                tokens[pos + 1].kind == token.T_KEYWORD and
-                tokens[pos + 1].str == "ignore"
+                tokens[pos].kind == token.T_KEYWORD and
+                tokens[pos].str == "ignore"
             )
             stmt.has_later_repeat = (
-                tokens[pos + 1].kind == token.T_KEYWORD and
-                tokens[pos + 1].str == "repeat"
+                tokens[pos].kind == token.T_KEYWORD and
+                tokens[pos].str == "repeat"
             )
             pos += 1
         }

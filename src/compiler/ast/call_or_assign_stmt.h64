@@ -51,9 +51,13 @@ func CallStmt.as_json_obj {
     }
     if self.has_later_ignore {
         output["has_later_ignore"] = yes
+    } elseif self.has_later {
+        output["has_later_ignore"] = no
     }
     if self.has_later_repeat {
         output["has_later_repeat"] = yes
+    } elseif self.has_later {
+        output["has_later_repeat"] = no
     }
     return output
 }

@@ -112,6 +112,11 @@ func find_await_after_later_call_stmt(
         ) {
     assert({ast.N_STMT_ASSIGN,
         ast.N_STMT_VAR}.has(call_stmt.kind))
+    var debug = no
+    if debug {
+        print("find_await_after_later_call_stmt(): Finding " +
+            "await for: " + call_stmt.as_str())
+    }
     var async_return_value_storage_refs = []
     var async_return_value_labels = []
     if call_stmt.kind == ast.N_STMT_VAR {
@@ -194,11 +199,25 @@ func find_await_after_later_call_stmt(
             project_file=none,
             is_invalid_if_found=no,
             is_invalid_block_name="<unspecified>",
+            debug=no
             ) {
+        if debug {
+            print("find_await_after_later_call_stmt(): " +
+                "Searching in block: " + block.as_str())
+        }
         var awaits = []
         var idx = start_idx
         while idx <= block.len {
             var node = block[idx]
+            if debug {
+                print("find_await_after_later_call_stmt(): " +
+                    "Examining block[" + idx.as_str() +
+                    "]: " + node.as_str())
+            }
+            if node.kind == ast.N_STMT_FUNC {
+                idx += 1
+                continue
+            }
             if {ast.N_STMT_CALL, ast.N_STMT_ASSIGN,
                     ast.N_STMT_VAR}.has(node.kind) and
                     node.has_later and
@@ -241,6 +260,7 @@ func find_await_after_later_call_stmt(
                             had_previous_awaits=had_previous_awaits,
                             is_invalid_if_found=yes,
                             is_invalid_block_name="if",
+                            debug=debug,
                         )
                         if inner_awaits == none {
                             return none
@@ -262,6 +282,7 @@ func find_await_after_later_call_stmt(
                         is_invalid_block_name=
                             if node.kind == ast.N_STMT_FOR
                                 ("for") else ("while"),
+                        debug=debug,
                     )
                     if inner_awaits == none {
                         return none
@@ -310,7 +331,18 @@ func find_await_after_later_call_stmt(
                     }
                     return none
                 }
+                if debug {
+                    print("find_await_after_later_call_stmt(): " +
+                        "Collected this await.")
+                }
                 if is_invalid_if_found {
+                    if debug {
+                        print(
+                            "find_await_after_later_call_stmt(): " +
+                            "Oops, but is_invalid_if_found=" +
+                            is_invalid_if_found.as_str() + "!"
+                        )
+                    }
                     if msgs != none {
                         if not call_stmt.damaged {
                             msgs.add(new msg.FileMsg(
@@ -338,8 +370,33 @@ func find_await_after_later_call_stmt(
                 }
                 had_previous_awaits = yes
                 awaits.add(node)
+                if debug {
+                    print("find_await_after_later_call_stmt(): " +
+                        "Collected these results so far: awaits=" +
+                        awaits.as_str())
+                }
                 idx += 1
                 continue
+            }
+            for subblock in node.subblocks {
+                var inner_result = find_awaits_in_subblock(
+                    call_stmt, subblock, msgs=msgs,
+                    project_file=project_file,
+                    had_previous_awaits=had_previous_awaits,
+                    debug=debug,
+                )
+                if inner_result == none {
+                    return none
+                }
+                awaits += inner_result[1]
+                if awaits.len > 0 {
+                    had_previous_awaits = yes
+                }
+                if not inner_result[2] {
+                    # We encountered a later call,
+                    # hence have to bail out of scanning.
+                    return [awaits, no]
+                }
             }
             if node.kind == ast.N_STMT_DO {
                 for clause in node.subexprs {
@@ -347,34 +404,19 @@ func find_await_after_later_call_stmt(
                         var inner_result = find_awaits_in_subblock(
                             call_stmt, subblock, msgs=msgs,
                             project_file=project_file,
-                            had_previous_awaits=had_previous_awaits
+                            had_previous_awaits=had_previous_awaits,
+                            is_invalid_if_found=yes,
+                            is_invalid_block_name=
+                                if clause.kind ==
+                                        ast.N_EXPR_RESCUECLAUSE
+                                    ("rescue") else ("finally"),
+                            debug=debug,
                         )
                         if inner_result == none {
                             return none
                         }
-                        awaits += inner_result[1]
-                        if not inner_result[2] {
-                            # We encountered a later call,
-                            # hence have to bail out of scanning.
-                            return [awaits, no]
-                        }
+                        assert(inner_result[1].len == 0)
                     }
-                }
-            }
-            for subblock in node.subblocks {
-                var inner_result = find_awaits_in_subblock(
-                    call_stmt, subblock, msgs=msgs,
-                    project_file=project_file,
-                    had_previous_awaits=had_previous_awaits
-                )
-                if inner_result == none {
-                    return none
-                }
-                awaits += inner_result[1]
-                if not inner_result[2] {
-                    # We encountered a later call,
-                    # hence have to bail out of scanning.
-                    return [awaits, no]
                 }
             }
             idx += 1
@@ -385,6 +427,7 @@ func find_await_after_later_call_stmt(
         call_stmt, block, start_idx=idx,
         msgs=msgs,
         project_file=project_file,
+        debug=debug,
     )
     var missing_ref_names = []
     var have_missing_ref = no
@@ -759,9 +802,9 @@ func first_pass_later_transform(
                     ast.N_STMT_ASSIGN}.has(node.kind) and
                     not transformed_nodes.has(node) and
                     node.has_later and not node.has_later_ignore and
+                    not node.has_later_repeat and
                     node.scope != none and
-                    node.scope.func_scope.is_later_func and
-                    not node.has_later_repeat {
+                    node.scope.func_scope.is_later_func {
                 transformed_nodes.add(node)
                 var assigned_or_declared_names = []
                 var call_idx = 1
