@@ -291,11 +291,11 @@ remapped_uses = {
             "(\"horse64-translator-py v\" + " +
             as_escaped_code_string(VERSION) + ")",
         "system.program_licenses_as_list":
-            "(lambda: _translator_runtime_helpers._return_licenses())",
+            "(_translator_runtime_helpers._return_licenses)",
         "system.program_version":
-            "(lambda: _translated_program_version)",
+            "(_translated_program_version)",
         "system.self_exec_path" :
-            "(lambda: _translated_program_main_script_file." +
+            "(_translated_program_main_script_file." +
             "rpartition(\".h64\")[0])",
     },
     "terminal@core.horse64.org": {
@@ -1149,6 +1149,24 @@ def translate_expression_tokens(s, sc,
             s, i, sc
         )
         if match_import_module is None:
+            if (sc.module_name != None and sc.package_name != None and
+                    (sc.module_name + "@" + sc.package_name) in
+                    remapped_uses):
+                remap_module_key = sc.module_name + "@" + sc.package_name
+                for remapped_use in remapped_uses[remap_module_key]:
+                    remap_original_use = sc.module_name + "." + s[i]
+                    if remapped_use == remap_original_use:
+                        if DEBUGV.ENABLE_REMAPPED_USES:
+                            print("translator.py: debug: "
+                                "remapping use of "
+                                "the overridden expression: " +
+                                remap_original_use + " in " +
+                                remap_module_key)
+                        insert_tokens = tokenize(remapped_uses
+                            [remap_module_key][remapped_use])
+                        s = s[:i] + insert_tokens + s[i + 1:]
+                        i += len(insert_tokens)
+                        break
             i += 1
             continue
         remap_module_key = match_import_module + (
@@ -3140,6 +3158,8 @@ def translate_do_func(
                 if flicenses != None:
                     flicenses = flicenses.split(",")
                     for fname in sorted(flicenses):
+                        while fname.startswith("/"):
+                            fname = fname[1:]
                         if (".." in fname or fname == "." or "/" in fname or
                                 "\\" in fname or fname == "" or
                                 "?" in fname or "*" in fname):

@@ -176,8 +176,39 @@ class _PathIsWrongTypeError(_ResourceMisuseError):
         super().__init__(msg)
         self.msg = msg
 
-def _return_licenses():
-    return __translator_licenses_list
+def _return_licenses(callback):
+    global _async_ops_lock, _async_ops, \
+        unbuffered_stdin
+    info = {"callback": callback}
+    def get_licenses_do(op):
+        global _async_ops_lock
+        import copy
+        info = op.userdata
+        err = None
+        licenses = None
+        try:
+            licenses = copy.copy(__translator_licenses_list)
+        except Exception as e:
+            err = e
+        if err != None:
+            licenses = None
+        _async_ops_lock.acquire()
+        op.userdata2 = [err, licenses]
+        op.done = True
+        _async_ops_lock.release()
+    def done_cb(op):
+        result = op.userdata2
+        assert(result != None)
+        f = op.userdata["callback"]
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        op.callback_func = None
+        return f(result[0], result[1])
+    op = _AsyncOperation(info, get_licenses_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
 
 ever_disabled_stdin_buffer = False
 unbuffered_stdin = None
