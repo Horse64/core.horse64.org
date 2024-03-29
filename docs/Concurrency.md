@@ -148,7 +148,7 @@ things at a time, which will run them in parallel:
 **Note:** Running any of your funcs via [true parallelism
 can expose **⚠️ dangerous race conditions** in your code](
 /docs/Language%20Specs/Concurrency%20Model.md#avoiding-race-conditions).
-**If you are beginner, it's best to avoid this functionality.
+**If you are beginner, it's best to avoid this functionality.**
 
 
 `later ignore`
@@ -179,7 +179,7 @@ a possibly long time skip.
 **Note:** Running any of your funcs via [true parallelism
 can expose **⚠️ dangerous race conditions** in your code](
 /docs/Language%20Specs/Concurrency%20Model.md#avoiding-race-conditions).
-**If you are beginner, it's best to avoid this functionality.
+**If you are beginner, it's best to avoid this functionality.**
 
 
 Further reading
