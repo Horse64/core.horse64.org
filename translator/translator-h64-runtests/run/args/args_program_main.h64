@@ -30,6 +30,9 @@ import system from core.horse64.org
 func main {
     var defs = new argparse.ArgumentDefs()
     var result = argparse.parse(arg_defs=defs)
+    later:
+
+    await result
     if result.output != "" {
         print(result.output)
         system.exit(result.exit_code)
