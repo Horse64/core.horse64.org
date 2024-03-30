@@ -481,7 +481,7 @@ type ParseResult {
 func get_usage_text(options) {
     var output = ""
 
-    options.do_ensure_program_name() later:
+    options.ensure_program_name() later:
 
     # Output main usage line with positional args:
     output += "Usage:\n   " +
