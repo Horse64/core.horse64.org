@@ -1835,7 +1835,8 @@ def stmt_is_later_call(st, include_later_ignore=False,
             bdepth += 1
         elif st[i] in {")", "]", "}"}:
             bdepth -= 1
-        if (st[i] == "later" and (
+            assert(bdepth >= 0)
+        if bdepth == 0 and (st[i] == "later" and (
                 include_return_later or
                 prevnonblank(st, i) != "return")):
             if (include_later_ignore or
@@ -1845,7 +1846,7 @@ def stmt_is_later_call(st, include_later_ignore=False,
     return False
 
 def stmt_uses_banned_things(
-        st, nestings=[]
+        st, followup_sts, nestings=[]
         ):
     startkw = firstnonblank(st)
 
@@ -1855,9 +1856,15 @@ def stmt_uses_banned_things(
         while i >= 0:
             if nestings[i] in {"rescue", "finally", "while",
                     "for"}:
-                raise ValueError("Use of 'later' inside '" +
-                    str(nestings[i]) + "' blocks not "
-                    "allowed. (Other than 'later ignore'.)")
+                followed_by_return = False
+                for followup_st in followup_sts:
+                    if firstnonblank(followup_st) == "return":
+                        followed_by_return = True
+                if not followed_by_return:
+                    raise ValueError("Use of 'later' inside '" +
+                        str(nestings[i]) + "' blocks not "
+                        "allowed unless followed by a 'return'. "
+                        "(Other than 'later ignore'.)")
             i -= 1
     elif startkw in {"continue", "break", "return"}:
         i = len(nestings) - 1
@@ -1907,13 +1914,15 @@ def stmt_list_uses_banned_things(sts, nestings=[]):
     assert(type(sts) == list and (
            len(sts) == 0 or (type(sts[0]) == list and (
            len(sts[0]) == 0 or type(sts[0][0]) == str))))
+    idx = -1
     for st in sts:
+        idx += 1
         assert(type(st) == list and
             (len(st) == 0 or type(st[0]) == str))
         assert(type(st) == list)
         assert(len(st) == 0 or type(st[0]) == str)
         result = stmt_uses_banned_things(
-            st, nestings=nestings
+            st, sts[idx + 1:], nestings=nestings
         )
         if result != None:
             return result
