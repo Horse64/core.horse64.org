@@ -295,8 +295,8 @@ remapped_uses = {
         "system.program_version":
             "(_translated_program_version)",
         "system.self_exec_path" :
-            "(_translator_runtime_helpers._return_str_async(" +
-            "_translated_program_main_script_file." +
+            "(lambda x:_translator_runtime_helpers._return_str_async(" +
+            "x, _translated_program_main_script_file." +
             "rpartition(\".h64\")[0]))",
     },
     "terminal@core.horse64.org": {
