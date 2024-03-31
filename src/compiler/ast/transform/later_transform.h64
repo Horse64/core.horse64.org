@@ -106,6 +106,289 @@ func st_scope.LocalScope.get_later_transform_info {
     return self.later_transform_info
 }
 
+func get_later_assigned_value_info(stmt) {
+    var async_return_value_storage_refs = []
+    var async_return_value_labels = []
+    if stmt.kind == ast.N_STMT_VAR {
+        if (typename(stmt.symbol_info) != "list") {
+            print("horsec: error: CRITICAL ERROR IN "
+                "src/compiler/ast/transform/"
+                "later_transform.h64: "
+                "Encountered var statement without "
+                "symbol info, which shouldn't be possible "
+                "at this stage: " +
+                stmt.as_str())
+            throw new RuntimeError(
+                "Internal error: Encountered N_STMT_VAR "
+                "with incomplete symbol info, this is invalid. "
+                "Please report this bug to the compiler "
+                "team."
+            )
+        }
+        var index = 0
+        for sinfo in stmt.symbol_info {
+            index += 1
+            async_return_value_storage_refs.add(
+                new storage_ref.StorageRef(
+                    storage_ref.ST_LOCAL, sinfo.storage_id
+                )
+            )
+            assert(index >= 1 and index <= stmt.var_labels.len)
+            async_return_value_labels.add(
+                stmt.var_labels[index]
+            )
+        }
+    } else {
+        assert(stmt.kind == ast.N_STMT_ASSIGN)
+        var pairs_count = stmt.subexprs.len / 2
+        assert(pairs_count >= 1)
+        var i = 1
+        while i <= pairs_count {
+            if stmt.subexprs[i].ref == none {
+                print("horsec: error: CRITICAL ERROR IN "
+                    "src/compiler/ast/transform/"
+                    "later_transform.h64: "
+                    "Encountered assignment target without "
+                    "ref info, which shouldn't be possible "
+                    "at this stage: " +
+                    [stmt, stmt.subexprs[i]].as_str())
+                throw new RuntimeError(
+                    "Internal error: Encountered N_STMT_ASSIGN "
+                    "with incomplete storage ref, this is invalid. "
+                    "Please report this bug to the compiler "
+                    "team."
+                )
+            }
+            async_return_value_storage_refs.add(
+                stmt.subexprs[i].ref
+            )
+            async_return_value_labels.add(
+                stmt.subexprs[i].label
+            )
+            i += 1
+        }
+    }
+    return [
+        async_return_value_labels,
+        async_return_value_storage_refs
+    ]
+}
+
+func find_repeat_for_later_call_stmt(
+        call_stmt, parents, msgs=none,
+        project_file=none
+        ) {
+    assert({ast.N_STMT_ASSIGN,
+        ast.N_STMT_VAR}.has(call_stmt.kind))
+    var debug = no
+    if debug {
+        print("find_repeat_for_later_call_stmt(): Finding " +
+            "later repeat for: " + call_stmt.as_str())
+    }
+    var _result = get_later_assigned_value_info(call_stmt)
+    var async_return_value_storage_refs = _result[2]
+    var async_return_value_labels = _result[1]
+
+    var block = none
+    if parents.len > 0 {
+        block = ast.get_node_parent_block(
+            call_stmt, parents[parents.len]
+        )
+    }
+    if block == none {
+        throw new RuntimeError("Internal error: "
+            "Can't find parent block of later call, "
+            "unexpectedly malformed AST?!")
+    }
+    var idx = block.find(call_stmt)
+    assert(idx != none)
+    idx += 1
+    func find_matching_repeat_in_subblock(
+            call_stmt, block, start_idx=1,
+            msgs=none,
+            project_file=none,
+            is_invalid_if_found=no,
+            is_invalid_block_name="<unspecified>",
+            debug=no
+            ) {
+        if debug {
+            var block_str = block.as_str()
+            if block_str.len > 300 {
+                block_str = block_str.sub(1, 150) + "..." +
+                    block_str.sub(block_str.len - 150)
+            }
+            print("find_repeat_for_later_call_stmt(): " +
+                "Searching in block: " + block_str)
+        }
+        var idx = start_idx
+        while idx <= block.len {
+            var node = block[idx]
+            if debug {
+                print("find_repeat_for_later_call_stmt(): " +
+                    "Examining block[" + idx.as_str() +
+                    "]: " + node.as_str())
+            }
+            if node.kind == ast.N_STMT_FUNC {
+                idx += 1
+                continue
+            }
+            if node.kind == ast.N_STMT_IF {
+                for clause in node.subexprs {
+                    for subblock in clause.subblocks {
+                        var inner_repeats =
+                            find_matching_repeat_in_subblock(
+                                call_stmt, subblock, msgs=msgs,
+                                project_file=project_file,
+                                is_invalid_if_found=yes,
+                                is_invalid_block_name="if",
+                                debug=debug,
+                            )
+                        if inner_repeats == none {
+                            return [none, no]
+                        }
+                        assert(inner_repeats[1] == none)
+                    }
+                }
+                idx += 1
+                continue
+            }
+            if {ast.N_STMT_VAR, ast.N_STMT_ASSIGN}.has(
+                    node.kind) and
+                    node.has_later and
+                    not node.has_later_ignore and
+                    node.has_later_repeat {
+                var repeat_matches_us = no
+                var _result = get_later_assigned_value_info(call_stmt)
+                var repeat_assigned_refs = _result[2]
+                var repeat_assigned_names = _result[1]
+                assert(repeat_assigned_refs.len > 0)
+
+                repeat_matches_us = yes
+                var idx2 = 0
+                for var_ref in repeat_assigned_refs {
+                    idx2 += 1
+                    if idx > async_return_value_storage_refs.len or
+                            var_ref.alike(
+                                async_return_value_storage_refs[idx2]
+                            ) {
+                        repeat_matches_us = no
+                        break
+                    }
+                }
+                if repeat_assigned_refs.len <
+                        async_return_value_storage_refs.len {
+                    repeat_matches_us = no
+                }
+                if not repeat_matches_us {
+                    idx += 1
+                    continue
+                }
+                if debug {
+                    print("find_repeat_for_later_call_stmt(): " +
+                        "Collected this repeat.")
+                }
+                if is_invalid_if_found {
+                    if debug {
+                        print(
+                            "find_repeat_for_later_call_stmt(): " +
+                            "Oops, but is_invalid_if_found=" +
+                            is_invalid_if_found.as_str() + "!"
+                        )
+                    }
+                    if msgs != none {
+                        if not call_stmt.damaged {
+                            msgs.add(new msg.FileMsg(
+                                "Unexpected misplaced later repeat, "
+                                "can't be nested inside a " +
+                                is_invalid_block_name +
+                                    if is_invalid_block_name.len > 0
+                                        (" ") else ("") +
+                                "code block when the corresponding "
+                                "preceding later call "
+                                "in line " + call_stmt.line.as_str() +
+                                ", column " +
+                                call_stmt.col.as_str() + " "
+                                "isn't also part of this code block.",
+                                source_file=project_file,
+                                line=node.line,
+                                col=node.col,
+                            ))
+                        }
+                        call_stmt.damaged = yes
+                    } else {
+                        throw new ValueError(
+                            "Repeat doesn't match previous later call."
+                        )
+                    }
+                    return [none, no]
+                }
+                if debug {
+                    print("find_repeat_for_later_call_stmt(): " +
+                        "Collected this repeat=" + node.as_str())
+                }
+                return [node, yes]
+            }
+            for subblock in node.subblocks {
+                var inner_result = find_matching_repeat_in_subblock(
+                    call_stmt, subblock, msgs=msgs,
+                    project_file=project_file,
+                    is_invalid_if_found=yes,
+                    debug=debug,
+                )
+                if not inner_result[2] {
+                    return [none, no]
+                }
+                if inner_result[1] != none {
+                    return [inner_result[1], yes]
+                }
+            }
+            if node.kind == ast.N_STMT_DO {
+                for clause in node.subexprs {
+                    for subblock in clause.subblocks {
+                        var inner_result =
+                            find_matching_repeat_in_subblock(
+                                call_stmt, subblock, msgs=msgs,
+                                project_file=project_file,
+                                is_invalid_if_found=yes,
+                                is_invalid_block_name=
+                                    if clause.kind ==
+                                            ast.N_EXPR_RESCUECLAUSE
+                                        ("rescue") else ("finally"),
+                                debug=debug,
+                            )
+                        if inner_result == none {
+                            return [none, no]
+                        }
+                        assert(inner_result[1] == none)
+                    }
+                }
+            }
+            idx += 1
+        }
+        if debug {
+            var block_str = block.as_str()
+            if block_str.len > 300 {
+                block_str = block_str.sub(1, 150) + "..." +
+                    block_str.sub(block_str.len - 150)
+            }
+            print("find_repeat_for_later_call_stmt(): " +
+                "Done searching in block with no match: " +
+                block_str)
+        }
+        return [none, yes]
+    }
+    var repeat_result = find_matching_repeat_in_subblock(
+        call_stmt, block, start_idx=idx,
+        msgs=msgs,
+        project_file=project_file,
+        debug=debug,
+    )
+    if repeat_result == none {
+        return none
+    }
+    return repeat_result[1]
+}
+
 func find_await_after_later_call_stmt(
         call_stmt, parents, msgs=none,
         project_file=none
@@ -117,8 +400,10 @@ func find_await_after_later_call_stmt(
         print("find_await_after_later_call_stmt(): Finding " +
             "await for: " + call_stmt.as_str())
     }
-    var async_return_value_storage_refs = []
-    var async_return_value_labels = []
+    var _result = get_later_assigned_value_info(call_stmt)
+    var async_return_value_storage_refs = _result[2]
+    var async_return_value_labels = _result[1]
+
     if call_stmt.kind == ast.N_STMT_VAR {
         if (typename(call_stmt.symbol_info) != "list") {
             print("horsec: error: CRITICAL ERROR IN "
@@ -881,13 +1166,18 @@ func first_pass_later_transform(
 
                 # Find where the awaits are:
                 var awaits = []
+                var repeat_stmt = none
                 if node.kind != ast.N_STMT_CALL {
                     awaits = find_await_after_later_call_stmt(
                         node, parents, msgs=msgs,
                         project_file=pfile
                     )
+                    repeat_stmt = find_repeat_for_later_call_stmt(
+                        node, parents, msgs=msgs,
+                        project_file=pfile
+                    )
                 }
-                if awaits == none {
+                if awaits == none or node.damaged {
                     return later node
                 }
 
