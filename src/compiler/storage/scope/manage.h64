@@ -30,6 +30,7 @@ import random from core.horse64.org
 import compiler.ast as ast
 import compiler.ast.func_stmt as func_stmt
 import compiler.ast.transform as transform
+import compiler.ast.var_stmt as var_stmt
 import compiler.cext as cext
 import compiler.msg as msg
 import compiler.project as project
@@ -334,6 +335,61 @@ func project.ProjectFile.check_item_exists_by_modpkg(
     }
     return (self.find_cext_injected_item_storage_id_by_modpkg(
         name, mod_pkg_path, limit_to_kind=limit_to_kind) != none)
+}
+
+func project.ProjectFile.make_new_made_up_var_node(
+        in_inner_scope, name_prefix, expr=none,
+        line=none, col=none) {
+    var new_name = name_prefix + random.gen_id()
+    while not in_inner_scope.name_is_free(new_name,
+            self.global_scope) or
+            self.global_scope.name_to_stmt_map.has(new_name) {
+        new_name = name_prefix + random.gen_id()
+    }
+    var func_scope = none
+    if in_inner_scope != none {
+        func_scope = in_inner_scope.func_scope
+    }
+    var ref = none
+    if func_scope == none {
+        self.project.last_global_storage_id += 1
+        var storage_id = self.project.last_global_storage_id
+        ref = new storage_ref.StorageRef(
+            storage_ref.ST_GLOBAL, storage_id
+        )
+        # FIXME: Register this in the global scope.
+        throw new RuntimeError("Not fully implemented.")
+    } else {
+        ref = in_inner_scope.add_symbol(new_name, line, col)
+    }
+    if expr == none {
+        expr = new ast_expr.LiteralExpr()
+        expr.scope = in_inner_scope
+        expr.value = none
+        expr.line = line
+        expr.col = col
+    }
+    var var_node = new var_stmt.VarStmt()
+    var_node.is_const = no
+    var_node.scope = in_inner_scope
+    var_node.func_scope = func_scope
+    var_node.line = line
+    var_node.col = col
+    var_node.var_labels = [new_name]
+    var_node.subexprs = [expr]
+    var_node.var_has_protect = [no]
+    if func_scope != none {
+        var symbol_info = new scope.SymbolInfo(new_name)
+        symbol_info.def_line = line
+        symbol_info.def_col = col
+        symbol_info.def_file = self
+        symbol_info.storage_id =
+            ref.id
+        var_node.symbol_info = [
+            symbol_info
+        ]
+    }
+    return var_node
 }
 
 func project.ProjectFile.make_new_made_up_func_node(

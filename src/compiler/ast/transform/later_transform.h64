@@ -38,6 +38,7 @@ import compiler.ast.func_stmt as func_stmt
 import compiler.ast.return_stmt as return_stmt
 import compiler.ast.transform as ast_transform
 import compiler.ast.type_stmt as type_stmt
+import compiler.ast.var_stmt as var_stmt
 import compiler.msg as msg
 import compiler.storage.ref as storage_ref
 import compiler.storage.scope as st_scope
@@ -1156,12 +1157,43 @@ func first_pass_later_transform(
                 }
                 var err_param_name = "$latererr" + random.gen_id()
                 var param_name_return = none
+                var result_array_node = none
                 if assigned_or_declared_names.len == 1 {
                     param_name_return = assigned_or_declared_names[1]
                 } elseif assigned_or_declared_names.len > 1 {
-                    param_name_return = "$latervaluearray"
+                    result_array_node =
+                        pfile.make_new_made_up_var_node(
+                            inner_scope, "$latervaluearray",
+                            line=node.line, col=node.col
+                        )
+                    param_name_return = none
                 } else {
                     param_name_return = "$unused" + random.gen_id()
+                }
+
+                # If we have multiple things to call, we need in-between
+                # closures to gradually collect all the results:
+                var partial_result_func_nodes = []
+                if call_exprs.len > 1 {
+                    var i = 1
+                    while i <= call_exprs.len {
+                        var partial_result_func_node =
+                            pfile.make_new_made_up_func_node(
+                                inner_scope, "$laterfunc",
+                                line=node.line, col=node.line
+                            )
+                        partial_result_func_node.scope = inner_scope
+                        partial_result_func_node.subblocks = [[]]
+                        partial_result_func_node.arg_labels = [
+                            err_param_name,
+                            "$partialresult"
+                        ]
+                        partial_result_func_node.kw_arg_count = 0
+                        partial_result_func_nodes.add(
+                            partial_result_func_node
+                        )
+                        i += 1
+                    }
                 }
 
                 # Find where the awaits are:
@@ -1190,8 +1222,12 @@ func first_pass_later_transform(
                 assert(inner_scope != none)
                 func_node.scope = inner_scope
                 func_node.subblocks = [stmts_after]
-                func_node.arg_labels = [err_param_name,
-                    param_name_return]
+                func_node.arg_labels = [err_param_name]
+                if param_name_return != none {
+                    func_node.arg_labels.add(param_name_return)
+                } else {
+                    func_node.arg_labels += assigned_or_declared_names
+                }
                 func_node.kw_arg_count = 0
                 if func_node.func_scope.later_transform_info == none {
                     func_node.func_scope.later_transform_info =
@@ -1255,6 +1291,10 @@ func first_pass_later_transform(
                 func_node = new_root[1]
                 var result = new_root
                 result += [call_stmt_node, return_stmt_node]
+                result = partial_result_func_nodes + result
+                if result_array_node != none {
+                    result = [result_array_node] + result
+                }
 
                 assert(
                     not func_node.func_scope.is_later_func or (
