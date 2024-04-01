@@ -33,7 +33,7 @@ import compiler.ast.transform as transform
 import compiler.cext as cext
 import compiler.msg as msg
 import compiler.project as project
-import compiler.storage.scope as scope
+import compiler.storage.scope as st_scope
 import compiler.storage.scope.global_scope as global_scope
 import compiler.storage.ref as storage_ref
 
@@ -58,10 +58,13 @@ func project.Project.is_ref_a_type(ref, node=none) {
         }
         var escope = self.storage_id_to_escope_map[ref.id]
         return not escope.is_enum
-    } elseif {storage_ref.ST_LOCAL, storage_ref.ST_CCAPTURE,
+    } elseif {storage_ref.ST_LOCAL,
+            storage_ref.ST_CCAPTURE,
+            storage_ref.ST_ARG,
             storage_ref.ST_NUMLITERAL}.has(ref.kind) {
         return no
-    } elseif {storage_ref.ST_SELF, storage_ref.ST_BASE,
+    } elseif {storage_ref.ST_SELF,
+            storage_ref.ST_BASE,
             storage_ref.ST_EXTENDED}.has(ref.kind) {
         # Since this refers to an actual object instance,
         # the correct answer here is it's not a type.
@@ -568,7 +571,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                                 if not escope.name_to_symbol_map.
                                         has(label) {
                                     var symbol_info =
-                                        new scope.SymbolInfo(label)
+                                        new st_scope.SymbolInfo(label)
                                     symbol_info.def_line = stmt.line
                                     symbol_info.def_col = stmt.col
                                     symbol_info.def_file = pfile
@@ -707,7 +710,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                     (not has_attr(parent, "kind") or
                      (parent.kind != ast.N_STMT_IF and
                       parent.kind != ast.N_STMT_DO)) {
-                var inner_scope = new scope.LocalScope()
+                var inner_scope = new st_scope.LocalScope()
                 inner_scope.start_line = node.line
                 inner_scope.start_col = node.col
                 inner_scope.parent = node.scope
@@ -727,7 +730,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                         node.kind == ast.N_STMT_FUNCEXTEND {
                     var is_extend =
                         (node.kind == ast.N_STMT_FUNCEXTEND)
-                    inner_scope.func_scope = new scope.FuncScope()
+                    inner_scope.func_scope = new st_scope.FuncScope()
                     node.func_scope = inner_scope.func_scope
                     node.func_scope.inner_scope = inner_scope
                     var is_toplevel = yes
@@ -949,9 +952,20 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                         }
                     }
                     for label in final_arg_labels {
-                        try_register_symbol(inner_scope,
-                            label, msgs,
-                            pfile, node.line, node.col)
+                        if node.func_scope.arg_names.has(label) and
+                                msgs != none {
+                            msgs.add(new msg.FileMsg(
+                                "Unexpected duplicate name '" +
+                                label + "'"
+                                ", used twice for different arguments "
+                                "for this func.",
+                                source_file=pfile,
+                                line=node.line, col=node.col
+                            ))
+                        } elseif node.func_scope.arg_names.has(label) {
+                            throw new ValueError("Duplicate func arg name.")
+                        }
+                        node.func_scope.arg_names.add(label)
                     }
                     # If this is a func attr, make sure the
                     # argument list is registered with the escope:
@@ -977,7 +991,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
             if node.kind == ast.N_STMT_IF or
                     node.kind == ast.N_STMT_DO {
                 for clause in node.subexprs {
-                    var inner_scope = new scope.LocalScope()
+                    var inner_scope = new st_scope.LocalScope()
                     inner_scope.start_line = node.line
                     inner_scope.start_col = node.col
                     inner_scope.parent = node.scope
@@ -1021,7 +1035,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                     if not node.scope.name_to_symbol_map.has(label) {
                         continue
                     }
-                    var symbol_info = new scope.SymbolInfo(label)
+                    var symbol_info = new st_scope.SymbolInfo(label)
                     if node.symbol_info == none {
                         node.symbol_info = []
                     }

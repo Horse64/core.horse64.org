@@ -39,6 +39,9 @@ const hvm_builtin_cext_funcs = {
     "has_attr"->"builtin_h64_has_attr",
     "to_num"->"builtin_h64_to_num",
     "alike_num"->"builtin_h64_alike_num",
+    "$hvm_make_sync_lock"->"builtin_h64_hvm_make_sync_lock",
+    "$hvm_lock_sync_lock"->"builtin_h64_hvm_make_sync_lock",
+    "$hvm_unlock_sync_lock"->"builtin_h64_hvm_make_sync_lock",
 }
 
 type BuiltinTypeInfo {

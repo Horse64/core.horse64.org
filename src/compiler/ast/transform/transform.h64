@@ -164,7 +164,8 @@ func split_if_to_single_clauses(project_file, node, parent) {
 
 func reparent_stmts_into_closure(
         func_node, stmts, outer_inner_scope,
-        clone_all_stmts=yes
+        clone_all_stmts=yes,
+        args_replacing_closure_refs_allowed=no
         ) {
     assert(func_node.kind == ast.N_STMT_FUNC)
     var closure_func_scope = func_node.func_scope
@@ -186,13 +187,28 @@ func reparent_stmts_into_closure(
 
     func replace_scopes(stmts) {
         func replace_scope_visitor(node, parents) {
+            var is_in_outer_stmts_list = (
+                stmts.has(node)
+            )
+
             assert(node.scope != none)
             assert(node.scope.func_scope != none)
             if node.scope.func_scope != outer_func_scope {
                 return later node
             }
             if replaced_inner_scopes_map.has(node.scope) {
+                # We already have a replacement scope, return it:
                 node.scope = replaced_inner_scopes_map[node.scope]
+                assert(node.scope.func_scope == closure_func_scope)
+                return later node
+            } elseif node.scope.func_scope == outer_func_scope and
+                    is_in_outer_stmts_list {
+                # Since this is on the most outer level,
+                # use the inner scope that our new func node
+                # already created.
+                replaced_inner_scopes_map[node.scope] =
+                    func_node.func_scope.inner_scope
+                node.scope = func_node.func_scope.inner_scope
                 assert(node.scope.func_scope == closure_func_scope)
                 return later node
             }
@@ -215,6 +231,23 @@ func reparent_stmts_into_closure(
             new_inner_scope.func_scope = closure_func_scope
             replaced_inner_scopes_map[node.scope] = new_inner_scope
             for name in node.scope.name_to_symbol_map {
+                if is_in_outer_stmts_list {
+                    var defined_in_copied_range = no
+                    for stmt in stmts {
+                        if stmt.kind == ast.N_STMT_VAR and
+                                stmt.var_labels.has(name) {
+                            defined_in_copied_range = yes
+                            break
+                        } elseif stmt.kind == ast.N_STMT_FUNC and
+                                stmt.label == name {
+                            defined_in_copied_range = yes
+                            break
+                        }
+                    }
+                    if not defined_in_copied_range {
+                        continue
+                    }
+                }
                 var sinfo = node.scope.name_to_symbol_map[name]
                 closure_func_scope.last_inner_storage_id += 1
                 var st_id = closure_func_scope.last_inner_storage_id
@@ -274,7 +307,9 @@ func reparent_stmts_into_closure(
                     is_write_access=no, cross_func_scopes=yes)
 
                 assert(result_pair != none and
-                    result_pair[1].kind == st_ref.ST_CCAPTURE)
+                    (result_pair[1].kind == st_ref.ST_CCAPTURE or
+                    (args_replacing_closure_refs_allowed and
+                    result_pair[1].kind == st_ref.ST_ARG)))
                 node.ref = result_pair[1]
             }
             return later node

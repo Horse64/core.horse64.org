@@ -50,6 +50,7 @@ func SymbolInfo.init(name) {
 type FuncScope {
     var last_inner_storage_id = 0
     var last_inner_ccapture_id = 0
+    var arg_names = []
     var is_type_attr = no
     var is_type_extend_attr = no
     var is_later_func = no
@@ -218,12 +219,27 @@ func LocalScope.lookup(name,
                 ref = new st_ref.StorageRef(st_ref.ST_CCAPTURE, cap_id)
                 return [ref, sinfo]
             }
-        } elseif lookup_scope.func_scope == our_func_scope and
-                lookup_scope.ccapture_name_to_id_map.has(name) {
-            var cap_id = lookup_scope.ccapture_name_to_id_map[name]
-            var sinfo = lookup_scope.ccapture_id_to_symbol_map[cap_id]
-            ref = new st_ref.StorageRef(st_ref.ST_CCAPTURE, cap_id)
-            return [ref, sinfo]
+        } elseif (lookup_scope.parent == none or
+                lookup_scope.parent.func_scope !=
+                lookup_scope.func_scope) {
+            if lookup_scope.ccapture_name_to_id_map.has(name) {
+                var cap_id = lookup_scope.ccapture_name_to_id_map[name]
+                var sinfo = lookup_scope.ccapture_id_to_symbol_map[
+                    cap_id
+                ]
+                ref = new st_ref.StorageRef(st_ref.ST_CCAPTURE, cap_id)
+                return [ref, sinfo]
+            } else {
+                var arg_idx = lookup_scope.func_scope.arg_names.find(
+                    name
+                )
+                if arg_idx != none {
+                    ref = new st_ref.StorageRef(
+                        st_ref.ST_ARG, arg_idx
+                    )
+                    return [ref, none]
+                }
+            }
         }
         if lookup_scope.parent == none {
             return none

@@ -35,16 +35,13 @@ import uri from core.horse64.org
 import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
 import compiler.ast.expr as ast_expr
-import compiler.ast.func_stmt as func_stmt
-import compiler.ast.import_stmt as import_stmt
 import compiler.ast.transform as transform
-import compiler.ast.var_stmt as var_stmt
 import compiler.build_options as build_options
 import compiler.cext as cext
 import compiler.comment.command as command_comment
 import compiler.msg as msg
 import compiler.storage.ref as storage_ref
-import compiler.storage.scope as scope
+import compiler.storage.scope as st_scope
 import compiler.token as token
 
 var _known_readable_files = []

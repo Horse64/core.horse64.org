@@ -31,6 +31,7 @@ import time from core.horse64.org
 
 import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
+import compiler.ast.builder as ast_builder
 import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
 import compiler.ast.do_stmt as do_stmt
 import compiler.ast.expr as ast_expr
@@ -39,6 +40,7 @@ import compiler.ast.return_stmt as return_stmt
 import compiler.ast.transform as ast_transform
 import compiler.ast.type_stmt as type_stmt
 import compiler.ast.var_stmt as var_stmt
+import compiler.cext as cext
 import compiler.msg as msg
 import compiler.storage.ref as storage_ref
 import compiler.storage.scope as st_scope
@@ -1155,35 +1157,59 @@ func first_pass_later_transform(
                         break
                     }
                 }
+                var builder = new ast_builder.ASTBuilder(pfile)
                 var err_param_name = "$latererr" + random.gen_id()
                 var param_name_return = none
+                var array_lock_node = none
+                var array_lock_ref = none
+                var array_lock_name = none
                 var result_array_node = none
                 if assigned_or_declared_names.len == 1 {
                     param_name_return = assigned_or_declared_names[1]
                 } elseif assigned_or_declared_names.len > 1 {
+                    var listexpr = new ast_expr.ContainerExpr()
+                    listexpr.scope = inner_scope
+                    listexpr.line = node.line
+                    listexpr.col = node.col
+                    listexpr.container_kind = ast_expr.C_LIST
                     result_array_node =
-                        pfile.make_new_made_up_var_node(
+                        builder.make_var_node(
                             inner_scope, "$latervaluearray",
+                            expr=listexpr, add_unique_suffix=yes,
                             line=node.line, col=node.col
                         )
                     param_name_return = none
-                } else {
-                    param_name_return = "$unused" + random.gen_id()
+                    array_lock_node =
+                        builder.make_create_lock_node(
+                            inner_scope, "$laterarraylock",
+                            add_unique_suffix=yes,
+                            line=node.line, col=node.col
+                        )
+                    array_lock_name = array_lock_node.var_labels[1]
+                    array_lock_ref = new storage_ref.StorageRef(
+                        storage_ref.ST_LOCAL,
+                        array_lock_node.symbol_info[1].storage_id
+                    )
                 }
 
                 # If we have multiple things to call, we need in-between
                 # closures to gradually collect all the results:
                 var partial_result_func_nodes = []
+                var partial_result_func_names = []
                 if call_exprs.len > 1 {
                     var i = 1
                     while i <= call_exprs.len {
                         var partial_result_func_node =
-                            pfile.make_new_made_up_func_node(
+                            builder.make_func_node(
                                 inner_scope, "$laterfunc",
-                                line=node.line, col=node.line
+                                line=node.line, col=node.col
                             )
+                        partial_result_func_names.add(
+                            partial_result_func_node.label
+                        )
                         partial_result_func_node.scope = inner_scope
-                        partial_result_func_node.subblocks = [[]]
+                        var block = []
+                        partial_result_func_node.subblocks = [block]
                         partial_result_func_node.arg_labels = [
                             err_param_name,
                             "$partialresult"
@@ -1191,6 +1217,57 @@ func first_pass_later_transform(
                         partial_result_func_node.kw_arg_count = 0
                         partial_result_func_nodes.add(
                             partial_result_func_node
+                        )
+                        var func_inner_scope =
+                            partial_result_func_node.func_scope.inner_scope
+
+                        var literal_expr = new ast_expr.LiteralExpr()
+                        literal_expr.value = no
+                        literal_expr.scope = func_inner_scope
+                        literal_expr.line = node.line
+                        literal_expr.col = node.col
+                        block.add(
+                            builder.make_var_node(
+                                func_inner_scope, "$completed",
+                                expr=literal_expr,
+                                line=node.line, col=node.col
+                            )
+                        )
+
+                        block.add(
+                            builder.make_lock_hvm_lock_node(
+                                func_inner_scope, array_lock_name,
+                                array_lock_ref,
+                                line=node.line, col=node.col
+                            )
+                        )
+
+                        var do_block = []
+                        var finally_block = []
+                        var do_rescue = new do_stmt.DoStmt()
+                        do_rescue.scope = func_inner_scope
+                        do_rescue.line = node.line
+                        do_rescue.col = node.col
+                        var finally_clause = new do_stmt.FinallyClause()
+                        var finally_inner_scope =
+                            new st_scope.LocalScope()
+                        finally_inner_scope.parent = func_inner_scope
+                        finally_inner_scope.func_scope =
+                            func_inner_scope.func_scope
+                        finally_clause.scope = func_inner_scope
+                        finally_clause.line = node.line
+                        finally_clause.col = node.col
+                        finally_clause.subblocks = [finally_block]
+                        do_rescue.subexprs = [finally_clause]
+                        do_rescue.subblocks = [do_block]
+                        block.add(do_rescue)
+
+                        finally_block.add(
+                            builder.make_unlock_hvm_lock_node(
+                                func_inner_scope, array_lock_name,
+                                array_lock_ref,
+                                line=node.line, col=node.col
+                            )
                         )
                         i += 1
                     }
@@ -1214,7 +1291,7 @@ func first_pass_later_transform(
                 }
 
                 # Actually construct made-up closure:
-                var func_node = pfile.make_new_made_up_func_node(
+                var func_node = builder.make_func_node(
                     inner_scope, "$laterfunc", line=node.line,
                     col=node.line)
                 assert(func_node.func_scope != none)
@@ -1223,10 +1300,10 @@ func first_pass_later_transform(
                 func_node.scope = inner_scope
                 func_node.subblocks = [stmts_after]
                 func_node.arg_labels = [err_param_name]
-                if param_name_return != none {
-                    func_node.arg_labels.add(param_name_return)
-                } else {
+                if assigned_or_declared_names.len > 0 {
                     func_node.arg_labels += assigned_or_declared_names
+                } else {
+                    func_node.arg_labels.add("$unused" + random.gen_id())
                 }
                 func_node.kw_arg_count = 0
                 if func_node.func_scope.later_transform_info == none {
@@ -1239,18 +1316,29 @@ func first_pass_later_transform(
                 func_node.func_scope.later_transform_info._exit_info =
                     node.scope.func_scope.later_transform_info._exit_info
                 node.is_later = no
-                var continuation_idref = new ast_expr.IdRefExpr()
-                continuation_idref.scope = inner_scope
-                continuation_idref.line = node.line
-                continuation_idref.col = node.col
-                continuation_idref.label = func_node.label
-                call_exprs[1].subexprs[2].
-                    subexprs.add(continuation_idref)
-                var call_stmt_node = new call_or_assign_stmt.CallStmt()
-                call_stmt_node.scope = inner_scope
-                call_stmt_node.line = node.line
-                call_stmt_node.col = node.col
-                call_stmt_node.subexprs.add(call_exprs[1])
+
+                # Construct call(s):
+                var call_stmt_nodes = []
+                var i = 1
+                while i <= call_exprs.len {
+                    var continuation_idref = new ast_expr.IdRefExpr()
+                    continuation_idref.scope = inner_scope
+                    continuation_idref.line = node.line
+                    continuation_idref.col = node.col
+                    continuation_idref.label =
+                        if partial_result_func_names.len > 0
+                            (partial_result_func_names[i]) else
+                            (func_node.label)
+                    call_exprs[i].subexprs[2].
+                        subexprs.add(continuation_idref)
+                    var call_stmt_node = new call_or_assign_stmt.CallStmt()
+                    call_stmt_node.scope = inner_scope
+                    call_stmt_node.line = node.line
+                    call_stmt_node.col = node.col
+                    call_stmt_node.subexprs.add(call_exprs[i])
+                    call_stmt_nodes.add(call_stmt_node)
+                    i += 1
+                }
                 var return_stmt_node = new return_stmt.ReturnStmt()
                 return_stmt_node.scope = inner_scope
                 return_stmt_node.line = node.line
@@ -1258,7 +1346,9 @@ func first_pass_later_transform(
 
                 ast_transform.reparent_stmts_into_closure(
                     func_node, stmts_after, func_node.scope,
-                    clone_all_stmts=yes) later:
+                    clone_all_stmts=yes,
+                    args_replacing_closure_refs_allowed=yes
+                ) later:
 
                 ast_analyze.analyze_and_configure_newly_added_func(
                     func_node, msgs=msgs, project_file=pfile
@@ -1290,10 +1380,11 @@ func first_pass_later_transform(
                 }
                 func_node = new_root[1]
                 var result = new_root
-                result += [call_stmt_node, return_stmt_node]
+                result += call_stmt_nodes + [return_stmt_node]
                 result = partial_result_func_nodes + result
                 if result_array_node != none {
-                    result = [result_array_node] + result
+                    result = [result_array_node,
+                        array_lock_node] + result
                 }
 
                 assert(

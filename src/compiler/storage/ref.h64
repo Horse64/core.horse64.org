@@ -27,6 +27,7 @@
 
 enum StorageKind {
     ST_LOCAL,
+    ST_ARG,
     ST_CCAPTURE,
     ST_GLOBAL,
     ST_NUMLITERAL,
@@ -46,6 +47,8 @@ func StorageRef.as_str {
         return "L" + self.id.as_str()
     } elseif self.kind == ST_CCAPTURE {
         return "CC" + self.id.as_str()
+    } elseif self.kind == ST_ARG {
+        return "ARG" + self.id.as_str()
     } elseif self.kind == ST_GLOBAL {
         return "G" + self.id.as_str()
     } elseif self.kind == ST_NUMLITERAL {
