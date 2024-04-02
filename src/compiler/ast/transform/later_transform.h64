@@ -1010,7 +1010,75 @@ func first_pass_later_transform(
                     return later if_node
                 }
 
-                return later node
+                var container_expr = new ast_expr.ContainerExpr()
+                container_expr.scope = node.scope
+                container_expr.container_kind = ast_expr.C_LIST
+                container_expr.line = node.line
+                container_expr.col = node.col
+                var err_array_node = builder.make_var_node(
+                    node.scope, "$errarray", expr=container_expr,
+                    line=node.line, col=node.col,
+                    add_unique_suffix=yes
+                )
+                var err_array_label = err_array_node.var_labels[1]
+                var err_array_ref = new storage_ref.StorageRef(
+                    storage_ref.ST_LOCAL,
+                    err_array_node.symbol_info[1].storage_id
+                )
+                var add_new_nodes = [err_array_node]
+                for idx in indexes {
+                    var err_name = func_node.arg_labels[idx]
+                    var err_ref = new storage_ref.StorageRef(
+                        storage_ref.ST_ARG, idx
+                    )
+                    var if_node = builder.make_if_neq_none_node(
+                        node.scope, err_name, err_ref,
+                        line=node.line, col=node.col
+                    )
+                    var err_ref_expr = new ast_expr.IdRefExpr()
+                    err_ref_expr.scope = new st_scope.LocalScope()
+                    err_ref_expr.scope.parent = node.scope
+                    err_ref_expr.scope.func_scope =
+                        err_ref_expr.scope.parent.func_scope
+                    err_ref_expr.line = node.line
+                    err_ref_expr.col = node.col
+                    err_ref_expr.label = err_name
+                    err_ref_expr.ref = err_ref
+                    var add_node =
+                        builder.make_add_to_named_list_node(
+                            node.scope, err_array_label,
+                            err_array_ref, expr=err_ref_expr,
+                            line=node.line, col=node.col
+                        )
+                    if_node.subexprs[1].subblocks[1].add(add_node)
+                    add_new_nodes.add(if_node)
+                }
+                var if_node = builder.make_length_cmp_node(
+                    node.scope,
+                    err_array_label, err_array_ref,
+                    comp_type=">",
+                    length_expr=0,
+                    line=node.line, col=node.col
+                )
+                var throw_node = new throw_stmt.ThrowStmt()
+                throw_node.scope = new st_scope.LocalScope()
+                throw_node.scope.parent = node.scope
+                throw_node.scope.func_scope =
+                    throw_node.scope.parent.func_scope
+                throw_node.line = node.line
+                throw_node.col = node.col
+                var error_ref_expr = new ast_expr.IdRefExpr()
+                error_ref_expr.scope = throw_node.scope
+                error_ref_expr.line = node.line
+                error_ref_expr.col = node.col
+                error_ref_expr.label = err_array_label
+                error_ref_expr.ref = err_array_ref.copy()
+                throw_node.subexprs.add(error_ref_expr)
+                if_node.subexprs[1].subblocks[1].add(
+                    throw_node
+                )
+                add_new_nodes.add(if_node)
+                return later add_new_nodes
             }
             var result = ast_transform.visit_ast_tree(
                 func_node, await_transform_nodes, parent_chain=yes,

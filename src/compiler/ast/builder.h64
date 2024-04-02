@@ -184,7 +184,7 @@ func ASTBuilder.make_var_cmp_node(
     varrefexpr.line = line
     varrefexpr.col = col
     varrefexpr.label = var_name
-    varrefexpr.ref = var_ref
+    varrefexpr.ref = var_ref.copy()
     var optoken2 = new token.Token(
         comp_type, token.T_COMPARE, line, col
     )
@@ -213,7 +213,7 @@ func ASTBuilder.make_if_neq_none_node(
     containerrefexpr.line = line
     containerrefexpr.col = col
     containerrefexpr.label = container_name
-    containerrefexpr.ref = container_ref
+    containerrefexpr.ref = container_ref.copy()
     var optoken1 = new token.Token(
         "!=", token.T_COMPARE, line, col
     )
@@ -249,7 +249,7 @@ func ASTBuilder.make_length_cmp_node(
     containerrefexpr.line = line
     containerrefexpr.col = col
     containerrefexpr.label = container_name
-    containerrefexpr.ref = container_ref
+    containerrefexpr.ref = container_ref.copy()
     var lenexpr = new ast_expr.IdRefExpr()
     lenexpr.scope = in_inner_scope
     lenexpr.line = line
@@ -321,7 +321,7 @@ func ASTBuilder.make_increment_var_node(
     varrefexpr.line = line
     varrefexpr.col = col
     varrefexpr.label = var_name
-    varrefexpr.ref = var_ref
+    varrefexpr.ref = var_ref.copy()
     var optoken = new token.Token(
         "+=", token.T_MATHASSIGN, line, col
     )
@@ -361,7 +361,7 @@ func ASTBuilder.make_set_to_named_list_node(
     listrefexpr.line = line
     listrefexpr.col = col
     listrefexpr.label = list_name
-    listrefexpr.ref = list_ref
+    listrefexpr.ref = list_ref.copy()
     var optoken2 = new token.Token(
         "[", token.T_ENCLOSE, line, col
     )
@@ -385,9 +385,7 @@ func ASTBuilder.make_set_to_named_list_node(
 
 func ASTBuilder.make_add_to_named_list_node(
         in_inner_scope, list_name, list_ref,
-        expr=none,
-        add_unique_suffix=no,
-        line=none, col=none) {
+        expr=none, line=none, col=none) {
     if expr == none {
         expr = new ast_expr.LiteralExpr()
         expr.scope = in_inner_scope
@@ -406,7 +404,7 @@ func ASTBuilder.make_add_to_named_list_node(
     listrefexpr.line = line
     listrefexpr.col = col
     listrefexpr.label = list_name
-    listrefexpr.ref = list_ref
+    listrefexpr.ref = list_ref.copy()
     var addexpr = new ast_expr.IdRefExpr()
     addexpr.scope = in_inner_scope
     addexpr.line = line
@@ -451,7 +449,7 @@ func ASTBuilder.make_assign_node(
     varrefexpr.line = line
     varrefexpr.col = col
     varrefexpr.label = var_name
-    varrefexpr.ref = var_ref
+    varrefexpr.ref = var_ref.copy()
     var optoken = new token.Token(
         "=", token.T_ASSIGN, line, col
     )
