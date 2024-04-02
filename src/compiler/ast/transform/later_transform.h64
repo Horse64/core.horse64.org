@@ -31,12 +31,14 @@ import time from core.horse64.org
 
 import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
+import compiler.ast.await_stmt as await_stmt
 import compiler.ast.builder as ast_builder
 import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
 import compiler.ast.do_stmt as do_stmt
 import compiler.ast.expr as ast_expr
 import compiler.ast.func_stmt as func_stmt
 import compiler.ast.return_stmt as return_stmt
+import compiler.ast.throw_stmt as throw_stmt
 import compiler.ast.transform as ast_transform
 import compiler.ast.type_stmt as type_stmt
 import compiler.ast.var_stmt as var_stmt
@@ -45,6 +47,11 @@ import compiler.msg as msg
 import compiler.storage.ref as storage_ref
 import compiler.storage.scope as st_scope
 import compiler.token as token
+
+extend type await_stmt.AwaitStmt {
+    var _owning_later_call_closure_name
+    var _owning_later_call_param_indexes
+}
 
 type LaterExitInfo {
     var exit_cb_label
@@ -407,65 +414,6 @@ func find_await_after_later_call_stmt(
     var async_return_value_storage_refs = _result[2]
     var async_return_value_labels = _result[1]
 
-    if call_stmt.kind == ast.N_STMT_VAR {
-        if (typename(call_stmt.symbol_info) != "list") {
-            print("horsec: error: CRITICAL ERROR IN "
-                "src/compiler/ast/transform/"
-                "later_transform.h64: "
-                "Encountered var statement without "
-                "symbol info, which shouldn't be possible "
-                "at this stage: " +
-                call_stmt.as_str())
-            throw new RuntimeError(
-                "Internal error: Encountered N_STMT_VAR "
-                "with incomplete symbol info, this is invalid. "
-                "Please report this bug to the compiler "
-                "team."
-            )
-        }
-        var index = 0
-        for sinfo in call_stmt.symbol_info {
-            index += 1
-            async_return_value_storage_refs.add(
-                new storage_ref.StorageRef(
-                    storage_ref.ST_LOCAL, sinfo.storage_id
-                )
-            )
-            assert(index >= 1 and index <= call_stmt.var_labels.len)
-            async_return_value_labels.add(
-                call_stmt.var_labels[index]
-            )
-        }
-    } else {
-        assert(call_stmt.kind == ast.N_STMT_ASSIGN)
-        var pairs_count = call_stmt.subexprs.len / 2
-        assert(pairs_count >= 1)
-        var i = 1
-        while i <= pairs_count {
-            if call_stmt.subexprs[i].ref == none {
-                print("horsec: error: CRITICAL ERROR IN "
-                    "src/compiler/ast/transform/"
-                    "later_transform.h64: "
-                    "Encountered assignment target without "
-                    "ref info, which shouldn't be possible "
-                    "at this stage: " +
-                    [call_stmt, call_stmt.subexprs[i]].as_str())
-                throw new RuntimeError(
-                    "Internal error: Encountered N_STMT_ASSIGN "
-                    "with incomplete storage ref, this is invalid. "
-                    "Please report this bug to the compiler "
-                    "team."
-                )
-            }
-            async_return_value_storage_refs.add(
-                call_stmt.subexprs[i].ref
-            )
-            async_return_value_labels.add(
-                call_stmt.subexprs[i].label
-            )
-            i += 1
-        }
-    }
     var block = none
     if parents.len > 0 {
         block = ast.get_node_parent_block(
@@ -581,16 +529,21 @@ func find_await_after_later_call_stmt(
                 continue
             }
             if node.kind == ast.N_STMT_AWAIT {
+                var match_indexes = []
                 var await_matches_us = no
+                var index = 0
                 for subexpr in node.subexprs {
                     assert(subexpr.kind == ast.N_EXPR_IDREF)
                     if subexpr.ref == none {
                         continue
                     }
+                    index = 0
                     for known_ref in
                             async_return_value_storage_refs {
+                        index += 1
                         if known_ref.alike(subexpr.ref) {
                             await_matches_us = yes
+                            match_indexes.add(index)
                         }
                     }
                 }
@@ -618,6 +571,30 @@ func find_await_after_later_call_stmt(
                         )
                     }
                     return none
+                }
+                if not is_invalid_if_found and
+                        match_indexes.len < node.subexprs.len {
+                    if msgs != none {
+                        if not call_stmt.damaged {
+                            msgs.add(new msg.FileMsg(
+                                "Unexpected await arguments, some "
+                                "don't map to arguments of the "
+                                "corresponding preceding later call "
+                                "in line " + call_stmt.line.as_str() +
+                                ", column " +
+                                call_stmt.col.as_str() + ".",
+                                source_file=project_file,
+                                line=node.line,
+                                col=node.col,
+                            ))
+                        }
+                        call_stmt.damaged = yes
+                    } else {
+                        throw new ValueError(
+                            "Await arguments don't match "
+                            "previous later call."
+                        )
+                    }
                 }
                 if debug {
                     print("find_await_after_later_call_stmt(): " +
@@ -657,6 +634,9 @@ func find_await_after_later_call_stmt(
                     return none
                 }
                 had_previous_awaits = yes
+                node._owning_later_call_param_indexes = (
+                    match_indexes
+                )
                 awaits.add(node)
                 if debug {
                     print("find_await_after_later_call_stmt(): " +
@@ -928,7 +908,8 @@ func first_pass_later_transform(
             err_name = "$_latererr" + random.gen_id()
         }
         var err_ref = inner_scope.add_symbol(
-            err_name, rescclause.line, rescclause.col)
+            err_name, pfile, rescclause.line, rescclause.col
+        )
         rescclause.error_labels.add(err_name)
         rescclause.subexprs.add(none)  # ='any'
 
@@ -980,8 +961,70 @@ func first_pass_later_transform(
                 "Later transforming file " + print_name + "... "
                 "[t=" + time.ticks().as_str() + "]")
         }
+
+        var later_call_labels_used = {}
         var transformed_nodes = {}
         var to_be_deleted_nodes = {}
+        func transform_awaits_for_call(
+                func_node, parents, call_unique_label
+                ) {
+            var builder = new ast_builder.ASTBuilder(pfile)
+            func await_transform_nodes(node, parents) {
+                if node.kind != ast.N_STMT_AWAIT or
+                        node._owning_later_call_closure_name !=
+                        call_unique_label {
+                    return later node
+                }
+                var indexes = node._owning_later_call_param_indexes
+                if indexes.len <= 1 {
+                    assert(indexes.len == 1)
+                    var container_name = func_node.arg_labels[
+                        indexes[1]
+                    ]
+                    var container_ref = new storage_ref.StorageRef(
+                        storage_ref.ST_ARG, indexes[1]
+                    )
+                    var if_node = builder.make_if_neq_none_node(
+                        node.scope,
+                        container_name, container_ref,
+                        line=node.line, col=node.col
+                    )
+                    var throw_node = new throw_stmt.ThrowStmt()
+                    throw_node.scope = new st_scope.LocalScope()
+                    throw_node.scope.parent = node.scope
+                    throw_node.scope.func_scope =
+                        throw_node.scope.parent.func_scope
+                    throw_node.line = node.line
+                    throw_node.col = node.col
+                    var error_ref_expr = new ast_expr.IdRefExpr()
+                    error_ref_expr.scope = throw_node.scope
+                    error_ref_expr.line = node.line
+                    error_ref_expr.col = node.col
+                    error_ref_expr.label = container_name
+                    error_ref_expr.ref = container_ref.copy()
+                    throw_node.subexprs.add(error_ref_expr)
+                    if_node.subexprs[1].subblocks[1].add(
+                        throw_node
+                    )
+
+                    return later if_node
+                }
+
+                return later node
+            }
+            var result = ast_transform.visit_ast_tree(
+                func_node, await_transform_nodes, parent_chain=yes,
+                subtree_parent=parents, return_new_root=yes
+            ) later:
+
+            await result
+            if result == no or result != func_node {
+                throw new RuntimeError("Unexpected "
+                    "internal error, await_transform_nodes() "
+                    "shouldn't swap function itself.")
+            }
+            return later yes
+        }
         func later_transform_node(node, parents) {
             if debug {
                 print("later_transform.h64: debug: "
@@ -1040,8 +1083,8 @@ func first_pass_later_transform(
                         exinfo
                     )
                     exinfo.exit_cb_storage_ref =
-                        inner_scope.add_symbol(new_name, node.line,
-                            node.col)
+                        inner_scope.add_symbol(new_name, pfile,
+                            node.line, node.col)
                 } else {
                     exinfo = node.func_scope.
                         later_transform_info._exit_info
@@ -1094,6 +1137,7 @@ func first_pass_later_transform(
                     node.scope != none and
                     node.scope.func_scope.is_later_func {
                 transformed_nodes.add(node)
+                var builder = new ast_builder.ASTBuilder(pfile)
                 var assigned_or_declared_names = []
                 var call_idx = 1
                 if node.kind == ast.N_STMT_ASSIGN {
@@ -1135,6 +1179,34 @@ func first_pass_later_transform(
                     get_later_transform_info().exit_info()
                 assert(einfo != none)
 
+                # Find where the awaits are:
+                var awaits = []
+                var repeat_stmt = none
+                if node.kind != ast.N_STMT_CALL {
+                    awaits = find_await_after_later_call_stmt(
+                        node, parents, msgs=msgs,
+                        project_file=pfile
+                    )
+                    repeat_stmt = find_repeat_for_later_call_stmt(
+                        node, parents, msgs=msgs,
+                        project_file=pfile
+                    )
+                }
+                if awaits == none or node.damaged {
+                    return later node
+                }
+
+                # Prepare new closure to be filled later:
+                var func_node = builder.make_func_node(
+                    inner_scope, "$laterfunc",
+                    avoid_names=later_call_labels_used,
+                    line=node.line, col=node.line)
+                for await_entry in awaits {
+                    await_entry._owning_later_call_closure_name =
+                        func_node.label
+                }
+                later_call_labels_used.add(func_node.label)
+
                 # Collect contents for new, made-up closure:
                 var parents_idx = parents.len + 1
                 while yes {
@@ -1157,27 +1229,48 @@ func first_pass_later_transform(
                         break
                     }
                 }
-                var builder = new ast_builder.ASTBuilder(pfile)
-                var err_param_name = "$latererr" + random.gen_id()
+                var err_param_names = ["$latererr" + random.gen_id()]
                 var param_name_return = none
                 var array_lock_node = none
                 var array_lock_ref = none
                 var array_lock_name = none
+                var array_name = none
                 var result_array_node = none
+                var result_count_name = none
+                var result_count_node = none
                 if assigned_or_declared_names.len == 1 {
                     param_name_return = assigned_or_declared_names[1]
                 } elseif assigned_or_declared_names.len > 1 {
+                    var i = 2
+                    while i <= assigned_or_declared_names.len {
+                        var err_name = "$latererr" + random.gen_id()
+                        while err_param_names.has(err_name) {
+                            err_name = "$latererr" + random.gen_id()
+                        }
+                        err_param_names.add(err_name)
+                        i += 1
+                    }
                     var listexpr = new ast_expr.ContainerExpr()
                     listexpr.scope = inner_scope
                     listexpr.line = node.line
                     listexpr.col = node.col
                     listexpr.container_kind = ast_expr.C_LIST
+                    i = 1
+                    while i <= assigned_or_declared_names.len * 2 {
+                        var none_expr = new ast_expr.LiteralExpr()
+                        none_expr.scope = inner_scope
+                        none_expr.line = node.line
+                        none_expr.col = node.col
+                        listexpr.subexprs.add(none_expr)
+                        i += 1
+                    }
                     result_array_node =
                         builder.make_var_node(
                             inner_scope, "$latervaluearray",
                             expr=listexpr, add_unique_suffix=yes,
                             line=node.line, col=node.col
                         )
+                    array_name = result_array_node.var_labels[1]
                     param_name_return = none
                     array_lock_node =
                         builder.make_create_lock_node(
@@ -1190,6 +1283,19 @@ func first_pass_later_transform(
                         storage_ref.ST_LOCAL,
                         array_lock_node.symbol_info[1].storage_id
                     )
+                    var zero_expr = new ast_expr.LiteralExpr()
+                    zero_expr.scope = inner_scope
+                    zero_expr.line = node.line
+                    zero_expr.col = node.col
+                    zero_expr.value = 0
+                    result_count_node =
+                        builder.make_var_node(
+                            inner_scope, "$completedvaluecount",
+                            expr=zero_expr, add_unique_suffix=yes,
+                            line=node.line, col=node.col
+                        )
+                    result_count_name =
+                        result_count_node.var_labels[1]
                 }
 
                 # If we have multiple things to call, we need in-between
@@ -1211,7 +1317,7 @@ func first_pass_later_transform(
                         var block = []
                         partial_result_func_node.subblocks = [block]
                         partial_result_func_node.arg_labels = [
-                            err_param_name,
+                            err_param_names[i],
                             "$partialresult"
                         ]
                         partial_result_func_node.kw_arg_count = 0
@@ -1220,6 +1326,17 @@ func first_pass_later_transform(
                         )
                         var func_inner_scope =
                             partial_result_func_node.func_scope.inner_scope
+                        var array_lock_inner_ref =
+                            func_inner_scope.lookup(
+                                array_lock_name
+                            )[1]
+                        var array_inner_ref = func_inner_scope.lookup(
+                            array_name
+                        )[1]
+                        var result_count_inner_ref =
+                            func_inner_scope.lookup(
+                                result_count_name
+                            )[1]
 
                         var literal_expr = new ast_expr.LiteralExpr()
                         literal_expr.value = no
@@ -1228,16 +1345,23 @@ func first_pass_later_transform(
                         literal_expr.col = node.col
                         block.add(
                             builder.make_var_node(
-                                func_inner_scope, "$completed",
+                                func_inner_scope, "$justcompleted",
                                 expr=literal_expr,
+                                add_unique_suffix=yes,
                                 line=node.line, col=node.col
                             )
+                        )
+                        var completed_name =
+                            block[block.len].var_labels[1]
+                        var completed_ref = new storage_ref.StorageRef(
+                            storage_ref.ST_LOCAL,
+                            block[block.len].symbol_info[1].storage_id
                         )
 
                         block.add(
                             builder.make_lock_hvm_lock_node(
                                 func_inner_scope, array_lock_name,
-                                array_lock_ref,
+                                array_lock_inner_ref,
                                 line=node.line, col=node.col
                             )
                         )
@@ -1249,6 +1373,10 @@ func first_pass_later_transform(
                         do_rescue.line = node.line
                         do_rescue.col = node.col
                         var finally_clause = new do_stmt.FinallyClause()
+                        var do_inner_scope = new st_scope.LocalScope()
+                        do_inner_scope.parent = func_inner_scope
+                        do_inner_scope.func_scope =
+                            func_inner_scope.func_scope
                         var finally_inner_scope =
                             new st_scope.LocalScope()
                         finally_inner_scope.parent = func_inner_scope
@@ -1262,48 +1390,135 @@ func first_pass_later_transform(
                         do_rescue.subblocks = [do_block]
                         block.add(do_rescue)
 
-                        finally_block.add(
-                            builder.make_unlock_hvm_lock_node(
-                                func_inner_scope, array_lock_name,
-                                array_lock_ref,
+                        var arg_1_ref = new storage_ref.StorageRef(
+                            storage_ref.ST_ARG, 1
+                        )
+                        var arg_1_expr = new ast_expr.IdRefExpr()
+                        arg_1_expr.scope = do_inner_scope
+                        arg_1_expr.line = node.line
+                        arg_1_expr.col = node.col
+                        arg_1_expr.label = err_param_names[i]
+                        arg_1_expr.ref = arg_1_ref
+                        var arg_2_ref = new storage_ref.StorageRef(
+                            storage_ref.ST_ARG, 2
+                        )
+                        var arg_2_expr = new ast_expr.IdRefExpr()
+                        arg_2_expr.scope = do_inner_scope
+                        arg_2_expr.line = node.line
+                        arg_2_expr.col = node.col
+                        arg_2_expr.label = "$partialresult"
+                        arg_2_expr.ref = arg_2_ref
+                        do_block.add(
+                            builder.make_set_to_named_list_node(
+                                do_inner_scope, array_name,
+                                number_expr=((i - 1) * 2) + 1,
+                                assigned_expr=arg_1_expr,
+                                array_inner_ref,
                                 line=node.line, col=node.col
                             )
                         )
+                        do_block.add(
+                            builder.make_set_to_named_list_node(
+                                do_inner_scope, array_name,
+                                number_expr=((i - 1) * 2) + 2,
+                                assigned_expr=arg_2_expr,
+                                array_inner_ref,
+                                line=node.line, col=node.col
+                            )
+                        )
+                        do_block.add(
+                            builder.make_increment_var_node(
+                                do_inner_scope, result_count_name,
+                                result_count_inner_ref,
+                                number_expr=2,
+                                line=node.line, col=node.col
+                            )
+                        )
+                        do_block.add(
+                            builder.make_var_cmp_node(
+                                do_inner_scope,
+                                result_count_name,
+                                result_count_inner_ref,
+                                comp_type=">=",
+                                length_expr=(call_exprs.len * 2),
+                                line=node.line, col=node.col
+                            )
+                        )
+                        var if_stmt = do_block[do_block.len]
+                        var inside_if_scope = new st_scope.LocalScope()
+                        inside_if_scope.parent = do_inner_scope
+                        inside_if_scope.func_scope =
+                            func_inner_scope.func_scope
+                        var yes_expr = new ast_expr.LiteralExpr()
+                        yes_expr.scope = inside_if_scope
+                        yes_expr.value = yes
+                        yes_expr.line = node.line
+                        yes_expr.col = node.col
+                        if_stmt.subexprs[1].subblocks[1].add(
+                            builder.make_assign_node(
+                                inside_if_scope, completed_name,
+                                completed_ref, expr=yes_expr,
+                                line=node.line, col=node.col
+                            )
+                        )
+                        finally_block.add(
+                            builder.make_unlock_hvm_lock_node(
+                                finally_inner_scope, array_lock_name,
+                                array_lock_inner_ref,
+                                line=node.line, col=node.col
+                            )
+                        )
+
+                        var not_optoken = new token.Token(
+                            "not", token.T_KEYWORD,
+                            node.line, node.col
+                        )
+                        var not_expr = new ast_expr.UnopExpr(
+                            not_optoken
+                        )
+                        not_expr.scope = func_inner_scope
+                        not_expr.line = node.line
+                        not_expr.col = node.col
+                        var not_completed_idexpr =
+                            new ast_expr.IdRefExpr()
+                        not_completed_idexpr.label = completed_name
+                        not_completed_idexpr.ref =
+                            completed_ref.copy()
+                        not_expr.subexprs = [not_completed_idexpr]
+                        block.add(
+                            builder.make_if_node(
+                                func_inner_scope,
+                                expr=not_expr,
+                                line=node.line, col=node.col
+                            )
+                        )
+                        var not_completed_return =
+                            new return_stmt.ReturnStmt()
+                        not_completed_return.scope =
+                            func_inner_scope
+                        not_completed_return.line = node.line
+                        not_completed_return.col = node.col
+                        block[block.len].subexprs[1].
+                            subblocks[1].add(
+                                not_completed_return
+                            )
                         i += 1
                     }
                 }
 
-                # Find where the awaits are:
-                var awaits = []
-                var repeat_stmt = none
-                if node.kind != ast.N_STMT_CALL {
-                    awaits = find_await_after_later_call_stmt(
-                        node, parents, msgs=msgs,
-                        project_file=pfile
-                    )
-                    repeat_stmt = find_repeat_for_later_call_stmt(
-                        node, parents, msgs=msgs,
-                        project_file=pfile
-                    )
-                }
-                if awaits == none or node.damaged {
-                    return later node
-                }
-
-                # Actually construct made-up closure:
-                var func_node = builder.make_func_node(
-                    inner_scope, "$laterfunc", line=node.line,
-                    col=node.line)
+                # Actually fill in details for made-up closure:
                 assert(func_node.func_scope != none)
                 assert(func_node.func_scope.inner_scope != none)
                 assert(inner_scope != none)
                 func_node.scope = inner_scope
                 func_node.subblocks = [stmts_after]
-                func_node.arg_labels = [err_param_name]
+                func_node.arg_labels = err_param_names.copy()
                 if assigned_or_declared_names.len > 0 {
                     func_node.arg_labels += assigned_or_declared_names
                 } else {
-                    func_node.arg_labels.add("$unused" + random.gen_id())
+                    func_node.arg_labels.add(
+                        "$unused" + random.gen_id()
+                    )
                 }
                 func_node.kw_arg_count = 0
                 if func_node.func_scope.later_transform_info == none {
@@ -1313,11 +1528,147 @@ func first_pass_later_transform(
                     # Don't set .owning_local_scope whenever
                     # LaterTransformInfo() belongs to func scope.
                 }
-                func_node.func_scope.later_transform_info._exit_info =
-                    node.scope.func_scope.later_transform_info._exit_info
+                func_node.func_scope.
+                        later_transform_info._exit_info =
+                    node.scope.func_scope.
+                        later_transform_info._exit_info
                 node.is_later = no
 
-                # Construct call(s):
+                # If we got partial result closures, call back into
+                # the final closure from there:
+                if call_exprs.len > 1 {
+                    var i = 1
+                    while i <= call_exprs.len {
+                        # Construct call with its arguments:
+                        var partial_closure_inner_scope =
+                            partial_result_func_nodes[i].
+                            func_scope.inner_scope
+                        var func_node_ref = new storage_ref.StorageRef(
+                            storage_ref.ST_LOCAL,
+                            func_node.symbol_info.storage_id
+                        )
+                        var final_called_expr = new ast_expr.IdRefExpr()
+                        final_called_expr.scope =
+                            partial_closure_inner_scope
+                        final_called_expr.label = func_node.label
+                        final_called_expr.ref = func_node_ref
+                        final_called_expr.line = node.line
+                        final_called_expr.col = node.col
+                        var final_call_stmt =
+                            new call_or_assign_stmt.CallStmt()
+                        final_call_stmt.scope =
+                            partial_closure_inner_scope
+                        final_call_stmt.line = node.line
+                        final_call_stmt.col = node.col
+                        var final_call_args = new ast_expr.CallArgsExpr()
+                        final_call_args.scope =
+                            partial_closure_inner_scope
+                        final_call_args.line = node.line
+                        final_call_args.col = node.col
+                        final_call_args.subexprs = []
+                        var optoken = token.Token(
+                            '(', token.T_ENCLOSE, node.line, node.col
+                        )
+                        var final_call_expr = new ast_expr.BinopExpr(
+                            optoken
+                        )
+                        final_call_expr.scope =
+                            partial_closure_inner_scope
+                        final_call_expr.line = node.line
+                        final_call_expr.col = node.col
+                        final_call_expr.subexprs = [
+                            final_called_expr, final_call_args
+                        ]
+                        final_call_stmt.subexprs = [
+                            final_call_expr
+                        ]
+                        # We need to unify the results from all
+                        # partial closures:
+                        var unified_err_exprs = []
+                        var unified_arg_exprs = []
+                        var i2 = 1
+                        while i2 <= call_exprs.len {
+                            var array_inner_ref =
+                                partial_closure_inner_scope.lookup(
+                                    array_name
+                                )[1]
+                            var array_ref_expr_1 =
+                                new ast_expr.IdRefExpr()
+                            array_ref_expr_1.scope =
+                                partial_closure_inner_scope
+                            array_ref_expr_1.line = node.line
+                            array_ref_expr_1.col = node.col
+                            array_ref_expr_1.label = array_name
+                            array_ref_expr_1.ref =
+                                array_inner_ref.copy()
+                            var num_expr_1 = new ast_expr.LiteralExpr()
+                            num_expr_1.scope =
+                                partial_closure_inner_scope
+                            num_expr_1.line = node.line
+                            num_expr_1.col = node.col
+                            num_expr_1.value = (i2 - 1) * 2 + 1
+                            var optoken_1 = new token.Token(
+                                '[', token.T_ENCLOSE,
+                                node.line, node.col
+                            )
+                            var array_index_expr_1 =
+                                new ast_expr.BinopExpr(optoken_1)
+                            array_index_expr_1.scope =
+                                partial_closure_inner_scope
+                            array_index_expr_1.line = node.line
+                            array_index_expr_1.col = node.col
+                            array_index_expr_1.subexprs = [
+                                array_ref_expr_1, num_expr_1
+                            ]
+                            var array_ref_expr_2 =
+                                new ast_expr.IdRefExpr()
+                            array_ref_expr_2.scope =
+                                partial_closure_inner_scope
+                            array_ref_expr_2.line = node.line
+                            array_ref_expr_2.col = node.col
+                            array_ref_expr_2.label = array_name
+                            array_ref_expr_2.ref =
+                                array_inner_ref.copy()
+                            var num_expr_2 = new ast_expr.LiteralExpr()
+                            num_expr_2.scope =
+                                partial_closure_inner_scope
+                            num_expr_2.line = node.line
+                            num_expr_2.col = node.col
+                            num_expr_2.value = (i2 - 1) * 2 + 2
+                            var optoken_2 = new token.Token(
+                                '[', token.T_ENCLOSE,
+                                node.line, node.col
+                            )
+                            var array_index_expr_2 =
+                                new ast_expr.BinopExpr(optoken_2)
+                            array_index_expr_2.scope =
+                                partial_closure_inner_scope
+                            array_index_expr_2.line = node.line
+                            array_index_expr_2.col = node.col
+                            array_index_expr_2.subexprs = [
+                                array_ref_expr_2, num_expr_2
+                            ]
+                            unified_err_exprs.add(
+                                array_index_expr_1
+                            )
+                            unified_arg_exprs.add(
+                                array_index_expr_2
+                            )
+                            i2 += 1
+                        }
+                        final_call_args.subexprs =
+                            unified_err_exprs +
+                            unified_arg_exprs
+                        partial_result_func_nodes[i].
+                            subblocks[1].add(
+                                final_call_stmt
+                            )
+                        i += 1
+                    }
+                }
+
+                # Construct call(s) that replace the original
+                # later calls:
                 var call_stmt_nodes = []
                 var i = 1
                 while i <= call_exprs.len {
@@ -1344,12 +1695,15 @@ func first_pass_later_transform(
                 return_stmt_node.line = node.line
                 return_stmt_node.col = node.col
 
+                # Reparent follow-up code into our new later closure:
                 ast_transform.reparent_stmts_into_closure(
                     func_node, stmts_after, func_node.scope,
                     clone_all_stmts=yes,
                     args_replacing_closure_refs_allowed=yes
                 ) later:
 
+                # Make sure to transform whatever reparented code
+                # we have, in case it also has nested later calls:
                 ast_analyze.analyze_and_configure_newly_added_func(
                     func_node, msgs=msgs, project_file=pfile
                 )
@@ -1368,12 +1722,21 @@ func first_pass_later_transform(
                         }
                     }
                 }
+                var await_fix_result = transform_awaits_for_call(
+                    func_node, parents, func_node.label
+                ) later:
+                await await_fix_result
+                if not await_fix_result {
+                    return later node
+                }
                 var new_root = ast_transform.visit_ast_tree(
                     func_node, later_transform_node, parent_chain=yes,
                     subtree_parent=parents, return_new_root=yes
                 ) later:
-
                 await new_root
+
+                # Now put everything together and insert it,
+                # instead of the original later call:
                 assert(new_root != no and new_root != none)
                 if typename(new_root) != "list" {
                     new_root = [new_root]
@@ -1383,10 +1746,9 @@ func first_pass_later_transform(
                 result += call_stmt_nodes + [return_stmt_node]
                 result = partial_result_func_nodes + result
                 if result_array_node != none {
-                    result = [result_array_node,
+                    result = [result_array_node, result_count_node,
                         array_lock_node] + result
                 }
-
                 assert(
                     not func_node.func_scope.is_later_func or (
                     func_node.func_scope.
@@ -1396,7 +1758,6 @@ func first_pass_later_transform(
                 )
                 assert(func_node.scope == call_stmt_node.scope)
                 assert(not func_node.subblocks[1].has(call_stmt_node))
-
                 var parent = parents[parents.len]
                 var block = ast.get_node_parent_block(
                     node, parent

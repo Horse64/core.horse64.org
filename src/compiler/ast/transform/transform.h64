@@ -79,9 +79,9 @@ func split_if_to_single_clauses(project_file, node, parent) {
                     project_file.global_scope) {
                 new_name = "splitifcond" + random.gen_id()
             }
-            var new_sinfo = inner_scope.add_symbol_late(
+            var new_sinfo = inner_scope.add_symbol(
                 new_name, project_file, node.line,
-                node.col)
+                node.col)[2]
             if new_sinfo == none {
                 throw new RuntimeError("Internal error.")
             }

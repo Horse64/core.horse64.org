@@ -493,7 +493,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
             ))
             return
         }
-        local_scope.add_symbol(symbol_name, line, col)
+        local_scope.add_symbol(symbol_name, pfile, line, col)
     }
     func compute_scope(pfile) {
         if debug {

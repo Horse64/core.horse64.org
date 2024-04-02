@@ -30,6 +30,7 @@ import random from core.horse64.org
 import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
 import compiler.ast.expr as ast_expr
 import compiler.ast.func_stmt as func_stmt
+import compiler.ast.if_stmt as if_stmt
 import compiler.ast.import_stmt as import_stmt
 import compiler.ast.var_stmt as var_stmt
 import compiler.cext as cext
@@ -162,33 +163,306 @@ func ASTBuilder.make_create_lock_node(
     )
 }
 
+func ASTBuilder.make_var_cmp_node(
+        in_inner_scope,
+        var_name, var_ref,
+        comp_type=">",
+        length_expr=none,
+        line=none, col=none) {
+    var is_num = (typename(length_expr) == "num")
+    if length_expr == none or is_num {
+        var n_length_expr = new ast_expr.LiteralExpr()
+        n_length_expr.scope = in_inner_scope
+        n_length_expr.value =
+            if is_num (length_expr) else (0)
+        n_length_expr.line = line
+        n_length_expr.col = col
+        length_expr = n_length_expr
+    }
+    var varrefexpr = new ast_expr.IdRefExpr()
+    varrefexpr.scope = in_inner_scope
+    varrefexpr.line = line
+    varrefexpr.col = col
+    varrefexpr.label = var_name
+    varrefexpr.ref = var_ref
+    var optoken2 = new token.Token(
+        comp_type, token.T_COMPARE, line, col
+    )
+    var comparisonexpr = new ast_expr.BinopExpr(optoken2)
+    comparisonexpr.scope = in_inner_scope
+    comparisonexpr.line = line
+    comparisonexpr.col = col
+    comparisonexpr.subexprs = [varrefexpr, length_expr]
+    return self.make_if_node(
+        in_inner_scope, expr=comparisonexpr,
+        line=line, col=col
+    )
+}
+
+func ASTBuilder.make_if_neq_none_node(
+        in_inner_scope,
+        container_name, container_ref,
+        line=none, col=none) {
+    var none_expr = new ast_expr.LiteralExpr()
+    none_expr.scope = in_inner_scope
+    none_expr.value = none
+    none_expr.line = line
+    none_expr.col = col
+    var containerrefexpr = new ast_expr.IdRefExpr()
+    containerrefexpr.scope = in_inner_scope
+    containerrefexpr.line = line
+    containerrefexpr.col = col
+    containerrefexpr.label = container_name
+    containerrefexpr.ref = container_ref
+    var optoken1 = new token.Token(
+        "!=", token.T_COMPARE, line, col
+    )
+    var comparisonexpr = new ast_expr.BinopExpr(optoken1)
+    comparisonexpr.scope = in_inner_scope
+    comparisonexpr.line = line
+    comparisonexpr.col = col
+    comparisonexpr.subexprs = [containerrefexpr, none_expr]
+    return self.make_if_node(
+        in_inner_scope, expr=comparisonexpr,
+        line=line, col=col
+    )
+}
+
+func ASTBuilder.make_length_cmp_node(
+        in_inner_scope,
+        container_name, container_ref,
+        comp_type=">",
+        length_expr=none,
+        line=none, col=none) {
+    var is_num = (typename(length_expr) == "num")
+    if length_expr == none or is_num {
+        var n_length_expr = new ast_expr.LiteralExpr()
+        n_length_expr.scope = in_inner_scope
+        n_length_expr.value =
+            if is_num (length_expr) else (0)
+        n_length_expr.line = line
+        n_length_expr.col = col
+        length_expr = n_length_expr
+    }
+    var containerrefexpr = new ast_expr.IdRefExpr()
+    containerrefexpr.scope = in_inner_scope
+    containerrefexpr.line = line
+    containerrefexpr.col = col
+    containerrefexpr.label = container_name
+    containerrefexpr.ref = container_ref
+    var lenexpr = new ast_expr.IdRefExpr()
+    lenexpr.scope = in_inner_scope
+    lenexpr.line = line
+    lenexpr.col = col
+    lenexpr.label = "len"
+    var optoken1 = new token.Token(
+        ".", token.T_DOT, line, col
+    )
+    var comparedexpr = new ast_expr.BinopExpr(optoken1)
+    comparedexpr.scope = in_inner_scope
+    comparedexpr.line = line
+    comparedexpr.col = col
+    comparedexpr.subexprs = [containerrefexpr, lenexpr]
+    var optoken2 = new token.Token(
+        comp_type, token.T_COMPARE, line, col
+    )
+    var comparisonexpr = new ast_expr.BinopExpr(optoken2)
+    comparisonexpr.scope = in_inner_scope
+    comparisonexpr.line = line
+    comparisonexpr.col = col
+    comparisonexpr.subexprs = [comparedexpr, length_expr]
+    return self.make_if_node(
+        in_inner_scope, expr=comparisonexpr,
+        line=line, col=col
+    )
+}
+
+func ASTBuilder.make_if_node(
+        in_inner_scope, expr=none,
+        line=none, col=none) {
+    if expr == none {
+        expr = new ast_expr.LiteralExpr()
+        expr.scope = in_inner_scope
+        expr.value = yes
+        expr.line = line
+        expr.col = col
+    }
+    var if_clause = new if_stmt.IfElseClause()
+    if_clause.scope = in_inner_scope
+    if_clause.is_else = no
+    if_clause.subexprs = [expr]
+    if_clause.line = line
+    if_clause.col = col
+    if_clause.subblocks = [[]]
+    var stmt = new if_stmt.IfStmt()
+    stmt.scope = in_inner_scope
+    stmt.line = line
+    stmt.col = col
+    stmt.subexprs = [if_clause]
+    return stmt
+}
+
+func ASTBuilder.make_increment_var_node(
+        in_inner_scope, var_name, var_ref,
+        number_expr=1,
+        line=none, col=none) {
+    var is_num = (typename(number_expr) == "num")
+    if number_expr == none or is_num {
+        var new_expr = new ast_expr.LiteralExpr()
+        new_expr.scope = in_inner_scope
+        new_expr.value =
+            if is_num (number_expr) else (1)
+        new_expr.line = line
+        new_expr.col = col
+        number_expr = new_expr
+    }
+    var varrefexpr = new ast_expr.IdRefExpr()
+    varrefexpr.scope = in_inner_scope
+    varrefexpr.line = line
+    varrefexpr.col = col
+    varrefexpr.label = var_name
+    varrefexpr.ref = var_ref
+    var optoken = new token.Token(
+        "+=", token.T_MATHASSIGN, line, col
+    )
+    var assign_expr = new call_or_assign_stmt.AssignStmt(
+        optoken
+    )
+    assign_expr.scope = in_inner_scope
+    assign_expr.line = line
+    assign_expr.col = col
+    assign_expr.subexprs = [varrefexpr, number_expr]
+    return assign_expr
+}
+
+func ASTBuilder.make_set_to_named_list_node(
+        in_inner_scope, list_name, list_ref,
+        number_expr=none, assigned_expr=none,
+        line=none, col=none) {
+    var is_num = (typename(number_expr) == "num")
+    if number_expr == none or is_num {
+        var new_expr = new ast_expr.LiteralExpr()
+        new_expr.scope = in_inner_scope
+        new_expr.value =
+            if is_num (number_expr) else (1)
+        new_expr.line = line
+        new_expr.col = col
+        number_expr = new_expr
+    }
+    if assigned_expr == none {
+        assigned_expr = new ast_expr.LiteralExpr()
+        assigned_expr.scope = in_inner_scope
+        assigned_expr.value = none
+        assigned_expr.line = line
+        assigned_expr.col = col
+    }
+    var listrefexpr = new ast_expr.IdRefExpr()
+    listrefexpr.scope = in_inner_scope
+    listrefexpr.line = line
+    listrefexpr.col = col
+    listrefexpr.label = list_name
+    listrefexpr.ref = list_ref
+    var optoken2 = new token.Token(
+        "[", token.T_ENCLOSE, line, col
+    )
+    var settolistexpr = new ast_expr.BinopExpr(optoken2)
+    settolistexpr.scope = in_inner_scope
+    settolistexpr.line = line
+    settolistexpr.col = col
+    settolistexpr.subexprs = [listrefexpr, number_expr]
+    var optoken3 = new token.Token(
+        "=", token.T_ASSIGN, line, col
+    )
+    var assign_expr = new call_or_assign_stmt.AssignStmt(
+        optoken3
+    )
+    assign_expr.scope = in_inner_scope
+    assign_expr.line = line
+    assign_expr.col = col
+    assign_expr.subexprs = [settolistexpr, assigned_expr]
+    return assign_expr
+}
+
 func ASTBuilder.make_add_to_named_list_node(
         in_inner_scope, list_name, list_ref,
+        expr=none,
         add_unique_suffix=no,
         line=none, col=none) {
+    if expr == none {
+        expr = new ast_expr.LiteralExpr()
+        expr.scope = in_inner_scope
+        expr.value = none
+        expr.line = line
+        expr.col = col
+    }
     var optoken = new token.Token(
         "(", token.T_ENCLOSE, line, col
     )
-    var lockexpr = new ast_expr.BinopExpr(optoken)
-    lockexpr.line = line
-    lockexpr.col = col
-    var lockfuncexpr = new ast_expr.IdRefExpr()
-    lockfuncexpr.scope = in_inner_scope
-    lockfuncexpr.line = line
-    lockfuncexpr.col = col
-    lockfuncexpr.label = list_name
-    lockfuncexpr.ref = list_ref
-    var lockargexpr = new ast_expr.CallArgsExpr()
-    lockargexpr.scope = in_inner_scope
-    lockargexpr.line = line
-    lockargexpr.col = col
-    lockexpr.subexprs = [lockfuncexpr, lockargexpr]
+    var callexpr = new ast_expr.BinopExpr(optoken)
+    callexpr.line = line
+    callexpr.col = col
+    var listrefexpr = new ast_expr.IdRefExpr()
+    listrefexpr.scope = in_inner_scope
+    listrefexpr.line = line
+    listrefexpr.col = col
+    listrefexpr.label = list_name
+    listrefexpr.ref = list_ref
+    var addexpr = new ast_expr.IdRefExpr()
+    addexpr.scope = in_inner_scope
+    addexpr.line = line
+    addexpr.col = col
+    addexpr.label = "add"
+    var optoken2 = new token.Token(
+        ".", token.T_DOT, line, col
+    )
+    var calledexpr = new ast_expr.BinopExpr(optoken2)
+    calledexpr.scope = in_inner_scope
+    calledexpr.line = line
+    calledexpr.col = col
+    calledexpr.subexprs = [listrefexpr, addexpr]
+    var callargexpr = new ast_expr.CallArgsExpr()
+    callargexpr.scope = in_inner_scope
+    callargexpr.line = line
+    callargexpr.col = col
+    callargexpr.subexprs = [expr]
+    callexpr.subexprs = [calledexpr, callargexpr]
     var call_stmt = new call_or_assign_stmt.CallStmt()
     call_stmt.scope = in_inner_scope
     call_stmt.line = line
     call_stmt.col = col
-    call_stmt.subexprs = [lockexpr]
+    call_stmt.subexprs = [callexpr]
     return call_stmt
+}
+
+func ASTBuilder.make_assign_node(
+        in_inner_scope, var_name,
+        var_ref, expr=none,
+        line=none, col=none) {
+    assert(expr != none)
+    if expr == none {
+        expr = new ast_expr.LiteralExpr()
+        expr.scope = in_inner_scope
+        expr.value = none
+        expr.line = line
+        expr.col = col
+    }
+    var varrefexpr = new ast_expr.IdRefExpr()
+    varrefexpr.scope = in_inner_scope
+    varrefexpr.line = line
+    varrefexpr.col = col
+    varrefexpr.label = var_name
+    varrefexpr.ref = var_ref
+    var optoken = new token.Token(
+        "=", token.T_ASSIGN, line, col
+    )
+    var assignexpr = new call_or_assign_stmt.AssignStmt(
+        optoken
+    )
+    assignexpr.scope = in_inner_scope
+    assignexpr.line = line
+    assignexpr.col = col
+    assignexpr.subexprs = [varrefexpr, expr]
+    return assignexpr
 }
 
 func ASTBuilder.make_var_node(
@@ -208,6 +482,7 @@ func ASTBuilder.make_var_node(
     if in_inner_scope != none {
         func_scope = in_inner_scope.func_scope
     }
+    var sinfo = none
     var ref = none
     if func_scope == none {
         self.project.last_global_storage_id += 1
@@ -218,7 +493,11 @@ func ASTBuilder.make_var_node(
         # FIXME: Register this in the global_scope.
         throw new RuntimeError("Not fully implemented.")
     } else {
-        ref = in_inner_scope.add_symbol(new_name, line, col)
+        var result = in_inner_scope.add_symbol(
+            new_name, self.project_file, line, col
+        )
+        ref = result[1]
+        sinfo = result[2]
     }
     if expr == none {
         expr = new ast_expr.LiteralExpr()
@@ -236,24 +515,18 @@ func ASTBuilder.make_var_node(
     var_node.var_labels = [new_name]
     var_node.subexprs = [expr]
     var_node.var_has_protect = [no]
-    if func_scope != none {
-        var symbol_info = new st_scope.SymbolInfo(new_name)
-        symbol_info.def_line = line
-        symbol_info.def_col = col
-        symbol_info.def_file = self
-        symbol_info.storage_id =
-            ref.id
-        var_node.symbol_info = [
-            symbol_info
-        ]
+    if sinfo != none {
+        var_node.symbol_info = [sinfo]
     }
     return var_node
 }
 
 func ASTBuilder.make_func_node(
-        in_inner_scope, name_prefix, line=none, col=none) {
+        in_inner_scope, name_prefix, avoid_names=none,
+        line=none, col=none) {
     var new_name = name_prefix + random.gen_id()
-    while not in_inner_scope.name_is_free(new_name,
+    while (avoid_names != none and avoid_names.has(new_name)) or
+            not in_inner_scope.name_is_free(new_name,
             self.project_file.global_scope) {
         new_name = name_prefix + random.gen_id()
     }
@@ -271,6 +544,9 @@ func ASTBuilder.make_func_node(
     func_node.line = line
     func_node.col = col
     func_node.label = new_name
+    func_node.symbol_info = in_inner_scope.add_symbol(
+        new_name, self.project_file, line, col
+    )[2]
     return func_node
 }
 

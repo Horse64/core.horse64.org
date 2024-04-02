@@ -157,7 +157,9 @@ func LocalScope.reassign_after_move_into_closure(
     self.ccapture_id_to_symbol_map[st_id] = outer_symbol_info
 }
 
-func LocalScope.add_symbol(symbol_name, line, col) {
+func LocalScope.add_symbol(
+        symbol_name, def_file,
+        line, col) {
     if self.name_to_symbol_map.has(symbol_name) {
         throw new ValueError("Symbol name already taken.")
     }
@@ -165,13 +167,14 @@ func LocalScope.add_symbol(symbol_name, line, col) {
     sinfo.storage_id =
         self.func_scope.last_inner_storage_id + 1
     self.func_scope.last_inner_storage_id += 1
-    sinfo.line = line
-    sinfo.col = col
+    sinfo.def_line = line
+    sinfo.def_col = col
+    sinfo.def_file = def_file
     self.name_to_symbol_map[symbol_name] = sinfo
     self.storage_id_to_symbol_map[sinfo.storage_id] = sinfo
-    return new st_ref.StorageRef(
+    return [new st_ref.StorageRef(
         st_ref.ST_LOCAL, sinfo.storage_id
-    )
+    ), sinfo]
 }
 
 func LocalScope.as_str {
@@ -260,26 +263,6 @@ func LocalScope.name_is_free(name, global_scope) {
         return no
     }
     return yes
-}
-
-func LocalScope.add_symbol_late(name,
-        def_file, def_line, def_col) {
-    if self.func_scope == none {
-        throw new RuntimeError(
-            "Cannot add symbols late this way for "
-            "scopes outside of functions.")
-    } elseif self.name_to_symbol_map.has(name) {
-        throw new ValueError("Name already used.")
-    }
-    self.func_scope.last_inner_storage_id += 1
-    var new_id = self.func_scope.last_inner_storage_id
-    var symbol_info = new SymbolInfo(name)
-    symbol_info.def_file = def_file
-    symbol_info.def_line = def_line
-    symbol_info.def_col = def_col
-    self.name_to_symbol_map[name] = symbol_info
-    self.storage_id_to_symbol_map[new_id] = symbol_info
-    return symbol_info
 }
 
 func LocalScope.get_combined_names {

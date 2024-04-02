@@ -73,11 +73,15 @@ type AssignStmt base ast.StmtNode {
     var has_later = no
     var has_later_ignore = no
     var has_later_repeat = no
+    var assign_token
 }
 
-func AssignStmt.init {
+func AssignStmt.init(token) {
     base.init()
     self.kind = ast.N_STMT_ASSIGN
+    assert(token != none)
+    assert(typename(token.str) == "str")
+    self.assign_token = token
 }
 
 func AssignStmt.as_json_obj {
@@ -113,7 +117,8 @@ func AssignStmt.as_code(indent=0) {
         i += 1
     }
     var t = " ".rep(indent) +
-        lvalue_list + " = " + rvalue_list
+        lvalue_list + " " + self.assign_token.str +
+        " " + rvalue_list
     if self.has_later {
         if self.has_later_ignore {
             t += " later ignore"
@@ -281,9 +286,12 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     assert(not is_call)
 
     var assigned_lvalue_list = [v1]
-    var stmt = new AssignStmt()
+    var stmt = new AssignStmt(
+        tokens[assign_or_call_idx].copy()
+    )
     stmt.line = token.get_line(tokens, startpos)
     stmt.col = token.get_col(tokens, startpos)
+    assert(stmt.assign_token != none)
     func check_last_assigned_expr {
         var last_assigned_expr = assigned_lvalue_list[
             assigned_lvalue_list.len]

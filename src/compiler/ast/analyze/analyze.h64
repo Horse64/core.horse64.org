@@ -253,6 +253,8 @@ func advanced_phase3_later_and_computevals(
                     else (none)
                 var grandparent = if parents.len >= 2 (parents[parents.len - 1])
                     else (none)
+                var grandgrandparent = if parents.len >= 3
+                    (parents[parents.len - 2]) else (none)
                 if expr.damaged {
                     return expr
                 }
@@ -270,10 +272,16 @@ func advanced_phase3_later_and_computevals(
 
                 # Make sure types can't be directly referenced:
                 var is_type_constructor = no
+                var is_any_type = expr.kind == ast.N_EXPR_IDREF and
+                    expr.ref != none and
+                    project.is_ref_a_type(expr.ref)
+                var is_error_type = expr.kind == ast.N_EXPR_IDREF and
+                    expr.ref != none and is_any_type and
+                    project.is_ref_of_given_type_an_error(expr.ref)
+                var is_regular_type = is_any_type and not is_error_type
                 if expr.kind == ast.N_EXPR_IDREF and
-                        expr.ref != none and
-                        project.is_ref_a_type(expr.ref) {
-                    if parent != none and
+                        expr.ref != none {
+                    if parent != none and is_regular_type and
                             parent.kind == ast.N_EXPR_RESCUECLAUSE {
                         if not project.
                                 is_ref_of_given_type_an_error(expr.ref) {
@@ -296,25 +304,42 @@ func advanced_phase3_later_and_computevals(
                             grandparent.kind != ast.N_EXPR_UNOP or
                             grandparent.subexprs[1] != parent or
                             grandparent.optoken.str != "new" {
-                        if msgs != none {
-                            msgs.add(new msg.FileMsg(
-                                "Invalid type reference, must be part of "
-                                "a new constructor.",
-                                source_file=project_file,
-                                line=expr.line,
-                                col=expr.col
-                            ))
+                        if is_regular_type or (is_error_type
+                                    and (parent == none or
+                                    parent.kind !=
+                                    ast.N_EXPR_RESCUECLAUSE)) {
+                            if msgs != none {
+                                msgs.add(new msg.FileMsg(
+                                    "Invalid type reference, must "
+                                    "be part of a new constructor.",
+                                    source_file=project_file,
+                                    line=expr.line,
+                                    col=expr.col
+                                ))
+                            }
+                            expr.damaged = yes
                         }
-                        expr.damaged = yes
                     } else {
                         is_type_constructor = yes
                     }
                 }
 
                 # Make sure errors are instantiated correctly:
-                if is_type_constructor and not expr.damaged and
-                        project.is_ref_of_given_type_an_error(
-                            expr.ref) {
+                if is_type_constructor and is_error_type {
+                    if grandgrandparent == none or
+                            grandgrandparent.kind != ast.N_STMT_THROW {
+                        if msgs != none {
+                            msgs.add(new msg.FileMsg(
+                                "Invalid error constructor call, "
+                                "must be part of 'throw' statement.",
+                                source_file=project_file,
+                                line=callargs.line,
+                                col=callargs.col
+                            ))
+                        }
+                        expr.damaged = yes
+                        return expr
+                    }
                     var callargs = parent.subexprs[2]
                     if callargs.subexprs.len != 1 or
                             callargs.subexprs[1].kind ==
@@ -332,27 +357,6 @@ func advanced_phase3_later_and_computevals(
                         expr.damaged = yes
                         return expr
                     }
-                    var v = ast_eval.try_eval_ast_node_value(
-                        callargs.subexprs[1],
-                        eval_by_storage_ref_callback=
-                            globals_value_cb)
-                    if v[1] != ast_eval.AR_VALUE {
-                        expr.error_msg_is_dynamic = yes
-                    } elseif typename(v[2]) != "str" {
-                        expr.damaged = yes
-                        callargs.subexprs[1].damaged = yes
-                    } else {
-                        expr.error_msg_aot_evaluated = v[2]
-                    }
-                    if expr.damaged and msgs != none {
-                        msgs.add(new msg.FileMsg(
-                            "Invalid error constructor call, "
-                            "message argument must be str.",
-                            source_file=project_file,
-                            line=stmt.subexprs[1].line,
-                            col=stmt.subexprs[1].col
-                        ))
-                    }
                 }
                 return expr
             }
@@ -361,8 +365,7 @@ func advanced_phase3_later_and_computevals(
 
             # Determine error message ahead of time for throws:
             if stmt.kind == ast.N_STMT_THROW and
-                    stmt.error_msg_aot_evaluated == none and
-                    not stmt.error_msg_is_dynamic and
+                    not stmt.error_msg_failed_early_eval and
                     not stmt.has_damage() and
                     stmt.subexprs.len > 0 {
                 var has_valid_error_arg = no
@@ -427,10 +430,11 @@ func advanced_phase3_later_and_computevals(
                         callargs.subexprs[1],
                         eval_by_storage_ref_callback=globals_value_cb)
                     if v[1] != ast_eval.AR_VALUE {
-                        stmt.error_msg_is_dynamic = yes
+                        stmt.error_msg_failed_early_eval = yes
                     } elseif typename(v[2]) != "str" {
                         stmt.damaged = yes
                     } else {
+                        stmt.error_msg_failed_early_eval = no
                         stmt.error_msg_aot_evaluated = v[2]
                     }
                     if stmt.damaged and msgs != none {
@@ -444,8 +448,6 @@ func advanced_phase3_later_and_computevals(
                     }
                 }
             } elseif stmt.kind == ast.N_STMT_THROW and
-                    stmt.error_msg_aot_evaluated == none and
-                    not stmt.error_msg_is_dynamic and
                     not stmt.has_damage() and
                     stmt.subexprs.len == 0 {
                 # This is an anonymous throw. Transform it to have
@@ -502,9 +504,9 @@ func advanced_phase3_later_and_computevals(
                             project_file.global_scope) {
                         new_name = "autothrowlabel" + random.gen_id()
                     }
-                    var new_sinfo = inner_scope.add_symbol_late(
+                    var new_sinfo = inner_scope.add_symbol(
                         new_name, project_file, parent_clause.line,
-                        parent_clause.col)
+                        parent_clause.col)[2]
                     if new_sinfo == none {
                         throw new RuntimeError("Internal error.")
                     }
