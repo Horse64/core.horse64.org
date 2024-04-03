@@ -53,6 +53,10 @@ extend type await_stmt.AwaitStmt {
     var _owning_later_call_param_indexes
 }
 
+extend type do_stmt.DoStmt {
+    var _is_later_inserted_func_catchall = no
+}
+
 type LaterExitInfo {
     var exit_cb_label
     var exit_cb_storage_ref
@@ -885,14 +889,16 @@ func first_pass_later_transform(
         }
         return [callback_call, rt_stmt]
     }
-    func wrap_func_in_later_do_rescue(pfile, node, latercb_name,
-            transformed_nodes_set=none) {
+    func wrap_func_in_later_do_rescue(
+            pfile, node, transformed_nodes_set=none
+            ) {
         assert(node.kind == ast.N_STMT_FUNC)
         var inner_scope = node.func_scope.inner_scope
 
         # Move it into do rescue to propagate error:
         var doresc = new do_stmt.DoStmt()
         doresc.scope = node.func_scope.inner_scope
+        doresc._is_later_inserted_func_catchall = yes
         doresc.line = node.line
         doresc.col = node.col
         var rescclause = new do_stmt.RescueClause()
@@ -1192,7 +1198,7 @@ func first_pass_later_transform(
                 }
 
                 node = wrap_func_in_later_do_rescue(
-                    pfile, node, new_name,
+                    pfile, node,
                     transformed_nodes_set=transformed_nodes)
                 assert(transformed_nodes.has(node))
                 return node
@@ -1802,14 +1808,34 @@ func first_pass_later_transform(
                     subtree_parent=parents, return_new_root=yes
                 ) later:
                 await new_root
-
-                # Now put everything together and insert it,
-                # instead of the original later call:
                 assert(new_root != no and new_root != none)
                 if typename(new_root) != "list" {
                     new_root = [new_root]
                 }
                 func_node = new_root[1]
+                assert(func_node.kind == ast.N_STMT_FUNC)
+
+                # If the continuation isn't a later func, then
+                # it won't be auto-wrapped into a catch-all do
+                # statement to redirect any errors.
+                # Do that manually in that case:
+                var has_catchall_do_stmt = no
+                for stmt in func_node.subblocks[1] {
+                    if stmt.kind == ast.N_STMT_DO and
+                            stmt._is_later_inserted_func_catchall {
+                        has_catchall_do_stmt = yes
+                        break
+                    }
+                }
+                if not has_catchall_do_stmt {
+                    func_node = wrap_func_in_later_do_rescue(
+                        pfile, func_node,
+                        transformed_nodes_set=transformed_nodes
+                    )
+                }
+
+                # Now put everything together and insert it,
+                # instead of the original later call:
                 var result = new_root
                 result += call_stmt_nodes + [return_stmt_node]
                 result = partial_result_func_nodes + result
