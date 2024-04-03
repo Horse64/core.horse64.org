@@ -50,12 +50,14 @@ This is a syntax highlighting intended for kate and other KDE editors.
       <item>ignore</item>
       <item>base</item>
       <item>extend</item>
-    </list>
-    <list name="withkeyword">
       <item>with</item>
-    </list>
-    <list name="askeyword">
       <item>as</item>
+      <item>func</item>
+      <item>type</item>
+      <item>enum</item>
+      <item>var</item>
+      <item>const</item>
+      <item>for</item>
     </list>
     <list name="nameditemkeywords">
       <item>func</item>
@@ -139,8 +141,8 @@ This is a syntax highlighting intended for kate and other KDE editors.
         <keyword attribute="BuiltinFunc" context="#stay" String="builtinfunc"/>
         <keyword attribute="BuiltinVar" context="#stay" String="builtinvar"/>
 
-        <keyword attribute="Control" context="WithStmt"
-         String="withkeyword"/>
+        <WordDetect attribute="Control" context="WithStmt"
+         String="with"/>
         <keyword attribute="DeclKeyword" context="NamedItem"
          String="nameditemkeywords"/>
         <keyword attribute="Control" context="NamedItem"
@@ -161,6 +163,8 @@ This is a syntax highlighting intended for kate and other KDE editors.
 
         <RegExpr attribute="Number" context="#stay"
          String="0(x[a-fA-F0-9]+|b[01]+|[0-9]*(\.[0-9]+)?)"/>
+        <RegExpr attribute="Number" context="#stay"
+         String="[0-9]+(\.[0-9]+)?"/>
 
         <Detect2Chars attribute="Error" context="#stay" char="~" char1="="/>
         <Detect2Chars attribute="Error" context="#stay" char="+" char1="+"/>
@@ -176,16 +180,14 @@ This is a syntax highlighting intended for kate and other KDE editors.
          String=".=~+-*/%&amp;|^&gt;&lt;"/>
       </context>
 
-      <context name="NamedItem" attribute="Import" lineEndContext="#stay">
+      <context name="NamedItem" attribute="Import"
+          fallthroughContext="#pop" lineEndContext="#stay">
         <DetectSpaces/>
         <keyword String="keywords" context="#pop" lookAhead="true"/>
+        <keyword String="nameditemkeywords" context="#pop" lookAhead="true"/>
         <DetectChar char="." attribute="OtherSymbol" context="#stay"/>
-        <RegExpr attribute="SpecialItemName" context="#pop"
-         String="(init|as_str|copy|modinit_&IDENT;|modinit)(?=\s+&IDENT;)"/>
         <RegExpr attribute="SpecialItemName" context="#stay"
          String="(init|as_str|copy|modinit_&IDENT;|modinit)"/>
-        <RegExpr attribute="ItemName" context="#pop"
-         String="&IDENT;(?=\s+&IDENT;)"/>
         <RegExpr attribute="ItemName" context="#stay"
          String="&IDENT;"/>
         <AnyChar String="#'&quot;()[]{}()+=-,/:&gt;&lt;;" context="#pop"
@@ -194,8 +196,7 @@ This is a syntax highlighting intended for kate and other KDE editors.
 
       <context name="WithStmt" attribute="NormalText" lineEndContext="#stay">
         <DetectSpaces/>
-        <keyword String="askeyword" context="NamedItem"
-         attribute="Keyword"/>
+        <WordDetect String="as" context="NamedItem" attribute="Keyword"/>
         <keyword attribute="DeclKeyword" context="#pop"
          String="nameditemkeywords"/>
         <AnyChar String="#'&quot;()[]{}()+=-,/:&gt;&lt;;" context="#pop"
@@ -248,7 +249,7 @@ This is a syntax highlighting intended for kate and other KDE editors.
          dynamic="true"/>
       </context>
 
-      <context name="quoteescape" attribute="String Char"
+      <context name="quoteescape" attribute="SpecialChar"
          lineEndContext="#stay">
         <RegExpr attribute="SpecialChar"
          String="\\['&quot;ntr\\]" context="#stay"/>

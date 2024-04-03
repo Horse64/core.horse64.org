@@ -1,6 +1,7 @@
 *~
 *.o
 /*.bin
+/tools/syntax-highlighting/kate/bug.xml
 /translator/*.md5.txt
 /translator/translator_main.c
 /translator/translator_main.so
