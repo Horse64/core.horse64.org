@@ -54,7 +54,7 @@ extend type await_stmt.AwaitStmt {
 }
 
 extend type do_stmt.DoStmt {
-    var _is_later_inserted_func_catchall = no
+    var _is_later_processed_do = no
 }
 
 type LaterExitInfo {
@@ -898,7 +898,7 @@ func first_pass_later_transform(
         # Move it into do rescue to propagate error:
         var doresc = new do_stmt.DoStmt()
         doresc.scope = node.func_scope.inner_scope
-        doresc._is_later_inserted_func_catchall = yes
+        doresc._is_later_processed_do = yes
         doresc.line = node.line
         doresc.col = node.col
         var rescclause = new do_stmt.RescueClause()
@@ -1203,6 +1203,179 @@ func first_pass_later_transform(
                 assert(transformed_nodes.has(node))
                 return node
             }
+            if node.kind == ast.N_STMT_DO and
+                    not transformed_nodes.has(node) and
+                    not node._is_later_processed_do and
+                    node.subexprs.len > 0 and
+                    node.scope != none and
+                    parents.len > 0 and
+                    ast_analyze.stmt_list_contains_later_call(
+                        node.subblocks[1],
+                        check_recursive=yes,
+                        include_later_ignore=no,
+                        recurse_into_funcs=no) {
+                transformed_nodes.add(node)
+                assert(node.subblocks[1].len > 0)
+                node._is_later_processed_do = yes
+                var inner_scope = node.subblocks[1][1].scope
+                if debugger.is_debug_build {
+                    for stmt in node.subblocks[1] {
+                        assert(stmt.scope == inner_scope)
+                    }
+                }
+                var tinfo = inner_scope.get_later_transform_info()
+                assert(tinfo._exit_info == none)
+
+                var einfo = new LaterExitInfo()
+                tinfo._exit_info = einfo
+                var parent_block = ast.get_node_parent_block(
+                    node, parents[parents.len]
+                )
+                assert(parent_block != none)
+                var idx = parent_block.find(node)
+                assert(idx != none and idx >= 1 and
+                    idx <= parent_block.len)
+
+                var rescue_clauses = []
+                var finally_clause = none
+                for clause in node.subexprs {
+                    if clause.kind == ast.N_EXPR_RESCUECLAUSE {
+                        rescue_clauses.add(clause)
+                    } elseif clause.kind ==
+                            ast.N_EXPR_FINALLYCLAUSE {
+                        assert(finally_clause == none)
+                        finally_clause = clause
+                    }
+                }
+                assert(finally_clause != none or
+                    rescue_clauses.len > 0)
+
+                var builder = new ast_builder.ASTBuilder(pfile)
+                var insert_before_do_stmt = []
+                var finallyvarnode = none
+                var finallyfuncnode = none
+                var rescuefuncnodes = []
+                var past_do_func_node = none
+                var _funcnamesused = {}
+                if finally_clause != none {
+                    var val = new ast_expr.LiteralExpr()
+                    val.scope = node.scope
+                    val.line = node.line
+                    val.col = node.col
+                    val.value = no
+                    finallyvarnode = builder.make_var_node(
+                        node.scope, "$finallywascalled",
+                        expr=val,
+                        line=node.line, col=node.col,
+                        add_unique_suffix=yes
+                    )
+                    insert_before_do_stmt.add(finallyvarnode)
+                }
+                for rescue_clause in rescue_clauses {
+                    var func_node = builder.make_func_node(
+                        node.scope,
+                        "$rescuefunc",
+                        avoid_names=_funcnamesused,
+                        line=node.line, col=node.col
+                    )
+                    rescuefuncnodes.add(func_node)
+                    insert_before_do_stmt.add(func_node)
+                    _funcnamesused.add(func_node.label)
+                }
+
+                func move_stmts_into_rescue_closures {
+                    var index = 1
+                    var queue = rescue_clauses.copy()
+                    if queue.len == 0 {
+                        return later
+                    }
+                    var rescue_clause = queue.pop()
+                    var func_node = rescuefuncnodes[index]
+                    var result =
+                        ast_transform.reparent_stmts_into_closure(
+                            func_node, rescue_clause.subblocks[1],
+                            node.scope, clone_all_stmts=yes,
+                            args_replacing_closure_refs_allowed=no
+                        ) later:
+
+                    await result
+                    if queue.len == 0 {
+                        return later
+                    }
+                    index += 1
+                    rescue_clause = queue.pop()
+                    func_node = rescuefuncnodes[index]
+                    result =
+                        ast_transform.reparent_stmts_into_closure(
+                            func_node, rescue_clause.subblocks[1],
+                            node.scope, clone_all_stmts=yes,
+                            args_replacing_closure_refs_allowed=no
+                        ) later repeat
+                }
+                move_stmts_into_rescue_closures() later:
+
+                func handle_finally_node {
+                    if finally_clause == none {
+                        return later
+                    }
+                    finallyfuncnode = builder.make_func_node(
+                        node.scope,
+                        "$finallyfunc",
+                        avoid_names=_funcnamesused,
+                        line=node.line, col=node.col
+                    )
+                    insert_before_do_stmt.add(finallyfuncnode)
+                    _funcnamesused.add(finallyfuncnode.label)
+                    ast_transform.reparent_stmts_into_closure(
+                        finallyfuncnode,
+                        finally_clause.subblocks[1],
+                        node.scope, clone_all_stmts=yes,
+                        args_replacing_closure_refs_allowed=no
+                    ) later:
+                }
+                handle_finally_node() later:
+
+                past_do_func_node = none
+                var can_exit_past_do = no
+                func build_past_do_func {
+                    if not can_exit_past_do {
+                        return
+                    }
+                    past_do_func_node = builder.make_func_node(
+                        node.scope,
+                        "$pastdostmt",
+                        avoid_names=_funcnamesused,
+                        line=node.line, col=node.col
+                    )
+                    insert_before_do_stmt.add(past_do_func_node)
+                }
+                if finally_clause != none {
+                    for func_node in rescuefuncnodes {
+                        if func_node.subblocks[1].len == 0 or
+                                not {ast.N_STMT_RETURN,
+                                ast.N_STMT_THROW}.has(
+                                    func_node.subblocks[1][
+                                        func_node.subblocks[1].len].kind
+                                ) {
+                            can_exit_past_do = yes
+                            break
+                        }
+                    }
+                } else {
+                    var func_node = finallyfuncnode
+                    if func_node.subblocks[1].len == 0 or
+                            not {ast.N_STMT_RETURN,
+                            ast.N_STMT_THROW}.has(
+                                func_node.subblocks[1][
+                                    func_node.subblocks[1].len].kind
+                            ) {
+                        can_exit_past_do = yes
+                    }
+                }
+
+                assert(insert_before_do_stmt.len > 0)
+                return later insert_before_do_stmt + [node]
+            }
             if {ast.N_STMT_VAR, ast.N_STMT_CALL,
                     ast.N_STMT_ASSIGN}.has(node.kind) and
                     not transformed_nodes.has(node) and
@@ -1243,12 +1416,6 @@ func first_pass_later_transform(
                 }
                 var stmts_after = []
                 var scan_node = node
-                if node.scope.later_transform_info == none {
-                    node.scope.later_transform_info =
-                        new LaterTransformInfo()
-                    node.scope.later_transform_info.
-                        owning_local_scope = node.scope
-                }
                 var einfo = node.scope.
                     get_later_transform_info().exit_info()
                 assert(einfo != none)
@@ -1822,7 +1989,7 @@ func first_pass_later_transform(
                 var has_catchall_do_stmt = no
                 for stmt in func_node.subblocks[1] {
                     if stmt.kind == ast.N_STMT_DO and
-                            stmt._is_later_inserted_func_catchall {
+                            stmt._is_later_processed_do {
                         has_catchall_do_stmt = yes
                         break
                     }
@@ -1877,12 +2044,6 @@ func first_pass_later_transform(
                 transformed_nodes.add(node)
                 var line = node.line
                 var col = node.col
-                if node.scope.later_transform_info == none {
-                    node.scope.later_transform_info =
-                        new LaterTransformInfo()
-                    node.scope.later_transform_info.
-                        owning_local_scope = node.scope
-                }
                 var einfo = node.scope.
                     get_later_transform_info().exit_info()
                 assert(
