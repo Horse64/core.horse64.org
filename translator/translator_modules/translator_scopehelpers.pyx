@@ -188,6 +188,181 @@ def get_global_standalone_func_names(s,
             result[entry] = scope[entry]
     return result
 
+def get_undefined_uses_in_func(
+        st, ignore_builtins=True,
+        ignore_later_generated=False,
+        is_anonymous_inline=False,
+        ignore_these_labels=None
+        ):
+    """ Get all identifiers that are present in all
+        inner scopes of a function statement."""
+
+    if type(st) == str:
+        st = tokenize(st)
+    else:
+        st = list(st)
+    if ignore_these_labels is None:
+        ignore_these_labels = []
+    func_kw_idx = firstnonblankidx(st)
+    if (func_kw_idx < 0 or
+            st[func_kw_idx] != "func"):
+        return set()
+    names = get_all_inner_names_in_func(st)
+    outer_names_with_args = get_names_defined_in_func(
+        st, is_anonymous_inline=is_anonymous_inline,
+        exclude_inner=False,
+        exclude_direct_func_name=False
+    )
+    for oname in outer_names_with_args:
+        names.add(oname)
+
+    # Now find all the uses that seem undefined:
+    undefined_names = set()
+    ranges = get_statement_block_ranges(st)
+    for brange in ranges:
+        subtokens = st[brange[0]:brange[1]]
+        subtokenslen = len(subtokens)
+        i = 0
+        while i < subtokenslen:
+            if subtokens[i] == "func":
+                i = get_idx_past_func(subtokens, i)
+                continue
+            if not is_identifier(subtokens[i]):
+                i += 1
+                continue
+            if subtokens[i] in names:
+                i += 1
+                continue
+            if (prevnonblank(subtokens, i) in {
+                    "var", "const", "for",
+                    "as", "."
+                    }):
+                i += 1
+                continue
+            if (nextnonblank(subtokens, i) == "=" and
+                    prevnonblank(subtokens, i) in
+                    {"(", ","}):
+                i += 1
+                continue
+            undefined_names.add(subtokens[i])
+            i += 1
+    remove_set = {"self", "extended", "base"}
+    if ignore_builtins:
+        builtins = {"print", "assert",
+            "RuntimeError", "ValueError",
+            "NotImplementedError", "has_attr"}
+        remove_set = remove_set.union(builtins)
+    for remove_label in remove_set:
+        undefined_names.discard(remove_label)
+    if ignore_later_generated:
+        cleaned_set = set()
+        for entry in undefined_names:
+            if (not entry.startswith("_later_cb") and
+                    not entry.startswith("_finallyfun") and
+                    not entry.startswith("_latersection_") and
+                    not entry.startswith("_rescuefun") and
+                    not entry.startswith("_rescuedisable") and
+                    not entry.startswith("_finallydisable")
+                    ):
+                cleaned_set.add(entry)
+        undefined_names = cleaned_set
+    for entry in ignore_these_labels:
+        undefined_names.discard(entry)
+    return undefined_names
+
+def get_idx_past_func(st, idx):
+    """ Skip past a given func definition.
+        Also works if started after the 'func'
+        keyword but before the code block opens. """
+    bdepth = 0
+    stlen = len(st)
+    i = idx
+    while (i < stlen and
+            (st[i] != "{" or
+            prevnonblank(st, i) in {
+                "(", "{", "[", "=", ","
+            } or bdepth > 0)):
+        if st[i] in {"{", "[", "("}:
+            bdepth += 1
+        elif st[i] in {"}", "]", ")"}:
+            bdepth = max(0, bdepth - 1)
+        i += 1
+    if (i < stlen and st[i] == "{"):
+        bdepth = 1
+        while (i < stlen and
+                bdepth > 0):
+            if st[i] in {"{", "[", "("}:
+                bdepth += 1
+            elif st[i] in {"}", "]", ")"}:
+                bdepth = max(0, bdepth - 1)
+                if bdepth <= 0:
+                    break
+            i += 1
+    return i
+
+def get_all_inner_names_in_func(st):
+    """ Get all identifiers that are present in all
+        inner scopes of a function statement."""
+
+    if type(st) == str:
+        st = tokenize(st)
+    else:
+        st = list(st)
+    if firstnonblank(st) != "func":
+        return set()
+
+    names = set()
+    ranges = get_statement_block_ranges(st)
+    for brange in ranges:
+        subtokens = st[brange[0]:brange[1]]
+        subtokenslen = len(subtokens)
+        i = 0
+        while i < subtokenslen:
+            if (is_identifier(subtokens[i]) and
+                    prevnonblank(subtokens, i) in {
+                        "var", "const", "for",
+                        "as"
+                    }):
+                names.add(subtokens[i])
+            elif subtokens[i] == "func":
+                i += 1
+                while (i < subtokenslen and
+                        subtokens[i].strip() == ""):
+                    i += 1
+                if (is_identifier(subtokens[i]) and
+                        not nextnonblank(subtokens, i) in
+                        {",", "="}):
+                    names.add(subtokens[i])
+                i = get_idx_past_func(subtokens, i)
+                continue
+            elif (is_identifier(subtokens[i]) and
+                    prevnonblank(subtokens, i) == ","):
+                is_vardef = False
+                i2 = i - 1
+                while True:
+                    while (i2 >= 0 and
+                            subtokens[i2].strip() == ""):
+                        i2 -= 1
+                    if i2 >= 0 and subtokens[i2] in {
+                            "var", "const"
+                            }:
+                        is_vardef = True
+                        break
+                    if i2 < 0 or subtokens[i2] != ",":
+                        break
+                    i2 -= 1
+                    while (i2 >= 0 and
+                            subtokens[i2].strip() == ""):
+                        i2 -= 1
+                    if (i2 < 0 or
+                            not is_identifier(subtokens[i2])):
+                        break
+                    i2 -= 1
+                if is_vardef:
+                    names.add(subtokens[i])
+            i += 1
+    return names
+
 def get_names_defined_in_func(
         st, is_anonymous_inline=False,
         exclude_inner=False,

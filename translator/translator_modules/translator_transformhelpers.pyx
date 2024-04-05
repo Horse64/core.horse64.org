@@ -36,7 +36,6 @@ import tempfile
 import textwrap
 import traceback
 
-
 from translator_syntaxhelpers import (
     tokenize, untokenize, get_indent,
     is_identifier, as_escaped_code_string,

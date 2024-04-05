@@ -90,6 +90,7 @@ from translator_scopehelpers import (
     get_names_defined_in_func,
     get_global_names,
     statement_declared_identifiers,
+    get_undefined_uses_in_func,
 )
 
 from translator_syntaxhelpers import (
@@ -525,7 +526,6 @@ def parse_type_import_ref(
         "raw-tokens": raw_tokens,
     }
     return result
-
  
 class TranslatedProjectInfo:
     def __init__(self):
@@ -2393,6 +2393,18 @@ def translate(s, sc):
                     # unless we explicitly list it:
                     tell_python_about_globals.append(entry)
 
+            # Also, get any names that might be relevant if this
+            # is a type func attribute expanded from outside:
+            undefined_names = get_undefined_uses_in_func(
+                statement, ignore_later_generated=True,
+            )
+            globals_accessed = set()
+            for undefined_name in undefined_names:
+                if (undefined_name in sc.orig_h64_globals and
+                        sc.orig_h64_globals[undefined_name]["type"]
+                            != "import"):
+                    globals_accessed.add(undefined_name)
+
             # Make sure the name of the func is valid:
             statement[nameidx] = make_valid_identifier(
                 statement[nameidx], sc=sc)
@@ -2442,6 +2454,32 @@ def translate(s, sc):
             type_python_module = type_info["python-module"]
             type_package = type_info["package"]
             type_name = type_info["type-name"]
+            type_is_external = type_name != None and (
+                type_info["modpath"] != sc.module_name or
+                type_info["package"] != sc.package_name
+            )
+            prefix_globals_code = ""
+            if type_is_external and len(globals_accessed) > 0:
+                #print("GOT EXTERNAL TYPE FUNC: " + str((
+                #    type_info["func-name"],
+                #    undefined_names,
+                #    sc.orig_h64_globals.keys(),
+                #    globals_accessed, type_info["modpath"],
+                #    type_info["package"],
+                #    sc.module_name,
+                #    sc.package_name)))
+                ind = (indent + "    " +
+                    ("    " if type_name != None else ""))
+                for gaccessed in globals_accessed:
+                    prefix_globals_code += (ind + gaccessed + " = "
+                        "_translator_runtime_helpers."
+                        "_global_module_registry[" +
+                            as_escaped_code_string(
+                                sc.module_name +
+                                "@" + str(sc.package_name)
+                            ) + "]." + (
+                                gaccessed
+                            ) + "\n")
             name = type_info["func-name"]
             register_as_modinit = (
                 type_name == None and (
@@ -2488,7 +2526,8 @@ def translate(s, sc):
                 translated_contents + "\n"))
             if inner_indent is None:
                 inner_indent = indent + "    "
-            inner_code = (extra_init_code + "\n" +
+            inner_code = (prefix_globals_code +
+                extra_init_code + "\n" +
                 translated_contents + "\n")
             if len(tell_python_about_globals) > 0:
                 inner_code = (inner_indent +
@@ -3376,6 +3415,10 @@ def translate_do_func(
                 project_info.get_package_subfolder(
                     translated_files[translated_file]
                         ["package-name"], for_output=True))
+            _modname = (translated_files
+                        [translated_file]["module-name"])
+            _pkgname = (translated_files
+                        [translated_file]["package-name"])
             contents_result = (
                 "import sys as _remapped_sys;"
                 "import shutil as _remapped_shutil;"
@@ -3397,13 +3440,14 @@ def translate_do_func(
                     "unknown") + ";" +
                 "_translated_program_main_script_file = " +
                 as_escaped_code_string(original_h64_file_path) + ";" +
-                "import _translator_runtime_helpers;\n" +
-                "import _translator_runtime_helpers_templating;\n"
+                "import _translator_runtime_helpers; " +
+                "import _translator_runtime_helpers_templating; "
+                "_translator_runtime_helpers._global_module_registry[" +
+                    as_escaped_code_string(
+                        _modname + "@" + str(_pkgname)) +
+                "] = _remapped_sys.modules[__name__];\n"
                 ) + translated_files[translated_file]["output"]
-            _modname = (translated_files
-                        [translated_file]["module-name"])
-            _pkgname = (translated_files
-                        [translated_file]["package-name"])
+
             # Output all the types as Python "class" defs:
             first_externaltype_extends = True
             for regtype_key in ordered_known_types():

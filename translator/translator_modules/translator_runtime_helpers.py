@@ -55,6 +55,7 @@ _async_delayed_calls = []
 _async_final_bails_need_extra_bail_count = 0
 
 _delayed_modinit_funclist = []
+_global_module_registry = dict()
 
 def _run_delayed_modinit():
     failed_runs = []

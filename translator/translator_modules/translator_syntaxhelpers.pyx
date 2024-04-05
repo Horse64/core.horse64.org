@@ -50,7 +50,8 @@ def is_keyword(x):
             "return", "await", "throw", "repeat",
             "var", "const", "elseif", "while",
             "any", "ignore", "with", "later",
-            "new", "enum", "parallel",
+            "new", "enum", "parallel", "continue",
+            "break",
             "for", "in", "not", "and", "or"}:
         return True
     return False
@@ -79,6 +80,7 @@ def identifier_or_keyword(x):
 
 def is_identifier(v):
     return (identifier_or_keyword(v) and
+        not v in {"yes", "no", "none"} and
         not is_keyword(v))
 
 def as_escaped_code_string(s):
