@@ -1335,6 +1335,10 @@ func first_pass_later_transform(
                 }
                 handle_finally_node() later:
 
+                assert((finally_clause != none and
+                    finallyfuncnode != none) or
+                    (finally_clause == none and
+                    finallyfuncnode == none))
                 past_do_func_node = none
                 var can_exit_past_do = no
                 func build_past_do_func {
@@ -1387,8 +1391,16 @@ func first_pass_later_transform(
                         args_replacing_closure_refs_allowed=no
                     ) later:
                 }
-                if finally_clause != none {
+                if node.subblocks[1].len == 0 or
+                        not {ast.N_STMT_RETURN,
+                        ast.N_STMT_THROW}.has(
+                            node.subblocks[1][
+                                node.subblocks[1].len].kind
+                        ) {
+                    can_exit_past_do = yes
+                } else {
                     for func_node in rescuefuncnodes {
+                        assert(func_node != none)
                         if func_node.subblocks[1].len == 0 or
                                 not {ast.N_STMT_RETURN,
                                 ast.N_STMT_THROW}.has(
@@ -1398,16 +1410,6 @@ func first_pass_later_transform(
                             can_exit_past_do = yes
                             break
                         }
-                    }
-                } else {
-                    var func_node = finallyfuncnode
-                    if func_node.subblocks[1].len == 0 or
-                            not {ast.N_STMT_RETURN,
-                            ast.N_STMT_THROW}.has(
-                                func_node.subblocks[1][
-                                    func_node.subblocks[1].len].kind
-                            ) {
-                        can_exit_past_do = yes
                     }
                 }
                 build_past_do_func() later:
