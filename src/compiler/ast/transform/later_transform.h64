@@ -1339,7 +1339,36 @@ func first_pass_later_transform(
                 var can_exit_past_do = no
                 func build_past_do_func {
                     if not can_exit_past_do {
-                        return
+                        return later
+                    }
+
+                    var stmts_after = []
+                    var scan_node = node
+                    var parents_idx = parents.len + 1
+                    while yes {
+                        stmts_after += ast.get_neighbor_statements_after(
+                            scan_node, if parents_idx > 1
+                                (parents[parents_idx - 1]) else (none),
+                            stop_at_return=yes)
+                        parents_idx -= 1
+                        if parents_idx < 1 or (stmts_after.len > 0 and
+                                (stmts_after[stmts_after.len].kind ==
+                                    ast.N_STMT_RETURN or
+                                stmts_after[stmts_after.len].kind ==
+                                    ast.N_STMT_THROW)) {
+                            break
+                        }
+                        scan_node = parents[parents_idx]
+                        if scan_node.kind == ast.N_STMT_FUNC or
+                                scan_node.scope == none or
+                                scan_node.scope.func_scope.
+                                    get_later_transform_info().exit_info() !=
+                                    einfo {
+                            break
+                        }
+                    }
+                    if stmts_after.len == 0 {
+                        return later
                     }
                     past_do_func_node = builder.make_func_node(
                         node.scope,
@@ -1347,7 +1376,16 @@ func first_pass_later_transform(
                         avoid_names=_funcnamesused,
                         line=node.line, col=node.col
                     )
-                    insert_before_do_stmt.add(past_do_func_node)
+                    past_do_func_node.subblocks = [[]]
+                    insert_before_do_stmt = [past_do_func_node] +
+                        insert_before_do_stmt
+
+                    ast_transform.reparent_stmts_into_closure(
+                        past_do_func_node,
+                        stmts_after,
+                        node.scope, clone_all_stmts=yes,
+                        args_replacing_closure_refs_allowed=no
+                    ) later:
                 }
                 if finally_clause != none {
                     for func_node in rescuefuncnodes {
@@ -1372,6 +1410,7 @@ func first_pass_later_transform(
                         can_exit_past_do = yes
                     }
                 }
+                build_past_do_func() later:
 
                 assert(insert_before_do_stmt.len > 0)
                 return later insert_before_do_stmt + [node]
@@ -1457,8 +1496,10 @@ func first_pass_later_transform(
                         stop_at_return=yes)
                     parents_idx -= 1
                     if parents_idx < 1 or (stmts_after.len > 0 and
+                            (stmts_after[stmts_after.len].kind ==
+                                ast.N_STMT_RETURN or
                             stmts_after[stmts_after.len].kind ==
-                                ast.N_STMT_RETURN) {
+                                ast.N_STMT_THROW)) {
                         break
                     }
                     scan_node = parents[parents_idx]
