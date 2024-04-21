@@ -187,7 +187,8 @@ func LocalScope.as_str {
 }
 
 func LocalScope.lookup(name,
-        is_write_access=yes, cross_func_scopes=yes) {
+        is_write_access=yes, cross_func_scopes=yes,
+        auto_add_ccapture=yes) {
     var ref
     var lookup_scope = self
     var our_func_scope = self.func_scope
@@ -207,7 +208,8 @@ func LocalScope.lookup(name,
                 lookup_scope.name_to_symbol_map[name].
                     is_ever_written_to = yes
             }
-            if lookup_scope.func_scope == our_func_scope {
+            if lookup_scope.func_scope == our_func_scope or
+                    not auto_add_ccapture {
                 ref = new st_ref.StorageRef(st_ref.ST_LOCAL,
                     lookup_scope.name_to_symbol_map[name].storage_id)
                 return [ref, lookup_scope.name_to_symbol_map[name]]
@@ -259,7 +261,7 @@ func LocalScope.name_is_free(name, global_scope) {
     if global_scope.name_to_stmt_map.has(name) {
         return no
     }
-    if self.lookup(name) != none {
+    if self.lookup(name, auto_add_ccapture=no) != none {
         return no
     }
     return yes

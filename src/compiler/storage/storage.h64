@@ -470,6 +470,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
     func try_register_symbol(
             local_scope, symbol_name, msgs, pfile, line, col
             ) {
+        assert(msgs != none)
         if local_scope.name_to_symbol_map.has(symbol_name) {
             var old_symbol =
                 local_scope.name_to_symbol_map[symbol_name]
@@ -1007,6 +1008,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                         }
                     }
                     if clause.kind == ast.N_EXPR_RESCUECLAUSE {
+                        var previous_symbol_info = none
                         var elabels_seen = {}
                         for elabel in clause.error_labels {
                             if elabel == none {
@@ -1015,12 +1017,47 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                             if elabels_seen.has(elabel) {
                                 # For rescue clauses, we allow duplicate
                                 # names. They'll be linked up then.
+                                if previous_symbol_info != none {
+                                    # (Could be none in case of a
+                                    # previous error.)
+                                    var dup_sinfo =
+                                        previous_symbol_info.copy()
+                                    assert(clause.symbol_info != none)
+                                    clause.symbol_info.add(dup_sinfo)
+                                }
                                 continue
                             }
                             elabels_seen.add(elabel)
+
+                            # Register the name:
                             try_register_symbol(inner_scope,
                                 elabel, msgs,
                                 pfile, clause.line, clause.col)
+
+                            # Add symbol info to our clause:
+                            if inner_scope.name_to_symbol_map.
+                                    has(elabel) {
+                                symbol_info = inner_scope.
+                                    name_to_symbol_map[elabel]
+                                if clause.symbol_info == none {
+                                    clause.symbol_info = []
+                                }
+                                clause.symbol_info.add(symbol_info)
+                                previous_symbol_info = symbol_info
+                            } else {
+                                if debugger.is_debug_build {
+                                    var had_error = no
+                                    if msgs != none {
+                                        for m in msgs {
+                                            if m.kind == msg.M_ERROR {
+                                                had_error = yes
+                                            }
+                                        }
+                                    }
+                                    assert(had_error or
+                                        msgs == none)
+                                }
+                            }
                         }
                     }
                 }

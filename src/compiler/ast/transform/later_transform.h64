@@ -1254,7 +1254,7 @@ func first_pass_later_transform(
                 var insert_before_do_stmt = []
                 var finallyvarnode = none
                 var finallyfuncnode = none
-                var errorhandlefuncnode = none
+                var errordispatchfuncnode = none
                 var rescuefuncnodes = []
                 var past_do_func_node = none
                 var _funcnamesused = {}
@@ -1284,23 +1284,23 @@ func first_pass_later_transform(
                     _funcnamesused.add(func_node.label)
                 }
                 if rescue_clauses.len > 0 {
-                    errorhandlefuncnode = builder.make_func_node(
+                    errordispatchfuncnode = builder.make_func_node(
                         node.scope,
                         "$errordispatchfunc",
                         avoid_names=_funcnamesused,
                         line=node.line, col=node.col
                     )
-                    var inner_scope = errorhandlefuncnode.
+                    var inner_scope = errordispatchfuncnode.
                         func_scope.inner_scope
                     assert(inner_scope != none)
-                    errorhandlefuncnode.arg_labels = ["eobj"]
-                    errorhandlefuncnode.arg_defaults = []
-                    errorhandlefuncnode.kw_arg_count = 0
+                    errordispatchfuncnode.arg_labels = ["eobj"]
+                    errordispatchfuncnode.arg_defaults = []
+                    errordispatchfuncnode.kw_arg_count = 0
                     var do_stmt_node = new do_stmt.DoStmt()
                     do_stmt_node.scope = inner_scope
                     do_stmt_node.line = node.line
                     do_stmt_node.col = node.col
-                    errorhandlefuncnode.subblocks = [[do_stmt_node]]
+                    errordispatchfuncnode.subblocks = [[do_stmt_node]]
                     var do_block_scope = new st_scope.LocalScope()
                     do_block_scope.parent = inner_scope
                     do_block_scope.func_scope = inner_scope.func_scope
@@ -1333,6 +1333,12 @@ func first_pass_later_transform(
                         clause_node.subexprs = []
                         clause_node.error_labels = []
                         do_stmt_node.subexprs.add(clause_node)
+                        var in_clause_scope = new st_scope.LocalScope()
+                        in_clause_scope.parent = inner_scope
+                        in_clause_scope.func_scope =
+                            inner_scope.func_scope
+                        var errlabel_to_sinfo = {->}
+                        clause_node.symbol_info = []
                         var idx = 0
                         for error_label in rclause.error_labels {
                             idx += 1
@@ -1343,12 +1349,72 @@ func first_pass_later_transform(
                             }
                             clause_node.error_labels.add(error_label)
                             clause_node.subexprs.add(error_type_expr)
+                            if not errlabel_to_sinfo.has(error_label) {
+                                in_clause_scope.add_symbol(
+                                    error_label, pfile,
+                                    node.line, node.col
+                                )
+                            }
+                            assert(in_clause_scope.
+                                name_to_symbol_map.has(error_label))
+                            if not errlabel_to_sinfo.has(error_label) {
+                                errlabel_to_sinfo[error_label] =
+                                    in_clause_scope.
+                                        name_to_symbol_map[error_label]
+                            }
+                            clause_node.symbol_info.add(
+                                errlabel_to_sinfo[error_label]
+                            )
                         }
                         var call_func_name =
-                            rescuefuncnodes[clauseidx]
-                        var call_func_ref = none
+                            rescuefuncnodes[clauseidx].label
+                        var call_func_ref =
+                            in_clause_scope.lookup(call_func_name)[1]
+                        assert(call_func_ref != none)
+                        assert(call_func_ref.kind ==
+                            storage_ref.ST_CCAPTURE)
+                        var call_idref = new ast_expr.IdRefExpr()
+                        call_idref.scope = in_clause_scope
+                        call_idref.line = node.line
+                        call_idref.col = node.col
+                        call_idref.label = call_func_name
+                        call_idref.ref = call_func_ref
+                        var optoken = new token.Token(
+                            "(", token.T_ENCLOSE,
+                            node.line, node.col
+                        )
+                        var call_op = new ast_expr.BinopExpr(optoken)
+                        call_op.scope = in_clause_scope
+                        call_op.line = node.line
+                        call_op.col = node.col
+                        var call_args = new ast_expr.CallArgsExpr()
+                        call_args.scope = in_clause_scope
+                        call_args.line = node.line
+                        call_args.col = node.col
+                        call_args.subexprs = []
+                        call_op.subexprs = [call_idref, call_args]
+                        var call_stmt =
+                            new call_or_assign_stmt.CallStmt()
+                        call_stmt.scope = in_clause_scope
+                        call_stmt.line = node.line
+                        call_stmt.col = node.col
+                        call_stmt.subexprs = [call_op]
+                        clause_node.subblocks[1].add(call_stmt)
+                        for error_label in rclause.error_labels {
+                            var call_errarg_idref =
+                                new ast_expr.IdRefExpr()
+                            call_errarg_idref.scope = in_clause_scope
+                            call_errarg_idref.line = node.line
+                            call_errarg_idref.col = node.col
+                            call_errarg_idref.label = error_label
+                            call_errarg_idref.ref =
+                                errlabel_to_sinfo[error_label].copy()
+                            call_args.subexprs.add(
+                                call_errarg_idref
+                            )
+                        }
                     }
-                    insert_before_do_stmt.add(errorhandlefuncnode)
+                    insert_before_do_stmt.add(errordispatchfuncnode)
                 }
 
                 func move_stmts_into_rescue_closures {

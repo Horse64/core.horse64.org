@@ -55,6 +55,7 @@ func ASTBuilder.make_unlock_hvm_lock_node(
         "(", token.T_ENCLOSE, line, col
     )
     var lockexpr = new ast_expr.BinopExpr(optoken)
+    lockexpr.scope = in_inner_scope
     lockexpr.line = line
     lockexpr.col = col
     var lockfuncexpr = new ast_expr.IdRefExpr()
@@ -95,6 +96,7 @@ func ASTBuilder.make_lock_hvm_lock_node(
         "(", token.T_ENCLOSE, line, col
     )
     var lockexpr = new ast_expr.BinopExpr(optoken)
+    lockexpr.scope = in_inner_scope
     lockexpr.line = line
     lockexpr.col = col
     var lockfuncexpr = new ast_expr.IdRefExpr()
@@ -136,6 +138,7 @@ func ASTBuilder.make_create_lock_node(
         "(", token.T_ENCLOSE, line, col
     )
     var lockexpr = new ast_expr.BinopExpr(optoken)
+    lockexpr.scope = in_inner_scope
     lockexpr.line = line
     lockexpr.col = col
     var lockfuncexpr = new ast_expr.IdRefExpr()
@@ -397,6 +400,7 @@ func ASTBuilder.make_add_to_named_list_node(
         "(", token.T_ENCLOSE, line, col
     )
     var callexpr = new ast_expr.BinopExpr(optoken)
+    callexpr.scope = in_inner_scope
     callexpr.line = line
     callexpr.col = col
     var listrefexpr = new ast_expr.IdRefExpr()
