@@ -1254,6 +1254,7 @@ func first_pass_later_transform(
                 var insert_before_do_stmt = []
                 var finallyvarnode = none
                 var finallyfuncnode = none
+                var errorhandlefuncnode = none
                 var rescuefuncnodes = []
                 var past_do_func_node = none
                 var _funcnamesused = {}
@@ -1281,6 +1282,73 @@ func first_pass_later_transform(
                     rescuefuncnodes.add(func_node)
                     insert_before_do_stmt.add(func_node)
                     _funcnamesused.add(func_node.label)
+                }
+                if rescue_clauses.len > 0 {
+                    errorhandlefuncnode = builder.make_func_node(
+                        node.scope,
+                        "$errordispatchfunc",
+                        avoid_names=_funcnamesused,
+                        line=node.line, col=node.col
+                    )
+                    var inner_scope = errorhandlefuncnode.
+                        func_scope.inner_scope
+                    assert(inner_scope != none)
+                    errorhandlefuncnode.arg_labels = ["eobj"]
+                    errorhandlefuncnode.arg_defaults = []
+                    errorhandlefuncnode.kw_arg_count = 0
+                    var do_stmt_node = new do_stmt.DoStmt()
+                    do_stmt_node.scope = inner_scope
+                    do_stmt_node.line = node.line
+                    do_stmt_node.col = node.col
+                    errorhandlefuncnode.subblocks = [[do_stmt_node]]
+                    var do_block_scope = new st_scope.LocalScope()
+                    do_block_scope.parent = inner_scope
+                    do_block_scope.func_scope = inner_scope.func_scope
+                    var throw_idref = new ast_expr.IdRefExpr()
+                    throw_idref.scope = do_block_scope
+                    throw_idref.line = node.line
+                    throw_idref.col = node.col
+                    throw_idref.label = "eobj"
+                    throw_idref.ref = new storage_ref.StorageRef(
+                        storage_ref.ST_ARG, 1
+                    )
+                    var throw_node = new throw_stmt.ThrowStmt()
+                    throw_node.scope = do_block_scope
+                    throw_node.line = node.line
+                    throw_node.col = node.col
+                    throw_node.subexprs = [
+                        throw_idref
+                    ]
+                    do_stmt_node.subblocks = [[throw_node]]
+                    do_stmt_node.subexprs = []
+                    var clauseidx = 0
+                    for rclause in rescue_clauses {
+                        clauseidx += 1
+                        var clause_node =
+                            new do_stmt.RescueClause()
+                        clause_node.scope = inner_scope
+                        clause_node.line = node.line
+                        clause_node.col = node.col
+                        clause_node.subblocks = [[]]
+                        clause_node.subexprs = []
+                        clause_node.error_labels = []
+                        do_stmt_node.subexprs.add(clause_node)
+                        var idx = 0
+                        for error_label in rclause.error_labels {
+                            idx += 1
+                            var error_type_expr = none
+                            if rclause.subexprs[idx] != none {
+                                error_type_expr =
+                                    rclause.subexprs[idx].copy()
+                            }
+                            clause_node.error_labels.add(error_label)
+                            clause_node.subexprs.add(error_type_expr)
+                        }
+                        var call_func_name =
+                            rescuefuncnodes[clauseidx]
+                        var call_func_ref = none
+                    }
+                    insert_before_do_stmt.add(errorhandlefuncnode)
                 }
 
                 func move_stmts_into_rescue_closures {
@@ -1365,9 +1433,8 @@ func first_pass_later_transform(
                         scan_node = parents[parents_idx]
                         if scan_node.kind == ast.N_STMT_FUNC or
                                 scan_node.scope == none or
-                                scan_node.scope.func_scope.
-                                    get_later_transform_info().exit_info() !=
-                                    einfo {
+                                scan_node.scope.func_scope !=
+                                    node.scope.func_scope {
                             break
                         }
                     }
@@ -1507,9 +1574,8 @@ func first_pass_later_transform(
                     scan_node = parents[parents_idx]
                     if scan_node.kind == ast.N_STMT_FUNC or
                             scan_node.scope == none or
-                            scan_node.scope.func_scope.
-                                get_later_transform_info().exit_info() !=
-                                einfo {
+                            scan_node.scope.func_scope !=
+                                node.scope.func_scope {
                         break
                     }
                 }
