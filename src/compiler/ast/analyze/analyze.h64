@@ -510,9 +510,14 @@ func advanced_phase3_later_and_computevals(
                     if new_sinfo == none {
                         throw new RuntimeError("Internal error.")
                     }
+                    assert(parent_clause.error_labels.len > 0)
+                    assert(parent_clause.symbol_info.len ==
+                        parent_clause.error_labels.len)
                     var pos = 1
                     while pos <= parent_clause.error_labels.len {
+                        assert(parent_clause.error_labels[pos] == none)
                         parent_clause.error_labels[pos] = new_name
+                        parent_clause.symbol_info[pos] = new_sinfo.copy()
                         pos += 1
                     }
                     func assign_label_to_all_empty_throws(stmts) {

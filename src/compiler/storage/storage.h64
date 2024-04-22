@@ -952,7 +952,12 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                             break
                         }
                     }
+                    if node.func_scope.arg_symbol_info == none {
+                        node.func_scope.arg_symbol_info = []
+                    }
+                    var idx = 0
                     for label in final_arg_labels {
+                        idx += 1
                         if node.func_scope.arg_names.has(label) and
                                 msgs != none {
                             msgs.add(new msg.FileMsg(
@@ -966,7 +971,9 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                         } elseif node.func_scope.arg_names.has(label) {
                             throw new ValueError("Duplicate func arg name.")
                         }
-                        node.func_scope.arg_names.add(label)
+                        node.func_scope.add_arg(
+                            label, ast_node=node, project_file=pfile
+                        )
                     }
                     # If this is a func attr, make sure the
                     # argument list is registered with the escope:
@@ -1012,6 +1019,10 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                         var elabels_seen = {}
                         for elabel in clause.error_labels {
                             if elabel == none {
+                                if clause.symbol_info == none {
+                                    clause.symbol_info = []
+                                }
+                                clause.symbol_info.add(none)
                                 continue
                             }
                             if elabels_seen.has(elabel) {

@@ -165,7 +165,8 @@ func split_if_to_single_clauses(project_file, node, parent) {
 func reparent_stmts_into_closure(
         func_node, stmts, outer_inner_scope,
         clone_all_stmts=yes,
-        args_replacing_closure_refs_allowed=no
+        args_replacing_closure_refs_allowed=no,
+        special_storage_remaps=[]
         ) {
     assert(func_node.kind == ast.N_STMT_FUNC)
     var closure_func_scope = func_node.func_scope
@@ -295,8 +296,16 @@ func reparent_stmts_into_closure(
             if node.scope.func_scope != closure_func_scope {
                 return later node
             }
-            if node.kind != ast.N_EXPR_IDREF or node.ref == none or
-                    node.ref != st_ref.ST_LOCAL {
+            if node.kind != ast.N_EXPR_IDREF or node.ref == none {
+                return later node
+            }
+            for remap in special_storage_remaps {
+                if remap[1].alike(node.ref) {
+                    node.ref = remap[2].copy()
+                    return later node
+                }
+            }
+            if node.ref.kind != st_ref.ST_LOCAL {
                 return later node
             }
             if vars_in_replaced_scope_st_ids.has(node.ref.id) {
@@ -304,7 +313,8 @@ func reparent_stmts_into_closure(
             } else {
                 # This crosses closure boundaries now.
                 var result_pair = node.scope.lookup(node.label,
-                    is_write_access=no, cross_func_scopes=yes)
+                    is_write_access=no, cross_func_scopes=yes,
+                    auto_add_ccapture=yes)
 
                 assert(result_pair != none and
                     (result_pair[1].kind == st_ref.ST_CCAPTURE or

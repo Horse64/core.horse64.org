@@ -51,6 +51,7 @@ type FuncScope {
     var last_inner_storage_id = 0
     var last_inner_ccapture_id = 0
     var arg_names = []
+    var arg_symbol_info = []
     var is_type_attr = no
     var is_type_extend_attr = no
     var is_later_func = no
@@ -60,6 +61,26 @@ type FuncScope {
     var extends_storage_id = 0
     var inner_scope
     var parent
+}
+
+func FuncScope.add_arg(name, ast_node=none, project_file=none) {
+    if self.arg_names.has(name) {
+        throw new ValueError(
+            "Invalid duplicate name specified, this "
+            "name was already used."
+        )
+    }
+    var sinfo = new SymbolInfo(name)
+    if ast_node != none {
+        sinfo.def_line = ast_node.line
+        sinfo.def_col = ast_node.col
+    }
+    if project_file != none {
+        sinfo.def_file = project_file
+    }
+    sinfo.storage_id = self.arg_names.len + 1
+    self.arg_symbol_info.add(sinfo)
+    self.arg_names.add(name)
 }
 
 extend type func_stmt.FuncStmt {
@@ -227,6 +248,32 @@ func LocalScope.lookup(name,
         } elseif (lookup_scope.parent == none or
                 lookup_scope.parent.func_scope !=
                 lookup_scope.func_scope) {
+            if lookup_scope.func_scope != none {
+                var arg_idx = lookup_scope.func_scope.arg_names.find(
+                    name
+                )
+                if arg_idx != none {
+                    if our_func_scope != lookup_scope.func_scope and
+                            auto_add_ccapture {
+                        # This is a closure capture.
+                        self.func_scope.last_inner_ccapture_id += 1
+                        var sinfo = new SymbolInfo(name)
+                        sinfo.storage_id = none
+                        sinfo.is_closure_captured = yes
+                        var cap_id = self.func_scope.last_inner_ccapture_id
+                        self.ccapture_id_to_symbol_map[cap_id] = sinfo
+                        self.ccapture_name_to_id_map[name] = cap_id
+                        ref = new st_ref.StorageRef(
+                            st_ref.ST_CCAPTURE, cap_id
+                        )
+                        return [ref, sinfo]
+                    }
+                    ref = new st_ref.StorageRef(
+                        st_ref.ST_ARG, arg_idx
+                    )
+                    return [ref, none]
+                }
+            }
             if lookup_scope.ccapture_name_to_id_map.has(name) {
                 var cap_id = lookup_scope.ccapture_name_to_id_map[name]
                 var sinfo = lookup_scope.ccapture_id_to_symbol_map[
@@ -234,16 +281,6 @@ func LocalScope.lookup(name,
                 ]
                 ref = new st_ref.StorageRef(st_ref.ST_CCAPTURE, cap_id)
                 return [ref, sinfo]
-            } else {
-                var arg_idx = lookup_scope.func_scope.arg_names.find(
-                    name
-                )
-                if arg_idx != none {
-                    ref = new st_ref.StorageRef(
-                        st_ref.ST_ARG, arg_idx
-                    )
-                    return [ref, none]
-                }
             }
         }
         if lookup_scope.parent == none {

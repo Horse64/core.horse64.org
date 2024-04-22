@@ -1282,6 +1282,18 @@ func first_pass_later_transform(
                     rescuefuncnodes.add(func_node)
                     insert_before_do_stmt.add(func_node)
                     _funcnamesused.add(func_node.label)
+                    func_node.arg_labels = []
+                    func_node.arg_defaults = []
+                    func_node.kw_arg_count = 0
+                    func_node.func_scope.arg_symbol_info = []
+                    idx = 0
+                    for error_label in rescue_clause.error_labels {
+                        idx += 1
+                        func_node.func_scope.add_arg(
+                            error_label, ast_node=node,
+                            project_file=pfile
+                        )
+                    }
                 }
                 if rescue_clauses.len > 0 {
                     errordispatchfuncnode = builder.make_func_node(
@@ -1293,9 +1305,11 @@ func first_pass_later_transform(
                     var inner_scope = errordispatchfuncnode.
                         func_scope.inner_scope
                     assert(inner_scope != none)
-                    errordispatchfuncnode.arg_labels = ["eobj"]
+                    errordispatchfuncnode.arg_labels = []
                     errordispatchfuncnode.arg_defaults = []
                     errordispatchfuncnode.kw_arg_count = 0
+                    errordispatchfuncnode.func_scope.add_arg("eobj")
+
                     var do_stmt_node = new do_stmt.DoStmt()
                     do_stmt_node.scope = inner_scope
                     do_stmt_node.line = node.line
@@ -1417,6 +1431,43 @@ func first_pass_later_transform(
                     insert_before_do_stmt.add(errordispatchfuncnode)
                 }
 
+                func get_rescue_error_ref_remaps(rclause) {
+                    if rclause.symbol_info == none or
+                            rclause.symbol_info.len !=
+                            rclause.error_labels.len {
+                        print("horsec: error: in later_transform.h64: "
+                            "rescue clause has wrong or missing "
+                            "symbol info: symbol_info=" +
+                            rclause.symbol_info.as_str() +
+                            ", rclause=" +
+                            rclause.as_str())
+                        throw RuntimeError("Rescue clause with "
+                            "wrong symbol info, this shouldn't "
+                            "ever happen. Please report this error "
+                            "to the compiler team.")
+                    }
+                    var storage_remaps = []
+                    var idx = 0
+                    for st_info_entry in rclause.symbol_info {
+                        if st_info_entry == none {
+                            # This means this error entry has no label,
+                            # hence can be ignored.
+                            continue
+                        }
+                        idx += 1
+                        storage_remaps.add([
+                            new storage_ref.StorageRef(
+                                storage_ref.ST_ARG,
+                                st_info_entry.storage_id
+                            ),
+                            new storage_ref.StorageRef(
+                                storage_ref.ST_ARG, idx
+                            )
+                        ])
+                    }
+                    return storage_remaps
+                }
+
                 func move_stmts_into_rescue_closures {
                     var index = 1
                     var queue = rescue_clauses.copy()
@@ -1429,7 +1480,11 @@ func first_pass_later_transform(
                         ast_transform.reparent_stmts_into_closure(
                             func_node, rescue_clause.subblocks[1],
                             node.scope, clone_all_stmts=yes,
-                            args_replacing_closure_refs_allowed=no
+                            args_replacing_closure_refs_allowed=no,
+                            special_storage_remaps=
+                                get_rescue_error_ref_remaps(
+                                    rescue_clause
+                                )
                         ) later:
 
                     await result
@@ -1443,7 +1498,11 @@ func first_pass_later_transform(
                         ast_transform.reparent_stmts_into_closure(
                             func_node, rescue_clause.subblocks[1],
                             node.scope, clone_all_stmts=yes,
-                            args_replacing_closure_refs_allowed=no
+                            args_replacing_closure_refs_allowed=no,
+                            special_storage_remaps=
+                                get_rescue_error_ref_remaps(
+                                    rescue_clause
+                                )
                         ) later repeat
                 }
                 move_stmts_into_rescue_closures() later:
@@ -1732,10 +1791,14 @@ func first_pass_later_transform(
                         partial_result_func_node.scope = inner_scope
                         var block = []
                         partial_result_func_node.subblocks = [block]
-                        partial_result_func_node.arg_labels = [
+                        partial_result_func_node.add_arg(
                             err_param_names[i],
-                            "$partialresult"
-                        ]
+                            ast_node=node, project_file=pfile
+                        )
+                        partial_result_func_node.add_arg(
+                            "$partialresult",
+                            ast_node=node, project_file=pfile
+                        )
                         partial_result_func_node.kw_arg_count = 0
                         partial_result_func_nodes.add(
                             partial_result_func_node
@@ -1928,12 +1991,24 @@ func first_pass_later_transform(
                 assert(inner_scope != none)
                 func_node.scope = inner_scope
                 func_node.subblocks = [stmts_after]
-                func_node.arg_labels = err_param_names.copy()
+                func_node.arg_labels = []
+                for err_param in err_param_names {
+                    func_node.func_scope.add_arg(
+                        err_param, ast_node=node,
+                        project_file=pfile
+                    )
+                }
                 if assigned_or_declared_names.len > 0 {
-                    func_node.arg_labels += assigned_or_declared_names
+                    for name in assigned_or_declared_names {
+                        func_node.func_scope.add_arg(
+                            name, ast_node=node,
+                            project_file=pfile
+                        )
+                    }
                 } else {
-                    func_node.arg_labels.add(
-                        "$unused" + random.gen_id()
+                    func_node.func_scope.add_arg(
+                        "$unused" + random.gen_id(),
+                        ast_node=node, project_file=pfile
                     )
                 }
                 func_node.kw_arg_count = 0
@@ -2131,7 +2206,7 @@ func first_pass_later_transform(
                         assert(stmt.scope != none)
                         if stmt.scope.func_scope !=
                                 func_node.func_scope {
-                            print("later_transform.h64: error: "
+                            print("horsec: error: in later_transform.h64: "
                                 "Statement has wrong func_scope: " +
                                 stmt.as_str())
                             throw new RuntimeError("Internal error.")
