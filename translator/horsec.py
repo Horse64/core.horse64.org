@@ -33,7 +33,7 @@ my_dir = os.path.abspath(os.path.dirname(
     os.path.realpath(__file__)
 ))
 
-if __name__ == "__main__":
+def run_horsec(is_morsec=False):
     args = sys.argv[1:]
     use_paranoid_translator = False
     use_debug = False
@@ -58,6 +58,11 @@ if __name__ == "__main__":
             args = args[1:]
         else:
             break
+    compiler_path = os.path.join(my_dir, "..",
+        "src", "compiler", "main.h64")
+    if is_morsec:
+        compiler_path = os.path.join(my_dir, "..",
+            "src", "compiler", "morse64", "main.h64")
     process = subprocess.Popen([
         sys.executable,
         os.path.join(my_dir, "translator.py")] +
@@ -65,8 +70,10 @@ if __name__ == "__main__":
         (["--debug"] if use_debug else []) +
         (["--debug-python-output"] if use_debug_python_output else []) +
         (["--keep-files"] if use_debug_keep_files else []) +
-        [os.path.join(my_dir, "..",
-            "src", "compiler", "main.h64")] + args)
+        [compiler_path] + args)
     exit_code = process.wait()
     sys.exit(exit_code)
+
+if __name__ == "__main__":
+    run_horsec()
 

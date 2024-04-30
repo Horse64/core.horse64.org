@@ -55,6 +55,7 @@ type ModuleNotFoundError base ValueError {
 type Project {
     var allow_disk_access = yes
     var allow_vfs_access = yes
+    var is_morse64 = no
     var build_options = new build_options.BuildOptions()
 
     var debug_modules = no
@@ -835,7 +836,8 @@ func ProjectFile.init(
         source_uri=none, is_entrypoint=no,
         force_single_file=no, project=none,
         request_debug_modules=no,
-        request_debug_global_storage=no) {
+        request_debug_global_storage=no,
+        is_morse64=no) {
     self.wants_debug_modules = request_debug_modules
     self.wants_debug_global_storage = request_debug_global_storage
     if source_uri != none {
@@ -846,6 +848,10 @@ func ProjectFile.init(
     self.project = project
     if force_single_file {
         self._is_single_file = yes
+    }
+    self.is_morse64 = is_morse64
+    if self.is_morse64 and self.project != none {
+        self.project.is_morse64 = yes
     }
 }
 
@@ -1130,6 +1136,10 @@ func ProjectFile.ensure_project(msgs=none) {
         if self.source_uri == none and
                 self.is_entrypoint {
             self.project.entrypoint_is_inline = yes
+        }
+        if self.is_morse64 {
+            self.project.is_morse64 = yes
+            self.project.build_options.is_morse64 = yes
         }
     }
     self.ensure_project_base_dir() later:

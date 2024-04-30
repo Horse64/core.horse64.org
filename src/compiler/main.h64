@@ -251,18 +251,22 @@ func show_ast_or_global_scope_result_to_terminal_or_file(
     }
 }
 
-func actionparser_modinfo(args) {
-    var program_name = "horsec modinfo"
-    var defs = new argparse.ArgumentDefs(program_name=program_name)
+func actionparser_modinfo(args, is_morse64=no) {
+    var program_name = if is_morse64 ("morsec") else ("horsec")
+    var command_name = if is_morse64 ("morsec modinfo")
+                       else ("horsec modinfo")
+    var file_ext = if is_morse64 (".m64") else (".h64")
+    var defs = new argparse.ArgumentDefs(program_name=command_name)
     defs.add_arg(
         "module path",
         description="The target path for which to print module info, "
-            "must have a .h64 file extension if it's a file (and not "
+            "must have a " + file_ext +
+            " file extension if it's a file (and not "
             "a directory).")
     defs.add_switch(
         "--for-script",
-        description="This switch formats horsec's terminal output (like"
-            "e.g. the errors when compiling) as JSON.")
+        description="This switch formats the compiler's terminal "
+            "output (like e.g. the errors when compiling) as JSON.")
     defs.add_switch(
         "--resolve-imports",
         description="When enabled, the module info will include "
@@ -285,7 +289,8 @@ func actionparser_modinfo(args) {
     }
     var target = result.args["module path"]
     var pfile = new project.ProjectFile(
-        target, request_debug_modules=result.args["--debug-modules"]
+        target, request_debug_modules=result.args["--debug-modules"],
+        is_morse64=is_morse64
     )
     pfile.ensure_project() later:
     pfile.parse_for_imports_if_needed() later:
@@ -315,13 +320,16 @@ func actionparser_modinfo(args) {
     return 0
 }
 
-func actionparser_compile(args) {
-    var program_name = "horsec compile"
-    var defs = new argparse.ArgumentDefs(program_name=program_name)
+func actionparser_compile(args, is_morse64) {
+    var program_name = if is_morse64 ("morsec") else ("horsec")
+    var command_name = if is_morse64 ("morsec compile")
+                       else ("horsec compile")
+    var file_ext = if is_morse64 (".m64") else (".h64")
+    var defs = new argparse.ArgumentDefs(program_name=command_name)
     defs.add_arg(
         "source file", optional=yes,
         description="The target file to compile, "
-            "must have a .h64 file extension.")
+            "must have a " + file_ext + " file extension.")
     defs.add_switch(
         "--code", aliases=["-c"], takes_arg=yes,
         description="A code line which to compile instead of "
@@ -406,14 +414,16 @@ func actionparser_compile(args) {
     if result.args["--code"] == none and
             result.args["source file"] == none {
         print(program_name + ": error: Must specify "
-            "either a source file, or --code option, but neither were given.")
+            "either a source file, or --code option, but neither "
+            "were given.")
         print("Use " + program_name + " compile --help to show usage.")
         return later 1
     }
     var boptions = new build_options.BuildOptions()
     boptions.optimize_level = build_options.OPTIMIZE_ALL_BUT_ASSERTS
     boptions.print_stages = result.args["--print-stages"]
-    boptions.build_program_name = "horsec compile"
+    boptions.build_program_name = program_name
+    boptions.is_morse64 = is_morse64
     var opt_is_single_file = no
     if result.args["--single-file"] or
             result.args["--code"] != none {
@@ -471,9 +481,10 @@ func actionparser_compile(args) {
             return later 1
         } elseif {"transformed-code"}.has(
                 result.args["--stage"]) and
-                not result.args["--output-file"].lower().ends(".h64") {
+                not result.args["--output-file"].lower().ends(file_ext) {
             print(program_name + ": error: Expected "
-                "--output-file to be a .h64 file for this stage.")
+                "--output-file to be a " + file_ext +
+                " file for this stage.")
             print("Use " + program_name + " compile --help to show usage.")
             return later 1
         } elseif {"bytecode"}.has(
@@ -772,15 +783,18 @@ func actionparser_compile(args) {
     }
 }
 
-func main {
-    var defs = new argparse.ArgumentDefs(program_name="horsec")
+func do_main(is_morse64=no) {
+    var program_name = if is_morse64 ("morsec") else ("horsec")
+    var defs = new argparse.ArgumentDefs(
+        program_name=program_name
+    )
     defs.add_arg(
         "action", description="Pick an available actions: "
         "compile, run. To see details for an action, use it with --help "
-        "like e.g.: horsec compile --help")
+        "like e.g.: " + program_name + " compile --help")
     defs.add_catchall(
         "action args", description="List of "
-        "arguments for the specified action", can_be_empty=yes)
+        "arguments for the specified action.", can_be_empty=yes)
     defs.add_switch(
         "--license",
         description="Print out the program's licensing.",
@@ -798,22 +812,33 @@ func main {
     }
     if result.args["action"] == "compile" {
         var result = actionparser_compile(
-            result.args["action args"]
+            result.args["action args"],
+            is_morse64=is_morse64
         ) later:
 
         await result
-        return result
+        return later result
     }
     if result.args["action"] == "modinfo" {
         var result = actionparser_modinfo(
-            result.args["action args"]
+            result.args["action args"],
+            is_morse64=is_morse64
         ) later:
 
         await result
-        return result
+        return later result
     }
-    print("horsec: error: unknown action: " + result.args["action"])
-    print("Use horsec --help to show usage.")
-    return 1
+    print(program_name + ": error: unknown action: " +
+          result.args["action"])
+    print("Use " + program_name + " --help to show usage.")
+    return later 1
+}
+
+func main {
+    var result = do_main(is_morse64=no)
+    later:
+
+    await result
+    return later result
 }
 

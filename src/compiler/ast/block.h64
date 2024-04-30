@@ -29,6 +29,7 @@ import math from core.horse64.org
 
 import compiler.ast as ast
 import compiler.ast.invalid_stmt as invalid_stmt
+import compiler.build_options as build_options
 import compiler.msg as msg
 import compiler.token as token
 
@@ -61,8 +62,9 @@ func CodeBlockResult.copy {
     return self_copy
 }
 
-func parse(tokens, pos, msgs, project_file=none, debug=no,
-        had_damage=no, block_purpose_name="") {
+func parse(tokens, pos, msgs, project_file=none,
+        had_damage=no, block_purpose_name="",
+        debug=no) {
     var startpos = pos
     const tokens_len = tokens.len
     var result = new CodeBlockResult()
@@ -102,7 +104,7 @@ func parse(tokens, pos, msgs, project_file=none, debug=no,
     # Get code block contents:
     var contents = ast.parse_to_ast_ex(
         tokens, pos, project_file=project_file,
-        is_inside_block=yes, debug=debug
+        is_inside_block=yes, is_morse64=no, debug=debug
     ) later:
 
     await contents

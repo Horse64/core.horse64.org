@@ -1,5 +1,5 @@
-## @module compiler.build_options
-# Copyright (c) 2023-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+## @module compiler.morse64.main
+# Copyright (c) 2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -25,17 +25,13 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-enum OptimizationSetting {
-    OPTIMIZE_UNSPECIFIED=0,
-    OPTIMIZE_NONE=1,
-    OPTIMIZE_ALL_BUT_ASSERTS=2,
-    OPTIMIZE_ALL=3,
-}
+import compiler.main
 
-type BuildOptions {
-    var optimize_levels
-    var print_stages = no
-    var build_program_name = "horsec"
-    var is_morse64 = no
+func main {
+    var result = compiler.main.do_main(is_morse64=yes)
+    later:
+
+    await result
+    return later result
 }
 

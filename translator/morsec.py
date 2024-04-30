@@ -1,11 +1,11 @@
-## @module compiler.build_options
-# Copyright (c) 2023-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#!/usr/bin/env python3
+# Copyright (c) 2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 #
-# 1. Redistributions of source code must retain the above copyright notice,
-#    this list of conditions and the following disclaimer.
+# 1. Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
 # 2. Redistributions in binary form must reproduce the above copyright notice,
 #    this list of conditions and the following disclaimer in the documentation
 #    and/or other materials provided with the distribution.
@@ -25,17 +25,16 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-enum OptimizationSetting {
-    OPTIMIZE_UNSPECIFIED=0,
-    OPTIMIZE_NONE=1,
-    OPTIMIZE_ALL_BUT_ASSERTS=2,
-    OPTIMIZE_ALL=3,
-}
+import os
+import subprocess
+import sys
 
-type BuildOptions {
-    var optimize_levels
-    var print_stages = no
-    var build_program_name = "horsec"
-    var is_morse64 = no
-}
+my_dir = os.path.abspath(os.path.dirname(
+    os.path.realpath(__file__)
+))
+
+if __name__ == "__main__":
+    sys.path = [my_dir] + sys.path
+    import horsec
+    horsec.run_horsec(is_morsec=True)
 

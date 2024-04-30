@@ -346,7 +346,8 @@ var stmt_parse_funcs = [
 
 func parse_statement(
         tokens, pos, msgs, project_file=none,
-        prev_stmt_was_broken=no, debug=no,
+        prev_stmt_was_broken=no, is_morse64=no,
+        debug=no,
         ) {
     var remaining_funcs = stmt_parse_funcs.copy()
     if debug {
@@ -387,7 +388,8 @@ func parse_statement(
 
 func parse_to_ast_ex(
         tokens, pos, project_file=none,
-        is_inside_block=no, debug=no,
+        is_inside_block=no, is_morse64=is_morse64,
+        debug=no,
         ) {
     var result = new ASTResult()
     const startpos = pos
@@ -408,7 +410,8 @@ func parse_to_ast_ex(
     var stmt = parse_statement(
         tokens, pos, result.msgs, project_file=project_file,
         prev_stmt_was_broken=(result.stmts.len > 0 and
-            result.stmts[result.stmts.len].has_damage()), debug=debug
+            result.stmts[result.stmts.len].has_damage()),
+        is_morse64=is_morse64, debug=debug
     ) later:
 
     await stmt
@@ -431,7 +434,8 @@ func parse_to_ast_ex(
         if not is_inside_block {
             global_scope.process_toplevel_stmt(
                 result.global_scope, stmt, result.msgs,
-                project_file=project_file, debug=debug
+                project_file=project_file,
+                is_morse64=is_morse64, debug=debug
             )
         }
     }
@@ -449,16 +453,20 @@ func parse_to_ast_ex(
     stmt = parse_statement(
         tokens, pos, result.msgs, project_file=project_file,
         prev_stmt_was_broken=(result.stmts.len > 0 and
-            result.stmts[result.stmts.len].has_damage()), debug=debug
+            result.stmts[result.stmts.len].has_damage()),
+        is_morse64=is_morse64, debug=debug
     ) later repeat
 }
 
 func parse_to_ast(
-        tokens, project_file=none, debug=no
+        tokens, project_file=none, is_morse64=no,
+        debug=no
         ) {
     var contents = parse_to_ast_ex(
         tokens, 1, project_file=project_file,
-        is_inside_block=no, debug=debug
+        is_inside_block=no,
+        is_morse64=is_morse64,
+        debug=debug
     ) later:
 
     await contents
@@ -481,11 +489,12 @@ func _tokenize_code_line_for_ast(
         source, project_file=project_file, keep_whitespace=no
     )
     if tresult.project_file == none {
-        # This is usually the case for direct code,
+        # This is usually the case for direct inline code,
         # but we need one to do the import handling.
         tresult.project_file = new project.ProjectFile(
             source_uri=none, is_entrypoint=is_entrypoint,
             force_single_file=force_single_file,
+            is_morse64=no,
             request_debug_modules=debug_modules,
             request_debug_global_storage=debug_global_storage,
         )
@@ -512,9 +521,15 @@ func _tokenize_this_file_for_ast(
         is_entrypoint=yes, force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
         require_detect_project_dir=yes,
+        build_options=none,
         debug_modules=no, debug_global_storage=no,
         ) {
     if not source_is_uri {
+        if build_options != none and build_options.is_morse64 {
+            throw ValueError(
+                "Cannot use morse64 mode for inline code."
+            )
+        }
         var result = _tokenize_code_line_for_ast(
             source, project_file=project_file,
             is_entrypoint=is_entrypoint,
@@ -523,6 +538,7 @@ func _tokenize_this_file_for_ast(
             allow_vfs_access=allow_vfs_access,
             require_detect_project_dir=
                 require_detect_project_dir,
+            build_options=build_options,
             debug_modules=debug_modules,
             debug_global_storage=debug_global_storage,
         ) later:
@@ -538,6 +554,7 @@ func _tokenize_this_file_for_ast(
         keep_whitespace=no,
         require_detect_project_dir=
             require_detect_project_dir,
+        build_options=build_options,
         debug_modules=debug_modules,
         debug_global_storage=debug_global_storage
     ) later:
@@ -572,6 +589,7 @@ func _parse_tokens_file_to_ast_ex(
         force_single_file=force_single_file,
         require_detect_project_dir=
             require_detect_project_dir,
+        build_options=build_options,
         debug_modules=debug_modules,
         debug_global_storage=debug_global_storage,
     )
@@ -586,7 +604,10 @@ func _parse_tokens_file_to_ast_ex(
     }
     var aresult = parse_to_ast(
         tresult.tokens,
-        project_file=tresult.project_file, debug=debug
+        project_file=tresult.project_file,
+        is_morse64=(build_options != none and
+            build_options.is_morse64),
+        debug=debug
     ) later:
 
     await aresult

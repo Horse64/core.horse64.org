@@ -1449,6 +1449,7 @@ func tokenize_str(
         keep_comments=no,
         auto_recovery=yes,
         internal_labels=no,
+        is_morse64=no,
         _assume_previous_token=none,
         ) {
     var result = new TokensResult()
@@ -2025,7 +2026,8 @@ func tokenize_str(
 func tokenize_from_fileobj (
         fobj, project_file=none,
         keep_whitespace=no,
-        keep_comments=no
+        keep_comments=no,
+        is_morse64=no
         ) {
     var result = new TokensResult()
     var contents = fobj.read(
@@ -2049,7 +2051,8 @@ func tokenize_from_fileobj (
     result = tokenize_str(
         contents, project_file=project_file,
         keep_whitespace=keep_whitespace,
-        keep_comments=keep_comments
+        keep_comments=keep_comments,
+        is_morse64=is_morse64
     )
     return result
 }
@@ -2082,6 +2085,7 @@ func tokenize_from_uri(
         force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
         require_detect_project_dir=yes,
+        is_morse64=no,
         debug_modules=no, debug_global_storage=no
         ) {
     source_uri = uri.normalize(
@@ -2105,6 +2109,7 @@ func tokenize_from_uri(
             source_uri=source_uri,
             is_entrypoint=is_entrypoint,
             force_single_file=force_single_file,
+            is_morse64=is_morse64,
             request_debug_modules=debug_modules,
             request_debug_global_storage=debug_global_storage,
         )
@@ -2128,7 +2133,8 @@ func tokenize_from_uri(
         var result = tokenize_from_fileobj(fileobj,
             project_file=project_file,
             keep_whitespace=keep_whitespace,
-            keep_comments=keep_comments) later:
+            keep_comments=keep_comments,
+            is_morse64=is_morse64) later:
 
         await result
         result.msgs += early_msgs
