@@ -383,7 +383,8 @@ func parse_finally_clause(
     return later clause
 }
 
-func parse(tokens, pos, msgs, project_file=none, debug=no) {
+func parse(tokens, pos, msgs, project_file=none,
+           is_morse64=no, debug=no) {
     var stmt = new DoStmt()
     var tokens_len = tokens.len
     var startpos = pos

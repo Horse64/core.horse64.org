@@ -181,7 +181,8 @@ func FuncExtendStmt.as_code(indent=0) {
         self, is_extend=yes, indent=indent)
 }
 
-func parse(tokens, pos, msgs, project_file=none, debug=no) {
+func parse(tokens, pos, msgs, project_file=none,
+           is_morse64=no, debug=no) {
     var stmt
     var tokens_len = tokens.len
     var startpos = pos

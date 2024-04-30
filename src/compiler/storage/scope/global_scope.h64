@@ -269,7 +269,8 @@ func get_statement_global_names(statement) {
 
 func process_toplevel_stmt(
         scope, statement, msgs,
-        project_file=none, debug=no) {
+        project_file=none, is_morse64=no,
+        debug=no) {
     assert(statement != none)
     var names = get_statement_global_names(statement)
     if names.len == 0 {

@@ -42,6 +42,7 @@ import compiler.ast.if_stmt as if_stmt
 import compiler.ast.import_stmt as import_stmt
 import compiler.ast.invalid_stmt as invalid_stmt
 import compiler.ast.return_stmt as return_stmt
+import compiler.ast.struct_stmt as struct_stmt
 import compiler.ast.throw_stmt as throw_stmt
 import compiler.ast.type_stmt as type_stmt
 import compiler.ast.var_stmt as var_stmt
@@ -274,6 +275,7 @@ enum NodeKind {
     N_STMT_RETURN,
     N_STMT_IF,
     N_STMT_INVALID,
+    N_STMT_STRUCT,
 }
 
 type ASTResult {
@@ -342,6 +344,7 @@ var stmt_parse_funcs = [
     var_stmt.parse,
     break_stmt.parse,
     continue_stmt.parse,
+    struct_stmt.parse,
 ]
 
 func parse_statement(
@@ -382,6 +385,7 @@ func parse_statement(
     next_func = remaining_funcs.pop()
     stmt = next_func(
         tokens, pos, msgs, project_file=project_file,
+        is_morse64=is_morse64,
         debug=debug
     ) later repeat
 }
@@ -486,7 +490,8 @@ func _tokenize_code_line_for_ast(
             "to yes for inline code makes no sense.")
     }
     var tresult = token.tokenize_str(
-        source, project_file=project_file, keep_whitespace=no
+        source, project_file=project_file,
+        is_morse64=no, keep_whitespace=no
     )
     if tresult.project_file == none {
         # This is usually the case for direct inline code,
@@ -554,7 +559,8 @@ func _tokenize_this_file_for_ast(
         keep_whitespace=no,
         require_detect_project_dir=
             require_detect_project_dir,
-        build_options=build_options,
+        is_morse64=(build_options != none and
+            build_options.is_morse64),
         debug_modules=debug_modules,
         debug_global_storage=debug_global_storage
     ) later:

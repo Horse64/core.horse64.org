@@ -212,7 +212,8 @@ func check_call_or_assign_and_get_idx(
     return -1
 }
 
-func parse(tokens, pos, msgs, project_file=none, debug=no) {
+func parse(tokens, pos, msgs, project_file=none,
+           is_morse64=no, debug=no) {
     var tokens_len = tokens.len
     var startpos = pos
 

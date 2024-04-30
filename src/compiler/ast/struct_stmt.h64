@@ -1,0 +1,179 @@
+## @module compiler.ast.struct_stmt
+# Copyright (c) 2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+
+import math from core.horse64.org
+
+import compiler.ast as ast
+import compiler.ast.block as block
+import compiler.ast.expr as expr
+import compiler.ast.invalid_stmt as invalid_stmt
+import compiler.ast.type_stmt as type_stmt
+import compiler.msg as msg
+import compiler.token as token
+
+type StructStmt base ast.StmtNode {
+    var label
+}
+
+func StructStmt.init {
+    base.init()
+    self.kind = ast.N_STMT_STRUCT
+}
+
+func StructStmt.as_json_obj {
+    var output = base.as_json_obj()
+    output["label"] = self.label
+    return output
+}
+
+func StructStmt.as_code(indent=0) {
+    if self.damaged {
+        return " ".rep(indent) + "(damaged type)"
+    }
+    var t = " ".rep(indent) + "struct " + self.label
+    t += " {\n"
+    for stmt in self.subblocks[1] {
+        t += stmt.as_code(indent=(indent + 4)) + "\n"
+    }
+    t += " ".rep(indent) + "}"
+    return t
+}
+
+func parse_struct_header(
+        stmt, tokens, tokens_len, pos, msgs,
+        project_file=none, debug=no
+        ) {
+    var clausestartpos = pos
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_KEYWORD or
+            tokens[pos].str != "struct" {
+        return none
+    }
+    pos += 1  # Go past "struct"
+
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_IDENT {
+        if not stmt.has_damage() {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(tokens,
+                    pos) +
+                ", expected valid expression for struct "
+                "statement starting in line " +
+                token.get_line(tokens, clausestartpos).as_str() +
+                ", column " +
+                token.get_col(tokens, clausestartpos).as_str() + ".",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+        }
+        stmt.damaged = yes
+        var skiplen = math.max(1,
+            token.skip_in_broken_stmt_to_code_block(
+                tokens, pos, bracket_depth=0
+            ))
+        pos += skiplen
+        return (pos - clausestartpos)    
+    }
+    var struct_type_name = tokens[pos].str
+    stmt.label = struct_type_name
+    pos += 1
+
+    if pos <= tokens_len and (
+            tokens[pos].kind != token.T_ENCLOSE or
+            tokens[pos].str != "{") {
+        if not stmt.has_damage() {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(tokens,
+                    pos) +
+                ", expected '{' for code block "
+                "for struct statement starting in line " +
+                token.get_line(tokens,
+                    clausestartpos).as_str() +
+                ", column " +
+                token.get_col(tokens,
+                    clausestartpos).as_str() + ".",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+        }
+        stmt.damaged = yes
+        var skiplen = math.max(1,
+            token.skip_in_broken_stmt_to_code_block(
+                tokens, pos, bracket_depth=0
+            ))
+        pos += skiplen
+    }
+    return (pos - clausestartpos)
+}
+
+func parse(tokens, pos, msgs, project_file=none,
+           is_morse64=no, debug=no) {
+    var tokens_len = tokens.len
+    var startpos = pos
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_KEYWORD or
+            tokens[pos].str != "struct" {
+        return later none
+    }
+
+    var stmt = new StructStmt()
+    var headerlen = parse_struct_header(
+        stmt, tokens, tokens_len, pos, msgs,
+        project_file=project_file, debug=debug
+    )
+    if headerlen == none {
+        return later none
+    }
+    stmt.line = token.get_line(tokens, startpos)
+    stmt.col = token.get_col(tokens, startpos)
+    pos += headerlen
+
+    # Parse inner code block:
+    var block_result = block.parse(
+        tokens, pos, msgs, project_file=project_file,
+        debug=debug, had_damage=stmt.has_damage(),
+        block_purpose_name="for the struct "
+            "statement starting in "
+            "line " + token.get_line(tokens, startpos).as_str() +
+            ", column " + token.get_col(tokens, startpos).as_str()
+    ) later:
+
+    await block_result
+    if block_result.has_damage() {
+        stmt.damaged = yes
+    } elseif not stmt.damaged {
+        type_stmt.check_type_block_contents(stmt)
+    }
+    pos += block_result.token_len
+    stmt.subblocks.add(block_result.stmts)
+    stmt.token_len = (pos - startpos)
+    return later stmt
+}
+

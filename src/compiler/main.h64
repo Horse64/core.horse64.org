@@ -320,7 +320,7 @@ func actionparser_modinfo(args, is_morse64=no) {
     return 0
 }
 
-func actionparser_compile(args, is_morse64) {
+func actionparser_compile(args, is_morse64=no) {
     var program_name = if is_morse64 ("morsec") else ("horsec")
     var command_name = if is_morse64 ("morsec compile")
                        else ("horsec compile")

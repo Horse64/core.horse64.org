@@ -65,7 +65,8 @@ func AwaitStmt.as_code(indent=0) {
     return t
 }
 
-func parse(tokens, pos, msgs, project_file=none, debug=no) {
+func parse(tokens, pos, msgs, project_file=none,
+           is_morse64=no, debug=no) {
     var stmt = new AwaitStmt()
     var tokens_len = tokens.len
     var startpos = pos

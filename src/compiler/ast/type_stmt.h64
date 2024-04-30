@@ -328,7 +328,35 @@ func parse_extend_or_enum_or_type_header(
     return (pos - clausestartpos)
 }
 
-func parse(tokens, pos, msgs, project_file=none, debug=no) {
+func check_type_block_contents(type_obj) {
+    var stmt_name = "type"
+    if type_obj.kind == ast.N_STMT_TYPEEXTEND {
+        stmt_name = "extend type"
+    } elseif type_obj.kind == ast.N_STMT_STRUCT {
+        stmt_name = "struct"
+    }
+    for stmt in type_obj.subblocks[1] {
+        if stmt.kind != ast.N_STMT_VAR {
+            msgs.add(new msg.FileMsg(
+                "Unexpected statement of kind " +
+                    ast.NodeKind.num_label(stmt.kind) +
+                ", expected var statement inside "
+                "code block "
+                "for " + stmt_name + " statement starting in line " +
+                type_obj.line.as_str() +
+                ", column " +
+                type_obj.col.as_str() + ".",
+                source_file=project_file,
+                line=stmt.line,
+                col=stmt.col,
+            ))
+            stmt.damaged = yes
+        }
+    }
+}
+
+func parse(tokens, pos, msgs, project_file=none,
+           is_morse64=no, debug=no) {
     var tokens_len = tokens.len
     var startpos = pos
     if pos > tokens_len or
@@ -368,6 +396,8 @@ func parse(tokens, pos, msgs, project_file=none, debug=no) {
     await block_result
     if block_result.has_damage() {
         stmt.damaged = yes
+    } elseif not stmt.damaged {
+        check_type_block_contents(stmt)
     }
     pos += block_result.token_len
     stmt.subblocks.add(block_result.stmts)

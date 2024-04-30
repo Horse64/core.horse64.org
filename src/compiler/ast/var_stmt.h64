@@ -121,7 +121,8 @@ func VarStmt.as_code(indent=0) {
     return t
 }
 
-func parse(tokens, pos, msgs, project_file=none, debug=no) {
+func parse(tokens, pos, msgs, project_file=none,
+           is_morse64=no, debug=no) {
     var stmt = new VarStmt()
     var tokens_len = tokens.len
     var startpos = pos
