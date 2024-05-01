@@ -531,7 +531,7 @@ func _tokenize_this_file_for_ast(
         ) {
     if not source_is_uri {
         if build_options != none and build_options.is_morse64 {
-            throw ValueError(
+            throw new ValueError(
                 "Cannot use morse64 mode for inline code."
             )
         }

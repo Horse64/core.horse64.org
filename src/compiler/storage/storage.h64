@@ -25,6 +25,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import debugger from core.horse64.org
+
 import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
 import compiler.ast.expr as ast_expr
@@ -1048,7 +1050,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                             # Add symbol info to our clause:
                             if inner_scope.name_to_symbol_map.
                                     has(elabel) {
-                                symbol_info = inner_scope.
+                                var symbol_info = inner_scope.
                                     name_to_symbol_map[elabel]
                                 if clause.symbol_info == none {
                                     clause.symbol_info = []

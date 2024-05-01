@@ -173,7 +173,9 @@ func parse(tokens, pos, msgs, project_file=none,
     stmt.subblocks.add(block_result.stmts)
     stmt.token_len = (pos - startpos)
     if not stmt.damaged {
-        check_type_block_contents(stmt)
+        type_stmt.check_type_block_contents(
+            stmt, msgs, project_file=project_file
+        )
     }
     return later stmt
 }

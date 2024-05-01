@@ -328,7 +328,7 @@ func parse_extend_or_enum_or_type_header(
     return (pos - clausestartpos)
 }
 
-func check_type_block_contents(type_obj) {
+func check_type_block_contents(type_obj, msgs, project_file=none) {
     var stmt_name = "type"
     if type_obj.kind == ast.N_STMT_TYPEEXTEND {
         stmt_name = "extend type"
@@ -401,7 +401,9 @@ func parse(tokens, pos, msgs, project_file=none,
     stmt.subblocks.add(block_result.stmts)
     stmt.token_len = (pos - startpos)
     if not stmt.damaged {
-        check_type_block_contents(stmt)
+        check_type_block_contents(
+            stmt, msgs, project_file=project_file
+        )
     }
     return later stmt
 }

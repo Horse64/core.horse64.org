@@ -1441,7 +1441,7 @@ func first_pass_later_transform(
                             rclause.symbol_info.as_str() +
                             ", rclause=" +
                             rclause.as_str())
-                        throw RuntimeError("Rescue clause with "
+                        throw new RuntimeError("Rescue clause with "
                             "wrong symbol info, this shouldn't "
                             "ever happen. Please report this error "
                             "to the compiler team.")
@@ -2057,7 +2057,7 @@ func first_pass_later_transform(
                         final_call_args.line = node.line
                         final_call_args.col = node.col
                         final_call_args.subexprs = []
-                        var optoken = token.Token(
+                        var optoken = new token.Token(
                             '(', token.T_ENCLOSE, node.line, node.col
                         )
                         var final_call_expr = new ast_expr.BinopExpr(
@@ -2160,6 +2160,7 @@ func first_pass_later_transform(
 
                 # Construct call(s) that replace the original
                 # later calls:
+                var call_stmt_main_node
                 var call_stmt_nodes = []
                 var i = 1
                 while i <= call_exprs.len {
@@ -2173,12 +2174,13 @@ func first_pass_later_transform(
                             (func_node.label)
                     call_exprs[i].subexprs[2].
                         subexprs.add(continuation_idref)
-                    var call_stmt_node = new call_or_assign_stmt.CallStmt()
-                    call_stmt_node.scope = inner_scope
-                    call_stmt_node.line = node.line
-                    call_stmt_node.col = node.col
-                    call_stmt_node.subexprs.add(call_exprs[i])
-                    call_stmt_nodes.add(call_stmt_node)
+                    call_stmt_main_node =
+                        new call_or_assign_stmt.CallStmt()
+                    call_stmt_main_node.scope = inner_scope
+                    call_stmt_main_node.line = node.line
+                    call_stmt_main_node.col = node.col
+                    call_stmt_main_node.subexprs.add(call_exprs[i])
+                    call_stmt_nodes.add(call_stmt_main_node)
                     i += 1
                 }
                 var return_stmt_node = new return_stmt.ReturnStmt()
@@ -2267,8 +2269,8 @@ func first_pass_later_transform(
                     func_node.func_scope.later_transform_info.
                         _exit_info != none)
                 )
-                assert(func_node.scope == call_stmt_node.scope)
-                assert(not func_node.subblocks[1].has(call_stmt_node))
+                assert(func_node.scope == call_stmt_main_node.scope)
+                assert(not func_node.subblocks[1].has(call_stmt_main_node))
                 var parent = parents[parents.len]
                 var block = ast.get_node_parent_block(
                     node, parent
