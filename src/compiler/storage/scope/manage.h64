@@ -534,7 +534,7 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
     var base_escope_key = none
     if node.kind == ast.N_STMT_TYPE or
             node.kind == ast.N_STMT_ENUM {
-        # This is a self-contained original declaration and not an extends.
+        # This is a self-contained new declaration and not an extends.
         is_enum = if node.kind == ast.N_STMT_TYPE (no)
                   else (yes)
         stmt_full_type_path = "<inline>@<unknown>"
@@ -555,7 +555,7 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
         }
         stmt_label = node.label
 
-        # If this is a 'type' with a 'base', figure out what the base is:
+        # If it's a 'type' with a 'base', figure out what the base is:
         if node.kind == ast.N_STMT_TYPE and
                 node.subexprs.len >= 1 and
                 node.subexprs[1].kind == ast.N_EXPR_IDREF {
@@ -754,8 +754,8 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
     }
     if not self.project.type_or_enum_scope_map.has(key) {
         # Not seen before, therefore add a new definition:
-        result_scope = if not is_enum (new scope.TypeScope())
-                else (new scope.EnumScope())
+        result_scope = if not is_enum (new st_scope.TypeScope())
+                else (new st_scope.EnumScope())
         result_scope.display_name =
             "'" + stmt_label + "' from " +
             key.sub(1, key.rfind("@") - 1)

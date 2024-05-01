@@ -168,12 +168,13 @@ func parse(tokens, pos, msgs, project_file=none,
     await block_result
     if block_result.has_damage() {
         stmt.damaged = yes
-    } elseif not stmt.damaged {
-        type_stmt.check_type_block_contents(stmt)
     }
     pos += block_result.token_len
     stmt.subblocks.add(block_result.stmts)
     stmt.token_len = (pos - startpos)
+    if not stmt.damaged {
+        check_type_block_contents(stmt)
+    }
     return later stmt
 }
 
