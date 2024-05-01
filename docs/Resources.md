@@ -74,17 +74,30 @@ of the core projects are almost the same.
   project's code. **E.g. here's [horp's code](
   #horp).**
 
-- For dependencies, `horp license .` can help you list them.
+- For seeing all dependencies, `horp license .` can help you.
+
+  Example to check what the SDK includes:
+
+  1. [Download and extract the SDK source code](
+     https://codeberg.org/Horse64/sdk.horse64.org/archive/main.zip).
+
+  2. Make sure [**horp**](#horp) is available on your system.
+
+  3. Open a terminal, go into the extracted code folder, and run:
+
+     ```bash
+     horp license .
+     ```
 
 
 Standard library
 ----------------
 
 The standard library providing all the built-in functionality in
-the `core.horse64.org` can be found in the same location as
+the `core.horse64.org` can be found in the same repository as
 [horsec](#Horsec).
 
-- Get it by fetching the **SDK**.
+- Get it by fetching the [**SDK**](#sdk).
 
 - Find the [🧬 standard library code here](
   https://codeberg.org/Horse64/core.horse64.org/src/branch/main/src).
@@ -95,7 +108,7 @@ Horp
 
 This is the **Hor**se **p**ackage manager.
 
-- Get horp by fetching the **SDK**.
+- Get horp by fetching the [**SDK**](#sdk).
 
 - [Find the 🧬 horp code here](
   https://codeberg.org/Horse64/horp.horse64.org/).
