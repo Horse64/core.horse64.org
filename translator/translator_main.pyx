@@ -448,8 +448,14 @@ def ensure_type(
 
 
 def parse_type_import_ref(
-        ref, i, sc=None, is_func=False
+        ref, i, sc=None, is_func=False,
+        purpose="unknown", debug=False
         ):
+    if debug:
+        print("translator.py: debug: " +
+            "parse_type_import_ref(..." +
+            str(ref[max(0, i - 10):i + 10]) + "..., i=" + str(i) +
+            ", purpose='" + str(purpose) + "', ...)")
     assert(sc != None)
     assert(i >= 0)
     while (i < len(ref) and
@@ -491,6 +497,7 @@ def parse_type_import_ref(
             i2 += 2
             index_after += 2
         past_idx = i2 + 1
+        found = False
         for import_mod_name in sc.processed_imports:
             effective_name = import_mod_name
             if (sc.processed_imports
@@ -500,12 +507,22 @@ def parse_type_import_ref(
                         [import_mod_name]["rename"]
                 )
             if type_modpath == effective_name:
+                found = True
                 type_modpath = import_mod_name
                 type_package = sc.processed_imports\
                     [type_modpath]["package"]
                 type_python_module = sc.processed_imports[
                     type_modpath]["python-module"]
                 break
+        if not found and len(type_modpath) > 0:
+            raise ValueError(
+                "Encountered type import ref '" + type_modpath + "' "
+                "(type_name=" + str(type_name) + ", "
+                "purpose: " + str(purpose) + ") "
+                "without corresponding import in same code file (" +
+                sc.module_name + "): " +
+                str(sc.processed_imports.keys())
+            )
     if type_modpath == "":
         type_modpath = None
     if type_name != None and type_modpath is None:
@@ -1644,7 +1661,8 @@ def translate(s, sc):
                         sc.parent_statements[0],
                         nextnonblankidx(sc.parent_statements[0],
                             direct_parent_2nd_tok_idx),
-                        sc=sc, is_func=False)
+                        sc=sc, is_func=False,
+                        purpose="var statement inside 'extend type'")
                     type_name = type_info["type-name"]
                     type_module = type_info["modpath"]
                     type_package = type_info["package"]
@@ -2448,7 +2466,10 @@ def translate(s, sc):
             type_python_module = None
             start_arguments_idx = 3
             type_info = parse_type_import_ref(
-                statement, nameidx, sc=sc, is_func=True
+                statement, nameidx, sc=sc, is_func=True,
+                purpose="resolving extended type of " +
+                    ("'extend func' statement" if is_extend else
+                    "'func' statement")
             )
             type_module = type_info["modpath"]
             type_python_module = type_info["python-module"]
@@ -2582,6 +2603,7 @@ def translate(s, sc):
             statement_cpy = list(statement)
             namelbl = None
             is_extend = (statement[0] == "extend")
+            debug = False
 
             i = 0
             if not is_extend:
@@ -2613,7 +2635,12 @@ def translate(s, sc):
                 assert(i < len(statement))
                 assert(not is_extend or statement[i] != "type")
                 start_idx = i
-                type_info = parse_type_import_ref(statement, i, sc=sc)
+                type_info = parse_type_import_ref(statement, i, sc=sc,
+                    debug=debug,
+                    purpose="resolving extended type of " +
+                        ("'extend type' statement" if is_extend else
+                         "'base' of 'type' statement") +
+                        ", statement: " + str(statement[0:5]) + "...")
                 if is_extend:
                     type_module = type_info["modpath"]
                     type_python_module = type_info["python-module"]
