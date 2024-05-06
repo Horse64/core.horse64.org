@@ -16,7 +16,7 @@ indicated otherwise, licensed under the following **BSD-2-Clause
 license**:
 
 ```
-Copyright (c) 2020-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+Copyright (c) 2020-2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 
 
 Redistribution and use in source and binary forms, with or without
