@@ -42,11 +42,21 @@ import compiler.project as project
 import compiler.storage.scope
 import compiler.token
 
-func version_output_for_terminal {
-    return later "horsec v" + system.program_version + ", built by " +
+func version_output_for_terminal(is_morsec=no) {
+    var program_name = if is_morsec ("morsec") else ("horsec")
+    var t = program_name + " v" + system.program_version
+    prep{ if package.is_dep_in_pkg_mod_dir(
+              HORP_INFO_PROJECT_DIR, "horp.horse64.org"
+          ) }
+    t += ", built with horp support enabled"
+    prep{ else }
+    t += ", built without any horp support"
+    prep{ endif }
+    t += ", built by " +
         system.program_compiler_name + ", running on " +
         system.osname + ".\n" +
         "Copyright (c) 2020-2024, ellie/@ell1e & Horse64 authors."
+    return later t
 }
 
 func license_output_for_terminal {
@@ -795,14 +805,30 @@ func do_main(is_morse64=no) {
     defs.add_catchall(
         "action args", description="List of "
         "arguments for the specified action.", can_be_empty=yes)
+    func get_license_output {
+        var result = license_output_for_terminal(
+            is_morsec=is_morse64
+        ) later:
+
+        await result
+        return later result
+    }
     defs.add_switch(
         "--license",
         description="Print out the program's licensing.",
-        action_func=license_output_for_terminal)
+        action_func=get_license_output)
+    func get_version_output {
+        var result = version_output_for_terminal(
+            is_morsec=is_morse64
+        ) later:
+
+        await result
+        return later result
+    }
     defs.add_switch(
         "--version", aliases=["-V", "-version"],
         description="Print out the program version.",
-        action_func=version_output_for_terminal)
+        action_func=get_version_output)
     var result = argparse.parse(arg_defs=defs) later:
 
     await result

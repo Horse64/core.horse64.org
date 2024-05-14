@@ -58,6 +58,7 @@ type Project {
     var allow_disk_access = yes
     var allow_vfs_access = yes
     var is_morse64 = no
+    var file_ext = ".h64"
     var build_options = new build_options.BuildOptions()
 
     var debug_modules = no
@@ -310,10 +311,12 @@ const valid_source_nesting_dirs = {
 func check_valid_rel_module_path(modpath, msgs=none,
         orig_file_uri=none,
         is_import=yes, import_line=none, import_col=none,
-        packages_dir_was_trimmed=yes
+        packages_dir_was_trimmed=yes,
+        is_morse64=no
         ) {
-    if modpath.lower().ends(".h64") {
-        modpath = modpath.sub(1, modpath.len - ".h64".len)
+    var file_ext = if is_morse64 (".m64") else (".h64")
+    if modpath.lower().ends(file_ext) {
+        modpath = modpath.sub(1, modpath.len - file_ext.len)
     }
     if not packages_dir_was_trimmed and
             modpath.starts("horse_modules" + path.sep) {
@@ -348,7 +351,8 @@ func check_valid_rel_module_path(modpath, msgs=none,
                 cp <= 127 {
             if msgs != none {
                 var fake_source_file = new ProjectFile(
-                    source_uri=orig_file_uri)
+                    source_uri=orig_file_uri, is_morse64=is_morse64
+                )
                 if is_import {
                     msgs.add(new msg.FileMsg(
                         "Failed to process import due to invalid "
@@ -388,14 +392,20 @@ func Project.get_modinfo_for_file(file_uri, rel_path=none) {
                 "for file.")
         }
     }
-    if not rel_path.lower().endswith(".h64") {
-        throw new InvalidModuleNameError("Code files must have "
-            ".h64 file extension.")
+    if not rel_path.lower().endswith(self.file_ext) {
+        print(self.build_options.build_program_name +
+            ": error: Trying to get module info for invalid "
+            "target which doesn't have " + self.file_ext + " "
+            "file extension: " + rel_path.as_str())
+        throw new InvalidModuleNameError("Code files must have " +
+            "correct file extension.")
     }
-    var no_ext_rel_path = rel_path.sub(1, rel_path.len - ".h64".len)
+    var no_ext_rel_path =
+        rel_path.sub(1, rel_path.len - self.file_ext.len)
     if not check_valid_rel_module_path(rel_path,
             orig_file_uri=file_uri, is_import=no,
-            packages_dir_was_trimmed=no) {
+            packages_dir_was_trimmed=no,
+            is_morse64=self.is_morse64) {
         return none
     }
     var package_name = none
@@ -423,7 +433,8 @@ func Project.get_modinfo_for_file(file_uri, rel_path=none) {
                 uri.encode_path(component)
             )
         }
-        no_ext_rel_path = rel_path.sub(1, rel_path.len - ".h64".len)
+        no_ext_rel_path =
+            rel_path.sub(1, rel_path.len - self.file_ext.len)
     }
     module_name = no_ext_rel_path.replace(path.sep, ".")
     if module_name.split(".").has("horse_modules") {
@@ -819,6 +830,8 @@ type ProjectFile {
     var wants_debug_modules = no
     var wants_debug_global_storage = no
 
+    var is_morse64 protect = no
+
     ## @types (Project, none)
     var project protect = none
 
@@ -854,6 +867,8 @@ func ProjectFile.init(
     self.is_morse64 = is_morse64
     if self.is_morse64 and self.project != none {
         self.project.is_morse64 = yes
+        self.project.file_ext = ".h64"
+        self.project.build_options.is_morse64 = yes
     }
 }
 
@@ -1141,6 +1156,7 @@ func ProjectFile.ensure_project(msgs=none) {
         }
         if self.is_morse64 {
             self.project.is_morse64 = yes
+            self.project.file_ext = ".m64"
             self.project.build_options.is_morse64 = yes
         }
     }
@@ -1198,6 +1214,7 @@ func ProjectFile.get_relative_imports_to_test(
         import_line=none, import_col=none,
         is_cross_pkg_import=no, forbid_rel_import_root=no
         ) {
+    var file_ext = if self.is_morse64 (".m64") else (".h64")
     if external_package_name != none and (
             external_package_name.startswith(".") or
             external_package_name.endswith(".") or
@@ -1231,7 +1248,7 @@ func ProjectFile.get_relative_imports_to_test(
     while rel_path.starts(path.sep) {
         rel_path = rel_path.sub(2)
     }
-    if rel_path == "" or not rel_path.ends(".h64") {
+    if rel_path == "" or not rel_path.ends(file_ext) {
         return []
     }
     var package_dir_uri = self.project.packages_dir_uri
@@ -1269,18 +1286,19 @@ func ProjectFile.get_relative_imports_to_test(
         try_list += [
             prefix + full_original_import.join(path.sep) +
                 path.sep + full_original_import[
-                    full_original_import.len] + ".h64",
+                    full_original_import.len] + file_ext,
             prefix +
-                full_original_import.join(path.sep) + ".h64"
+                full_original_import.join(path.sep) + file_ext
         ]
         return try_list
     }
     try_list += [
-        prefix + folder_path + path.sep + full_original_import.join(path.sep) +
-            path.sep + full_original_import[
-                full_original_import.len] + ".h64",
         prefix + folder_path + path.sep +
-            full_original_import.join(path.sep) + ".h64"
+            full_original_import.join(path.sep) +
+            path.sep + full_original_import[
+                full_original_import.len] + file_ext,
+        prefix + folder_path + path.sep +
+            full_original_import.join(path.sep) + file_ext
     ]
 
     var i = levels_up
@@ -1295,12 +1313,13 @@ func ProjectFile.get_relative_imports_to_test(
                 prefix + folder_path + path.sep +
                     full_original_import.join(path.sep) +
                     path.sep + full_original_import[
-                        full_original_import.len] + ".h64",
+                        full_original_import.len] + file_ext,
                 prefix + folder_path + path.sep +
-                    full_original_import.join(path.sep) + ".h64"
+                    full_original_import.join(path.sep) + file_ext
             ]
         } else {
-            assert(folder_path.len > 0 and folder_path.find(path.sep) == none)
+            assert(folder_path.len > 0 and
+                   folder_path.find(path.sep) == none)
             var skip_because_source_folder = no
             if in_source_nesting_dir != none and
                     in_source_nesting_dir.lower() == folder_path.lower() {
@@ -1311,8 +1330,9 @@ func ProjectFile.get_relative_imports_to_test(
                 try_list += [
                     prefix + full_original_import.join(path.sep) +
                         path.sep + full_original_import[
-                            full_original_import.len] + ".h64",
-                    prefix + full_original_import.join(path.sep) + ".h64"
+                            full_original_import.len] + file_ext,
+                    prefix + full_original_import.join(path.sep) +
+                    file_ext
                 ]
             }
         }
@@ -1411,8 +1431,10 @@ type ProcessModuleFileResult {
 func add_neighbor_modules_to_result(
         result, file_uri, msgs=none,
         import_line=none, import_col=none,
+        is_morse64=no,
         debug=no
         ) {
+    var file_ext = if is_morse64 (".m64") else (".h64")
     assert(result.project_file.modinfo != none)
     var folder_uri = uri.dirname(file_uri)
     if not {"file", "vfs"}.has(uri.get_protocol(file_uri)) {
@@ -1432,7 +1454,7 @@ func add_neighbor_modules_to_result(
     }
     var is_vfs = (uri.get_protocol(file_uri) == "vfs")
     func process_neighbor_import(neighbor_file_name) {
-        if not neighbor_file_name.endswith(".h64") or
+        if not neighbor_file_name.endswith(file_ext) or
                 neighbor_file_name.startswith("test_") {
             return later
         }
@@ -1488,7 +1510,9 @@ func add_neighbor_modules_to_result(
             pfile = new ProjectFile(
                 source_uri=neighbor_uri, is_entrypoint=no,
                 force_single_file=no, project=result.project_file.project,
-                request_debug_modules=debug)
+                is_morse64=is_morse64,
+                request_debug_modules=debug
+            )
             project.module_uri_to_file_map[neighbor_uri] = pfile
             result.neighbor_project_files.add(pfile)
         } else {
@@ -1567,7 +1591,9 @@ func ProjectFile.process_first_working_module_file(
                     print("compiler.project: process_first_working_module_file() "
                         "discovered new module at: " + file_uri)
                 }
-                pfile = new ProjectFile(file_uri)
+                pfile = new ProjectFile(
+                    file_uri, is_morse64=self.is_morse64
+                )
                 pfile.project = self.project
                 self.project.module_uri_to_file_map[key] = pfile
             } else {
@@ -1581,7 +1607,8 @@ func ProjectFile.process_first_working_module_file(
 
             add_neighbor_modules_to_result(
                 result, file_uri, msgs=msgs, import_line=import_line,
-                import_col=import_col, debug=debug) later:
+                import_col=import_col, is_morse64=self.is_morse64,
+                debug=debug) later:
 
             return later result
         }
