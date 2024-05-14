@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Copyright (c) 2020-2024, ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -69,6 +69,8 @@ from translator_horphelpers import (
     horp_ini_string_get_package_version,
     horp_ini_string_get_package_license_files
 )
+
+import translator_preprocessor
 
 from translator_transformhelpers import (
     transform_h64_misc_inline_to_python,
@@ -3297,6 +3299,19 @@ def translate_do_func(
             import sys
             sys.exit(1)
         original_contents = contents
+        pkg_dir = project_info.repo_folder
+        pkg_src_dir = project_info.repo_folder
+        if len(project_info.code_relpath):
+            if not project_info.code_relpath.startswith("/"):
+                pkg_src_dir += "/"
+            pkg_src_dir += project_info.code_relpath
+        contents = translator_preprocessor.\
+            preprocess_file_in_translator(
+                contents, pkg_dir, pkg_src_dir,
+                project_info.repo_folder + "/horse_modules",
+                target_file,
+                modname, package_name, VERSION
+            )
         sanity_check_h64_codestring(contents, modname=modname,
             filename=target_file)
         stmt_list_uses_banned_things(contents)
