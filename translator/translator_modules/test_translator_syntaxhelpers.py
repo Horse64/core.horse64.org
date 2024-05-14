@@ -24,7 +24,6 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-
 import textwrap
 import unittest
 
@@ -41,7 +40,6 @@ from translator_syntaxhelpers import (
     expr_nonblank_equals, find_start_of_call_index_chain,
     is_identifier, make_kwargs_in_call_tailing, get_indent,
 )
-
 
 class TestTranslatorSyntaxHelpers(unittest.TestCase):
     def test_make_kwargs_in_call_tailing(self):
@@ -413,7 +411,6 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         self.assertTrue(untokenize(
             statements[0]).strip().endswith("2"
         ))
-
 
 if __name__ == '__main__':
     unittest.main()

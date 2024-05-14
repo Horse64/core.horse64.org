@@ -24,7 +24,6 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-
 import textwrap
 import unittest
 
@@ -43,7 +42,6 @@ from translator_latertransform import (
     transform_later_ifs_to_closures,
     is_func_a_later_func,
 )
-
 
 class TestTranslatorLaterTransform(unittest.TestCase):
     def test_transform_later_to_closure(self):
@@ -637,7 +635,6 @@ class TestTranslatorLaterTransform(unittest.TestCase):
         self.assertFalse(is_func_a_later_func(
             testcode, including_later_ignore=False
         ))
-
 
 if __name__ == '__main__':
     unittest.main()

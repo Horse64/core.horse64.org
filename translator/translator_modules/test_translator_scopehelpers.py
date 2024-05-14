@@ -24,7 +24,6 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-
 import textwrap
 import unittest
 
@@ -46,7 +45,6 @@ from translator_syntaxhelpers import (
     is_identifier,
     make_kwargs_in_call_tailing, get_indent,
 )
-
 
 class TestTranslatorSyntaxHelpers(unittest.TestCase):
     def test_get_global_standalone_func_names(self):
@@ -148,7 +146,6 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         self.assertEqual(result[0][0], "bla")
         self.assertEqual(result[1][0], "bla.blu")
         self.assertEqual(result[1][1], "bli.ble")
-
 
 if __name__ == '__main__':
     unittest.main()

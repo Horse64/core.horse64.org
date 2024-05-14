@@ -24,7 +24,6 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-
 import textwrap
 import unittest
 
@@ -43,7 +42,6 @@ from translator_transformhelpers import (
     apply_make_vec_call, vec_expr_len_if_any,
     apply_make_set_call, set_expr_len_if_any,
 )
-
 
 class TestTranslatorTransformHelpers(unittest.TestCase):
     def __init__(self, *args):
@@ -387,7 +385,6 @@ class TestTranslatorTransformHelpers(unittest.TestCase):
         tresult = transform_h64_misc_inline_to_python(t)
         self.assertTrue(expr_nonblank_equals(tresult, texpected),
             msg=("got " + tresult + ", expected: " + texpected))
-
 
 if __name__ == '__main__':
     unittest.main()
