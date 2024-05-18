@@ -1,4 +1,4 @@
-## @module compiler.morse64.main
+## @module compiler.moose64.main
 # Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -28,7 +28,7 @@
 import compiler.main
 
 func main {
-    var result = compiler.main.do_main(is_morse64=yes)
+    var result = compiler.main.do_main(is_moose64=yes)
     later:
 
     await result

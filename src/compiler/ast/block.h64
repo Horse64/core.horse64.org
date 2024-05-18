@@ -64,7 +64,7 @@ func CodeBlockResult.copy {
 
 func parse(tokens, pos, msgs, project_file=none,
         had_damage=no, block_purpose_name="",
-        is_morse64=no, debug=no) {
+        is_moose64=no, debug=no) {
     var startpos = pos
     const tokens_len = tokens.len
     var result = new CodeBlockResult()
@@ -104,7 +104,7 @@ func parse(tokens, pos, msgs, project_file=none,
     # Get code block contents:
     var contents = ast.parse_to_ast_ex(
         tokens, pos, project_file=project_file,
-        is_inside_block=yes, is_morse64=is_morse64,
+        is_inside_block=yes, is_moose64=is_moose64,
         debug=debug
     ) later:
 

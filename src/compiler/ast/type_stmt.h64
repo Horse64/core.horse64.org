@@ -356,7 +356,7 @@ func check_type_block_contents(type_obj, msgs, project_file=none) {
 }
 
 func parse(tokens, pos, msgs, project_file=none,
-           is_morse64=no, debug=no) {
+           is_moose64=no, debug=no) {
     var tokens_len = tokens.len
     var startpos = pos
     if pos > tokens_len or

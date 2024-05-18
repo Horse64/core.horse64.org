@@ -42,8 +42,8 @@ import compiler.project as project
 import compiler.storage.scope
 import compiler.token
 
-func version_output_for_terminal(is_morsec=no) {
-    var program_name = if is_morsec ("morsec") else ("horsec")
+func version_output_for_terminal(is_moosec=no) {
+    var program_name = if is_moosec ("moosec") else ("horsec")
     var t = program_name + " v" + system.program_version
     prep{ if package.is_dep_in_pkg_mod_dir(
               HORP_INFO_PROJECT_DIR, "horp.horse64.org"
@@ -261,11 +261,11 @@ func show_ast_or_global_scope_result_to_terminal_or_file(
     }
 }
 
-func actionparser_modinfo(args, is_morse64=no) {
-    var program_name = if is_morse64 ("morsec") else ("horsec")
-    var command_name = if is_morse64 ("morsec modinfo")
+func actionparser_modinfo(args, is_moose64=no) {
+    var program_name = if is_moose64 ("moosec") else ("horsec")
+    var command_name = if is_moose64 ("moosec modinfo")
                        else ("horsec modinfo")
-    var file_ext = if is_morse64 (".m64") else (".h64")
+    var file_ext = if is_moose64 (".m64") else (".h64")
     var defs = new argparse.ArgumentDefs(program_name=command_name)
     defs.add_arg(
         "module path",
@@ -300,7 +300,7 @@ func actionparser_modinfo(args, is_morse64=no) {
     var target = result.args["module path"]
     var pfile = new project.ProjectFile(
         target, request_debug_modules=result.args["--debug-modules"],
-        is_morse64=is_morse64
+        is_moose64=is_moose64
     )
     pfile.ensure_project() later:
     pfile.parse_for_imports_if_needed() later:
@@ -330,11 +330,11 @@ func actionparser_modinfo(args, is_morse64=no) {
     return 0
 }
 
-func actionparser_compile(args, is_morse64=no) {
-    var program_name = if is_morse64 ("morsec") else ("horsec")
-    var command_name = if is_morse64 ("morsec compile")
+func actionparser_compile(args, is_moose64=no) {
+    var program_name = if is_moose64 ("moosec") else ("horsec")
+    var command_name = if is_moose64 ("moosec compile")
                        else ("horsec compile")
-    var file_ext = if is_morse64 (".m64") else (".h64")
+    var file_ext = if is_moose64 (".m64") else (".h64")
     var defs = new argparse.ArgumentDefs(program_name=command_name)
     defs.add_arg(
         "source file", optional=yes,
@@ -433,7 +433,7 @@ func actionparser_compile(args, is_morse64=no) {
     boptions.optimize_level = build_options.OPTIMIZE_ALL_BUT_ASSERTS
     boptions.print_stages = result.args["--print-stages"]
     boptions.build_program_name = program_name
-    boptions.is_morse64 = is_morse64
+    boptions.is_moose64 = is_moose64
     var opt_is_single_file = no
     if result.args["--single-file"] or
             result.args["--code"] != none {
@@ -793,8 +793,8 @@ func actionparser_compile(args, is_morse64=no) {
     }
 }
 
-func do_main(is_morse64=no) {
-    var program_name = if is_morse64 ("morsec") else ("horsec")
+func do_main(is_moose64=no) {
+    var program_name = if is_moose64 ("moosec") else ("horsec")
     var defs = new argparse.ArgumentDefs(
         program_name=program_name
     )
@@ -807,7 +807,7 @@ func do_main(is_morse64=no) {
         "arguments for the specified action.", can_be_empty=yes)
     func get_license_output {
         var result = license_output_for_terminal(
-            is_morsec=is_morse64
+            is_moosec=is_moose64
         ) later:
 
         await result
@@ -819,7 +819,7 @@ func do_main(is_morse64=no) {
         action_func=get_license_output)
     func get_version_output {
         var result = version_output_for_terminal(
-            is_morsec=is_morse64
+            is_moosec=is_moose64
         ) later:
 
         await result
@@ -839,7 +839,7 @@ func do_main(is_morse64=no) {
     if result.args["action"] == "compile" {
         var result = actionparser_compile(
             result.args["action args"],
-            is_morse64=is_morse64
+            is_moose64=is_moose64
         ) later:
 
         await result
@@ -848,7 +848,7 @@ func do_main(is_morse64=no) {
     if result.args["action"] == "modinfo" {
         var result = actionparser_modinfo(
             result.args["action args"],
-            is_morse64=is_morse64
+            is_moose64=is_moose64
         ) later:
 
         await result
@@ -861,7 +861,7 @@ func do_main(is_morse64=no) {
 }
 
 func main {
-    var result = do_main(is_morse64=no)
+    var result = do_main(is_moose64=no)
     later:
 
     await result

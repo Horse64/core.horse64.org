@@ -57,7 +57,7 @@ type ModuleNotFoundError base ValueError {
 type Project {
     var allow_disk_access = yes
     var allow_vfs_access = yes
-    var is_morse64 = no
+    var is_moose64 = no
     var file_ext = ".h64"
     var build_options = new build_options.BuildOptions()
 
@@ -312,9 +312,9 @@ func check_valid_rel_module_path(modpath, msgs=none,
         orig_file_uri=none,
         is_import=yes, import_line=none, import_col=none,
         packages_dir_was_trimmed=yes,
-        is_morse64=no
+        is_moose64=no
         ) {
-    var file_ext = if is_morse64 (".m64") else (".h64")
+    var file_ext = if is_moose64 (".m64") else (".h64")
     if modpath.lower().ends(file_ext) {
         modpath = modpath.sub(1, modpath.len - file_ext.len)
     }
@@ -351,7 +351,7 @@ func check_valid_rel_module_path(modpath, msgs=none,
                 cp <= 127 {
             if msgs != none {
                 var fake_source_file = new ProjectFile(
-                    source_uri=orig_file_uri, is_morse64=is_morse64
+                    source_uri=orig_file_uri, is_moose64=is_moose64
                 )
                 if is_import {
                     msgs.add(new msg.FileMsg(
@@ -405,7 +405,7 @@ func Project.get_modinfo_for_file(file_uri, rel_path=none) {
     if not check_valid_rel_module_path(rel_path,
             orig_file_uri=file_uri, is_import=no,
             packages_dir_was_trimmed=no,
-            is_morse64=self.is_morse64) {
+            is_moose64=self.is_moose64) {
         return none
     }
     var package_name = none
@@ -830,7 +830,7 @@ type ProjectFile {
     var wants_debug_modules = no
     var wants_debug_global_storage = no
 
-    var is_morse64 protect = no
+    var is_moose64 protect = no
 
     ## @types (Project, none)
     var project protect = none
@@ -852,7 +852,7 @@ func ProjectFile.init(
         force_single_file=no, project=none,
         request_debug_modules=no,
         request_debug_global_storage=no,
-        is_morse64=no) {
+        is_moose64=no) {
     self.wants_debug_modules = request_debug_modules
     self.wants_debug_global_storage = request_debug_global_storage
     if source_uri != none {
@@ -864,11 +864,11 @@ func ProjectFile.init(
     if force_single_file {
         self._is_single_file = yes
     }
-    self.is_morse64 = is_morse64
-    if self.is_morse64 and self.project != none {
-        self.project.is_morse64 = yes
+    self.is_moose64 = is_moose64
+    if self.is_moose64 and self.project != none {
+        self.project.is_moose64 = yes
         self.project.file_ext = ".h64"
-        self.project.build_options.is_morse64 = yes
+        self.project.build_options.is_moose64 = yes
     }
 }
 
@@ -1154,10 +1154,10 @@ func ProjectFile.ensure_project(msgs=none) {
                 self.is_entrypoint {
             self.project.entrypoint_is_inline = yes
         }
-        if self.is_morse64 {
-            self.project.is_morse64 = yes
+        if self.is_moose64 {
+            self.project.is_moose64 = yes
             self.project.file_ext = ".m64"
-            self.project.build_options.is_morse64 = yes
+            self.project.build_options.is_moose64 = yes
         }
     }
     self.ensure_project_base_dir() later:
@@ -1214,7 +1214,7 @@ func ProjectFile.get_relative_imports_to_test(
         import_line=none, import_col=none,
         is_cross_pkg_import=no, forbid_rel_import_root=no
         ) {
-    var file_ext = if self.is_morse64 (".m64") else (".h64")
+    var file_ext = if self.is_moose64 (".m64") else (".h64")
     if external_package_name != none and (
             external_package_name.startswith(".") or
             external_package_name.endswith(".") or
@@ -1431,10 +1431,10 @@ type ProcessModuleFileResult {
 func add_neighbor_modules_to_result(
         result, file_uri, msgs=none,
         import_line=none, import_col=none,
-        is_morse64=no,
+        is_moose64=no,
         debug=no
         ) {
-    var file_ext = if is_morse64 (".m64") else (".h64")
+    var file_ext = if is_moose64 (".m64") else (".h64")
     assert(result.project_file.modinfo != none)
     var folder_uri = uri.dirname(file_uri)
     if not {"file", "vfs"}.has(uri.get_protocol(file_uri)) {
@@ -1510,7 +1510,7 @@ func add_neighbor_modules_to_result(
             pfile = new ProjectFile(
                 source_uri=neighbor_uri, is_entrypoint=no,
                 force_single_file=no, project=result.project_file.project,
-                is_morse64=is_morse64,
+                is_moose64=is_moose64,
                 request_debug_modules=debug
             )
             project.module_uri_to_file_map[neighbor_uri] = pfile
@@ -1592,7 +1592,7 @@ func ProjectFile.process_first_working_module_file(
                         "discovered new module at: " + file_uri)
                 }
                 pfile = new ProjectFile(
-                    file_uri, is_morse64=self.is_morse64
+                    file_uri, is_moose64=self.is_moose64
                 )
                 pfile.project = self.project
                 self.project.module_uri_to_file_map[key] = pfile
@@ -1607,7 +1607,7 @@ func ProjectFile.process_first_working_module_file(
 
             add_neighbor_modules_to_result(
                 result, file_uri, msgs=msgs, import_line=import_line,
-                import_col=import_col, is_morse64=self.is_morse64,
+                import_col=import_col, is_moose64=self.is_moose64,
                 debug=debug) later:
 
             return later result

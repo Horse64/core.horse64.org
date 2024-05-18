@@ -68,7 +68,7 @@ func WithStmt.as_code(indent=0) {
 }
 
 func parse(tokens, pos, msgs, project_file=none,
-           is_morse64=no, debug=no) {
+           is_moose64=no, debug=no) {
     var tokens_len = tokens.len
     var startpos = pos
 

@@ -958,7 +958,8 @@ func token_has_righthand(t) {
     if {T_MATH, T_UNARYMATH,
             T_BOOLCOMP, T_COMPARE,
             T_ASSIGN, T_MATHASSIGN,
-            T_MAPASSIGN, T_COMMA,
+            T_LEFTPTR,
+            T_RIGHTPTR, T_COMMA,
             T_DOT}.has(t.kind) {
         return yes
     }
@@ -980,7 +981,7 @@ func token_has_righthand(t) {
 func token_has_lefthand(t) {
     if {T_MATH, T_COMPARE,
             T_ASSIGN, T_MATHASSIGN,
-            T_MAPASSIGN, T_COMMA,
+            T_LEFTPTR, T_RIGHTPTR, T_COMMA,
             T_DOT}.has(t.kind) {
         return yes
     }
@@ -1123,7 +1124,8 @@ enum TokenKind {
     T_COMPARE,
     T_ASSIGN,
     T_MATHASSIGN,
-    T_MAPASSIGN,
+    T_LEFTPTR,
+    T_RIGHTPTR,
     T_COMMA,
     T_DOT,
     T_COLON,
@@ -1415,6 +1417,66 @@ func as_escaped_code_string(
     return new_s
 }
 
+## Figure out if any instance of <- is a T_LEFTPTR as used
+## for type annotations, or instead < - as used for "less
+## than" operator followed by a math negative sign.
+## @returns bool @{yes} if this is possibly T_LEFTPTR, @{no} if not.
+func is_leftptr_at_token_str_pos(
+        token_str, token_pos, past_tokens
+        ) {
+    var k = past_tokens.len
+    while k >= 1 {
+        var kind = past_tokens[k].kind
+        if {T_MATH, T_UNARYMATH, T_BOOL, T_NUM,
+                T_ASSIGN, T_MATHASSIGN
+                }.has(c) {
+            return no
+        }
+        if kind == T_IDENT and k > 1 and (
+                past_tokens[k - 1].kind == T_COMMA or
+                (past_tokens[k - 1].kind == T_KEYWORD and
+                {"var", "const"}.has(past_tokens[k - 1].str)
+                ) {
+            if past_tokens[k - 1].kind != T_COMMA {
+                return yes
+            }
+            var bracket_depth = 0
+            var z = k - 2
+            while z >= 1 {
+                if past_tokens[z].kind == T_ENCLOSE and
+                        {"(", "[", "{"}.has(past_tokens[z].kind) {
+                    bracket_depth -= 1
+                    if bracket_depth < -1 {
+                        return no
+                    }
+                } elseif past_tokens[z].kind == T_ENCLOSE and
+                        {")", "]", "}"}.has(past_tokens[z].kind) {
+                    bracket_depth += 1
+                }
+                if bracket_depth == 0 and
+                        past_tokens[z].kind == T_KEYWORD and
+                        {"var", "const"}.has(past_tokens[z].str) {
+                    return yes
+                }
+                if bracket_depth == -1 and
+                        past_tokens[z].kind == T_KEYWORD and
+                        {"func"}.has(past_tokens[z].str) {
+                    return yes
+                }
+                if bracket_depth <= 0 and
+                        _maybe_stmt_token_strs.has(
+                        past_tokens[z].str) {
+                    return no
+                }
+                z += 1
+            }
+            return no
+        }
+        k -= 1
+    }
+    return no
+}
+
 ## Tokenize the given Horse64 code string to proper tokens.
 ## If auto recovery is enabled and the user forgets to close
 ## brackets or terminate strings, `tokenize_str` might try to
@@ -1449,7 +1511,7 @@ func tokenize_str(
         keep_comments=no,
         auto_recovery=yes,
         internal_labels=no,
-        is_morse64=no,
+        is_moose64=no,
         _assume_previous_token=none,
         ) {
     var result = new TokensResult()
@@ -1495,9 +1557,21 @@ func tokenize_str(
 
         if i + 1 < strlen and c == "-" and
                 str[i + 1] == ">" {
-            # -> map operator
+            # -> map operator, or -> return type operator.
             result.tokens.add(new Token(
-                "->", T_MAPASSIGN, line, col
+                "->", T_RIGHTPTR, line, col
+            ))
+            i += 1
+            col += 1
+            continue
+        } elseif is_moose64 and i + 1 < strlen and
+                c == "<" and str[i + 1] == "-" and
+                is_leftptr_at_token_str_pos(
+                    str, i, result.tokens
+                ) {
+            # <- type assign operator.
+            result.tokens.add(new Token(
+                "<-", T_LEFTPTR, line, col
             ))
             i += 1
             col += 1
@@ -2027,7 +2101,7 @@ func tokenize_from_fileobj (
         fobj, project_file=none,
         keep_whitespace=no,
         keep_comments=no,
-        is_morse64=no
+        is_moose64=no
         ) {
     var result = new TokensResult()
     var contents = fobj.read(
@@ -2052,7 +2126,7 @@ func tokenize_from_fileobj (
         contents, project_file=project_file,
         keep_whitespace=keep_whitespace,
         keep_comments=keep_comments,
-        is_morse64=is_morse64
+        is_moose64=is_moose64
     )
     return result
 }
@@ -2085,7 +2159,7 @@ func tokenize_from_uri(
         force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
         require_detect_project_dir=yes,
-        is_morse64=no,
+        is_moose64=no,
         debug_modules=no, debug_global_storage=no
         ) {
     source_uri = uri.normalize(
@@ -2109,7 +2183,7 @@ func tokenize_from_uri(
             source_uri=source_uri,
             is_entrypoint=is_entrypoint,
             force_single_file=force_single_file,
-            is_morse64=is_morse64,
+            is_moose64=is_moose64,
             request_debug_modules=debug_modules,
             request_debug_global_storage=debug_global_storage,
         )
@@ -2134,7 +2208,7 @@ func tokenize_from_uri(
             project_file=project_file,
             keep_whitespace=keep_whitespace,
             keep_comments=keep_comments,
-            is_morse64=is_morse64) later:
+            is_moose64=is_moose64) later:
 
         await result
         result.msgs += early_msgs
