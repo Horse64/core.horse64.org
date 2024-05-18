@@ -1436,7 +1436,7 @@ func is_leftptr_at_token_str_pos(
                 past_tokens[k - 1].kind == T_COMMA or
                 (past_tokens[k - 1].kind == T_KEYWORD and
                 {"var", "const"}.has(past_tokens[k - 1].str)
-                ) {
+                )) {
             if past_tokens[k - 1].kind != T_COMMA {
                 return yes
             }
