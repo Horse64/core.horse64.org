@@ -36,5 +36,5 @@ my_dir = os.path.abspath(os.path.dirname(
 if __name__ == "__main__":
     sys.path = [my_dir] + sys.path
     import horsec
-    horsec.run_horsec(is_morsec=True)
+    horsec.run_horsec(is_moosec=True)
 

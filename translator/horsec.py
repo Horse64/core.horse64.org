@@ -33,7 +33,7 @@ my_dir = os.path.abspath(os.path.dirname(
     os.path.realpath(__file__)
 ))
 
-def run_horsec(is_morsec=False):
+def run_horsec(is_moosec=False):
     args = sys.argv[1:]
     use_paranoid_translator = False
     use_debug = False
@@ -60,9 +60,9 @@ def run_horsec(is_morsec=False):
             break
     compiler_path = os.path.join(my_dir, "..",
         "src", "compiler", "main.h64")
-    if is_morsec:
+    if is_moosec:
         compiler_path = os.path.join(my_dir, "..",
-            "src", "compiler", "morse64", "main.h64")
+            "src", "compiler", "moose64", "main.h64")
     process = subprocess.Popen([
         sys.executable,
         os.path.join(my_dir, "translator.py")] +
