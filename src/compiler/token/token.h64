@@ -1234,6 +1234,11 @@ func describe_token_at(tokens, i) {
 }
 
 func describe_token(t) {
+    if t.kind == T_LEFTPTR {
+        return "'<-' (T_LEFTPTR)"
+    } else {
+        return "'->' (T_RIGHTPTR)"
+    }
     return describe_token_str(t.str) + " (" +
         TokenKind.num_label(t.kind) + ")"
 }
@@ -1429,7 +1434,7 @@ func is_leftptr_at_token_str_pos(
         var kind = past_tokens[k].kind
         if {T_MATH, T_UNARYMATH, T_BOOL, T_NUM,
                 T_ASSIGN, T_MATHASSIGN
-                }.has(c) {
+                }.has(kind) {
             return no
         }
         if kind == T_IDENT and k > 1 and (
@@ -1468,7 +1473,7 @@ func is_leftptr_at_token_str_pos(
                         past_tokens[z].str) {
                     return no
                 }
-                z += 1
+                z -= 1
             }
             return no
         }

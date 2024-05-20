@@ -726,10 +726,15 @@ func Project.find_package_dir_uri(package_name,
         var modules_in_vfs =
             (uri.get_protocol(base_uri) == "vfs")
         var file_names = io.list_dir(modules_path,
-            allow_vfs=modules_in_vfs, allow_disk=not modules_in_vfs)
+            allow_vfs=modules_in_vfs, allow_disk=not modules_in_vfs
+        )
         later:
 
-        await file_names
+        do {
+            await file_names
+        } rescue io.PathNotFoundError {
+            return later none
+        }
         if not file_names.has(package_name) {
             return later none
         }
@@ -1120,6 +1125,10 @@ func Project.ensure_builtin_cexts(
         msgs=none, debug_modules=no, debug_global_storage=no
         ) {
     if self.builtin_cexts != none {
+        return later
+    }
+    if self.is_moose64 {
+        self.builtin_cexts = cext.return_empty_cext_info()
         return later
     }
     if self.package_name_to_cext.has("core.horse64.org") {

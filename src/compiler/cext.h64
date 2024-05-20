@@ -487,6 +487,11 @@ func CExtInfo.finalize_after_scan(project, msgs) {
     }
 }
 
+func return_empty_cext_info {
+    var cext_info = new CExtInfo()
+    return cext_info
+}
+
 func scan_package_for_cexts(
         base_project, package_name, msgs=none,
         allow_project_independent_packages_fallback=no,
