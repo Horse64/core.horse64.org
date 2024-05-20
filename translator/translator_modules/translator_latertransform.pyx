@@ -508,7 +508,7 @@ def transform_later_to_closure_funccontents(
                     do_range = brange
                 if len(brange) >= 3 and brange[2] == "rescue":
                     cinfo_insert[0] = (
-                        "_rescuefun" + str(
+                        "_rescuelaterfun" + str(
                             uuid.uuid4()).replace("-", ""),
                         increase_indent(
                             st[brange[0]:brange[1]],
@@ -1240,7 +1240,8 @@ def stmt_inner_blocks_use_later(
     return False
 
 def is_func_a_later_func(
-        st, including_later_ignore=False
+        st, including_later_ignore=False,
+        exclude_added_later_funcs=False
         ):
     if type(st) == str:
         st = tokenize(st)
@@ -1256,7 +1257,10 @@ def is_func_a_later_func(
     result = stmt_inner_blocks_use_later(
         st, including_later_ignore=
             including_later_ignore)
-    #func_name = nextnonblank(st, firstnonblankidx(st))
+    func_name = nextnonblank(st, firstnonblankidx(st))
+    if exclude_added_later_funcs:
+        if func_name.startswith("_rescuelaterfun"):
+            return False
     return result
 
 def transform_later_to_closure_unnested(
@@ -1272,7 +1276,8 @@ def transform_later_to_closure_unnested(
         st_orig = list(st)
 
         if not is_func_a_later_func(st,
-                including_later_ignore=True):
+                including_later_ignore=True,
+                exclude_added_later_funcs=True):
             new_sts.append(st)
             continue
         callback_name = ("_later_cb" +
