@@ -73,6 +73,10 @@ const _maybe_stmt_token_strs = {
     "enum", "extend"
 }
 
+const _maybe_stmt_token_strs_moose64 = {
+    "union", "struct"
+}
+
 const _guaranteed_outer_scope_tokens = {
     "type", "import", "enum", "extend"
 }
@@ -88,6 +92,16 @@ const special_words = {
     "repeat", "elseif", "else", "ignore", "enum",
     # These are not returned as keywords, but still special words:
     "none", "yes", "no", "and", "or", "not", "new",
+}
+
+func is_maybe_token_str(s, is_moose64=no) {
+    if _maybe_stmt_token_strs.has(s) {
+        return yes
+    }
+    if is_moose64 and _maybe_stmt_token_strs_moose64.has(s) {
+        return yes
+    }
+    return no
 }
 
 func is_minus_after_this_token_unary(t) {
@@ -511,7 +525,7 @@ func token_list_from_str_list(strlist, internal_labels=no) {
 ##   `start_pos`.
 func get_naive_stmt_or_expr_len(
         tokens, start_pos, bracket_depth=0, max_len=none,
-        for_expr=no
+        for_expr=no, is_moose64=no
         ) {
     if bracket_depth < 0 {
         throw new ValueError("Initial bracket_depth must "
@@ -534,7 +548,7 @@ func get_naive_stmt_or_expr_len(
             bracket_depth > 0 or
             i == start_pos or
             not can_stmt_or_expr_end_before_token(
-            tokens, i, for_expr=for_expr
+            tokens, i, for_expr=for_expr, is_moose64=is_moose64
             )) {
         if tokens[i].kind == T_COMMA and
                 bracket_depth == 0 and for_expr {
@@ -577,7 +591,9 @@ func get_naive_stmt_or_expr_len(
 ## @returns num Returns the index of the first token
 ##   no longer part of the conditional for an inline if,
 ##   otherwise -1.
-func get_inline_if_conditional_end(tokens, pos, max_len=none) {
+func get_inline_if_conditional_end(
+        tokens, pos, max_len=none, is_moose64=no
+        ) {
     var token_len = tokens.len
     const startpos = pos
     if max_len != none and max_len < token_len {
@@ -634,8 +650,8 @@ func get_inline_if_conditional_end(tokens, pos, max_len=none) {
                         pos -= 1
                     }
                     return -1
-                } elseif _maybe_stmt_token_strs.has(
-                        tokens[pos].str) and
+                } elseif is_maybe_token_str(
+                        tokens[pos].str, is_moose64=is_moose64) and
                         not {"func", "if"}.has(tokens[pos].str) {
                     return -1
                 }
@@ -664,7 +680,7 @@ func get_inline_if_conditional_end(tokens, pos, max_len=none) {
 ## @param t (Token or str) The token to be pondered as a 'return'
 ##   argument
 ## @returns bool @{yes|Yes} if it's a return argument, @{no} if not
-func token_is_consumed_by_return_simple(t) {
+func token_is_consumed_by_return_simple(t, is_moose64=no) {
     if typename(t) == "str" {
         var result = tokenize_str(
             t, keep_whitespace=no,
@@ -681,7 +697,7 @@ func token_is_consumed_by_return_simple(t) {
         return {"{", "(", "["}.has(t.str)
     }
     if t.kind == T_KEYWORD and
-            _maybe_stmt_token_strs.has(t.str) and
+            is_maybe_token_str(t.str, is_moose64=is_moose64) and
             t.str != "func" and t.str != "if" {
         return no
     }
@@ -699,7 +715,9 @@ func token_is_consumed_by_return_simple(t) {
 ## @param max_len The maximum length for the tokens list
 ##     that is considered as reachable, checkable range.
 ## @returns bool @{yes|Yes} if it's a return argument, @{no} if not
-func check_tokens_consumed_by_return(tokens, pos, max_len=none) {
+func check_tokens_consumed_by_return(
+        tokens, pos, max_len=none, is_moose64=no
+        ) {
     if max_len == none or max_len > tokens.len {
         max_len = tokens.len
     }
@@ -707,7 +725,9 @@ func check_tokens_consumed_by_return(tokens, pos, max_len=none) {
     if pos > tokens_len {
         return no
     }
-    if not token_is_consumed_by_return_simple(tokens[pos]) {
+    if not token_is_consumed_by_return_simple(
+            tokens[pos], is_moose64=is_moose64
+            ) {
         return no
     }
     if tokens[pos].kind == T_IDENT {
@@ -731,7 +751,7 @@ func check_tokens_consumed_by_return(tokens, pos, max_len=none) {
 ## @returns bool @{yes} If statement ends before specified token,
 ##   @{no} if it continues further and includes the specified token.
 func can_stmt_or_expr_end_before_token(
-        tokens, tok_pos, for_expr=no
+        tokens, tok_pos, for_expr=no, is_moose64=no
         ) {
     if tok_pos > tokens.len {
         return yes
@@ -757,7 +777,9 @@ func can_stmt_or_expr_end_before_token(
     }
     if tokens[tok_pos - 1].kind == T_KEYWORD and
             {"return", "throw"}.has(tokens[tok_pos - 1]) {
-        if check_tokens_consumed_by_return(tokens, tok_pos) {
+        if check_tokens_consumed_by_return(
+                tokens, tok_pos, is_moose64=is_moose64
+                ) {
             return no
         }
         return yes
@@ -773,7 +795,9 @@ func can_stmt_or_expr_end_before_token(
         } elseif tok_pos >= 3 and
                 tokens[tok_pos - 2].kind == T_KEYWORD and
                 tokens[tok_pos - 2].str == "return" and
-                check_tokens_consumed_by_return(tokens, tok_pos) {
+                check_tokens_consumed_by_return(
+                    tokens, tok_pos, is_moose64=is_moose64
+                ) {
             return no
         }
         return yes
@@ -863,7 +887,7 @@ func skip_garbage_to_closing_item(
 ## or `max_len + 1` if a maximum length is supplied, whichever
 ## is smaller.
 func skip_code_block_if_any(
-        tokens, startpos, max_len=none
+        tokens, startpos, max_len=none, is_moose64=no
         ) {
     var token_len = tokens.len
     if max_len != none and max_len < token_len {
@@ -897,7 +921,8 @@ func skip_code_block_if_any(
             }
         }
         var skiplen = get_naive_stmt_or_expr_len(
-            tokens, pos, bracket_depth=block_depth
+            tokens, pos, bracket_depth=block_depth,
+            is_moose64=is_moose64
         )
         pos += skiplen
         if pos > token_len {
@@ -911,7 +936,8 @@ func skip_code_block_if_any(
 ## try to skip the broken stuff until we reach a code block
 ## or until the most likely ending point if it's incomplete.
 func skip_in_broken_stmt_to_code_block(
-        tokens, startpos, bracket_depth=0, max_len=none
+        tokens, startpos, bracket_depth=0, max_len=none,
+        is_moose64=no
         ) {
     var token_len = tokens.len
     if max_len != none and max_len < token_len {
@@ -920,7 +946,8 @@ func skip_in_broken_stmt_to_code_block(
     var pos = startpos
     while yes {
         var skiplen = get_naive_stmt_or_expr_len(
-            tokens, pos, bracket_depth=bracket_depth
+            tokens, pos, bracket_depth=bracket_depth,
+            is_moose64=is_moose64
         )
         var skipto = pos + math.max(1, skiplen) - 1
         while pos <= skipto {
@@ -1012,7 +1039,7 @@ func is_special_word(value, is_moose64=no) {
             value.kind == T_NONE or
             value.kind == T_BOOLCOMP
     }
-    if is_moose64 and value == "c_import" {
+    if is_moose64 and {"c_import", "struct"}.has(value) {
         return yes
     }
     return special_words.has(value)

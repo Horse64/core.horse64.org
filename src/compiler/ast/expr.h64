@@ -397,20 +397,22 @@ func parse_container_entry(
 
 func parse_expression(
         tokens, pos, msgs, project_file=none,
-        max_len=none, debug=no
+        max_len=none, is_moose64=no, debug=no
         ) {
     var result = _parse_expression_notlater(
         tokens, pos, 0, msgs, project_file=project_file,
-        max_len=max_len, debug=debug
+        max_len=max_len, is_moose64=is_moose64, debug=debug
         )
     # XXX: If we ever support inline code blocks, they will
-    # have to be handled here.
+    # have to be handled here. This is because the statement
+    # parser uses later calls, while the regular expression parser
+    # does not.
     return later result
 }
 
 func _parse_expression_notlater(
         tokens, pos, nesting_depth, msgs, project_file=none,
-        max_len=none, debug=no
+        max_len=none, is_moose64=no, debug=no
         ) {
     nesting_depth += 1
     if nesting_depth > climit.max_expression_nesting {
@@ -447,7 +449,8 @@ func _parse_expression_notlater(
         var wrapping_expr = parse_expression_unwrapped(
             tokens, pos, nesting_depth, msgs,
             project_file=project_file, left_hand=inner_expr,
-            max_len=tokens_len, debug=debug
+            max_len=tokens_len, is_moose64=is_moose64,
+            debug=debug
         )
 
         if debug {
@@ -484,7 +487,8 @@ func _parse_expression_notlater(
 
 func parse_expression_unwrapped(
         tokens, pos, nesting_depth, msgs, project_file=none,
-        left_hand=none, max_len=none, debug=no
+        left_hand=none, max_len=none, is_moose64=no,
+        debug=no
         ) {
     var startpos = pos
     var startline = token.get_line(tokens, startpos)
@@ -589,7 +593,7 @@ func parse_expression_unwrapped(
                 var preskippos = pos
                 var skiplen = token.get_naive_stmt_or_expr_len(
                     tokens, pos, max_len=tokens_len,
-                    for_expr=yes
+                    for_expr=yes, is_moose64=is_moose64
                 )
                 inner_expr = new InvalidExpr(skiplen)
                 inner_expr.line = token.get_line(
@@ -861,7 +865,7 @@ func parse_expression_unwrapped(
             tokens[pos].str == "if" {
         var if_idx = pos
         var past_cond_idx = token.get_inline_if_conditional_end(
-            tokens, pos, max_len=tokens_len
+            tokens, pos, max_len=tokens_len, is_moose64=is_moose64
         )
         assert(past_cond_idx <= tokens_len)
         if past_cond_idx >= 1 {  # This means it's an actual inline 'if'.
@@ -1070,7 +1074,7 @@ func parse_expression_unwrapped(
             ))
             var skiplen = token.get_naive_stmt_or_expr_len(
                 tokens, pos, max_len=tokens_len,
-                for_expr=yes
+                for_expr=yes, is_moose64=is_moose64
             )
             if skiplen < 1 {
                 skiplen = 1
@@ -1203,7 +1207,7 @@ func parse_expression_unwrapped(
                     # Go past whatever nonsense we can't parse:
                     var skiplen = token.get_naive_stmt_or_expr_len(
                         tokens, pos, max_len=tokens_len,
-                        for_expr=yes
+                        for_expr=yes, is_moose64=is_moose64
                     )
                     node.subexprs.add(new InvalidExpr(skiplen))
                     pos += skiplen
@@ -1300,7 +1304,8 @@ func parse_expression_unwrapped(
         var outer_level_ops_at = []  # Positions of all ops in this expr.
         var outer_level_ops_exprs = {->}  # Map of op pos to expr node.
         var expr_len = token.get_naive_stmt_or_expr_len(
-            tokens, pos, max_len=tokens_len, for_expr=yes
+            tokens, pos, max_len=tokens_len, for_expr=yes,
+            is_moose64=is_moose64
         )
         assert(expr_len + pos - 1 <= tokens_len)
         tokens_len = pos + math.max(0, expr_len - 1)

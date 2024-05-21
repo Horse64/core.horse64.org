@@ -112,7 +112,8 @@ func parse(tokens, pos, msgs, project_file=none,
     if contents == none {
         contents = new invalid_stmt.InvalidStmt()
         var skiplen = token.get_naive_stmt_or_expr_len(
-            tokens, pos, bracket_depth=0, for_expr=no
+            tokens, pos, bracket_depth=0, for_expr=no,
+            is_moose64=is_moose64
         )
         contents.token_len = pos + skiplen
     }

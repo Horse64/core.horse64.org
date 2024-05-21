@@ -129,7 +129,8 @@ func parse_next_ifelse_clause_header(
                 col=token.get_col(tokens, pos),
             ))
             var skiplen = token.get_naive_stmt_or_expr_len(
-                tokens, startpos, bracket_depth=0
+                tokens, startpos, bracket_depth=0,
+                is_moose64=is_moose64
             )
             var invalid_st = new expr.InvalidExpr(
                 skiplen
@@ -150,8 +151,8 @@ func parse_next_ifelse_clause_header(
     pos += 1
 
     var v = expr.parse_expression(
-        tokens, pos, msgs, debug=debug,
-        project_file=project_file
+        tokens, pos, msgs, project_file=project_file,
+        is_moose64=is_moose64, debug=debug
     ) later:
 
     await v

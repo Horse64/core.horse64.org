@@ -88,7 +88,7 @@ func parse(tokens, pos, msgs, project_file=none,
     pos += 1
 
     var v = expr.parse_expression(
-        tokens, pos, msgs,
+        tokens, pos, msgs, is_moose64=is_moose64,
         project_file=project_file
     ) later:
 
@@ -113,7 +113,8 @@ func parse(tokens, pos, msgs, project_file=none,
         stmt.damaged = yes
         if v == none {
             var skiplen = token.get_naive_stmt_or_expr_len(
-                tokens, pos - 1, bracket_depth=0, for_expr=no
+                tokens, pos - 1, bracket_depth=0, for_expr=no,
+                is_moose64=is_moose64
             )
             v = new expr.InvalidExpr(skiplen)
         }

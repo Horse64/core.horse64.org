@@ -228,7 +228,7 @@ func parse(tokens, pos, msgs, project_file=none,
                 tokens, pos - 1, bracket_depth=0
             ) - 1)
         skiplen += token.skip_code_block_if_any(
-            tokens, pos + skiplen
+            tokens, pos + skiplen, is_moose64=is_moose64
         )
         pos += skiplen
         var invalid_st = new invalid_stmt.InvalidStmt(

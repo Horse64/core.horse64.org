@@ -106,7 +106,8 @@ func parse(tokens, pos, msgs, project_file=none,
             col=token.get_col(tokens, pos),
         ))
         var skiplen = token.get_naive_stmt_or_expr_len(
-            tokens, startpos, bracket_depth=0, for_expr=no
+            tokens, startpos, bracket_depth=0, for_expr=no,
+            is_moose64=is_moose64
         )
         assert(skiplen > 0)
         var invalid_st = new invalid_stmt.InvalidStmt(skiplen)
@@ -151,7 +152,8 @@ func parse(tokens, pos, msgs, project_file=none,
             ))
             var skiplen = math.max(1,
                 token.get_naive_stmt_or_expr_len(
-                    tokens, pos - 1, bracket_depth=0, for_expr=no
+                    tokens, pos - 1, bracket_depth=0, for_expr=no,
+                    is_moose64=is_moose64
                 ) - 1)
             assert(skiplen > 0)
             stmt.token_len = (pos - startpos) + skiplen

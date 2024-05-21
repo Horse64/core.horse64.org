@@ -139,7 +139,7 @@ func parse(tokens, pos, msgs, project_file=none,
     # Try to parse with statement expression:
     var with_expr = expr.parse_expression(
         tokens, with_expr_start, msgs,
-        project_file=project_file,
+        project_file=project_file, is_moose64=is_moose64,
         max_len=pos
     ) later:
 

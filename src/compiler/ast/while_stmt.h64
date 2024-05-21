@@ -83,7 +83,7 @@ func parse(tokens, pos, msgs, project_file=none,
 
     # Get the conditional expression of the for loop:
     var v = expr.parse_expression(
-        tokens, pos, msgs,
+        tokens, pos, msgs, is_moose64=is_moose64,
         project_file=project_file
     ) later:
 

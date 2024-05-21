@@ -41,7 +41,9 @@ type VarStmt base ast.StmtNode {
     var has_later_ignore = no
     var has_later_repeat = no
     var var_labels = []
-    var var_has_protect = []
+    var has_protect = no
+    var type_path = none
+    var type_label = none
 
     var initial_value_known = no
     var initial_value
@@ -61,17 +63,16 @@ func VarStmt.copy {
         self_copy.var_labels.add(label)
     }
     self_copy.var_has_protect = []
-    for has_protect in self.var_has_protect {
-        self_copy.var_has_protect.add(has_protect)
-    }
     return self_copy
 }
 
 func VarStmt.as_json_obj {
     var output = base.as_json_obj()
     output["is_const"] = self.is_const
-    output["var_labels"] = self.var_labels
-    output["var_has_protect"] = self.var_has_protect
+    output["var_labels"] = self.var_labels.copy()
+    if self.has_protect {
+        output["has_protect"] = yes
+    }
     if self.has_later {
         output["has_later"] = yes
     }
@@ -80,6 +81,13 @@ func VarStmt.as_json_obj {
     }
     if self.has_later_repeat {
         output["has_later_repeat"] = yes
+    }
+    if self.type_path != none and
+            self.type_path.len > 0 {
+        output["type_path"] = self.type_path.copy()
+    }
+    if self.type_label != none {
+        output["type_label"] = self.type_label
     }
     return output
 }
@@ -97,6 +105,16 @@ func VarStmt.as_code(indent=0) {
             t += ","
         }
         t += label
+    }
+    if self.type_label != none {
+        t += "<-"
+        if self.type_path != none and self.type_path.len > 0 {
+            t += self.type_path.join(".") + "."
+        }
+        t += self.type_label
+    }
+    if self.has_protect {
+        t += " protect"
     }
     t += " = "
     is_first = yes
@@ -146,6 +164,8 @@ func parse(tokens, pos, msgs, project_file=none,
     pos += 1
 
     # Parse variable names:
+    var had_special = no
+    var had_protect = no
     var varcount = 0
     while yes {
         if pos > tokens_len or
@@ -163,7 +183,8 @@ func parse(tokens, pos, msgs, project_file=none,
             ))
             var skiplen = math.max(1,
                 token.get_naive_stmt_or_expr_len(
-                    tokens, pos - 1, bracket_depth=0, for_expr=no
+                    tokens, pos - 1, bracket_depth=0, for_expr=no,
+                    is_moose64=is_moose64
                 ) - 1)
             var invalid_st = new invalid_stmt.InvalidStmt(
                 skiplen
@@ -176,23 +197,51 @@ func parse(tokens, pos, msgs, project_file=none,
         stmt.var_labels.add(tokens[pos].str)
         varcount += 1
         pos += 1
+        if is_moose64 and pos <= tokens_len and
+                stmt.type_label == none and not had_special and
+                tokens[pos].kind == token.T_LEFTPTR {
+            pos += 1
+            if pos > tokens_len or
+                    tokens[pos].kind != token.T_IDENT {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected " +
+                    token.describe_token_at(tokens, pos) +
+                    ", expected T_IDENT to declare type.",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+            }
+            stmt.type_label = tokens[pos].str
+            pos += 1
+            while pos + 1 <= tokens_len and
+                    tokens[pos].kind == token.T_DOT and
+                    tokens[pos + 1].kind == token.T_IDENT {
+                if stmt.type_path == none {
+                    stmt.type_path = []
+                }
+                stmt.type_path.add(tokens[pos + 1].str)
+                pos += 2
+            }
+            had_special = yes
+        }
         if pos <= tokens_len and
                 tokens[pos].kind == token.T_KEYWORD and
-                tokens[pos].str == "protect" {
-            stmt.var_has_protect.add(yes)
+                tokens[pos].str == "protect" and
+                (not is_moose64 or stmt.type_label != none) {
+            had_protect = yes
+            stmt.has_protectt = yes
+            had_special = yes
             pos += 1
-        } else {
-            stmt.var_has_protect.add(no)
         }
-        if not token.can_stmt_or_expr_end_before_token(
-                tokens, pos, for_expr=no
-                ) and (pos > tokens_len or
-                (tokens[pos].kind != token.T_COMMA and
-                 tokens[pos].kind != token.T_ASSIGN)) {
+        var had_error_unexpected = no
+        if is_moose64 and stmt.type_label == none and
+                (pos >= tokens_len or
+                (tokens[pos].kind != token.T_COMMA or had_special) and
+                 tokens[pos].kind != token.T_ASSIGN) {
             msgs.add(new msg.FileMsg(
                 "Unexpected " + token.describe_token_at(tokens, pos) +
-                ", expected ',' or '=', "
-                "or a new statement "
+                ", expected '<-' (T_LEFTPTR) specifying type "
                 "following " + stmt_name + " "
                 "statement starting in line " +
                 token.get_line(tokens, startpos).as_str() +
@@ -202,8 +251,37 @@ func parse(tokens, pos, msgs, project_file=none,
                 line=token.get_line(tokens, pos),
                 col=token.get_col(tokens, pos),
             ))
+            had_error_unexpected = yes
+        }
+        if not had_error_unexpected and
+                not token.can_stmt_or_expr_end_before_token(
+                tokens, pos, for_expr=no
+                ) and (pos > tokens_len or
+                ((tokens[pos].kind != token.T_COMMA or had_special) and
+                 tokens[pos].kind != token.T_ASSIGN)) {
+            var expected_remark = " expected ',', or '=', or "
+                "a new statement"
+            if had_special {
+                expected_remark = " '=' or a new statement"
+            }
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(tokens, pos) +
+                "," + expected_comma_remark + "  "
+                "following " + stmt_name + " "
+                "statement starting in line " +
+                token.get_line(tokens, startpos).as_str() +
+                ", column " +
+                token.get_col(tokens, startpos).as_str() + ".",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+            had_error_unexpected = yes
+        }
+        if had_error_unexpected {
             var skiplen = math.max(1, token.get_naive_stmt_or_expr_len(
-                    tokens, pos - 1, bracket_depth=0, for_expr=no
+                    tokens, pos - 1, bracket_depth=0, for_expr=no,
+                    is_moose64=is_moose64
                 ) - 1)
             var invalid_st = new invalid_stmt.InvalidStmt(
                 skiplen
@@ -212,7 +290,10 @@ func parse(tokens, pos, msgs, project_file=none,
             invalid_st.col = token.get_col(tokens, startpos)
             invalid_st.token_len = (pos - startpos) + skiplen
             return invalid_st
-        } elseif tokens[pos].kind != token.T_COMMA and
+        }
+
+        if (tokens[pos].kind != token.T_COMMA or
+                had_special) and
                 tokens[pos].kind != token.T_ASSIGN {
             var i = 1
             while i <= varcount {
@@ -239,7 +320,7 @@ func parse(tokens, pos, msgs, project_file=none,
             "init expression at pos=" + pos.as_str())
     }
     var v = expr.parse_expression(
-        tokens, pos, msgs,
+        tokens, pos, msgs, is_moose64=is_moose64,
         project_file=project_file, debug=debug
     ) later:
 
@@ -259,7 +340,8 @@ func parse(tokens, pos, msgs, project_file=none,
         ))
         var skiplen = math.max(1,
             token.get_naive_stmt_or_expr_len(
-                tokens, pos - 1, bracket_depth=0, for_expr=no
+                tokens, pos - 1, bracket_depth=0, for_expr=no,
+                is_moose64=is_moose64
             ) - 1)
         pos += skiplen
         stmt.token_len = (pos - startpos)
@@ -335,7 +417,8 @@ func parse(tokens, pos, msgs, project_file=none,
             col=token.get_col(tokens, pos),
         ))
         var skiplen = math.max(1, token.get_naive_stmt_or_expr_len(
-                tokens, pos - 1, bracket_depth=0, for_expr=no
+                tokens, pos - 1, bracket_depth=0, for_expr=no,
+                is_moose64=is_moose64
             ) - 1)
         pos += skiplen
         stmt.token_len = pos - startpos
@@ -352,7 +435,7 @@ func parse(tokens, pos, msgs, project_file=none,
             "init expression at pos=" + pos.as_str())
     }
     v = expr.parse_expression(
-        tokens, pos, msgs,
+        tokens, pos, msgs, is_moose64=is_moose64,
         project_file=project_file, debug=debug
     ) later repeat
 }

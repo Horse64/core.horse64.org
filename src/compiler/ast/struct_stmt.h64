@@ -137,7 +137,7 @@ func parse(tokens, pos, msgs, project_file=none,
            is_moose64=no, debug=no) {
     var tokens_len = tokens.len
     var startpos = pos
-    if pos > tokens_len or
+    if not is_moose64 or pos > tokens_len or
             tokens[pos].kind != token.T_KEYWORD or
             tokens[pos].str != "struct" {
         return later none

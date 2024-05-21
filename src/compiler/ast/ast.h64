@@ -395,8 +395,8 @@ func parse_statement(
 
 func parse_to_ast_ex(
         tokens, pos, project_file=none,
-        is_inside_block=no, is_moose64=is_moose64,
-        debug=no,
+        is_inside_block=no, is_moose64=no,
+        debug=no
         ) {
     var result = new ASTResult()
     const startpos = pos
@@ -426,7 +426,7 @@ func parse_to_ast_ex(
         # We completely failed to parse the next statement.
         # Skip to the next one:
         var skiplen = token.get_naive_stmt_or_expr_len(
-            tokens, pos, for_expr=no
+            tokens, pos, for_expr=no, is_moose64=is_moose64
         )
         assert(skiplen > 0)
         var invalid_st = new invalid_stmt.InvalidStmt(skiplen)

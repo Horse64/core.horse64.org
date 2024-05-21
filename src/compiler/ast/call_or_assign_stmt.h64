@@ -230,7 +230,7 @@ func parse(tokens, pos, msgs, project_file=none,
     var v1 = expr.parse_expression(
         tokens, pos,
         msgs, max_len=(if is_call (tokens_len) else
-            (assign_or_call_idx)),
+            (assign_or_call_idx)), is_moose64=is_moose64,
         project_file=project_file, debug=debug
     ) later:
     await v1
@@ -270,7 +270,7 @@ func parse(tokens, pos, msgs, project_file=none,
         }
         if v1 == none {
             var skiplen = token.get_naive_stmt_or_expr_len(
-                tokens, pos, for_expr=no
+                tokens, pos, for_expr=no, is_moose64=is_moose64
             )
             v1 = new expr.InvalidExpr(skiplen)
         }
@@ -316,7 +316,7 @@ func parse(tokens, pos, msgs, project_file=none,
             }
             stmt.damaged = yes
             var skiplen = token.get_naive_stmt_or_expr_len(
-                tokens, pos, for_expr=no
+                tokens, pos, for_expr=no, is_moose64=is_moose64
             )
             if skiplen < 1 {
                 skiplen = 1
@@ -360,6 +360,7 @@ func parse(tokens, pos, msgs, project_file=none,
         var next_assigned = expr.parse_expression(
             tokens, pos,
             msgs, max_len=assign_or_call_idx,
+            is_moose64=is_moose64,
             project_file=project_file, debug=debug
         ) later:
         await next_assigned
@@ -412,7 +413,7 @@ func parse(tokens, pos, msgs, project_file=none,
                 assigned_lvalue_list.len
         }
         var v2 = expr.parse_expression(
-            tokens, pos, msgs,
+            tokens, pos, msgs, is_moose64=is_moose64,
             project_file=project_file, debug=debug
         ) later:
         await v2
@@ -440,7 +441,8 @@ func parse(tokens, pos, msgs, project_file=none,
                 stmt.damaged = yes
             }
             var skiplen = token.get_naive_stmt_or_expr_len(
-                tokens, assign_or_call_idx, for_expr=no
+                tokens, assign_or_call_idx, for_expr=no,
+                is_moose64=is_moose64
             ) - 1
             if skiplen < 1 {
                 skiplen = 1
