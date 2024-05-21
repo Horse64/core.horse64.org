@@ -80,7 +80,6 @@ func ImportStmt.as_code(indent=0) {
 
 func parse(tokens, pos, msgs, project_file=none,
            is_moose64=no, debug=no) {
-    var stmt = new ImportStmt()
     var tokens_len = tokens.len
     var startpos = pos
 
@@ -89,6 +88,8 @@ func parse(tokens, pos, msgs, project_file=none,
             tokens[pos].str != "import" {
         return later none
     }
+    var stmt = new ImportStmt()
+
     stmt.col = tokens[pos].col
     stmt.line = tokens[pos].line
     pos += 1
@@ -180,6 +181,7 @@ func parse(tokens, pos, msgs, project_file=none,
                     tokens, pos - 1, bracket_depth=0, for_expr=no
                 ) - 1)
             pos += skiplen
+            stmt.damaged = yes
             stmt.token_len = pos - startpos
             return stmt
         }

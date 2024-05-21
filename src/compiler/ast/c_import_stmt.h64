@@ -1,0 +1,162 @@
+## @module compiler.ast.c_import_stmt
+# Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import math from core.horse64.org
+
+import compiler.ast as ast
+import compiler.ast.invalid_stmt as invalid_stmt
+import compiler.msg as msg
+import compiler.token as token
+
+type CImportStmt base ast.StmtNode {
+    var file_path
+    var renamed_as
+}
+
+func CImportStmt.copy {
+    var new_stmt = new CImportStmt()
+    assert(new_stmt.subexprs.len == 0)
+    assert(new_stmt.subblocks.len == 0)
+    new_stmt.file_path = self.file_path
+    new_stmt.renamed_as = self.renamed_as
+    new_stmt.line = self.line
+    new_stmt.col = self.col
+    return new_stmt
+}
+
+func CImportStmt.init {
+    base.init()
+    self.kind = ast.N_STMT_C_IMPORT
+}
+
+func CImportStmt.as_json_obj {
+    var output = base.as_json_obj()
+    output["file_path"] = self.module_path
+    output["renamed_as"] = self.renamed_as
+    return output
+}
+
+func CImportStmt.as_code(indent=0) {
+    if self.damaged {
+        return " ".rep(indent) + "(damaged c_import)"
+    }
+    var t = " ".rep(indent) + "c_import " +
+        self.module_path.join(".")
+    if self.renamed_as != none {
+        t += " as " + self.renamed_as
+    }
+    return t
+}
+
+func parse(tokens, pos, msgs, project_file=none,
+           is_moose64=no, debug=no) {
+    var tokens_len = tokens.len
+    var startpos = pos
+
+    if not is_moose64 or pos > tokens_len or
+            tokens[pos].kind != token.T_KEYWORD or
+            tokens[pos].str != "c_import" {
+        return later none
+    }
+    var stmt = new CImportStmt()
+
+    stmt.col = tokens[pos].col
+    stmt.line = tokens[pos].line
+    pos += 1
+
+    # Bail with error if no module path follows at all:
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_STR {
+        msgs.add(new msg.FileMsg(
+            "Unexpected " + token.describe_token_at(tokens, pos) +
+            ", expected path (T_STR) specifying "
+            "imported file.",
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+        var skiplen = token.get_naive_stmt_or_expr_len(
+            tokens, startpos, bracket_depth=0, for_expr=no
+        )
+        assert(skiplen > 0)
+        var invalid_st = new invalid_stmt.InvalidStmt(skiplen)
+        invalid_st.line = token.get_line(tokens, startpos)
+        invalid_st.col = token.get_col(tokens, startpos)
+        return invalid_st
+    }
+    stmt.file_path = tokens[pos].str
+    pos += 1
+
+    # Extract 'as' clause:
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_KEYWORD or
+            tokens[pos].str != "as" {
+        msgs.add(new msg.FileMsg(
+            "Unexpected " + token.describe_token_at(tokens, pos) +
+            ", expected path (T_STR) specifying "
+            "imported file.",
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+        var skiplen = token.get_naive_stmt_or_expr_len(
+            tokens, startpos, bracket_depth=0, for_expr=no
+        )
+        assert(skiplen > 0)
+        skiplen = math.max(skiplen, pos - startpos + 1)
+        var invalid_st = new invalid_stmt.InvalidStmt(skiplen)
+        invalid_st.line = token.get_line(tokens, startpos)
+        invalid_st.col = token.get_col(tokens, startpos)
+        return invalid_st
+    }
+    pos += 1  # Go past 'as'.
+    if pos <= tokens_len and
+            tokens[pos].kind == token.T_IDENT {
+        stmt.renamed_as = tokens[pos].str
+        pos += 1
+    } else {
+        msgs.add(new msg.FileMsg(
+            "Unexpected " + token.describe_token_at(tokens, pos) +
+            ", expected identifier (T_IDENT) specifying "
+            "name for 'as' clause.",
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+        var skiplen = math.max(1, token.get_naive_stmt_or_expr_len(
+                tokens, pos - 1, bracket_depth=0, for_expr=no
+            ) - 1)
+        pos += skiplen
+        stmt.damaged = yes
+        stmt.token_len = pos - startpos
+        return stmt
+    }
+
+    stmt.token_len = (pos - startpos)
+    return stmt
+}
+

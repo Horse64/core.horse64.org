@@ -1005,12 +1005,15 @@ func token_has_lefthand(t) {
 ## Check if the given @{str} or @{token|Token} is a label
 ## representing a Horse64 special keyword or not.
 ## @returns bool @{Yes|yes} if keyword, otherwise @{no}.
-func is_special_word(value) {
+func is_special_word(value, is_moose64=no) {
     if has_attr(value, "str") {
         return value.kind == T_KEYWORD or
             value.kind == T_BOOL or
             value.kind == T_NONE or
             value.kind == T_BOOLCOMP
+    }
+    if is_moose64 and value == "c_import" {
+        return yes
     }
     return special_words.has(value)
 }
@@ -1236,7 +1239,7 @@ func describe_token_at(tokens, i) {
 func describe_token(t) {
     if t.kind == T_LEFTPTR {
         return "'<-' (T_LEFTPTR)"
-    } else {
+    } elseif t.kind == T_RIGHTPTR {
         return "'->' (T_RIGHTPTR)"
     }
     return describe_token_str(t.str) + " (" +
@@ -1987,7 +1990,7 @@ func tokenize_str(
                 kind = T_BOOLCOMP
             } elseif name == "new" {
                 kind = T_NEWOP
-            } elseif is_special_word(name) {
+            } elseif is_special_word(name, is_moose64=is_moose64) {
                 kind = T_KEYWORD
             }
             result.tokens.add(new Token(
