@@ -1,4 +1,5 @@
-# Copyright (c) 2020-2022,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+# Copyright (c) 2020-2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+## @build_options --single-file
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -27,10 +28,11 @@
 ## push_release_to_stable
 ## ======================
 ##
-## This is a REPOSITORY-SPECIFIC script (=not made for use for any
-## project out there, just for the Horse64 core team) to add the
-## currently checked out commit to the "stable" branch as a release
-## and tag it. The branch names are hardcoded for Horse64 projects!
+## This is a REPOSITORY-SPECIFIC script (so, not made for use by
+## other projects out there, just for the Horse64 core team) to add
+## the currently checked out commit to the "stable" branch as a
+## release and tag it. The branch names are hardcoded for Horse64
+## projects!
 ##
 ## The tag is based on the horp.ini version with the -dev suffix
 ## removed and release- prefix added.
@@ -38,18 +40,14 @@
 ## DON'T remove the -dev suffix manually with a commit on a non-stable
 ## branch, it should be present on all dev branches!
 
-## @option horsec-run --single-file
-
-
 import process from core.horse64.org
 import system from core.horse64.org
 import terminal from core.horse64.org
 
-
 func get_branch(folder=none) {
     var output = process.run("git",
         args=["symbolic-ref", "--short", "-q", "HEAD"],
-        run_in_dir=none)
+        run_in_dir=folder)
     later:
 
     await output
@@ -57,7 +55,18 @@ func get_branch(folder=none) {
     return output
 }
 
+func have_uncommitted_changes(folder=none) {
+    var output = process.run("git",
+        args=["status", "--untracked-files=no", "--porcelain=v1"],
+        run_in_dir=none)
+    later:
+
+    await output
+    return (output.trim() != "")
+}
+
 func main {
+    var terminal
     print("Hello World! Args: " + process.args.as_str())
     var branch = get_branch(folder=none)
     later:
@@ -68,21 +77,36 @@ func main {
         print("You seem to be on a release branch "
             "or tag already. "
             "Aborting.")
-        sys.exit(1)
+        system.exit(1)
     }
-    func confirm_not_main {
-        if not {"main", "master", "develop"}.has(branch) {
-            print("You're not on a commonly named develop branch.")
-            var v = terminal.yesno("Continue anyway? [yes/NO]", default=no)
-            later:
 
-            await v
-            if not v {
-                print("Aborting (by user request).")
-                system.exit(1)
-            }
+    if not {"main", "master", "develop"}.has(branch) {
+        print("You're not on a commonly named develop branch.")
+        var v = terminal.yesno("Continue anyway? [yes/NO]", default=no)
+        later:
+
+        await v
+        if not v {
+            print("Aborting (by user request).")
+            system.exit(1)
         }
     }
-    confirm_not_main() later:
+
+    var result = have_uncommitted_changes() later:
+
+    await result
+    if result {
+        print("You have uncommitted changes to files.")
+        var v = terminal.yesno("Continue anyway? [yes/NO]", default=no)
+        later:
+
+        await v
+        if not v {
+            print("Aborting (by user request).")
+            system.exit(1)
+        }
+    }
+
+    print("Hello")
 }
 
