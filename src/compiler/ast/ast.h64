@@ -358,11 +358,12 @@ func parse_statement(
     var remaining_funcs = stmt_parse_funcs.copy()
     if debug {
         print("compiler.ast.expr: parse_statement() " +
-            "with pos=" + pos.as_str())
+            "with pos=" + pos.as_str() +
+            ",is_moose64=" + is_moose64.as_str())
     }
 
     var next_func = remaining_funcs.pop()
-    var stmt = next_func(tokens, pos, msgs,
+    var stmt = next_func(tokens, pos, msgs, is_moose64=is_moose64,
         project_file=project_file, debug=debug)
     later:
 

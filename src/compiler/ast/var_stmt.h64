@@ -266,7 +266,7 @@ func parse(tokens, pos, msgs, project_file=none,
             }
             msgs.add(new msg.FileMsg(
                 "Unexpected " + token.describe_token_at(tokens, pos) +
-                "," + expected_comma_remark + "  "
+                "," + expected_remark + " "
                 "following " + stmt_name + " "
                 "statement starting in line " +
                 token.get_line(tokens, startpos).as_str() +
