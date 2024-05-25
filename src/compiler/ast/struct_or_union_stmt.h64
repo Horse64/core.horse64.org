@@ -1,4 +1,4 @@
-## @module compiler.ast.struct_stmt
+## @module compiler.ast.struct_or_union_stmt
 # Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without

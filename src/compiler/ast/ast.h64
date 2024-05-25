@@ -43,7 +43,7 @@ import compiler.ast.if_stmt as if_stmt
 import compiler.ast.import_stmt as import_stmt
 import compiler.ast.invalid_stmt as invalid_stmt
 import compiler.ast.return_stmt as return_stmt
-import compiler.ast.struct_stmt as struct_stmt
+import compiler.ast.struct_or_union_stmt as struct_or_union_stmt
 import compiler.ast.throw_stmt as throw_stmt
 import compiler.ast.type_stmt as type_stmt
 import compiler.ast.var_stmt as var_stmt
@@ -347,7 +347,7 @@ var stmt_parse_funcs = [
     var_stmt.parse,
     break_stmt.parse,
     continue_stmt.parse,
-    struct_stmt.parse,
+    struct_or_union_stmt.parse,
 ]
 
 func parse_statement(
