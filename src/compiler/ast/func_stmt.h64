@@ -311,7 +311,8 @@ func parse(tokens, pos, msgs, project_file=none,
             }
         }
         for arg in args.subexprs {
-            if arg.kind == ast.N_EXPR_ARGNAME {
+            if arg.kind == ast.N_EXPR_ARGNAME or
+                    arg.kind == ast.N_EXPR_INVALID {
                 continue
             }
             assert(arg.kind == ast.N_EXPR_CALLKWARG)

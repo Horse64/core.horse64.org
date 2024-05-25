@@ -101,8 +101,9 @@ func IfElseClause.as_code(indent=0, is_first=yes) {
 
 func parse_next_ifelse_clause_header(
         tokens, tokens_len, pos, msgs,
-        project_file=none, debug=no,
-        is_first=yes, startpos=none) {
+        project_file=none, is_moose64=no,
+        is_first=yes, startpos=none,
+        debug=no) {
     if startpos == none {
         startpos = pos
     }
@@ -195,8 +196,9 @@ func parse_next_ifelse_clause_header(
 
 func parse_next_ifelse_clause(
         tokens, tokens_len, pos, msgs,
-        project_file=none, debug=no,
-        is_first=yes, startpos=none) {
+        project_file=none, is_moose64=no,
+        is_first=yes, startpos=none,
+        debug=no) {
     if startpos == none {
         startpos = pos
     }
@@ -210,7 +212,8 @@ func parse_next_ifelse_clause(
     var clausestartpos = pos
     var clause = parse_next_ifelse_clause_header(
         tokens, tokens_len, pos, msgs, project_file=project_file,
-        debug=debug, is_first=is_first, startpos=startpos
+        is_moose64=is_moose64, is_first=is_first, startpos=startpos,
+        debug=debug,
     ) later:
 
     await clause
@@ -285,8 +288,9 @@ func parse(tokens, pos, msgs, project_file=none,
     }
     var clause = parse_next_ifelse_clause(
         tokens, tokens_len, pos, msgs,
-        project_file=project_file, debug=debug,
-        is_first=yes, startpos=startpos
+        project_file=project_file, is_moose64=is_moose64,
+        is_first=yes, startpos=startpos,
+        debug=debug,
     ) later:
 
     await clause
@@ -308,8 +312,9 @@ func parse(tokens, pos, msgs, project_file=none,
     }
     clause = parse_next_ifelse_clause(
         tokens, tokens_len, pos, msgs,
-        project_file=project_file, debug=debug,
-        is_first=no, startpos=startpos
+        project_file=project_file, is_moose64=is_moose64,
+        is_first=no, startpos=startpos,
+        debug=debug,
     ) later repeat
 }
 

@@ -921,15 +921,15 @@ func skip_code_block_if_any(
             }
         }
         var skiplen = get_naive_stmt_or_expr_len(
-            tokens, pos, bracket_depth=block_depth,
+            tokens, pos, bracket_depth=math.max(block_depth - 1, 0),
             is_moose64=is_moose64
         )
         pos += skiplen
         if pos > token_len {
-            return token_len + 1
+            return (token_len - startpos) + 1
         }
     }
-    return pos
+    return (pos - startpos) + 1
 }
 
 ## In a broken statement of some kind that has code blocks,
