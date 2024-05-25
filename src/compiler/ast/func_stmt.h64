@@ -329,10 +329,11 @@ func parse(tokens, pos, msgs, project_file=none,
     # Now parse the required code block opening with '{' here:
     var block_result = block.parse(
         tokens, pos, msgs, project_file=project_file,
-        debug=debug,
+        is_moose64=is_moose64,
         block_purpose_name="for func statement starting in "
             "line " + token.get_line(tokens, startpos).as_str() +
-            ", column " + token.get_col(tokens, startpos).as_str()
+            ", column " + token.get_col(tokens, startpos).as_str(),
+        debug=debug,
     ) later:
 
     await block_result

@@ -309,12 +309,13 @@ func parse_single_rescue_clause(
     # Parse inner code block:
     var block_result = block.parse(
         tokens, pos, msgs, project_file=project_file,
-        debug=debug, had_damage=stmt.has_damage(),
+        is_moose64=is_moose64, had_damage=stmt.has_damage(),
         block_purpose_name="for rescue clause starting in "
             "line " + token.get_line(tokens,
             clausestartpos).as_str() +
             ", column " + token.get_col(tokens,
-            clausestartpos).as_str()
+            clausestartpos).as_str(),
+        debug=debug,
     ) later:
 
     await block_result
@@ -364,12 +365,13 @@ func parse_finally_clause(
     # Parse inner code block:
     var block_result = block.parse(
         tokens, pos, msgs, project_file=project_file,
-        debug=debug, had_damage=stmt.has_damage(),
+        is_moose64=is_moose64, had_damage=stmt.has_damage(),
         block_purpose_name="for finally clause starting in "
             "line " + token.get_line(tokens,
             clausestartpos).as_str() +
             ", column " + token.get_col(tokens,
-            clausestartpos).as_str()
+            clausestartpos).as_str(),
+        debug=debug,
     ) later:
 
     await block_result
@@ -408,10 +410,11 @@ func parse(tokens, pos, msgs, project_file=none,
     # Parse inner code block:
     var block_result = block.parse(
         tokens, pos, msgs, project_file=project_file,
-        debug=debug, had_damage=stmt.has_damage(),
+        is_moose64=is_moose64, had_damage=stmt.has_damage(),
         block_purpose_name="for the with statement starting in "
             "line " + token.get_line(tokens, startpos).as_str() +
-            ", column " + token.get_col(tokens, startpos).as_str()
+            ", column " + token.get_col(tokens, startpos).as_str(),
+        debug=debug,
     ) later:
 
     await block_result

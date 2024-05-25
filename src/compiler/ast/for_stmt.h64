@@ -179,10 +179,11 @@ func parse(tokens, pos, msgs, project_file=none,
     # Parse inner code block:
     var block_result = block.parse(
         tokens, pos, msgs, project_file=project_file,
-        debug=debug, had_damage=stmt.has_damage(),
+        is_moose64=is_moose64, had_damage=stmt.has_damage(),
         block_purpose_name="for the for loop statement starting in "
             "line " + token.get_line(tokens, startpos).as_str() +
-            ", column " + token.get_col(tokens, startpos).as_str()
+            ", column " + token.get_col(tokens, startpos).as_str(),
+        debug=debug,
     ) later:
 
     await block_result
