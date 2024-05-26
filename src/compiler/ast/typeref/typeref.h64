@@ -1,0 +1,171 @@
+## @module compiler.ast.typeref
+# Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import compiler.ast as ast
+import compiler.ast.expr as ast_expr
+import compiler.token as token
+
+const builtin_horse64_types = {}
+const builtin_horse64_type_modifiers = {}
+const builtin_moose64_types = {
+    "byte", "i8", "i16", "u16",
+    "i32", "i64", "size", "u32", "u64",
+    "f32", "f64", "bool"
+}
+const builtin_moose64_type_modifiers = {
+    "ref", "array"
+}
+
+type TypeRefExpr base ast.TreeNode {
+    var type_path
+    var type_name
+    var type_modifiers = []
+}
+
+func TypeRefExpr.init {
+    base.init()
+    self.kind = ast.N_EXPR_TYPEREF
+}
+
+func TypeRefExpr.as_code(indent=0) {
+    if self.damaged {
+        return "(damaged type ref expr.)"
+    }
+    var t = ""
+    if self.type_path != none and self.type_path.len > 0 {
+        t = self.type_path.join(".") + "." + t
+    }
+    t += self.type_name
+    return t
+}
+
+func _parse_typeref_do(
+        tokens, pos, msgs, project_file=none,
+        max_len=none, max_depth=64,
+        is_moose64=no, debug=no
+        ) {
+    var startpos = pos
+    if max_len == none {
+        max_len = tokens.len
+    }
+    if pos > max_len {
+        return none
+    }
+    var typeref_expr = none
+    if tokens[pos].kind == token.T_ENCLOSE and
+            tokens[pos].str == "(" {
+        var bracket_open_pos = pos
+        if max_depth <= 0 {
+            msgs.add(new msg.FileMsg(
+                "Invalid " + token.describe_token_at(
+                    tokens, pos) + " "
+                ", exceeds maximum nesting depth "
+                "for type expression starting "
+                "in line " +
+                token.get_line(tokens, startpos).as_str() +
+                ", column " +
+                token.get_col(tokens, startpos).as_str() + ".",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+            var expr_len = (pos - startpos) + 1
+            return new ast_expr.InvalidExpr(expr_len)
+        }
+        pos += 1  # Go past '('.
+        var inner_expr = _parse_typeref_do(
+            tokens, pos, msgs, project_file=project_file,
+            max_len=max_len, max_depth=(max_depth - 1),
+            is_moose64=is_moose64, debug=debug
+        )
+        if inner_expr == none {
+            return none
+        }
+        pos += inner_expr.token_len
+        if pos > max_len or
+                tokens[pos].kind != token.T_ENCLOSE or
+                tokens[pos].str != ")" {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(
+                    tokens, pos) + " "
+                ", expected '(' "
+                "for ')' found "
+                "in line " +
+                token.get_line(tokens,
+                               bracket_open_pos).as_str() +
+                ", column " +
+                token.get_col(tokens,
+                              bracket_open_pos).as_str() + ".",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+            pos -= 1  # Reverse to before where we expected ')'
+            var expr_len = (pos - startpos) + 1
+            return new ast_expr.InvalidExpr(expr_len)
+        }
+        typeref_expr = inner_expr
+        pos += 1  # Go past ')'
+        inner_expr.token_len = (pos - startpos)
+    }
+    if typeref_expr == none and pos <= max_len and
+            tokens[pos].kind == token.T_IDENT and
+            is_moose64 and
+            builtin_moose64_types.has(tokens[pos].str) {
+        typeref_expr = new TypeRefExpr()
+        typeref_expr.type_name = tokens[pos].str
+        typeref_expr.token_len = (pos - startpos) + 1
+        pos += 1
+    }
+    while typeref_expr != none and pos <= max_len and
+            tokens[pos].kind == token.T_IDENT and
+            is_moose64 and
+            builtin_moose64_type_modifiers.has(
+                tokens[pos].str
+            ) {
+        typeref_expr.type_modifiers.add(tokens[pos].str)
+        typeref_expr.token_len = (pos - startpos) + 1
+        pos += 1
+    }
+    return typeref_expr
+}
+
+func parse_typeref(
+        tokens, pos, msgs, project_file=none,
+        max_len=none, is_moose64=no, debug=no
+        ) {
+    if max_len == none {
+        max_len = tokens.len
+    }
+    var expr = _parse_typeref_do(
+        tokens, pos, msgs, project_file=project_file,
+        max_len=max_len, is_moose64=is_moose64,
+        debug=debug
+    )
+    return later expr
+}
+
