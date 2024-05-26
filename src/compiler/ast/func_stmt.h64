@@ -256,8 +256,10 @@ func parse(tokens, pos, msgs, project_file=none,
 
     # Now we must have either '(' for arguments, or '{' for code block:
     if pos > tokens_len or
-            tokens[pos].kind != token.T_ENCLOSE or
-            not {"(", "{"}.has(tokens[pos].str) {
+            ((tokens[pos].kind != token.T_ENCLOSE or
+            not {"(", "{"}.has(tokens[pos].str)) and
+            (not is_moose64 or
+            tokens[pos].kind != token.T_RIGHTPTR)) {
         msgs.add(new msg.FileMsg(
             "Unexpected " + token.describe_token_at(tokens, pos) +
             ", expected '(' or '{' (T_ENCLOSE) for "
@@ -326,6 +328,55 @@ func parse(tokens, pos, msgs, project_file=none,
     # We're not retaining the actual arg item,
     # since this isn't a call.
     args = none
+
+    # Parse return type if any:
+    var type_expr = none
+    func parse_type_if_any(
+            tokens, pos, stmt, msgs, project_file,
+            is_moose64
+            ) {
+        if not is_moose64 or
+                tokens[pos].kind != token.T_RIGHTPTR {
+            return later 0
+        }
+        var startpos = pos
+        pos += 1
+
+        var v = expr.parse_expression(
+            tokens, pos, msgs, is_moose64=is_moose64,
+            project_file=project_file, debug=debug
+        ) later:
+
+        await v
+        if v == none {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " +
+                token.describe_token_at(tokens, pos) +
+                ", expected expression to declare type.",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+            var skiplen = math.max(1,
+                token.get_naive_stmt_or_expr_len(
+                    tokens, pos - 1, bracket_depth=0, for_expr=no,
+                    is_moose64=is_moose64
+                ) - 1)
+            v = new expr.InvalidExpr(skiplen)
+            stmt.damaged = yes
+        } elseif v.damaged {
+            stmt.damaged = yes
+        }
+        # TODO XXX add to statement
+        pos += v.token_len
+        return later (pos - startpos)
+    }
+    var advancelen = parse_type_if_any(
+        tokens, pos, stmt, msgs, project_file, is_moose64
+    ) later:
+
+    await advancelen
+    pos += advancelen
 
     # Now parse the required code block opening with '{' here:
     var block_result = block.parse(

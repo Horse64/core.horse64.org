@@ -42,8 +42,7 @@ type VarStmt base ast.StmtNode {
     var has_later_repeat = no
     var var_labels = []
     var has_protect = no
-    var type_path = none
-    var type_label = none
+    var has_type_expr = no
 
     var initial_value_known = no
     var initial_value
@@ -82,12 +81,8 @@ func VarStmt.as_json_obj {
     if self.has_later_repeat {
         output["has_later_repeat"] = yes
     }
-    if self.type_path != none and
-            self.type_path.len > 0 {
-        output["type_path"] = self.type_path.copy()
-    }
-    if self.type_label != none {
-        output["type_label"] = self.type_label
+    if self.has_type_expr {
+        output["has_type_expr"] = yes
     }
     return output
 }
@@ -106,19 +101,26 @@ func VarStmt.as_code(indent=0) {
         }
         t += label
     }
-    if self.type_label != none {
+
+    var assigned_exprs = self.subexprs
+    var type_expr = none
+    if self.has_type_expr and assigned_exprs.len > 0 {
+        type_expr = assigned_exprs[assigned_exprs]
+        assigned_exprs = assigned_exprs.sub(
+            1, has_type_expr.len - 1
+        )
+    }
+    if type_expr != none {
         t += "<-"
-        if self.type_path != none and self.type_path.len > 0 {
-            t += self.type_path.join(".") + "."
-        }
-        t += self.type_label
+        t += type_expr.as_code(indent=(indent + 4))
     }
     if self.has_protect {
         t += " protect"
     }
+
     t += " = "
     is_first = yes
-    for value in self.subexprs {
+    for value in assigned_exprs {
         if is_first {
             is_first = no
         } else {
@@ -198,117 +200,149 @@ func parse(tokens, pos, msgs, project_file=none,
         varcount += 1
         pos += 1
         if is_moose64 and pos <= tokens_len and
-                stmt.type_label == none and not had_special and
+                not stmt.has_type_expr and not had_special and
                 tokens[pos].kind == token.T_LEFTPTR {
-            pos += 1
-            if pos > tokens_len or
-                    tokens[pos].kind != token.T_IDENT {
-                msgs.add(new msg.FileMsg(
-                    "Unexpected " +
-                    token.describe_token_at(tokens, pos) +
-                    ", expected T_IDENT to declare type.",
-                    source_file=project_file,
-                    line=token.get_line(tokens, pos),
-                    col=token.get_col(tokens, pos),
-                ))
-            }
-            stmt.type_label = tokens[pos].str
-            pos += 1
-            while pos + 1 <= tokens_len and
-                    tokens[pos].kind == token.T_DOT and
-                    tokens[pos + 1].kind == token.T_IDENT {
-                if stmt.type_path == none {
-                    stmt.type_path = []
-                }
-                stmt.type_path.add(tokens[pos + 1].str)
-                pos += 2
-            }
-            had_special = yes
+            break
         }
-        if pos <= tokens_len and
-                tokens[pos].kind == token.T_KEYWORD and
-                tokens[pos].str == "protect" and
-                (not is_moose64 or stmt.type_label != none) {
-            had_protect = yes
-            stmt.has_protectt = yes
-            had_special = yes
-            pos += 1
+        if pos > tokens_len or
+                tokens[pos].kind != token.T_COMMA {
+            break
         }
-        var had_error_unexpected = no
-        if is_moose64 and stmt.type_label == none and
-                (pos >= tokens_len or
-                (tokens[pos].kind != token.T_COMMA or had_special) and
-                 tokens[pos].kind != token.T_ASSIGN) {
+        pos += 1  # Past ','
+    }
+
+    # Parse a type if given:
+    func parse_type_if_any(tokens, tokens_len, stmt,
+                           pos, msgs, is_moose64=no) {
+        if not is_moose64 or pos > tokens_len or
+                stmt.has_type_expr or had_special or
+                tokens[pos].kind != token.T_LEFTPTR {
+            return later 0
+        }
+        var startpos = pos
+        pos += 1
+
+        var v = expr.parse_expression(
+            tokens, pos, msgs, is_moose64=is_moose64,
+            project_file=project_file, debug=debug
+        ) later:
+
+        await v
+        if v == none {
             msgs.add(new msg.FileMsg(
-                "Unexpected " + token.describe_token_at(tokens, pos) +
-                ", expected '<-' (T_LEFTPTR) specifying type "
-                "following " + stmt_name + " "
-                "statement starting in line " +
-                token.get_line(tokens, startpos).as_str() +
-                ", column " +
-                token.get_col(tokens, startpos).as_str() + ".",
+                "Unexpected " +
+                token.describe_token_at(tokens, pos) +
+                ", expected expression to declare type.",
                 source_file=project_file,
                 line=token.get_line(tokens, pos),
                 col=token.get_col(tokens, pos),
             ))
-            had_error_unexpected = yes
-        }
-        if not had_error_unexpected and
-                not token.can_stmt_or_expr_end_before_token(
-                tokens, pos, for_expr=no
-                ) and (pos > tokens_len or
-                ((tokens[pos].kind != token.T_COMMA or had_special) and
-                 tokens[pos].kind != token.T_ASSIGN)) {
-            var expected_remark = " expected ',', or '=', or "
-                "a new statement"
-            if had_special {
-                expected_remark = " '=' or a new statement"
-            }
-            msgs.add(new msg.FileMsg(
-                "Unexpected " + token.describe_token_at(tokens, pos) +
-                "," + expected_remark + " "
-                "following " + stmt_name + " "
-                "statement starting in line " +
-                token.get_line(tokens, startpos).as_str() +
-                ", column " +
-                token.get_col(tokens, startpos).as_str() + ".",
-                source_file=project_file,
-                line=token.get_line(tokens, pos),
-                col=token.get_col(tokens, pos),
-            ))
-            had_error_unexpected = yes
-        }
-        if had_error_unexpected {
-            var skiplen = math.max(1, token.get_naive_stmt_or_expr_len(
+            var skiplen = math.max(1,
+                token.get_naive_stmt_or_expr_len(
                     tokens, pos - 1, bracket_depth=0, for_expr=no,
                     is_moose64=is_moose64
                 ) - 1)
-            var invalid_st = new invalid_stmt.InvalidStmt(
-                skiplen
-            )
-            invalid_st.line = token.get_line(tokens, startpos)
-            invalid_st.col = token.get_col(tokens, startpos)
-            invalid_st.token_len = (pos - startpos) + skiplen
-            return invalid_st
+            v = new expr.InvalidExpr(skiplen)
+            stmt.damaged = yes
+        } elseif v.damaged {
+            stmt.damaged = yes
         }
+        stmt.has_type_expr = yes
+        assert(stmt.subexprs.len == 0)
+        stmt.subexprs.add(v)
+        had_special = yes
+        pos += v.token_len
+        return later (pos - startpos)
+    }
+    var parsed_len = parse_type_if_any(
+        tokens, tokens_len, stmt, pos, msgs,
+        is_moose64=is_moose64
+    ) later:
 
-        if (tokens[pos].kind != token.T_COMMA or
-                had_special) and
-                tokens[pos].kind != token.T_ASSIGN {
-            var i = 1
-            while i <= varcount {
-                var lexpr = new expr.LiteralExpr()
-                lexpr.value = none
-                stmt.subexprs.add(lexpr)
-                i += 1
-            }
-            stmt.token_len = (pos - startpos)
-            return stmt
-        } elseif tokens[pos].kind == token.T_ASSIGN {
+    await parsed_len
+    assert(parsed_len >= 0)
+    pos += parsed_len
+
+    # Parse special labels like 'protect':
+    while yes {
+        if pos <= tokens_len and
+                tokens[pos].kind == token.T_KEYWORD and
+                tokens[pos].str == "protect" and
+                (not is_moose64 or stmt.has_type_expr) {
+            had_protect = yes
+            stmt.has_protect = yes
+            had_special = yes
+            pos += 1
+        } else {
             break
         }
-        assert(tokens[pos].kind == token.T_COMMA)
-        pos += 1  # Go past ','
+    }
+
+    # Check various errors that can happen up to here:
+    var had_error_unexpected = no
+    if is_moose64 and not stmt.has_type_expr {
+        msgs.add(new msg.FileMsg(
+            "Unexpected " + token.describe_token_at(tokens, pos) +
+            ", expected '<-' (T_LEFTPTR) specifying type "
+            "following " + stmt_name + " "
+            "statement starting in line " +
+            token.get_line(tokens, startpos).as_str() +
+            ", column " +
+            token.get_col(tokens, startpos).as_str() + ".",
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+        had_error_unexpected = yes
+    }
+    if not had_error_unexpected and
+            not token.can_stmt_or_expr_end_before_token(
+            tokens, pos, for_expr=no
+            ) and tokens[pos].kind != token.T_ASSIGN {
+        var expected_remark = " expected ',', or '=', or "
+            "a new statement"
+        if had_special {
+            expected_remark = " '=' or a new statement"
+        }
+        msgs.add(new msg.FileMsg(
+            "Unexpected " + token.describe_token_at(tokens, pos) +
+            "," + expected_remark + " "
+            "following " + stmt_name + " "
+            "statement starting in line " +
+            token.get_line(tokens, startpos).as_str() +
+            ", column " +
+            token.get_col(tokens, startpos).as_str() + ".",
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+        had_error_unexpected = yes
+    }
+    if had_error_unexpected {
+        var skiplen = math.max(1, token.get_naive_stmt_or_expr_len(
+                tokens, pos - 1, bracket_depth=0, for_expr=no,
+                is_moose64=is_moose64
+            ) - 1)
+        var invalid_st = new invalid_stmt.InvalidStmt(
+            skiplen
+        )
+        invalid_st.line = token.get_line(tokens, startpos)
+        invalid_st.col = token.get_col(tokens, startpos)
+        invalid_st.token_len = (pos - startpos) + skiplen
+        return invalid_st
+    }
+
+    # Bail if the statement ends here:
+    if tokens[pos].kind != token.T_ASSIGN {
+        var i = 1
+        while i <= varcount {
+            var lexpr = new expr.LiteralExpr()
+            lexpr.value = none
+            stmt.subexprs.add(lexpr)
+            i += 1
+        }
+        stmt.token_len = (pos - startpos)
+        return stmt
     }
     pos += 1  # Past '='
 
@@ -319,13 +353,13 @@ func parse(tokens, pos, msgs, project_file=none,
         print("compiler.ast.var_stmt: parse() fetching " +
             "init expression at pos=" + pos.as_str())
     }
-    var v = expr.parse_expression(
+    var v2 = expr.parse_expression(
         tokens, pos, msgs, is_moose64=is_moose64,
         project_file=project_file, debug=debug
     ) later:
 
-    await v
-    if v == none {
+    await v2
+    if v2 == none {
         msgs.add(new msg.FileMsg(
             "Unexpected " + token.describe_token_at(tokens, pos) +
             ", expected assigned value for variable "
@@ -357,8 +391,8 @@ func parse(tokens, pos, msgs, project_file=none,
             "init expression at pos=" + pos.as_str() +
             " with len=" + v.token_len.as_str())
     }
-    stmt.subexprs.add(v)
-    pos += v.token_len
+    stmt.subexprs.add(v2)
+    pos += v2.token_len
     remaining_count -= 1
     if remaining_count <= 0 {
         stmt.token_len = (pos - startpos)
@@ -434,7 +468,7 @@ func parse(tokens, pos, msgs, project_file=none,
         print("compiler.ast.var_stmt: parse() fetching " +
             "init expression at pos=" + pos.as_str())
     }
-    v = expr.parse_expression(
+    v2 = expr.parse_expression(
         tokens, pos, msgs, is_moose64=is_moose64,
         project_file=project_file, debug=debug
     ) later repeat
