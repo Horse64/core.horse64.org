@@ -63,7 +63,7 @@ func TypeRefExpr.as_code(indent=0) {
     return t
 }
 
-func _parse_typeref_do(
+func _parse_typeref_notlater(
         tokens, pos, msgs, project_file=none,
         max_len=none, max_depth=64,
         is_moose64=no, debug=no
@@ -141,6 +141,33 @@ func _parse_typeref_do(
         typeref_expr.token_len = (pos - startpos) + 1
         pos += 1
     }
+    if typeref_expr == none and pos <= max_len and
+            tokens[pos].kind == token.T_IDENT and
+            not is_moose64 and
+            builtin_horse64_types.has(tokens[pos].str) {
+        typeref_expr = new TypeRefExpr()
+        typeref_expr.type_name = tokens[pos].str
+        typeref_expr.token_len = (pos - startpos) + 1
+        pos += 1
+    }
+    if typeref_expr == none and pos <= max_len and
+            tokens[pos].kind == token.T_IDENT {
+        typeref_expr = new TypeRefExpr()
+        typeref_expr.type_name = tokens[pos].str
+        typeref_expr.token_len = (pos - startpos) + 1
+        pos += 1
+        while pos + 1 <= max_len and
+                tokens[pos].kind == token.T_DOT and
+                tokens[pos + 1].kind == token.T_IDENT {
+            if typeref_expr.type_path == none {
+                typeref_expr.type_path = []
+            }
+            typeref_expr.type_path.add(typeref_expr.type_label)
+            typeref_expr.type_label = tokens[pos + 1].str
+            typeref_expr.token_len += 2
+            pos += 2
+        }
+    }
     while typeref_expr != none and pos <= max_len and
             tokens[pos].kind == token.T_IDENT and
             is_moose64 and
@@ -161,7 +188,7 @@ func parse_typeref(
     if max_len == none {
         max_len = tokens.len
     }
-    var expr = _parse_typeref_do(
+    var expr = _parse_typeref_notlater(
         tokens, pos, msgs, project_file=project_file,
         max_len=max_len, is_moose64=is_moose64,
         debug=debug

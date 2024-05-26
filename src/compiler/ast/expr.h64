@@ -1123,6 +1123,7 @@ func parse_expression_unwrapped(
                 var inner_expr = _parse_call_or_funcdef_args_notlater(
                     tokens, parse_pos, nesting_depth, msgs,
                     project_file=project_file, is_call=yes,
+                    is_moose64=is_moose64,
                     callordef_line=token.get_line(tokens, op_pos),
                     callordef_col=token.get_col(tokens, op_pos)
                 )
@@ -1847,13 +1848,18 @@ func parse_single_call_or_funcdef_arg(
 ## which must start with a '(' opening bracket.
 ## @returns CallArgsExpr
 func parse_call_or_funcdef_args(
-        tokens, pos, msgs,
-        is_call=no, project_file=none,
+        tokens, pos, msgs, allow_type_refs=no,
+        require_type_refs=no,
+        is_call=no, is_moose64=no, project_file=none,
         callordef_line=none, max_len=none,
         callordef_col=none, debug=no
         ) {
     var result = _parse_call_or_funcdef_args_notlater(
-        tokens, pos, 0, msgs, is_call=is_call, project_file=project_file,
+        tokens, pos, 0, msgs, is_call=is_call,
+        allow_type_refs=allow_type_refs,
+        require_type_refs=require_type_refs,
+        is_moose64=is_moose64,
+        project_file=project_file,
         callordef_line=callordef_line, max_len=max_len,
         callordef_col=callordef_col, debug=debug
         )
@@ -1864,7 +1870,8 @@ func parse_call_or_funcdef_args(
 
 func _parse_call_or_funcdef_args_notlater(
         tokens, pos, nesting_depth, msgs,
-        is_call=no, project_file=none,
+        allow_type_refs=no, require_type_refs=no,
+        is_call=no, is_moose64=no, project_file=none,
         callordef_line=none, max_len=none,
         callordef_col=none, debug=no
         ) {
@@ -1874,6 +1881,9 @@ func _parse_call_or_funcdef_args_notlater(
     }
     if max_len != none and max_len < tokens_len {
         tokens_len = max_len
+    }
+    if require_type_refs {
+        allow_type_refs = yes
     }
 
     if debug {
