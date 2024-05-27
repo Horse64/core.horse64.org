@@ -1714,14 +1714,14 @@ func parse_single_call_or_funcdef_arg(
     if pre_assign_expr == none {
         msgs.add(new msg.FileMsg(
             "Unexpected " + token.describe_token_at(
-                tokens, pos) +
+                tokens, startpos) +
             ", expected " + if is_call ("call")
                 else ("func def") + " argument" +
             call_ast_error_info_suffix(callordef_line, callordef_col,
                 is_call=is_call) + ".",
             source_file=project_file,
-            line=token.get_line(tokens, pos),
-            col=token.get_col(tokens, pos),
+            line=token.get_line(tokens, startpos),
+            col=token.get_col(tokens, startpos),
         ))
         pos = token.skip_garbage_to_closing_item(
             tokens, pos, token.T_COMMA, ",",
@@ -1892,6 +1892,9 @@ func _parse_call_or_funcdef_args_notlater(
             tokens.sub(pos, math.min(pos + 10, tokens_len)).as_str() +
             "... with pos=" + pos.as_str() + ", "
             "tokens.len=" + tokens.len.as_str() + ", "
+            "is_moose64=" + is_moose64.as_str() + ", "
+            "require_type_refs=" + require_type_refs.as_str() + ", "
+            "is_call=" + is_call.as_str() + ", "
             "max_len=" + max_len.as_str())
     }
 
@@ -1930,6 +1933,46 @@ func _parse_call_or_funcdef_args_notlater(
             callordef_line=callordef_line,
             callordef_col=callordef_col
         )
+        if require_type_refs and (pos > tokens_len or
+                tokens[pos].kind != token.T_LEFTPTR) {
+            if arg != none and not arg.damaged {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected " + token.describe_token_at(
+                        tokens, pos) +
+                    ", expected '<-' (T_LEFTPTR) for the "
+                    "argument's type.",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+                arg.damaged = yes
+            }
+        } elseif (allow_type_refs or require_type_refs) and
+                pos <= tokens_len and
+                tokens[pos].kind == token.T_LEFTPTR {
+            pos += 1
+            var v = typeef._parse_typeref_notlater(
+                tokens, pos, msgs, project_file=project_file,
+                max_len=tokens_len, is_moose64=is_moose64,
+                debug=debug
+            )
+            if v == none {
+                if arg != none and not arg.damaged {
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected " + token.describe_token_at(
+                            tokens, pos) +
+                        ", expected type ref expression to "
+                        "represent argument's type.",
+                        source_file=project_file,
+                        line=token.get_line(tokens, pos),
+                        col=token.get_col(tokens, pos),
+                    ))
+                    arg.damaged = yes
+                }
+            } else {
+                pos += v.token_len
+            }
+        }
 
         assert(arg != none)
         node.subexprs.add(arg)

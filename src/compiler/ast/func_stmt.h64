@@ -291,7 +291,7 @@ func parse(tokens, pos, msgs, project_file=none,
         }
         var v = expr.parse_call_or_funcdef_args(
             tokens, pos, msgs,
-            require_type_refs=yes, is_moose64=is_moose64,
+            require_type_refs=is_moose64, is_moose64=is_moose64,
             is_call=no, project_file=project_file,
             debug=debug
         ) later:
