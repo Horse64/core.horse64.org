@@ -134,7 +134,8 @@ func _parse_typeref_notlater(
         inner_expr.token_len = (pos - startpos)
     }
     if typeref_expr == none and pos <= max_len and
-            tokens[pos].kind == token.T_IDENT and
+            (tokens[pos].kind == token.T_IDENT or
+            tokens[pos].kind == token.T_KEYWORD) and
             is_moose64 and
             builtin_moose64_types.has(tokens[pos].str) {
         typeref_expr = new TypeRefExpr()
@@ -143,7 +144,8 @@ func _parse_typeref_notlater(
         pos += 1
     }
     if typeref_expr == none and pos <= max_len and
-            tokens[pos].kind == token.T_IDENT and
+            (tokens[pos].kind == token.T_IDENT or
+            tokens[pos].kind == token.T_KEYWORD) and
             not is_moose64 and
             builtin_horse64_types.has(tokens[pos].str) {
         typeref_expr = new TypeRefExpr()
@@ -170,7 +172,8 @@ func _parse_typeref_notlater(
         }
     }
     while typeref_expr != none and pos <= max_len and
-            tokens[pos].kind == token.T_IDENT and
+            (tokens[pos].kind == token.T_IDENT or
+             tokens[pos].kind == token.T_KEYWORD) and
             is_moose64 and
             builtin_moose64_type_modifiers.has(
                 tokens[pos].str
