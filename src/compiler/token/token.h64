@@ -1459,6 +1459,12 @@ func as_escaped_code_string(
 func is_leftptr_at_token_str_pos(
         token_str, token_pos, past_tokens
         ) {
+    if token_pos <= 1 or {"-", ">", "<",
+            "(", ")", "]", "[", "="}.has(
+                token_str[token_pos - 1]
+            ) {
+        return no
+    }
     var k = past_tokens.len
     while k >= 1 {
         var kind = past_tokens[k].kind
@@ -1467,31 +1473,38 @@ func is_leftptr_at_token_str_pos(
                 }.has(kind) {
             return no
         }
-        if kind == T_IDENT and k > 1 and (
-                past_tokens[k - 1].kind == T_COMMA or
-                (past_tokens[k - 1].kind == T_KEYWORD and
-                {"var", "const"}.has(past_tokens[k - 1].str)
-                )) {
-            if past_tokens[k - 1].kind != T_COMMA {
-                return yes
-            }
+        if kind == T_IDENT and k > 1 and
+                past_tokens[k - 1].kind == T_KEYWORD and
+                {"var", "const"}.has(past_tokens[k - 1].str) {
+            return yes
+        }
+        if kind == T_IDENT and k > 1 and
+                (past_tokens[k - 1].kind == T_COMMA or
+                 (past_tokens[k - 1].kind == T_ENCLOSE and
+                  past_tokens[k - 1].str == "(")) {
             var bracket_depth = 0
-            var z = k - 2
+            var z = k
             while z >= 1 {
                 if past_tokens[z].kind == T_ENCLOSE and
-                        {"(", "[", "{"}.has(past_tokens[z].kind) {
+                        {"(", "[", "{"}.has(past_tokens[z].str) {
                     bracket_depth -= 1
                     if bracket_depth < -1 {
                         return no
                     }
                 } elseif past_tokens[z].kind == T_ENCLOSE and
-                        {")", "]", "}"}.has(past_tokens[z].kind) {
+                        {")", "]", "}"}.has(past_tokens[z].str) {
                     bracket_depth += 1
                 }
                 if bracket_depth == 0 and
                         past_tokens[z].kind == T_KEYWORD and
                         {"var", "const"}.has(past_tokens[z].str) {
                     return yes
+                }
+                if bracket_depth <= 0 and
+                        {T_MATH, T_UNARYMATH, T_BOOL, T_NUM,
+                        T_ASSIGN, T_MATHASSIGN
+                        }.has(past_tokens[z].kind) {
+                    return no
                 }
                 if bracket_depth == -1 and
                         past_tokens[z].kind == T_KEYWORD and
