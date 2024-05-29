@@ -34,6 +34,7 @@ import compiler.limit as climit
 import compiler.msg as msg
 import compiler.operator as operator
 import compiler.token as token
+import compiler.typeref as typeref
 
 enum ContainerKind {
     C_SET,
@@ -1682,7 +1683,9 @@ func parse_single_call_or_funcdef_arg(
         tokens, pos, nesting_depth, msgs,
         is_call=no, project_file=none,
         callordef_line=none, callordef_col=none,
-        max_len=none, debug=no
+        max_len=none,
+        allow_type_refs=no, require_type_refs=no,
+        debug=no
         ) {
     var startpos = pos
     var tokens_len = tokens.len
@@ -1775,17 +1778,28 @@ func parse_single_call_or_funcdef_arg(
 
     # Make sure we reached the proper ending:
     var had_damage = no
-    if pos > tokens_len or (
-            tokens[pos].kind != token.T_COMMA and
-            (tokens[pos].kind != token.T_ENCLOSE or
-             tokens[pos].str != ")")) {
+    if pos > tokens_len or
+            ((not allow_type_refs or
+              tokens[pos].kind != token.T_LEFTPTR) and
+             (require_type_refs or (
+              tokens[pos].kind != token.T_COMMA and
+              (tokens[pos].kind != token.T_ENCLOSE or
+               tokens[pos].str != ")")))) {
         if assigned_expr == none or
                 not assigned_expr.has_damage() {
+            var expected_str = "expected ',' (T_COMMA) or "
+                "ending ')' (T_ENCLOSE)"
+            if require_type_refs {
+                expected_str = "expected '<-' (T_LEFTPTR)"
+            } elseif allow_type_refs {
+                expected_str = "expected ',' (T_COMMA), "
+                    "ending ')' (T_ENCLOSE), or "
+                    "'<-' (T_LEFTPTR)"
+            }
             msgs.add(new msg.FileMsg(
                 "Unexpected " + token.describe_token_at(
                     tokens, pos) +
-                ", expected ',' (T_COMMA) or ending "
-                "')' (T_ENCLOSE)" +
+                ", " + expected_str +
                 call_ast_error_info_suffix(
                     callordef_line, callordef_col,
                     is_call=is_call) + ".",
@@ -1931,8 +1945,13 @@ func _parse_call_or_funcdef_args_notlater(
             tokens, pos, nesting_depth, msgs, is_call=is_call,
             project_file=project_file,
             callordef_line=callordef_line,
-            callordef_col=callordef_col
+            callordef_col=callordef_col,
+            require_type_refs=require_type_refs,
+            allow_type_refs=allow_type_refs,
         )
+        if arg != none {
+            pos += arg.token_len
+        }
         if require_type_refs and (pos > tokens_len or
                 tokens[pos].kind != token.T_LEFTPTR) {
             if arg != none and not arg.damaged {
@@ -1951,7 +1970,7 @@ func _parse_call_or_funcdef_args_notlater(
                 pos <= tokens_len and
                 tokens[pos].kind == token.T_LEFTPTR {
             pos += 1
-            var v = typeef._parse_typeref_notlater(
+            var v = typeref._parse_typeref_notlater(
                 tokens, pos, msgs, project_file=project_file,
                 max_len=tokens_len, is_moose64=is_moose64,
                 debug=debug
@@ -1978,7 +1997,6 @@ func _parse_call_or_funcdef_args_notlater(
         node.subexprs.add(arg)
         assert(pos >= 1)
         assert(arg.token_len >= 1)
-        pos += arg.token_len
         if pos > tokens_len or tokens[pos].kind != token.T_COMMA or
                 (tokens[pos].kind == token.T_COMMA and
                 pos + 1 <= tokens_len and
