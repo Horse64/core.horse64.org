@@ -279,6 +279,7 @@ enum NodeKind {
     N_STMT_IF,
     N_STMT_INVALID,
     N_STMT_STRUCT,
+    N_STMT_UNION,
 }
 
 type ASTResult {

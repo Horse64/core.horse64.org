@@ -1039,7 +1039,8 @@ func is_special_word(value, is_moose64=no) {
             value.kind == T_NONE or
             value.kind == T_BOOLCOMP
     }
-    if is_moose64 and {"c_import", "struct"}.has(value) {
+    if is_moose64 and {"c_import", "struct",
+            "union"}.has(value) {
         return yes
     }
     return special_words.has(value)

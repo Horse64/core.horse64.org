@@ -55,7 +55,10 @@ func StructStmt.as_code(indent=0) {
     if self.damaged {
         return " ".rep(indent) + "(damaged type)"
     }
-    var t = " ".rep(indent) + "struct " + self.label
+    var t = " ".rep(indent) + "struct"
+    if self.label != none {
+        t += " " + self.label
+    }
     t += " {\n"
     for stmt in self.subblocks[1] {
         t += stmt.as_code(indent=(indent + 4)) + "\n"
@@ -64,25 +67,60 @@ func StructStmt.as_code(indent=0) {
     return t
 }
 
-func parse_struct_header(
+type UnionStmt base ast.StmtNode {
+}
+
+func UnionStmt.init {
+    base.init()
+    self.kind = ast.N_STMT_UNION
+}
+
+func UnionStmt.as_json_obj {
+    var output = base.as_json_obj()
+    return output
+}
+
+func UnionStmt.as_code(indent=0) {
+    if self.damaged {
+        return " ".rep(indent) + "(damaged type)"
+    }
+    var t = " ".rep(indent) + "union {\n"
+    for stmt in self.subblocks[1] {
+        t += stmt.as_code(indent=(indent + 4)) + "\n"
+    }
+    t += " ".rep(indent) + "}"
+    return t
+}
+
+func parse_struct_or_union_header(
         stmt, tokens, tokens_len, pos, msgs,
         project_file=none, debug=no
         ) {
     var clausestartpos = pos
     if pos > tokens_len or
             tokens[pos].kind != token.T_KEYWORD or
-            tokens[pos].str != "struct" {
+            not {"struct", "union"}.has(tokens[pos].str) {
         return none
     }
+    var is_struct = (tokens[pos].str == "struct")
+    var is_union = not is_struct
     pos += 1  # Go past "struct"
 
-    if pos > tokens_len or
-            tokens[pos].kind != token.T_IDENT {
+    var struct_type_name
+    if pos <= tokens_len and
+            tokens[pos].kind == token.T_ENCLOSE and
+            tokens[pos].str == "{" {
+        # This is an anonymous struct or union.
+        struct_type_name = none
+    } elseif is_union or (is_struct and
+            (pos > tokens_len or
+            tokens[pos].kind != token.T_IDENT)) {
         if not stmt.has_damage() {
             msgs.add(new msg.FileMsg(
                 "Unexpected " + token.describe_token_at(tokens,
                     pos) +
-                ", expected valid expression for struct "
+                ", expected valid expression for " +
+                if is_struct ("struct") else ("union") +
                 "statement starting in line " +
                 token.get_line(tokens, clausestartpos).as_str() +
                 ", column " +
@@ -99,9 +137,11 @@ func parse_struct_header(
             ))
         pos += skiplen
         return (pos - clausestartpos)    
+    } elseif is_struct {
+        assert(tokens[pos].kind == token.T_IDENT)
+        struct_type_name = tokens[pos].str
+        stmt.label = struct_type_name
     }
-    var struct_type_name = tokens[pos].str
-    stmt.label = struct_type_name
     pos += 1
 
     if pos <= tokens_len and (
@@ -139,12 +179,14 @@ func parse(tokens, pos, msgs, project_file=none,
     var startpos = pos
     if not is_moose64 or pos > tokens_len or
             tokens[pos].kind != token.T_KEYWORD or
-            tokens[pos].str != "struct" {
+            not {"union", "struct"}.has(tokens[pos].str) {
         return later none
     }
 
-    var stmt = new StructStmt()
-    var headerlen = parse_struct_header(
+    var is_struct = (tokens[pos].str == "struct")
+    var is_union = not is_struct
+    var stmt = if is_struct (new StructStmt()) else (new UnionStmt())
+    var headerlen = parse_struct_or_union_header(
         stmt, tokens, tokens_len, pos, msgs,
         project_file=project_file, debug=debug
     )
