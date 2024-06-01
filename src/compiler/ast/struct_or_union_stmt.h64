@@ -141,8 +141,8 @@ func parse_struct_or_union_header(
         assert(tokens[pos].kind == token.T_IDENT)
         struct_type_name = tokens[pos].str
         stmt.label = struct_type_name
+        pos += 1
     }
-    pos += 1
 
     if pos <= tokens_len and (
             tokens[pos].kind != token.T_ENCLOSE or
@@ -218,7 +218,8 @@ func parse(tokens, pos, msgs, project_file=none,
     stmt.token_len = (pos - startpos)
     if not stmt.damaged {
         type_stmt.check_type_block_contents(
-            stmt, msgs, project_file=project_file
+            stmt, msgs, project_file=project_file,
+            is_moose64=is_moose64
         )
     }
     return later stmt

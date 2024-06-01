@@ -1,4 +1,4 @@
-## @module compiler.ast.typeref
+## @module compiler.typeref
 # Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -39,6 +39,23 @@ const builtin_moose64_types = {
 }
 const builtin_moose64_type_modifiers = {
     "ref", "array"
+}
+
+type TypeRefModProp {
+}
+
+type TypeRefModProp_Range base TypeRefModProp {
+    var range_value_num
+    var range_value_label
+}
+
+type TypeRefMod {
+    var name
+    var props = []
+}
+
+func TypeRefMod.init(name) {
+    self.name = name + ""
 }
 
 type TypeRefExpr base ast.TreeNode {
@@ -178,9 +195,43 @@ func _parse_typeref_notlater(
             builtin_moose64_type_modifiers.has(
                 tokens[pos].str
             ) {
-        typeref_expr.type_modifiers.add(tokens[pos].str)
+        var modifier_name = tokens[pos].str
+        var modifier = new TypeRefMod(modifier_name)
+        typeref_expr.type_modifiers.add(modifier)
         typeref_expr.token_len = (pos - startpos) + 1
         pos += 1
+        if modifier_name == "array" and is_moose64 {
+            while pos + 2 <= max_len and
+                    tokens[pos].kind == token.T_ENCLOSE and
+                    tokens[pos].str == '[' and
+                    tokens[pos + 2].kind == token.T_ENCLOSE and
+                    tokens[pos + 2].str == ']' {
+                if tokens[pos + 1].kind == token.T_IDENT {
+                    var prop = new TypeRefModProp_Range()
+                    prop.range_value_label =
+                        tokens[pos + 1].str
+                } elseif tokens[pos + 1].kind == token.T_NUM {
+                    var prop = new TypeRefModProp_Range()
+                    prop.range_value_num =
+                        tokens[pos + 1].str.to_num()
+                } else {
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected '[' followed by " +
+                            token.describe_token_at(
+                                tokens, pos) + " "
+                        ", expected valid range expression "
+                        "for array modifier.",
+                        source_file=project_file,
+                        line=token.get_line(tokens, pos),
+                        col=token.get_col(tokens, pos),
+                    ))
+                    typeref_expr.damaged = yes
+                    return typeref_expr
+                }
+                pos += 3
+                typeref_expr.token_len = (pos - startpos) + 0
+            }
+        }
     }
     return typeref_expr
 }

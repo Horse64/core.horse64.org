@@ -328,7 +328,9 @@ func parse_extend_or_enum_or_type_header(
     return (pos - clausestartpos)
 }
 
-func check_type_block_contents(type_obj, msgs, project_file=none) {
+func check_type_block_contents(
+        type_obj, msgs, project_file=none, is_moose64=no
+        ) {
     var stmt_name = "type"
     if type_obj.kind == ast.N_STMT_TYPEEXTEND {
         stmt_name = "extend type"
