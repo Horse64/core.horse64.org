@@ -365,10 +365,10 @@ func parse_container_entry(
     }
     pos += expr1.token_len
     if pos >= tokens_len or (container_kind == C_MAP and
-            tokens[pos].kind != token.T_MAPASSIGN) or
+            tokens[pos].kind != token.T_RIGHTPTR) or
             (container_kind == C_VEC and
             tokens[pos].kind != token.T_COLON) {
-        var expected = "'->' (T_MAPASSIGN) for map"
+        var expected = "'->' (T_RIGHTPTR) for map"
         if container_kind == C_VEC {
             expected = "':' (T_COLON) for vector"
         }
@@ -665,9 +665,9 @@ func parse_expression_unwrapped(
                     (tokens[pos].kind == token.T_ENCLOSE and
                      tokens[pos].str == closebracket) or
                     (openbracket == "{" and
-                     tokens[pos].kind == token.T_MAPASSIGN)) {
+                     tokens[pos].kind == token.T_RIGHTPTR)) {
                 if openbracket == "{" {
-                    if (tokens[pos].kind != token.T_MAPASSIGN) {
+                    if (tokens[pos].kind != token.T_RIGHTPTR) {
                         node.kind = C_SET
                         if (tokens[pos].kind == token.T_COMMA) {
                             pos += 1
@@ -727,7 +727,7 @@ func parse_expression_unwrapped(
                     i += 1
                     continue
                 }
-                if tokens[i].kind == token.T_MAPASSIGN and
+                if tokens[i].kind == token.T_RIGHTPTR and
                         openbracket == "{" {
                     ckind = C_MAP
                     break

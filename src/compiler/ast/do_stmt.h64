@@ -141,7 +141,7 @@ func FinallyClause.as_code(indent=0) {
 
 func parse_rescue_clause_header(
         stmt, tokens, tokens_len, pos, msgs,
-        project_file=none, debug=no) {
+        project_file=none, is_moose64=no, debug=no) {
     var clausestart = pos
     if pos > tokens_len or
             tokens[pos].kind != token.T_KEYWORD or
@@ -296,11 +296,12 @@ func parse_rescue_clause_header(
 
 func parse_single_rescue_clause(
         stmt, tokens, tokens_len, pos, msgs,
-        project_file=none, debug=no) {
+        project_file=none, is_moose64=no, debug=no) {
     var clausestartpos = pos
     var clause = parse_rescue_clause_header(
         stmt, tokens, tokens_len, pos, msgs,
-        project_file=project_file, debug=debug)
+        project_file=project_file,
+        is_moose64=is_moose64, debug=debug)
     if clause == none {
         return later none
     }
@@ -331,11 +332,12 @@ func parse_single_rescue_clause(
 
 func parse_all_rescue_clauses(
         stmt, tokens, tokens_len, pos, msgs,
-        project_file=none, debug=no) {
+        project_file=none, is_moose64=no, debug=no) {
     var result = []
     var rescue_clause = parse_single_rescue_clause(
         stmt, tokens, tokens_len, pos, msgs,
-        project_file=project_file, debug=no) later:
+        project_file=project_file,
+        is_moose64=is_moose64, debug=no) later:
 
     await rescue_clause
     if rescue_clause == none {
@@ -346,13 +348,14 @@ func parse_all_rescue_clauses(
 
     rescue_clause = parse_single_rescue_clause(
         stmt, tokens, tokens_len, pos, msgs,
-        project_file=project_file, debug=no
+        project_file=project_file,
+        is_moose64=is_moose64, debug=no
     ) later repeat
 }
 
 func parse_finally_clause(
         stmt, tokens, tokens_len, pos, msgs,
-        project_file=none, debug=no) {
+        project_file=none, is_moose64=no, debug=no) {
     var clausestartpos = pos
     if pos > tokens_len or
             tokens[pos].kind != token.T_KEYWORD or
@@ -427,7 +430,8 @@ func parse(tokens, pos, msgs, project_file=none,
     # Parse rescue clauses, if any:
     var rescue_clauses = parse_all_rescue_clauses(
         stmt, tokens, tokens_len, pos, msgs,
-        project_file=project_file, debug=no) later:
+        project_file=project_file,
+        is_moose64=is_moose64, debug=no) later:
 
     await rescue_clauses
     for clause in rescue_clauses {
@@ -442,7 +446,8 @@ func parse(tokens, pos, msgs, project_file=none,
     # Parse finally clause, if any:
     var finally_clause = parse_finally_clause(
         stmt, tokens, tokens_len, pos, msgs,
-        project_file=project_file, debug=no) later:
+        project_file=project_file,
+        is_moose64=is_moose64, debug=no) later:
 
     await finally_clause
     if finally_clause != none {
