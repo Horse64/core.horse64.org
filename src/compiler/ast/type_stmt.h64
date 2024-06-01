@@ -336,8 +336,23 @@ func check_type_block_contents(
         stmt_name = "extend type"
     } elseif type_obj.kind == ast.N_STMT_STRUCT {
         stmt_name = "struct"
+    } elseif type_obj.kind == ast.N_STMT_UNION {
+        stmt_name = "union"
     }
     for stmt in type_obj.subblocks[1] {
+        if is_moose64 and {ast.N_STMT_STRUCT,
+                ast.N_STMT_UNION}.has(type_obj.kind) {
+            if {ast.N_STMT_STRUCT, ast.N_STMT_UNION}.has(
+                    stmt.kind) {
+                check_type_block_contents(stmt, msgs,
+                    project_file=project_file,
+                    is_moose64=is_moose64)
+                if stmt.damaged {
+                    type_obj.damaged = yes
+                }
+                continue
+            }
+        }
         if stmt.kind != ast.N_STMT_VAR {
             msgs.add(new msg.FileMsg(
                 "Unexpected statement of kind " +
@@ -353,6 +368,7 @@ func check_type_block_contents(
                 col=stmt.col,
             ))
             stmt.damaged = yes
+            type_obj.damaged = yes
         }
     }
 }
