@@ -549,8 +549,8 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
         is_enum = if node.kind == ast.N_STMT_TYPE or
                   node.kind == ast.N_STMT_STRUCT (no)
                   else (yes)
-        is_struct if nodekind == ast.N_STMT_STRUCT (yes)
-                  else (no)
+        is_struct = if node.kind == ast.N_STMT_STRUCT (yes)
+                    else (no)
         stmt_full_type_path = "<inline>@<unknown>"
         var mod_info = none
         if def_project_file != none and def_project_file.modinfo != none {

@@ -526,9 +526,13 @@ func project.Project.compute_all_scopes(
         # Do a visitation to figure out the local inner scopes:
         func assign_local_scope(node, parent) {
             if node.kind == ast.N_STMT_TYPE or
+                    node.kind == ast.N_STMT_STRUCT or
                     node.kind == ast.N_STMT_ENUM or
                     node.kind == ast.N_STMT_TYPEEXTEND or
+                    node.kind == ast.N_STMT_STRUCTEXTEND or
                     node.kind == ast.N_STMT_ENUMEXTEND {
+                assert(is_moose64 or node.kind != ast.N_STMT_STRUCT)
+                assert(not is_moose64 or node.kind != ast.N_STMT_TYPE)
                 node.scope = none
                 node.func_scope = none
                 var escope = pfile.make_type_or_enum_scope_from_node(
