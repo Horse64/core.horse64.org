@@ -342,13 +342,14 @@ func project.ProjectFile.check_item_exists_by_modpkg(
 ## this works from any N_STMT_FUNC or N_STMT_FUNCEXTEND node of
 ## the given type.
 func project.ProjectFile.make_type_or_enum_scope_from_funcattr(
-        node, msgs=none, def_project_file=none
+        node, msgs=none, is_moose64=no, def_project_file=none
         ) {
     assert(node.kind == ast.N_STMT_FUNC or
         node.kind == ast.N_STMT_FUNCEXTEND)
     assert(node.type_path != none)
     var info = self.get_gscope_type_node_info_from_funcattr(
-        node, msgs=msgs, def_project_file=def_project_file
+        node, msgs=msgs, is_moose64=is_moose64,
+        def_project_file=def_project_file
     )
     var type_node = info[1]
     var type_file = info[2]
@@ -356,7 +357,8 @@ func project.ProjectFile.make_type_or_enum_scope_from_funcattr(
         return none
     }
     return self.make_type_or_enum_scope_from_node(
-        type_node, msgs=msgs, def_project_file=type_file
+        type_node, msgs=msgs, is_moose64=is_moose64,
+        def_project_file=type_file
     )
 }
 
@@ -364,7 +366,8 @@ func project.ProjectFile.make_type_or_enum_scope_from_funcattr(
 ## and get its stand-in global scope AST node from whatever
 ## project file it actually is defined in.
 func project.ProjectFile.get_gscope_type_node_info_from_funcattr(
-        func_attr_node, msgs=none, def_project_file=none
+        func_attr_node, msgs=none, is_moose64=no,
+        def_project_file=none
         ) {
     var node = func_attr_node
     assert(node.kind == ast.N_STMT_FUNC or
@@ -388,7 +391,8 @@ func project.ProjectFile.get_gscope_type_node_info_from_funcattr(
         var type_file = pr.storage_id_to_project_file[
             node.func_scope.owning_type_storage_id
         ]
-        assert(node.kind == ast.N_STMT_TYPE)
+        assert(node.kind == ast.N_STMT_TYPE or
+               node.kind == ast.N_STMT_STRUCT)
         return [type_node, type_file]
     }
     if def_project_file == none or node.type_path.len <= 0 {
@@ -476,7 +480,9 @@ func project.ProjectFile.get_gscope_type_node_info_from_funcattr(
         global_entry =
             pfile.global_scope.name_to_stmt_map[type_name]
         global_entry_file = pfile
-    } elseif global_entry.kind != ast.N_STMT_TYPE {
+    } elseif global_entry.kind != ast.N_STMT_TYPE and
+            (not is_moose64 or
+            global_entry.kind != ast.N_STMT_STRUCT) {
         if msgs != none {
             assert(typename(node.type_path) == "list")
             var emsg =
@@ -500,7 +506,8 @@ func project.ProjectFile.get_gscope_type_node_info_from_funcattr(
         }
     }
     assert(global_entry != none and
-        global_entry.kind == ast.N_STMT_TYPE)
+        (global_entry.kind == ast.N_STMT_TYPE or
+        (is_moose64 and global_entry.kind == ast.N_STMT_STRUCT)))
     return [global_entry, global_entry_file]
 }
 
@@ -514,12 +521,14 @@ func project.ProjectFile.get_gscope_type_node_info_from_funcattr(
 ## @{compiler.project.Project.type_or_enum_scope_map} associated
 ## with a respective project.
 func project.ProjectFile.make_type_or_enum_scope_from_node(
-        node, msgs=none, def_project_file=none
+        node, msgs=none, is_moose64=no, def_project_file=none
         ) {
     assert(node.kind == ast.N_STMT_TYPE or
         node.kind == ast.N_STMT_TYPEEXTEND or
         node.kind == ast.N_STMT_ENUM or
-        node.kind == ast.N_STMT_ENUMEXTEND)
+        node.kind == ast.N_STMT_ENUMEXTEND or
+        (is_moose64 and (node.kind == ast.N_STMT_STRUCT or
+        node.kind == ast.N_STMT_STRUCTEXTEND)))
     var stmt_base_full_type_path
     var stmt_base_label
     var stmt_base_project_file
@@ -530,13 +539,18 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
     var key
     var result_scope
     var is_enum
+    var is_struct
     var based_on_cext_id = none
     var base_escope_key = none
     if node.kind == ast.N_STMT_TYPE or
-            node.kind == ast.N_STMT_ENUM {
+            node.kind == ast.N_STMT_ENUM or
+            (is_moose64 and node.kind == ast.N_STMT_STRUCT) {
         # This is a self-contained new declaration and not an extends.
-        is_enum = if node.kind == ast.N_STMT_TYPE (no)
+        is_enum = if node.kind == ast.N_STMT_TYPE or
+                  node.kind == ast.N_STMT_STRUCT (no)
                   else (yes)
+        is_struct if nodekind == ast.N_STMT_STRUCT (yes)
+                  else (no)
         stmt_full_type_path = "<inline>@<unknown>"
         var mod_info = none
         if def_project_file != none and def_project_file.modinfo != none {
@@ -644,11 +658,18 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
         key = stmt_full_type_path + "@" + stmt_label
     } else {
         assert(node.kind == ast.N_STMT_TYPEEXTEND or
-            node.kind == ast.N_STMT_ENUMEXTEND)
-        is_enum = if node.kind == ast.N_STMT_TYPEEXTEND (no)
+            node.kind == ast.N_STMT_ENUMEXTEND or
+            node.kind == ast.N_STMT_STRUCTEXTEND)
+        is_enum = if node.kind == ast.N_STMT_TYPEEXTEND or
+                  node.kind == ast.N_STMT_STRUCTEXTEND (no)
                   else (yes)
+        is_struct if nodekind == ast.N_STMT_STRUCTEXTEND (yes)
+                  else (no)
         var base_def_type = if is_enum (ast.N_STMT_ENUM) else
                             (ast.N_STMT_TYPE)
+        if node.kind == ast.N_STMT_STRUCTEXTEND {
+            base_def_type = ast.N_STMT_STRUCT
+        }
 
         # See what enum or tyep we're extending:
         if node.subexprs.len < 1 or
@@ -676,7 +697,8 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
             }
         } else {
             var mod_info = none
-            if def_project_file != none and def_project_file.modinfo != none {
+            if def_project_file != none and
+                    def_project_file.modinfo != none {
                 mod_info = def_project_file.modinfo
             } elseif self.modinfo != none {
                 mod_info = self.modinfo
@@ -790,7 +812,17 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
 
     if result_scope.is_enum != is_enum {
         var stmt_name = if is_enum ("enum") else ("type")
-        var opposite_name = if is_enum ("type") else ("enum")
+        if is_struct {
+            stmt_name = "struct"
+        }
+        var opposite_name = "enum"
+        if is_enum {
+            if is_moose64 {
+                opposite_name = "type or struct"
+            } else {
+                opposite_name = "type"
+            }
+        }
         if msgs != none {
             var where = "elsewhere"
             if result_scope.def_file != none and

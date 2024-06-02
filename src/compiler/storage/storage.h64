@@ -144,8 +144,9 @@ func project.Project.get_project_file_for_escope(escope) {
     return none
 }
 
-func project.Project.compute_all_scopes(msgs, debug=no,
-        debug_global_storage=no) {
+func project.Project.compute_all_scopes(
+        msgs, is_moose64=no,
+        debug=no, debug_global_storage=no) {
     if self.did_compute_scopes {
         if debug {
             print("compiler.ast.storage: compute_all_scopes() " +
@@ -531,7 +532,8 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                 node.scope = none
                 node.func_scope = none
                 var escope = pfile.make_type_or_enum_scope_from_node(
-                    node, msgs=msgs, def_project_file=pfile
+                    node, msgs=msgs, is_moose64=is_moose64,
+                    def_project_file=pfile
                 )
                 if escope == none {
                     # Note: error has already been emitted by
@@ -854,7 +856,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                         var gnode_info =
                             pfile.get_gscope_type_node_info_from_funcattr(
                                 node, def_project_file=pfile,
-                                msgs=msgs
+                                msgs=msgs, is_moose64=is_moose64
                             )
                         var gnode = gnode_info[1]
                         if gnode == none {
@@ -871,7 +873,7 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                         var in_escope =
                             pfile.make_type_or_enum_scope_from_funcattr(
                                 node, def_project_file=pfile,
-                                msgs=msgs
+                                msgs=msgs, is_moose64=is_moose64
                             )
                         if in_escope == none {
                             node.damaged = yes
@@ -1067,8 +1069,10 @@ func project.Project.compute_all_scopes(msgs, debug=no,
                                             }
                                         }
                                     }
-                                    assert(had_error or
-                                        msgs == none)
+                                    assert(
+                                        had_error or
+                                        msgs == none
+                                    )
                                 }
                             }
                         }
@@ -1368,6 +1372,10 @@ func project.Project.compute_and_check_all_storage(
         msgs, build_options=none, debug=no,
         debug_global_storage=no
         ) {
+    var is_moose64 = no
+    if build_options != none and build_options.is_moose64 {
+        is_moose64 = yes
+    }
     if self.did_compute_storage {
         if debug {
             print("compiler.ast.storage: compute_and_check_all_storage() " +
@@ -1380,7 +1388,9 @@ func project.Project.compute_and_check_all_storage(
         print("compiler.ast.storage: check_all_storage() " +
             "starting...")
     }
-    var success = self.compute_all_scopes(msgs, debug=debug,
+    var success = self.compute_all_scopes(
+        msgs, is_moose64=is_moose64,
+        debug=debug,
         debug_global_storage=debug_global_storage) later:
 
     await success

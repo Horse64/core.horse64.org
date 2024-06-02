@@ -167,7 +167,8 @@ func GlobalScope.type_path_to_entry(tpath) {
     if typename(tpath) == "str" {
         tpath = tpath.split(".")
     }
-    if not self.name_to_stmt_map.has(tpath[1]) {
+    if tpath.len == 0 or
+            not self.name_to_stmt_map.has(tpath[1]) {
         return none
     }
     # Handling of most things that aren't an import:
