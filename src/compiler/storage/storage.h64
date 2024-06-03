@@ -55,11 +55,11 @@ func project.Project.is_ref_a_type(ref, node=none) {
     if ref.kind == storage_ref.ST_CEXT {
         return cext.check_cext_is_type_by_id(self, ref.id)
     } elseif ref.kind == storage_ref.ST_GLOBAL {
-        if not self.storage_id_to_escope_map.has(ref.id) {
+        if not self.storage_id_to_anscope_map.has(ref.id) {
             return no
         }
-        var escope = self.storage_id_to_escope_map[ref.id]
-        return not escope.is_enum
+        var anscope = self.storage_id_to_anscope_map[ref.id]
+        return not anscope.is_enum
     } elseif {storage_ref.ST_LOCAL,
             storage_ref.ST_CCAPTURE,
             storage_ref.ST_ARG,
@@ -80,16 +80,34 @@ func project.Project.is_ref_of_given_type_an_error(ref, node=none) {
     if ref.kind == storage_ref.ST_CEXT {
         return cext.check_cext_given_type_is_error_by_id(self, ref.id)
     } elseif ref.kind == storage_ref.ST_GLOBAL {
-        if not self.storage_id_to_escope_map.has(ref.id) {
+        if not self.storage_id_to_anscope_map.has(ref.id) {
             throw new RuntimeError("This ref doesn't refer to a type.")
         }
-        var escope = self.storage_id_to_escope_map[ref.id]
-        if escope.is_enum {
+        var anscope = self.storage_id_to_anscope_map[ref.id]
+        if anscope.is_enum or anscope.is_struct {
             throw new RuntimeError("This ref doesn't refer to a type.")
         }
-        return escope.is_error
+        return anscope.is_error
     } else {
         throw new RuntimeError("This ref doesn't refer to a type.")
+    }
+}
+
+func project.Project.is_ref_a_struct(ref, node=none) {
+    if ref.kind == storage_ref.ST_CEXT {
+        return cext.check_cext_is_enum_by_id(self, ref.id)
+    } elseif ref.kind == storage_ref.ST_GLOBAL {
+        if not self.storage_id_to_anscope_map.has(ref.id) {
+            return no
+        }
+        var anscope = self.storage_id_to_anscope_map[ref.id]
+        return anscope.is_struct
+    } elseif {storage_ref.ST_LOCAL, storage_ref.ST_BASE,
+            storage_ref.ST_SELF, storage_ref.ST_EXTENDED,
+            storage_ref.ST_NUMLITERAL}.has(ref.kind) {
+        return no
+    } else {
+        throw new RuntimeError("Unsupported kind of ref for check.")
     }
 }
 
@@ -97,11 +115,11 @@ func project.Project.is_ref_an_enum(ref, node=none) {
     if ref.kind == storage_ref.ST_CEXT {
         return cext.check_cext_is_enum_by_id(self, ref.id)
     } elseif ref.kind == storage_ref.ST_GLOBAL {
-        if not self.storage_id_to_escope_map.has(ref.id) {
+        if not self.storage_id_to_anscope_map.has(ref.id) {
             return no
         }
-        var escope = self.storage_id_to_escope_map[ref.id]
-        return escope.is_enum
+        var anscope = self.storage_id_to_anscope_map[ref.id]
+        return anscope.is_enum
     } elseif {storage_ref.ST_LOCAL, storage_ref.ST_BASE,
             storage_ref.ST_SELF, storage_ref.ST_EXTENDED,
             storage_ref.ST_NUMLITERAL}.has(ref.kind) {
@@ -117,10 +135,10 @@ func project.Project.get_free_global_storage_slot {
     return v
 }
 
-func project.Project.get_project_file_for_escope(escope) {
+func project.Project.get_project_file_for_anscope(anscope) {
     var search_set
-    if escope.def_file != none {
-        search_set = {escope.def_file}
+    if anscope.def_file != none {
+        search_set = {anscope.def_file}
     } else {
         search_set = {}
         for pfile in self.module_to_uri_file_map.values() {
@@ -132,12 +150,12 @@ func project.Project.get_project_file_for_escope(escope) {
     }
     for pfile in search_set {
         if not pfile.global_scope.name_to_stmt_map.has(
-                escope.label) {
+                anscope.label) {
             continue
         }
         var entry = pfile.global_scope.name_to_stmt_map[
-            escope.label]
-        if entry.type_or_enum_scope == escope {
+            anscope.label]
+        if entry.attr_names_scope == anscope {
             return pfile
         }
     }
@@ -163,36 +181,37 @@ func project.Project.compute_all_scopes(
 
     func finalize_enum_and_type_storage(project, msgs) {
         # Make sure all enums and types have a storage id:
-        for escope in project.type_or_enum_scope_map.values() {
-            if escope.is_enum {
+        for anscope in project.attr_names_scope_map.values() {
+            if anscope.is_enum {
                 # First, check the specified values aren't conflicting:
                 var nums_seen = {}
                 var pos = 1
-                while pos <= escope.label_names.len {
-                    if escope.label_nums[pos] == none {
+                while pos <= anscope.label_names.len {
+                    if anscope.label_nums[pos] == none {
                         pos += 1
                         continue
                     }
-                    if nums_seen.has(escope.label_nums[pos]) {
+                    if nums_seen.has(anscope.label_nums[pos]) {
                         if msgs != none {
-                            escope.damaged = yes
+                            anscope.damaged = yes
                             msgs.add(new msg.FileMsg(
                                 "Unexpected duplicate enum value in "
-                                "enum '" + escope.label + "'"
+                                "enum '" + anscope.label + "'"
                                 ", value " +
-                                escope.label_nums[pos].as_str() +
+                                anscope.label_nums[pos].as_str() +
                                 " was seen twice.",
                                 source_file=
-                                    project.get_project_file_for_escope(
-                                        escope),
-                                line=escope.def_line, col=escope.def_col
+                                    project.get_project_file_for_anscope(
+                                        anscope),
+                                line=anscope.def_line,
+                                col=anscope.def_col
                             ))
                         } else {
                             throw new RuntimeError(
                                 "Duplicate enum value found.")
                         }
                     } else {
-                        nums_seen.add(escope.label_nums[pos])
+                        nums_seen.add(anscope.label_nums[pos])
                     }
                     pos += 1
                 }
@@ -201,13 +220,13 @@ func project.Project.compute_all_scopes(
                 var first_run = yes
                 while yes {
                     if first_run {
-                        pos = escope.first_entry_pos
+                        pos = anscope.first_entry_pos
                     } else {
                         pos = 1
                     }
-                    while pos <= escope.label_names.len {
-                        if escope.label_nums[pos] != none {
-                            last_used_num = escope.label_nums[pos]
+                    while pos <= anscope.label_names.len {
+                        if anscope.label_nums[pos] != none {
+                            last_used_num = anscope.label_nums[pos]
                             pos += 1
                             continue
                         }
@@ -215,7 +234,7 @@ func project.Project.compute_all_scopes(
                         while nums_seen.has(last_used_num) {
                             last_used_num += 1
                         }
-                        escope.label_nums[pos] = last_used_num
+                        anscope.label_nums[pos] = last_used_num
                         pos += 1
                     }
                     if not first_run {
@@ -227,8 +246,8 @@ func project.Project.compute_all_scopes(
 
             var gscope_entry_sinfo_found = no
             var search_set
-            if escope.def_file != none {
-                search_set = {escope.def_file}
+            if anscope.def_file != none {
+                search_set = {anscope.def_file}
             } else {
                 search_set = {}
                 for pfile in self.module_uri_to_file_map.values() {
@@ -240,21 +259,21 @@ func project.Project.compute_all_scopes(
             }
             for pfile in search_set {
                 if not pfile.global_scope.name_to_stmt_map.has(
-                        escope.label) {
+                        anscope.label) {
                     continue
                 }
                 var entry = pfile.global_scope.name_to_stmt_map[
-                    escope.label]
-                if entry.type_or_enum_scope != escope or
+                    anscope.label]
+                if entry.attr_names_scope != anscope or
                         entry.symbol_info == none {
                     if search_set.len == 1 {
                         print("horsec: error: Fatal internal "
                             "inconsistency, it looks like this "
-                            "type had the TypeScope() instantiated "
+                            "type had the AttrNamesScope() created "
                             "twice: entry=" + entry.as_str() + " "
-                            "entry.type_or_enum_scope=" +
-                            entry.type_or_enum_scope.as_str() +
-                            " vs expected escope=" + escope.as_str())
+                            "entry.attr_names_scope=" +
+                            entry.attr_names_scope.as_str() +
+                            " vs expected anscope=" + anscope.as_str())
                         throw new RuntimeError("Internal error occured, "
                             "internal type registry is corrupted. "
                             "Please report this bug to the compiler team.")
@@ -262,23 +281,23 @@ func project.Project.compute_all_scopes(
                     continue
                 }
                 gscope_entry_sinfo_found = yes
-                if escope.storage_id != none {
-                    if escope.storage_id !=
+                if anscope.storage_id != none {
+                    if anscope.storage_id !=
                             entry.symbol_info.storage_id {
                         throw new RuntimeError(
                             "Internal error.")
                     }
                 } else {
-                    escope.storage_id =
+                    anscope.storage_id =
                         entry.symbol_info.storage_id
                 }
                 assert(not project.
-                    storage_id_to_escope_map.has(
-                        escope.storage_id) or
-                    project.storage_id_to_escope_map[
-                        escope.storage_id] == escope)
-                project.storage_id_to_escope_map[
-                    escope.storage_id] = escope
+                    storage_id_to_anscope_map.has(
+                        anscope.storage_id) or
+                    project.storage_id_to_anscope_map[
+                        anscope.storage_id] == anscope)
+                project.storage_id_to_anscope_map[
+                    anscope.storage_id] = anscope
                 break
             }
             if not gscope_entry_sinfo_found {
@@ -292,9 +311,9 @@ func project.Project.compute_all_scopes(
                     print("horsec: error: Fatal error in "
                         "project.Project.compute_all_scopes(): " +
                         "Internal error occured, can't trace type '" +
-                        escope.label + "' to storage id, it " +
+                        anscope.label + "' to storage id, it " +
                         "has def_file=" +
-                        escope.def_file.as_str() + " "
+                        anscope.def_file.as_str() + " "
                         "and we checked " +
                         search_set.len.as_str() + " "
                         "file(s) without success. "
@@ -322,144 +341,145 @@ func project.Project.compute_all_scopes(
                 print("compiler.storage: "
                     "project.Project.compute_all_scopes(): " +
                     "Found global storage id " +
-                    escope.storage_id.as_str() + " for "
+                    anscope.storage_id.as_str() + " for "
                     "type or enum in file " +
-                    escope.def_file.as_str() +
-                    " with name '" + escope.label + "'.")
+                    anscope.def_file.as_str() +
+                    " with name '" + anscope.label + "'.")
             }
         }
         # Set base type storage info for all types:
         var had_invalid_base = no
-        for escope_key in project.type_or_enum_scope_map {
-            var escope = project.type_or_enum_scope_map[escope_key]
-            if escope.is_enum {
+        for anscope_key in project.attr_names_scope_map {
+            var anscope = project.attr_names_scope_map[anscope_key]
+            if anscope.is_enum or anscope.is_struct {
                 continue
             }
-            if escope.base_cext_id != none {
-                assert(escope.base_global_id == none)
-                escope._base_escope_key = none
+            if anscope.base_cext_id != none {
+                assert(anscope.base_global_id == none)
+                anscope._base_anscope_key = none
                 if cext.check_cext_is_type_by_id(
-                            project, escope.base_cext_id) and
+                            project, anscope.base_cext_id) and
                         cext.check_cext_given_type_is_error_by_id(
-                            project, escope.base_cext_id) {
-                    escope.is_error = yes
+                            project, anscope.base_cext_id) {
+                    anscope.is_error = yes
                 }
             }
-            if escope._base_escope_key == none or
-                    escope.base_global_id != none {
+            if anscope._base_anscope_key == none or
+                    anscope.base_global_id != none {
                 continue
             }
-            if not project.type_or_enum_scope_map.has(
-                    escope._base_escope_key) {
+            if not project.attr_names_scope_map.has(
+                    anscope._base_anscope_key) {
                 if msgs != none {
-                    if not escope.damaged {
+                    if not anscope.damaged {
                         msgs.add(new msg.FileMsg(
                             "Unexpected type " +
-                            escope.display_name + " "
+                            anscope.display_name + " "
                             "deriving from a base type " +
-                            escope.base_display_name + " "
+                            anscope.base_display_name + " "
                             "that can't be found.",
                             source_file=project.
-                                get_project_file_for_escope(
-                                    escope),
-                            line=escope.def_line,
-                            col=escope.def_col
+                                get_project_file_for_anscope(
+                                    anscope),
+                            line=anscope.def_line,
+                            col=anscope.def_col
                         ))
                     }
-                    escope.damaged = yes
+                    anscope.damaged = yes
                 } else {
-                    escope.damaged = yes
+                    anscope.damaged = yes
                     throw new RuntimeError(
                         "Base type not found.")
                 }
                 continue
             }
-            var base_escope_key = escope._base_escope_key
-            var base_escope = project.type_or_enum_scope_map[
-                escope._base_escope_key]
-            escope._base_escope_key = none
-            escope.base_global_id =
-                base_escope.storage_id
+            var base_anscope_key = anscope._base_anscope_key
+            var base_anscope = project.attr_names_scope_map[
+                anscope._base_anscope_key]
+            anscope._base_anscope_key = none
+            anscope.base_global_id =
+                base_anscope.storage_id
 
             # Verify that the base chain doesn't have a cycle:
-            var look_at_escope = escope
-            var seen_nodes = [look_at_escope]
-            var have_seen_damaged = escope.damaged
-            while look_at_escope != none {
-                if look_at_escope.base_cext_id != none and
+            var look_at_anscope = anscope
+            var seen_nodes = [look_at_anscope]
+            var have_seen_damaged = anscope.damaged
+            while look_at_anscope != none {
+                if look_at_anscope.base_cext_id != none and
                         not cext.check_cext_is_type_by_id(
-                        look_at_escope.base_cext_id) {
-                    look_at_escope.damaged = yes
+                        look_at_anscope.base_cext_id) {
+                    look_at_anscope.damaged = yes
                 }
                 # See if this circle leads to an error type:
-                if look_at_escope.is_error or (
-                        look_at_escope.base_cext_id != none and
+                if look_at_anscope.is_error or (
+                        look_at_anscope.base_cext_id != none and
                         cext.check_cext_is_type_by_id(
-                        look_at_escope.base_cext_id)) {
-                    if look_at_escope.is_error or
+                        look_at_anscope.base_cext_id)) {
+                    if look_at_anscope.is_error or
                             cext.check_cext_given_type_is_error_by_id(
-                            look_at_escope.base_cext_id) {
+                            look_at_anscope.base_cext_id) {
                         for node in seen_nodes {
                             node.is_error = yes
                         }
                     }
                     break
                 }
-                if look_at_escope.base_global_id == none {
+                if look_at_anscope.base_global_id == none {
                     break
                 }
-                if not project.storage_id_to_escope_map.has(
-                        look_at_escope.base_global_id) {
+                if not project.storage_id_to_anscope_map.has(
+                        look_at_anscope.base_global_id) {
                     # Should only be possible in case of error.
                     # Nothing we can do.
-                    look_at_escope.damaged = yes
+                    look_at_anscope.damaged = yes
                     break
                 }
-                if look_at_escope.base_global_id == look_at_escope.storage_id {
+                if look_at_anscope.base_global_id ==
+                        look_at_anscope.storage_id {
                     had_invalid_base = yes
                     if msgs != none {
                         if not have_seen_damaged {
                             msgs.add(new msg.FileMsg(
-                                "Type '" + escope_key + "' can't "
+                                "Type '" + anscope_key + "' can't "
                                 "be based on itself.",
                                 source_file=project.
-                                    get_project_file_for_escope(
-                                        escope),
-                                line=escope.def_line,
-                                col=escope.def_col
+                                    get_project_file_for_anscope(
+                                        anscope),
+                                line=anscope.def_line,
+                                col=anscope.def_col
                             ))
                         }
-                        escope.damaged = yes
+                        anscope.damaged = yes
                     } else {
                         throw new RuntimeError(
                             "Type found based on itself.")
                     }
                     break
                 }
-                look_at_escope = project.
-                    storage_id_to_escope_map[
-                        look_at_escope.base_global_id]
-                if look_at_escope.damaged {
+                look_at_anscope = project.
+                    storage_id_to_anscope_map[
+                        look_at_anscope.base_global_id]
+                if look_at_anscope.damaged {
                     have_seen_damaged = yes
                 }
-                seen_nodes.add(look_at_escope)
-                if look_at_escope.storage_id ==
-                        escope.storage_id {
+                seen_nodes.add(look_at_anscope)
+                if look_at_anscope.storage_id ==
+                        anscope.storage_id {
                     had_invalid_base = yes
                     if msgs != none {
                         if not have_seen_damaged {
                             msgs.add(new msg.FileMsg(
-                                "Type '" + escope_key + "' has "
+                                "Type '" + anscope_key + "' has "
                                 "base type cycle leading back "
                                 "to itself, which isn't allowed.",
                                 source_file=project.
-                                    get_project_file_for_escope(
-                                        escope),
-                                line=escope.def_line,
-                                col=escope.def_col
+                                    get_project_file_for_anscope(
+                                        anscope),
+                                line=anscope.def_line,
+                                col=anscope.def_col
                             ))
                         }
-                        escope.damaged = yes
+                        anscope.damaged = yes
                     } else {
                         throw new RuntimeError(
                             "Base type cycle found.")
@@ -526,7 +546,8 @@ func project.Project.compute_all_scopes(
         # Do a visitation to figure out the local inner scopes:
         func assign_local_scope(node, parent) {
             if node.kind == ast.N_STMT_TYPE or
-                    node.kind == ast.N_STMT_STRUCT or
+                    (node.kind == ast.N_STMT_STRUCT and
+                    node.label != none) or
                     node.kind == ast.N_STMT_ENUM or
                     node.kind == ast.N_STMT_TYPEEXTEND or
                     node.kind == ast.N_STMT_STRUCTEXTEND or
@@ -535,17 +556,17 @@ func project.Project.compute_all_scopes(
                 assert(not is_moose64 or node.kind != ast.N_STMT_TYPE)
                 node.scope = none
                 node.func_scope = none
-                var escope = pfile.make_type_or_enum_scope_from_node(
+                var anscope = pfile.make_attr_names_scope_from_node(
                     node, msgs=msgs, is_moose64=is_moose64,
                     def_project_file=pfile
                 )
-                if escope == none {
+                if anscope == none {
                     # Note: error has already been emitted by
-                    # make_type_or_enum_scope_from_node().
+                    # make_attr_names_scope_from_node().
                     return later node
                 }
-                assert(node.type_or_enum_scope == none)
-                node.type_or_enum_scope = escope
+                assert(node.attr_names_scope == none)
+                node.attr_names_scope = anscope
                 # Since the global scope uses copied, separate stand-in
                 # nodes, set the type/enum scope to this copy as well:
                 if (node.kind == ast.N_STMT_ENUM or
@@ -556,14 +577,14 @@ func project.Project.compute_all_scopes(
                         pfile.global_scope.name_to_stmt_map[node.label]
                     if typename(gscope_node) != "list" and
                             gscope_node.kind == node.kind {
-                        gscope_node.type_or_enum_scope = escope
+                        gscope_node.attr_names_scope = anscope
                     }
                     # Since we might have run into an extend first,
                     # we also want to reset the file URI being at the
                     # "core" definition:
-                    escope.def_file = pfile
-                    escope.def_line = node.line
-                    escope.def_col = node.col
+                    anscope.def_file = pfile
+                    anscope.def_line = node.line
+                    anscope.def_col = node.col
                 }
                 var is_enum = if node.kind == ast.N_STMT_ENUM or
                     node.kind == ast.N_STMT_ENUMEXTEND (yes) else (no)
@@ -577,7 +598,7 @@ func project.Project.compute_all_scopes(
                             var idx = 0
                             for label in stmt.var_labels {
                                 idx += 1
-                                if not escope.name_to_symbol_map.
+                                if not anscope.name_to_symbol_map.
                                         has(label) {
                                     var symbol_info =
                                         new st_scope.SymbolInfo(label)
@@ -585,12 +606,12 @@ func project.Project.compute_all_scopes(
                                     symbol_info.def_col = stmt.col
                                     symbol_info.def_file = pfile
                                     symbol_info.storage_id =
-                                        escope.name_to_symbol_map.len + 1
+                                        anscope.name_to_symbol_map.len + 1
                                     if idx <= stmt.subexprs.len {
                                         symbol_info.value_node =
                                             stmt.subexprs[idx]
                                     }
-                                    escope.name_to_symbol_map[label] =
+                                    anscope.name_to_symbol_map[label] =
                                         symbol_info
                                     if stmt.symbol_info == none {
                                         stmt.symbol_info = []
@@ -600,7 +621,7 @@ func project.Project.compute_all_scopes(
                                 }
                                 # If we arrive here, this name is taken.
                                 var old_symbol =
-                                    escope.name_to_symbol_map[label]
+                                    anscope.name_to_symbol_map[label]
                                 var where = "elsewhere"
                                 if old_symbol.def_file != none and
                                         old_symbol.def_file.
@@ -642,7 +663,7 @@ func project.Project.compute_all_scopes(
                                 ", expected var attributes for "
                                 "custom type starting in line " +
                                 node.line.as_str() + ", column " +
-                                node.column.as_str() + ".",
+                                node.col.as_str() + ".",
                                 source_file=pfile,
                                 line=stmt.line, col=stmt.col,
                             ))
@@ -657,23 +678,23 @@ func project.Project.compute_all_scopes(
                 var idx = 0
                 for label in node.enum_entry_names {
                     idx += 1
-                    if not escope.label_names.has(label) {
-                        escope.label_names.add(label)
+                    if not anscope.label_names.has(label) {
+                        anscope.label_names.add(label)
                         if node.kind == ast.N_STMT_ENUM and
-                                escope.first_entry_pos == none {
-                            escope.first_entry_pos = idx
+                                anscope.first_entry_pos == none {
+                            anscope.first_entry_pos = idx
                         }
                         var numval =
                             node.enum_entry_nums[idx]
                         if numval == none or
-                                not escope.label_nums.has(
+                                not anscope.label_nums.has(
                                 numval) {
-                            escope.label_nums.add(
+                            anscope.label_nums.add(
                                 numval
                             )
                             continue
                         }
-                        escope.label_nums.add(none)
+                        anscope.label_nums.add(none)
                         if msgs != none {
                             msgs.add(new msg.FileMsg(
                                 "Invalid enum entry "
@@ -855,7 +876,7 @@ func project.Project.compute_all_scopes(
                     }
                     # If this is a func attribute, set association
                     # with the owning type:
-                    var in_escope = none
+                    var in_anscope = none
                     if is_toplevel and node.type_path != none {
                         var gnode_info =
                             pfile.get_gscope_type_node_info_from_funcattr(
@@ -874,27 +895,27 @@ func project.Project.compute_all_scopes(
                             node.func_scope.owning_type_storage_id =
                                 gnode.symbol_info.storage_id
                         }
-                        var in_escope =
-                            pfile.make_type_or_enum_scope_from_funcattr(
+                        in_anscope =
+                            pfile.make_attr_names_scope_from_funcattr(
                                 node, def_project_file=pfile,
                                 msgs=msgs, is_moose64=is_moose64
                             )
-                        if in_escope == none {
+                        if in_anscope == none {
                             node.damaged = yes
                         }
-                        node.func_scope.owning_type_scope = in_escope
-                        if in_escope != none and
+                        node.func_scope.owning_type_scope = in_anscope
+                        if in_anscope != none and
                                 node.kind == ast.N_STMT_FUNCEXTEND and
-                                in_escope.
+                                in_anscope.
                                 func_attr_name_to_arg_labels.has(
                                     node.label
                                 ) {
                             base_arg_labels =
-                                in_escope.func_attr_name_to_arg_labels[
+                                in_anscope.func_attr_name_to_arg_labels[
                                     node.label
                                 ]
                             base_kw_arg_count =
-                                in_escope.func_attr_name_to_kwarg_count[
+                                in_anscope.func_attr_name_to_kwarg_count[
                                     node.label
                                 ]
                         }
@@ -984,13 +1005,13 @@ func project.Project.compute_all_scopes(
                         )
                     }
                     # If this is a func attr, make sure the
-                    # argument list is registered with the escope:
-                    if in_escope != none and
+                    # argument list is registered with the anscope:
+                    if in_anscope != none and
                             node.kind == ast.N_STMT_FUNC {
-                        in_escope.func_attr_name_to_arg_labels[
+                        in_anscope.func_attr_name_to_arg_labels[
                             node.label
                         ] = final_arg_labels
-                        in_escope.func_attr_name_to_kwarg_count[
+                        in_anscope.func_attr_name_to_kwarg_count[
                             node.label
                         ] = final_kw_arg_count
                     }

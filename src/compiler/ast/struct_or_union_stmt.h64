@@ -67,6 +67,32 @@ func StructStmt.as_code(indent=0) {
     return t
 }
 
+type StructExtendStmt base ast.StmtNode {
+}
+
+func StructExtendStmt.init {
+    base.init()
+    self.kind = ast.N_STMT_STRUCTEXTEND
+}
+
+func StructExtendStmt.as_json_obj {
+    var output = base.as_json_obj()
+    return output
+}
+
+func StructExtendStmt.as_code(indent=0) {
+    if self.damaged {
+        return " ".rep(indent) + "(damaged type extend)"
+    }
+    var t = " ".rep(indent) + "extend struct " +
+        self.subexprs[1].as_code(indent=indent) + " {\n"
+    for stmt in self.subblocks[1] {
+        t += stmt.as_code(indent=(indent + 4)) + "\n"
+    }
+    t += " ".rep(indent) + "}"
+    return t
+}
+
 type UnionStmt base ast.StmtNode {
 }
 

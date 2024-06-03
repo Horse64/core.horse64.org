@@ -28,6 +28,7 @@
 import compiler.ast as ast
 import compiler.ast.enum_stmt as enum_stmt
 import compiler.ast.func_stmt as func_stmt
+import compiler.ast.struct_or_union_stmt as struct_or_union_stmt
 import compiler.ast.transform as transform
 import compiler.ast.type_stmt as type_stmt
 import compiler.msg as msg
@@ -87,13 +88,37 @@ extend type func_stmt.FuncStmt {
     var func_scope
 }
 
-type TypeScope {
+type AttrNamesScope {
+    var is_enum = no
+    var is_struct = no
+    var damaged = no
     var label
+    var storage_id = none
+}
+
+type TypeNamesScope base AttrNamesScope {
+    var is_error = no
     var display_name = none
     var base_display_name = none
 
-    const is_enum = no
-    var damaged = no
+    var func_attr_name_to_arg_labels = {->}
+    var func_attr_name_to_kwarg_count = {->}
+    var name_to_symbol_map = {->}
+
+    var base_global_id = none
+    var base_cext_id = none
+    var _base_anscope_key = none
+
+    var def_line, def_col, def_file
+}
+
+func TypeNamesScope.init {
+    self.is_enum = no
+    self.is_struct = no
+}
+
+type StructNamesScope base AttrNamesScope {
+    var display_name = none
     var is_error = no
 
     var func_attr_name_to_arg_labels = {->}
@@ -101,24 +126,26 @@ type TypeScope {
     var name_to_symbol_map = {->}
 
     var storage_id = none
-    var base_global_id = none
-    var base_cext_id = none
-    var _base_escope_key = none
 
     var def_line, def_col, def_file
 }
 
-type EnumScope {
-    const is_enum = yes
-    var damaged = no
-    var storage_id = none
+func StructNamesScope.init {
+    self.is_enum = no
+    self.is_struct = yes
+}
 
+type EnumNamesScope base AttrNamesScope {
     var first_entry_pos
     var label_names = []
     var label_nums = []
-    var label
 
     var def_line, def_col, def_file
+}
+
+func EnumNamesScope.init {
+    self.is_enum = yes
+    self.is_struct = no
 }
 
 type LocalScope {
@@ -326,26 +353,34 @@ extend func ast.TreeNode.copy {
 }
 
 extend type type_stmt.TypeStmt {
-    var type_or_enum_scope
+    var attrs_name_scope
 }
 
 extend type type_stmt.TypeExtendStmt {
-    var type_or_enum_scope
+    var attr_names_scope
 }
 
 extend type enum_stmt.EnumStmt {
-    var type_or_enum_scope
+    var attr_names_scope
 }
 
 extend type enum_stmt.EnumExtendStmt {
-    var type_or_enum_scope
+    var attr_names_scope
+}
+
+extend type struct_or_union_stmt.StructStmt {
+    var attr_names_scope
+}
+
+extend type struct_or_union_stmt.StructExtendStmt {
+    var attr_names_scope
 }
 
 extend type project.Project {
-    var type_or_enum_scope_map = {->}
+    var attr_names_scope_map = {->}
 
     var storage_id_to_global_scope_map = {->}
 
-    var storage_id_to_escope_map = {->}
+    var storage_id_to_anscope_map = {->}
 }
 

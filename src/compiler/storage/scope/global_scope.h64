@@ -125,12 +125,12 @@ func GlobalScope.ensure_assigned_storage(msgs=none,
                 value.kind != ast.N_STMT_ENUM {
             continue
         }
-        if value.type_or_enum_scope == none {
+        if value.attr_names_scope == none {
             continue
         }
-        assert(value.type_or_enum_scope.is_enum)
+        assert(value.attr_names_scope.is_enum)
         var pos = 0
-        for label in value.type_or_enum_scope.label_names {
+        for label in value.attr_names_scope.label_names {
             pos += 1
             if self.name_to_stmt_map.has(label) {
                 if msgs != none {

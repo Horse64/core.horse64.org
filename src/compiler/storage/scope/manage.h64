@@ -161,13 +161,13 @@ func project.ProjectFile.try_lookup_symbol_path(
             var enum_stmt = self.global_scope.
                 name_to_stmt_map[entry.enum_stmt_label]
             assert(enum_stmt.kind == ast.N_STMT_ENUM)
-            var escope = enum_stmt.type_or_enum_scope
+            var anscope = enum_stmt.attr_names_scope
             assert(entry.symbol_info.storage_id >= 1 and
                 entry.symbol_info.storage_id <=
-                    escope.label_names.len)
+                    anscope.label_names.len)
             return new storage_ref.StorageRef(
                 storage_ref.ST_NUMLITERAL,
-                escope.label_nums[
+                anscope.label_nums[
                     entry.symbol_info.storage_id]
             )
         }
@@ -237,13 +237,13 @@ func project.ProjectFile.try_lookup_symbol_path(
                 var enum_stmt = def_file.global_scope.
                     name_to_stmt_map[entry.enum_stmt_label]
                 assert(enum_stmt.kind == ast.N_STMT_ENUM)
-                var escope = enum_stmt.type_or_enum_scope
+                var anscope = enum_stmt.attr_names_scope
                 assert(entry.symbol_info.storage_id >= 1 and
                     entry.symbol_info.storage_id <=
-                        escope.label_names.len)
+                        anscope.label_names.len)
                 return new storage_ref.StorageRef(
                     storage_ref.ST_NUMLITERAL,
-                    escope.label_nums[
+                    anscope.label_nums[
                         entry.symbol_info.storage_id]
                 )
             }
@@ -337,11 +337,11 @@ func project.ProjectFile.check_item_exists_by_modpkg(
         name, mod_pkg_path, limit_to_kind=limit_to_kind) != none)
 }
 
-## Like @{compiler.project.ProjectFile.make_type_or_enum_scope_from_node},
+## Like @{compiler.project.ProjectFile.make_attr_names_scope_from_node},
 ## but instead of taking the N_STMT_TYPE or N_STMT_TYPEEXTEND node,
 ## this works from any N_STMT_FUNC or N_STMT_FUNCEXTEND node of
 ## the given type.
-func project.ProjectFile.make_type_or_enum_scope_from_funcattr(
+func project.ProjectFile.make_attr_names_scope_from_funcattr(
         node, msgs=none, is_moose64=no, def_project_file=none
         ) {
     assert(node.kind == ast.N_STMT_FUNC or
@@ -356,7 +356,7 @@ func project.ProjectFile.make_type_or_enum_scope_from_funcattr(
     if type_node == none {
         return none
     }
-    return self.make_type_or_enum_scope_from_node(
+    return self.make_attr_names_scope_from_node(
         type_node, msgs=msgs, is_moose64=is_moose64,
         def_project_file=type_file
     )
@@ -512,15 +512,15 @@ func project.ProjectFile.get_gscope_type_node_info_from_funcattr(
 }
 
 ## This function will obtain a project-wide, unique shared
-## instance of a compiler.scope.EnumScope or compiler.scope.TypeScope
-## type to store everything about a type or enum.
+## instance of a compiler.scope.AttrNameScope
+## type to store everything about a type, struct, or enum.
 ## It can do this from both extends and enum or type definitions all
 ## over a project, and it will return the same scope if they refer
 ## to the same type.
 ## These project-wide scopes are stored in the map stored in
-## @{compiler.project.Project.type_or_enum_scope_map} associated
+## @{compiler.project.Project.attr_names_scope_map} associated
 ## with a respective project.
-func project.ProjectFile.make_type_or_enum_scope_from_node(
+func project.ProjectFile.make_attr_names_scope_from_node(
         node, msgs=none, is_moose64=no, def_project_file=none
         ) {
     assert(node.kind == ast.N_STMT_TYPE or
@@ -541,7 +541,7 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
     var is_enum
     var is_struct
     var based_on_cext_id = none
-    var base_escope_key = none
+    var base_anscope_key = none
     if node.kind == ast.N_STMT_TYPE or
             node.kind == ast.N_STMT_ENUM or
             (is_moose64 and node.kind == ast.N_STMT_STRUCT) {
@@ -568,6 +568,8 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
             }
         }
         stmt_label = node.label
+        assert(stmt_full_type_path != none)
+        assert(stmt_label != none)
 
         # If it's a 'type' with a 'base', figure out what the base is:
         if node.kind == ast.N_STMT_TYPE and
@@ -649,7 +651,7 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
                 }
                 return none
             } else {
-                base_escope_key = stmt_base_full_type_path +
+                base_anscope_key = stmt_base_full_type_path +
                     "@" + stmt_base_label
             }
         }
@@ -774,24 +776,33 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
         # Project-wide unique key of the type or enum we're extending:
         key = stmt_full_type_path + "@" + stmt_label
     }
-    if not self.project.type_or_enum_scope_map.has(key) {
+    if not self.project.attr_names_scope_map.has(key) {
         # Not seen before, therefore add a new definition:
-        result_scope = if not is_enum (new st_scope.TypeScope())
-                else (new st_scope.EnumScope())
+        result_scope = none
+        if not is_enum {
+            if not is_struct {
+                result_scope = new st_scope.TypeNamesScope()
+            } else {
+                result_scope = new st_scope.StructNamesScope()
+            }
+        } else {
+            result_scope = new st_scope.EnumNamesScope()
+        }
         result_scope.display_name =
             "'" + stmt_label + "' from " +
             key.sub(1, key.rfind("@") - 1)
         result_scope.label = stmt_label
         assert(result_scope.is_enum == is_enum)
+        assert(result_scope.is_struct == is_struct)
         result_scope.def_line = node.line
         result_scope.def_col = node.col
         if def_project_file != none {
             result_scope.def_file = def_project_file
         }
-        self.project.type_or_enum_scope_map[key] = result_scope
-        assert(self.project.type_or_enum_scope_map.has(key))
+        self.project.attr_names_scope_map[key] = result_scope
+        assert(self.project.attr_names_scope_map.has(key))
     } else {
-        result_scope = self.project.type_or_enum_scope_map[key]
+        result_scope = self.project.attr_names_scope_map[key]
     }
 
     assert(based_on_cext_id == none or not is_enum)
@@ -804,9 +815,9 @@ func project.ProjectFile.make_type_or_enum_scope_from_node(
                 "from " + stmt_base_full_type_path
             result_scope.base_display_name = base_display_name
         }
-        if base_escope_key != none {
+        if base_anscope_key != none {
             assert(result_scope.base_display_name != none)
-            result_scope._base_escope_key = base_escope_key
+            result_scope._base_anscope_key = base_anscope_key
         }
     }
 
