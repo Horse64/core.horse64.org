@@ -28,6 +28,7 @@
 import compiler.ast as ast
 import compiler.ast.enum_stmt as enum_stmt
 import compiler.ast.func_stmt as func_stmt
+import compiler.ast.struct_or_union_stmt as struct_or_union_stmt
 import compiler.ast.type_stmt as type_stmt
 import compiler.ast.var_stmt as var_stmt
 import compiler.msg as msg
@@ -253,6 +254,12 @@ func get_statement_global_names(statement) {
         }
         assert(statement.module_path.len > 0)
         return [statement.module_path[1]]
+    } elseif statement.kind == ast.N_STMT_C_IMPORT {
+        if statement.renamed_as == none {
+            assert(statement.has_damage())
+            return []
+        }
+        return [statement.renamed_as]
     } elseif statement.kind == ast.N_STMT_FUNC {
         if statement.type_path != none {
             return []
@@ -260,6 +267,11 @@ func get_statement_global_names(statement) {
         return [statement.label]
     } elseif statement.kind == ast.N_STMT_TYPE {
         return [statement.label]
+    } elseif statement.kind == ast.N_STMT_STRUCT {
+        if statement.label != none {
+            return [statement.label]
+        }
+        return []
     } elseif statement.kind == ast.N_STMT_ENUM {
         return [statement.label]
     } elseif statement.kind == ast.N_STMT_VAR {
@@ -302,6 +314,11 @@ func process_toplevel_stmt(
                 stand_in_node.label = statement.label
             } elseif statement.kind == ast.N_STMT_ENUMEXTEND {
                 stand_in_node = new enum_stmt.EnumExtendStmt()
+            } elseif statement.kind == ast.N_STMT_STRUCT {
+                stand_in_node = new struct_or_union_stmt.StructStmt()
+            } elseif statement.kind == ast.N_STMT_STRUCTEXTEND {
+                stand_in_node =
+                    new struct_or_union_stmt.StructExtendStmt()
             } elseif statement.kind == ast.N_STMT_TYPE {
                 stand_in_node = new type_stmt.TypeStmt()
                 stand_in_node.label = statement.label

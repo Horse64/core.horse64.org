@@ -570,6 +570,7 @@ func project.Project.compute_all_scopes(
                 # Since the global scope uses copied, separate stand-in
                 # nodes, set the type/enum scope to this copy as well:
                 if (node.kind == ast.N_STMT_ENUM or
+                        node.kind == ast.N_STMT_STRUCT or
                         node.kind == ast.N_STMT_TYPE) and
                         pfile.global_scope.name_to_stmt_map.has(
                             node.label) {
@@ -588,6 +589,8 @@ func project.Project.compute_all_scopes(
                 }
                 var is_enum = if node.kind == ast.N_STMT_ENUM or
                     node.kind == ast.N_STMT_ENUMEXTEND (yes) else (no)
+                var is_struct = if node.kind == ast.N_STMT_STRUCT or
+                    node.kind == ast.N_STMT_STRUCTEXTEND (yes) else (no)
                 if not is_enum {
                     if node.subblocks.len < 1 {
                         # This must be a faulty node, abort.
@@ -850,8 +853,10 @@ func project.Project.compute_all_scopes(
                                     "that isn't a type."
                                 )
                             }
-                        } elseif type_gnode.kind !=
-                                ast.N_STMT_TYPE {
+                        } elseif not {ast.N_STMT_STRUCT,
+                                ast.N_STMT_TYPE
+                                }.has(type_gnode.kind) {
+                            var have_structs = is_moose64
                             if msgs != none {
                                 if not node.damaged {
                                     msgs.add(new msg.FileMsg(
@@ -860,7 +865,8 @@ func project.Project.compute_all_scopes(
                                         node.label + "', '" +
                                         node.type_path.join(".").as_str() +
                                         "' exists but isn't a "
-                                        "type.",
+                                        "type" + if have_structs
+                                            (" or struct.") else ("."),
                                         source_file=pfile,
                                         line=node.line, col=node.col,
                                     ))
@@ -869,7 +875,7 @@ func project.Project.compute_all_scopes(
                             } else {
                                 throw new ValueError(
                                     "Trying to add func attr to item "
-                                    "that isn't a type."
+                                    "that isn't a type or struct."
                                 )
                             }
                         }
