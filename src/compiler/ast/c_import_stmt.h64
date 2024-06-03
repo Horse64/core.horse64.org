@@ -33,7 +33,7 @@ import compiler.msg as msg
 import compiler.token as token
 
 type CImportStmt base ast.StmtNode {
-    var file_path
+    var file_paths
     var renamed_as
 }
 
@@ -41,7 +41,7 @@ func CImportStmt.copy {
     var new_stmt = new CImportStmt()
     assert(new_stmt.subexprs.len == 0)
     assert(new_stmt.subblocks.len == 0)
-    new_stmt.file_path = self.file_path
+    new_stmt.file_paths = self.file_paths.copy()
     new_stmt.renamed_as = self.renamed_as
     new_stmt.line = self.line
     new_stmt.col = self.col
@@ -55,7 +55,7 @@ func CImportStmt.init {
 
 func CImportStmt.as_json_obj {
     var output = base.as_json_obj()
-    output["file_path"] = self.module_path
+    output["file_paths"] = self.file_paths.copy()
     output["renamed_as"] = self.renamed_as
     return output
 }
@@ -64,8 +64,16 @@ func CImportStmt.as_code(indent=0) {
     if self.damaged {
         return " ".rep(indent) + "(damaged c_import)"
     }
-    var t = " ".rep(indent) + "c_import " +
-        self.module_path.join(".")
+    var t = " ".rep(indent) + "c_import "
+    var first_path = yes
+    for fpath in self.file_paths {
+        if not first_path {
+            t += ", "
+        } else {
+            first_path = no
+        }
+        t += token.as_escaped_code_string(fpath)
+    }
     if self.renamed_as != none {
         t += " as " + self.renamed_as
     }
@@ -109,7 +117,7 @@ func parse(tokens, pos, msgs, project_file=none,
         invalid_st.col = token.get_col(tokens, startpos)
         return invalid_st
     }
-    stmt.file_path = tokens[pos].str
+    stmt.file_paths = [tokens[pos].str]
     pos += 1
 
     # Extract 'as' clause:

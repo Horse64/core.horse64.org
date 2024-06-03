@@ -221,11 +221,13 @@ func GlobalScope.type_path_to_project_file(tpath) {
 }
 
 func has_global_scope_duplicate(
-        scope, stmt, name, msgs, project_file=none
+        scope, stmt, name, msgs, project_file=none,
+        ignore_c_import_duplicates=yes
         ) {
     if scope.name_to_stmt_map.has(name) {
         if typename(scope.name_to_stmt_map[name]) != "list" or
-                stmt.kind != ast.N_STMT_IMPORT {
+                (stmt.kind != ast.N_STMT_IMPORT and
+                stmt.kind != ast.N_STMT_C_IMPORT) {
             var duplicate_stmt = scope.name_to_stmt_map[name]
             if typename(duplicate_stmt) == "list" {
                 duplicate_stmt = duplicate_stmt[1]
@@ -298,7 +300,8 @@ func process_toplevel_stmt(
                 ) {
             continue
         }
-        if statement.kind == ast.N_STMT_IMPORT {
+        if statement.kind == ast.N_STMT_IMPORT or
+                statement.kind == ast.N_STMT_C_IMPORT {
             if not scope.name_to_stmt_map.has(name) {
                 scope.name_to_stmt_map[name] = []
             }
