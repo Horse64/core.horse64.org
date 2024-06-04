@@ -734,6 +734,10 @@ func project.Project.compute_all_scopes(
                 }
                 return later node
             }
+            if node.kind == ast.N_STMT_STRUCT or
+                    node.kind == ast.N_STMT_UNION {
+                return later node
+            }
             if node.scope == none and has_attr(parent, "scope") {
                 node.scope = parent.scope
             }

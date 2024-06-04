@@ -181,18 +181,21 @@ func GlobalScope.type_path_to_entry(tpath) {
     }
     # Handling of imports:
     for entry in self.name_to_stmt_map[tpath[1]] {
-        assert(entry.kind == ast.N_STMT_IMPORT)
+        assert(entry.kind == ast.N_STMT_IMPORT or
+            entry.kind == ast.N_STMT_C_IMPORT)
         if tpath.len == 1 and entry.renamed_as != none and
                 (tpath.join(".") == entry.renamed_as or
                 tpath.join(".").starts(entry.renamed_as + ".")) {
-            if entry.project_file == none and
+            if entry.kind != ast.N_STMT_C_IMPORT and
+                    entry.project_file == none and
                     entry.cext_modname != none {
                 return entry.cext_modname + "@" +
                     entry.cext_pkgname
             }
             return entry
         }
-        if entry.module_path.len != tpath.len {
+        if entry.kind == ast.N_STMT_C_IMPORT or
+                entry.module_path.len != tpath.len {
             continue
         }
         var mismatch = no
@@ -319,6 +322,7 @@ func process_toplevel_stmt(
                 stand_in_node = new enum_stmt.EnumExtendStmt()
             } elseif statement.kind == ast.N_STMT_STRUCT {
                 stand_in_node = new struct_or_union_stmt.StructStmt()
+                stand_in_node.label = statement.label
             } elseif statement.kind == ast.N_STMT_STRUCTEXTEND {
                 stand_in_node =
                     new struct_or_union_stmt.StructExtendStmt()
