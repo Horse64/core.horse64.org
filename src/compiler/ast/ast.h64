@@ -397,8 +397,33 @@ func parse_statement(
     ) later repeat
 }
 
+func is_statement_allowed_as_toplevel(
+        stmt, is_moose64=no
+        ) {
+    if {N_STMT_IMPORT, N_STMT_VAR,
+            N_STMT_FUNC, N_STMT_ENUM
+            }.has(stmt.kind) {
+        return yes
+    }
+    if is_moose64 {
+        if {N_STMT_C_IMPORT}.has(stmt.kind) {
+            return yes
+        }
+        if stmt.kind == N_STMT_STRUCT and
+                stmt.label != none {
+            return yes
+        }
+    } else {
+        if {N_STMT_TYPE}.has(stmt.kind) {
+            return yes
+        }
+    }
+    return no
+}
+
 func parse_to_ast_ex(
         tokens, pos, project_file=none,
+        allow_only_toplevel=yes,
         is_inside_block=no, is_moose64=no,
         debug=no
         ) {
@@ -441,6 +466,20 @@ func parse_to_ast_ex(
     } else {
         # Extracted a new statement.
         result.stmts.add(stmt)
+        if allow_only_toplevel and
+                not is_statement_allowed_as_toplevel(
+                    stmt, is_moose64=is_moose64
+                ) {
+            stmt.damaged = yes
+            result.msgs.add(new msg.FileMsg(
+                "Unexpected " +
+                NodeKind.num_label(stmt.kind) + " statement, "
+                "expected a top-level statement instead.",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+        }
         pos += stmt.token_len
         if not is_inside_block {
             global_scope.process_toplevel_stmt(
