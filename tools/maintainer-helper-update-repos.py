@@ -152,7 +152,7 @@ if __name__ == "__main__":
                 "hodoc.horse64.org",
                 "horp.horse64.org",
                 "horsels.horse64.org",
-                "sdk.horse64.org",
+                "helpers-for-sdk-download.horse64.org",
                 "Spew3D",
                 "Spew3D-Web",
                 "Spew3D-Net"]:
