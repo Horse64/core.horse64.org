@@ -255,7 +255,7 @@ Logo license
 This concerns the files inside `logo` directory:
 
 ```
-Horse64 Logo is Copyright (C) 2020-2022, ellie/@ell1e. All Rights Reserved.
+Horse64 Logo is Copyright (C) 2020-2024, ellie/@ell1e. All Rights Reserved.
 
 The "Horse64 Logo"'s files are located in `logo/` with the filenames
 starting with "logo".
