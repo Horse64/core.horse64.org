@@ -1240,8 +1240,9 @@ func project.Project.compute_all_scopes(
                     name=node.label,
                     type_path=node.type_path,
                     is_write_access=is_write_access,
+                    is_moose64=is_moose64,
                 )
-                if result == none {
+                if result == none or result == no {
                     var ref_name = node.label
                     if node.type_path != none {
                         ref_name = node.type_path.join(".") + "." +
@@ -1305,8 +1306,15 @@ func project.Project.compute_all_scopes(
                 while yes {
                     ref = pfile.try_lookup_symbol_path(
                         node.scope, name=label, type_path=type_path,
-                        is_write_access=is_write_access)
+                        is_write_access=is_write_access,
+                        is_moose64=is_moose64)
                     if ref != none or type_path.len == 0 {
+                        if ref == no {
+                            # -> import found, but doesn't have this item.
+                            failed_item_name =
+                                type_path.join(".") + "." + label
+                            ref = none
+                        }
                         break
                     }
                     if not failed_item_name_from_import {

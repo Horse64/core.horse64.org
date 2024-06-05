@@ -1,0 +1,92 @@
+## @module compiler.moose64.c_importer
+# Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import path from core.horse64.org
+
+import compiler.moose64.c_symbol as c_symbol
+
+type CImportInfo {
+    var import_paths protect = []
+
+    var known_items protect = {->}
+}
+
+func CImportInfo._process_c_include(ipath) {
+    ipath = ipath.replace("/", path.sep)
+    new_items = {->}
+    if ipath == "stdlib.h" {
+        new_items["malloc"] = CFuncSymbol(
+            "void *malloc(size_t size);"
+        )
+        new_items["free"] = CFuncSymbol(
+            "void free(void *ptr);"
+        )
+    } elseif ipath == "string.h" {
+        new_items["memcpy"] = CFuncSymbol(
+            "void *memcpy(void *dest, const void *src, size_t n);"
+        )
+        new_items["memmove"] = CFuncSymbol(
+            "void *memmove(void *dest, const void *src, size_t n);"
+        )
+        new_items["strlen"] = CFuncSymbol(
+            "size_t strlen(const char *);"
+        )
+    } elseif ipath == "stdio.h" {
+        new_items["printf"] = CFuncSymbol(
+            "int printf(const char *fmt, ...);"
+        )
+    }
+    for entry in new_items {
+        self.known_items[entry] = new_items[entry]
+    }
+    return later
+}
+
+func CImportInfo.add_import_path(ipath) {
+    self.import_paths.add(ipath)
+
+    self._process_c_include(ipath) later:
+}
+
+func CImportInfo.add_import_paths(ipaths) {
+    var queue = ipaths.copy()
+    if queue.len == 0 {
+        return later
+    }
+    var next_path = queue.pop()
+    var result = self.add_import_path(next_path)
+    later:
+
+    await result
+    if queue.len == 0 {
+        return later
+    }
+    next_path = queue.pop()
+    result = self.add_import_path(next_path)
+    later repeat
+}
+

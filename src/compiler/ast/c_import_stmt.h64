@@ -29,12 +29,20 @@ import math from core.horse64.org
 
 import compiler.ast as ast
 import compiler.ast.invalid_stmt as invalid_stmt
+import compiler.moose64.c_importer as c_importer
 import compiler.msg as msg
 import compiler.token as token
 
 type CImportStmt base ast.StmtNode {
     var file_paths
     var renamed_as
+    var module_path
+    var c_importer
+}
+
+func CImportStmt.init {
+    base.init()
+    self.kind = ast.N_STMT_C_IMPORT
 }
 
 func CImportStmt.copy {
@@ -43,20 +51,23 @@ func CImportStmt.copy {
     assert(new_stmt.subblocks.len == 0)
     new_stmt.file_paths = self.file_paths.copy()
     new_stmt.renamed_as = self.renamed_as
+    new_stmt.module_path = self.module_path.copy()
+    new_stmt.c_importer = self.c_importer.copy()
     new_stmt.line = self.line
     new_stmt.col = self.col
     return new_stmt
 }
 
-func CImportStmt.init {
-    base.init()
-    self.kind = ast.N_STMT_C_IMPORT
+func CImportStmt.does_import_same_module_as(other_import_stmt) {
+    assert(self.renamed_as != none)
+    return self.renamed_as == other_import_stmt.renamed_as
 }
 
 func CImportStmt.as_json_obj {
     var output = base.as_json_obj()
     output["file_paths"] = self.file_paths.copy()
     output["renamed_as"] = self.renamed_as
+    output["module_path"] = self.module_path.copy()
     return output
 }
 
@@ -147,6 +158,7 @@ func parse(tokens, pos, msgs, project_file=none,
     if pos <= tokens_len and
             tokens[pos].kind == token.T_IDENT {
         stmt.renamed_as = tokens[pos].str
+        stmt.module_path = [stmt.renamed_as]
         pos += 1
     } else {
         msgs.add(new msg.FileMsg(

@@ -38,7 +38,7 @@ const builtin_moose64_types = {
     "any",
 }
 const builtin_moose64_type_modifiers = {
-    "ref", "array"
+    "ref", "array", "readonly"
 }
 
 type TypeRefModProp {
@@ -49,6 +49,17 @@ type TypeRefModProp_Range base TypeRefModProp {
     var range_value_label
 }
 
+func TypeRefModProp_Range.as_str {
+    var t = "["
+    if self.range_value_num != none {
+        t += self.range_value_num.as_str()
+    } else {
+        t += self.range_value_label.as_str()
+    }
+    t += "]"
+    return t
+}
+
 type TypeRefMod {
     var name
     var props = []
@@ -56,6 +67,14 @@ type TypeRefMod {
 
 func TypeRefMod.init(name) {
     self.name = name + ""
+}
+
+func TypeRefMod.as_str {
+    var t = self.name + ""
+    for prop in self.props {
+        t += prop.as_str()
+    }
+    return t
 }
 
 type TypeRefExpr base ast.TreeNode {
@@ -73,11 +92,33 @@ func TypeRefExpr.as_code(indent=0) {
     if self.damaged {
         return "(damaged type ref expr.)"
     }
+    var prefix_mod_names = {"readonly"}
     var t = ""
+    for mod in self.type_modifiers {
+        if prefix_mod_names.has(mod.name) {
+            if t != "" {
+                t += " "
+            }
+            t += mod.as_str()
+        }
+    }
+    if t != "" {
+        t += " "
+    }
     if self.type_path != none and self.type_path.len > 0 {
         t = self.type_path.join(".") + "." + t
     }
     t += self.type_name
+    for mod in self.type_modifiers {
+        if not prefix_mod_names.has(mod.name) {
+            t += " " + mod.as_str()
+        }
+    }
+    return t
+}
+
+func TypeRefExpr.as_str {
+    var t = "TypeRefExpr<" + self.as_code() + ">"
     return t
 }
 
@@ -150,88 +191,109 @@ func _parse_typeref_notlater(
         pos += 1  # Go past ')'
         inner_expr.token_len = (pos - startpos)
     }
-    if typeref_expr == none and pos <= max_len and
-            (tokens[pos].kind == token.T_IDENT or
-            tokens[pos].kind == token.T_KEYWORD) and
-            is_moose64 and
-            builtin_moose64_types.has(tokens[pos].str) {
-        typeref_expr = new TypeRefExpr()
-        typeref_expr.type_name = tokens[pos].str
-        typeref_expr.token_len = (pos - startpos) + 1
-        pos += 1
-    }
-    if typeref_expr == none and pos <= max_len and
-            (tokens[pos].kind == token.T_IDENT or
-            tokens[pos].kind == token.T_KEYWORD) and
-            not is_moose64 and
-            builtin_horse64_types.has(tokens[pos].str) {
-        typeref_expr = new TypeRefExpr()
-        typeref_expr.type_name = tokens[pos].str
-        typeref_expr.token_len = (pos - startpos) + 1
-        pos += 1
-    }
-    if typeref_expr == none and pos <= max_len and
-            tokens[pos].kind == token.T_IDENT {
-        typeref_expr = new TypeRefExpr()
-        typeref_expr.type_name = tokens[pos].str
-        typeref_expr.token_len = (pos - startpos) + 1
-        pos += 1
-        while pos + 1 <= max_len and
-                tokens[pos].kind == token.T_DOT and
-                tokens[pos + 1].kind == token.T_IDENT {
-            if typeref_expr.type_path == none {
-                typeref_expr.type_path = []
-            }
-            typeref_expr.type_path.add(typeref_expr.type_label)
-            typeref_expr.type_label = tokens[pos + 1].str
-            typeref_expr.token_len += 2
-            pos += 2
+    var typeref_damaged = no
+    var mods = []
+    var typeref_token_len = 0
+    while yes {
+        if typeref_expr == none and pos <= max_len and
+                (tokens[pos].kind == token.T_IDENT or
+                tokens[pos].kind == token.T_KEYWORD) and
+                ((is_moose64 and
+                  builtin_moose64_types.has(tokens[pos].str)) or
+                 (not is_moose64 and
+                  builtin_horse64_types.has(tokens[pos].str))) {
+            typeref_expr = new TypeRefExpr()
+            typeref_expr.type_name = tokens[pos].str
+            typeref_expr.line = token.get_line(tokens, pos)
+            typeref_expr.col = token.get_col(tokens, pos)
+            typeref_token_len = (pos - startpos) + 1
+            pos += 1
         }
-    }
-    while typeref_expr != none and pos <= max_len and
-            (tokens[pos].kind == token.T_IDENT or
-             tokens[pos].kind == token.T_KEYWORD) and
-            is_moose64 and
-            builtin_moose64_type_modifiers.has(
-                tokens[pos].str
-            ) {
-        var modifier_name = tokens[pos].str
-        var modifier = new TypeRefMod(modifier_name)
-        typeref_expr.type_modifiers.add(modifier)
-        typeref_expr.token_len = (pos - startpos) + 1
-        pos += 1
-        if modifier_name == "array" and is_moose64 {
-            while pos + 2 <= max_len and
-                    tokens[pos].kind == token.T_ENCLOSE and
-                    tokens[pos].str == '[' and
-                    tokens[pos + 2].kind == token.T_ENCLOSE and
-                    tokens[pos + 2].str == ']' {
-                if tokens[pos + 1].kind == token.T_IDENT {
-                    var prop = new TypeRefModProp_Range()
-                    prop.range_value_label =
-                        tokens[pos + 1].str
-                } elseif tokens[pos + 1].kind == token.T_NUM {
-                    var prop = new TypeRefModProp_Range()
-                    prop.range_value_num =
-                        tokens[pos + 1].str.to_num()
-                } else {
-                    msgs.add(new msg.FileMsg(
-                        "Unexpected '[' followed by " +
-                            token.describe_token_at(
-                                tokens, pos) + " "
-                        ", expected valid range expression "
-                        "for array modifier.",
-                        source_file=project_file,
-                        line=token.get_line(tokens, pos),
-                        col=token.get_col(tokens, pos),
-                    ))
-                    typeref_expr.damaged = yes
-                    return typeref_expr
+        if typeref_expr == none and pos <= max_len and
+                tokens[pos].kind == token.T_IDENT and
+                ((is_moose64 and
+                  not builtin_moose64_type_modifiers.has(
+                      tokens[pos].str)) or
+                 (not is_moose64 and
+                  not builtin_horse64_type_modifiers.has(
+                      tokens[pos].str))) {
+            typeref_expr = new TypeRefExpr()
+            typeref_expr.type_name = tokens[pos].str
+            typeref_expr.line = token.get_line(tokens, pos)
+            typeref_expr.col = token.get_col(tokens, pos)
+            typeref_token_len = (pos - startpos) + 1
+            pos += 1
+            while pos + 1 <= max_len and
+                    tokens[pos].kind == token.T_DOT and
+                    tokens[pos + 1].kind == token.T_IDENT {
+                if typeref_expr.type_path == none {
+                    typeref_expr.type_path = []
                 }
-                pos += 3
-                typeref_expr.token_len = (pos - startpos) + 0
+                typeref_expr.type_path.add(typeref_expr.type_label)
+                typeref_expr.type_label = tokens[pos + 1].str
+                typeref_token_len += 2
+                pos += 2
             }
         }
+        var had_mods = no
+        while pos <= max_len and
+                (tokens[pos].kind == token.T_IDENT or
+                tokens[pos].kind == token.T_KEYWORD) and
+                ((is_moose64 and
+                  builtin_moose64_type_modifiers.has(
+                      tokens[pos].str
+                  )) or
+                 (not is_moose64 and
+                  builtin_horse64_type_modifiers.has(
+                      tokens[pos].str
+                  ))) {
+            had_mods = yes
+            var modifier_name = tokens[pos].str
+            var modifier = new TypeRefMod(modifier_name)
+            mods.add(modifier)
+            typeref_token_len = (pos - startpos) + 1
+            pos += 1
+            if modifier_name == "array" and is_moose64 {
+                while pos + 2 <= max_len and
+                        tokens[pos].kind == token.T_ENCLOSE and
+                        tokens[pos].str == '[' and
+                        tokens[pos + 2].kind == token.T_ENCLOSE and
+                        tokens[pos + 2].str == ']' {
+                    if tokens[pos + 1].kind == token.T_IDENT {
+                        var prop = new TypeRefModProp_Range()
+                        prop.range_value_label =
+                            tokens[pos + 1].str
+                    } elseif tokens[pos + 1].kind == token.T_NUM {
+                        var prop = new TypeRefModProp_Range()
+                        prop.range_value_num =
+                            tokens[pos + 1].str.to_num()
+                    } else {
+                        msgs.add(new msg.FileMsg(
+                            "Unexpected '[' followed by " +
+                                token.describe_token_at(
+                                    tokens, pos) + " "
+                            ", expected valid range expression "
+                            "for array modifier.",
+                            source_file=project_file,
+                            line=token.get_line(tokens, pos),
+                            col=token.get_col(tokens, pos),
+                        ))
+                        typeref_damaged = yes
+                        return typeref_expr
+                    }
+                    pos += 3
+                    typeref_token_len = (pos - startpos) + 0
+                }
+            }
+        }
+        if not had_mods {
+            break
+        }
+    }
+    if typeref_expr != none {
+        typeref_expr.damaged = typeref_damaged
+        typeref_expr.type_modifiers = mods
+        typeref_expr.token_len = typeref_token_len
     }
     return typeref_expr
 }

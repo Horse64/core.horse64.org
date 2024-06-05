@@ -31,7 +31,8 @@ enum StorageKind {
     ST_CCAPTURE,
     ST_GLOBAL,
     ST_NUMLITERAL,
-    ST_CEXT,
+    ST_CEXT,  # C extensions, only used in Horse64.
+    ST_MCREF,  # Moose-builtins or C refs, only used in Moose64.
     ST_SELF,
     ST_BASE,
     ST_EXTENDED,
@@ -52,9 +53,11 @@ func StorageRef.as_str {
     } elseif self.kind == ST_GLOBAL {
         return "G" + self.id.as_str()
     } elseif self.kind == ST_NUMLITERAL {
-        return "NUM" + self.id.as_str()
+        return "NUM(" + self.id.as_str() + ")"
     } elseif self.kind == ST_CEXT {
         return "CX" + self.id.as_str()
+    } elseif self.kind == ST_MBUILTIN {
+        return "MCREF" + self.id.as_str()
     } elseif self.kind == ST_SELF {
         return "SELF"
     } elseif self.kind == ST_BASE {

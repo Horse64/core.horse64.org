@@ -35,6 +35,8 @@ import compiler.msg as msg
 import compiler.storage.scope as storage_scope
 import compiler.token as token
 
+import compiler.moose64.c_importer as c_importer
+
 type GlobalScope {
     var name_to_stmt_map = {->}
     var storage_id_to_entry = {->}
@@ -179,18 +181,22 @@ func GlobalScope.type_path_to_entry(tpath) {
         }
         return self.name_to_stmt_map[tpath[1]]
     }
+
     # Handling of imports:
+    var longest_match_len = -1
+    var longest_match_entry = none
     for entry in self.name_to_stmt_map[tpath[1]] {
         assert(entry.kind == ast.N_STMT_IMPORT or
             entry.kind == ast.N_STMT_C_IMPORT)
         if tpath.len == 1 and entry.renamed_as != none and
-                (tpath.join(".") == entry.renamed_as or
-                tpath.join(".").starts(entry.renamed_as + ".")) {
+                tpath[1] == entry.renamed_as {
             if entry.kind != ast.N_STMT_C_IMPORT and
                     entry.project_file == none and
                     entry.cext_modname != none {
-                return entry.cext_modname + "@" +
+                return (
+                    entry.cext_modname + "@" +
                     entry.cext_pkgname
+                )
             }
             return entry
         }
@@ -292,8 +298,9 @@ func process_toplevel_stmt(
     assert(statement != none)
     var names = get_statement_global_names(statement)
     if names.len == 0 {
-        return
+        return later
     }
+    var c_importer_queue = []
     var idx = 0
     for name in names {
         idx += 1
@@ -303,12 +310,42 @@ func process_toplevel_stmt(
                 ) {
             continue
         }
-        if statement.kind == ast.N_STMT_IMPORT or
-                statement.kind == ast.N_STMT_C_IMPORT {
+        if statement.kind == ast.N_STMT_IMPORT {
             if not scope.name_to_stmt_map.has(name) {
                 scope.name_to_stmt_map[name] = []
             }
             scope.name_to_stmt_map[name].add(statement.copy())
+        } elseif statement.kind == ast.N_STMT_C_IMPORT {
+            if not scope.name_to_stmt_map.has(name) {
+                scope.name_to_stmt_map[name] = []
+            }
+            var was_merged = no
+            for merge_candidate in
+                    scope.name_to_stmt_map[name] {
+                if merge_candidate.
+                        does_import_same_module_as(statement) {
+                    merge_candidate.file_paths +=
+                        statement.file_paths
+                    if merge_candidate.c_importer == none {
+                        merge_candidate.c_importer =
+                            new c_importer.CImportInfo()
+                    }
+                    c_importer_queue.add([merge_candidate.c_importer,
+                        statement.file_paths])
+                    statement = merge_candidate
+                    was_merged = yes
+                    break
+                }
+            }
+            if not was_merged {
+                if statement.c_importer == none {
+                    statement.c_importer =
+                        new c_importer.CImportInfo()
+                }
+                c_importer_queue.add([statement.c_importer,
+                    statement.file_paths])
+                scope.name_to_stmt_map[name].add(statement)
+            }
         } else {
             # Note: to avoid keeping the entire AST in memory
             # indirectly through this global scope, we make a
@@ -349,5 +386,23 @@ func process_toplevel_stmt(
             scope.name_to_stmt_map[name] = stand_in_node
         }
     }
+
+    # Actually load up the external headers for any outstanding
+    # C imports (only used for moose64):
+
+    if c_importer_queue.len == 0 {
+        return later
+    }
+    var next_entry = c_importer_queue.pop()
+    var result = next_entry[1].add_import_paths(next_entry[2])
+    later:
+
+    await result
+    if c_importer_queue.len == 0 {
+        return later
+    }
+    next_entry = c_importer_queue.pop()
+    result = next_entry[1].add_import_paths(next_entry[2])
+    later repeat
 }
 

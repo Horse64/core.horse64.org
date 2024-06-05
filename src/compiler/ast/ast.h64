@@ -451,19 +451,21 @@ func parse_to_ast_ex(
     ) later:
 
     await stmt
-    if stmt == none {
-        # We completely failed to parse the next statement.
-        # Skip to the next one:
-        var skiplen = token.get_naive_stmt_or_expr_len(
-            tokens, pos, for_expr=no, is_moose64=is_moose64
-        )
-        assert(skiplen > 0)
-        var invalid_st = new invalid_stmt.InvalidStmt(skiplen)
-        invalid_st.line = token.get_line(tokens, pos)
-        invalid_st.col = token.get_col(tokens, pos)
-        result.stmts.add(invalid_st)
-        pos += skiplen
-    } else {
+    func process_statement(stmt) {
+        if stmt == none {
+            # We completely failed to parse the next statement.
+            # Skip to the next one:
+            var skiplen = token.get_naive_stmt_or_expr_len(
+                tokens, pos, for_expr=no, is_moose64=is_moose64
+            )
+            assert(skiplen > 0)
+            var invalid_st = new invalid_stmt.InvalidStmt(skiplen)
+            invalid_st.line = token.get_line(tokens, pos)
+            invalid_st.col = token.get_col(tokens, pos)
+            result.stmts.add(invalid_st)
+            pos += skiplen
+            return later
+        }
         # Extracted a new statement.
         result.stmts.add(stmt)
         if allow_only_toplevel and
@@ -481,14 +483,17 @@ func parse_to_ast_ex(
             ))
         }
         pos += stmt.token_len
-        if not is_inside_block {
-            global_scope.process_toplevel_stmt(
-                result.global_scope, stmt, result.msgs,
-                project_file=project_file,
-                is_moose64=is_moose64, debug=debug
-            )
+        if is_inside_block {
+            return later
         }
+
+        global_scope.process_toplevel_stmt(
+            result.global_scope, stmt, result.msgs,
+            project_file=project_file,
+            is_moose64=is_moose64, debug=debug
+        ) later:
     }
+    process_statement(stmt) later:
 
     if pos > tokens.len or
             (is_inside_block and (
