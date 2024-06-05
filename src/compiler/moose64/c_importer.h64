@@ -39,24 +39,24 @@ func CImportInfo._process_c_include(ipath) {
     ipath = ipath.replace("/", path.sep)
     new_items = {->}
     if ipath == "stdlib.h" {
-        new_items["malloc"] = CFuncSymbol(
+        new_items["malloc"] = new c_symbol.CFuncSymbol(
             "void *malloc(size_t size);"
         )
-        new_items["free"] = CFuncSymbol(
+        new_items["free"] = new c_symbol.CFuncSymbol(
             "void free(void *ptr);"
         )
     } elseif ipath == "string.h" {
-        new_items["memcpy"] = CFuncSymbol(
+        new_items["memcpy"] = new c_symbol.CFuncSymbol(
             "void *memcpy(void *dest, const void *src, size_t n);"
         )
-        new_items["memmove"] = CFuncSymbol(
+        new_items["memmove"] = new c_symbol.CFuncSymbol(
             "void *memmove(void *dest, const void *src, size_t n);"
         )
-        new_items["strlen"] = CFuncSymbol(
+        new_items["strlen"] = new c_symbol.CFuncSymbol(
             "size_t strlen(const char *);"
         )
     } elseif ipath == "stdio.h" {
-        new_items["printf"] = CFuncSymbol(
+        new_items["printf"] = new c_symbol.CFuncSymbol(
             "int printf(const char *fmt, ...);"
         )
     }

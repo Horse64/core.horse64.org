@@ -128,7 +128,7 @@ func parse(tokens, pos, msgs, project_file=none,
         invalid_st.col = token.get_col(tokens, startpos)
         return invalid_st
     }
-    stmt.file_paths = [tokens[pos].str]
+    stmt.file_paths = [token.parse_token_value(tokens[pos])]
     pos += 1
 
     # Extract 'as' clause:
