@@ -31,8 +31,8 @@ enum StorageKind {
     ST_CCAPTURE,
     ST_GLOBAL,
     ST_NUMLITERAL,
-    ST_CEXT,  # C extensions, only used in Horse64.
-    ST_MCREF,  # Moose-builtins or C refs, only used in Moose64.
+    ST_CEXT,  # Horse64 C extensions, compiler.cext assigns them.
+    ST_MCREF,  # Moose64 C refs, compiler.moose64.c_importer assigns them.
     ST_SELF,
     ST_BASE,
     ST_EXTENDED,

@@ -155,7 +155,7 @@ extend type project.Project {
 
     var cext_builtins_storage_id_to_name_map = {->}
 
-    var last_id_offset_for_cext_storage = 0
+    var _last_id_offset_for_cext_storage = 0
 
     var storage_id_to_citem_map = {->}
 }
@@ -168,7 +168,7 @@ type CExtStorageInfo {
 func _ensure_builtins_storage(project) {
     if project != none and
             project.cext_builtins_storage_map_by_name.len == 0 {
-        var st_id = project.last_id_offset_for_cext_storage + 1
+        var st_id = project._last_id_offset_for_cext_storage + 1
         for entry in hvm_builtin_cext_funcs {
             var st_info = new CExtStorageInfo()
             st_info.kind = ast.N_STMT_FUNC
@@ -199,7 +199,7 @@ func _ensure_builtins_storage(project) {
             }
             st_id += 1
         }
-        project.last_id_offset_for_cext_storage = st_id - 1
+        project._last_id_offset_for_cext_storage = st_id - 1
     }
 }
 
@@ -290,9 +290,9 @@ func get_cext_item_storage_info(name,
             if cmod.name_to_item_map.has(name) {
                 var citem = cmod.name_to_item_map[name]
                 if citem.storage_info == none {
-                    project.last_id_offset_for_cext_storage += 1
+                    project._last_id_offset_for_cext_storage += 1
                     var storage_id =
-                        project.last_id_offset_for_cext_storage
+                        project._last_id_offset_for_cext_storage
                     if cext_info.debug_storage {
                         print("compiler.cext: "
                             "get_cext_item_storage_info(): " +

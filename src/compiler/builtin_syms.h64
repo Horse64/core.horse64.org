@@ -1,0 +1,73 @@
+## @module compiler.builtin_syms
+# Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import compiler.moose64.builtins as m64_builtins
+import compiler.project as project
+
+type BuiltinSymsStorageItem {
+    var package_name = none
+    var module_path = []
+    var symbol_name
+    var symbol_storage_ref
+}
+
+type BuiltinSymsStorage {
+    var package_to_item_list_map = {->}
+}
+
+extend type project.Project {
+    var builtin_syms_storage = none
+}
+
+func project.Project.init_builtin_syms {
+    if project.builtin_syms_storage != none {
+        return
+    }
+    project.builtin_syms_storage = new BuiltinSymsStorage()
+    if is_moose64 {
+        m64_builtins.register_builtins_with_project(self)
+        later:
+
+        return later
+    }
+    return later
+}
+
+func try_lookup_symbol(
+        project, in_module_name,
+        in_package_name, is_moose64=no
+        ) {
+    if project.builtin_syms_storage == none {
+        throw new RuntimeError(
+            "Internal error in compiler.builtin_syms: "
+            "symbols weren't initialized. This shouldn't "
+            "happen, please report this bug to the compiler "
+            "team."
+        )
+    }
+}
+
