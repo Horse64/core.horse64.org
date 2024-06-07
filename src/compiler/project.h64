@@ -357,7 +357,10 @@ func check_valid_rel_module_path(modpath, msgs=none,
                 if is_import {
                     msgs.add(new msg.FileMsg(
                         "Failed to process import due to invalid "
-                        "folder name in path.",
+                        "folder name in path. Contains invalid "
+                        "character " + token.describe_char_at(
+                            modpath, pos
+                        ) + ".",
                         source_file=fake_source_file,
                         line=import_line, col=import_col,
                     ))
@@ -1485,6 +1488,7 @@ func add_neighbor_modules_to_result(
         if not check_valid_rel_module_path(
                 neighbor_file_name, msgs=msgs,
                 orig_file_uri=file_uri, is_import=yes,
+                is_moose64=is_moose64,
                 import_line=import_line, import_col=import_col
                 ) {
             return later
@@ -1519,7 +1523,8 @@ func add_neighbor_modules_to_result(
             }
             pfile = new ProjectFile(
                 source_uri=neighbor_uri, is_entrypoint=no,
-                force_single_file=no, project=result.project_file.project,
+                force_single_file=no,
+                project=result.project_file.project,
                 is_moose64=is_moose64,
                 request_debug_modules=debug
             )

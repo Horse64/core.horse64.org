@@ -172,12 +172,20 @@ func project.Project.compute_all_scopes(
         }
         return later yes
     }
+
     self.did_compute_scopes = yes
     if debug {
         print("compiler.ast.storage: compute_all_scopes() " +
             "starting...")
     }
     assert(msgs != none)
+
+    if debug {
+        print("compiler.ast.storage: compute_all_scopes(): "
+            "calling project.init_builtin_syms()...")
+    }
+    self.init_builtin_syms(is_moose64=is_moose64)
+    later:
 
     func finalize_enum_and_type_storage(project, msgs) {
         # Make sure all enums and types have a storage id:
@@ -309,7 +317,7 @@ func project.Project.compute_all_scopes(
                 }
                 if not had_error {
                     print("horsec: error: Fatal error in "
-                        "project.Project.compute_all_scopes(): " +
+                        "compute_all_scopes(): " +
                         "Internal error occured, can't trace type '" +
                         anscope.label + "' to storage id, it " +
                         "has def_file=" +
@@ -339,7 +347,7 @@ func project.Project.compute_all_scopes(
             }
             if debug_global_storage {
                 print("compiler.storage: "
-                    "project.Project.compute_all_scopes(): " +
+                    "compute_all_scopes(): " +
                     "Found global storage id " +
                     anscope.storage_id.as_str() + " for "
                     "type or enum in file " +
@@ -521,7 +529,7 @@ func project.Project.compute_all_scopes(
     }
     func compute_scope(pfile) {
         if debug {
-            print("compiler.ast.storage: compute_all_scopes() " +
+            print("compiler.ast.storage: compute_all_scopes(): " +
                 "compute_scope() on: " + pfile.as_str())
         }
         if debug {
@@ -535,7 +543,7 @@ func project.Project.compute_all_scopes(
                         entry[1].cext_modname != none {
                     continue
                 }
-                print("compiler.ast.storage: compute_all_scopes()'s " +
+                print("compiler.ast.storage: compute_all_scopes(): " +
                     "compute_scope(): Warning, found import " +
                     "statement with no corresponding project file or "
                     "builtin module: " +

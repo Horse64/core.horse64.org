@@ -56,7 +56,7 @@ func StorageRef.as_str {
         return "NUM(" + self.id.as_str() + ")"
     } elseif self.kind == ST_CEXT {
         return "CX" + self.id.as_str()
-    } elseif self.kind == ST_MBUILTIN {
+    } elseif self.kind == ST_MCREF {
         return "MCREF" + self.id.as_str()
     } elseif self.kind == ST_SELF {
         return "SELF"

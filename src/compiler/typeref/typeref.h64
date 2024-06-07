@@ -229,8 +229,8 @@ func _parse_typeref_notlater(
                 if typeref_expr.type_path == none {
                     typeref_expr.type_path = []
                 }
-                typeref_expr.type_path.add(typeref_expr.type_label)
-                typeref_expr.type_label = tokens[pos + 1].str
+                typeref_expr.type_path.add(typeref_expr.type_name)
+                typeref_expr.type_name = tokens[pos + 1].str
                 typeref_token_len += 2
                 pos += 2
             }

@@ -28,11 +28,26 @@
 import path from core.horse64.org
 
 import compiler.moose64.c_symbol as c_symbol
+import compiler.project as project
+
+extend type project.Project {
+    var _last_id_used_by_m64_c_importer = none
+}
 
 type CImportInfo {
     var import_paths protect = []
 
     var known_items protect = {->}
+}
+
+func get_mcref_id(project) {
+    if project._last_id_used_by_m64_c_importer == none {
+        project._last_id_used_by_m64_c_importer = 1
+        return 1
+    }
+    project._last_id_used_by_m64_c_importer += 1
+    var id = project._last_id_used_by_m64_c_importer
+    return id
 }
 
 func CImportInfo._process_c_include(ipath) {

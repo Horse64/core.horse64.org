@@ -35,6 +35,16 @@ type BuiltinSymsStorageItem {
     var symbol_storage_ref
 }
 
+func BuiltinSymsStorageItem.init(
+        symbol_name, symbol_ref, module_path,
+        package_name=none
+        ) {
+    self.symbol_name = symbol_name
+    self.symbol_storage_ref = symbol_ref.copy()
+    self.module_path = module_path.copy()
+    self.package_name = package_name
+}
+
 type BuiltinSymsStorage {
     var package_to_item_list_map = {->}
 }
@@ -43,11 +53,11 @@ extend type project.Project {
     var builtin_syms_storage = none
 }
 
-func project.Project.init_builtin_syms {
-    if project.builtin_syms_storage != none {
+func project.Project.init_builtin_syms(is_moose64=no) {
+    if self.builtin_syms_storage != none {
         return
     }
-    project.builtin_syms_storage = new BuiltinSymsStorage()
+    self.builtin_syms_storage = new BuiltinSymsStorage()
     if is_moose64 {
         m64_builtins.register_builtins_with_project(self)
         later:
@@ -57,10 +67,8 @@ func project.Project.init_builtin_syms {
     return later
 }
 
-func try_lookup_symbol(
-        project, in_module_name,
-        in_package_name, is_moose64=no
-        ) {
+func register_symbol(project, symbol_name, symbol_ref,
+        module_name, package_name=none) {
     if project.builtin_syms_storage == none {
         throw new RuntimeError(
             "Internal error in compiler.builtin_syms: "
@@ -69,5 +77,107 @@ func try_lookup_symbol(
             "team."
         )
     }
+    var modpath = module_name
+    if typename(modpath) == "str" {
+        modpath = modpath.split(".")
+    } elseif typename(modpath) == "list" {
+        modpath = modpath.copy()
+    } else {
+        throw new TypeError("module_name must be str or list")
+    }
+    if modpath.join(".") == "$any" {
+        assert(package_name == none or package_name == "$any")
+        package_name = "$any"
+    }
+    var st = project.builtin_syms_storage
+    if not st.package_to_item_list_map.has(package_name) {
+        st.package_to_item_list_map[package_name] = []
+    }
+
+    # Check for duplicates:
+    for entry in st.package_to_item_list_map[package_name] {
+        if entry.module_path.len != modpath.len {
+            continue
+        }
+        var match = yes
+        var idx = 0
+        for lbl in entry.module_path {
+            idx += 1
+            if lbl != modpath[idx] {
+                match = no
+            }
+        }
+        if not match {
+            continue
+        }
+        if entry.symbol_name != symbol_name {
+            continue
+        }
+        print("compiler.builtin_syms.h64: error: Internal error: "
+            "Symbol was registered twice: " + [
+                symbol_name, symbol_ref, modpath, package_name
+            ].as_str() + " Please report this error to the "
+            "compiler team.")
+        throw new ValueError("duplicate symbol")
+    }
+
+    st.package_to_item_list_map[package_name].add(
+        new BuiltinSymsStorageItem(symbol_name, symbol_ref,
+            modpath, package_name=package_name)
+    )
+}
+
+func try_lookup_symbol(
+        project, symbol_name, in_module_name,
+        in_package_name=none
+        ) {
+    var modpath
+    if typename(in_module_name) == "str" {
+        modpath = in_module_name.split(".")
+    } else {
+        modpath = modpath.copy()
+    }
+    if project.builtin_syms_storage == none {
+        throw new RuntimeError(
+            "Internal error in compiler.builtin_syms: "
+            "symbols weren't initialized. This shouldn't "
+            "happen, please report this bug to the compiler "
+            "team."
+        )
+    }
+    var st = project.builtin_syms_storage
+    if st.package_to_item_list_map.has("$any") {
+        for entry in st.package_to_item_list_map["$any"] {
+            assert(entry.module_path.len == 1 and
+                entry.module_path[1] == "$any")
+            if entry.symbol_name == symbol_name {
+                return entry.symbol_storage_ref.copy()
+            }
+        }
+    }
+    if not st.package_to_item_list_map.has(in_package_name) {
+        return none
+    }
+    for entry in st.package_to_item_list_map[in_package_name] {
+        if entry.module_path.len != modpath.len {
+            continue
+        }
+        var match = yes
+        var idx = 0
+        for modpart in modpath {
+            idx += 1
+            if modpart != entry.module_path[idx] {
+                match = no
+                break
+            }
+        }
+        if not match {
+            continue
+        }
+        if entry.symbol_name == symbol_name {
+            return entry.symbol_storage_ref.copy()
+        }
+    }
+    return none
 }
 
