@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE language
 [
-  <!ENTITY IDENT "[a-zA-Z_][^\s\=\!\[\]\(\)}{#\@\&#37;\$\^\*\+\-\/\\\_\&quot;\'\:\;\.\,\?\|\&amp;]*">
+  <!ENTITY IDENT "[a-zA-Z_][^\s\=\!\[\]\(\)}{#\@\&#37;\$\^\*\+\-\/\\\&quot;\'\:\;\.\,\?\|\&amp;]*">
 ]>
 <!--
 Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
@@ -181,15 +181,27 @@ This is a syntax highlighting intended for kate and other KDE editors.
          String=".=~+-*/%&amp;|^&gt;&lt;"/>
       </context>
 
+      <context name="NamedItemHadName" attribute="Import"
+          fallthroughContext="#pop" lineEndContext="#stay">
+        <DetectSpaces/>
+        <keyword String="keywords" context="#pop" lookAhead="true"/>
+        <keyword String="nameditemkeywords" context="#pop" lookAhead="true"/>
+        <DetectChar char="." attribute="OperatorSymbol" context="#pop!NamedItem"/>
+        <RegExpr attribute="IdentifierPastName" context="#pop"
+         String="&IDENT;" lookAhead="true"/>
+        <AnyChar String="#'&quot;()[]{}()+=-,/:&gt;&lt;;" context="#pop"
+         lookAhead="true"/>
+      </context>
+
       <context name="NamedItem" attribute="Import"
           fallthroughContext="#pop" lineEndContext="#stay">
         <DetectSpaces/>
         <keyword String="keywords" context="#pop" lookAhead="true"/>
         <keyword String="nameditemkeywords" context="#pop" lookAhead="true"/>
-        <DetectChar char="." attribute="OtherSymbol" context="#stay"/>
-        <RegExpr attribute="SpecialItemName" context="#stay"
+        <DetectChar char="." attribute="OperatorSymbol" context="#stay"/>
+        <RegExpr attribute="SpecialItemName" context="#pop!NamedItemHadName"
          String="(init|as_str|copy|modinit_&IDENT;|modinit)"/>
-        <RegExpr attribute="ItemName" context="#stay"
+        <RegExpr attribute="ItemName" context="#pop!NamedItemHadName"
          String="&IDENT;"/>
         <AnyChar String="#'&quot;()[]{}()+=-,/:&gt;&lt;;" context="#pop"
          lookAhead="true"/>
