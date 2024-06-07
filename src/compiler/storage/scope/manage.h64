@@ -31,6 +31,7 @@ import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
 import compiler.ast.func_stmt as func_stmt
 import compiler.ast.transform as transform
 import compiler.ast.var_stmt as var_stmt
+import compiler.builtin_syms as builtin_syms
 import compiler.cext as cext
 import compiler.msg as msg
 import compiler.project as project
@@ -138,6 +139,23 @@ func project.ProjectFile.try_lookup_symbol_path(
         }
     }
 
+    # Then, try the built-in symbols injector for things that
+    # can't be "inside" e.g. an imported module:
+    if check_path.len == 1 and
+            not self.global_scope.name_to_stmt_map.has(
+                check_path[1]
+            ) {
+        var builtin_lookup_result =
+            builtin_syms.try_lookup_symbol(
+                self.project, check_path[1],
+                self.modinfo.module_name,
+                in_package_name=self.modinfo.package_name
+            )
+        if builtin_lookup_result != none {
+            return builtin_lookup_result
+        }
+    }
+
     # Then, try global scopes:
     var entry = self.global_scope.type_path_to_entry(
         check_path)
@@ -181,6 +199,8 @@ func project.ProjectFile.try_lookup_symbol_path(
         )
     }
     if check_path.len > 1 {
+        # Check if this is inside some imported item:
+
         var module_item_path_without_item = check_path.sub(
             1, check_path.len - 1)
         var item_name = check_path[check_path.len]
@@ -201,6 +221,7 @@ func project.ProjectFile.try_lookup_symbol_path(
                 stmt_map =
                     entry.project_file.global_scope.name_to_stmt_map
             }
+
             # First, check if this is a C extension item:
             var def_file
             var in_module_name = entry.module_path.join(".")
@@ -228,6 +249,21 @@ func project.ProjectFile.try_lookup_symbol_path(
                     )
                 }
             }
+
+            # Then, check if this is an added-in builtin item:
+            if entry.kind == ast.N_STMT_IMPORT {
+                var builtin_lookup_result =
+                    builtin_syms.try_lookup_symbol(
+                        self.project, item_name,
+                        in_module_name,
+                        in_package_name=in_package_name
+                    )
+                if builtin_lookup_result != none {
+                    return builtin_lookup_result
+                }
+            }
+
+            # Then, check if this is a C import:
             if entry.kind == ast.N_STMT_C_IMPORT {
                 assert(entry.c_importer != none)
                 if not entry.c_importer.known_items.has(item_name) {
@@ -242,7 +278,7 @@ func project.ProjectFile.try_lookup_symbol_path(
                     not stmt_map.has(item_name) {
                 return no
             }
-            # If we arrive here, it's not a C extension item.
+            # If we arrive here, it's a regular Horse64 module item.
             def_file = entry.project_file
             entry = stmt_map[item_name]
             if typename(entry) == "list" {

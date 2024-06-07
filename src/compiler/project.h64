@@ -39,6 +39,7 @@ import compiler.ast.func_stmt as func_stmt
 import compiler.ast.import_stmt as import_stmt
 import compiler.ast.transform as transform
 import compiler.build_options as build_options
+import compiler.builtin_syms as builtin_syms
 import compiler.cext as cext
 import compiler.comment.command as command_comment
 import compiler.moose64.builtins as m64_builtins
