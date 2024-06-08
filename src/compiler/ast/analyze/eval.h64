@@ -1,4 +1,4 @@
-## @module compiler.ast.analyze.eval
+ ## @module compiler.ast.analyze.eval
 # Copyright (c) 2023-2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,8 @@ enum AnalyzeResult {
     AR_UNKNOWN,
 }
 
-func try_eval_ast_node_maybe_sideeffects(node,
+func try_eval_ast_node_can_this_cause_sideeffects(
+        node, is_moose64=no,
         eval_by_storage_ref_callback=none) {
     if {ast.N_EXPR_LIT, ast.N_EXPR_IDREF}.has(node.kind) {
         return no
@@ -48,7 +49,8 @@ func try_eval_ast_node_maybe_sideeffects(node,
         if {ast_expr.C_SET, ast_expr.C_LIST,
                 ast_expr.C_MAP}.has(node.container_kind) {
             for v in node.subexprs {
-                if try_eval_ast_node_maybe_sideeffects(node,
+                if try_eval_ast_node_can_this_cause_sideeffects(
+                        node, is_moose64=is_moose64,
                         eval_by_storage_ref_callback=
                         eval_by_storage_ref_callback) {
                     return yes
@@ -79,8 +81,10 @@ func try_eval_ast_node_maybe_sideeffects(node,
         return no
     } elseif node.kind == ast.N_EXPR_UNOP and
             {"-"}.has(node.optoken.str) {
-        var v1 = try_eval_ast_node_value(node.subexprs[1],
-            eval_by_storage_ref_callback=eval_by_storage_ref_callback)
+        var v1 = try_eval_ast_node_value(
+            node.subexprs[1], is_moose64=is_moose64,
+            eval_by_storage_ref_callback=eval_by_storage_ref_callback
+        )
         if v1[1] != AR_VALUE or
                 typename(v1[2]) != "num" or
                 v1[2] > limit.num_max_safe_value or
@@ -97,16 +101,20 @@ func try_eval_ast_node_maybe_sideeffects(node,
                 node.subexprs[1].subexprs[2].label == "as_str" and
                 node.subexprs[2].kind == ast.N_EXPR_CALLARGS and
                 node.subexprs[2].subexprs.len == 0 {
-            var v = try_eval_ast_node_maybe_sideeffects(node,
-                eval_by_storage_ref_callback=eval_by_storage_ref_callback)
+            var v = try_eval_ast_node_can_this_cause_sideeffects(
+                node, is_moose64=is_moose64,
+                eval_by_storage_ref_callback=eval_by_storage_ref_callback
+            )
             if v {
                 return yes
             }
         }
         # The regular value evaluation might know how to handle this:
         # (since it has more special cases implemented):
-        var v = try_eval_ast_node_value(node,
-            eval_by_storage_ref_callback=eval_by_storage_ref_callback)
+        var v = try_eval_ast_node_value(
+            node, is_moose64=is_moose64,
+            eval_by_storage_ref_callback=eval_by_storage_ref_callback
+        )
         if v[1] == AR_VALUE {
             return no
         }
@@ -115,7 +123,10 @@ func try_eval_ast_node_maybe_sideeffects(node,
     return yes
 }
 
-func try_eval_ast_node_value(node, eval_by_storage_ref_callback=none) {
+func try_eval_ast_node_value(
+        node, is_moose64=no,
+        eval_by_storage_ref_callback=none
+        ) {
     if node.kind == ast.N_EXPR_LIT {
         return [AR_VALUE, node.value]
     } elseif node.kind == ast.N_EXPR_IDREF {
@@ -140,7 +151,8 @@ func try_eval_ast_node_value(node, eval_by_storage_ref_callback=none) {
                         ast.N_EXPR_CONTAINER,
                         ast.N_EXPR_UNOP}.has(subnode.kind) {
                     var v = try_eval_ast_node_value(
-                        subnode, eval_by_storage_ref_callback=
+                        subnode, is_moose64=is_moose64,
+                        eval_by_storage_ref_callback=
                             eval_by_storage_ref_callback)
                     if v[1] == AR_TYPEERROR {
                         return [AR_TYPEERROR]
@@ -167,9 +179,11 @@ func try_eval_ast_node_value(node, eval_by_storage_ref_callback=none) {
         return [AR_UNKNOWN]
     } elseif node.kind == ast.N_EXPR_BINOP {
         if node.optoken.str == "+" {
-            var v1 = try_eval_ast_node_value(node.subexprs[1],
+            var v1 = try_eval_ast_node_value(
+                node.subexprs[1], is_moose64=is_moose64,
                 eval_by_storage_ref_callback=eval_by_storage_ref_callback)
-            var v2 = try_eval_ast_node_value(node.subexprs[2],
+            var v2 = try_eval_ast_node_value(
+                node.subexprs[2], is_moose64=is_moose64,
                 eval_by_storage_ref_callback=eval_by_storage_ref_callback)
             if v1[1] == AR_TYPEERROR or v2[1] == AR_TYPEERROR {
                 return [AR_TYPEERROR]
@@ -204,9 +218,11 @@ func try_eval_ast_node_value(node, eval_by_storage_ref_callback=none) {
             }
             return [AR_UNKNOWN]
         } elseif {"-", "*"}.has(node.optoken.str) {
-            var v1 = try_eval_ast_node_value(node.subexprs[1],
+            var v1 = try_eval_ast_node_value(
+                node.subexprs[1], is_moose64=is_moose64,
                 eval_by_storage_ref_callback=eval_by_storage_ref_callback)
-            var v2 = try_eval_ast_node_value(node.subexprs[2],
+            var v2 = try_eval_ast_node_value(
+                node.subexprs[2], is_moose64=is_moose64,
                 eval_by_storage_ref_callback=eval_by_storage_ref_callback)
             if v1[1] == AR_TYPEERROR or v2[1] == AR_TYPEERROR {
                 return [AR_TYPEERROR]
@@ -231,9 +247,11 @@ func try_eval_ast_node_value(node, eval_by_storage_ref_callback=none) {
             }
             return [AR_VALUE, v1 * v2]
         } elseif node.optoken.str == "/" {
-            var v1 = try_eval_ast_node_value(node.subexprs[1],
+            var v1 = try_eval_ast_node_value(
+                node.subexprs[1], is_moose64=is_moose64,
                 eval_by_storage_ref_callback=eval_by_storage_ref_callback)
-            var v2 = try_eval_ast_node_value(node.subexprs[2],
+            var v2 = try_eval_ast_node_value(
+                node.subexprs[2], is_moose64=is_moose64,
                 eval_by_storage_ref_callback=eval_by_storage_ref_callback)
             if v1[1] == AR_TYPEERROR or v2[1] == AR_TYPEERROR {
                 return [AR_TYPEERROR]
@@ -257,7 +275,8 @@ func try_eval_ast_node_value(node, eval_by_storage_ref_callback=none) {
             }
             return [AR_VALUE, v1 / v2]
         } elseif node.optoken.str == "." {
-            var v1 = try_eval_ast_node_value(node.subexprs[1],
+            var v1 = try_eval_ast_node_value(
+                node.subexprs[1], is_moose64=is_moose64,
                 eval_by_storage_ref_callback=eval_by_storage_ref_callback)
             if v1[1] == AR_TYPEERROR {
                 return [AR_TYPEERROR]
@@ -281,7 +300,8 @@ func try_eval_ast_node_value(node, eval_by_storage_ref_callback=none) {
                 node.subexprs[1].subexprs[2].label == "as_str" and
                 node.subexprs[2].kind == ast.N_EXPR_CALLARGS and
                 node.subexprs[2].subexprs.len == 0 {
-            var v = try_eval_ast_node_value(node.subexprs[1].subexprs[1],
+            var v = try_eval_ast_node_value(
+                node.subexprs[1].subexprs[1], is_moose64=is_moose64,
                 eval_by_storage_ref_callback=eval_by_storage_ref_callback)
             if v[1] == AR_TYPEERROR {
                 return [AR_TYPEERROR]
@@ -296,7 +316,8 @@ func try_eval_ast_node_value(node, eval_by_storage_ref_callback=none) {
         return [AR_UNKNOWN]
     } elseif node.kind == ast.N_EXPR_UNOP {
         if node.optoken.str == "-" {
-            var v = try_eval_ast_node_value(node.subexprs[1],
+            var v = try_eval_ast_node_value(
+                node.subexprs[1], is_moose64=is_moose64,
                 eval_by_storage_ref_callback=eval_by_storage_ref_callback)
             if v[1] == AR_TYPEERROR {
                 return [AR_TYPEERROR]
@@ -314,8 +335,13 @@ func try_eval_ast_node_value(node, eval_by_storage_ref_callback=none) {
     return [AR_UNKNOWN]
 }
 
-func try_eval_ast_node_type(node, eval_by_storage_ref_callback=none) {
-    var v = try_eval_ast_node_value(node)
+func try_eval_ast_node_type(
+        node, is_moose64=is_moose64,
+        eval_by_storage_ref_callback=none
+        ) {
+    var v = try_eval_ast_node_value(
+        node, is_moose64=is_moose64
+    )
     if v[1] == AR_VALUE and
             {"num", "str", "bytes", "none"}.has(typename(v[2])) {
         return typename(v[2])

@@ -406,11 +406,15 @@ func actionparser_compile(args, is_moose64=no) {
         print(result.output)
         return result.exit_code
     }
-    const possible_stages = [
+    const possible_stages = if is_moose64 ([
+        "tokens", "ast", "global-scope", "checked-ast",
+        "transformed-code", "transformed-ast", "c",
+        "binary"
+    ]) else ([
         "tokens", "ast", "global-scope", "checked-ast",
         "transformed-code", "transformed-ast", "bytecode",
         "binary"
-    ]
+    ])
 
     # Sanity check the provided options first:
 
@@ -473,7 +477,7 @@ func actionparser_compile(args, is_moose64=no) {
         return later 1
     }
     if result.args["--output-dir"] != none and
-            not {"transformed-code", "checked-ast",
+            not {"transformed-code", "checked-ast", "c",
                  "transformed-ast"}.has(result.args["--stage"]) {
         print(program_name + ": error: This stage doesn't support "
             "the --output-dir option.")
@@ -493,8 +497,15 @@ func actionparser_compile(args, is_moose64=no) {
                 result.args["--stage"]) and
                 not result.args["--output-file"].lower().ends(file_ext) {
             print(program_name + ": error: Expected "
-                "--output-file to be a " + file_ext +
-                " file for this stage.")
+                "--output-file to be a " + file_ext + " "
+                "file for this stage.")
+            print("Use " + program_name + " compile --help to show usage.")
+            return later 1
+        } elseif {"c"}.has(result.args["--stage"]) and
+                not result.args["--output-file"].lower().ends(".c") {
+            print(program_name + ": error: Expected "
+                "--output-file to be a .c "
+                "file for this stage.")
             print("Use " + program_name + " compile --help to show usage.")
             return later 1
         } elseif {"bytecode"}.has(
@@ -601,6 +612,7 @@ func actionparser_compile(args, is_moose64=no) {
     } elseif result.args["--stage"] == "checked-ast" or
             result.args["--stage"] == "transformed-code" or
             result.args["--stage"] == "transformed-ast" or
+            result.args["--stage"] == "c" or
             result.args["--stage"] == "bytecode" or
             result.args["--stage"] == "binary" {
         var aresult = parse_ast_target_from_args(

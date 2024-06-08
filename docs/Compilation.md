@@ -16,7 +16,7 @@ with project management.
 Stages
 ------
 
-These are the current compilation stages of horsec as of 2023-11-02:
+These are the current compilation stages of horsec as of 2024-06-08:
 
 1. `--stage token` does tokenization.
 

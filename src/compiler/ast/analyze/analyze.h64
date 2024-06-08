@@ -109,7 +109,7 @@ func get_global_storage_neighbor_closure(project) {
 }
 
 func advanced_phase2_evaluate_global_scope(
-        project_file, msgs=none
+        project_file, is_moose64=no, msgs=none
         ) {
     var globals_value_cb = get_global_storage_neighbor_closure(
         project_file.project)
@@ -127,7 +127,7 @@ func advanced_phase2_evaluate_global_scope(
             continue
         }
         var v = ast_eval.try_eval_ast_node_value(
-            stmt.subexprs[1],
+            stmt.subexprs[1], is_moose64=is_moose64,
             eval_by_storage_ref_callback=globals_value_cb)
         if v[1] == ast_eval.AR_VALUE {
             had_change = yes
@@ -231,7 +231,7 @@ func analyze_and_configure_newly_added_func(
     node.func_scope.is_later_func = is_later_func
 }
 
-func advanced_phase3_later_and_computevals(
+func advanced_phase3_h64_later_and_computevals(
         stmts, msgs=none, project_file=none
         ) {
     var globals_value_cb = get_global_storage_neighbor_closure(
@@ -592,7 +592,7 @@ func advanced_phase3_later_and_computevals(
 }
 
 func advanced_phase1_globalrefs(
-        stmts, msgs=none, project_file=none
+        stmts, is_moose64=no, msgs=none, project_file=none
         ) {
     func check_and_analyze_recurse(
             stmts, msgs) {
@@ -629,7 +629,7 @@ func advanced_phase1_globalrefs(
 }
 
 func basic_phase_nestingdepth_and_misc(
-        stmts, msgs=none, project_file=none
+        stmts, is_moose64=no, msgs=none, project_file=none
         ) {
     func check_and_analyze_recurse(
             stmts, msgs, max_block_nesting_left
@@ -674,26 +674,34 @@ func basic_phase_nestingdepth_and_misc(
 }
 
 func do_advanced_check_and_analysis(project, msgs) {
+    var is_moose64 = no
+    if project.build_options != none and
+            project.build_options.is_moose64 {
+        is_moose64 = yes
+    }
+
     func process_file(pfile) {
         pfile.ensure_ast() later:
 
         if not advanced_phase1_globalrefs(
-                pfile.ast.stmts, msgs,
+                pfile.ast.stmts, is_moose64=is_moose64, msgs=msgs,
                 project_file=pfile) {
             return later no
         }
         while yes {
             var result = advanced_phase2_evaluate_global_scope(
-                pfile, msgs
+                pfile, is_moose64=is_moose64, msgs=msgs
             )
-            if result != "repeat" {
+            if result != "changed" {
                 if result == no  {
                     return later no
                 }
+                assert(result == yes)
                 break
             }
         }
-        if not advanced_phase3_later_and_computevals(
+        if not is_moose64 and
+                not advanced_phase3_h64_later_and_computevals(
                 pfile.ast.stmts, msgs,
                 project_file=pfile) {
             return later no
