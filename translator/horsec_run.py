@@ -65,6 +65,10 @@ if __name__ == "__main__":
                 translator_options.append("--" + args[i + 1])
                 i += 2
                 continue
+            elif args[i] == "--single-file":
+                translator_options.append("--single-file")
+                i += 1
+                continue
             elif args[i] == "--help" or args[i] == "-h":
                 print("Usage: tools/horsec_run.py "
                       "[..options..] target_file(optional)")
@@ -115,7 +119,6 @@ if __name__ == "__main__":
         sys.exit(1)
 
     if target_file != None:
-        extra_opts = []
         contents = None
         with open(target_file, "r", encoding="utf-8") as f:
             contents = f.read()
@@ -136,9 +139,10 @@ if __name__ == "__main__":
                 break
             if ("@build_options" in doc_comment and
                     "--single-file" in doc_comment):
-                extra_opts += ["--single-file"]
+                if not "--single-file" in translator_options:
+                    translator_options += ["--single-file"]
         cmd = os.path.join(translator_py_script_dir, "translator.py")
-        cmd_args = extra_opts + ["--"] + [target_file] + target_args
+        cmd_args = translator_options + ["--"] + [target_file] + target_args
         try:
             result = _process_run(
                 cmd, args=cmd_args,
