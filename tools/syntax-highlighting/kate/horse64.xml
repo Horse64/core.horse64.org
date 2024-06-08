@@ -126,7 +126,8 @@ This is a syntax highlighting intended for kate and other KDE editors.
     </list>
 
     <contexts>
-      <context name="Normal" attribute="NormalText" lineEndContext="#stay">
+      <context name="Normal" attribute="NormalText"
+               lineEndContext="#stay">
         <Detect2Chars attribute="DocComment" context="DocComment"
          char="#" char1="#"/>
         <DetectChar attribute="Comment" context="Comment" char="#"/>
@@ -135,8 +136,10 @@ This is a syntax highlighting intended for kate and other KDE editors.
 
         <DetectChar attribute="Strings" context="StringDouble" char="&quot;"/>
         <RegExpr attribute="Strings" context="StringDouble" String="b&quot;"/>
-        <DetectChar attribute="Strings" context="StringSingle" char="'"/>
-        <RegExpr attribute="Strings" context="StringSingle" String="b'"/>
+        <DetectChar attribute="Strings" context="StringSingle"
+         char="'"/>
+        <RegExpr attribute="Strings" context="StringSingle"
+         String="b'"/>
         <WordDetect attribute="Import" context="Import"
          String="import" additionalDeliminator="."/>
         <keyword attribute="BuiltinFunc" context="#stay" String="builtinfunc"/>
@@ -152,12 +155,14 @@ This is a syntax highlighting intended for kate and other KDE editors.
        </context>
        <context name="Expression" attribute="NormalText"
           lineEndContext="#stay">
-        <keyword attribute="Keyword" context="#stay" String="keywords"/>
+        <keyword attribute="Keyword" context="#stay"
+         String="keywords"/>
         <keyword attribute="SpecialValue" context="#stay"
          String="specialvalues" additionalDeliminator="."/>
         <WordDetect attribute="SelfVar" context="#stay"
          String="self" additionalDeliminator="."/>
-        <keyword attribute="Control" context="#stay" String="control"/>
+        <keyword attribute="Control" context="#stay"
+         String="control"/>
 
         <RegExpr attribute="Identifier" context="#stay"
          String="&IDENT;"/>
@@ -167,11 +172,16 @@ This is a syntax highlighting intended for kate and other KDE editors.
         <RegExpr attribute="Number" context="#stay"
          String="[0-9]+(\.[0-9]+)?"/>
 
-        <Detect2Chars attribute="Error" context="#stay" char="~" char1="="/>
-        <Detect2Chars attribute="Error" context="#stay" char="+" char1="+"/>
-        <Detect2Chars attribute="Error" context="#stay" char="-" char1="-"/>
-        <Detect2Chars attribute="Error" context="#stay" char="*" char1="*"/>
-        <Detect2Chars attribute="Error" context="#stay" char="." char1="="/>
+        <Detect2Chars attribute="Error" context="#stay" char="~"
+         char1="="/>
+        <Detect2Chars attribute="Error" context="#stay" char="+"
+         char1="+"/>
+        <Detect2Chars attribute="Error" context="#stay" char="-"
+         char1="-"/>
+        <Detect2Chars attribute="Error" context="#stay" char="*"
+         char1="*"/>
+        <Detect2Chars attribute="Error" context="#stay" char="."
+         char1="="/>
         <DetectChar attribute="Error" context="#stay" char=";"/>
         <AnyChar attribute="OtherSymbol" context="#stay"
          String=",[](){}:"/>
@@ -185,29 +195,42 @@ This is a syntax highlighting intended for kate and other KDE editors.
           fallthroughContext="#pop" lineEndContext="#stay">
         <DetectSpaces/>
         <keyword String="keywords" context="#pop" lookAhead="true"/>
-        <keyword String="nameditemkeywords" context="#pop" lookAhead="true"/>
-        <DetectChar char="." attribute="OperatorSymbol" context="#pop!NamedItem"/>
+        <keyword String="nameditemkeywords" context="#pop"
+         lookAhead="true"/>
+        <DetectChar char="." attribute="OperatorSymbol"
+         context="#pop!NamedItem"/>
         <RegExpr attribute="IdentifierPastName" context="#pop"
          String="&IDENT;" lookAhead="true"/>
-        <AnyChar String="#'&quot;()[]{}()+=-,/:&gt;&lt;;" context="#pop"
-         lookAhead="true"/>
+        <AnyChar String="#'&quot;()[]{}()+=-,/:&gt;&lt;;"
+         context="#pop" lookAhead="true"/>
       </context>
 
       <context name="NamedItem" attribute="Import"
           fallthroughContext="#pop" lineEndContext="#stay">
         <DetectSpaces/>
         <keyword String="keywords" context="#pop" lookAhead="true"/>
-        <keyword String="nameditemkeywords" context="#pop" lookAhead="true"/>
-        <DetectChar char="." attribute="OperatorSymbol" context="#stay"/>
-        <RegExpr attribute="SpecialItemName" context="#pop!NamedItemHadName"
-         String="(init|as_str|copy|modinit_&IDENT;|modinit)"/>
+        <keyword String="nameditemkeywords" context="#pop"
+         lookAhead="true"/>
+        <DetectChar char="." attribute="OperatorSymbol"
+         context="#stay"/>
+        <WordDetect attribute="SpecialItemName" String="init"
+         context="#pop!NamedItemHadName"/>
+        <WordDetect attribute="SpecialItemName" String="as_str"
+         context="#pop!NamedItemHadName"/>
+        <WordDetect attribute="SpecialItemName" String="copy"
+         context="#pop!NamedItemHadName"/>
+        <WordDetect attribute="SpecialItemName" String="modinit"
+         context="#pop!NamedItemHadName"/>
+        <RegExpr attribute="SpecialItemName" String="modinit\\_&IDENT;"
+         context="#pop!NamedItemHadName"/>
         <RegExpr attribute="ItemName" context="#pop!NamedItemHadName"
          String="&IDENT;"/>
         <AnyChar String="#'&quot;()[]{}()+=-,/:&gt;&lt;;" context="#pop"
          lookAhead="true"/>
       </context>
 
-      <context name="WithStmt" attribute="NormalText" lineEndContext="#stay">
+      <context name="WithStmt" attribute="NormalText"
+               lineEndContext="#stay">
         <DetectSpaces/>
         <WordDetect String="as" context="NamedItem" attribute="Keyword"/>
         <keyword attribute="DeclKeyword" context="#pop"
@@ -221,7 +244,8 @@ This is a syntax highlighting intended for kate and other KDE editors.
         <DetectSpaces/>
         <keyword attribute="Keyword"
          context="#stay" String="importinnerkeywords"/>
-        <keyword String="nameditemkeywords" context="#pop" lookAhead="true"/>
+        <keyword String="nameditemkeywords" context="#pop"
+         lookAhead="true"/>
         <keyword String="keywords" context="#pop" lookAhead="true"/>
         <RegExpr attribute="ModuleRef" context="#stay"
          String="&IDENT;"/>
@@ -238,7 +262,8 @@ This is a syntax highlighting intended for kate and other KDE editors.
          context="#stay" String="docalertkeywords"/>
       </context>
 
-      <context name="DocComment" attribute="DocComment" lineEndContext="#pop">
+      <context name="DocComment" attribute="DocComment"
+               lineEndContext="#pop">
         <DetectSpaces/>
         <keyword attribute="DocCommentKeyword"
          context="#stay" String="doccommentkeywords"/>
@@ -273,35 +298,50 @@ This is a syntax highlighting intended for kate and other KDE editors.
     </contexts>
 
     <itemDatas>
-      <itemData name="Import" defStyleNum="dsImport" spellChecking="false"/>
+      <itemData name="Import" defStyleNum="dsImport"
+       spellChecking="false"/>
       <itemData name="DocAlertKeyword" defStyleNum="dsAlert"
        spellChecking="false"/>
       <itemData name="DeclKeyword" defStyleNum="dsFunction"
        spellChecking="false"/>
       <itemData name="NormalText" defStyleNum="dsNormal"
        spellChecking="false"/>
-      <itemData name="SpecialItemName" defStyleNum="dsBuiltIn" spellChecking="false"/>
-      <itemData name="BuiltinFunc" defStyleNum="dsBuiltIn" spellChecking="false"/>
-      <itemData name="BuiltinVar" defStyleNum="dsBuiltIn" spellChecking="false"/>
+      <itemData name="SpecialItemName" defStyleNum="dsBuiltIn"
+       spellChecking="false"/>
+      <itemData name="BuiltinFunc" defStyleNum="dsBuiltIn"
+       spellChecking="false"/>
+      <itemData name="BuiltinVar" defStyleNum="dsBuiltIn"
+       spellChecking="false"/>
       <itemData name="Comment" defStyleNum="dsComment"/>
       <itemData name="DocComment" defStyleNum="dsDocumentation"/>
-      <itemData name="Control" defStyleNum="dsControlFlow" spellChecking="false"/>
+      <itemData name="Control" defStyleNum="dsControlFlow"
+       spellChecking="false"/>
       <itemData name="Error" defStyleNum="dsError" spellChecking="false"/>
-      <itemData name="Keyword" defStyleNum="dsKeyword" spellChecking="false"/>
-      <itemData name="ModuleRef" defStyleNum="dsVariable" spellChecking="false"/>
-      <itemData name="ItemName" defStyleNum="dsVariable" spellChecking="false"/>
+      <itemData name="Keyword" defStyleNum="dsKeyword"
+       spellChecking="false"/>
+      <itemData name="ModuleRef" defStyleNum="dsVariable"
+       spellChecking="false"/>
+      <itemData name="ItemName" defStyleNum="dsVariable"
+       spellChecking="false"/>
       <itemData name="DocCommentKeyword" defStyleNum="dsAnnotation"
        spellChecking="false"/>
-      <itemData name="SpecialValue" defStyleNum="dsBuiltIn" spellChecking="false"/>
-      <itemData name="Number" defStyleNum="dsDecVal" spellChecking="false"/>
+      <itemData name="SpecialValue" defStyleNum="dsBuiltIn"
+       spellChecking="false"/>
+      <itemData name="Number" defStyleNum="dsDecVal"
+       spellChecking="false"/>
       <itemData name="SpecialChar" defStyleNum="dsSpecialChar"
        spellChecking="false"/>
       <itemData name="Strings" defStyleNum="dsString"/>
-      <itemData name="OperatorSymbol" defStyleNum="dsOperator" spellChecking="false"/>
-      <itemData name="OtherSymbol" defStyleNum="dsNormal" spellChecking="false"/>
-      <itemData name="Identifier" defStyleNum="dsNormal" spellChecking="false"/>
-      <itemData name="SelfVar" defStyleNum="dsVariable" spellChecking="false"/>
-      <itemData name="Attribute" defStyleNum="dsAttribute" spellChecking="false"/>
+      <itemData name="OperatorSymbol" defStyleNum="dsOperator"
+       spellChecking="false"/>
+      <itemData name="OtherSymbol" defStyleNum="dsNormal"
+       spellChecking="false"/>
+      <itemData name="Identifier" defStyleNum="dsNormal"
+       spellChecking="false"/>
+      <itemData name="SelfVar" defStyleNum="dsVariable"
+       spellChecking="false"/>
+      <itemData name="Attribute" defStyleNum="dsAttribute"
+       spellChecking="false"/>
     </itemDatas>
   </highlighting>
   <general>
