@@ -4,7 +4,7 @@
   <!ENTITY IDENT "[a-zA-Z_][^\s\=\!\[\]\(\)}{#\@\&#37;\$\^\*\+\-\/\\\&quot;\'\:\;\.\,\?\|\&amp;]*">
 ]>
 <!--
-Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+Copyright (c) 2024, ellie/@ell1e & Moose64 authors (see AUTHORS.md).
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -33,8 +33,8 @@ license, see accompanied LICENSE.md.
 <!--
 This is a syntax highlighting intended for kate and other KDE editors.
 -->
-<language name="Horse64" version="1" indenter="cstyle" kateversion="2.4"
-    section="Source" extensions="*.h64" mimetype="text/horse64">
+<language name="Moose64" version="1" indenter="cstyle" kateversion="2.4"
+    section="Source" extensions="*.m64" mimetype="text/moose64">
   <highlighting>
     <list name="keywords">
       <item>and</item>
@@ -59,6 +59,7 @@ This is a syntax highlighting intended for kate and other KDE editors.
       <item>const</item>
       <item>for</item>
       <item>defer</item>
+      <item>c_import</item>
     </list>
     <list name="nameditemkeywords">
       <item>func</item>
@@ -67,6 +68,7 @@ This is a syntax highlighting intended for kate and other KDE editors.
       <item>var</item>
       <item>const</item>
       <item>struct</item>
+      <item>union</item>
     </list>
     <list name="nameditemcontrolkeywords">
       <item>for</item>
@@ -123,8 +125,6 @@ This is a syntax highlighting intended for kate and other KDE editors.
     <list name="builtinfunc">
       <item>assert</item>
       <item>print</item>
-      <item>has_attr</item>
-      <item>typename</item>
     </list>
 
     <contexts>
@@ -144,6 +144,8 @@ This is a syntax highlighting intended for kate and other KDE editors.
          String="b'"/>
         <WordDetect attribute="Import" context="Import"
          String="import" additionalDeliminator="."/>
+        <WordDetect attribute="Import" context="CImport"
+         String="c_import" additionalDeliminator="."/>
         <keyword attribute="BuiltinFunc" context="#stay" String="builtinfunc"/>
         <keyword attribute="BuiltinVar" context="#stay" String="builtinvar"/>
 
@@ -252,6 +254,19 @@ This is a syntax highlighting intended for kate and other KDE editors.
         <RegExpr attribute="ModuleRef" context="#stay"
          String="&IDENT;"/>
         <DetectChar char="." attribute="OtherSymbol" context="#stay"/>
+        <AnyChar String="#'&quot;(){}[]()+=-,/:&gt;&lt;;" context="#pop"
+         lookAhead="true"/>
+      </context>
+
+      <context name="CImport" attribute="Import" lineEndContext="#stay">
+        <DetectSpaces/>
+        <WordDetect String="as" context="#pop!NamedItem" attribute="Keyword"/>
+        <keyword String="nameditemkeywords" context="#pop"
+         lookAhead="true"/>
+        <keyword String="keywords" context="#pop" lookAhead="true"/>
+        <DetectChar attribute="Strings" context="StringDouble" char="&quot;"/>
+        <DetectChar attribute="Strings" context="StringSingle"
+         char="'"/>
         <AnyChar String="#'&quot;(){}[]()+=-,/:&gt;&lt;;" context="#pop"
          lookAhead="true"/>
       </context>
