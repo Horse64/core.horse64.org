@@ -104,7 +104,7 @@ func is_maybe_token_str(s, is_moose64=no) {
     return no
 }
 
-func is_minus_after_this_token_unary(t) {
+func is_minus_after_this_token_unary(t, is_moose64=no) {
     if t == none or t == "" {
         return yes
     }
@@ -112,7 +112,7 @@ func is_minus_after_this_token_unary(t) {
         t = t.str
     }
     if ({"(", "=", "[", ",", "->", ":", "{"}.has(t) or
-            (special_words.has(t) and
+            (is_special_word(t, is_moose64=is_moose64) and
             not {"yes", "no", "none"}.has(t)) or
             math_assign_ops.has(t) or
             compare_ops.has(t) or
@@ -1040,7 +1040,7 @@ func is_special_word(value, is_moose64=no) {
             value.kind == T_BOOLCOMP
     }
     if is_moose64 and {"c_import", "struct",
-            "union"}.has(value) {
+            "union", "defer"}.has(value) {
         return yes
     }
     return special_words.has(value)

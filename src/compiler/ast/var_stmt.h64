@@ -296,6 +296,59 @@ func parse(tokens, pos, msgs, project_file=none,
         ))
         had_error_unexpected = yes
     }
+    # If now comes an appended constructor shorthand,
+    # parse it:
+    func parse_moose64_type_constructor_if_any {
+        if not is_moose64 or had_error_unexpected or
+                pos > tokens_len or
+                not stmt.has_type_expr or
+                tokens[pos].kind != token.T_ENCLOSE or
+                tokens[pos].str != "(" {
+            return later
+        }
+        assert(stmt.subexprs.len == 1)
+        var type_expr = stmt.subexprs[1]
+        var inner_expr = expr.parse_call_or_funcdef_args(
+            tokens, pos, msgs,
+            is_call=yes, project_file=project_file,
+            callordef_line=token.get_line(tokens, pos),
+            callordef_col=token.get_col(tokens, pos),
+            max_len=tokens_len,
+            allow_type_refs=no, require_type_refs=no,
+            debug=no
+        ) later:
+
+        await inner_expr
+        assert(inner_expr != none)
+        assert(inner_expr.token_len >= 0)
+        pos += inner_expr.token_len
+        assert(stmt.has_type_expr)
+        assert(stmt.subexprs.len == 1)
+        stmt.subexprs[1].init_expr = inner_expr
+
+        var prev_type_expr_len = type_expr.token_len
+
+        # Try trailing typeref mods, if any:
+        var v = typeref.parse_typeref(
+            tokens, pos, msgs, extend_typeref_expr=type_expr,
+            is_moose64=is_moose64,
+            project_file=project_file, debug=debug
+        ) later:
+
+        await v
+        assert((v == none and
+            type_expr.token_len == prev_type_expr_len)
+            or v == type_expr or v.damaged)
+        if type_expr.token_len != prev_type_expr_len {
+            assert(type_expr.token_len > prev_type_expr_len)
+            pos += type_expr.token_len - prev_type_expr_len
+        }
+        return later
+    }
+    parse_moose64_type_constructor_if_any()
+    later:
+
+    # If we had any major errors so far, bail if necessary:
     if not had_error_unexpected and
             not token.can_stmt_or_expr_end_before_token(
             tokens, pos, for_expr=no

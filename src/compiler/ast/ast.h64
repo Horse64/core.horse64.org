@@ -35,6 +35,7 @@ import compiler.ast.break_stmt as break_stmt
 import compiler.ast.c_import_stmt as c_import_stmt
 import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
 import compiler.ast.continue_stmt as continue_stmt
+import compiler.ast.defer_stmt as defer_stmt
 import compiler.ast.do_stmt as do_stmt
 import compiler.ast.enum_stmt as enum_stmt
 import compiler.ast.for_stmt as for_stmt
@@ -281,6 +282,7 @@ enum NodeKind {
     N_STMT_STRUCT,
     N_STMT_STRUCTEXTEND,
     N_STMT_UNION,
+    N_STMT_DEFER,
 }
 
 type ASTResult {
@@ -351,6 +353,7 @@ var stmt_parse_funcs = [
     break_stmt.parse,
     continue_stmt.parse,
     struct_or_union_stmt.parse,
+    defer_stmt.parse,
 ]
 
 func parse_statement(

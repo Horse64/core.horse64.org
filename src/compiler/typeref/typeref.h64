@@ -79,8 +79,9 @@ func TypeRefMod.as_str {
 
 type TypeRefExpr base ast.TreeNode {
     var type_path
-    var type_name
-    var type_modifiers = []
+    var name
+    var modifiers = []
+    var init_expr = none
 }
 
 func TypeRefExpr.init {
@@ -94,7 +95,7 @@ func TypeRefExpr.as_code(indent=0) {
     }
     var prefix_mod_names = {"readonly"}
     var t = ""
-    for mod in self.type_modifiers {
+    for mod in self.modifiers {
         if prefix_mod_names.has(mod.name) {
             if t != "" {
                 t += " "
@@ -108,8 +109,8 @@ func TypeRefExpr.as_code(indent=0) {
     if self.type_path != none and self.type_path.len > 0 {
         t = self.type_path.join(".") + "." + t
     }
-    t += self.type_name
-    for mod in self.type_modifiers {
+    t += self.name
+    for mod in self.modifiers {
         if not prefix_mod_names.has(mod.name) {
             t += " " + mod.as_str()
         }
@@ -123,7 +124,8 @@ func TypeRefExpr.as_str {
 }
 
 func _parse_typeref_notlater(
-        tokens, pos, msgs, project_file=none,
+        tokens, pos, msgs, extend_typeref_expr=none,
+        project_file=none,
         max_len=none, max_depth=64,
         is_moose64=no, debug=no
         ) {
@@ -134,67 +136,77 @@ func _parse_typeref_notlater(
     if pos > max_len {
         return none
     }
-    var typeref_expr = none
-    if tokens[pos].kind == token.T_ENCLOSE and
-            tokens[pos].str == "(" {
-        var bracket_open_pos = pos
-        if max_depth <= 0 {
-            msgs.add(new msg.FileMsg(
-                "Invalid " + token.describe_token_at(
-                    tokens, pos) + " "
-                ", exceeds maximum nesting depth "
-                "for type expression starting "
-                "in line " +
-                token.get_line(tokens, startpos).as_str() +
-                ", column " +
-                token.get_col(tokens, startpos).as_str() + ".",
-                source_file=project_file,
-                line=token.get_line(tokens, pos),
-                col=token.get_col(tokens, pos),
-            ))
-            var expr_len = (pos - startpos) + 1
-            return new ast_expr.InvalidExpr(expr_len)
-        }
-        pos += 1  # Go past '('.
-        var inner_expr = _parse_typeref_do(
-            tokens, pos, msgs, project_file=project_file,
-            max_len=max_len, max_depth=(max_depth - 1),
-            is_moose64=is_moose64, debug=debug
-        )
-        if inner_expr == none {
-            return none
-        }
-        pos += inner_expr.token_len
-        if pos > max_len or
-                tokens[pos].kind != token.T_ENCLOSE or
-                tokens[pos].str != ")" {
-            msgs.add(new msg.FileMsg(
-                "Unexpected " + token.describe_token_at(
-                    tokens, pos) + " "
-                ", expected '(' "
-                "for ')' found "
-                "in line " +
-                token.get_line(tokens,
-                               bracket_open_pos).as_str() +
-                ", column " +
-                token.get_col(tokens,
-                              bracket_open_pos).as_str() + ".",
-                source_file=project_file,
-                line=token.get_line(tokens, pos),
-                col=token.get_col(tokens, pos),
-            ))
-            pos -= 1  # Reverse to before where we expected ')'
-            var expr_len = (pos - startpos) + 1
-            return new ast_expr.InvalidExpr(expr_len)
-        }
-        typeref_expr = inner_expr
-        pos += 1  # Go past ')'
-        inner_expr.token_len = (pos - startpos)
+
+    var typeref_expr = extend_typeref_expr
+    var start_token_len = 0
+    if typeref_expr != none {
+        start_token_len = typeref_expr.token_len
     }
+    var typeref_token_len = start_token_len
     var typeref_damaged = no
     var mods = []
-    var typeref_token_len = 0
     while yes {
+        if tokens[pos].kind == token.T_ENCLOSE and
+                tokens[pos].str == "(" {
+            var bracket_open_pos = pos
+            if max_depth <= 0 {
+                msgs.add(new msg.FileMsg(
+                    "Invalid " + token.describe_token_at(
+                        tokens, pos) + " "
+                    ", exceeds maximum nesting depth "
+                    "for type expression starting "
+                    "in line " +
+                    token.get_line(tokens, startpos).as_str() +
+                    ", column " +
+                    token.get_col(tokens, startpos).as_str() + ".",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+                pos += 1
+                var expr_len = start_token_len + (pos - startpos)
+                return new ast_expr.InvalidExpr(expr_len)
+            }
+            pos += 1  # Go past '('.
+            var inner_expr = _parse_typeref_notlater(
+                tokens, pos, msgs,
+                extend_typeref_expr=typeref_expr,
+                project_file=project_file,
+                max_len=max_len, max_depth=(max_depth - 1),
+                is_moose64=is_moose64, debug=debug
+            )
+            if inner_expr == none {
+                # Revert back to before bracket.
+                pos = bracket_open_pos
+                break
+            }
+            pos += inner_expr.token_len
+            if pos > max_len or
+                    tokens[pos].kind != token.T_ENCLOSE or
+                    tokens[pos].str != ")" {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected " + token.describe_token_at(
+                        tokens, pos) + " "
+                    ", expected '(' "
+                    "for ')' found "
+                    "in line " +
+                    token.get_line(tokens,
+                                bracket_open_pos).as_str() +
+                    ", column " +
+                    token.get_col(tokens,
+                                bracket_open_pos).as_str() + ".",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+                var expr_len = start_token_len + (pos - startpos)
+                return new ast_expr.InvalidExpr(expr_len)
+            }
+            typeref_expr = inner_expr
+            pos += 1  # Go past ')'
+            typeref_token_len = start_token_len + (pos - startpos)
+        }
+
         if typeref_expr == none and pos <= max_len and
                 (tokens[pos].kind == token.T_IDENT or
                 tokens[pos].kind == token.T_KEYWORD) and
@@ -203,11 +215,12 @@ func _parse_typeref_notlater(
                  (not is_moose64 and
                   builtin_horse64_types.has(tokens[pos].str))) {
             typeref_expr = new TypeRefExpr()
-            typeref_expr.type_name = tokens[pos].str
+            typeref_expr.name = tokens[pos].str
             typeref_expr.line = token.get_line(tokens, pos)
             typeref_expr.col = token.get_col(tokens, pos)
-            typeref_token_len = (pos - startpos) + 1
             pos += 1
+            typeref_token_len =
+                start_token_len + (pos - startpos)
         }
         if typeref_expr == none and pos <= max_len and
                 tokens[pos].kind == token.T_IDENT and
@@ -218,19 +231,20 @@ func _parse_typeref_notlater(
                   not builtin_horse64_type_modifiers.has(
                       tokens[pos].str))) {
             typeref_expr = new TypeRefExpr()
-            typeref_expr.type_name = tokens[pos].str
+            typeref_expr.name = tokens[pos].str
             typeref_expr.line = token.get_line(tokens, pos)
             typeref_expr.col = token.get_col(tokens, pos)
-            typeref_token_len = (pos - startpos) + 1
             pos += 1
+            typeref_token_len =
+                start_token_len + (pos - startpos)
             while pos + 1 <= max_len and
                     tokens[pos].kind == token.T_DOT and
                     tokens[pos + 1].kind == token.T_IDENT {
                 if typeref_expr.type_path == none {
                     typeref_expr.type_path = []
                 }
-                typeref_expr.type_path.add(typeref_expr.type_name)
-                typeref_expr.type_name = tokens[pos + 1].str
+                typeref_expr.type_path.add(typeref_expr.name)
+                typeref_expr.name = tokens[pos + 1].str
                 typeref_token_len += 2
                 pos += 2
             }
@@ -251,8 +265,8 @@ func _parse_typeref_notlater(
             var modifier_name = tokens[pos].str
             var modifier = new TypeRefMod(modifier_name)
             mods.add(modifier)
-            typeref_token_len = (pos - startpos) + 1
             pos += 1
+            typeref_token_len = start_token_len + (pos - startpos)
             if modifier_name == "array" and is_moose64 {
                 while pos + 2 <= max_len and
                         tokens[pos].kind == token.T_ENCLOSE and
@@ -282,7 +296,8 @@ func _parse_typeref_notlater(
                         return typeref_expr
                     }
                     pos += 3
-                    typeref_token_len = (pos - startpos) + 0
+                    typeref_token_len =
+                        start_token_len + (pos - startpos)
                 }
             }
         }
@@ -290,23 +305,30 @@ func _parse_typeref_notlater(
             break
         }
     }
+    if typeref_token_len <= start_token_len {
+        return none
+    }
     if typeref_expr != none {
+        assert(typeref_token_len > 0)
         typeref_expr.damaged = typeref_damaged
-        typeref_expr.type_modifiers = mods
+        typeref_expr.modifiers = mods
         typeref_expr.token_len = typeref_token_len
     }
     return typeref_expr
 }
 
 func parse_typeref(
-        tokens, pos, msgs, project_file=none,
-        max_len=none, is_moose64=no, debug=no
+        tokens, pos, msgs, extend_typeref_expr=none,
+        project_file=none, max_len=none, is_moose64=no,
+        debug=no
         ) {
     if max_len == none {
         max_len = tokens.len
     }
     var expr = _parse_typeref_notlater(
-        tokens, pos, msgs, project_file=project_file,
+        tokens, pos, msgs,
+        extend_typeref_expr=extend_typeref_expr,
+        project_file=project_file,
         max_len=max_len, is_moose64=is_moose64,
         debug=debug
     )
