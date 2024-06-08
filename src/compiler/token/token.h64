@@ -70,11 +70,11 @@ const _maybe_stmt_token_strs = {
     "continue", "break",
     "var", "const", "type", "import", "if",
     "return", "await", "throw",
-    "enum", "extend"
+    "enum", "extend", "struct", "defer"
 }
 
 const _maybe_stmt_token_strs_moose64 = {
-    "union", "struct"
+    "union", "c_import"
 }
 
 const _guaranteed_outer_scope_tokens = {
@@ -90,6 +90,7 @@ const special_words = {
     "finally", "as", "in", "base", "extend",
     "throw", "any", "from", "protect",
     "repeat", "elseif", "else", "ignore", "enum",
+    "struct", "defer",
     # These are not returned as keywords, but still special words:
     "none", "yes", "no", "and", "or", "not", "new",
 }
@@ -1039,8 +1040,8 @@ func is_special_word(value, is_moose64=no) {
             value.kind == T_NONE or
             value.kind == T_BOOLCOMP
     }
-    if is_moose64 and {"c_import", "struct",
-            "union", "defer"}.has(value) {
+    if is_moose64 and {"c_import",
+            "union"}.has(value) {
         return yes
     }
     return special_words.has(value)

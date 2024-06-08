@@ -604,6 +604,8 @@ func project.Project.compute_all_scopes(
                         # This must be a faulty node, abort.
                         return later node
                     }
+                    var stmt_desc = if is_struct ("custom struct")
+                        else ("custom type")
                     for stmt in node.subblocks[1] {
                         if stmt.kind == ast.N_STMT_VAR {
                             var idx = 0
@@ -671,8 +673,8 @@ func project.Project.compute_all_scopes(
                                 "Invalid statement "
                                 "of type " +
                                 ast.NodeKind.num_label(stmt.kind) +
-                                ", expected var attributes for "
-                                "custom type starting in line " +
+                                ", expected var attributes for " +
+                                stmt_desc + " starting in line " +
                                 node.line.as_str() + ", column " +
                                 node.col.as_str() + ".",
                                 source_file=pfile,
