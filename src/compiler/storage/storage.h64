@@ -604,12 +604,35 @@ func project.Project.compute_all_scopes(
                         # This must be a faulty node, abort.
                         return later node
                     }
-                    var stmt_desc = if is_struct ("custom struct")
-                        else ("custom type")
                     for stmt in node.subblocks[1] {
-                        if stmt.kind == ast.N_STMT_VAR {
+                        func emit_invalid_child_error(stmt, parent) {
+                            var stmt_desc = "custom struct"
+                            if parent.kind == ast.N_STMT_UNION {
+                                stmt_desc = "custom union"
+                            } elseif parent.kind == ast.N_STMT_TYPE {
+                                stmt_desc = "custom type"
+                            }
+                            if msgs != none {
+                                msgs.add(new msg.FileMsg(
+                                    "Invalid statement "
+                                    "of type " +
+                                    ast.NodeKind.num_label(stmt.kind) +
+                                    ", expected var attributes for " +
+                                    stmt_desc + " starting in line " +
+                                    parent.line.as_str() + ", column " +
+                                    parent.col.as_str() + ".",
+                                    source_file=pfile,
+                                    line=stmt.line, col=stmt.col,
+                                ))
+                            } else {
+                                throw new ValueError("Invalid statement "
+                                    "inside custom type or struct or union, "
+                                    "expected var or func attributes.")
+                            }
+                        }
+                        func register_var_at_root(var_labels) {
                             var idx = 0
-                            for label in stmt.var_labels {
+                            for label in var_labels {
                                 idx += 1
                                 if not anscope.name_to_symbol_map.
                                         has(label) {
@@ -646,8 +669,7 @@ func project.Project.compute_all_scopes(
                                             old_symbol.def_line.as_str()
                                         if old_symbol.def_col != none {
                                             where += ":" +
-                                                old_symbol.def_col.
-                                                as_str()
+                                                old_symbol.def_col.as_str()
                                         }
                                     }
                                 }
@@ -666,25 +688,46 @@ func project.Project.compute_all_scopes(
                                         "attribute with duplicate name.")
                                 }
                             }
+                        }
+                        if stmt.kind == ast.N_STMT_VAR {
+                            register_var_at_root(stmt.var_labels)
+                            continue
+                        } elseif stmt.kind == ast.N_STMT_UNION or
+                                stmt.kind == ast.N_STMT_STRUCT {
+                            func handle_nested_struct_or_union(
+                                    stmt, name_path=[]
+                                    ) {
+                                var name_path = name_path.copy()
+                                if stmt.kind == ast.N_STMT_STRUCT and
+                                        stmt.label != none {
+                                    name_path.add(stmt.label)
+                                }
+                                for child in stmt.subblocks[1] {
+                                    if child.kind == ast.N_STMT_VAR {
+                                        var var_paths = []
+                                        for lbl in child.var_labels {
+                                            var_paths.add(name_path + [lbl])
+                                        }
+                                        var add_names =[]
+                                        for vpath in var_paths {
+                                            add_names.add(vpath.join("."))
+                                        }
+                                        register_var_at_root(add_names)
+                                    } elseif child.kind == ast.N_STMT_UNION or
+                                            child.kind == ast.N_STMT_STRUCT {
+                                        handle_nested_struct_or_union(
+                                            child, name_path=name_path
+                                        )
+                                    } else {
+                                        emit_invalid_child_error(child, stmt)
+                                    }
+                                }
+                            }
+                            handle_nested_struct_or_union(stmt)
                             continue
                         }
-                        if msgs != none {
-                            msgs.add(new msg.FileMsg(
-                                "Invalid statement "
-                                "of type " +
-                                ast.NodeKind.num_label(stmt.kind) +
-                                ", expected var attributes for " +
-                                stmt_desc + " starting in line " +
-                                node.line.as_str() + ", column " +
-                                node.col.as_str() + ".",
-                                source_file=pfile,
-                                line=stmt.line, col=stmt.col,
-                            ))
-                        } else {
-                            throw new ValueError("Invalid statement "
-                                "inside custom type, "
-                                "expected var or func attributes.")
-                        }
+                        # If we arrive here, it's an invalid item.
+                        emit_invalid_child_error(stmt, node)
                     }
                     return later node
                 }
