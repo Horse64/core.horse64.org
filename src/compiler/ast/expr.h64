@@ -1646,11 +1646,18 @@ func ArgNameExpr.as_code(indent=0) {
 }
 
 type CallArgsExpr base ast.TreeNode {
+    var has_types
 }
 
 func CallArgsExpr.init {
     base.init()
     self.kind = ast.N_EXPR_CALLARGS
+}
+
+func CallArgsExpr.as_json_output {
+    var output = base.as_json_output()
+    output["has_types"] = self.has_types
+    return output
 }
 
 func CallArgsExpr.as_code(indent=0) {
@@ -1659,17 +1666,35 @@ func CallArgsExpr.as_code(indent=0) {
     }
     var t = "("
     var is_first = yes
-    for arg in self.subexprs {
+    var args = self.subexprs
+    var argtypes = []
+    if self.has_types {
+        args = self.subexprs.sub(
+            1, self.subexprs.len / 2
+        )
+        argtypes = self.subexprs.sub(
+            self.subexprs.len / 2 + 1
+        )
+    }
+    var idx = 0
+    for arg in args {
+        idx += 1
         if is_first {
             is_first = no
         } else {
             t += ","
         }
         if arg.kind == ast.N_EXPR_CALLKWARG {
-            t += arg.label + "=" +
-                arg.subexprs[1].as_code(indent=indent)
+            t += arg.label
+            if self.has_types {
+                t += "<-" + argtypes[idx].as_str()
+            }
+            t += "=" + arg.subexprs[1].as_code(indent=indent)
         } else {
             t += arg.as_code(indent=indent)
+            if self.has_types {
+                t += "<-" + argtypes[idx].as_str()
+            }
         }
     }
     return t + ")"
@@ -1944,6 +1969,7 @@ func _parse_call_or_funcdef_args_notlater(
     }
 
     # Now parse first argument:
+    var type_exprs = []
     while yes {
         var arg = parse_single_call_or_funcdef_arg(
             tokens, pos, nesting_depth, msgs, is_call=is_call,
@@ -1956,6 +1982,7 @@ func _parse_call_or_funcdef_args_notlater(
         if arg != none {
             pos += arg.token_len
         }
+        var type_expr = none
         if require_type_refs and (pos > tokens_len or
                 tokens[pos].kind != token.T_LEFTPTR) {
             if arg != none and not arg.damaged {
@@ -1994,11 +2021,15 @@ func _parse_call_or_funcdef_args_notlater(
                 }
             } else {
                 pos += v.token_len
+                type_expr = v
             }
         }
 
         assert(arg != none)
         node.subexprs.add(arg)
+        if allow_type_refs or require_type_refs {
+            type_exprs.add(type_expr)
+        }
         assert(pos >= 1)
         assert(arg.token_len >= 1)
         if pos > tokens_len or tokens[pos].kind != token.T_COMMA or
@@ -2018,6 +2049,11 @@ func _parse_call_or_funcdef_args_notlater(
                 pos -= 1  # Revert onto last valid contained token.
             }
             node.token_len = (pos - startpos) + 1
+
+            if type_exprs.len > 0 or allow_type_refs {
+                node.has_types = yes
+            }
+            node.subexprs += type_exprs
             return node
         }
         assert(tokens[pos].kind == token.T_COMMA)

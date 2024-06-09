@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import compiler.ast as ast
+import compiler.ast.c_import_stmt as c_import_stmt
 import compiler.ast.enum_stmt as enum_stmt
 import compiler.ast.func_stmt as func_stmt
 import compiler.ast.struct_or_union_stmt as struct_or_union_stmt
@@ -316,6 +317,7 @@ func process_toplevel_stmt(
             }
             scope.name_to_stmt_map[name].add(statement.copy())
         } elseif statement.kind == ast.N_STMT_C_IMPORT {
+            var c_import_with_name = statement.copy()
             if not scope.name_to_stmt_map.has(name) {
                 scope.name_to_stmt_map[name] = []
             }
@@ -323,28 +325,28 @@ func process_toplevel_stmt(
             for merge_candidate in
                     scope.name_to_stmt_map[name] {
                 if merge_candidate.
-                        does_import_same_module_as(statement) {
+                        does_import_same_module_as(c_import_with_name) {
                     merge_candidate.file_paths +=
-                        statement.file_paths
+                        c_import_with_name.file_paths
                     if merge_candidate.c_importer == none {
                         merge_candidate.c_importer =
                             new c_importer.CImportInfo()
                     }
                     c_importer_queue.add([merge_candidate.c_importer,
-                        statement.file_paths])
-                    statement = merge_candidate
+                        c_import_with_name.file_paths])
+                    c_import_with_name = merge_candidate
                     was_merged = yes
                     break
                 }
             }
             if not was_merged {
-                if statement.c_importer == none {
-                    statement.c_importer =
+                if c_import_with_name.c_importer == none {
+                    c_import_with_name.c_importer =
                         new c_importer.CImportInfo()
                 }
-                c_importer_queue.add([statement.c_importer,
-                    statement.file_paths])
-                scope.name_to_stmt_map[name].add(statement)
+                c_importer_queue.add([c_import_with_name.c_importer,
+                    c_import_with_name.file_paths])
+                scope.name_to_stmt_map[name].add(c_import_with_name)
             }
         } else {
             # Note: to avoid keeping the entire AST in memory

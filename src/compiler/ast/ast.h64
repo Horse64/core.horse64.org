@@ -532,7 +532,7 @@ func parse_to_ast(
 }
 
 func _tokenize_code_line_for_ast(
-        source, project_file=none,
+        source, project_file=none, build_options=none,
         is_entrypoint=yes, force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
         require_detect_project_dir=yes,
@@ -542,6 +542,10 @@ func _tokenize_code_line_for_ast(
     if not force_single_file and is_entrypoint {
         throw new ValueError("Not setting force_single_file "
             "to yes for inline code makes no sense.")
+    }
+    if build_options != none and build_options.is_moose64 {
+        throw new ValueError("Cannot process inline code "
+            "for Moose64.")
     }
     var tresult = token.tokenize_str(
         source, project_file=project_file,
@@ -628,13 +632,15 @@ func _parse_tokens_file_to_ast_ex(
         source_is_uri=no,
         is_entrypoint=yes, force_single_file=no,
         allow_disk_access=yes, allow_vfs_access=no,
+        allow_only_toplevel=yes,
         require_detect_project_dir=yes,
         print_stages_file_caption="entry point file",
         build_options=none,
         debug=no, debug_modules=no,
         debug_global_storage=no
         ) {
-    if build_options.print_stages {
+    if build_options != none and
+            build_options.print_stages {
         print(build_options.build_program_name +
             ": info: stage tokens: "
             "Now tokenizing " + print_stages_file_caption + "... "
@@ -656,22 +662,25 @@ func _parse_tokens_file_to_ast_ex(
     later:
 
     await tresult
-    if build_options.print_stages {
+    if build_options != none and
+            build_options.print_stages {
         print(build_options.build_program_name +
             ": info: stage ast: "
             "Now parsing " + print_stages_file_caption + "... "
             "[t=" + time.ticks().as_str() + "]")
     }
-    var aresult = parse_to_ast(
-        tresult.tokens,
+    var aresult = parse_to_ast_ex(
+        tresult.tokens, 1,
         project_file=tresult.project_file,
+        allow_only_toplevel=allow_only_toplevel,
         is_moose64=(build_options != none and
             build_options.is_moose64),
         debug=debug
     ) later:
 
     await aresult
-    if build_options.print_stages {
+    if build_options != none and
+            build_options.print_stages {
         print(build_options.build_program_name +
             ": info: stage ast: "
             "Parsed " + print_stages_file_caption +
@@ -700,6 +709,7 @@ func parse_str_to_ast(
         is_entrypoint=yes,
         allow_disk_access=yes, allow_vfs_access=no,
         require_detect_project_dir=yes,
+        allow_only_toplevel=yes,
         build_options=none,
         print_stages_file_caption="entry point file",
         debug=no, debug_modules=no,
@@ -711,6 +721,7 @@ func parse_str_to_ast(
         allow_disk_access=allow_disk_access,
         allow_vfs_access=allow_vfs_access,
         is_entrypoint=is_entrypoint, debug=debug,
+        allow_only_toplevel=allow_only_toplevel,
         require_detect_project_dir=
             require_detect_project_dir,
         build_options=build_options,

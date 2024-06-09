@@ -38,8 +38,9 @@ import compiler.token as token
 type FuncStmt base ast.StmtNode {
     var label
     var type_path = none
+    var has_return_type = no
+    var has_arg_types = no
     var arg_labels = []
-    var arg_defaults = []
     var kw_arg_count = 0
 }
 
@@ -55,14 +56,6 @@ func FuncStmt.copy {
     for label in self.arg_labels {
         self_copy.arg_labels.add(label)
     }
-    self_copy.arg_defaults = []
-    for default_value in self.arg_defaults {
-        if default_value == none {
-            self_copy.arg_defaults.add(none)
-        } else {
-            self_copy.arg_defaults.add(default_value.copy())
-        }
-    }
     return self_copy
 }
 
@@ -70,15 +63,9 @@ func FuncStmt.as_json_obj {
     var output = base.as_json_obj()
     output["label"] = self.label
     output["type_path"] = self.type_path
+    output["has_return_type"] = self.has_return_type
+    output["has_arg_types"] = self.has_arg_types
     output["arg_labels"] = self.arg_labels
-    output["arg_defaults"] = []
-    for argdef in self.arg_defaults {
-        if argdef == none {
-            output["arg_defaults"].add(none)
-            continue
-        }
-        output["arg_defaults"].add(argdef.as_json_obj())
-    }
     return output
 }
 
@@ -109,6 +96,10 @@ func _func_stmt_to_code(stmt, is_extend=no, indent=0) {
                 t += ","
             }
             t += stmt.arg_labels[i]
+            if stmt.has_arg_types {
+                t += "<-" + stmt.subexprs[stmt.kw_arg_count + i].
+                    as_code(indent=indent)
+            }
             i += 1
         }
         while i <= stmt.kw_arg_count + pos_arg_count {
@@ -117,13 +108,20 @@ func _func_stmt_to_code(stmt, is_extend=no, indent=0) {
             } else {
                 t += ","
             }
-            t += stmt.arg_labels[i] + "=" +
-                stmt.arg_defaults[i - pos_arg_count].as_code(
-                    indent=indent
-                )
+            t += stmt.arg_labels[i]
+            if stmt.has_arg_types {
+                t += "<-" + stmt.subexprs[stmt.kw_arg_count + i].
+                    as_code(indent=indent)
+            }
+            t += "=" + stmt.subexprs[i - pos_arg_count].
+                as_code(indent=indent)
             i += 1
         }
         t += ")"
+    }
+    if not is_extend and stmt.has_return_type {
+        t += "->" + stmt.subexprs[stmt.subexprs.len].
+            as_code(indent=(indent + 4))
     }
     t += " {\n"
     for substmt in stmt.subblocks[1] {
@@ -136,8 +134,8 @@ func _func_stmt_to_code(stmt, is_extend=no, indent=0) {
 type FuncExtendStmt base ast.StmtNode {
     var type_path = none
     var arg_labels = []
-    var arg_defaults = []
     var kw_arg_count = 0
+    var has_arg_types = no
 }
 
 func FuncExtendStmt.init {
@@ -151,13 +149,6 @@ func FuncExtendStmt.copy {
     for label in self.arg_labels {
         self_copy.arg_labels.add(label)
     }
-    for default_value in self.arg_defaults {
-        if default_value == none {
-            self_copy.arg_defaults.add(none)
-        } else {
-            self_copy.arg_defaults.add(default_value.copy())
-        }
-    }
     return self_copy
 }
 
@@ -165,15 +156,8 @@ func FuncExtendStmt.as_json_obj {
     var output = base.as_json_obj()
     output["label"] = self.label
     output["type_path"] = self.type_path
+    output["has_arg_types"] = self.has_arg_types
     output["arg_labels"] = self.arg_labels
-    output["arg_defaults"] = []
-    for argdef in self.arg_defaults {
-        if argdef == none {
-            output["arg_defaults"].add(none)
-            continue
-        }
-        output["arg_defaults"].add(argdef.as_json_obj())
-    }
     return output
 }
 
@@ -305,31 +289,48 @@ func parse(tokens, pos, msgs, project_file=none,
     }
 
     # Parse arguments if we got a '(' character:
-    var args = get_func_arguments() later:
+    var argsobj = get_func_arguments() later:
 
-    await args
-    if args != none {
-        for arg in args.subexprs {
+    await argsobj
+    if argsobj != none {
+        var args = argsobj.subexprs.copy()
+        var argtypes = []
+        if argsobj.has_types {
+            argtypes = args.sub(args.len / 2 +  1)
+            args = args.sub(1, args.len / 2)
+            stmt.has_arg_types = yes
+        }
+        for arg in args {
             if arg.kind == ast.N_EXPR_ARGNAME {
                 stmt.arg_labels.add(arg.label)
             }
         }
-        for arg in args.subexprs {
+        var type_exprs = []
+        var idx = 0
+        for arg in args {
+            idx += 1
             if arg.kind == ast.N_EXPR_ARGNAME or
                     arg.kind == ast.N_EXPR_INVALID {
+                if argsobj.has_types {
+                    type_exprs.add(argtypes[idx])
+                }
                 continue
             }
             assert(arg.kind == ast.N_EXPR_CALLKWARG)
             stmt.arg_labels.add(arg.label)
             assert(arg.subexprs.len == 1)
-            stmt.arg_defaults.add(arg.subexprs[1])
+            stmt.subexprs.add(arg.subexprs[1])
+            if argsobj.has_types {
+                type_exprs.add(argtypes[idx])
+            }
             stmt.kw_arg_count += 1
         }
-        pos += args.token_len
+        stmt.subexprs += type_exprs
+        pos += argsobj.token_len
     }
     # We're not retaining the actual arg item,
     # since this isn't a call.
-    args = none
+    argsobj = none
 
     # Parse return type if any:
     var type_expr = none
@@ -337,7 +338,7 @@ func parse(tokens, pos, msgs, project_file=none,
             tokens, pos, stmt, msgs, project_file,
             is_moose64
             ) {
-        if not is_moose64 or
+        if not is_moose64 or is_extend or
                 tokens[pos].kind != token.T_RIGHTPTR {
             return later 0
         }
@@ -369,7 +370,10 @@ func parse(tokens, pos, msgs, project_file=none,
         } elseif v.damaged {
             stmt.damaged = yes
         }
-        # TODO XXX add to statement
+        type_expr = v
+        assert(not stmt.has_return_type)
+        stmt.has_return_type = yes
+        stmt.subexprs.add(v)
         pos += v.token_len
         return later (pos - startpos)
     }

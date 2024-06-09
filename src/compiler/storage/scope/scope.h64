@@ -353,7 +353,7 @@ extend func ast.TreeNode.copy {
 }
 
 extend type type_stmt.TypeStmt {
-    var attrs_name_scope
+    var attr_names_scope
 }
 
 extend type type_stmt.TypeExtendStmt {

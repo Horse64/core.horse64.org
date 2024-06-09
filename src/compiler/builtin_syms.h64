@@ -134,7 +134,7 @@ func try_lookup_symbol(
     var modpath
     if typename(in_module_name) == "str" {
         modpath = in_module_name.split(".")
-    } else {
+    } elseif in_module_name != none {
         modpath = modpath.copy()
     }
     if project.builtin_syms_storage == none {
@@ -155,7 +155,8 @@ func try_lookup_symbol(
             }
         }
     }
-    if not st.package_to_item_list_map.has(in_package_name) {
+    if modpath == none or modpath.len == none or
+            not st.package_to_item_list_map.has(in_package_name) {
         return none
     }
     for entry in st.package_to_item_list_map[in_package_name] {

@@ -148,8 +148,10 @@ func project.ProjectFile.try_lookup_symbol_path(
         var builtin_lookup_result =
             builtin_syms.try_lookup_symbol(
                 self.project, check_path[1],
-                self.modinfo.module_name,
-                in_package_name=self.modinfo.package_name
+                if self.modinfo != none (self.modinfo.module_name)
+                    else (none),
+                in_package_name=if self.modinfo != none
+                    (self.modinfo.package_name) else (none),
             )
         if builtin_lookup_result != none {
             return builtin_lookup_result

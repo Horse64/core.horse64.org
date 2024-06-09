@@ -1283,7 +1283,6 @@ func first_pass_later_transform(
                     insert_before_do_stmt.add(func_node)
                     _funcnamesused.add(func_node.label)
                     func_node.arg_labels = []
-                    func_node.arg_defaults = []
                     func_node.kw_arg_count = 0
                     func_node.func_scope.arg_symbol_info = []
                     idx = 0
@@ -1306,7 +1305,6 @@ func first_pass_later_transform(
                         func_scope.inner_scope
                     assert(inner_scope != none)
                     errordispatchfuncnode.arg_labels = []
-                    errordispatchfuncnode.arg_defaults = []
                     errordispatchfuncnode.kw_arg_count = 0
                     errordispatchfuncnode.func_scope.add_arg("eobj")
 
