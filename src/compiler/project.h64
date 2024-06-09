@@ -1221,7 +1221,7 @@ func ProjectFile.ensure_project(msgs=none) {
     later:
 
     await is_single_file
-    if is_single_file {
+    if is_single_file and self.is_entrypoint {
         self.project.entrypoint_is_known_single_file = yes
     }
 
