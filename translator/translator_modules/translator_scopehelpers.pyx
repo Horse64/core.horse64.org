@@ -98,10 +98,15 @@ def statement_declared_identifiers(
                 exclude_direct_func_name)
         return result + do_recurse()
     elif firstnonblank(st) in {"for", "const", "var"}:
-        idf = nextnonblank(st,
-            firstnonblankidx(st))
-        if is_identifier(idf):
-            result.append(idf)
+        idx = firstnonblankidx(st)
+        while True:
+            idx = nextnonblankidx(st, idx)
+            if idx < 0 or not is_identifier(st[idx]):
+                break
+            result.append(st[idx])
+            if nextnonblank(st, idx) != ",":
+                break
+            idx = nextnonblankidx(st, idx)
         return result + do_recurse()
     elif firstnonblank(st) in {"with", "do"}:
         bracket_depth = 0
