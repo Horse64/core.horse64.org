@@ -260,13 +260,23 @@ func find_project_base(file_uri) {
     ) later repeat
 }
 
-func Project.guess_base_from_file_uri(source_uri) {
+func Project.guess_base_from_file_uri(
+        source_uri, do_nothing_if_set=no,
+        error_on_failure=yes
+        ) {
+    if do_nothing_if_set and
+            self.base_dir_uri != none {
+        return later yes
+    }
     self.tried_find_modules_dir = yes
     var base_dir_uri = find_project_base(source_uri)
     later:
 
     await base_dir_uri
     if base_dir_uri == none {
+        if not error_on_failure {
+            return later no
+        }
         throw new ValueError("Failed to locate project "
             "directory for file: " + source_uri)
     }
@@ -274,6 +284,7 @@ func Project.guess_base_from_file_uri(source_uri) {
     self.packages_dir_uri = uri.add_part(
         base_dir_uri, "horse_modules"
     )
+    return later yes
 }
 
 func Project.get_rel_dir_of_file(file_uri) {
@@ -746,6 +757,34 @@ func Project.find_package_dir_uri(package_name,
         return later uri.add_part(base_uri,
             uri.encode_path(package_name))
     }
+
+    func guess_base_uri_just_in_case {
+        var pfile = none
+        for furi in self.module_uri_to_file_map {
+            var pfile =
+                self.module_uri_to_file_map[furi]
+            if pfile._is_single_file != yes {
+                pfile = none
+            } else {
+                assert(pfile.source_uri != none)
+                break
+            }
+        }
+        if pfile == none {
+            return later
+        }
+        self.guess_base_from_file_uri(
+            pfile.source_uri,
+            do_nothing_if_set=yes,
+            error_on_failure=no,
+        ) later:
+
+        return later
+    }
+
+    guess_base_uri_just_in_case()
+    later:
+
     if self.packages_dir_uri == none and
             (self.package_name == none or
              package_name != self.package_name or
