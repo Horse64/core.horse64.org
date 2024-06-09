@@ -778,6 +778,7 @@ func Project.find_package_dir_uri(
         allow_project_independent_fallback=no,
         error_on_base_dir_failure=yes) {
     func return_package_dir_from_base_uri(base_uri, package_name) {
+        assert(base_uri != none)
         if not {"file", "vfs"}.has(uri.get_protocol(base_uri)) {
             # Can't enforce case sensitivty on this, so just return
             # the obvious path right awway:
@@ -848,16 +849,19 @@ func Project.find_package_dir_uri(
         ) later:
 
         await result
-        if result == none and error_on_base_dir_failure {
-            throw new RuntimeError(
-                "Failed to find any usable horse_modules directory."
-            )
+        if result == none {
+            if error_on_base_dir_failure {
+                throw new RuntimeError(
+                    "Failed to find any usable horse_modules directory."
+                )
+            }
+            return later none
         }
         result = return_package_dir_from_base_uri(result, package_name)
         later:
 
         await result
-        return result
+        return later result
     }
     if self.package_name != none and
             package_name.lower() == self.package_name.lower() {
