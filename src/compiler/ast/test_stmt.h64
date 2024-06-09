@@ -54,7 +54,7 @@ func test_parse_complex {
     var v1 = ast.parse_str_to_ast(
         "if bla != (not bla.attr) {"
         "   throw new ValueError('oop')"
-        "}", debug=no
+        "}", allow_only_toplevel=no, debug=no
     ) later:
 
     await v1
@@ -69,7 +69,8 @@ func test_parse_complex {
     assert(v1.stmts[1].kind == ast.N_STMT_IF)
 
     v1 = ast.parse_str_to_ast(
-        "var v = blu.A + blu.B", debug=no
+        "var v = blu.A + blu.B",
+        allow_only_toplevel=no, debug=no
     ) later:
 
     await v1
