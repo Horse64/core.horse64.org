@@ -152,8 +152,13 @@ func main {
     print("core.horse64.org code count")
     print("---------------------------")
     print("")
+
+    var exec_path = system.self_exec_path()
+    later:
+
+    await exec_path
     var our_dir = path.make_abs(
-        path.dirname(system.self_exec_path())
+        path.dirname(exec_path)
     )
     var stdlib_lines = count_files(
         path.join(our_dir, "..",
