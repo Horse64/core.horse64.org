@@ -713,23 +713,70 @@ func Project.do_for_all_files(callback) {
     resume_queue = process_next_file() later repeat
 }
 
-func Project.find_package_dir_uri_fallback {
+func Project.find_package_dir_uri_fallback(
+        error_on_failure=yes
+        ) {
     var cwd = io.working_dir()
-    var guess_dir = path.join(cwd, "horse_modules")
-    var result = io.exists(guess_dir, allow_vfs=no)
-    later:
+    func try_find_modules_in_dir(
+            testdir, try_parents=no
+            ) {
+        var guess_dir = path.normalize(testdir)
+        var guess_dir_abs = path.normalize(path.make_abs(guess_dir))
+        func can_go_up(abs_dir) {
+            var abs_dir = path.normalize(abs_dir)
+            if abs_dir == "/" or
+                    (abs_dir.len >= 2 and abs_dir[1] != '/' and
+                    abs_dir[1] != '\\' and abs_dir[2] == ':') {
+                return no
+            }
+            return abs_dir.len > 1
+        }
+        var queue = [guess_dir]
+        while try_parents and can_go_up(guess_dir_abs) {
+            guess_dir = path.normalize(path.join(
+                guess_dir, ".."
+            ))
+            guess_dir_abs = path.normalize(path.join(
+                guess_dir_abs, ".."
+            ))
+            queue.add(guess_dir)
+        }
+        var item = queue.pop()
+        var result = io.exists(
+            path.join(item, "horse_modules"), allow_vfs=no
+        ) later:
+
+        await result
+        if result == yes {
+            return path.join(item, "horse_modules")
+        }
+        if queue.len == 0 {
+            return none
+        }
+        item = queue.pop()
+        result = io.exists(
+            path.join(item, "horse_modules"), allow_vfs=yes
+        ) later repeat
+    }
+    var result = try_find_modules_in_dir(
+        cwd, try_parents=yes
+    ) later:
 
     await result
-    if not result {
-        throw new RuntimeError("Must use guess_base_file_from_uri() "
-            "to set packages_dir_uri first, or have "
-            "horse_modules folder in project independent directory.")
+    if result == none {
+        if error_on_failure {
+            throw new RuntimeError("Failed to find any "
+                "usable horse_modules directory.")
+        }
+        return later none
     }
-    return uri.from_disk_path(guess_dir)
+    return later uri.from_disk_path(result)
 }
 
-func Project.find_package_dir_uri(package_name,
-        allow_project_independent_fallback=no) {
+func Project.find_package_dir_uri(
+        package_name,
+        allow_project_independent_fallback=no,
+        error_on_base_dir_failure=yes) {
     func return_package_dir_from_base_uri(base_uri, package_name) {
         if not {"file", "vfs"}.has(uri.get_protocol(base_uri)) {
             # Can't enforce case sensitivty on this, so just return
@@ -790,13 +837,22 @@ func Project.find_package_dir_uri(package_name,
              package_name != self.package_name or
              self.base_dir_uri == none) {
         if not allow_project_independent_fallback {
+            if not error_on_base_dir_failure {
+                return later none
+            }
             throw new RuntimeError("Must use guess_base_file_from_uri() "
                 "to set packages_dir_uri first.")
         }
-        var result = self.find_package_dir_uri_fallback()
-        later:
+        var result = self.find_package_dir_uri_fallback(
+            error_on_failure=error_on_base_dir_failure
+        ) later:
 
         await result
+        if result == none and error_on_base_dir_failure {
+            throw new RuntimeError(
+                "Failed to find any usable horse_modules directory."
+            )
+        }
         result = return_package_dir_from_base_uri(result, package_name)
         later:
 

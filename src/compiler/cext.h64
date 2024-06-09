@@ -504,7 +504,9 @@ func scan_package_for_cexts(
     var dir_uri = base_project.find_package_dir_uri(
         package_name,
         allow_project_independent_fallback=
-            allow_project_independent_packages_fallback) later:
+            allow_project_independent_packages_fallback,
+        error_on_base_dir_failure=no
+    ) later:
 
     await dir_uri
     if dir_uri == none {
