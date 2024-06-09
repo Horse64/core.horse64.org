@@ -230,9 +230,9 @@ func test_tokenize {
 
     # Test some numbers thing:
     helper_for_tokenizer_test_and_verify(
-        'var x = ((5 + 3 ** 4.3) >= 2)',
+        'var x = ((5 + 3 ^ 4.3) >= 2)',
         ["var", "x", "=", "(", "(",
-        "5", "+", "3", "**", "4.3", ")", ">=", "2",
+        "5", "+", "3", "^", "4.3", ")", ">=", "2",
         ")"])
 
     # Test escapes in a string literal:
