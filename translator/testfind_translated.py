@@ -48,14 +48,14 @@ if __name__ == "__main__":
             "for the discovery.", width=75,
             subsequent_indent='  ')))
         print("")
-        print("Usage: tools/testfind_translated.py [..options..] folder")
+        print("Usage: translator/testfind_translated.py [..options..] folder")
         print("")
         print("Available options:")
         print("   --debug-cmd  Print the exact command run")
         print("   --help       Show this help text")
         sys.exit(0)
     if "--version" in args:
-        print("tools/testfind_translated.py V1")
+        print("translator/testfind_translated.py V1")
         sys.exit(0)
     translator_options = []
     exclude_paths = []
@@ -70,7 +70,7 @@ if __name__ == "__main__":
             elif arg == "--exclude-dir":
                 if (i + 1 > len(args) or
                         args[i + 1].startswith("-")):
-                    print("tools/testfind_translated.py: "
+                    print("translator/testfind_translated.py: "
                         "error: missing argument " +
                         "for --exclude-dir")
                     sys.exit(1)
@@ -91,7 +91,7 @@ if __name__ == "__main__":
             elif arg == "--tl-opt":
                 if (i + 1 > len(args) or
                         args[i + 1].startswith("-")):
-                    print("tools/testfind_translated.py: "
+                    print("translator/testfind_translated.py: "
                         "error: missing argument " +
                         "for --tl-opt")
                     sys.exit(1)
@@ -106,19 +106,19 @@ if __name__ == "__main__":
                 i += 1
                 continue
             else:
-                print("tools/testfind_translated.py: error: " +
+                print("translator/testfind_translated.py: error: " +
                     "unknown option: " + str(arg))
                 sys.exit(1)
             continue
         dpath = os.path.normpath(os.path.abspath(arg))
         if not os.path.exists(dpath) or not os.path.isdir(dpath):
-            print("tools/testfind_translated.py: error: " +
+            print("translator/testfind_translated.py: error: " +
                 "no such path or not a dir: " + arg)
             sys.exit(1)
         discovery_path = dpath
         break
     if discovery_path is None:
-        print("tools/testfind_translated.py: error: " +
+        print("translator/testfind_translated.py: error: " +
             "missing discovery folder argument")
         sys.exit(1)
 
@@ -126,7 +126,7 @@ if __name__ == "__main__":
     for (base, dirs, files) in os.walk(discovery_path):
         base = os.path.normpath(os.path.abspath(base))
         if not base.startswith(discovery_path):
-            print("tools/testfind_translated.py: warning: " +
+            print("translator/testfind_translated.py: warning: " +
                 "unexpectedly ended up in outside folder, skipping: " +
                 str(base))
         base_relpath = base[len(discovery_path):]
@@ -151,14 +151,31 @@ if __name__ == "__main__":
                 test_paths.append(os.path.join(base, f))
     test_paths = sorted(test_paths)
 
+    def test_is_single_file(tpath):
+        lines = []
+        with open(tpath, "r") as f:
+            lines = f.read().splitlines()
+        for line in lines:
+            line = line.strip().replace("\t", " ")
+            while "  " in line:
+                line = line.replace("  ", " ")
+            line = line.replace("##@", "## @")
+            if (line.startswith("## @build_options ") and
+                    "--single-file" in line):
+                return True
+        return False
+
     had_error = False
     for test_path in test_paths:
         print("\x1B[1m==> RUNNING TEST ==> \x1B[0m" + str(test_path))
         cmd = os.path.join(my_dir, "translator.py")
+        if test_is_single_file(test_path):
+            if not "--single-file" in translator_options:
+                translator_options.append("--single-file")
         cmd_args = (["--as-test", "--paranoid"] +
             translator_options + ["--", test_path])
         if debug_cmd:
-            print("tools/testfind_translated.py: debug: exact cmd: " +
+            print("translator/testfind_translated.py: debug: exact cmd: " +
                 str((cmd, cmd_args)))
         failed = False
         try:

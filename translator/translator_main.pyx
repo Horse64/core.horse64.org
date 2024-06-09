@@ -3693,6 +3693,7 @@ def translate_do_func(
                 if len(test_funcs) == 0 and not output_py_file:
                     print("translator.py: error: "
                         "no test functions found in this file")
+                    import sys
                     sys.exit(1)
 
                 # Insert a new hidden main to call the test funcs:
