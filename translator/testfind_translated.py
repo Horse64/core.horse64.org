@@ -48,11 +48,12 @@ if __name__ == "__main__":
             "for the discovery.", width=75,
             subsequent_indent='  ')))
         print("")
-        print("Usage: translator/testfind_translated.py [..options..] folder")
+        print("Usage: translator/testfind_translated.py [..options..] directory")
         print("")
         print("Available options:")
-        print("   --debug-cmd  Print the exact command run")
-        print("   --help       Show this help text")
+        print("   --debug-cmd        Print the exact command run.")
+        print("   --exclude-dir dir  Exclude the given directory path.")
+        print("   --help             Show this help text.")
         sys.exit(0)
     if "--version" in args:
         print("translator/testfind_translated.py V1")
@@ -122,6 +123,7 @@ if __name__ == "__main__":
             "missing discovery folder argument")
         sys.exit(1)
 
+    auto_excluded_base_dirs = []
     test_paths = []
     for (base, dirs, files) in os.walk(discovery_path):
         base = os.path.normpath(os.path.abspath(base))
@@ -129,12 +131,17 @@ if __name__ == "__main__":
             print("translator/testfind_translated.py: warning: " +
                 "unexpectedly ended up in outside folder, skipping: " +
                 str(base))
+            continue
         base_relpath = base[len(discovery_path):]
         while (base_relpath.startswith("/") or
                 (platform.system().lower() == "windows" and
                 base_relpath.startswith("\\"))):
             base_relpath = base_relpath[1:]
         skip = False
+        for excluded_base in auto_excluded_base_dirs:
+            if (base_relpath + os.path.sep).startswith(excluded_base):
+                skip = True
+                break
         for exclude_dir in exclude_paths:
             compare_path = base_relpath.replace("/", os.path.sep)
             if not compare_path.endswith(os.path.sep):
@@ -145,6 +152,12 @@ if __name__ == "__main__":
         if len(set(base_relpath.replace("\\", "/").split("/")).\
                 intersection({".git", "horse_modules",
                 "__pycache__", ".hg"})) > 0 or skip:
+            continue
+        if ("horse_modules" in files and
+                not base_relpath in {"", ".", "." + os.path.sep}):
+            if not base_relpath.endswith(os.path.sep):
+                base_relpath += os.path.sep
+            auto_excluded_base_dirs.append(base_relpath)
             continue
         for f in files:
             if f.startswith("test_") and f.endswith(".h64"):

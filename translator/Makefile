@@ -69,7 +69,7 @@ test-translator:
 	@echo "Regular unit tests done!"
 	@# Regular test suite from here:
 	@echo -e "\033[95;40mTesting the bootstrap translator with full test suite...\033[0m"
-	cd .. && translator/testfind_translated.py --exclude-dir tests/ --exclude-dir src --tl-opt stdlib,. .
+	cd .. && translator/testfind_translated.py --exclude-dir tests/ --exclude-dir translator/ --tl-opt stdlib,. .
 	@# Done!
 	@echo -e "\033[92;40mCompleted tests for bootstrap translator.\033[0m"
 test-translated-horsec:
