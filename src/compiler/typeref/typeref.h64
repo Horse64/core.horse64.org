@@ -115,6 +115,9 @@ func TypeRefExpr.as_code(indent=0) {
             t += " " + mod.as_str()
         }
     }
+    if self.init_expr != none {
+        t += self.init_expr.as_code(indent=(indent + 4))
+    }
     return t
 }
 

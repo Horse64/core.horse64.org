@@ -196,6 +196,10 @@ func BinopExpr.as_code(indent=0) {
         return "(damaged binop expr.)"
     }
     if self.optoken.str == "(" {
+        if self.subexprs[2].kind == ast.N_EXPR_CALLARGS {
+            return self.subexprs[1].as_code(indent=indent) +
+                self.subexprs[2].as_code(indent=indent)
+        }
         return self.subexprs[1].as_code(indent=indent) + "(" +
             self.subexprs[2].as_code(indent=indent) + ")"
     } elseif self.optoken.str == "[" {
@@ -1653,7 +1657,7 @@ func CallArgsExpr.as_code(indent=0) {
     if self.damaged {
         return ""
     }
-    var t = ""
+    var t = "("
     var is_first = yes
     for arg in self.subexprs {
         if is_first {
@@ -1668,7 +1672,7 @@ func CallArgsExpr.as_code(indent=0) {
             t += arg.as_code(indent=indent)
         }
     }
-    return t
+    return t + ")"
 }
 
 func call_ast_error_info_suffix(call_line, call_pos, is_call=yes) {

@@ -106,9 +106,9 @@ func VarStmt.as_code(indent=0) {
     var assigned_exprs = self.subexprs
     var type_expr = none
     if self.has_type_expr and assigned_exprs.len > 0 {
-        type_expr = assigned_exprs[assigned_exprs]
+        type_expr = assigned_exprs[assigned_exprs.len]
         assigned_exprs = assigned_exprs.sub(
-            1, has_type_expr.len - 1
+            1, assigned_exprs.len - 1
         )
     }
     if type_expr != none {
@@ -392,7 +392,13 @@ func parse(tokens, pos, msgs, project_file=none,
         while i <= varcount {
             var lexpr = new expr.LiteralExpr()
             lexpr.value = none
-            stmt.subexprs.add(lexpr)
+            if not stmt.has_type_expr {
+                stmt.subexprs.add(lexpr)
+            } else {
+                stmt.subexprs = stmt.subexprs.sub(
+                    1, stmt.subexprs.len - 1
+                ) + [lexpr, stmt.subexprs[stmt.subexprs.len]]
+            }
             i += 1
         }
         stmt.token_len = (pos - startpos)
@@ -434,7 +440,15 @@ func parse(tokens, pos, msgs, project_file=none,
         pos += skiplen
         stmt.token_len = (pos - startpos)
         while remaining_count > 0 {
-            stmt.subexprs.add(new expr.LiteralExpr())
+            var lexpr = new expr.LiteralExpr()
+            lexpr.value = none
+            if not stmt.has_type_expr {
+                stmt.subexprs.add(lexpr)
+            } else {
+                stmt.subexprs = stmt.subexprs.sub(
+                    1, stmt.subexprs.len - 1
+                ) + [lexpr, stmt.subexprs[stmt.subexprs.len]]
+            }
             remaining_count -= 1
         }
         stmt.damaged = yes
@@ -445,7 +459,13 @@ func parse(tokens, pos, msgs, project_file=none,
             "init expression at pos=" + pos.as_str() +
             " with len=" + v.token_len.as_str())
     }
-    stmt.subexprs.add(v2)
+    if not stmt.has_type_expr {
+        stmt.subexprs.add(v2)
+    } else {
+        stmt.subexprs = stmt.subexprs.sub(
+            1, stmt.subexprs.len - 1
+        ) + [v2, stmt.subexprs[stmt.subexprs.len]]
+    }
     pos += v2.token_len
     remaining_count -= 1
     if remaining_count <= 0 {
@@ -511,7 +531,15 @@ func parse(tokens, pos, msgs, project_file=none,
         pos += skiplen
         stmt.token_len = pos - startpos
         while remaining_count > 0 {
-            stmt.subexprs.add(new expr.LiteralExpr())
+            var lexpr = new expr.LiteralExpr()
+            lexpr.value = none
+            if not stmt.has_type_expr {
+                stmt.subexprs.add(lexpr)
+            } else {
+                stmt.subexprs = stmt.subexprs.sub(
+                    1, stmt.subexprs.len - 1
+                ) + [lexpr, stmt.subexprs[stmt.subexprs.len]]
+            }
             remaining_count -= 1
         }
         return stmt
