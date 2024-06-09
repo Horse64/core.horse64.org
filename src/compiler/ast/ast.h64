@@ -543,6 +543,12 @@ func _tokenize_code_line_for_ast(
         throw new ValueError("Not setting force_single_file "
             "to yes for inline code makes no sense.")
     }
+    if not is_entrypoint {
+        throw new NotImplementedError(
+            "Parsing inline code that isn't the entrypoint "
+            "is currently unsupported."
+        )
+    }
     if build_options != none and build_options.is_moose64 {
         throw new ValueError("Cannot process inline code "
             "for Moose64.")
