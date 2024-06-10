@@ -2,66 +2,58 @@
 How to contribute
 =================
 
-This document attempts to cover how to contribute
-to Horse64. If you want to fix a problem, help with
-the documentation, etc., then please read on.
+This document explains how to contribute to Horse64.
+If you want to help out then please read on.
 
 
 Contribute testing feedback
 ---------------------------
 
 If you want to help testing, [get the SDK](
-/docs/Resources.md#sdk) and [report bugs](
-report-bugs). For a more detailed [setup guide,
-go here](/docs/Tutorials/Initial%20Setup.md).
+/docs/Resources.md#sdk), play with it, and
+[report bugs]( report-bugs). Here's a
+[setup guide](/docs/Tutorials/Initial%20Setup.md).
 
 
 Contribute code
 ---------------
 
-If you want to contribute code to any core tooling to
-fix bugs or add new features, you should be aware of the
-following:
+If you want to contribute code to core tooling, please read:
 
-1. Most deeper testing of the core tooling expects to be
-   run *on Linux.* If you contribute a more complicated
-   feature, you will be expected to test your pull request
-   on Linux according to the [checklists below](
-   #maintainer-checklists). **It's however possible to do
-   more basic code changes and tests on Windows,
-   even without using WSL2, as long as your code changes
-   concern only Horse64 code and not the C parts of the
-   tooling.**
+1. For now, many tests expect to run *on Linux.* If you
+   contribute a bigger feature, you'll need to test on
+   Linux according to the [checklists](#maintainer-checklists).
+   It's possible to do basic tests and changes on Windows if it's
+   parts written in Horse64 (rather than Moose64 or C).
 
 2. [Read the licensing carefully](/docs/Resources.md#license)
-   and make sure you agree to contribute your code under
-   the given terms. **This currently includes avoiding any
-   AI-based code generation, including Co-Pilot or smart
-   auto-complete.**
+   and agree to contribute your code under the given terms.
+   ⚠️ **This includes not using AI-based code generation
+   or completion, like "Co-Pilot" etc.** ⚠️
 
-3. Changes can be suggested via **pull requests** in the
+3. Changes are done via **pull requests** in the
    [respective repositories](/docs/Resources.md).
 
    To set up a new pull request, try these steps (**warning**,
-   you should know how to run commands in a terminal and
-   how to change directories in a terminal, or you won't get
-   very far):
+   you should know terminal basics like changing directories):
 
    1. Make an account on [codeberg.org](
-      https://codeberg.org/) if you haven't yet:
+      https://codeberg.org/):
 
       ![](Screenshot Codeberg Signup.png)
 
       Also, install [**git for Windows**](
-      https://git-scm.com/download/win) and any text
+      https://git-scm.com/download/win) and a text
       editor for editing code.
 
    2. Go to the respective Horse64 project repository for
       whatever tool you want to patch.
 
    3. Click the "Fork" button on the codeberg page
-      of the respective repository to get a personal
-      fork, which is your own separate copy of the project.
+      of the repository to get a personal fork, that's your own
+      separate project copy:
+
+      ![](Screenshot Codeberg Fork.png)
 
    4. Clone your personal fork to your local machine with:
 
@@ -70,26 +62,19 @@ following:
       ```
 
       (Run that in a terminal, on Windows
-      e.g. the **git terminal**, in some directory where
-      you keep your software projects. Check what directory
-      your terminal is in first, via `pwd` or such!)
+      e.g. the **git terminal**. Then enter the directory
+      it creates afterward via `cd`.)
 
-      Then switch to a new branch in your local repository
-      with:
+      Then switch to a new branch:
 
       ```bash
       git checkout -b name-for-your-branch
       ```
 
-      (This needs to be run *inside* your new repo
-      directory.)
-
    5. Implement and **test** your change.
 
    6. Make sure to set up a name and e-mail with your
-      local git if you haven't yet, so people know who
-      made this change. For that, you can run this in
-      your local repository directory:
+      local git if you haven't yet:
 
       ```bash
       git config user.name "John Doe"
@@ -103,9 +88,8 @@ following:
       ```
       ...to save and describe your changes
       to your local repository. Make sure to
-      [add the developer certificiate of origin
-      signature as specified in the license file](
-      /docs/Resources.md#license).
+      [add your developer certificiate of origin signature,
+      see the license file](/docs/Resources.md#license).
 
       (If you added any new files, you might first
       need to use `git add name-of-file`.)
@@ -115,23 +99,21 @@ following:
       ```bash
       git push origin name-for-your-branch
       ```
-      ...to push your change to your personal fork on
-      the code hoster.
+      ...to push your change to your personal fork online.
 
    8. Now go to the original repository on Codeberg, **not
-      your fork**, and click the "Pull Requests" tab and
-      click "New Pull Request".
+      your fork**, go to "Pull Requests", and use
+      "New Pull Request":
 
       ![](Screenshot Codeberg Pull Request.png)
 
-      For "merge into", make
+      For the "merge into" setting, make
       sure it's set to the project's original "main" branch.
       For "pull from", pick your personal fork and your
       `name-for-your-branch` branch.
 
-If you want to talk to other developers to discuss new
-features and patches, [join the 💬 community chat](
-https://horse64.org/chat).
+If you want to talk to other developers,
+[join the 💬 community chat](https://horse64.org/chat).
 
 
 Contribute documentation
@@ -140,16 +122,16 @@ Contribute documentation
 You can find the documentation, including this file itself,
 in the [main repository of the core.horse64.org package](
 /docs/Resources.md#standard-library), it's inside the `docs`
-folder. Feel free to suggest improvements. Keep in mind the
-[license currently asks you not to submit any AI-generated
-suggestions. This includes no AI-generated documentation
-text](/docs/Resources.md#license).
+folder. Feel free to suggest improvements.
+⚠️ **The [license currently asks you not to submit any
+AI-generated suggestions or text
+](/docs/Resources.md#license).** ⚠️
 
 
 Maintainer checklists
 ---------------------
 
-These are maintainer checklists for all the core projects.
+These are maintainer checklists for all the core projects:
 
 ### Pull request checklist for core tooling
 
@@ -195,7 +177,7 @@ the [core.horse64.org main repository](
 
 1. Be on Linux.
 
-2. Set up all the core tooling repository directories next to
+2. Set up the core tooling repository directories next to
    each other in the versions to be tested, including what
    you plan to release.
 
