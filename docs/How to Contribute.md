@@ -40,20 +40,20 @@ If you want to contribute code to core tooling, please read:
    1. Make an account on [codeberg.org](
       https://codeberg.org/):
 
-      ![](Screenshot Codeberg Signup.png)
+      ![](Screenshot%20Codeberg%20Signup.png)
 
       Also, install [**git for Windows**](
       https://git-scm.com/download/win) and a text
       editor for editing code.
 
-   2. Go to the respective Horse64 project repository for
-      whatever tool you want to patch.
+   2. Browse to the respective Horse64 project repository for
+      whatever tool you want to patch on **Codeberg**.
 
    3. Click the "Fork" button on the codeberg page
       of the repository to get a personal fork, that's your own
       separate project copy:
 
-      ![](Screenshot Codeberg Fork.png)
+      ![](Screenshot%20Codeberg%20Fork.png)
 
    4. Clone your personal fork to your local machine with:
 
@@ -61,11 +61,14 @@ If you want to contribute code to core tooling, please read:
       git clone ...url-to-your-repo-fork-on-codeberg...
       ```
 
-      (Run that in a terminal, on Windows
-      e.g. the **git terminal**. Then enter the directory
-      it creates afterward via `cd`.)
+      Run that in a terminal, on Windows use
+      e.g. the **git cmd terminal** of [Git for Windows
+      ](https://www.git-scm.com/download/win):
+      
+      ![](Screenshot%20Git%20Cmd.png)
 
-      Then switch to a new branch:
+      Then `cd` into the directory in your terminal and
+      switch to a new branch:
 
       ```bash
       git checkout -b name-for-your-branch
@@ -105,7 +108,7 @@ If you want to contribute code to core tooling, please read:
       your fork**, go to "Pull Requests", and use
       "New Pull Request":
 
-      ![](Screenshot Codeberg Pull Request.png)
+      ![](Screenshot%20Codeberg%20Pull%20Request.png)
 
       For the "merge into" setting, make
       sure it's set to the project's original "main" branch.
