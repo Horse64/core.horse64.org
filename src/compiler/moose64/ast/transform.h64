@@ -1,0 +1,98 @@
+## @module compiler.moose64.ast.transform
+# Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import compiler.ast as ast
+import compiler.ast.return_stmt as return_stmt
+import random
+
+func transform_defer(ast_result) {
+    func do_transform_defer(node, parent) {
+        if node.kind != ast.N_STMT_DEFER {
+            return later node
+        }
+        var called_name = "$called" + random.gen_id()
+        var called_storage_ref = none
+        var arg_names = []
+        var arg_storage_refs = []
+
+        if parent.kind == ast.N_STMT_FUNC {
+            assert(parent.subblocks[1].len > 0)
+            var block = parent.subblocks[1]
+            if block[block.len].kind != ast.N_STMT_RETURN {
+                # FIXME
+            }
+        } else {
+            var parent_block = get_node_parent_block(node, parent)
+            assert(parent_block != none)
+            if parent_block.len == 0 or
+                    not {ast.N_STMT_BREAK, ast.N_STMT_CONTINUE,
+                    ast.N_STMT_RETURN}.has(
+                        parent_block[parent_block.len].kind
+                    ) {
+                # FIXME
+            }
+        }
+        
+        func attach_defer_resolution(node, parent) {
+            # FIXME
+        }
+
+        var stmts = ast.get_neighbor_statements_after(
+            node, parent, stop_at_return=yes
+        )
+
+        # Find all block exit points and add the defer info:
+        var queue = stmts.copy()
+        if queue.len == 0 {
+            return later
+        }
+        var next_node = queue.pop_at(1)
+        var result = visit_ast_tree(
+            next_node, attach_defer_resolution,
+            pass_func_boundaries=no, parent_chain=no, backward=no)
+        later:
+
+        await result
+        assert(result == yes)
+        if queue.len == 0 {
+            return later
+        }
+        next_node = queue.pop_at(1)
+        result = visit_ast_tree(
+            next_node, attach_defer_resolution,
+            pass_func_boundaries=no, parent_chain=no, backward=no)
+        later repeat
+        return later node
+    }
+    var result = visit_ast_tree(
+        ast_result, do_transform_defer, pass_func_boundaries=yes,
+        parent_chain=no, backward=no, subtree_parent=none,
+        return_new_root=no
+    ) later:
+
+    await result
+}
