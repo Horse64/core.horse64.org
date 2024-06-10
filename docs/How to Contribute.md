@@ -28,7 +28,7 @@ If you want to contribute code to core tooling, please read:
 
 2. [Read the licensing carefully](/docs/Resources.md#license)
    and agree to contribute your code under the given terms.
-   ⚠️ **This includes not using AI-based code generation
+   ⚠️ **We currently ask you don't use AI-based code generation
    or completion, like "Co-Pilot" etc.** ⚠️
 
 3. Changes are done via **pull requests** in the
@@ -126,9 +126,8 @@ You can find the documentation, including this file itself,
 in the [main repository of the core.horse64.org package](
 /docs/Resources.md#standard-library), it's inside the `docs`
 folder. Feel free to suggest improvements.
-⚠️ **The [license currently asks you not to submit any
-AI-generated suggestions or text
-](/docs/Resources.md#license).** ⚠️
+⚠️ **We currently ask you don't use AI-based texts or
+suggestions, like ChatGPT etc.** ⚠️
 
 
 Maintainer checklists
