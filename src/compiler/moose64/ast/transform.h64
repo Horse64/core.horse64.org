@@ -29,15 +29,32 @@ import compiler.ast as ast
 import compiler.ast.return_stmt as return_stmt
 import random
 
+type DeferInfo {
+    var sorting_prio
+    var called_name = "$called" + random.gen_id()
+    var called_storage_ref = none
+    var arg_names = []
+    var arg_storage_refs = []
+}
+
+type DeferAddedStatements {
+    var stmts_added_to_inner_block = []
+    var stmts_added_before_node = []
+}
+
 func transform_defer(ast_result) {
+    var node_to_defer_added_stmts_map = {->}
+    var last_sorting_prio = 1
+
     func do_transform_defer(node, parent) {
         if node.kind != ast.N_STMT_DEFER {
             return later node
         }
-        var called_name = "$called" + random.gen_id()
-        var called_storage_ref = none
-        var arg_names = []
-        var arg_storage_refs = []
+        last_sorting_prio += 1
+        var defer_info = new DeferInfo()
+        defer_info.called_name += "_prio" + last_sorting_prio.as_str()
+
+
 
         if parent.kind == ast.N_STMT_FUNC {
             assert(parent.subblocks[1].len > 0)
