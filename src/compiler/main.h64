@@ -794,8 +794,13 @@ func actionparser_compile(args, is_moose64=no) {
             await finalresult
             return later finalresult
         }
-        assert(result.args["--stage"] == "bytecode" or
-            result.args["--stage"] == "binary")
+        assert(
+            (not is_moose64 and
+                result.args["--stage"] == "bytecode") or
+            (is_moose64 and
+                result.args["--stage"] == "c") or
+            result.args["--stage"] == "binary"
+        )
         # Continuing here, we want the actual byte code.
         # Apply bytecode transformation:
         return later 0

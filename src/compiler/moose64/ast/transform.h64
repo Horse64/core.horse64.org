@@ -25,9 +25,11 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import random from core.horse64.org
+
 import compiler.ast as ast
 import compiler.ast.return_stmt as return_stmt
-import random
+import compiler.ast.transform as ast_transform
 
 type DeferInfo {
     var sorting_prio
@@ -38,29 +40,59 @@ type DeferInfo {
 }
 
 type DeferAddedStatements {
+    var defer_infos = []
     var stmts_added_to_inner_block = []
     var stmts_added_before_node = []
 }
 
-func transform_defer(ast_result) {
+func transform_defer(project_file, ast_result, msgs) {
     var node_to_defer_added_stmts_map = {->}
     var last_sorting_prio = 1
+
+    func get_node_defer_added(node, defer_info) {
+        var defer_added = none
+        if not node_to_defer_added_stmts_map.has(node) {
+            defer_added = new DeferAddedStatements()
+        }
+        defer_added = node_to_defer_added_stmts_map[node]
+        if not defer_added.defer_infos.has(defer_info) {
+            defer_added.defer_infos.add(defer_info)
+        }
+        return defer_added
+    }
 
     func do_transform_defer(node, parent) {
         if node.kind != ast.N_STMT_DEFER {
             return later node
         }
+
         last_sorting_prio += 1
         var defer_info = new DeferInfo()
         defer_info.called_name += "_prio" + last_sorting_prio.as_str()
+        assert(node.subexprs.len == 1)
+        assert(node.subexprs[1].kind == ast.N_STMT_BINOP)
+        var func_type = get_c_type_of_node(
+            node.subexprs[1].subexprs[1]
+        ) later:
 
-
+        await func_type
+        if func_type == none {
+            msgs.add(new msg.FileMsg(
+                "Unexpectedly failed to determine C type of " +
+                "deferred function. Did you use cyclic references?",
+                kind=msg.M_ERROR, source_file=project_file,
+                line=node.subexprs[1].line,
+                col=node.subexprs[1].col,
+            ))
+            node.damaged = yes
+            return later node
+        }
 
         if parent.kind == ast.N_STMT_FUNC {
             assert(parent.subblocks[1].len > 0)
             var block = parent.subblocks[1]
             if block[block.len].kind != ast.N_STMT_RETURN {
-                # FIXME
+                var defer_added = get_node_defer_added(node, defer_info)
             }
         } else {
             var parent_block = get_node_parent_block(node, parent)
@@ -70,7 +102,7 @@ func transform_defer(ast_result) {
                     ast.N_STMT_RETURN}.has(
                         parent_block[parent_block.len].kind
                     ) {
-                # FIXME
+                var defer_added = get_node_defer_added(node, defer_info)
             }
         }
         
@@ -88,7 +120,7 @@ func transform_defer(ast_result) {
             return later
         }
         var next_node = queue.pop_at(1)
-        var result = visit_ast_tree(
+        var result = ast_transform.visit_ast_tree(
             next_node, attach_defer_resolution,
             pass_func_boundaries=no, parent_chain=no, backward=no)
         later:
@@ -99,13 +131,13 @@ func transform_defer(ast_result) {
             return later
         }
         next_node = queue.pop_at(1)
-        result = visit_ast_tree(
+        result = ast_transform.visit_ast_tree(
             next_node, attach_defer_resolution,
             pass_func_boundaries=no, parent_chain=no, backward=no)
         later repeat
         return later node
     }
-    var result = visit_ast_tree(
+    var result = ast_transform.visit_ast_tree(
         ast_result, do_transform_defer, pass_func_boundaries=yes,
         parent_chain=no, backward=no, subtree_parent=none,
         return_new_root=no
@@ -113,3 +145,14 @@ func transform_defer(ast_result) {
 
     await result
 }
+
+func do_moose64_transforms(project_file, msgs) {
+    var result = transform_defer(
+        project_file, project_file.ast, msgs
+    ) later:
+
+    await result
+
+    return result
+}
+
