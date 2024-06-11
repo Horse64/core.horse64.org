@@ -121,6 +121,41 @@ func TypeRefExpr.as_code(indent=0) {
     return t
 }
 
+func get_c_builtin_for_base_type(name, is_moose64=no) {
+    if not is_moose64 or not builtin_moose64_types.has(
+            name
+            ) {
+        return none
+    }
+    if name == "i32" {
+        return "int32_t"
+    } elseif name == "i64" {
+        return "int64_t"
+    } elseif name == "bool" {
+        return "signed char"
+    } elseif name == "byte" {
+        return "unsigned char"
+    } elseif name == "u32" {
+        return "uint32_t"
+    } elseif name == "u64" or name == "size" {
+        return "uint64_t"
+    } else {
+        throw new NotImplementedError(
+            "Unhandled builtin type."
+        )
+    }
+}
+
+func TypeRefExpr.get_c_builtin_for_base_type(is_moose64=no) {
+    if self.typepath != none or
+            self.typepath.len > 0 {
+        return none
+    }
+    return get_c_builtin_for_base_type(
+        self.name, is_moose64=is_moose64
+    )
+}
+
 func TypeRefExpr.as_str {
     var t = "TypeRefExpr<" + self.as_code() + ">"
     return t
