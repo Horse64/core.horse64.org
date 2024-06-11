@@ -33,7 +33,6 @@ import compiler.ast.expr as ast_expr
 import compiler.ast.func_stmt as func_stmt
 import compiler.ast.transform as ast_transform
 import compiler.limit as compiler_limit
-import compiler.moose64.ast.transform as m64_ast_transform
 import compiler.msg as msg
 import compiler.storage.ref as st_ref
 
@@ -725,14 +724,6 @@ func do_advanced_check_and_analysis(project, msgs) {
                 pfile.ast.stmts, msgs,
                 project_file=pfile) {
             return later no
-        } elseif is_moose64 {
-            var result = m64_ast_transform.
-                do_moose64_transforms(pfile, msgs)
-            later:
-
-            await result
-            assert(result == yes or result == no)
-            return result
         }
         return later yes
     }

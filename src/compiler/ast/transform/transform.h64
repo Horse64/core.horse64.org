@@ -35,6 +35,7 @@ import compiler.ast.expr as ast_expr
 import compiler.ast.if_stmt as if_stmt
 import compiler.ast.transform.later_transform as later_transform
 import compiler.ast.var_stmt as var_stmt
+import compiler.moose64.ast.transform as m64_ast_transform
 import compiler.storage.ref as st_ref
 import compiler.storage.scope as scope
 import compiler.token as token
@@ -604,7 +605,7 @@ func do_all_transformations(project, msgs, build_options=none,
     if build_options != none and build_options.print_stages {
         print(build_options.build_program_name +
             ": info: stage transformed-code: "
-            "Entering initial checks and analysis... "
+            "Entering checks and analysis... "
             "[t=" + time.ticks().as_str() + "]")
     }
     var success = ast_analyze.do_advanced_check_and_analysis(
@@ -612,20 +613,72 @@ func do_all_transformations(project, msgs, build_options=none,
 
     await success
     if not success {
-        return later none
+        return later no
     }
-    if build_options != none and build_options.print_stages {
-        print(build_options.build_program_name +
-            ": info: stage transformed-code: "
-            "Entering later transform... "
-            "[t=" + time.ticks().as_str() + "]")
+    func do_m64_transforms_if_needed {
+        if build_options == none or
+                not build_options.is_moose64 {
+            return later yes
+        }
+        if build_options != none and
+                build_options.print_stages {
+            print(build_options.build_program_name +
+                ": info: stage transformed-code: "
+                "Entering moose64-specific transform... "
+                "[t=" + time.ticks().as_str() + "]")
+        }
+
+        func process_file(pfile) {
+            var result = m64_ast_transform.
+                do_moose64_transforms(pfile, msgs)
+            later:
+
+            await result
+            return later result
+        }
+        var result = project.do_for_all_files(process_file)
+        later:
+
+        await result
+        assert(result == yes or result == no)
+        return result
     }
-    success = later_transform.first_pass_later_transform(
-        project, msgs, build_options=build_options
-    )
+    func do_later_transform_if_needed {
+        if build_options != none and
+                build_options.is_moose64 {
+            return later yes
+        }
+        if build_options != none and build_options.print_stages {
+            print(build_options.build_program_name +
+                ": info: stage transformed-code: "
+                "Entering later transform... "
+                "[t=" + time.ticks().as_str() + "]")
+        }
+        success = later_transform.first_pass_later_transform(
+            project, msgs, build_options=build_options
+        )
+        later:
+
+        await success
+
+        return success
+    }
+    success = do_m64_transforms_if_needed()
     later:
 
     await success
+    if not success {
+        return later no
+    }
+
+    success = do_later_transform_if_needed()
+    later:
+
+    await success
+    if not success {
+        return later no
+    }
+
     if build_options != none and build_options.print_stages {
         print(build_options.build_program_name +
             ": info: stage transformed-code: "

@@ -63,6 +63,7 @@ func transform_defer(project_file, ast_result, msgs) {
         return defer_added
     }
 
+    var had_no_error = yes
     func do_transform_defer(node, parent) {
         if node.kind != ast.N_STMT_DEFER {
             return later node
@@ -87,6 +88,7 @@ func transform_defer(project_file, ast_result, msgs) {
                 col=node.subexprs[1].col,
             ))
             node.damaged = yes
+            had_no_error = no
             return later node
         }
 
@@ -146,6 +148,9 @@ func transform_defer(project_file, ast_result, msgs) {
     ) later:
 
     await result
+    if result and not had_no_error {
+        result = no
+    }
     return result
 }
 
