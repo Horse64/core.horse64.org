@@ -631,7 +631,7 @@ func actionparser_compile(args, is_moose64=no) {
         # Apply code check and do basic analysis:
         var success = analyze.do_basic_check_and_analysis(
             aresult.project_file.project,
-            aresult.msgs) later:
+            aresult.msgs, is_moose64=is_moose64) later:
 
         await success
         if result.args["--stage"] == "checked-ast" or not success {

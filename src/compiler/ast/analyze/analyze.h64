@@ -632,7 +632,7 @@ func basic_phase_nestingdepth_and_misc(
         stmts, is_moose64=no, msgs=none, project_file=none
         ) {
     func check_and_analyze_recurse(
-            stmts, msgs, max_block_nesting_left
+            stmts, msgs, max_block_nesting_left, is_moose64
             ) {
         if max_block_nesting_left < 0 and stmts.len > 0 {
             if msgs != none {
@@ -648,8 +648,10 @@ func basic_phase_nestingdepth_and_misc(
         for stmt in stmts {
             if stmt.subblocks.len > 0 {
                 for block in stmt.subblocks {
-                    if not check_and_analyze_recurse(block, msgs,
-                            max_block_nesting_left - 1) {
+                    if not check_and_analyze_recurse(
+                            block, msgs,
+                            max_block_nesting_left - 1,
+                            is_moose64) {
                         return no
                     }
                 }
@@ -658,8 +660,10 @@ func basic_phase_nestingdepth_and_misc(
                     stmt.kind == ast.N_STMT_DO {
                 for clause in stmt.subexprs {
                     for block in clause.subblocks {
-                        if not check_and_analyze_recurse(block, msgs,
-                                max_block_nesting_left - 1) {
+                        if not check_and_analyze_recurse(
+                                block, msgs,
+                                max_block_nesting_left - 1,
+                                is_moose64) {
                             return no
                         }
                     }
@@ -669,7 +673,8 @@ func basic_phase_nestingdepth_and_misc(
         return yes
     }
     return check_and_analyze_recurse(
-        stmts, msgs, compiler_limit.max_statement_nesting
+        stmts, msgs, compiler_limit.max_statement_nesting,
+        is_moose64
     )
 }
 
@@ -742,14 +747,14 @@ func do_advanced_check_and_analysis(project, msgs) {
     return later check_went_ok
 }
 
-func do_basic_check_and_analysis(project, msgs) {
+func do_basic_check_and_analysis(project, msgs, is_moose64=no) {
     func do_unsafe {
         func process_file(pfile) {
             pfile.ensure_ast() later:
 
             if not basic_phase_nestingdepth_and_misc(
-                    pfile.ast.stmts, msgs,
-                    project_file=pfile) {
+                    pfile.ast.stmts, is_moose64=is_moose64,
+                    msgs=msgs, project_file=pfile) {
                 return later no
             }
             return later yes
