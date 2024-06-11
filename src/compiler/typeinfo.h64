@@ -27,18 +27,44 @@
 
 extend type SymbolInfo {
     var typeref
+    var type_storage_ref
 }
 
 func try_resolve_symbol_typeref(
         project_file, var_decl_node, type_expr,
-        sym_info, is_moose64=no
+        sym_info, msgs, is_moose64=no
         ) {
+    if var_decl_node.damaged or
+            sym_info.type_storage_ref != none {
+        return
+    }
     var name = sym_info.name
     var cname = type_expr.get_c_builtin_for_base_type(
         is_moose64=is_moose64
     )
     if cname != none {
-        return cname
+        # FIXME: register here as c builtin??
+        sym_info.type_storage_ref = cname
+        return
     }
-
+    var st_ref = project_file.try_lookup_symbol_path(
+        none, name=sym_info.typeref.name,
+        type_path=sym_info.typeref.type_path,
+        is_write_access=no, is_moose64=is_moose64
+    )
+    if st_ref != none {
+        sym_info.type_storage_ref = st_ref
+        return
+    }
+    var_decl_node.damaged = yes
+    msgs.add(new msg.FileMsg(
+        "Unexpected typeref " +
+        sym_info.typeref.as_str() + ", "
+        "failed to find referenced underlying type.",
+        source_file=project_file,
+        line=node.line,
+        col=node.col,
+    ))
+    return
 }
+
