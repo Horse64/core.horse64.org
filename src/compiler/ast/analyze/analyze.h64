@@ -674,6 +674,25 @@ func basic_phase_nestingdepth_and_misc(
     )
 }
 
+func ensure_analysis_has_needed_error(analysis_result, msgs) {
+    if not analysis_result and msgs != none {
+        var had_error = no
+        for m in msgs {
+            if m.kind == msg.M_ERROR {
+                had_error = yes
+                break
+            }
+        }
+        if not had_error {
+            msgs.add(new msg.FileMsg(
+                "Internal error occured, we failed "
+                "analysis without a proper error message. "
+                "Please report this bug to the compiler team."
+            ))
+        }
+    }
+}
+
 func do_advanced_check_and_analysis(project, msgs) {
     var is_moose64 = no
     if project.build_options != none and
@@ -694,7 +713,7 @@ func do_advanced_check_and_analysis(project, msgs) {
                 pfile, is_moose64=is_moose64, msgs=msgs
             )
             if result != "changed" {
-                if result == no  {
+                if not result {
                     return later no
                 }
                 assert(result == yes)
@@ -712,6 +731,7 @@ func do_advanced_check_and_analysis(project, msgs) {
             later:
 
             await result
+            assert(result == yes or result == no)
             return result
         }
         return later yes
@@ -720,12 +740,14 @@ func do_advanced_check_and_analysis(project, msgs) {
     later:
 
     await check_went_ok
+    assert(check_went_ok == yes or check_went_ok == no)
     for m in msgs {
         if m.kind == msg.M_ERROR {
             check_went_ok = no
         }
     }
 
+    ensure_analysis_has_needed_error(check_went_ok, msgs)
     return later check_went_ok
 }
 
@@ -756,22 +778,8 @@ func do_basic_check_and_analysis(project, msgs) {
     var result = do_unsafe() later:
 
     await result
-    if result == no and msgs != none {
-        var had_error = no
-        for m in msgs {
-            if m.kind == msg.M_ERROR {
-                had_error = yes
-                break
-            }
-        }
-        if not had_error {
-            msgs.add(new msg.FileMsg(
-                "Internal error occured, we failed "
-                "analysis without a proper error message. "
-                "Please report this bug to the compiler team."
-            ))
-        }
-    }
+
+    ensure_analysis_has_needed_error(result, msgs)
     return later result
 }
 

@@ -702,6 +702,7 @@ func Project.do_for_all_files(callback) {
             finished_with_no_abort = no
             return later no
         }
+        assert(resume_process == yes)
         return later yes
     }
     var resume_queue = process_next_file() later:

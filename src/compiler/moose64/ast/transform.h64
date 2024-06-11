@@ -30,6 +30,8 @@ import random from core.horse64.org
 import compiler.ast as ast
 import compiler.ast.return_stmt as return_stmt
 import compiler.ast.transform as ast_transform
+import compiler.moose64.ast.analyze as m64_ast_analyze
+import compiler.msg as msg
 
 type DeferInfo {
     var sorting_prio
@@ -70,8 +72,8 @@ func transform_defer(project_file, ast_result, msgs) {
         var defer_info = new DeferInfo()
         defer_info.called_name += "_prio" + last_sorting_prio.as_str()
         assert(node.subexprs.len == 1)
-        assert(node.subexprs[1].kind == ast.N_STMT_BINOP)
-        var func_type = get_c_type_of_node(
+        assert(node.subexprs[1].kind == ast.N_EXPR_BINOP)
+        var func_type = m64_ast_analyze.get_c_type_of_node(
             node.subexprs[1].subexprs[1]
         ) later:
 
@@ -144,6 +146,7 @@ func transform_defer(project_file, ast_result, msgs) {
     ) later:
 
     await result
+    return result
 }
 
 func do_moose64_transforms(project_file, msgs) {
