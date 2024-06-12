@@ -25,7 +25,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-func get_c_type_of_node(node) {
+func get_c_type_of_node(node, parent) {
     return later none
 }
 

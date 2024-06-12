@@ -75,13 +75,13 @@ func transform_defer(project_file, ast_result, msgs) {
         assert(node.subexprs.len == 1)
         assert(node.subexprs[1].kind == ast.N_EXPR_BINOP)
         var func_type = m64_ast_analyze.get_c_type_of_node(
-            node.subexprs[1].subexprs[1]
+            node.subexprs[1].subexprs[1], node.subexprs[1]
         ) later:
 
         await func_type
         if func_type == none {
             msgs.add(new msg.FileMsg(
-                "Unexpectedly failed to determine C type of " +
+                "Unexpectedly failed to determine C type of "
                 "deferred function. Did you use cyclic references?",
                 kind=msg.M_ERROR, source_file=project_file,
                 line=node.subexprs[1].line,

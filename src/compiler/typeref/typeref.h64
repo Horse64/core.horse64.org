@@ -121,8 +121,8 @@ func TypeRefExpr.as_code(indent=0) {
     return t
 }
 
-func get_c_builtin_for_base_type(name, is_moose64=no) {
-    if not is_moose64 or not builtin_moose64_types.has(
+func get_c_builtin_for_m64_base_type(name) {
+    if not builtin_moose64_types.has(
             name
             ) {
         return none
@@ -146,14 +146,12 @@ func get_c_builtin_for_base_type(name, is_moose64=no) {
     }
 }
 
-func TypeRefExpr.get_c_builtin_for_base_type(is_moose64=no) {
-    if self.typepath != none or
-            self.typepath.len > 0 {
+func TypeRefExpr.get_c_builtin_for_m64_base_type {
+    if self.type_path != none and
+            self.type_path.len > 0 {
         return none
     }
-    return get_c_builtin_for_base_type(
-        self.name, is_moose64=is_moose64
-    )
+    return get_c_builtin_for_m64_base_type(self.name)
 }
 
 func TypeRefExpr.as_str {

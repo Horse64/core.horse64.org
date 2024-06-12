@@ -26,13 +26,17 @@
 # license, see accompanied LICENSE.md.
 
 import compiler.moose64.builtins as m64_builtins
+import compiler.moose64.c_importer as c_importer
 import compiler.project as project
+import compiler.storage.ref as st_ref
 
 type BuiltinSymsStorageItem {
     var package_name = none
     var module_path = []
     var symbol_name
     var symbol_storage_ref
+    var is_c_builtin_type = no
+    var hidden = no
 }
 
 func BuiltinSymsStorageItem.init(
@@ -47,6 +51,7 @@ func BuiltinSymsStorageItem.init(
 
 type BuiltinSymsStorage {
     var package_to_item_list_map = {->}
+    var storage_id_to_item_map = {->}
 }
 
 extend type project.Project {
@@ -67,8 +72,57 @@ func project.Project.init_builtin_syms(is_moose64=no) {
     return later
 }
 
+func get_m64_c_type_builtin_by_name(
+        project, name, create_if_missing=no
+        ) {
+    var st = project.builtin_syms_storage
+
+    var item = none
+    if st.package_to_item_list_map.has("$any") {
+        for inner_item in st.package_to_item_list_map["$any"] {
+            if inner_item.symbol_name == name {
+                item = inner_item
+                break
+            }
+        }
+    }
+    if item != none or not create_if_missing {
+        if item != none and not item.is_c_builtin_type {
+            item = none
+        }
+        return item
+    }
+    var new_id = c_importer.get_mcref_id(project)
+    var ref = new st_ref.StorageRef(st_ref.ST_MCREF, new_id)
+
+    var st_item = register_symbol(
+        project, name, ref, none, is_hidden=yes,
+        _return_internal_item_instead_of_ref=no
+    )
+    if st_item != none {
+        st_item.is_c_builtin_type = yes
+        return ref.copy()
+    }
+    return none
+}
+
+func get_m64_c_type_builtin_by_id(project, storage_id) {
+    assert(typename(storage_id) == "num")
+    var st = project.builtin_syms_storage
+
+    if not st.storage_id_to_item_map.has(storage_id) {
+        return none
+    }
+    var st_item = st.storage_id_to_item_map[storage_id]
+    if not st_item.is_c_builtin_type {
+        return none
+    }
+    return st_item
+}
+
 func register_symbol(project, symbol_name, symbol_ref,
-        module_name, package_name=none) {
+        module_name, package_name=none, is_hidden=no,
+        _return_internal_item_instead_of_ref=no) {
     if project.builtin_syms_storage == none {
         throw new RuntimeError(
             "Internal error in compiler.builtin_syms: "
@@ -78,7 +132,9 @@ func register_symbol(project, symbol_name, symbol_ref,
         )
     }
     var modpath = module_name
-    if typename(modpath) == "str" {
+    if module_name == none {
+        modpath = "$any"
+    } elseif typename(modpath) == "str" {
         modpath = modpath.split(".")
     } elseif typename(modpath) == "list" {
         modpath = modpath.copy()
@@ -121,10 +177,21 @@ func register_symbol(project, symbol_name, symbol_ref,
         throw new ValueError("duplicate symbol")
     }
 
+    var st_item = new BuiltinSymsStorageItem(
+        symbol_name, symbol_ref,
+        modpath, package_name=package_name)
+    st_item.hidden = (is_hidden == yes)
     st.package_to_item_list_map[package_name].add(
-        new BuiltinSymsStorageItem(symbol_name, symbol_ref,
-            modpath, package_name=package_name)
+        st_item
     )
+    if symbol_ref.kind == st_ref.ST_MCREF {
+        assert(not st.storage_id_to_item_map.has(symbol_ref.id))
+        st.storage_id_to_item_map[symbol_ref.id] = st_item
+    }
+    if not _return_internal_item_instead_of_ref {
+        return st_item.symbol_storage_ref.copy()
+    }
+    return st_item
 }
 
 func try_lookup_symbol(

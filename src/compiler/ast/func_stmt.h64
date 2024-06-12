@@ -69,6 +69,52 @@ func FuncStmt.as_json_obj {
     return output
 }
 
+## Returns the real, final argument count when considering
+## all 'extend func' statements that apply to this function.
+func FuncStmt.extended_final_arg_count {
+    return node.func_scope.arg_names.len
+}
+
+func _get_local_args_symbol_info_list(stmt) {
+    var sinfo_list = []
+    for lbl in stmt.arg_labels {
+        var i = 1
+        while i <= stmt.func_scope.arg_names.len {
+            if stmt.func_scope.arg_names[i] != lbl {
+                i += 1
+                continue
+            }
+            sinfo_list.add(stmt.func_scope.arg_symbol_info[i])
+            i += 1
+        }
+    }
+    return sinfo_list
+}
+
+func _get_local_args_type_expr_list(stmt) {
+    if not stmt.has_arg_types {
+        return []
+    }
+    var type_expr_list = []
+    while i <= stmt.kw_arg_count + pos_arg_count {
+        type_expr_list.add(stmt.subexprs[stmt.kw_arg_count + i])
+        i += 1
+    }
+    return type_expr_list
+}
+
+## Get the symbol info for only the arguments provided by
+## this statement *excluding* any `extend func` statements.
+func FuncStmt.get_local_args_symbol_info_list {
+    return _get_local_args_symbol_info_list(self)
+}
+
+## Get type expressions for only the arguments provided by
+## this statement *excluding* any `extend func` statements.
+func FuncStmt.get_local_args_type_expr_list {
+    return _get_local_args_type_expr_list(self)
+}
+
 func FuncStmt.as_code(indent=0) {
     return _func_stmt_to_code(
         self, is_extend=no, indent=indent)
@@ -164,6 +210,18 @@ func FuncExtendStmt.as_json_obj {
 func FuncExtendStmt.as_code(indent=0) {
     return _func_stmt_to_code(
         self, is_extend=yes, indent=indent)
+}
+
+## Get the symbol info for only the arguments provided by
+## this 'extend func' statement.
+func FuncStmt.get_local_args_symbol_info_list {
+    return _get_local_args_symbol_info_list(self)
+}
+
+## Get the type expressions for only the arguments provided by
+## this 'extend func' statement.
+func FuncStmt.get_local_args_type_expr_list {
+    return _get_local_args_type_expr_list(self)
 }
 
 func parse(tokens, pos, msgs, project_file=none,

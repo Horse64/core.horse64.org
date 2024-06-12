@@ -41,6 +41,7 @@ import compiler.msg as msg
 import compiler.project as project
 import compiler.storage.scope
 import compiler.token
+import compiler.typeinfo as typeinfo
 
 func version_output_for_terminal(is_moosec=no) {
     var program_name = if is_moosec ("moosec") else ("horsec")
@@ -646,6 +647,18 @@ func actionparser_compile(args, is_moose64=no) {
             await finalresult
             return later finalresult
         }
+
+        # Analyze the type info from type annotations if we have any:
+        if boptions.print_stages {
+            print(boptions.build_program_name +
+                ": info: stage transformed-code: "
+                "Deduce and verify types... "
+                "[t=" + time.ticks().as_str() + "]")
+        }
+        var success = typeinfo.ensure_all_type_info(
+            aresult.project_file.project,
+            aresult.msgs, is_moose64=is_moose64) later:
+        await success
 
         # Continuing here, we want to transform the code.
 

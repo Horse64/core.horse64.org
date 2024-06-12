@@ -25,7 +25,14 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-extend type SymbolInfo {
+import compiler.ast as ast
+import compiler.ast.analyze as ast_analyze
+import compiler.ast.transform as ast_transform
+import compiler.builtin_syms as builtin_syms
+import compiler.msg as msg
+import compiler.storage.scope as st_scope
+
+extend type st_scope.SymbolInfo {
     var typeref
     var type_storage_ref
 }
@@ -35,17 +42,33 @@ func try_resolve_symbol_typeref(
         sym_info, msgs, is_moose64=no
         ) {
     if var_decl_node.damaged or
-            sym_info.type_storage_ref != none {
+            sym_info.type_storage_ref != none or
+            sym_info.typeref == none {
         return
     }
     var name = sym_info.name
-    var cname = type_expr.get_c_builtin_for_base_type(
-        is_moose64=is_moose64
-    )
-    if cname != none {
-        # FIXME: register here as c builtin??
-        sym_info.type_storage_ref = cname
-        return
+    if is_moose64 {
+        var cname = type_expr.get_c_builtin_for_m64_base_type()
+        if cname != none {
+            var builtin_ref =
+                builtin_syms.get_m64_c_type_builtin_by_name(
+                    project_file.project, name, create_if_missing=yes
+                )
+            if builtin_ref == none {
+                var_decl_node.damaged = yes
+                msgs.add(new msg.FileMsg(
+                    "Unexpectedly failed to register internal "
+                    "C type \"" + name + "\", is there a clash "
+                    "with any included header files?",
+                    source_file=project_file,
+                    line=node.line,
+                    col=node.col,
+                ))
+                return
+            }
+            sym_info.type_storage_ref = builtin_ref
+            return
+        }
     }
     var st_ref = project_file.try_lookup_symbol_path(
         none, name=sym_info.typeref.name,
@@ -66,5 +89,123 @@ func try_resolve_symbol_typeref(
         col=node.col,
     ))
     return
+}
+
+func ensure_type_info_for_file(project_file, msgs, is_moose64=no) {
+    var ast_tree = project_file.ast
+
+    func resolve_typeref_visitor(node, parent) {
+        if node.damaged {
+            return later node
+        }
+        if node.kind == ast.N_STMT_VAR and node.has_type_expr {
+            if node.symbol_info == none or
+                    typename(node.symbol_info) != "list" {
+                msgs.add(new msg.FileMsg(
+                    "Internal error, encountered damaged node "
+                    "with no symbol info: " + node.as_str() + " "
+                    "Please report this to the compiler team.",
+                    source_file=project_file,
+                    line=node.line,
+                    col=node.col,
+                ))
+                node.damaged = yes
+                return later node
+            }
+            var type_expr = node.subexprs[node.subexprs.len]
+            var idx = 0
+            for lbl in node.var_labels {
+                idx += 1
+                try_resolve_symbol_typeref(
+                    project_file, node, type_expr,
+                    node.symbol_info[idx], msgs,
+                    is_moose64=is_moose64
+                )
+            }
+        } elseif node.kind == ast.N_STMT_FUNC or
+                node.kind == ast.N_STMT_FUNCEXTEND {
+            if node.symbol_info == none or
+                    typename(node.symbol_info) == "list" {
+                msgs.add(new msg.FileMsg(
+                    "Internal error, encountered damaged node "
+                    "with no symbol info: " + node.as_str() + " "
+                    "Please report this to the compiler team.",
+                    source_file=project_file,
+                    line=node.line,
+                    col=node.col,
+                ))
+                node.damaged = yes
+                return later node
+            }
+            if node.kind != ast.N_STMT_FUNCEXTEND and
+                    node.has_return_type {
+                var type_expr = node.subexprs[node.subexprs.len]
+                try_resolve_symbol_typeref(
+                    project_file, node, type_expr,
+                    node.symbol_info, msgs,
+                    is_moose64=is_moose64
+                )
+            }
+            if node.has_arg_types {
+                var sinfo_list = stmt.get_local_symbol_info_list()
+                var type_expr_list = stmt.get_local_type_expr_list()
+                var i = 1
+                while i <= sinfo_list.len {
+                    try_resolve_symbol_typeref(
+                        project_file, node, type_expr_list[i],
+                        sinfo_list[i], msgs,
+                        is_moose64=is_moose64
+                    )
+                    i += 1
+                }
+            }
+        }
+        return later node
+    }
+
+    var result = ast_transform.visit_ast_tree(
+        ast_tree, resolve_typeref_visitor,
+        pass_func_boundaries=yes, parent_chain=no, backward=no)
+    later:
+
+    await result
+    return later result
+}
+
+func ensure_all_type_info(project, msgs, is_moose64=no) {
+    func do_unsafe {
+        func process_file(pfile) {
+            pfile.ensure_ast() later:
+
+            var result = ensure_type_info_for_file(
+                pfile, msgs, is_moose64=is_moose64
+            ) later:
+
+            await result
+            if not result {
+                return later no
+            }
+            return later yes
+        }
+        var check_went_ok = project.do_for_all_files(process_file)
+        later:
+
+        await check_went_ok
+        for m in msgs {
+            if m.kind == msg.M_ERROR {
+                check_went_ok = no
+            }
+        }
+
+        return later check_went_ok
+    }
+    var result = do_unsafe() later:
+
+    await result
+
+    ast_analyze.ensure_analysis_has_needed_error(
+        result, msgs
+    )
+    return later result
 }
 
