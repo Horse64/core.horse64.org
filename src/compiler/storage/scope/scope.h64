@@ -35,8 +35,19 @@ import compiler.msg as msg
 import compiler.project as project
 import compiler.storage.ref as st_ref
 
+enum SymbolInfoKind {
+    SINFO_VAR,
+    SINFO_FUNC,
+    SINFO_VARATTR,
+    SINFO_FUNCATTR,
+    SINFO_TYPE,
+    SINFO_ENUM,
+    SINFO_STRUCT,
+}
+
 type SymbolInfo {
     var name
+    var kind = SINFO_VAR
     var is_closure_captured = no
     var is_ever_written_to = no
     var storage_id
@@ -104,6 +115,7 @@ type TypeNamesScope base AttrNamesScope {
     var func_attr_name_to_arg_labels = {->}
     var func_attr_name_to_kwarg_count = {->}
     var name_to_symbol_map = {->}
+    var id_to_symbol_map = {->}
 
     var base_global_id = none
     var base_cext_id = none
@@ -124,6 +136,7 @@ type StructNamesScope base AttrNamesScope {
     var func_attr_name_to_arg_labels = {->}
     var func_attr_name_to_kwarg_count = {->}
     var name_to_symbol_map = {->}
+    var id_to_symbol_map = {->}
 
     var storage_id = none
 

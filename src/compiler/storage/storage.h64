@@ -638,6 +638,7 @@ func project.Project.compute_all_scopes(
                                         has(label) {
                                     var symbol_info =
                                         new st_scope.SymbolInfo(label)
+                                    symbol_info.kind = st_scope.SINFO_VARATTR
                                     symbol_info.def_line = stmt.line
                                     symbol_info.def_col = stmt.col
                                     symbol_info.def_file = pfile
@@ -649,6 +650,10 @@ func project.Project.compute_all_scopes(
                                     }
                                     anscope.name_to_symbol_map[label] =
                                         symbol_info
+                                    assert(not anscope.
+                                        id_to_symbol_map.has(label))
+                                    anscope.id_to_symbol_map[label] =
+                                        symbol_info.storage_id
                                     if stmt.symbol_info == none {
                                         stmt.symbol_info = []
                                     }
@@ -713,6 +718,13 @@ func project.Project.compute_all_scopes(
                                             add_names.add(vpath.join("."))
                                         }
                                         register_var_at_root(add_names)
+                                        assert(child.symbol_info == none)
+                                        child.symbol_info = []
+                                        for lbl in child.var_labels {
+                                            child.symbol_info.add(
+                                                new st_scope.SymbolInfo(lbl)
+                                            )
+                                        }
                                     } elseif child.kind == ast.N_STMT_UNION or
                                             child.kind == ast.N_STMT_STRUCT {
                                         handle_nested_struct_or_union(
@@ -1215,6 +1227,7 @@ func project.Project.compute_all_scopes(
     func ensure_global_storage_ids(pfile) {
         pfile.global_scope.ensure_assigned_storage(
             msgs=msgs, project_file=pfile,
+            is_moose64=is_moose64,
             debug_global_storage=debug_global_storage)
         return later yes
     }

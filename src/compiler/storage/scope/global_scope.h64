@@ -76,7 +76,7 @@ func GlobalScope.as_json_obj {
 }
 
 func GlobalScope.ensure_assigned_storage(
-        msgs=none, project_file=none,
+        msgs=none, project_file=none, is_moose64=no,
         debug_global_storage=no) {
     if self.storage_id_to_entry.len > 0 or
             self.name_to_stmt_map.len == 0 {
@@ -109,6 +109,15 @@ func GlobalScope.ensure_assigned_storage(
                 pr.storage_id_to_project_file[storage_num] = project_file
             }
             var si = new st_scope.SymbolInfo(name)
+            if value.kind == ast.N_STMT_FUNC {
+                si.kind = st_scope.SINFO_FUNC
+            } elseif value.kind == ast.N_STMT_TYPE {
+                si.kind = st_scope.SINFO_TYPE
+            } elseif value.kind == ast.N_STMT_STRUCT {
+                si.kind = st_scope.SINFO_STRUCT
+            } elseif value.kind == ast.N_STMT_ENUM {
+                si.kind = st_scope.SINFO_ENUM
+            }
             si.def_line = value.line
             si.def_col = value.col
             si.storage_id = storage_num
@@ -184,17 +193,67 @@ func GlobalScope.ensure_assigned_storage(
 
     # If an AST is available, transfer the symbol info over
     # to the original definitions:
-    if ast_tree != none {
-        self.adjust_ast_tree_to_gscope_symbol_info(ast_tree)
+    if project_file != none and ast_tree != none {
+        self.adjust_ast_tree_to_gscope_symbol_info(
+            project_file, ast_tree, msgs=msgs,
+            is_moose64=is_moose64
+        )
     }
 }
 
-func GlobalScope.adjust_ast_tree_to_gscope_symbol_info(ast_tree) {
+func GlobalScope.adjust_ast_tree_to_gscope_symbol_info(
+        project_file, ast_tree, msgs=none, is_moose64=no
+        ) {
     for stmt in ast_tree.stmts {
         if {ast.N_STMT_FUNC, ast.N_STMT_STRUCT,
                 ast.N_STMT_TYPE}.has(stmt.kind) {
             var lbl = stmt.label
             if not self.name_to_stmt_map.has(lbl) {
+                if stmt.symbol_info == none and
+                        stmt.kind == ast.N_STMT_FUNC and
+                        stmt.type_path != none {
+                    assert(stmt.scope == none)
+                    var anscope = project_file.
+                        make_attr_names_scope_from_funcattr(
+                            stmt, msgs=msgs, is_moose64=is_moose64,
+                            def_project_file=project_file
+                        )
+                    if anscope == none {
+                        # Note: error has already been emitted by
+                        # make_attr_names_scope_from_funcattr().
+                        continue
+                    }
+                    if anscope.name_to_symbol_map.has(lbl) {
+                        if msgs == none {
+                            throw new ValueError(
+                                "Duplicate func attr"
+                            )
+                        }
+                        msgs.add(new msg.FileMsg(
+                            "Invalid func attribute "
+                            "with duplicate name '" +
+                            lbl +
+                            "', already defined elsewhere.",
+                            source_file=project_file,
+                            line=stmt.line, col=stmt.col,
+                        ))
+                        continue
+                    }
+                    var symbol_info = new st_scope.SymbolInfo(lbl)
+                    symbol_info.kind = st_scope.SINFO_FUNCATTR
+                    symbol_info.def_line = stmt.line
+                    symbol_info.def_col = stmt.col
+                    symbol_info.def_file = project_file
+                    symbol_info.storage_id =
+                        anscope.name_to_symbol_map.len + 1
+                    anscope.name_to_symbol_map[lbl] =
+                        symbol_info
+                    assert(not anscope.
+                        id_to_symbol_map.has(lbl))
+                    anscope.id_to_symbol_map[lbl] =
+                        symbol_info.storage_id
+                    stmt.symbol_info = symbol_info
+                }
                 continue
             }
             var si = self.name_to_stmt_map[lbl].symbol_info
