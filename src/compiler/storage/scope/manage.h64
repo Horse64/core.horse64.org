@@ -195,10 +195,21 @@ func project.ProjectFile.try_lookup_symbol_path(
         if entry.symbol_info == none {
             return none
         }
-        return new storage_ref.StorageRef(
-            storage_ref.ST_GLOBAL,
-            entry.symbol_info.storage_id
-        )
+        if typename(entry.symbol_info) == "list" {
+            for sym_entry in entry.symbol_info {
+                if sym_entry.name == check_path[check_path.len] {
+                    return new storage_ref.StorageRef(
+                        storage_ref.ST_GLOBAL,
+                        sym_entry.storage_id
+                    )
+                }
+            }
+        } else {
+            return new storage_ref.StorageRef(
+                storage_ref.ST_GLOBAL,
+                entry.symbol_info.storage_id
+            )
+        }
     }
     if check_path.len > 1 {
         # Check if this is inside some imported item:

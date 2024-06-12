@@ -147,8 +147,9 @@ func ensure_type_info_for_file(project_file, msgs, is_moose64=no) {
                 )
             }
             if node.has_arg_types {
-                var sinfo_list = stmt.get_local_symbol_info_list()
-                var type_expr_list = stmt.get_local_type_expr_list()
+                var sinfo_list = node.get_local_args_symbol_info_list()
+                var type_expr_list =
+                    node.get_local_args_type_expr_list()
                 var i = 1
                 while i <= sinfo_list.len {
                     try_resolve_symbol_typeref(

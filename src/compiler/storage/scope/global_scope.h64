@@ -33,7 +33,7 @@ import compiler.ast.struct_or_union_stmt as struct_or_union_stmt
 import compiler.ast.type_stmt as type_stmt
 import compiler.ast.var_stmt as var_stmt
 import compiler.msg as msg
-import compiler.storage.scope as storage_scope
+import compiler.storage.scope as st_scope
 import compiler.token as token
 
 import compiler.moose64.c_importer as c_importer
@@ -75,12 +75,20 @@ func GlobalScope.as_json_obj {
     return result
 }
 
-func GlobalScope.ensure_assigned_storage(msgs=none,
-        project_file=none, debug_global_storage=no) {
+func GlobalScope.ensure_assigned_storage(
+        msgs=none, project_file=none,
+        debug_global_storage=no) {
     if self.storage_id_to_entry.len > 0 or
             self.name_to_stmt_map.len == 0 {
         return
     }
+
+    var ast_tree = none
+    if project_file != none and project_file.ast != none {
+        ast_tree = project_file.ast
+    }
+
+    # Compute global storage for all values that don't have it yet:
     var storage_num = 1
     if project_file != none and project_file.project != none {
         storage_num = project_file.project.
@@ -100,7 +108,7 @@ func GlobalScope.ensure_assigned_storage(msgs=none,
                 pr.storage_id_to_entry[storage_num] = value
                 pr.storage_id_to_project_file[storage_num] = project_file
             }
-            var si = new storage_scope.SymbolInfo(name)
+            var si = new st_scope.SymbolInfo(name)
             si.def_line = value.line
             si.def_col = value.col
             si.storage_id = storage_num
@@ -113,7 +121,14 @@ func GlobalScope.ensure_assigned_storage(msgs=none,
                     project_file.source_uri.as_str() +
                     " with name '" + name + "'.")
             }
-            value.symbol_info = si
+            if value.kind == ast.N_STMT_VAR {
+                if value.symbol_info == none {
+                    value.symbol_info = []
+                }
+                value.symbol_info.add(si)
+            } else {
+                value.symbol_info = si
+            }
             storage_num += 1
         }
     }
@@ -121,6 +136,7 @@ func GlobalScope.ensure_assigned_storage(msgs=none,
         project_file.project.last_global_storage_id =
             storage_num - 1
     }
+
     # Now register enum values in the global scope too:
     var names_unchanged = self.name_to_stmt_map.keys()
     for name in names_unchanged {
@@ -154,15 +170,74 @@ func GlobalScope.ensure_assigned_storage(msgs=none,
                 }
                 continue
             }
-            var entry = new storage_scope.GlobalScopeEnumEntry()
+            var entry = new st_scope.GlobalScopeEnumEntry()
             assert(value.label != none)
             entry.enum_stmt_label = value.label
-            var si = new storage_scope.SymbolInfo(label)
+            var si = new st_scope.SymbolInfo(label)
             si.def_line = value.line
             si.def_col = value.col
             si.storage_id = pos
             entry.symbol_info = si
             self.name_to_stmt_map[label] = entry
+        }
+    }
+
+    # If an AST is available, transfer the symbol info over
+    # to the original definitions:
+    if ast_tree != none {
+        self.adjust_ast_tree_to_gscope_symbol_info(ast_tree)
+    }
+}
+
+func GlobalScope.adjust_ast_tree_to_gscope_symbol_info(ast_tree) {
+    for stmt in ast_tree.stmts {
+        if {ast.N_STMT_FUNC, ast.N_STMT_STRUCT,
+                ast.N_STMT_TYPE}.has(stmt.kind) {
+            var lbl = stmt.label
+            if not self.name_to_stmt_map.has(lbl) {
+                continue
+            }
+            var si = self.name_to_stmt_map[lbl].symbol_info
+            stmt.symbol_info = si
+        } elseif stmt.kind == ast.N_STMT_VAR {
+            if stmt.symbol_info == none {
+                stmt.symbol_info = []
+            }
+            for lbl in stmt.var_labels {
+                if not self.name_to_stmt_map.has(lbl) {
+                    continue
+                }
+
+                var si_list = self.name_to_stmt_map[lbl].symbol_info
+                assert(typename(si_list) == "list")
+                var source_idx = none
+                var i = 1
+                while i <= si_list.len {
+                    if si_list[i].name == lbl {
+                        source_idx = i
+                        break
+                    }
+                    i += 1
+                }
+                if source_idx == none {
+                    continue
+                }
+
+                var target_idx = none
+                i = 1
+                while i <= stmt.symbol_info.len {
+                    if stmt.symbol_info[i].name ==
+                            si_list[source_idx].name {
+                        stmt.symbol_info[i] = si_list[source_idx]
+                        target_idx = i
+                        break
+                    }
+                    i += 1
+                }
+                if not target_idx {
+                    stmt.symbol_info.add(si_list[source_idx])
+                }
+            }
         }
     }
 }

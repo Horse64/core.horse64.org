@@ -96,6 +96,8 @@ func _get_local_args_type_expr_list(stmt) {
         return []
     }
     var type_expr_list = []
+    var i = 1
+    var pos_arg_count = stmt.arg_labels.len - stmt.kw_arg_count
     while i <= stmt.kw_arg_count + pos_arg_count {
         type_expr_list.add(stmt.subexprs[stmt.kw_arg_count + i])
         i += 1
