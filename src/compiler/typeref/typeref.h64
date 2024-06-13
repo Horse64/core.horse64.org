@@ -122,9 +122,7 @@ func TypeRefExpr.as_code(indent=0) {
 }
 
 func get_c_builtin_for_m64_base_type(name) {
-    if not builtin_moose64_types.has(
-            name
-            ) {
+    if not builtin_moose64_types.has(name) {
         return none
     }
     if name == "i32" {
@@ -144,6 +142,20 @@ func get_c_builtin_for_m64_base_type(name) {
             "Unhandled builtin type."
         )
     }
+}
+
+func TypeRefEpr.try_resolve_to_user_type(
+        project_file, is_moose64=is_moose64
+        ) {
+    var type_path = self.type_path
+    if type_path != none and type_path.len == 0 {
+        type_path = none
+    }
+    var result = project_file.try_lookup_symbol_path(
+        none, name=self.name, type_path=type_path,
+        is_write_access=yes, is_moose64=is_moose64
+    )
+    return result
 }
 
 func TypeRefExpr.get_c_builtin_for_m64_base_type {

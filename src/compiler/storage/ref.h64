@@ -25,6 +25,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import compiler.storage.scope as st_scope
+
 enum StorageKind {
     ST_LOCAL,
     ST_ARG,
@@ -83,5 +85,41 @@ func StorageRef.alike(other_ref) {
     }
     return other_ref.kind == self.kind and
         other_ref.id == self.id
+}
+
+func ref_to_symbol_info(project_file, node, storage_ref) {
+    if storage_ref.kind == ST_GLOBAL {
+        if not project_file.global_scope.
+                storage_id_to_entry.has(storage_ref.id) {
+            return none
+        }
+        var entry = project_file.global_scope.
+            storage_id_to_entry[storage_ref.id]
+        if typename(entry.symbol_info) == "list" {
+            for sym_info in entry.symbol_info {
+                if sym_info.storage_id == storage_ref.id {
+                    return sym_info
+                }
+            }
+        } else {
+            return entry.symbol_info
+        }
+    } elseif storage_ref.kind == ST_LOCAL  {
+        if node.scope == none {
+            return none
+        }
+        if not node.scope.storage_id_to_symbol_map.has(
+                storage_ref.id
+                ) {
+            return none
+        }
+        var entry = node.scope.storage_id_to_symbol_map[
+            storage_ref.id
+        ]
+        return entry
+    } elseif storage_ref.kind == ST_ARG {
+        return none
+    }
+    return none
 }
 
