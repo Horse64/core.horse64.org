@@ -27,8 +27,6 @@
 
 import textfmt
 
-import compiler.token as token
-
 enum MsgKind {
     M_ERROR,
     M_WARNING,
@@ -56,7 +54,7 @@ func FileMsg.init(message, kind=M_ERROR,
 
 func FileMsg.as_str {
     var t = "FileMsg(content=" +
-        token.as_escaped_code_string(self.content) +
+        textfmt.as_escaped_code_string(self.content) +
         ",file=" + self.source_file.as_str()
     if self.line != none {
         t += ",line=" + self.line.as_str()

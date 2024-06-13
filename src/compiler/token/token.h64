@@ -1389,69 +1389,10 @@ func describe_char_at(
 func as_escaped_code_string(
         s, quote_type='"', never_escape_quotes=no
         ) {
-    if quote_type != "'" and quote_type != '"' {
-        throw new ValueError("Unsupported quote type.")
-    }
-    var is_bytes = no
-    if typename(s) == "bytes" {
-        is_bytes = yes
-    }
-
-    var new_s = ""
-    if is_bytes {
-        var code_n = text.code("\n")
-        var code_r = text.code("\r")
-        var i = 1
-        while i <= s.len {
-            var value = s.value(i)
-            if value >= 32 and value < 127 {
-                var c = s.sub(i, i)
-                if {"'", '"', "\\"}.has(c) {
-                    c = "\\" + c
-                }
-                new_s += c
-            } elseif value == code_n {
-                new_s += "\\n"
-            } elseif value == code_r {
-                new_s += "\\r"
-            } else {
-                var hexstr = value.as_hex()
-                while hexstr.len < 2 {
-                    hexstr = "0" + hexstr
-                }
-                new_s += "\\x" + hexstr
-            }
-            i += 1
-        }
-    }
-    var i = 1
-    while i <= s.len {
-        var c = s.sub(i, i)
-        var cp = text.code(c)
-        if c == "\n" {
-            new_s += "\\n"
-        } elseif c == "\\r" {
-            new_s += "\\r"
-        } elseif c == quote_type and not never_escape_quotes {
-            new_s += "\\" + quote_type
-        } elseif cp < 32 {
-            var hexstr = text.code(c).as_hex()
-            while hexstr.len < 2 {
-                hexstr = "0" + hexstr
-            }
-            new_s += "\\x" + hexstr
-        } elseif c == "\\" {
-            new_s += "\\\\"
-        } else {
-            new_s += c
-        }
-        i += 1
-    }
-    new_s = quote_type + new_s + quote_type
-    if is_bytes {
-        return "b" + new_s
-    }
-    return new_s
+    return textfmt.as_escaped_code_string(
+        s, quote_type=quote_type,
+        never_escape_quotes=never_escape_quotes
+    )
 }
 
 ## Figure out if any instance of <- is a T_LEFTPTR as used
