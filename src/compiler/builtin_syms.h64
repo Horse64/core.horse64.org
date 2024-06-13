@@ -29,6 +29,7 @@ import compiler.moose64.builtins as m64_builtins
 import compiler.moose64.c_importer as c_importer
 import compiler.project as project
 import compiler.storage.ref as st_ref
+import textfmt
 
 type BuiltinSymsStorageItem {
     var package_name = none
@@ -47,6 +48,14 @@ func BuiltinSymsStorageItem.init(
     self.symbol_storage_ref = symbol_ref.copy()
     self.module_path = module_path.copy()
     self.package_name = package_name
+}
+
+func BuiltinSymsStorageItem.as_str {
+    var t = "BuiltinSymsStorageItem{" +
+        "symbol_name=" + textfmt.as_escaped_code_string(
+            self.symbol_name
+        ) + "}"
+    return t
 }
 
 type BuiltinSymsStorage {
@@ -90,18 +99,22 @@ func get_m64_c_type_builtin_by_name(
         if item != none and not item.is_c_builtin_type {
             item = none
         }
-        return item
+        if item == none {
+            return none
+        }
+        return item.symbol_storage_ref.as_str()
     }
     var new_id = c_importer.get_mcref_id(project)
     var ref = new st_ref.StorageRef(st_ref.ST_MCREF, new_id)
 
     var st_item = register_symbol(
         project, name, ref, none, is_hidden=yes,
-        _return_internal_item_instead_of_ref=no
+        _return_internal_item_instead_of_ref=yes
     )
     if st_item != none {
         st_item.is_c_builtin_type = yes
-        return ref.copy()
+        var ref_result = ref.copy()
+        return ref_result
     }
     return none
 }
@@ -133,7 +146,7 @@ func register_symbol(project, symbol_name, symbol_ref,
     }
     var modpath = module_name
     if module_name == none {
-        modpath = "$any"
+        modpath = ["$any"]
     } elseif typename(modpath) == "str" {
         modpath = modpath.split(".")
     } elseif typename(modpath) == "list" {
@@ -177,6 +190,7 @@ func register_symbol(project, symbol_name, symbol_ref,
         throw new ValueError("duplicate symbol")
     }
 
+    assert(package_name != none or modpath.join(".") != "$any")
     var st_item = new BuiltinSymsStorageItem(
         symbol_name, symbol_ref,
         modpath, package_name=package_name)

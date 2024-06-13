@@ -42,27 +42,27 @@ func try_resolve_symbol_typeref(
         sym_info, msgs, is_moose64=no
         ) {
     if var_decl_node.damaged or
-            sym_info.type_storage_ref != none or
-            sym_info.typeref == none {
+            sym_info.type_storage_ref != none {
         return
     }
+    sym_info.typeref = type_expr.copy()
     var name = sym_info.name
     if is_moose64 {
         var cname = type_expr.get_c_builtin_for_m64_base_type()
         if cname != none {
             var builtin_ref =
                 builtin_syms.get_m64_c_type_builtin_by_name(
-                    project_file.project, name, create_if_missing=yes
+                    project_file.project, cname, create_if_missing=yes
                 )
             if builtin_ref == none {
                 var_decl_node.damaged = yes
                 msgs.add(new msg.FileMsg(
                     "Unexpectedly failed to register internal "
-                    "C type \"" + name + "\", is there a clash "
+                    "C type \"" + cname + "\", is there a clash "
                     "with any included header files?",
                     source_file=project_file,
-                    line=node.line,
-                    col=node.col,
+                    line=var_decl_node.line,
+                    col=var_decl_node.col,
                 ))
                 return
             }
@@ -70,10 +70,8 @@ func try_resolve_symbol_typeref(
             return
         }
     }
-    var st_ref = project_file.try_lookup_symbol_path(
-        none, name=sym_info.typeref.name,
-        type_path=sym_info.typeref.type_path,
-        is_write_access=no, is_moose64=is_moose64
+    var st_ref = type_expr.try_resolve_to_user_type(
+        project_file, is_moose64=is_moose64
     )
     if st_ref != none {
         sym_info.type_storage_ref = st_ref
@@ -85,8 +83,8 @@ func try_resolve_symbol_typeref(
         sym_info.typeref.as_str() + ", "
         "failed to find referenced underlying type.",
         source_file=project_file,
-        line=node.line,
-        col=node.col,
+        line=var_decl_node.line,
+        col=var_decl_node.col,
     ))
     return
 }

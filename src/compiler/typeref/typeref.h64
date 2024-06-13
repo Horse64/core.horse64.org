@@ -133,18 +133,27 @@ func get_c_builtin_for_m64_base_type(name) {
         return "signed char"
     } elseif name == "byte" {
         return "unsigned char"
+    } elseif name == "i16" {
+        return "int16_t"
+    } elseif name == "u16" {
+        return "uint16_t"
     } elseif name == "u32" {
         return "uint32_t"
     } elseif name == "u64" or name == "size" {
         return "uint64_t"
+    } elseif name == "any" {
+        return "void"
     } else {
+        print("horsec: error: Internal error, "
+            "encountered unhandled C builtin type: " +
+            name.as_str())
         throw new NotImplementedError(
             "Unhandled builtin type."
         )
     }
 }
 
-func TypeRefEpr.try_resolve_to_user_type(
+func TypeRefExpr.try_resolve_to_user_type(
         project_file, is_moose64=is_moose64
         ) {
     var type_path = self.type_path
@@ -153,7 +162,7 @@ func TypeRefEpr.try_resolve_to_user_type(
     }
     var result = project_file.try_lookup_symbol_path(
         none, name=self.name, type_path=type_path,
-        is_write_access=yes, is_moose64=is_moose64
+        is_write_access=no, is_moose64=is_moose64
     )
     return result
 }
