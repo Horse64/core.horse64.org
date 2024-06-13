@@ -36,6 +36,7 @@ import compiler.cext as cext
 import compiler.msg as msg
 import compiler.project as project
 import compiler.storage.scope as st_scope
+import compiler.storage.scope.manage as scope_manage
 import compiler.storage.scope.global_scope as global_scope
 import compiler.storage.ref as storage_ref
 
@@ -707,31 +708,34 @@ func project.Project.compute_all_scopes(
                                         stmt.label != none {
                                     name_path.add(stmt.label)
                                 }
-                                for child in stmt.subblocks[1] {
-                                    if child.kind == ast.N_STMT_VAR {
-                                        var var_paths = []
-                                        for lbl in child.var_labels {
-                                            var_paths.add(name_path + [lbl])
-                                        }
-                                        var add_names =[]
-                                        for vpath in var_paths {
-                                            add_names.add(vpath.join("."))
-                                        }
-                                        register_var_at_root(add_names)
-                                        assert(child.symbol_info == none)
-                                        child.symbol_info = []
-                                        for lbl in child.var_labels {
-                                            child.symbol_info.add(
-                                                new st_scope.SymbolInfo(lbl)
-                                            )
-                                        }
-                                    } elseif child.kind == ast.N_STMT_UNION or
-                                            child.kind == ast.N_STMT_STRUCT {
+                                for st in stmt.subblocks[1] {
+                                    if st.kind == ast.N_STMT_UNION or
+                                            st.kind == ast.N_STMT_STRUCT {
                                         handle_nested_struct_or_union(
-                                            child, name_path=name_path
+                                            st, name_path=name_path
                                         )
-                                    } else {
-                                        emit_invalid_child_error(child, stmt)
+                                        continue
+                                    } elseif st.kind != ast.N_STMT_VAR {
+                                        emit_invalid_child_error(st, stmt)
+                                        continue
+                                    }
+                                    assert(st.kind == ast.N_STMT_VAR)
+                                    var var_paths = []
+                                    for lbl in st.var_labels {
+                                        var_paths.add(name_path + [lbl])
+                                    }
+                                    var add_names =[]
+                                    for vpath in var_paths {
+                                        add_names.add(vpath.join("."))
+                                    }
+                                    register_var_at_root(add_names)
+                                    assert(st.symbol_info == none)
+                                    st.symbol_info = []
+                                    for lbl in st.var_labels {
+                                        var sinfo =
+                                            new st_scope.SymbolInfo(lbl)
+                                        sinfo.kind = st_scope.SINFO_VARATTR
+                                        st.symbol_info.add(sinfo)
                                     }
                                 }
                             }
@@ -1287,8 +1291,9 @@ func project.Project.compute_all_scopes(
                 }
             }
             if node.kind == ast.N_EXPR_IDREF {
-                if parent.kind == ast.N_EXPR_BINOP and
-                        parent.optoken.str == "." {
+                if (parent.kind == ast.N_EXPR_BINOP and
+                        parent.optoken.str == ".") or
+                        node.ref != none {
                     return later node
                 }
                 if (parent.kind == ast.N_STMT_TYPE or
@@ -1442,6 +1447,7 @@ func project.Project.compute_all_scopes(
                             lookat_node = lookat_node.subexprs[1]
                             i += 1
                         }
+                        lookat_node = replacement_idref
                         lookat_parent.subexprs[1] = lookat_node
                         return later node
                     }
@@ -1464,6 +1470,12 @@ func project.Project.compute_all_scopes(
                 pfile.global_scope
         }
         assert(success == yes)
+
+        success = scope_manage.visit_to_resolve_known_attrs(
+            pfile, msgs
+        ) later:
+
+        await success
         return later success
     }
     success = self.do_for_all_files(resolve_scope)

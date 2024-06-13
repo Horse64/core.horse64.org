@@ -932,3 +932,21 @@ func project.ProjectFile.make_attr_names_scope_from_node(
     return result_scope
 }
 
+func try_resolve_attr_on_ref(
+        project_file, ref, attr_name
+        ) {
+    
+}
+
+func visit_to_resolve_known_attrs(project_file, msgs) {
+    func try_resolve_item(node, parent) {
+        return later node
+    }
+    var success = transform.visit_ast_tree(
+        project_file.ast, try_resolve_item,
+        parent_chain=no) later:
+
+    await success
+    return success
+}
+
