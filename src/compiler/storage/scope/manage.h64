@@ -35,7 +35,7 @@ import compiler.builtin_syms as builtin_syms
 import compiler.cext as cext
 import compiler.msg as msg
 import compiler.project as project
-import compiler.storage.ref as storage_ref
+import compiler.storage.ref as st_ref
 import compiler.storage.scope as st_scope
 
 func project.ProjectFile.type_path_to_full_module_path_and_pfile(
@@ -119,8 +119,8 @@ func project.ProjectFile.try_lookup_symbol_path(
             check_func_scope = check_func_scope.parent
         }
         if nested_in_type_extend_attr {
-            return new storage_ref.StorageRef(
-                storage_ref.ST_EXTENDED, 0)
+            return new st_ref.StorageRef(
+                st_ref.ST_EXTENDED, 0)
         }
     }
     if check_path[1] == "self" and
@@ -134,8 +134,8 @@ func project.ProjectFile.try_lookup_symbol_path(
             check_func_scope = check_func_scope.parent
         }
         if nested_in_type_attr {
-            return new storage_ref.StorageRef(
-                storage_ref.ST_SELF, 0)
+            return new st_ref.StorageRef(
+                st_ref.ST_SELF, 0)
         }
     }
 
@@ -186,8 +186,8 @@ func project.ProjectFile.try_lookup_symbol_path(
             assert(entry.symbol_info.storage_id >= 1 and
                 entry.symbol_info.storage_id <=
                     anscope.label_names.len)
-            return new storage_ref.StorageRef(
-                storage_ref.ST_NUMLITERAL,
+            return new st_ref.StorageRef(
+                st_ref.ST_NUMLITERAL,
                 anscope.label_nums[
                     entry.symbol_info.storage_id]
             )
@@ -198,15 +198,15 @@ func project.ProjectFile.try_lookup_symbol_path(
         if typename(entry.symbol_info) == "list" {
             for sym_entry in entry.symbol_info {
                 if sym_entry.name == check_path[check_path.len] {
-                    return new storage_ref.StorageRef(
-                        storage_ref.ST_GLOBAL,
+                    return new st_ref.StorageRef(
+                        st_ref.ST_GLOBAL,
                         sym_entry.storage_id
                     )
                 }
             }
         } else {
-            return new storage_ref.StorageRef(
-                storage_ref.ST_GLOBAL,
+            return new st_ref.StorageRef(
+                st_ref.ST_GLOBAL,
                 entry.symbol_info.storage_id
             )
         }
@@ -256,8 +256,8 @@ func project.ProjectFile.try_lookup_symbol_path(
                     project=self.project,
                     can_match_moduleless=no)
                 if storage_id != none {
-                    return new storage_ref.StorageRef(
-                        storage_ref.ST_CEXT,
+                    return new st_ref.StorageRef(
+                        st_ref.ST_CEXT,
                         storage_id
                     )
                 }
@@ -282,8 +282,8 @@ func project.ProjectFile.try_lookup_symbol_path(
                 if not entry.c_importer.known_items.has(item_name) {
                     return no
                 }
-                return new storage_ref.StorageRef(
-                    storage_ref.ST_MCREF,
+                return new st_ref.StorageRef(
+                    st_ref.ST_MCREF,
                     entry.c_importer.known_items[item_name].storage_id
                 )
             }
@@ -310,8 +310,8 @@ func project.ProjectFile.try_lookup_symbol_path(
                 assert(entry.symbol_info.storage_id >= 1 and
                     entry.symbol_info.storage_id <=
                         anscope.label_names.len)
-                return new storage_ref.StorageRef(
-                    storage_ref.ST_NUMLITERAL,
+                return new st_ref.StorageRef(
+                    st_ref.ST_NUMLITERAL,
                     anscope.label_nums[
                         entry.symbol_info.storage_id]
                 )
@@ -319,8 +319,8 @@ func project.ProjectFile.try_lookup_symbol_path(
             if entry.symbol_info == none {
                 return no
             }
-            return new storage_ref.StorageRef(
-                storage_ref.ST_GLOBAL,
+            return new st_ref.StorageRef(
+                st_ref.ST_GLOBAL,
                 entry.symbol_info.storage_id
             )
         }
@@ -339,8 +339,8 @@ func project.ProjectFile.try_lookup_symbol_path(
         project=self.project,
         can_match_moduleless=yes)
     if st_id != none {
-        return new storage_ref.StorageRef(
-            storage_ref.ST_CEXT, st_id)
+        return new st_ref.StorageRef(
+            st_ref.ST_CEXT, st_id)
     }
     return none
 }
@@ -933,9 +933,15 @@ func project.ProjectFile.make_attr_names_scope_from_node(
 }
 
 func try_resolve_attr_on_ref(
-        project_file, ref, attr_name
-        ) {
-    
+        project_file, node_lefthand,
+        ref_lefthand, attr_righthand) {
+    var sym_info = st_ref.ref_to_symbol_info(
+        project_file, node_lefthand, node_lefthand.ref
+    )
+    if sym_info == none {
+        return none
+    }
+    return none
 }
 
 func visit_to_resolve_known_attrs(project_file, msgs) {

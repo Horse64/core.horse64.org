@@ -34,6 +34,7 @@ import compiler.ast.type_stmt as type_stmt
 import compiler.msg as msg
 import compiler.project as project
 import compiler.storage.ref as st_ref
+import compiler.token as token
 
 enum SymbolInfoKind {
     SINFO_VAR,
@@ -57,6 +58,20 @@ type SymbolInfo {
 
 func SymbolInfo.init(name) {
     self.name = name
+}
+
+func SymbolInfo.as_str {
+    var t = "SymbolInfo{"
+        "name=" + token.as_escaped_code_string(self.name) + ", "
+        "kind=" + SymbolInfoKind.num_label(
+            self.kind).as_str() + ", "
+        "is_closure_captured=" +
+            self.is_closure_captured.as_str() + ", "
+        "is_ever_written_to=" +
+            self.is_ever_written_to.as_str() + ", "
+        "storage_id=" +
+            self.storage_id.as_str() + "}"
+    return t
 }
 
 type FuncScope {

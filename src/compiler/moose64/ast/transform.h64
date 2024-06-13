@@ -74,8 +74,10 @@ func transform_defer(project_file, ast_result, msgs) {
         defer_info.called_name += "_prio" + last_sorting_prio.as_str()
         assert(node.subexprs.len == 1)
         assert(node.subexprs[1].kind == ast.N_EXPR_BINOP)
-        var func_type = m64_ast_analyze.get_c_type_of_node(
-            node.subexprs[1].subexprs[1], node.subexprs[1]
+        assert(node.subexprs[1].optoken.str == '(')
+        var func_type = m64_ast_analyze.get_c_or_m64_type_of_node(
+            project_file, node.subexprs[1].subexprs[1],
+            node.subexprs[1], msgs=msgs
         ) later:
 
         await func_type
