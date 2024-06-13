@@ -44,6 +44,7 @@ import compiler.cext as cext
 import compiler.comment.command as command_comment
 import compiler.moose64.builtins as m64_builtins
 import compiler.msg as msg
+import compiler.storage.scope.manage as scope_manage
 import compiler.storage.ref as storage_ref
 import compiler.storage.scope as st_scope
 import compiler.token as token
