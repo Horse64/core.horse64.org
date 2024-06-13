@@ -149,6 +149,10 @@ This is a syntax highlighting intended for kate and other KDE editors.
 
         <WordDetect attribute="Control" context="WithStmt"
          String="with"/>
+        <WordDetect attribute="DeclKeyword" context="NamedItemVar"
+         String="var"/>
+         <WordDetect attribute="DeclKeyword" context="NamedItemVar"
+         String="const"/>
         <keyword attribute="DeclKeyword" context="NamedItem"
          String="nameditemkeywords"/>
         <keyword attribute="Control" context="NamedItem"
@@ -191,6 +195,32 @@ This is a syntax highlighting intended for kate and other KDE editors.
          char="-" char1="&gt;"/>
         <AnyChar attribute="OperatorSymbol" context="#stay"
          String=".=~+-*/%&amp;|^&gt;&lt;"/>
+      </context>
+
+      <context name="NamedItemVarHadName" attribute="Import"
+          fallthroughContext="#pop" lineEndContext="#stay">
+        <DetectSpaces/>
+        <keyword String="keywords" context="#pop" lookAhead="true"/>
+        <keyword String="nameditemkeywords" context="#pop"
+         lookAhead="true"/>
+        <DetectChar char="," attribute="OperatorSymbol"
+         context="#pop!NamedItemVar"/>
+        <RegExpr attribute="IdentifierPastName" context="#pop"
+         String="&IDENT;" lookAhead="true"/>
+        <AnyChar String="#'&quot;()[]{}()+=-./:&gt;&lt;;"
+         context="#pop" lookAhead="true"/>
+      </context>
+
+      <context name="NamedItemVar" attribute="Import"
+          fallthroughContext="#pop" lineEndContext="#stay">
+        <DetectSpaces/>
+        <keyword String="keywords" context="#pop" lookAhead="true"/>
+        <keyword String="nameditemkeywords" context="#pop"
+         lookAhead="true"/>
+        <RegExpr attribute="ItemName" context="#pop!NamedItemVarHadName"
+         String="&IDENT;"/>
+        <AnyChar String="#'&quot;()[]{}()+=-,/:&gt;&lt;;" context="#pop"
+         lookAhead="true"/>
       </context>
 
       <context name="NamedItemHadName" attribute="Import"
