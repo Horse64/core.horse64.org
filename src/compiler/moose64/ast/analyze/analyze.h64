@@ -113,7 +113,7 @@ func _get_c_or_m64_type_of_node_do(
             "Internal error: Unexpectedly failed to trace "
             "back this identifier to resolved target: " +
             node.as_str() + " "
-            "Please report this to the compiler team.",
+            "Please report this to the compiler makers.",
             source_file=project_file,
             line=node.line, col=node.col,
         ))

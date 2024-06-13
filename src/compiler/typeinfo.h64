@@ -102,7 +102,8 @@ func ensure_type_info_for_file(project_file, msgs, is_moose64=no) {
                 msgs.add(new msg.FileMsg(
                     "Internal error, encountered damaged node "
                     "with no symbol info: " + node.as_str() + " "
-                    "Please report this to the compiler team.",
+                    "Please report this to the compiler "
+                    "makers.",
                     source_file=project_file,
                     line=node.line,
                     col=node.col,
@@ -127,7 +128,8 @@ func ensure_type_info_for_file(project_file, msgs, is_moose64=no) {
                 msgs.add(new msg.FileMsg(
                     "Internal error, encountered damaged node "
                     "with no symbol info: " + node.as_str() + " "
-                    "Please report this to the compiler team.",
+                    "Please report this to the compiler "
+                    "makers.",
                     source_file=project_file,
                     line=node.line,
                     col=node.col,

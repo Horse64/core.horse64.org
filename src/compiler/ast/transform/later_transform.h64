@@ -1442,7 +1442,7 @@ func first_pass_later_transform(
                         throw new RuntimeError("Rescue clause with "
                             "wrong symbol info, this shouldn't "
                             "ever happen. Please report this error "
-                            "to the compiler team.")
+                            "to the compiler makers.")
                     }
                     var storage_remaps = []
                     var idx = 0

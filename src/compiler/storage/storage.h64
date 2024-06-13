@@ -285,7 +285,8 @@ func project.Project.compute_all_scopes(
                             " vs expected anscope=" + anscope.as_str())
                         throw new RuntimeError("Internal error occured, "
                             "internal type registry is corrupted. "
-                            "Please report this bug to the compiler team.")
+                            "Please report this bug to the compiler "
+                            "makers.")
                     }
                     continue
                 }
@@ -328,7 +329,8 @@ func project.Project.compute_all_scopes(
                         "file(s) without success. "
                         "Full set of files: " +
                         search_set.as_str() + " "
-                        "Please report this bug to the compiler team.")
+                        "Please report this bug to the compiler "
+                        "makers.")
                     for pfile in search_set {
                         print("horsec: debug: Will now dump " +
                             "symbols in global scope of file " +
@@ -343,7 +345,8 @@ func project.Project.compute_all_scopes(
                         "failed to trace back type definition to "
                         "global scope storage id despite no malformed "
                         "AST, this should never happen. "
-                        "Please report this bug to the compiler team.")
+                        "Please report this bug to the compiler "
+                        "makers.")
                 }
             }
             if debug_global_storage {

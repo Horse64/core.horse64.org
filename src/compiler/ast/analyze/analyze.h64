@@ -691,7 +691,7 @@ func ensure_analysis_has_needed_error(analysis_result, msgs) {
             msgs.add(new msg.FileMsg(
                 "Internal error occured, we failed "
                 "analysis without a proper error message. "
-                "Please report this bug to the compiler team."
+                "Please report this bug to the compiler makers."
             ))
         }
     }

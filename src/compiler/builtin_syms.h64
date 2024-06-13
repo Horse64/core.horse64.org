@@ -186,7 +186,7 @@ func register_symbol(project, symbol_name, symbol_ref,
             "Symbol was registered twice: " + [
                 symbol_name, symbol_ref, modpath, package_name
             ].as_str() + " Please report this error to the "
-            "compiler team.")
+            "compiler makers.")
         throw new ValueError("duplicate symbol")
     }
 
