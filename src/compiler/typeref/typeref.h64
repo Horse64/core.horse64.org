@@ -77,11 +77,29 @@ func TypeRefMod.as_str {
     return t
 }
 
+type TypeRefFuncRefExpr base TypeRefExpr {
+    var arg_typeref_exprs = []
+    var return_typeref_expr
+}
+
+func TypeRefFuncRefExpr.init {
+    base.init()
+    self.is_func_ref = yes
+    self.name = none
+}
+
+func typeref_func_expr_from_varattr(
+        base_symbol_info, varattr_symbol_info
+        ) {
+
+}
+
 type TypeRefExpr base ast.TreeNode {
     var type_path
     var name
     var modifiers = []
     var init_expr = none
+    var is_func_ref = no
 }
 
 func TypeRefExpr.init {
