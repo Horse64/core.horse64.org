@@ -32,6 +32,7 @@ import math from core.horse64.org
 import net from core.horse64.org
 import net.fetch from core.horse64.org
 import text from core.horse64.org
+import textfmt from core.horse64.org
 import uri from core.horse64.org
 
 import compiler.ast.call_or_assign_stmt as call_or_assign_stmt

@@ -70,7 +70,9 @@ func SymbolInfo.as_str {
         "is_ever_written_to=" +
             self.is_ever_written_to.as_str() + ", "
         "storage_id=" +
-            self.storage_id.as_str() + "}"
+            self.storage_id.as_str() + ", "
+        "def_line=" + self.def_line.as_str() + ", " +
+        "def_col=" + self.def_col.as_str() + "}"
     return t
 }
 
@@ -376,7 +378,14 @@ extend type ast.TreeNode {
 
 extend func ast.TreeNode.copy {
     var self_copy = extended()
-    self_copy.symbol_info = self.symbol_info.copy()
+    if typename(self.symbol_info) == "list" {
+        self_copy.symbol_info = []
+        for entry in self.symbol_info {
+            self_copy.symbol_info.add(entry.copy())
+        }
+    } else {
+        self_copy.symbol_info = self.symbol_info.copy()
+    }
     return self_copy
 }
 

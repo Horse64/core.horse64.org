@@ -697,6 +697,7 @@ func project.Project.compute_all_scopes(
                                         "attribute with duplicate name.")
                                 }
                             }
+                            return stmt.symbol_info
                         }
                         if stmt.kind == ast.N_STMT_VAR {
                             register_var_at_root(stmt.var_labels)
@@ -727,19 +728,16 @@ func project.Project.compute_all_scopes(
                                     for lbl in st.var_labels {
                                         var_paths.add(name_path + [lbl])
                                     }
-                                    var add_names =[]
+                                    var add_names = []
                                     for vpath in var_paths {
                                         add_names.add(vpath.join("."))
                                     }
-                                    register_var_at_root(add_names)
+                                    var root_sinfo =
+                                        register_var_at_root(add_names)
                                     assert(st.symbol_info == none)
                                     st.symbol_info = []
-                                    for lbl in st.var_labels {
-                                        var sinfo =
-                                            new st_scope.SymbolInfo(lbl)
-                                        sinfo.kind = st_scope.SINFO_VARATTR
-                                        st.symbol_info.add(sinfo)
-                                    }
+                                    assert(typename(root_sinfo) == "list")
+                                    st.symbol_info = root_sinfo
                                 }
                             }
                             handle_nested_struct_or_union(stmt)
@@ -1196,7 +1194,9 @@ func project.Project.compute_all_scopes(
                     if not node.scope.name_to_symbol_map.has(label) {
                         continue
                     }
-                    var symbol_info = new st_scope.SymbolInfo(label)
+                    var symbol_info = node.scope.name_to_symbol_map[
+                        label
+                    ]
                     if node.symbol_info == none {
                         node.symbol_info = []
                     }

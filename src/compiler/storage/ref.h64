@@ -104,19 +104,24 @@ func ref_to_symbol_info(project_file, node, storage_ref) {
         } else {
             return entry.symbol_info
         }
-    } elseif storage_ref.kind == ST_LOCAL  {
+    } elseif storage_ref.kind == ST_LOCAL {
         if node.scope == none {
             return none
         }
-        if not node.scope.storage_id_to_symbol_map.has(
+        var func_scope = node.scope.func_scope
+        var scope = node.scope
+        while scope != none and scope.func_scope == func_scope {
+            if not scope.storage_id_to_symbol_map.has(
+                    storage_ref.id
+                    ) {
+                scope = scope.parent
+                continue
+            }
+            var entry = node.scope.storage_id_to_symbol_map[
                 storage_ref.id
-                ) {
-            return none
+            ]
+            return entry
         }
-        var entry = node.scope.storage_id_to_symbol_map[
-            storage_ref.id
-        ]
-        return entry
     } elseif storage_ref.kind == ST_ARG {
         return none
     }

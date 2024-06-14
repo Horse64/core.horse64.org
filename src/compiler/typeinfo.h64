@@ -33,7 +33,7 @@ import compiler.msg as msg
 import compiler.storage.scope as st_scope
 
 extend type st_scope.SymbolInfo {
-    var typeref
+    var typeref_expr
     var type_storage_ref
 }
 
@@ -45,7 +45,7 @@ func try_resolve_symbol_typeref(
             sym_info.type_storage_ref != none {
         return
     }
-    sym_info.typeref = type_expr.copy()
+    sym_info.typeref_expr = type_expr.copy()
     var name = sym_info.name
     if is_moose64 {
         var cname = type_expr.get_c_builtin_for_m64_base_type()
@@ -80,7 +80,7 @@ func try_resolve_symbol_typeref(
     var_decl_node.damaged = yes
     msgs.add(new msg.FileMsg(
         "Unexpected typeref " +
-        sym_info.typeref.as_str() + ", "
+        sym_info.typeref_expr.as_str() + ", "
         "failed to find referenced underlying type.",
         source_file=project_file,
         line=var_decl_node.line,

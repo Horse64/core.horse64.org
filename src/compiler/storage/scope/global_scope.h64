@@ -101,6 +101,7 @@ func GlobalScope.ensure_assigned_storage(
             continue
         } elseif not {ast.N_STMT_ENUMEXTEND,
                 ast.N_STMT_TYPEEXTEND}.has(value.kind) {
+            assert(not self.storage_id_to_entry.has(storage_num))
             self.storage_id_to_entry[storage_num] = value
             if project_file != none and project_file.project != none {
                 var pr = project_file.project

@@ -48,7 +48,10 @@ func get_c_or_m64_type_of_sym_info(
         project_file, node_with_reference,
         target_sym_info, msgs=none
         ) {
-    var typeref = target_sym_info.typeref
+    if target_sym_info.type_storage_ref != none {
+        return target_sym_info.type_storage_ref.copy()
+    }
+    var typeref = target_sym_info.typeref_expr
     if typeref == none {
         return later none
     }
@@ -69,6 +72,38 @@ func _get_c_or_m64_type_of_node_do(
     }
     if known_types_map.has(node) {
         return later known_types_map[node]
+    }
+
+    func trigger_no_symbol_info_on(node) {
+        if msgs == none {
+            throw new ValueError(
+                "Internal error: Unexpectedly failed to "
+                "get symbol info."
+            )
+        }
+        msgs.add(new msg.FileMsg(
+            "Internal error: Unexpectedly failed to trace "
+            "back this identifier to resolved target: " +
+            node.as_str() + " "
+            "Please report this to the compiler makers.",
+            source_file=project_file,
+            line=node.line, col=node.col,
+        ))
+    }
+
+    func trigger_no_such_attribute_on(node, aname) {
+        if msgs == none {
+            throw new ValueError(
+                "The given type doesn't have this attribute."
+            )
+        }
+        msgs.add(new msg.FileMsg(
+            "The attribute " + textfmt.as_escaped_code_string(
+                aname
+            ) + " cannot be found on this type.",
+            source_file=project_file,
+            line=node.line, col=node.col,
+        ))
     }
 
     func evaluate_lefthand_sides_if_needed(node) {
@@ -102,23 +137,6 @@ func _get_c_or_m64_type_of_node_do(
         return later none
     }
 
-    func trigger_no_symbol_info_on(node) {
-        if msgs == none {
-            throw new ValueError(
-                "Internal error: Unexpectedly failed to "
-                "get symbol info."
-            )
-        }
-        msgs.add(new msg.FileMsg(
-            "Internal error: Unexpectedly failed to trace "
-            "back this identifier to resolved target: " +
-            node.as_str() + " "
-            "Please report this to the compiler makers.",
-            source_file=project_file,
-            line=node.line, col=node.col,
-        ))
-    }
-
     if node.kind == ast.N_STMT_VAR {
         if not node.has_type_expr {
             return later none
@@ -131,6 +149,7 @@ func _get_c_or_m64_type_of_node_do(
         if node.ref == none {
             return later none
         }
+
         var sym_info = st_ref.ref_to_symbol_info(
             project_file, node, node.ref
         )
@@ -154,9 +173,17 @@ func _get_c_or_m64_type_of_node_do(
             var lhand = node.subexprs[1]
             if has_attr(lhand, "ref") {
                 assert(lhand.ref != none)
-                var sym_info = scope_manage.try_resolve_attr_on_ref(
-                    project_file, lhand, lhand.ref, rhand.label
-                )
+                var sym_info
+                do {
+                    sym_info = scope_manage.try_resolve_attr_on_ref(
+                        project_file, lhand, lhand.ref, rhand.label,
+                        error_on_invalid=yes
+                    )
+                } rescue ValueError {
+                    trigger_no_such_attribute_on(
+                        lhand, rhand.label
+                    )
+                }
                 if sym_info == none {
                     trigger_no_symbol_info_on(lhand)
                     return later none
