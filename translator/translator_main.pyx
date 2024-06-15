@@ -3490,19 +3490,59 @@ def translate_do_func(
                 "] = _remapped_sys.modules[__name__];\n"
                 ) + translated_files[translated_file]["output"]
 
-            # Output all the types as Python "class" defs:
+            # Prepare to output the types as Python "class" defs:
             first_externaltype_extends = True
-            for regtype_key in ordered_known_types():
+            type_ordering_unfiltered = ordered_known_types()
+            type_ordering = []
+            for regtype_key in type_ordering_unfiltered:
                 regtype = known_types[regtype_key]
                 if (regtype.module != _modname or
                         regtype.pkgname != _pkgname):
                     continue
+                type_ordering.append(regtype_key)
+            def cmp_two_types(a, b):
+                regtype_a = known_types[a]
+                regtype_b = known_types[b]
+                if (regtype_a.extends_tokens != None
+                        and "".join(regtype_a.extends_tokens) ==
+                        regtype_b.name):
+                    return 1
+                elif (regtype_b.extends_tokens != None
+                        and "".join(regtype_b.extends_tokens) ==
+                        regtype_a.name):
+                    return -1
+                if (regtype_a.name > regtype_b.name):
+                    return 1
+                return -1
+            # Order types such that they can extend each other:
+            type_ordering = sorted(type_ordering,
+                key=functools.cmp_to_key(cmp_two_types))
+            # Figure out what classes need delayed init:
+            delayed_init_classes = set()
+            delayed_set_changed = True
+            while delayed_set_changed:
+                delayed_set_changed = False
+                for regtype_key in type_ordering:
+                    regtype = known_types[regtype_key]
+                    if regtype.name in delayed_init_classes:
+                        continue
+                    if (regtype.extends_tokens != None and
+                            "." in regtype.extends_tokens and
+                            firstnonblank(regtype.extends_tokens) !=
+                            "_translator_runtime_helpers"):
+                        delayed_init_classes.add(regtype.name)
+                        delayed_set_changed = True
+                    elif (regtype.extends_tokens != None and
+                            "".join(regtype.extends_tokens) in
+                            delayed_init_classes):
+                        delayed_init_classes.add(regtype.name)
+                        delayed_set_changed = True
+            # Now actually output the classes:
+            for regtype_key in type_ordering:
+                regtype = known_types[regtype_key]
                 gencode_nameprefix = ""
                 maybe_extends_nonlocal = False
-                if (regtype.extends_tokens != None and
-                        "." in regtype.extends_tokens and
-                        firstnonblank(regtype.extends_tokens) !=
-                        "_translator_runtime_helpers"):
+                if regtype.name in delayed_init_classes:
                     # Likely referring to some imported class symbol
                     # (that originates in a different module).
                     maybe_extends_nonlocal = True
@@ -3639,8 +3679,10 @@ def translate_do_func(
                         prepend_t += ("\n    "
                             "if _translated_extendtype_fail:")
                         prepend_t += ("\n        return False\n")
-                    sc.global_init_func_code[key] = (prepend_t +
-                        sc.global_init_func_code[key])
+                    sc.global_init_func_code[key] = (
+                        sc.global_init_func_code[key] +
+                        "\n" + prepend_t
+                    )
                     first_externaltype_extends = False
 
             # Write out all the delayed init code to an appended func:
