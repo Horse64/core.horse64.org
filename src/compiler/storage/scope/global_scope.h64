@@ -35,6 +35,7 @@ import compiler.ast.var_stmt as var_stmt
 import compiler.msg as msg
 import compiler.storage.scope as st_scope
 import compiler.token as token
+import compiler.typeref as typeref
 
 import compiler.moose64.c_importer as c_importer
 
@@ -140,6 +141,12 @@ func GlobalScope.ensure_assigned_storage(
                 value.symbol_info = si
             }
             storage_num += 1
+            if value.kind == ast.N_STMT_FUNC {
+                si.typeref_expr =
+                    typeref.create_typeref_from_func_node(
+                        project_file, si
+                    )
+            }
         }
     }
     if project_file != none and project_file.project != none {
@@ -195,14 +202,14 @@ func GlobalScope.ensure_assigned_storage(
     # If an AST is available, transfer the symbol info over
     # to the original definitions:
     if project_file != none and ast_tree != none {
-        self.adjust_ast_tree_to_gscope_symbol_info(
+        self.finalize_gscope_with_ast_tree_info(
             project_file, ast_tree, msgs=msgs,
             is_moose64=is_moose64
         )
     }
 }
 
-func GlobalScope.adjust_ast_tree_to_gscope_symbol_info(
+func GlobalScope.finalize_gscope_with_ast_tree_info(
         project_file, ast_tree, msgs=none, is_moose64=no
         ) {
     for stmt in ast_tree.stmts {
@@ -212,7 +219,8 @@ func GlobalScope.adjust_ast_tree_to_gscope_symbol_info(
             if not self.name_to_stmt_map.has(lbl) {
                 if stmt.symbol_info == none and
                         stmt.kind == ast.N_STMT_FUNC and
-                        stmt.type_path != none {
+                        stmt.type_path != none and
+                        stmt.type_path.len > 0 {
                     assert(stmt.scope == none)
                     var anscope = project_file.
                         make_attr_names_scope_from_funcattr(
@@ -247,6 +255,10 @@ func GlobalScope.adjust_ast_tree_to_gscope_symbol_info(
                     symbol_info.def_file = project_file
                     symbol_info.storage_id =
                         anscope.name_to_symbol_map.len + 1
+                    symbol_info.typeref_expr =
+                        typeref.create_typeref_from_func_node(
+                            project_file, stmt
+                        )
                     anscope.name_to_symbol_map[lbl] =
                         symbol_info
                     assert(not anscope.

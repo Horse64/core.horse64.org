@@ -940,8 +940,6 @@ func try_resolve_attr_on_ref(
         var sym_info = st_ref.ref_to_symbol_info(
             project_file, node_lefthand, node_lefthand.ref
         )
-        print("opsaporieapriaeopr " + [project_file,
-            node_lefthand, node_lefthand.ref, sym_info].as_str())
         if sym_info == none or sym_info.typeref_expr == none {
             return none
         }

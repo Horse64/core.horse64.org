@@ -1401,7 +1401,7 @@ func as_escaped_code_string(
 ## than" operator followed by a math negative sign.
 ## @returns bool @{yes} if this is possibly T_LEFTPTR, @{no} if not.
 func is_leftptr_at_token_str_pos(
-        token_str, token_pos, past_tokens
+        token_str, token_pos, past_tokens, is_moose64=no
         ) {
     if token_pos <= 1 or {"-", ">", "<",
             "(", ")", "]", "[", "="}.has(
@@ -1426,15 +1426,13 @@ func is_leftptr_at_token_str_pos(
                 (past_tokens[k - 1].kind == T_COMMA or
                  (past_tokens[k - 1].kind == T_ENCLOSE and
                   past_tokens[k - 1].str == "(")) {
+            # Scan if we're part of a func definition:
             var bracket_depth = 0
             var z = k
             while z >= 1 {
                 if past_tokens[z].kind == T_ENCLOSE and
                         {"(", "[", "{"}.has(past_tokens[z].str) {
                     bracket_depth -= 1
-                    if bracket_depth < -1 {
-                        return no
-                    }
                 } elseif past_tokens[z].kind == T_ENCLOSE and
                         {")", "]", "}"}.has(past_tokens[z].str) {
                     bracket_depth += 1
@@ -1444,13 +1442,27 @@ func is_leftptr_at_token_str_pos(
                         {"var", "const"}.has(past_tokens[z].str) {
                     return yes
                 }
+                if is_moose64 and bracket_depth < 0 and
+                        past_tokens[z].kind == T_LEFTPTR {
+                    # We must be part of a func typeref expr,
+                    # specified as a type of a var.
+                    return yes
+                }
+                if is_moose64 and bracket_depth < 0 and
+                        past_tokens[z].kind == T_ENCLOSE and
+                        z > 1 and past_tokens[z].str == '(' and
+                        past_tokens[z - 1].kind == T_KEYWORD and
+                        past_tokens[z - 1].str == "as" {
+                    # We must be part of a type cast.
+                    return yes
+                }
                 if bracket_depth <= 0 and
                         {T_MATH, T_UNARYMATH, T_BOOL, T_NUM,
                         T_ASSIGN, T_MATHASSIGN
                         }.has(past_tokens[z].kind) {
                     return no
                 }
-                if bracket_depth == -1 and
+                if bracket_depth <= -1 and
                         past_tokens[z].kind == T_KEYWORD and
                         {"func"}.has(past_tokens[z].str) {
                     return yes
@@ -1559,7 +1571,8 @@ func tokenize_str(
         } elseif is_moose64 and i + 1 < strlen and
                 c == "<" and str[i + 1] == "-" and
                 is_leftptr_at_token_str_pos(
-                    str, i, result.tokens
+                    str, i, result.tokens,
+                    is_moose64=is_moose64
                 ) {
             # <- type assign operator.
             result.tokens.add(new Token(

@@ -77,21 +77,63 @@ func TypeRefMod.as_str {
     return t
 }
 
-type TypeRefFuncRefExpr base TypeRefExpr {
+type TypeRefFuncExpr base TypeRefExpr {
     var arg_typeref_exprs = []
     var return_typeref_expr
 }
 
-func TypeRefFuncRefExpr.init {
+func TypeRefFuncExpr.init {
     base.init()
     self.is_func_ref = yes
     self.name = none
+    self.type_path = none
 }
 
-func typeref_func_expr_from_varattr(
-        base_symbol_info, varattr_symbol_info
-        ) {
+func TypeRefFuncExpr.as_code(indent=0) {
+    if self.damaged {
+        return "(damaged type ref func expr.)"
+    }
+    var prefix_mod_names = {"readonly"}
+    var t = ""
+    for mod in self.modifiers {
+        if prefix_mod_names.has(mod.name) {
+            if t != "" {
+                t += " "
+            }
+            t += mod.as_str()
+        }
+    }
+    if t != "" {
+        t += " "
+    }
+    t += "(("
+    var is_first_param = yes
+    for param_type in self.arg_typeref_exprs {
+        if is_first_param {
+            is_first_param = no
+        } else {
+            t += ", "
+        }
+        t += "_<-" +param_type.as_code(indent=indent)
+    }
+    t += ")->"
+    if self.return_typeref_expr != none {
+        t += self.return_typeref_expr.as_code(indent=indent)
+    }
+    t += ")"
+    for mod in self.modifiers {
+        if not prefix_mod_names.has(mod.name) {
+            t += " " + mod.as_str()
+        }
+    }
+    if self.init_expr != none {
+        t += self.init_expr.as_code(indent=(indent + 4))
+    }
+    return t
+}
 
+func create_typeref_from_func_node(project_file, node) {
+    return none
 }
 
 type TypeRefExpr base ast.TreeNode {
@@ -212,6 +254,179 @@ func _parse_typeref_notlater(
         return none
     }
 
+    func check_if_func_type(tokens, pos) {
+        var startpos = pos
+        if pos > max_len or
+                tokens[pos].kind != token.T_ENCLOSE or
+                tokens[pos].str != "(" {
+            return none
+        }
+        var could_be_func = no
+        pos += 1
+        var bdepth = 1
+        while pos < max_len and
+                bdepth >= 1 {
+            if tokens[pos].kind == token.T_ENCLOSE and
+                    {'(', '[', '{'}.has(tokens[pos].str) {
+                bdepth += 1
+                pos += 1
+                continue
+            } elseif tokens[pos].kind == token.T_ENCLOSE and
+                    {')', ']', '}'}.has(tokens[pos].str) {
+                bdepth -= 1
+                pos += 1
+                if bdepth == 0 and could_be_func {
+                    return (pos - startpos)
+                }
+                continue
+            }
+            if bdepth == 1 and
+                    tokens[pos].kind == token.T_RIGHTPTR {
+                could_be_func = yes
+            }
+            pos += 1
+        }
+        return none
+    }
+    func parse_func_type(tokens, pos) {
+        func had_error(at_pos, description) {
+            if not description.ends(" ") {
+                description += " "
+            }
+            msgs.add(new msg.FileMsg(
+                description + " func type "
+                "in line " +
+                token.get_line(tokens, startpos).as_str() +
+                ", column " +
+                token.get_col(tokens, startpos).as_str() + ".",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+            var skiplen = token.get_naive_stmt_or_expr_len(
+                tokens, startpos, max_len=tokens_len,
+                for_expr=yes, is_moose64=is_moose64
+            )
+            var expr = new InvalidExpr(skiplen)
+            return expr
+        }
+        var startpos = pos
+        if pos > max_len or
+                tokens[pos].kind != token.T_ENCLOSE or
+                tokens[pos].str != "(" {
+            return had_error(pos,
+                "Invalid " + token.describe_token_at(
+                    tokens, atpos) + " "
+                ", expected '(' to begin ")
+        }
+        pos += 1
+        if pos > max_len or
+                tokens[pos].kind != token.T_ENCLOSE or
+                tokens[pos].str != "(" {
+            return had_error(pos,
+                "Invalid " + token.describe_token_at(
+                    tokens, pos) + " "
+                ", expected '(' to start args for ")
+        }
+        pos += 1
+
+        # Parse argument list:
+        var arg_types = []
+        while pos <= max_len and
+                (tokens[pos].kind != token.T_ENCLOSE or
+                tokens[pos].str != ")") {
+            if tokens[pos].kind != token.T_IDENT {
+                return had_error(pos,
+                    "Invalid " + token.describe_token_at(
+                        tokens, atpos) + " "
+                    ", expected identifier (T_IDENT) to "
+                    "start next argument, or ')' to end "
+                    "arguments for ")
+            }
+            if tokens[pos].kind == token.T_COMMA {
+                pos += 1
+                continue
+            }
+            assert(tokens[pos].kind == token.T_IDENT)
+            pos += 1
+            if tokens[pos].kind != token.T_LEFTPTR {
+                return had_error(pos,
+                    "Invalid " + token.describe_token_at(
+                        tokens, atpos) + " "
+                    ", expected '<-' (T_LEFTPTR) to "
+                    "continue argument for ")
+            }
+            pos += 1
+            var inner_expr = _parse_typeref_notlater(
+                tokens, pos, msgs, project_file=project_file,
+                max_len=max_len, is_moose64=is_moose64,
+                debug=debug
+            )
+            if inner_expr == none {
+                var skiplen = token.get_naive_stmt_or_expr_len(
+                    tokens, startpos, max_len=tokens_len,
+                    for_expr=yes, is_moose64=is_moose64
+                )
+                var expr = new InvalidExpr(skiplen)
+                return expr
+            }
+            arg_types.add(inner_expr)
+            pos += inner_expr.len
+            if pos > max_len or
+                    (tokens[pos].kind != token.T_COMMA and
+                     (tokens[pos].kind != token.T_ENCLOSE or
+                      tokens[pos].str != ')')) {
+                return had_error(pos,
+                    "Invalid " + token.describe_token_at(
+                        tokens, atpos) + " "
+                    ", expected ')' or ',' to end previous "
+                    "argument")
+            }
+            if tokens[pos].kind == token.T_COMMA {
+                pos += 1
+            }
+            continue
+        }
+        if pos > max_len or
+                tokens[pos].kind != token.T_RIGHTPTR {
+            if tokens[pos].kind != token.T_LEFTPTR {
+                return had_error(pos,
+                    "Invalid " + token.describe_token_at(
+                        tokens, atpos) + " "
+                    ", expected '->' (T_LEFTPTR) to "
+                    "specif return type for ")
+            }
+        }
+        var return_type = _parse_typeref_notlater(
+            tokens, pos, msgs, project_file=project_file,
+            max_len=max_len, is_moose64=is_moose64,
+            debug=debug
+        )
+        if return_type == none {
+            var skiplen = token.get_naive_stmt_or_expr_len(
+                tokens, startpos, max_len=tokens_len,
+                for_expr=yes, is_moose64=is_moose64
+            )
+            var expr = new InvalidExpr(skiplen)
+            return expr
+        }
+        pos += return_type.token_len
+        if pos > max_len or tokens[pos].kind != token.T_ENCLOSE or
+                tokens[pos].str != ')' {
+            return had_error(pos,
+                "Invalid " + token.describe_token_at(
+                    tokens, atpos) + " "
+                ", expected ')' (T_ENCLOSE) to "
+                "end ")
+        }
+        pos += 1
+        var func_ref = new TypeRefFuncExpr()
+        func_ref.arg_typeref_exprs = arg_types
+        func_ref.return_typeref_expr = return_type
+        func_ref.token_len = pos - startpos
+        return func_ref
+    }
+
     var typeref_expr = extend_typeref_expr
     var start_token_len = 0
     if typeref_expr != none {
@@ -221,7 +436,8 @@ func _parse_typeref_notlater(
     var typeref_damaged = no
     var mods = []
     while yes {
-        if tokens[pos].kind == token.T_ENCLOSE and
+        if pos <= max_len and
+                tokens[pos].kind == token.T_ENCLOSE and
                 tokens[pos].str == "(" {
             var bracket_open_pos = pos
             if max_depth <= 0 {
@@ -241,6 +457,13 @@ func _parse_typeref_notlater(
                 pos += 1
                 var expr_len = start_token_len + (pos - startpos)
                 return new ast_expr.InvalidExpr(expr_len)
+            }
+            var is_func_type = check_if_func_type(tokens, pos)
+            if typeref_expr == none and is_func_type {
+                typeref_expr = parse_func_type(tokens, pos)
+                assert(typeref_expr.token_len > 0)
+                pos += typeref_expr.token_len
+                continue
             }
             pos += 1  # Go past '('.
             var inner_expr = _parse_typeref_notlater(
