@@ -44,7 +44,7 @@ import compiler.ast.type_stmt as type_stmt
 import compiler.ast.var_stmt as var_stmt
 import compiler.cext as cext
 import compiler.msg as msg
-import compiler.storage.ref as storage_ref
+import compiler.storage.ref as st_ref
 import compiler.storage.scope as st_scope
 import compiler.token as token
 
@@ -143,8 +143,8 @@ func get_later_assigned_value_info(stmt) {
         for sinfo in stmt.symbol_info {
             index += 1
             async_return_value_storage_refs.add(
-                new storage_ref.StorageRef(
-                    storage_ref.ST_LOCAL, sinfo.storage_id
+                new st_ref.StorageRef(
+                    st_ref.ST_LOCAL, sinfo.storage_id
                 )
             )
             assert(index >= 1 and index <= stmt.var_labels.len)
@@ -987,8 +987,8 @@ func first_pass_later_transform(
                     var container_name = func_node.arg_labels[
                         indexes[1]
                     ]
-                    var container_ref = new storage_ref.StorageRef(
-                        storage_ref.ST_ARG, indexes[1]
+                    var container_ref = new st_ref.StorageRef(
+                        st_ref.ST_ARG, indexes[1]
                     )
                     var if_node = builder.make_if_neq_none_node(
                         node.scope,
@@ -1027,15 +1027,15 @@ func first_pass_later_transform(
                     add_unique_suffix=yes
                 )
                 var err_array_label = err_array_node.var_labels[1]
-                var err_array_ref = new storage_ref.StorageRef(
-                    storage_ref.ST_LOCAL,
+                var err_array_ref = new st_ref.StorageRef(
+                    st_ref.ST_LOCAL,
                     err_array_node.symbol_info[1].storage_id
                 )
                 var add_new_nodes = [err_array_node]
                 for idx in indexes {
                     var err_name = func_node.arg_labels[idx]
-                    var err_ref = new storage_ref.StorageRef(
-                        storage_ref.ST_ARG, idx
+                    var err_ref = new st_ref.StorageRef(
+                        st_ref.ST_ARG, idx
                     )
                     var if_node = builder.make_if_neq_none_node(
                         node.scope, err_name, err_ref,
@@ -1321,8 +1321,8 @@ func first_pass_later_transform(
                     throw_idref.line = node.line
                     throw_idref.col = node.col
                     throw_idref.label = "eobj"
-                    throw_idref.ref = new storage_ref.StorageRef(
-                        storage_ref.ST_ARG, 1
+                    throw_idref.ref = new st_ref.StorageRef(
+                        st_ref.ST_ARG, 1
                     )
                     var throw_node = new throw_stmt.ThrowStmt()
                     throw_node.scope = do_block_scope
@@ -1384,7 +1384,7 @@ func first_pass_later_transform(
                             in_clause_scope.lookup(call_func_name)[1]
                         assert(call_func_ref != none)
                         assert(call_func_ref.kind ==
-                            storage_ref.ST_CCAPTURE)
+                            st_ref.ST_CCAPTURE)
                         var call_idref = new ast_expr.IdRefExpr()
                         call_idref.scope = in_clause_scope
                         call_idref.line = node.line
@@ -1454,12 +1454,12 @@ func first_pass_later_transform(
                         }
                         idx += 1
                         storage_remaps.add([
-                            new storage_ref.StorageRef(
-                                storage_ref.ST_ARG,
+                            new st_ref.StorageRef(
+                                st_ref.ST_ARG,
                                 st_info_entry.storage_id
                             ),
-                            new storage_ref.StorageRef(
-                                storage_ref.ST_ARG, idx
+                            new st_ref.StorageRef(
+                                st_ref.ST_ARG, idx
                             )
                         ])
                     }
@@ -1752,8 +1752,8 @@ func first_pass_later_transform(
                             line=node.line, col=node.col
                         )
                     array_lock_name = array_lock_node.var_labels[1]
-                    array_lock_ref = new storage_ref.StorageRef(
-                        storage_ref.ST_LOCAL,
+                    array_lock_ref = new st_ref.StorageRef(
+                        st_ref.ST_LOCAL,
                         array_lock_node.symbol_info[1].storage_id
                     )
                     var zero_expr = new ast_expr.LiteralExpr()
@@ -1830,8 +1830,8 @@ func first_pass_later_transform(
                         )
                         var completed_name =
                             block[block.len].var_labels[1]
-                        var completed_ref = new storage_ref.StorageRef(
-                            storage_ref.ST_LOCAL,
+                        var completed_ref = new st_ref.StorageRef(
+                            st_ref.ST_LOCAL,
                             block[block.len].symbol_info[1].storage_id
                         )
 
@@ -1867,8 +1867,8 @@ func first_pass_later_transform(
                         do_rescue.subblocks = [do_block]
                         block.add(do_rescue)
 
-                        var arg_1_ref = new storage_ref.StorageRef(
-                            storage_ref.ST_ARG, 1
+                        var arg_1_ref = new st_ref.StorageRef(
+                            st_ref.ST_ARG, 1
                         )
                         var arg_1_expr = new ast_expr.IdRefExpr()
                         arg_1_expr.scope = do_inner_scope
@@ -1876,8 +1876,8 @@ func first_pass_later_transform(
                         arg_1_expr.col = node.col
                         arg_1_expr.label = err_param_names[i]
                         arg_1_expr.ref = arg_1_ref
-                        var arg_2_ref = new storage_ref.StorageRef(
-                            storage_ref.ST_ARG, 2
+                        var arg_2_ref = new st_ref.StorageRef(
+                            st_ref.ST_ARG, 2
                         )
                         var arg_2_expr = new ast_expr.IdRefExpr()
                         arg_2_expr.scope = do_inner_scope
@@ -2032,8 +2032,8 @@ func first_pass_later_transform(
                         var partial_closure_inner_scope =
                             partial_result_func_nodes[i].
                             func_scope.inner_scope
-                        var func_node_ref = new storage_ref.StorageRef(
-                            storage_ref.ST_LOCAL,
+                        var func_node_ref = new st_ref.StorageRef(
+                            st_ref.ST_LOCAL,
                             func_node.symbol_info.storage_id
                         )
                         var final_called_expr = new ast_expr.IdRefExpr()

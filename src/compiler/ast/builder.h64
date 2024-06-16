@@ -34,7 +34,7 @@ import compiler.ast.if_stmt as if_stmt
 import compiler.ast.import_stmt as import_stmt
 import compiler.ast.var_stmt as var_stmt
 import compiler.cext as cext
-import compiler.storage.ref as storage_ref
+import compiler.storage.ref as st_ref
 import compiler.storage.scope as st_scope
 import compiler.token as token
 
@@ -63,8 +63,8 @@ func ASTBuilder.make_unlock_hvm_lock_node(
     lockfuncexpr.line = line
     lockfuncexpr.col = col
     lockfuncexpr.label = "$hvm_unlock_sync_lock"
-    lockfuncexpr.ref = new storage_ref.StorageRef(
-        storage_ref.ST_CEXT,
+    lockfuncexpr.ref = new st_ref.StorageRef(
+        st_ref.ST_CEXT,
         cext.get_cext_item_storage_info(
             lockfuncexpr.label, project=self.project,
             can_match_moduleless=yes
@@ -75,7 +75,7 @@ func ASTBuilder.make_unlock_hvm_lock_node(
     lockrefexpr.line = line
     lockrefexpr.col = col
     lockrefexpr.label = lock_name
-    lockrefexpr.ref = new storage_ref.StorageRef(
+    lockrefexpr.ref = new st_ref.StorageRef(
         lock_ref.kind, lock_ref.id
     )
     var lockargsexpr = new ast_expr.CallArgsExpr()
@@ -104,8 +104,8 @@ func ASTBuilder.make_lock_hvm_lock_node(
     lockfuncexpr.line = line
     lockfuncexpr.col = col
     lockfuncexpr.label = "$hvm_lock_sync_lock"
-    lockfuncexpr.ref = new storage_ref.StorageRef(
-        storage_ref.ST_CEXT,
+    lockfuncexpr.ref = new st_ref.StorageRef(
+        st_ref.ST_CEXT,
         cext.get_cext_item_storage_info(
             lockfuncexpr.label, project=self.project,
             can_match_moduleless=yes
@@ -116,7 +116,7 @@ func ASTBuilder.make_lock_hvm_lock_node(
     lockrefexpr.line = line
     lockrefexpr.col = col
     lockrefexpr.label = lock_name
-    lockrefexpr.ref = new storage_ref.StorageRef(
+    lockrefexpr.ref = new st_ref.StorageRef(
         lock_ref.kind, lock_ref.id
     )
     var lockargsexpr = new ast_expr.CallArgsExpr()
@@ -146,8 +146,8 @@ func ASTBuilder.make_create_lock_node(
     lockfuncexpr.line = line
     lockfuncexpr.col = col
     lockfuncexpr.label = "$hvm_make_sync_lock"
-    lockfuncexpr.ref = new storage_ref.StorageRef(
-        storage_ref.ST_CEXT,
+    lockfuncexpr.ref = new st_ref.StorageRef(
+        st_ref.ST_CEXT,
         cext.get_cext_item_storage_info(
             lockfuncexpr.label, project=self.project,
             can_match_moduleless=yes
@@ -489,8 +489,8 @@ func ASTBuilder.make_var_node(
     if func_scope == none {
         self.project.last_global_storage_id += 1
         var storage_id = self.project.last_global_storage_id
-        ref = new storage_ref.StorageRef(
-            storage_ref.ST_GLOBAL, storage_id
+        ref = new st_ref.StorageRef(
+            st_ref.ST_GLOBAL, storage_id
         )
         # FIXME: Register this in the global_scope.
         throw new RuntimeError("Not fully implemented.")
