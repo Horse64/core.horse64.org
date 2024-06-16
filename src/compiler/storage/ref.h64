@@ -30,6 +30,7 @@ import compiler.storage.scope as st_scope
 enum StorageKind {
     ST_LOCAL,
     ST_ARG,
+    ST_GLOBALATTR,
     ST_CCAPTURE,
     ST_GLOBAL,
     ST_NUMLITERAL,
@@ -48,6 +49,10 @@ type StorageRef {
 func StorageRef.as_str {
     if self.kind == ST_LOCAL {
         return "L" + self.id.as_str()
+    } elseif self.kind == ST_GLOBALATTR {
+        assert(typename(self.id) == "list")
+        assert(self.id.len == 2)
+        return "GLA" + self.id[1].as_str() + "_" + self.id[2].as_str()
     } elseif self.kind == ST_CCAPTURE {
         return "CC" + self.id.as_str()
     } elseif self.kind == ST_ARG {

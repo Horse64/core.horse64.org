@@ -33,6 +33,7 @@ import compiler.ast.struct_or_union_stmt as struct_or_union_stmt
 import compiler.ast.type_stmt as type_stmt
 import compiler.ast.var_stmt as var_stmt
 import compiler.msg as msg
+import compiler.storage.ref as st_ref
 import compiler.storage.scope as st_scope
 import compiler.token as token
 import compiler.typeref as typeref
@@ -146,6 +147,9 @@ func GlobalScope.ensure_assigned_storage(
                     typeref.create_typeref_from_func_node(
                         project_file, value
                     )
+                si.typeref_expr.func_storage_ref = st_ref.StorageRef(
+                    st_ref.ST_GLOBAL, si.storage_id
+                )
             }
         }
     }
@@ -258,6 +262,12 @@ func GlobalScope.finalize_gscope_with_ast_tree_info(
                     symbol_info.typeref_expr =
                         typeref.create_typeref_from_func_node(
                             project_file, stmt
+                        )
+                    symbol_info.func_storage_ref =
+                        new st_ref.StorageRef(
+                            st_ref.ST_GLOBALATTR,
+                            [anscope.storage_id,
+                             symbol_info.storage_id]
                         )
                     anscope.name_to_symbol_map[lbl] =
                         symbol_info

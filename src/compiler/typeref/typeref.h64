@@ -80,6 +80,7 @@ func TypeRefMod.as_str {
 type TypeRefFuncExpr base TypeRefExpr {
     var arg_typeref_exprs = []
     var return_typeref_expr
+    var func_storage_ref
 }
 
 func TypeRefFuncExpr.init {
@@ -135,16 +136,25 @@ func TypeRefFuncExpr.as_code(indent=0) {
 func TypeRefFuncExpr.try_resolve_param_types(
         project_file, is_moose64=is_moose64
         ) {
+    var had_failure = no
     for argtexpr in self.arg_typeref_exprs {
-        argtexpr.try_resolve_to_user_type(
-            project_file, is_moose64=is_moose64
-        )
+        if argtexpr.try_resolve_to_user_type(
+                project_file, is_moose64=is_moose64
+                ) == none {
+            had_failure = yes
+        }
     }
     if self.return_typeref_expr != none {
-        self.return_typeref_expr.try_resolve_to_user_type(
-            project_file, is_moose64=is_moose64
-        )
+        if self.return_typeref_expr.try_resolve_to_user_type(
+                project_file, is_moose64=is_moose64
+                ) == none {
+            had_failure = yes
+        }
     }
+    if had_failure {
+        return none
+    }
+    return return_typeref_expr.func_storage_ref.copy()
 }
 
 func TypeRefFuncExpr.try_resolve_to_user_type(
