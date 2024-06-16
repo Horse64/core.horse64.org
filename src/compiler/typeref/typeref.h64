@@ -132,9 +132,25 @@ func TypeRefFuncExpr.as_code(indent=0) {
     return t
 }
 
+func TypeRefFuncExpr.try_resolve_param_types(
+        project_file, is_moose64=is_moose64
+        ) {
+    for argtexpr in self.arg_typeref_exprs {
+        argtexpr.try_resolve_to_user_type(
+            project_file, is_moose64=is_moose64
+        )
+    }
+    self.return_typeref_expr.try_resolve_to_user_type(
+        project_file, is_moose64=is_moose64
+    )
+}
+
 func TypeRefFuncExpr.try_resolve_to_user_type(
         project_file, is_moose64=is_moose64
         ) {
+    self.try_resolve_param_types(
+        project_file, is_moose64=is_moose64
+    )
     return none
 }
 
