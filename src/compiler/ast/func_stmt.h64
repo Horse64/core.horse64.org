@@ -72,7 +72,19 @@ func FuncStmt.as_json_obj {
 ## Returns the real, final argument count when considering
 ## all 'extend func' statements that apply to this function.
 func FuncStmt.extended_final_arg_count {
-    return node.func_scope.arg_names.len
+    return self.func_scope.arg_names.len
+}
+
+func FuncStmt.extended_final_arg_type_exprs {
+    return self.func_scope.arg_type_exprs.copy()
+}
+
+func FuncStmt.extended_final_has_return_type {
+    return self.func_scope.has_return_type
+}
+
+func FuncStmt.extended_final_return_type_expr {
+    return self.func_scope.return_type_expr
 }
 
 func _get_local_args_symbol_info_list(stmt) {

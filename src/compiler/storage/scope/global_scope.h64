@@ -144,7 +144,7 @@ func GlobalScope.ensure_assigned_storage(
             if value.kind == ast.N_STMT_FUNC {
                 si.typeref_expr =
                     typeref.create_typeref_from_func_node(
-                        project_file, si
+                        project_file, value
                     )
             }
         }

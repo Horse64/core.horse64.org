@@ -954,6 +954,16 @@ func project.Project.compute_all_scopes(
                             }
                         }
                     }
+                    # Remember the return type:
+                    if node.kind == ast.N_STMT_FUNC {
+                        node.func_scope.has_return_type =
+                            node.has_return_type
+                        assert(node.func_scope.return_type_expr == none)
+                        if node.has_return_type {
+                            node.func_scope.return_type_expr =
+                                node.subexprs[node.subexprs.len]
+                        }
+                    }
                     # If this is a func attribute, set association
                     # with the owning type:
                     var in_anscope = none
@@ -1002,7 +1012,9 @@ func project.Project.compute_all_scopes(
                     }
 
                     # Determine the final func arg list:
-                    var final_arg_labels = node.arg_labels
+                    var final_arg_labels = node.arg_labels.copy()
+                    var final_arg_type_exprs =
+                        node.get_local_args_type_expr_list()
                     var final_kw_arg_count = node.kw_arg_count
                     var invalid = no
                     if node.kind == ast.N_STMT_FUNCEXTEND and
@@ -1033,10 +1045,23 @@ func project.Project.compute_all_scopes(
                                 1, base_pos_args.len - base_kw_arg_count
                             )
                         }
+                        final_arg_labels = []
+                        final_arg_type_exprs = []
+                        var idx = 0
                         for new_arg_label in node.arg_labels {
+                            idx += 1
                             if not base_pos_args.has(new_arg_label) {
                                 final_arg_labels.add(new_arg_label)
                                 final_kw_arg_count += 1
+                                if not node.has_arg_types {
+                                    final_arg_type_exprs.add(
+                                        none
+                                    )
+                                    continue
+                                }
+                                final_arg_type_exprs.add(
+                                    node.get_local_args_type_expr_list()[
+                                        idx])
                                 continue
                             }
                             if msgs != none {
@@ -1081,7 +1106,8 @@ func project.Project.compute_all_scopes(
                             throw new ValueError("Duplicate func arg name.")
                         }
                         node.func_scope.add_arg(
-                            label, ast_node=node, project_file=pfile
+                            label, ast_node=node, project_file=pfile,
+                            type_expr=final_arg_type_exprs[idx]
                         )
                     }
                     # If this is a func attr, make sure the

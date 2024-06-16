@@ -81,6 +81,9 @@ type FuncScope {
     var last_inner_ccapture_id = 0
     var arg_names = []
     var arg_symbol_info = []
+    var arg_type_exprs = []
+    var has_return_type = no
+    var return_type_expr = none
     var is_type_attr = no
     var is_type_extend_attr = no
     var is_later_func = no
@@ -92,7 +95,9 @@ type FuncScope {
     var parent
 }
 
-func FuncScope.add_arg(name, ast_node=none, project_file=none) {
+func FuncScope.add_arg(
+        name, ast_node=none, type_expr=none,
+        project_file=none) {
     if self.arg_names.has(name) {
         throw new ValueError(
             "Invalid duplicate name specified, this "
@@ -110,6 +115,7 @@ func FuncScope.add_arg(name, ast_node=none, project_file=none) {
     sinfo.storage_id = self.arg_names.len + 1
     self.arg_symbol_info.add(sinfo)
     self.arg_names.add(name)
+    self.arg_type_exprs.add(type_expr)
 }
 
 extend type func_stmt.FuncStmt {

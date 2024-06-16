@@ -133,6 +133,22 @@ func TypeRefFuncExpr.as_code(indent=0) {
 }
 
 func create_typeref_from_func_node(project_file, node) {
+    assert(node.kind == ast.N_STMT_FUNC)
+    var type_expr = new TypeRefFuncExpr()
+    if node.has_arg_types {
+        var arg_count = node.extended_final_arg_count()
+        var i = 1
+        while i <= arg_count {
+            type_expr.arg_typeref_exprs.add(
+                node.extended_final_arg_type_exprs()[i]
+            )
+            i += 1
+        }
+    }
+    if node.extended_final_has_return_type() {
+        type_expr.return_typeref_expr =
+            node.extended_final_return_type_expr()
+    }
     return none
 }
 
