@@ -151,10 +151,11 @@ func TypeRefFuncExpr.try_resolve_param_types(
             had_failure = yes
         }
     }
-    if had_failure {
+    if had_failure or self.return_typeref_expr == none or
+            self.return_typeref_expr.func_storage_ref == none {
         return none
     }
-    return return_typeref_expr.func_storage_ref.copy()
+    return self.return_typeref_expr.func_storage_ref.copy()
 }
 
 func TypeRefFuncExpr.try_resolve_to_user_type(
