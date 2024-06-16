@@ -132,6 +132,12 @@ func TypeRefFuncExpr.as_code(indent=0) {
     return t
 }
 
+func TypeRefFuncExpr.try_resolve_to_user_type(
+        project_file, is_moose64=is_moose64
+        ) {
+    return none
+}
+
 func create_typeref_from_func_node(project_file, node) {
     assert(node.kind == ast.N_STMT_FUNC)
     var type_expr = new TypeRefFuncExpr()
