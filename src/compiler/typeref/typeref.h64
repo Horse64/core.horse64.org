@@ -149,7 +149,7 @@ func create_typeref_from_func_node(project_file, node) {
         type_expr.return_typeref_expr =
             node.extended_final_return_type_expr()
     }
-    return none
+    return type_expr
 }
 
 type TypeRefExpr base ast.TreeNode {

@@ -36,12 +36,12 @@ func get_c_or_m64_type_of_typeref(
         ) {
     var c_name = typeref.get_c_builtin_for_m64_base_type()
     if c_name != none {
-        return c_name
+        return later c_name
     }
     var m64_type_ref = typeref.try_resolve_to_user_type(
         project_file, is_moose64=yes
     )
-    return m64_type_ref
+    return later m64_type_ref
 }
 
 func get_c_or_m64_type_of_sym_info(
@@ -141,10 +141,13 @@ func _get_c_or_m64_type_of_node_do(
         if not node.has_type_expr {
             return later none
         }
-        return later get_c_or_m64_type_of_typeref(
+        var result = get_c_or_m64_type_of_typeref(
             project_file, node.subexprs[node.subexprs.len],
             msgs=msgs
-        )
+        ) later:
+
+        await result
+        return result
     } elseif node.kind == ast.N_EXPR_IDREF {
         if node.ref == none {
             return later none
