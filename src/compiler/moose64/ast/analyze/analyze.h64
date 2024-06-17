@@ -30,18 +30,26 @@ import compiler.msg as msg
 import compiler.storage.ref as st_ref
 import compiler.storage.scope.manage as scope_manage
 import compiler.token as token
+import compiler.typeinfo as typeinfo
 
 func get_c_or_m64_type_of_typeref(
         project_file, typeref, msgs=none
         ) {
     var c_name = typeref.get_c_builtin_for_m64_base_type()
     if c_name != none {
-        return later c_name
+        var tinfo = new typeinfo.TypeInfo(typeinfo.TI_C_TYPE)
+        tinfo.c_type_name = c_name
+        return later tinfo
     }
     var m64_type_ref = typeref.try_resolve_to_user_type(
         project_file, is_moose64=yes
     )
-    return later m64_type_ref
+    if m64_type_ref == none {
+        return later none
+    }
+    var tinfo = new typeinfo.TypeInfo(typeinfo.TI_USERTYPE)
+    tinfo.user_type_ref = m64_type_ref
+    return later tinfo
 }
 
 func get_c_or_m64_type_of_sym_info(
@@ -49,7 +57,9 @@ func get_c_or_m64_type_of_sym_info(
         target_sym_info, msgs=none
         ) {
     if target_sym_info.type_storage_ref != none {
-        return target_sym_info.type_storage_ref.copy()
+        var tinfo = new typeinfo.TypeInfo(typeinfo.TI_USERTYPE)
+        tinfo.user_type_ref = target_sym_info.type_storage_ref.copy()
+        return later tinfo
     }
     var typeref = target_sym_info.typeref_expr
     if typeref == none {
@@ -134,6 +144,8 @@ func _get_c_or_m64_type_of_node_do(
 
     await result
     if not result {
+        # This means there isn't a useful way we can derive
+        # any type from a left hand that's present.
         return later none
     }
 

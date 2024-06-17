@@ -37,6 +37,25 @@ extend type st_scope.SymbolInfo {
     var type_storage_ref
 }
 
+enum TypeInfoKind {
+    TI_H64_TYPE,
+    TI_C_TYPE,
+    TI_USERTYPE
+    TI_FUNCREF,
+}
+
+type TypeInfo {
+    var kind
+    var c_type_name
+    var user_type_ref
+    var func_typeexpr
+    var func_self_ref
+}
+
+func TypeInfo.init(ti_kind) {
+    self.kind = ti_kind
+}
+
 func try_resolve_symbol_typeref(
         project_file, var_decl_node, type_expr,
         sym_info, msgs, is_moose64=no
