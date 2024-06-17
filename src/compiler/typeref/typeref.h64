@@ -151,24 +151,26 @@ func TypeRefFuncExpr.try_resolve_param_types(
             had_failure = yes
         }
     }
-    if had_failure or self.return_typeref_expr == none or
-            self.return_typeref_expr.func_storage_ref == none {
-        return none
-    }
-    return self.return_typeref_expr.func_storage_ref.copy()
+    return not had_failure
 }
 
 func TypeRefFuncExpr.try_resolve_to_user_type(
         project_file, is_moose64=is_moose64
         ) {
-    self.try_resolve_param_types(
-        project_file, is_moose64=is_moose64
-    )
-    return none
+    if not self.try_resolve_param_types(
+            project_file, is_moose64=is_moose64
+            ) or self.func_storage_ref == none {
+        return none
+    }
+    return self.func_storage_ref.copy()
 }
 
 func create_typeref_from_func_node(project_file, node) {
     assert(node.kind == ast.N_STMT_FUNC)
+    if node.symbol_info != none and
+            node.symbol_info.typeref_expr != none {
+        return node.symbol_info.typeref_expr
+    }
     var type_expr = new TypeRefFuncExpr()
     if node.has_arg_types {
         var arg_count = node.extended_final_arg_count()

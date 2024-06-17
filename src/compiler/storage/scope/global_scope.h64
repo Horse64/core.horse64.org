@@ -263,12 +263,14 @@ func GlobalScope.finalize_gscope_with_ast_tree_info(
                         typeref.create_typeref_from_func_node(
                             project_file, stmt
                         )
-                    symbol_info.func_storage_ref =
+                    symbol_info.type_storage_ref =
                         new st_ref.StorageRef(
                             st_ref.ST_GLOBALATTR,
                             [anscope.storage_id,
                              symbol_info.storage_id]
                         )
+                    symbol_info.typeref_expr.func_storage_ref =
+                        symbol_info.type_storage_ref
                     anscope.name_to_symbol_map[lbl] =
                         symbol_info
                     assert(not anscope.
