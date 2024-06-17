@@ -56,6 +56,19 @@ func TypeInfo.init(ti_kind) {
     self.kind = ti_kind
 }
 
+func TypeInfo.as_str {
+    var t = "TypeInfo{"
+        "kind=" + TypeInfoKind.num_label(self.kind) + " "
+        "c_type_name=" + if self.c_type_name != none
+            (textfmt.as_escaped_code_string(self.c_type_name))
+            else ("none") + " "
+        "user_type_ref=" + self.user_type_ref.as_str() + " "
+        "func_typeexpr=" + self.func_typeexpr.as_str() + " "
+        "func_self_ref=" + self.func_self_ref.as_str() +
+        "}"
+    return t
+}
+
 func try_resolve_symbol_typeref(
         project_file, var_decl_node, type_expr,
         sym_info, msgs, is_moose64=no

@@ -415,6 +415,10 @@ func project.ProjectFile.make_attr_names_scope_from_funcattr(
         ) {
     assert(node.kind == ast.N_STMT_FUNC or
         node.kind == ast.N_STMT_FUNCEXTEND)
+    if node.func_scope != none and
+            node.func_scope.owning_type_scope != none {
+        return node.func_scope.owning_type_scope
+    }
     assert(node.type_path != none)
     var info = self.get_gscope_type_node_info_from_funcattr(
         node, msgs=msgs, is_moose64=is_moose64,

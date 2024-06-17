@@ -1511,6 +1511,13 @@ func project.Project.compute_all_scopes(
     later:
 
     await success
+    if success {
+        self.finalize_global_scope_attr_storage(msgs)
+        later:
+
+        return yes
+    }
+
     return success
 }
 

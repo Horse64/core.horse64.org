@@ -661,13 +661,13 @@ func Project.ensure_global_scope_for_full_project(
         file_queue.add(pfile)
     }
     if file_queue.len == 0 {
-        return
+        return later
     }
     var next_file = file_queue.pop()
     var _unused = process_file_fully(next_file) later:
     await _unused
     if file_queue.len == 0 {
-        return
+        return later
     }
     next_file = file_queue.pop()
     _unused = process_file_fully(next_file) later repeat

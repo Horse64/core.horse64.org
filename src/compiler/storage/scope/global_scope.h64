@@ -33,6 +33,7 @@ import compiler.ast.struct_or_union_stmt as struct_or_union_stmt
 import compiler.ast.type_stmt as type_stmt
 import compiler.ast.var_stmt as var_stmt
 import compiler.msg as msg
+import compiler.project as project
 import compiler.storage.ref as st_ref
 import compiler.storage.scope as st_scope
 import compiler.token as token
@@ -220,68 +221,68 @@ func GlobalScope.finalize_gscope_with_ast_tree_info(
         if {ast.N_STMT_FUNC, ast.N_STMT_STRUCT,
                 ast.N_STMT_TYPE}.has(stmt.kind) {
             var lbl = stmt.label
-            if not self.name_to_stmt_map.has(lbl) {
-                if stmt.symbol_info == none and
-                        stmt.kind == ast.N_STMT_FUNC and
-                        stmt.type_path != none and
-                        stmt.type_path.len > 0 {
-                    assert(stmt.scope == none)
-                    var anscope = project_file.
-                        make_attr_names_scope_from_funcattr(
-                            stmt, msgs=msgs, is_moose64=is_moose64,
-                            def_project_file=project_file
-                        )
-                    if anscope == none {
-                        # Note: error has already been emitted by
-                        # make_attr_names_scope_from_funcattr().
-                        continue
-                    }
-                    if anscope.name_to_symbol_map.has(lbl) {
-                        if msgs == none {
-                            throw new ValueError(
-                                "Duplicate func attr"
-                            )
-                        }
-                        msgs.add(new msg.FileMsg(
-                            "Invalid func attribute "
-                            "with duplicate name '" +
-                            lbl +
-                            "', already defined elsewhere.",
-                            source_file=project_file,
-                            line=stmt.line, col=stmt.col,
-                        ))
-                        continue
-                    }
-                    var symbol_info = new st_scope.SymbolInfo(lbl)
-                    symbol_info.kind = st_scope.SINFO_FUNCATTR
-                    symbol_info.def_line = stmt.line
-                    symbol_info.def_col = stmt.col
-                    symbol_info.def_file = project_file
-                    symbol_info.storage_id =
-                        anscope.name_to_symbol_map.len + 1
-                    symbol_info.typeref_expr =
-                        typeref.create_typeref_from_func_node(
-                            project_file, stmt
-                        )
-                    symbol_info.type_storage_ref =
-                        new st_ref.StorageRef(
-                            st_ref.ST_GLOBALATTR,
-                            [anscope.storage_id,
-                             symbol_info.storage_id]
-                        )
-                    symbol_info.typeref_expr.func_storage_ref =
-                        symbol_info.type_storage_ref
-                    anscope.name_to_symbol_map[lbl] =
-                        symbol_info
-                    assert(not anscope.
-                        id_to_symbol_map.has(lbl))
-                    anscope.id_to_symbol_map[lbl] =
-                        symbol_info.storage_id
-                    stmt.symbol_info = symbol_info
+            if stmt.symbol_info == none and
+                    stmt.kind == ast.N_STMT_FUNC and
+                    stmt.type_path != none and
+                    stmt.type_path.len > 0 {
+                assert(stmt.scope == none)
+                var anscope = project_file.
+                    make_attr_names_scope_from_funcattr(
+                        stmt, msgs=msgs, is_moose64=is_moose64,
+                        def_project_file=project_file
+                    )
+                if anscope == none {
+                    # Note: error has already been emitted by
+                    # make_attr_names_scope_from_funcattr().
+                    continue
                 }
+                if anscope.name_to_symbol_map.has(lbl) {
+                    if msgs == none {
+                        throw new ValueError(
+                            "Duplicate func attr"
+                        )
+                    }
+                    msgs.add(new msg.FileMsg(
+                        "Invalid func attribute "
+                        "with duplicate name '" +
+                        lbl +
+                        "', already defined elsewhere.",
+                        source_file=project_file,
+                        line=stmt.line, col=stmt.col,
+                    ))
+                    continue
+                }
+                var symbol_info = new st_scope.SymbolInfo(lbl)
+                symbol_info.kind = st_scope.SINFO_FUNCATTR
+                symbol_info.def_line = stmt.line
+                symbol_info.def_col = stmt.col
+                symbol_info.def_file = project_file
+                symbol_info.storage_id =
+                    anscope.name_to_symbol_map.len + 1
+                symbol_info.typeref_expr =
+                    typeref.create_typeref_from_func_node(
+                        project_file, stmt
+                    )
+                symbol_info.type_storage_ref =
+                    new st_ref.StorageRef(
+                        st_ref.ST_GLOBALATTR,
+                        [anscope.storage_id,
+                            symbol_info.storage_id]
+                    )
+                symbol_info.typeref_expr.func_storage_ref =
+                    symbol_info.type_storage_ref
+                anscope.name_to_symbol_map[lbl] =
+                    symbol_info
+                assert(not anscope.
+                    id_to_symbol_map.has(lbl))
+                anscope.id_to_symbol_map[lbl] =
+                    symbol_info.storage_id
+                stmt.symbol_info = symbol_info
                 continue
             }
+            assert(self.name_to_stmt_map.has(lbl))
             var si = self.name_to_stmt_map[lbl].symbol_info
+            assert(si != none)
             stmt.symbol_info = si
         } elseif stmt.kind == ast.N_STMT_VAR {
             if stmt.symbol_info == none {
@@ -565,5 +566,93 @@ func process_toplevel_stmt(
     next_entry = c_importer_queue.pop()
     result = next_entry[1].add_import_paths(next_entry[2])
     later repeat
+}
+
+func project.Project.finalize_global_scope_attr_storage(
+        msgs
+        ) {
+    if msgs != none {
+        for m in msgs {
+            if m.kind == msg.M_ERROR {
+                return later
+            }
+        }
+    }
+    var is_moose64 = self.is_moose64
+
+    func finalize_gscope(pfile) {
+        var gscope = pfile.global_scope
+        for name in gscope.name_to_stmt_map {
+            var value = gscope.name_to_stmt_map[name]
+            if typename(value) == "list" or
+                    not {ast.N_STMT_TYPE, ast.N_STMT_ENUM,
+                    ast.N_STMT_STRUCT}.has(value.kind) {
+                continue
+            }
+
+            var anscope = pfile.
+                make_attr_names_scope_from_node(
+                    value, msgs=msgs, is_moose64=is_moose64,
+                    def_project_file=pfile
+                )
+            if anscope == none {
+                continue
+            }
+            anscope.storage_id = value.symbol_info.storage_id
+        }
+
+        return later yes
+    }
+    var success = self.do_for_all_files(finalize_gscope)
+    later:
+
+    await success
+
+    func finalize_attr_storage(pfile) {
+        pfile.ensure_ast() later:
+
+        var ast_tree = pfile.ast
+        for stmt in ast_tree.stmts {
+            if {ast.N_STMT_FUNC, ast.N_STMT_STRUCT,
+                    ast.N_STMT_TYPE}.has(stmt.kind) {
+                var lbl = stmt.label
+                if stmt.kind != ast.N_STMT_FUNC or
+                        stmt.type_path == none or
+                        stmt.type_path.len == 0 or
+                        stmt.damaged {
+                    continue
+                }
+                assert(stmt.symbol_info != none)
+                assert(stmt.symbol_info.kind == st_scope.SINFO_FUNCATTR)
+                assert(stmt.symbol_info.type_storage_ref != none)
+                assert(stmt.symbol_info.typeref_expr != none)
+                assert(stmt.symbol_info.type_storage_ref ==
+                    stmt.symbol_info.typeref_expr.func_storage_ref)
+                assert(stmt.symbol_info.type_storage_ref.kind ==
+                    st_ref.ST_GLOBALATTR)
+                assert(typename(stmt.symbol_info.
+                    type_storage_ref.id) == "list")
+
+                var anscope = pfile.
+                    make_attr_names_scope_from_funcattr(
+                        stmt, msgs=msgs, is_moose64=is_moose64,
+                        def_project_file=pfile
+                    )
+                if anscope == none {
+                    continue
+                }
+
+                assert(anscope.storage_id != none)
+                stmt.symbol_info.type_storage_ref.id[1] =
+                    anscope.storage_id
+            }
+        }
+
+        return later yes
+    }
+    var success = self.do_for_all_files(finalize_attr_storage)
+    later:
+
+    await success
 }
 
