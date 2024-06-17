@@ -47,8 +47,10 @@ func get_c_or_m64_type_of_typeref(
     if m64_type_ref == none {
         return later none
     }
-    var tinfo = new typeinfo.TypeInfo(typeinfo.TI_USERTYPE)
-    tinfo.user_type_ref = m64_type_ref
+    var tinfo = new typeinfo.create_typeinfo_from_ref(
+        m64_type_ref.type_storage_ref,
+        base_typeref_if_known=m64_type_ref
+    )
     return later tinfo
 }
 
@@ -57,8 +59,11 @@ func get_c_or_m64_type_of_sym_info(
         target_sym_info, msgs=none
         ) {
     if target_sym_info.type_storage_ref != none {
-        var tinfo = new typeinfo.TypeInfo(typeinfo.TI_USERTYPE)
-        tinfo.user_type_ref = target_sym_info.type_storage_ref.copy()
+        var tinfo = new typeinfo.create_typeinfo_from_ref(
+            target_sym_info.type_storage_ref,
+            base_symbol_info_if_known=target_sym_info,
+            base_node_if_known=node_with_reference
+        )
         return later tinfo
     }
     var typeref = target_sym_info.typeref_expr

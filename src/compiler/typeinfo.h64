@@ -30,6 +30,7 @@ import compiler.ast.analyze as ast_analyze
 import compiler.ast.transform as ast_transform
 import compiler.builtin_syms as builtin_syms
 import compiler.msg as msg
+import compiler.storage.ref as st_ref
 import compiler.storage.scope as st_scope
 
 extend type st_scope.SymbolInfo {
@@ -240,5 +241,46 @@ func ensure_all_type_info(project, msgs, is_moose64=no) {
         result, msgs
     )
     return later result
+}
+
+func create_typeinfo_from_ref(
+        target_ref, base_typeref_if_known=none,
+        base_node_if_known=none,
+        base_symbol_info_if_known=none
+        ) {
+    if (base_typeref_if_known != none and
+            base_typeref_if_known.is_func_ref) or
+            (base_symbol_info_if_known != none and
+             {st_scope.SINFO_FUNC, st_scope.SINFO_FUNCATTR}.has(
+                 base_symbol_info_if_known.kind
+             )) {
+        assert(target_ref.kind != st_ref.ST_LOCAL)
+        var tinfo = new TypeInfo(
+            TI_FUNCREF
+        )
+        if base_typeref_if_known != none {
+            tinfo.func_typeexpr =
+                base_typeref_if_known.copy()
+        } else {
+            tinfo.func_typeexpr =
+                base_symbol_info_if_known.typeref_expr.copy()
+        }
+        if base_symbol_info_if_known != none and
+                base_symbol_info_if_known.kind == st_scope.SINFO_FUNCATTR and
+                base_node_if_known != none and
+                base_node_if_known.kind == ast.N_EXPR_IDREF and
+                base_node_if_known.ref != none and
+                {st_ref.ST_LOCAL, st_ref.ST_GLOBAL}.has(
+                    base_node_if_known.ref.kind
+                ) {
+            # This must be the item we're accessing the function
+            # on, and it's a concrete instance.
+            tinfo.type_storage_ref = base_node_if_known.ref.copy()
+        }
+        return tinfo
+    }
+    var tinfo = new TypeInfo(TI_USERTYPE)
+    tinfo.user_type_ref = target_ref.copy()
+    return tinfo
 }
 
