@@ -43,7 +43,9 @@ func get_c_or_m64_type_of_typeref(
     }
     var m64_type_ref = typeref.try_resolve_to_user_type(
         project_file, is_moose64=yes
-    )
+    ) later:
+
+    await m64_type_ref
     if m64_type_ref == none {
         return later none
     }

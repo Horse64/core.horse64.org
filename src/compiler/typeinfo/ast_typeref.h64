@@ -134,35 +134,71 @@ func TypeRefFuncExpr.as_code(indent=0) {
 }
 
 func TypeRefFuncExpr.try_resolve_param_types(
-        project_file, is_moose64=is_moose64
+        project_file, recursive=no, is_moose64=is_moose64
         ) {
     var had_failure = no
-    for argtexpr in self.arg_typeref_exprs {
-        if argtexpr.try_resolve_to_user_type(
-                project_file, is_moose64=is_moose64
-                ) == none {
+
+    func resolve_item(item) {
+        var result = item.try_resolve_param_types(
+            project_file, recursive=recursive,
+            skip_params=(not recursive),
+            is_moose64=is_moose64
+        ) later:
+
+        await result
+        if not result {
             had_failure = yes
         }
     }
+
+    var queue = self.arg_typeref_exprs.copy()
     if self.return_typeref_expr != none {
-        if self.return_typeref_expr.try_resolve_to_user_type(
-                project_file, is_moose64=is_moose64
-                ) == none {
-            had_failure = yes
-        }
+        queue.add(self.return_typeref_expr)
     }
-    return not had_failure
+    if queue.len == 0 {
+        return later not had_failure
+    }
+    var item = queue.pop()
+    var _unused = resolve_item(item)
+    later:
+
+    await _unused
+    arg_var_types.add(item)
+
+    if queue.len == 0 {
+        return later not had_failure
+    }
+    item = queue.pop()
+    _unused = resolve_arg_type(item) later repeat
 }
 
 func TypeRefFuncExpr.try_resolve_to_user_type(
-        project_file, is_moose64=is_moose64
+        project_file, recursive=no, skip_params=no,
+        is_moose64=is_moose64
         ) {
-    if not self.try_resolve_param_types(
-            project_file, is_moose64=is_moose64
-            ) or self.func_storage_ref == none {
-        return none
+    func run_concurrent {
+        if skip_params {
+            return later yes
+        }
+        var result = self.try_resolve_param_types(
+            project_file, recursive=recursive,
+            is_moose64=is_moose64
+        ) later:
+
+        await result
+        if not result or self.func_storage_ref == none {
+            return later no
+        }
+        return later yes
     }
-    return self.func_storage_ref.copy()
+    var result = run_concurrent()
+
+    later:
+    await result
+    if not result {
+        return later none
+    }
+    return later self.func_storage_ref.copy()
 }
 
 func create_typeref_from_func_node(project_file, node) {
@@ -277,7 +313,7 @@ func TypeRefExpr.try_resolve_to_user_type(
         none, name=self.name, type_path=type_path,
         is_write_access=no, is_moose64=is_moose64
     )
-    return result
+    return later result
 }
 
 func TypeRefExpr.get_c_builtin_for_m64_base_type {

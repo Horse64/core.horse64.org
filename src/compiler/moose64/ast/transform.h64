@@ -48,6 +48,84 @@ type DeferAddedStatements {
     var stmts_added_before_node = []
 }
 
+func get_called_func_types(
+        project_file, called_node, called_node_parent,
+        msgs=none
+        ) {
+    if called_node.damaged {
+        return later none
+    }
+
+    var func_typeinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
+        project_file, called_node, called_node_parent, msgs=msgs
+    ) later:
+
+    await func_typeinfo
+    if func_typeinfo == none {
+        if msgs == none {
+            throw new RuntimeError("Failed to determine node type, "
+                "internal error.")
+        }
+        msgs.add(new msg.FileMsg(
+            "Unexpectedly failed to determine C type of "
+            "called function. Did you use cyclic references?",
+            kind=msg.M_ERROR, source_file=project_file,
+            line=called_node_parent.line,
+            col=called_node_parent.col,
+        ))
+        node.damaged = yes
+        had_no_error = no
+        return later none
+    }
+    if func_typeinfo.kind != typeinfo.TI_FUNCREF {
+        if msgs == none {
+            throw new RuntimeError("The called node isn't a function.")
+        }
+        msgs.add(new msg.FileMsg(
+            "Unexpected call to non-function item, "
+            "this isn't allowed.",
+            kind=msg.M_ERROR, source_file=project_file,
+            line=called_node_parent.line,
+            col=called_node_parent.col,
+        ))
+        node.damaged = yes
+        had_no_error = no
+        return later none
+    }
+
+    # Ensure that the func type we access is sound:
+    var m64_type_ref = func_typeinfo.func_typeexpr.
+        try_resolve_to_user_type(
+            project_file, is_moose64=yes,
+            recursive=yes
+        ) later:
+
+    await m64_type_ref
+    if m64_type_ref == none {
+        if msgs == none {
+            throw new RuntimeError("Failed to trace back to user type.")
+        }
+        msgs.add(new msg.FileMsg(
+            "Unexpected reference to a broken type, "
+            "the referenced type or any nested type inside "
+            "wasn't found.",
+            kind=msg.M_ERROR, source_file=project_file,
+            line=node.subexprs[1].line,
+            col=node.subexprs[1].col,
+        ))
+        node.damaged = yes
+        had_no_error = no
+        return later none
+    }
+
+    # Return assembled result:
+    var self_type = func_typeinfo.func_self_ref
+    var func_var_type = func_typeinfo.func_typeexpr
+    var arg_var_types = []
+
+    return later [func_var_type, self_type, arg_var_types]
+}
+
 func transform_defer(project_file, ast_result, msgs) {
     var node_to_defer_added_stmts_map = {->}
     var last_sorting_prio = 1
@@ -77,38 +155,18 @@ func transform_defer(project_file, ast_result, msgs) {
         assert(node.subexprs.len == 1)
         assert(node.subexprs[1].kind == ast.N_EXPR_BINOP)
         assert(node.subexprs[1].optoken.str == '(')
-        var func_typeinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
+        var result = get_called_func_types(
             project_file, node.subexprs[1].subexprs[1],
             node.subexprs[1], msgs=msgs
         ) later:
 
-        await func_typeinfo
-        if func_typeinfo == none {
-            msgs.add(new msg.FileMsg(
-                "Unexpectedly failed to determine C type of "
-                "deferred function. Did you use cyclic references?",
-                kind=msg.M_ERROR, source_file=project_file,
-                line=node.subexprs[1].line,
-                col=node.subexprs[1].col,
-            ))
-            node.damaged = yes
-            had_no_error = no
+        await result
+        if result == none {
             return later node
         }
-        if func_typeinfo.kind != typeinfo.TI_FUNCREF {
-            msgs.add(new msg.FileMsg(
-                "Unexpected call to non-function item, "
-                "this isn't allowed.",
-                kind=msg.M_ERROR, source_file=project_file,
-                line=node.subexprs[1].line,
-                col=node.subexprs[1].col,
-            ))
-            node.damaged = yes
-            had_no_error = no
-            return later node
-        }
-        var func_var_type = func_typeinfo.func_typeexpr
-        var arg_var_types = []
+        var func_var_type = result[1]
+        var self_type = result[2]
+        var arg_var_types = result[3]
 
         if parent.kind == ast.N_STMT_FUNC {
             assert(parent.subblocks[1].len > 0)

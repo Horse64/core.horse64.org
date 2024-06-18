@@ -76,7 +76,7 @@ func try_resolve_symbol_typeref(
         ) {
     if var_decl_node.damaged or
             sym_info.type_storage_ref != none {
-        return
+        return later
     }
     sym_info.typeref_expr = type_expr.copy()
     var name = sym_info.name
@@ -105,10 +105,12 @@ func try_resolve_symbol_typeref(
     }
     var st_ref = type_expr.try_resolve_to_user_type(
         project_file, is_moose64=is_moose64
-    )
+    ) later:
+
+    await st_ref
     if st_ref != none {
         sym_info.type_storage_ref = st_ref
-        return
+        return later
     }
     var_decl_node.damaged = yes
     msgs.add(new msg.FileMsg(
@@ -119,7 +121,7 @@ func try_resolve_symbol_typeref(
         line=var_decl_node.line,
         col=var_decl_node.col,
     ))
-    return
+    return later
 }
 
 func ensure_type_info_for_file(project_file, msgs, is_moose64=no) {
@@ -146,14 +148,34 @@ func ensure_type_info_for_file(project_file, msgs, is_moose64=no) {
             }
             var type_expr = node.subexprs[node.subexprs.len]
             var idx = 0
-            for lbl in node.var_labels {
-                idx += 1
-                try_resolve_symbol_typeref(
-                    project_file, node, type_expr,
-                    node.symbol_info[idx], msgs,
-                    is_moose64=is_moose64
-                )
+            func process_labels {
+                func handle_label(lbl) {
+                    idx += 1
+                    try_resolve_symbol_typeref(
+                        project_file, node, type_expr,
+                        node.symbol_info[idx], msgs,
+                        is_moose64=is_moose64
+                    ) later:
+                }
+                var queue = node.var_labels.copy()
+                if queue.len == 0 {
+                    return later
+                }
+                var item = queue.pop()
+                var _unused = handle_label(item)
+                later:
+
+                await _unused
+                if queue.len == 0 {
+                    return later
+                }
+                item = queue.pop()
+                _unused = handle_label(item) later repeat
             }
+            process_labels()
+            later:
+
+            return later node
         } elseif node.kind == ast.N_STMT_FUNC or
                 node.kind == ast.N_STMT_FUNCEXTEND {
             if node.symbol_info == none or
@@ -170,29 +192,55 @@ func ensure_type_info_for_file(project_file, msgs, is_moose64=no) {
                 node.damaged = yes
                 return later node
             }
-            if node.kind != ast.N_STMT_FUNCEXTEND and
-                    node.has_return_type {
+            func handle_return_type {
+                if node.kind == ast.N_STMT_FUNCEXTEND or
+                        not node.has_return_type {
+                    return later
+                }
                 var type_expr = node.subexprs[node.subexprs.len]
                 try_resolve_symbol_typeref(
                     project_file, node, type_expr,
                     node.symbol_info, msgs,
                     is_moose64=is_moose64
-                )
+                ) later:
             }
-            if node.has_arg_types {
-                var sinfo_list = node.get_local_args_symbol_info_list()
-                var type_expr_list =
-                    node.get_local_args_type_expr_list()
-                var i = 1
-                while i <= sinfo_list.len {
+            handle_return_type()
+            later:
+
+            func process_args {
+                func handle_arg(expr_item, sinfo_item) {
                     try_resolve_symbol_typeref(
-                        project_file, node, type_expr_list[i],
-                        sinfo_list[i], msgs,
+                        project_file, node, expr_item,
+                        sinfo_item, msgs,
                         is_moose64=is_moose64
-                    )
-                    i += 1
+                    ) later:
                 }
+                var queue = []
+                var exprlist = node.get_local_args_type_expr_list()
+                var idx = 0
+                for item in node.get_local_args_symbol_info_list() {
+                    idx += 1
+                    queue.add([exprlist[idx], item])
+                }
+                if queue.len == 0 {
+                    return later
+                }
+                var item = queue.pop()
+                var _unused = handle_arg(item[1], item[2])
+                later:
+
+                await _unused
+                if queue.len == 0 {
+                    return later
+                }
+                item = queue.pop()
+                _unused = handle_arg(item[1], item[2])
+                later repeat
             }
+            process_args()
+            later:
+
+            return later node
         }
         return later node
     }
