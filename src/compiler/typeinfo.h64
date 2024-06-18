@@ -275,7 +275,7 @@ func create_typeinfo_from_ref(
                 ) {
             # This must be the item we're accessing the function
             # on, and it's a concrete instance.
-            tinfo.type_storage_ref = base_node_if_known.ref.copy()
+            tinfo.func_self_ref = base_node_if_known.ref.copy()
         }
         return tinfo
     }
