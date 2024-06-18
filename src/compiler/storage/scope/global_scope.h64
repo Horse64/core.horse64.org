@@ -37,7 +37,7 @@ import compiler.project as project
 import compiler.storage.ref as st_ref
 import compiler.storage.scope as st_scope
 import compiler.token as token
-import compiler.typeref as typeref
+import compiler.typeinfo.ast_typeref as ast_typeref
 
 import compiler.moose64.c_importer as c_importer
 
@@ -145,7 +145,7 @@ func GlobalScope.ensure_assigned_storage(
             storage_num += 1
             if value.kind == ast.N_STMT_FUNC {
                 si.typeref_expr =
-                    typeref.create_typeref_from_func_node(
+                    ast_typeref.create_typeref_from_func_node(
                         project_file, value
                     )
                 si.typeref_expr.func_storage_ref = st_ref.StorageRef(
@@ -260,7 +260,7 @@ func GlobalScope.finalize_gscope_with_ast_tree_info(
                 symbol_info.storage_id =
                     anscope.name_to_symbol_map.len + 1
                 symbol_info.typeref_expr =
-                    typeref.create_typeref_from_func_node(
+                    ast_typeref.create_typeref_from_func_node(
                         project_file, stmt
                     )
                 symbol_info.type_storage_ref =

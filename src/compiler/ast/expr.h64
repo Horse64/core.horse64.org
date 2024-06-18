@@ -34,7 +34,7 @@ import compiler.limit as climit
 import compiler.msg as msg
 import compiler.operator as operator
 import compiler.token as token
-import compiler.typeref as typeref
+import compiler.typeinfo.ast_typeref as ast_typeref
 
 enum ContainerKind {
     C_SET,
@@ -2001,7 +2001,7 @@ func _parse_call_or_funcdef_args_notlater(
                 pos <= tokens_len and
                 tokens[pos].kind == token.T_LEFTPTR {
             pos += 1
-            var v = typeref._parse_typeref_notlater(
+            var v = ast_typeref._parse_typeref_notlater(
                 tokens, pos, msgs, project_file=project_file,
                 max_len=tokens_len, is_moose64=is_moose64,
                 debug=debug
