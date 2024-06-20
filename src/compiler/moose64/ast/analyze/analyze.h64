@@ -25,6 +25,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import random from core.horse64.org
+
 import compiler.ast as ast
 import compiler.msg as msg
 import compiler.storage.ref as st_ref
@@ -96,9 +98,12 @@ func _get_c_or_m64_type_of_node_do(
         return later _known_types_map[node]
     }
 
+    var d_id = none
     if debug {
+        d_id = random.gen_id()
         print("compiler.moose64.ast.anayze: debug: "
-            "_get_c_or_m64_type_of_node_do() on: " +
+            "_get_c_or_m64_type_of_node_do() #" +
+            d_id + " on: " +
             node.as_str())
     }
     func trigger_no_symbol_info_on(node) {
@@ -188,8 +193,20 @@ func _get_c_or_m64_type_of_node_do(
         )
 
         if sym_info == none {
+            if debug {
+                print("compiler.moose64.ast.anayze: debug: "
+                    "_get_c_or_m64_type_of_node_do() #" +
+                    d_id + " failed "
+                    "to find symbol info")
+            }
             trigger_no_symbol_info_on(node)
             return later none
+        }
+        if debug {
+            print("compiler.moose64.ast.anayze: debug: "
+                "_get_c_or_m64_type_of_node_do() #" +
+                d_id + " got "
+                "symbol info: " + sym_info.as_str())
         }
         var result = get_c_or_m64_type_of_sym_info(
             project_file, node, sym_info, msgs=msgs

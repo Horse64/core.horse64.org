@@ -95,6 +95,12 @@ func parse(tokens, pos, msgs, project_file=none,
             not token.check_tokens_consumed_by_return(
             tokens, pos, max_len=tokens_len, is_moose64=is_moose64
             ) {
+        if is_moose64 {
+            stmt.is_empty = yes
+        } else {
+            var empty_expr = new ast_expr.LiteralExpr()
+            stmt.subexprs.add(empty_expr)
+        }
         stmt.token_len = (pos - startpos)
         return stmt
     }
@@ -108,7 +114,7 @@ func parse(tokens, pos, msgs, project_file=none,
     await v
     if v == none {
         if is_moose64 {
-            self.is_empty = yes
+            stmt.is_empty = yes
         } else {
             var empty_expr = new ast_expr.LiteralExpr()
             stmt.subexprs.add(empty_expr)

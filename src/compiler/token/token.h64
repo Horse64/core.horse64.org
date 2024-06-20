@@ -996,7 +996,7 @@ func token_has_righthand(t) {
             "type", "later", "extend", "in",
             "as", "from", "with", "for", "if",
             "elseif", "else", "do", "rescue",
-            "finally", "await",
+            "finally", "await", "failable",
             "var", "const", "throw",
             "enum"}.has(t.str)) or
             t.kind == T_NEWOP {
@@ -1022,7 +1022,7 @@ func token_has_lefthand(t) {
         return yes
     }
     if t.kind == T_KEYWORD and {
-            "as", "from", "in",
+            "as", "from", "in", "failable",
             "elseif", "else", "rescue",
             "finally", "later",
             "protect"}.has(t.str) {
@@ -1041,7 +1041,7 @@ func is_special_word(value, is_moose64=no) {
             value.kind == T_NONE or
             value.kind == T_BOOLCOMP
     }
-    if is_moose64 and {"c_import",
+    if is_moose64 and {"c_import", "failable", "failed",
             "union"}.has(value) {
         return yes
     }

@@ -150,7 +150,10 @@ func get_called_func_types(
         if not get_typeref_exprs_instead_of_typeinfo {
             return later
         }
-        self_type_expr = self_type_typeinfo.convert_to_typeref_expr()
+        self_type_expr = self_type_typeinfo.convert_to_typeref_expr(
+            in_project_file=project_file,
+            in_local_scope=called_node.scope,
+        )
         if self_type_expr == none {
             if msgs == none {
                 throw new RuntimeError("Failed to trace back to self type.")

@@ -32,6 +32,7 @@ import compiler.builtin_syms as builtin_syms
 import compiler.msg as msg
 import compiler.storage.ref as st_ref
 import compiler.storage.scope as st_scope
+import compiler.typeinfo.ast_typeref as ast_typeref
 
 extend type st_scope.SymbolInfo {
     var typeref_expr
@@ -39,9 +40,9 @@ extend type st_scope.SymbolInfo {
 }
 
 enum TypeInfoKind {
-    TI_H64_TYPE,
+    TI_H64BUILTIN_TYPE,
     TI_C_TYPE,
-    TI_USERTYPE
+    TI_USERTYPE,
     TI_FUNCREF,
 }
 
@@ -53,9 +54,21 @@ enum TypeInfoKind {
 type TypeInfo {
     var kind
     var c_type_name
+    var type_ref_mods = []
+
+    ## For `TI_USERTYPE` or `TI_FUNCREF`, this holds a @{compiler.
+    ## storage.ref.StorageRef} that points to the global scope item.
     var user_type_ref
+
+    ## For `TI_FUNCREF`, this retains the @{compiler.typeinfo.
+    ## ast_typeref.TypeRefFuncExpr} with the exact parameter types.
     var func_typeexpr
+
+    ## For `TI_FUNCREF`, this is either @{none} or if it was a func attr
+    ## on an object instance, the @{compiler.storage.ref.StorageRef}
+    ## that points to the concrete object instance.
     var func_self_ref
+
     var _orig_typeexpr protect
 }
 
@@ -80,11 +93,72 @@ func TypeInfo._set_orig_type_expr(texpr) {
     self._orig_typeexpr = texpr.copy()
 }
 
-func TypeInfo.convert_to_typeref_expr {
+func TypeInfo.convert_to_typeref_expr(
+        in_project_file=none, in_local_scope=none
+        ) {
     if self.func_typeexpr != none {
         return self.func_typeexpr.copy()
     } elseif self._orig_typeexpr != none {
         return self._orig_typeexpr.copy()
+    } elseif self.user_type_ref != none and
+            in_project_file != none and
+            {st_ref.ST_GLOBAL,
+             st_ref.ST_MCREF}.has(self.user_type_ref.kind) {
+        var pfile = in_project_file
+        var local_gscope = in_project_file.global_scope
+        if self.user_type_ref.kind == st_ref.ST_GLOBAL and
+                pfile.project != none and
+                pfile.project.storage_id_to_global_scope_map.has(
+                    self.user_type_ref.id
+                ) {
+            var gscope = pfile.project.
+                storage_id_to_global_scope_map[self.user_type_ref.id]
+            var gscope_node = gscope.storage_id_to_entry[
+                self.user_type_ref.id
+            ]
+            if gscope_node.kind == ast.N_STMT_STRUCT {
+                var texpr = new ast_typeref.TypeRefExpr()
+                texpr.name = gscope_node.label
+                if gscope != local_gscope {
+                    # It's in a different module, try to set the
+                    # import path according to our actual local import
+                    # statements:
+                    var found = no
+                    for name in local_gscope.name_to_stmt_map {
+                        var item = local_gscope.name_to_stmt_map[name]
+                        if typename(item) != "list" {  # Not an import.
+                            continue
+                        }
+                        for importst in item {
+                            if importst.kind != ast.N_STMT_IMPORT {
+                                continue
+                            }
+                            if importst.project_file != none and
+                                    importst.project_file.
+                                    global_scope == gscope {
+                                found = yes
+                                if importst.renamed_as != none {
+                                    texpr.type_path = [
+                                        importst.renamed_as
+                                    ]
+                                } else {
+                                    texpr.type_path =
+                                        importst.module_path.copy()
+                                }
+                                break
+                            }
+                            if found {
+                                break
+                            }
+                        }
+                    }
+                }
+                for mod in self.type_ref_mods {
+                    texpr.modifiers.add(texpr.copy())
+                }
+                return texpr
+            }
+        }
     }
     return none
 }
