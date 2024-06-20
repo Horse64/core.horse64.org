@@ -45,12 +45,18 @@ enum TypeInfoKind {
     TI_FUNCREF,
 }
 
+## This is a concrete type info instance based on what was
+## previously described on a syntactical level by
+## @{compiler.typeinfo.ast_typeref.TypeRefExpr}.
+## The main dfference is that the concrete type info can
+## be bound to closure values like the self value.
 type TypeInfo {
     var kind
     var c_type_name
     var user_type_ref
     var func_typeexpr
     var func_self_ref
+    var _orig_typeexpr protect
 }
 
 func TypeInfo.init(ti_kind) {
@@ -68,6 +74,19 @@ func TypeInfo.as_str {
         "func_self_ref=" + self.func_self_ref.as_str() +
         "}"
     return t
+}
+
+func TypeInfo._set_orig_type_expr(texpr) {
+    self._orig_typeexpr = texpr.copy()
+}
+
+func TypeInfo.convert_to_typeref_expr {
+    if self.func_typeexpr != none {
+        return self.func_typeexpr.copy()
+    } elseif self._orig_typeexpr != none {
+        return self._orig_typeexpr.copy()
+    }
+    return none
 }
 
 func try_resolve_symbol_typeref(
@@ -103,7 +122,7 @@ func try_resolve_symbol_typeref(
             return
         }
     }
-    var st_ref = type_expr.try_resolve_to_user_type(
+    var st_ref = type_expr.try_resolve_to_user_type   (
         project_file, is_moose64=is_moose64
     ) later:
 
@@ -291,13 +310,13 @@ func ensure_all_type_info(project, msgs, is_moose64=no) {
     return later result
 }
 
-func create_typeinfo_from_ref(
-        target_ref, base_typeref_if_known=none,
+func create_typeinfo_from_global_ref(
+        target_ref, base_typeref_expr_if_known=none,
         base_node_if_known=none,
-        base_symbol_info_if_known=none
+        base_symbol_info_if_known=none,
         ) {
-    if (base_typeref_if_known != none and
-            base_typeref_if_known.is_func_ref) or
+    if (base_typeref_expr_if_known != none and
+            base_typeref_expr_if_known.is_func_ref) or
             (base_symbol_info_if_known != none and
              {st_scope.SINFO_FUNC, st_scope.SINFO_FUNCATTR}.has(
                  base_symbol_info_if_known.kind
@@ -306,9 +325,9 @@ func create_typeinfo_from_ref(
         var tinfo = new TypeInfo(
             TI_FUNCREF
         )
-        if base_typeref_if_known != none {
+        if base_typeref_expr_if_known != none {
             tinfo.func_typeexpr =
-                base_typeref_if_known.copy()
+                base_typeref_if_expr_known.copy()
         } else {
             tinfo.func_typeexpr =
                 base_symbol_info_if_known.typeref_expr.copy()
@@ -327,6 +346,7 @@ func create_typeinfo_from_ref(
         }
         return tinfo
     }
+    assert(target_ref.kind != st_ref.ST_LOCAL)
     var tinfo = new TypeInfo(TI_USERTYPE)
     tinfo.user_type_ref = target_ref.copy()
     return tinfo

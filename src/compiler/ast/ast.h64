@@ -164,6 +164,46 @@ func TreeNode.is_stmt {
     return no
 }
 
+func set_node_parent_block(node, parent, new_block) {
+    if parent == none {
+        throw ValueError("No parent given to set block for.")
+    }
+    var search_blocks = []
+    if parent.kind == N_STMT_IF or
+            parent.kind == N_STMT_DO {
+        for clause in parent.subexprs {
+            if not {N_EXPR_IFELSECLAUSE,
+                    N_EXPR_RESCUECLAUSE,
+                    N_EXPR_FINALLYCLAUSE
+                    }.has(clause.kind) {
+                continue
+            }
+            var idx = 0
+            for subblock in cause.subblocks {
+                idx += 1
+                search_blocks.add([clause, idx, subblock])
+            }
+        }
+    }
+    var idx = 0
+    for subblock in parent.subblocks {
+        idx += 1
+        search_blocks.add([parent, idx, subblock])
+    }
+    for entry in search_blocks {
+        var block_owner = entry[1]
+        var block_idx = entry[2]
+        var block = entry[3]
+        var idx = block.find(node)
+        if idx == none {
+            continue
+        }
+        block_owner.subblocks[block_idx] = new_block
+        return
+    }
+    throw ValueError("Failed to find block in parent.")
+}
+
 func get_node_parent_block(node, parent) {
     if parent == none {
         return none

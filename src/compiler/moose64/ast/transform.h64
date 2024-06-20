@@ -28,10 +28,14 @@
 import random from core.horse64.org
 
 import compiler.ast as ast
+import compiler.ast.builder as ast_builder
+import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
+import compiler.ast.expr as ast_expr
 import compiler.ast.return_stmt as return_stmt
 import compiler.ast.transform as ast_transform
 import compiler.moose64.ast.analyze as m64_ast_analyze
 import compiler.msg as msg
+import compiler.token as token
 import compiler.typeinfo as typeinfo
 
 type DeferInfo {
@@ -44,12 +48,13 @@ type DeferInfo {
 
 type DeferAddedStatements {
     var defer_infos = []
-    var stmts_added_to_inner_block = []
+    var stmts_added_after_node = []
     var stmts_added_before_node = []
 }
 
 func get_called_func_types(
         project_file, called_node, called_node_parent,
+        get_typeref_exprs_instead_of_typeinfo=no,
         msgs=none
         ) {
     if called_node.damaged {
@@ -57,7 +62,8 @@ func get_called_func_types(
     }
 
     var func_typeinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
-        project_file, called_node, called_node_parent, msgs=msgs
+        project_file, called_node, called_node_parent,
+        msgs=msgs
     ) later:
 
     await func_typeinfo
@@ -73,7 +79,7 @@ func get_called_func_types(
             line=called_node_parent.line,
             col=called_node_parent.col,
         ))
-        node.damaged = yes
+        called_node.damaged = yes
         had_no_error = no
         return later none
     }
@@ -88,7 +94,7 @@ func get_called_func_types(
             line=called_node_parent.line,
             col=called_node_parent.col,
         ))
-        node.damaged = yes
+        called_node.damaged = yes
         had_no_error = no
         return later none
     }
@@ -110,20 +116,73 @@ func get_called_func_types(
             "the referenced type or any nested type inside "
             "wasn't found.",
             kind=msg.M_ERROR, source_file=project_file,
-            line=node.subexprs[1].line,
-            col=node.subexprs[1].col,
+            line=called_node.line,
+            col=called_node.col,
         ))
-        node.damaged = yes
+        called_node.damaged = yes
         had_no_error = no
         return later none
     }
 
     # Return assembled result:
     var self_type = func_typeinfo.func_self_ref
+    var self_type_typeinfo = none
+    var self_type_expr = none
+    func handle_extra_for_self_type {
+        if self_type == none {
+            return later
+        }
+        var child_node = none
+        assert(called_node.kind == ast.N_EXPR_BINOP)
+        assert(called_node.optoken.str == '.')
+        child_node = called_node.subexprs[1]
+        var scope = called_node.scope
+        var tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
+            project_file, child_node, called_node, msgs=none,
+            debug=yes
+        ) later:
+
+        await tinfo
+        self_type_typeinfo = tinfo
+        if self_type_typeinfo == none {
+            return later
+        }
+        if not get_typeref_exprs_instead_of_typeinfo {
+            return later
+        }
+        self_type_expr = self_type_typeinfo.convert_to_typeref_expr()
+        if self_type_expr == none {
+            if msgs == none {
+                throw new RuntimeError("Failed to trace back to self type.")
+            }
+            msgs.add(new msg.FileMsg(
+                "This call is unexpectedly done on an attribute "
+                "on an item with a broken type. "
+                "Was the item declared with a forbidden cyclic type?",
+                kind=msg.M_ERROR, source_file=project_file,
+                line=child_node.line,
+                col=child_node.col,
+            ))
+            called_node.damaged = yes
+            had_no_error = no
+            return later
+        }
+    }
+    handle_extra_for_self_type() later:
+
+    if called_node.damaged {
+        return later none
+    }
+
     var func_var_type = func_typeinfo.func_typeexpr
+    if not get_typeref_exprs_instead_of_typeinfo {
+        func_var_type = func_typeinfo
+    }
     var arg_var_types = []
 
-    return later [func_var_type, self_type, arg_var_types]
+    return later [func_var_type,
+        if get_typeref_exprs_instead_of_typeinfo
+            (self_type_expr) else (self_typeinfo), arg_var_types]
 }
 
 func transform_defer(project_file, ast_result, msgs) {
@@ -143,6 +202,8 @@ func transform_defer(project_file, ast_result, msgs) {
         return defer_added
     }
 
+    var builder = ast_builder.ASTBuilder(project_file)
+
     var had_no_error = yes
     func do_transform_defer(node, parent) {
         if node.kind != ast.N_STMT_DEFER {
@@ -155,39 +216,154 @@ func transform_defer(project_file, ast_result, msgs) {
         assert(node.subexprs.len == 1)
         assert(node.subexprs[1].kind == ast.N_EXPR_BINOP)
         assert(node.subexprs[1].optoken.str == '(')
+        var parent_block = ast.get_node_parent_block(
+            node, parent
+        )
+        if parent_block == none {
+            throw new RuntimeError("Internal error, failed to "
+                "obtain parent block of node. Please report "
+                "this error to the compiler makers.")
+        }
         var result = get_called_func_types(
             project_file, node.subexprs[1].subexprs[1],
-            node.subexprs[1], msgs=msgs
+            node.subexprs[1],
+            get_typeref_exprs_instead_of_typeinfo=yes,
+            msgs=msgs
         ) later:
 
         await result
         if result == none {
             return later node
         }
-        var func_var_type = result[1]
-        var self_type = result[2]
-        var arg_var_types = result[3]
+        var func_var_typeref = result[1]
+        var self_typeref_expr = result[2]
+        var arg_var_typerefs = result[3]
+        var idx = parent_block.find(node)
+        assert(idx != none)
+        var expr_copy = node.subexprs[1].subexprs[1]
+        var func_var_node = builder.make_var_node(
+            node.scope, "defer_called_func_",
+            typeref_expr=func_var_typeref, expr=expr_copy,
+            line=node.line, col=node.col, add_unique_suffix=yes
+        )
+        parent_block = parent_block.sub(1, idx) + [func_var_node] +
+            parent_block.sub(idx + 1)
+        var self_var_node = none
+        if self_typeref_expr != none {
+            assert(expr_copy.kind == ast.N_EXPR_BINOP)
+            assert(expr_copy.optoken.str == '.')
+            self_var_node = builder.make_var_node(
+                node.scope, "defer_called_func_self_",
+                typeref_expr=self_typeref_expr,
+                expr=expr_copy.subexprs[1].copy(),
+                line=node.line, col=node.col, add_unique_suffix=yes
+            )
+            parent_block = parent_block.sub(1, idx) + [self_var_node] +
+                parent_block.sub(idx + 1)
+        }
+        var arg_var_nodes = []
+        var i = 0
+        for arg_typeref in arg_var_typerefs {
+            i += 1
+            var arg_type_node = builder.make_var_node(
+                node.scope, "defer_called_func_" + i + "nth_arg_",
+                typeref_expr=arg_typeref,
+                line=node.line, col=node.col, add_unique_suffix=yes
+            )
+            arg_var_nodes.add(arg_type_node)
+            parent_block = parent_block.sub(1, idx) + [arg_type_node] +
+                parent_block.sub(idx + 1)
+        }
+        ast.set_node_parent_block(node, parent, parent_block)
 
+        var defer_resolve_node = new call_or_assign_stmt.CallStmt()
+        defer_resolve_node.line = node.line
+        defer_resolve_node.col = node.col
+        var optoken = new token.Token(
+            '(', token.T_ENCLOSE, node.line, node.col
+        )
+        var defer_resolve_called_expr = new ast_expr.IdRefExpr()
+        defer_resolve_called_expr.label = func_var_node.var_labels[1]
+        defer_resolve_called_expr.line = node.line
+        defer_resolve_called_expr.col = node.col
+        var defer_resolve_args_expr = new ast_expr.CallArgsExpr()
+        defer_resolve_args_expr.line = node.line
+        defer_resolve_args_expr.col = node.col
+        var defer_resolve_call = new ast_expr.BinopExpr(optoken)
+        defer_resolve_call.line = node.line
+        defer_resolve_call.col = node.col
+        defer_resolve_call.subexprs = [
+            defer_resolve_called_expr, defer_resolve_args_expr
+        ]
+        defer_resolve_node.subexprs = [defer_resolve_call]
+        func get_resolve_copy_in_scope(scope) {
+            var copy = defer_resolve_node.copy()
+            copy.scope = scope
+            copy.subexprs[1].scope = scope
+            copy.subexprs[1].subexprs[1].scope = scope
+            copy.subexprs[1].subexprs[2].scope = scope
+            assert(not copy.subexprs[1].subexprs[2].has_types)
+            for arg_expr in copy.subexprs[1].subexprs[2].subexprs {
+                arg_expr.scope = scope
+            }
+            return copy
+        }
         if parent.kind == ast.N_STMT_FUNC {
             assert(parent.subblocks[1].len > 0)
             var block = parent.subblocks[1]
             if block[block.len].kind != ast.N_STMT_RETURN {
-                var defer_added = get_node_defer_added(node, defer_info)
+                var defer_added = get_node_defer_added(
+                    block[block.len], defer_info
+                )
+                defer_added.stmts_added_before_node.add(none)
+                defer_added.stmts_added_after_node.add(
+                    get_resolve_copy_in_scope(node.scope)
+                )
             }
         } else {
-            var parent_block = get_node_parent_block(node, parent)
             assert(parent_block != none)
             if parent_block.len == 0 or
                     not {ast.N_STMT_BREAK, ast.N_STMT_CONTINUE,
                     ast.N_STMT_RETURN}.has(
                         parent_block[parent_block.len].kind
                     ) {
-                var defer_added = get_node_defer_added(node, defer_info)
+                var last_node = parent_block[parent_block.len]
+                var defer_added = get_node_defer_added(last_node, defer_info)
+                defer_added.stmts_added_before_node.add(none)
+                defer_added.stmts_added_after_node.add(
+                    get_resolve_copy_in_scope(node.scope)
+                )
             }
         }
-        
-        func attach_defer_resolution(node, parent) {
-            # FIXME
+
+        var outer_parent = parent
+        func attach_defer_resolution(node, parents) {
+            var parent = parents[parents.len]
+            if {ast.N_STMT_BREAK, ast.N_STMT_CONTINUE}.has(
+                    node.kind) {
+                var associated_loop = none
+                var i = parents.len
+                while i >= 1 and parents[i] != outer_parent {
+                    if {ast.N_STMT_FOR, ast.N_STMT_WHILE}.has(
+                            parents[i].kind) {
+                        associated_loop = parents[i]
+                        break
+                    }
+                    i -= 1
+                }
+                if associated_loop != none {
+                    # This doesn't exit our block, so ignore it.
+                    return later node
+                }
+            } elseif node.kind != ast.N_STMT_RETURN {
+                return later node
+            }
+            var defer_added = get_node_defer_added(node, defer_info)
+            defer_added.stmts_added_before_node.add(
+                get_resolve_copy_in_scope(node.scope)
+            )
+            defer_added.stmts_added_after_node.add(none)
+            return later node
         }
 
         var stmts = ast.get_neighbor_statements_after(
@@ -197,23 +373,25 @@ func transform_defer(project_file, ast_result, msgs) {
         # Find all block exit points and add the defer info:
         var queue = stmts.copy()
         if queue.len == 0 {
-            return later
+            return later node
         }
         var next_node = queue.pop_at(1)
         var result = ast_transform.visit_ast_tree(
             next_node, attach_defer_resolution,
-            pass_func_boundaries=no, parent_chain=no, backward=no)
+            subtree_parent=[parent],
+            pass_func_boundaries=no, parent_chain=yes, backward=no)
         later:
 
         await result
         assert(result == yes)
         if queue.len == 0 {
-            return later
+            return later node
         }
         next_node = queue.pop_at(1)
         result = ast_transform.visit_ast_tree(
             next_node, attach_defer_resolution,
-            pass_func_boundaries=no, parent_chain=no, backward=no)
+            subtree_parent=[parent],
+            pass_func_boundaries=no, parent_chain=yes, backward=no)
         later repeat
         return later node
     }
@@ -227,6 +405,76 @@ func transform_defer(project_file, ast_result, msgs) {
     if result and not had_no_error {
         result = no
     }
+    if not result {
+        return no
+    }
+
+    # Now that we have all the defer resolutions assembled,
+    # revisit everything and emit the actual code in correct order:
+    func do_transform_defer_2(node, parent) {
+        if not node_to_defer_added_stmts_map.has(node) {
+            if node.kind == ast.N_STMT_DEFER {
+                return later none
+            }
+            return later node
+        }
+        var defer_added = node_to_defer_added_stmts_map[node]
+        assert(defer_added.stmts_added_after_node.len ==
+            defer_added.stmts_added_before_node.len)
+        assert(defer_added.stmts_added_after_node.len ==
+            defer_added.defer_infos.len)
+        var result = [node]
+        var result_node_idx = 1
+        var idx = 1
+        while idx <= defer_added.stmts_added_before_node.len {
+            if defer_added.stmts_added_before_node[idx] != none {
+                result = [defer_added.
+                    stmts_added_before_node[idx]] + result
+                result_node_idx += 1
+            }
+            if defer_added.stmts_added_after_node[idx] != none {
+                result = result.sub(1, result_node_idx) +
+                    [defer_added.
+                    stmts_added_after_node[idx]] +
+                    result.sub(result_node_idx + 1)
+            }
+            idx += 1
+        }
+        if node.kind == ast.N_STMT_DEFER {
+            result = result.sub(1, result_node_idx - 1) +
+                result.sub(result_node_idx + 1)
+            if result.len == 0 {
+                return later none
+            }
+            return later result
+        } elseif node.kind == ast.N_STMT_RETURN and
+                not node.is_empty and no {
+            assert(node.subexprs.len > 0)
+            var arg_typeref
+            var arg_typeinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
+                project_file, node.subexprs[1],
+                node, msgs=msgs
+            ) later:
+
+            await arg_typeinfo
+            assert(arg_typeinfo != none)
+            var arg_type_expr = arg_typeinfo.convert_to_typeref_expr()
+            var return_preeval_node = builder.make_var_node(
+                node.scope, "defer_return_preeval_",
+                typeref_expr=arg_type_expr, expr=node.subexprs[1],
+                line=node.line, col=node.col, add_unique_suffix=yes
+            )
+            return later [return_preeval_node] + result
+        }
+        return later result
+    }
+    result = ast_transform.visit_ast_tree(
+        ast_result, do_transform_defer_2, pass_func_boundaries=yes,
+        parent_chain=no, backward=no, subtree_parent=none,
+        return_new_root=no
+    ) later:
+
+    await result
     return result
 }
 

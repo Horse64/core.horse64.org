@@ -33,11 +33,13 @@ import compiler.token as token
 import compiler.typeinfo as typeinfo
 
 func get_c_or_m64_type_of_typeref(
-        project_file, typeref, msgs=none
+        project_file, typeref,
+        store_self_expr_for_funcs=no, msgs=none
         ) {
     var c_name = typeref.get_c_builtin_for_m64_base_type()
     if c_name != none {
         var tinfo = new typeinfo.TypeInfo(typeinfo.TI_C_TYPE)
+        tinfo._set_orig_type_expr(typeref)
         tinfo.c_type_name = c_name
         return later tinfo
     }
@@ -49,9 +51,10 @@ func get_c_or_m64_type_of_typeref(
     if m64_type_ref == none {
         return later none
     }
-    var tinfo = new typeinfo.create_typeinfo_from_ref(
+    var tinfo = new typeinfo.create_typeinfo_from_global_ref(
         m64_type_ref.type_storage_ref,
-        base_typeref_if_known=m64_type_ref
+        base_typeref_expr_if_known=m64_type_ref,
+        store_self_expr_for_funcs=store_self_expr_for_funcs,
     )
     return later tinfo
 }
@@ -61,19 +64,20 @@ func get_c_or_m64_type_of_sym_info(
         target_sym_info, msgs=none
         ) {
     if target_sym_info.type_storage_ref != none {
-        var tinfo = new typeinfo.create_typeinfo_from_ref(
+        var tinfo = new typeinfo.create_typeinfo_from_global_ref(
             target_sym_info.type_storage_ref,
             base_symbol_info_if_known=target_sym_info,
-            base_node_if_known=node_with_reference
+            base_node_if_known=node_with_reference,
         )
         return later tinfo
     }
-    var typeref = target_sym_info.typeref_expr
-    if typeref == none {
+    var typeref_expr = target_sym_info.typeref_expr
+    if typeref_expr == none {
         return later none
     }
     var result = get_c_or_m64_type_of_typeref(
-        project_file, typeref, msgs=msgs
+        project_file, typeref_expr,
+        msgs=msgs
     ) later:
 
     await result
@@ -81,16 +85,22 @@ func get_c_or_m64_type_of_sym_info(
 }
 
 func _get_c_or_m64_type_of_node_do(
-        project_file, node, parent, msgs=none,
-        known_types_map=none
+        project_file, node, parent,
+        _known_types_map=none,
+        msgs=none, debug=no
         ) {
-    if known_types_map == none {
-        known_types_map = {->}
+    if _known_types_map == none {
+        _known_types_map = {->}
     }
-    if known_types_map.has(node) {
-        return later known_types_map[node]
+    if _known_types_map.has(node) {
+        return later _known_types_map[node]
     }
 
+    if debug {
+        print("compiler.moose64.ast.anayze: debug: "
+            "_get_c_or_m64_type_of_node_do() on: " +
+            node.as_str())
+    }
     func trigger_no_symbol_info_on(node) {
         if msgs == none {
             throw new ValueError(
@@ -130,12 +140,13 @@ func _get_c_or_m64_type_of_node_do(
         }
         if (has_attr(node.subexprs[2], "ref") and
                 node.subexprs[2].ref != none) or
-                known_types_map.has(node.subexprs[2]) {
+                _known_types_map.has(node.subexprs[2]) {
             return later yes
         }
         var c_type = _get_c_or_m64_type_of_node_do(
             project_file, node.subexprs[1], node,
-            msgs=msgs, known_types_map=known_types_map
+            _known_types_map=_known_types_map,
+            msgs=msgs,
         ) later:
 
         await c_type
@@ -238,11 +249,12 @@ func _get_c_or_m64_type_of_node_do(
 }
 
 func get_c_or_m64_type_of_node(
-        project_file, node, parent, msgs=non
+        project_file, node, parent, msgs=none, debug=no
         ) {
     var result = _get_c_or_m64_type_of_node_do(
-        project_file, node, parent, msgs=msgs,
-        known_types_map=none
+        project_file, node, parent,
+        _known_types_map=none, msgs=msgs,
+        debug=debug
     ) later:
 
     await result

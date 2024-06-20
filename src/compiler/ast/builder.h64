@@ -469,6 +469,7 @@ func ASTBuilder.make_assign_node(
 
 func ASTBuilder.make_var_node(
         in_inner_scope, name_prefix, expr=none,
+        typeref_expr=none,
         line=none, col=none, add_unique_suffix=no) {
     var new_name = name_prefix
     if add_unique_suffix {
@@ -519,6 +520,11 @@ func ASTBuilder.make_var_node(
     var_node.var_has_protect = [no]
     if sinfo != none {
         var_node.symbol_info = [sinfo]
+    }
+    if typeref_expr != none {
+        assert(has_attr(typeref_expr, "as_code"))
+        var_node.has_type_expr = yes
+        var_node.subexprs.add(typeref_expr)
     }
     return var_node
 }

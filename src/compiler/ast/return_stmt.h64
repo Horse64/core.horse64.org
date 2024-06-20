@@ -36,6 +36,7 @@ import compiler.token as token
 
 type ReturnStmt base ast.StmtNode {
     var has_later = no
+    var is_empty = no
 }
 
 func ReturnStmt.init {
@@ -55,7 +56,7 @@ func ReturnStmt.as_code(indent=0) {
     var t = " ".rep(indent) + "return"
     if self.subexprs.len > 0 {
         t += " " + self.subexprs[1].as_code(indent=indent)
-    } else {
+    } elseif not self.is_empty {
         t += " none"
     }
     return t
@@ -106,6 +107,12 @@ func parse(tokens, pos, msgs, project_file=none,
 
     await v
     if v == none {
+        if is_moose64 {
+            self.is_empty = yes
+        } else {
+            var empty_expr = new ast_expr.LiteralExpr()
+            stmt.subexprs.add(empty_expr)
+        }
         stmt.token_len = 1
         return stmt
     }
