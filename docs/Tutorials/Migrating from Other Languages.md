@@ -21,35 +21,33 @@ a [setup guide here](/docs/Tutorials/nitial Setup.md).
 Read on for a more detailed look at various parts:
 
 
-Basic syntax differences
-------------------------
+Basic **syntax** differences
+----------------------------
 
 Horse64's syntax has the following qualities:
 
-- In overall, a mix of Lua and Go with how it looks like.
+- It's inspired by a **blend of Lua and Go**.
 
-- No significant whitespace, indent code however you like.
+- There's **no significant whitespace.** You can indent code however you like.
 
-  (If you really want to, you can even write all in one line:
+  (It even works all in one line:
   ```Horse64
   func main { print("Hello World! Better use line breaks though.") }
   ```
-  For obvious reasons, please don't do this however.)
+  For obvious reasons, this isn't recommended.)
 
-- Curly braces for code blocks, but no line terminator.
-
-- No type annotations, everything pretty simple.
-
-- Generally a minimal but readable look that is less
-  technical than e.g. the C/C++ style of JavaScript.
+- Generally it's a minimal but readable look that is less
+  technical than e.g. JavaScript.
 
 
 Program structure
 -----------------
 
-In comparison, Horse64 is probably most similar to a Python
-program with its layout. Any program will have a main function,
-surrounded by other funcs and various other top-level items:
+In comparison, Horse64 is structured similarly to a Python or Javascript
+program. Any program will have a `main` function, surrounded by other
+global items, like global variables.
+
+Example:
 
 ```Horse64
 var abc = 5
@@ -63,13 +61,10 @@ func main {
 }
 ```
 
-From then on, you can import any neigboring code files for
-use as modules.
+You can import neigboring code files as modules.
 
 **Note:** In Horse64, **regular code can't be outside
-a `func`** like it could in Python, Javascript, or Lua.
-
-Even a simple script must have a `func main` starting point!
+a `func`** like it might be in Python, Javascript, or Lua.
 
 
 Running a program
@@ -83,18 +78,19 @@ python my_project/my_python_program.py
 ```
 
 When using Horse64, instead you'll want to compile the program
-first (which allows better safety analysis and optimization):
+first, which allows better safety analysis and optimization:
 
 ```bash
 horsec compile -o program my_project/my_horse64_program.h64
-./program
+./program.
 ```
+The resulting program should be fairly portable and should run
+without Horse64 installed.
 
-You can also run a Horse64 script directly, but the launch
-might be slightly delayed:
+You can also run a Horse64 file directly if really needed:
 
 ```bash
-horserun my_horse64_script.h64
+horserun my_horse64_helper_program.h64
 ```
 
 
@@ -102,7 +98,7 @@ Data type differences
 ---------------------
 
 Most of Horse64's core data types work almost the same as in
-Python, JavaScript, or Lua. A quick overview:
+Python, JavaScript, or Lua. Here's a quick overview:
 
 - Strings in Horse64 are passed by value and immutable,
   same as also in Python and Javascript and Lua.
@@ -128,7 +124,7 @@ Python, JavaScript, or Lua. A quick overview:
 Object-oriented programming
 ---------------------------
 
-Similar to Python, Horse64 has relatively high-level
+Similar to Python, Horse64 has high-level
 object-oriented programming mechanisms built-in and ready
 to go. However, it also offers **traits vaguely
 similar to Go.** [Here's an **OOP** introduction](
@@ -204,7 +200,8 @@ Python or JS can, but you'll have to be obvious about it.
 Differences of modules and dependencies in Horse64
 --------------------------------------------------
 
-- As is common, Horse64 treats one file as one module.
+- As is common, Horse64 treats each file as separate code
+  module that can be imported.
 
 - But Horse64 allows cyclic imports always. E.g in Python that
   isn't always the case.

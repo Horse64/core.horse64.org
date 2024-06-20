@@ -53,6 +53,10 @@ func check_config {
 }
 ```
 
+And thanks to its **mostly [independent runtime](
+/docs/Resources.md#what-is-the-runtime)**, it's easy to
+get it going.
+
 
 When to use Horse64
 -------------------
@@ -64,7 +68,7 @@ When to use Horse64
   in scripting *by default.*
 
 - 📦 **If you need self-contained deployment.**
-  Ship server and desktop apps easier.
+  Ship server and desktop apps more easily.
 
 - ⚖ **If you need flexibility.** The multi-paradigm design
   provides flexibility and good object-oriented support.

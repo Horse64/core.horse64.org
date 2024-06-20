@@ -10,6 +10,14 @@ technical detail concerns regarding the runtime and
 underlying implementations.
 
 
+What is the runtime
+-------------------
+
+Horse64 has its own independent runtime based on
+[HVM](/docs/Resources.md#hvm). Other than C to build it,
+it doesn't depend on other pre-existing languages.
+
+
 How code reaches the runtime
 ----------------------------
 
