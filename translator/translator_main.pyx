@@ -2383,7 +2383,8 @@ def translate(s, sc):
             is_extend = (statement[0] == "extend")
             interesting_nonlocals = (
                 get_func_interesting_nonlocals(
-                    statement, sc.parent_statements
+                    statement, sc.parent_statements,
+                    debug=debug
                 ))
             nameidx = nextnonblankidx(statement, 0)
             assert(nameidx >= 0)
@@ -2789,24 +2790,32 @@ def separate_func_keyword_arg_code(
     return result
 
 
-def get_func_interesting_nonlocals(st, parent_sts):
+def get_func_interesting_nonlocals(st, parent_sts, debug=False):
     if firstnonblank(st) != "func" and (
             firstnonblank(st) != "extend" or
             nextnonblank(st, firstnonblankidx(st)) != "func"):
         raise ValueError("meant to be used on funcs")
-    current_inner_vars = statement_declared_identifiers(st)
+    current_inner_vars_all = statement_declared_identifiers(
+        st, recurse=True
+    )
     collect = set()
     i = len(parent_sts)
     while i - 1 >= 0:
         i -= 1
         if firstnonblank(parent_sts[i]) == "func":
+            if debug:
+                print("translator.py: debug: Collecting "
+                    "vars from: " + str(parent_sts[i:i+30])[:1000])
             collect = collect.union(
                 set(statement_declared_identifiers(
                 parent_sts[i],
                 exclude_direct_func_name=True)))
+            if debug:
+                print("translator.py: debug: Collected vars "
+                    "so far: " + str(collect))
     result = []
     for varname in list(collect):
-        if not varname in current_inner_vars:
+        if not varname in current_inner_vars_all:
             result.append(varname)
 
     if False:
