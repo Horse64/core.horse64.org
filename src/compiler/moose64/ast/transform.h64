@@ -138,8 +138,7 @@ func get_called_func_types(
         child_node = called_node.subexprs[1]
         var scope = called_node.scope
         var tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
-            project_file, child_node, called_node, msgs=none,
-            debug=yes
+            project_file, child_node, called_node, msgs=none
         ) later:
 
         await tinfo

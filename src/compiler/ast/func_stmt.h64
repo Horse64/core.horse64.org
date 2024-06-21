@@ -317,7 +317,9 @@ func parse(tokens, pos, msgs, project_file=none,
             ((tokens[pos].kind != token.T_ENCLOSE or
             not {"(", "{"}.has(tokens[pos].str)) and
             (not is_moose64 or
-            tokens[pos].kind != token.T_RIGHTPTR)) {
+             (tokens[pos].kind != token.T_RIGHTPTR and
+              (tokens[pos].kind != token.T_KEYWORD or
+               tokens[pos].str != "failable")))) {
         msgs.add(new msg.FileMsg(
             "Unexpected " + token.describe_token_at(tokens, pos) +
             ", expected '(' or '{' (T_ENCLOSE) for "

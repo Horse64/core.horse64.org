@@ -151,6 +151,19 @@ func InvalidExpr.as_code(indent=0) {
     return "(invalid expr.)"
 }
 
+type FailedCheckExpr base ast.TreeNode {
+    var check_expr   # XXX: Not a subexprs since without storage.
+}
+
+func FailedCheckExpr.as_code(indent=0) {
+    if self.damaged {
+        return "(damaged failed check expr)"
+    }
+    var t = "failed(" +
+        self.check_expr.as_code(indent=indent) + ")"
+    return t
+}
+
 type UnopExpr base ast.TreeNode {
     var optoken
 }
@@ -1054,6 +1067,97 @@ func parse_expression_unwrapped(
             return node
         }
     }
+    # Handle 'failed(expr)':
+    if left_hand == none and is_moose64 and
+            tokens[pos].kind == token.T_KEYWORD and
+            tokens[pos].str == "failed" {
+        var node = new FailedCheckExpr()
+        node.line = startline
+        node.col = startcol
+        pos += 1  # Go past 'failed'.
+
+        if pos > tokens_len or
+                tokens[pos].kind != token.T_ENCLOSE or
+                tokens[pos].str != '(' {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(
+                    tokens, pos) +
+                ", expected '(' to start argument for 'failed' "
+                "expression.",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+            var skiplen = max(1, token.get_naive_stmt_or_expr_len(
+                tokens, pos - 1, max_len=tokens_len,
+                for_expr=yes, is_moose64=is_moose64
+                ) + 1)
+            pos += skiplen
+            node = new InvalidExpr(pos - startpos)
+            node.line = startline
+            node.col = startcol
+            return node
+        }
+        pos += 1  # Go past '('
+
+        var inner_expr = _parse_expression_notlater(
+            tokens, pos, nesting_depth, msgs,
+            project_file=project_file,
+            max_len=tokens_len, debug=debug,
+        )
+        if inner_expr == none or
+                inner_expr.kind == ast.N_EXPR_FAILEDCHECK {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(
+                    tokens, pos) +
+                ", expected valid argument for 'failed' "
+                "expression.",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+            var skiplen = max(1, token.get_naive_stmt_or_expr_len(
+                tokens, pos - 1, max_len=tokens_len,
+                for_expr=yes, is_moose64=is_moose64
+                ) + 1)
+            pos += skiplen
+            node = new InvalidExpr(pos - startpos)
+            node.line = startline
+            node.col = startcol
+            return node
+        }
+        # XXX: Intentionally not a subexprs, since the expression
+        # is matched via literal comparison of the nesting rather
+        # than any storage stuff. Hence the storage is meaningless,
+        # and we don't want any storage visitors to descned into it.
+        node.check_expr = inner_expr
+        pos += inner_expr.token_len
+        if pos > tokens_len or
+                tokens[pos].kind != token.T_ENCLOSE or
+                tokens[pos].str != ')' {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(
+                    tokens, pos) +
+                ", expected ')' to end argument for 'failed' "
+                "expression.",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+            var skiplen = max(1, token.get_naive_stmt_or_expr_len(
+                tokens, pos - 1, max_len=tokens_len,
+                for_expr=yes, is_moose64=is_moose64,
+                bracket_depth=1,  # <- since ')' is missing.
+                ) + 1)
+            pos += skiplen
+            node.damaged = yes
+        } else {
+            pos += 1  # Go past ')'
+        }
+        node.token_len = pos - startpos
+        return node
+    }
+
     # Handle 'new' operator:
     if left_hand == none and
             tokens[pos].kind == token.T_NEWOP {
