@@ -329,7 +329,10 @@ func parse(tokens, pos, msgs, project_file=none,
         pos += inner_expr.token_len
         assert(stmt.has_type_expr)
         assert(stmt.subexprs.len == 1)
-        stmt.subexprs[1].init_expr = inner_expr
+        assert(stmt.subexprs[1].subexprs.len == 0 and
+               not stmt.subexprs[1].has_init_expr)
+        stmt.subexprs[1].subexprs.add(inner_expr)
+        stmt.subexprs[1].has_init_expr = yes
 
         var prev_type_expr_len = type_expr.token_len
 

@@ -127,8 +127,9 @@ func TypeRefFuncExpr.as_code(indent=0) {
             t += " " + mod.as_str()
         }
     }
-    if self.init_expr != none {
-        t += self.init_expr.as_code(indent=(indent + 4))
+    if self.has_init_expr {
+        assert(self.subexprs.len == 1)
+        t += self.subexprs[1].as_code(indent=(indent + 4))
     }
     return t
 }
@@ -229,7 +230,7 @@ type TypeRefExpr base ast.TreeNode {
     var type_path
     var name
     var modifiers = []
-    var init_expr = none
+    var has_init_expr
     var is_func_ref = no
 }
 
@@ -264,8 +265,9 @@ func TypeRefExpr.as_code(indent=0) {
             t += " " + mod.as_str()
         }
     }
-    if self.init_expr != none {
-        t += self.init_expr.as_code(indent=(indent + 4))
+    if self.has_init_expr {
+        assert(self.subexprs.len == 1)
+        t += self.subexprs[1].as_code(indent=(indent + 4))
     }
     return t
 }

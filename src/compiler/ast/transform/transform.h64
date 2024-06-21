@@ -31,6 +31,7 @@ import time from core.horse64.org
 
 import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
+import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
 import compiler.ast.expr as ast_expr
 import compiler.ast.if_stmt as if_stmt
 import compiler.ast.transform.later_transform as later_transform
@@ -600,8 +601,57 @@ func do_simply_on_all_exprs(stmt, callback) {
     }
 }
 
-func do_all_transformations(project, msgs, build_options=none,
-        optimize=yes) {
+func do_all_pre_nameres_transformations(
+        project, msgs, build_options=none
+        ) {
+    if build_options != none and build_options.print_stages {
+        print(build_options.build_program_name +
+            ": info: stage checked-ast: "
+            "Doing required pre name resolution transforms... "
+            "[t=" + time.ticks().as_str() + "]")
+    }
+
+    func do_m64_transforms_if_needed {
+        if build_options == none or
+                not build_options.is_moose64 {
+            return later yes
+        }
+
+        func process_file(pfile) {
+            var result = m64_ast_transform.
+                do_moose64_transforms_pre_nameresolution(pfile, msgs)
+            later:
+
+            await result
+            return later result
+        }
+        var result = project.do_for_all_files(process_file)
+        later:
+
+        await result
+        assert(result == yes or result == no)
+        return result
+    }
+
+    var success = do_m64_transforms_if_needed()
+    later:
+
+    await success
+    if not success {
+        return later no
+    }
+
+    if build_options != none and build_options.print_stages {
+        print(build_options.build_program_name +
+            ": info: stage checked-ast: "
+            "Finished pre name resolution transforms."
+            "[t=" + time.ticks().as_str() + "]")
+    }
+    return later success
+}
+
+func do_all_post_nameres_transformations(
+        project, msgs, build_options=none) {
     if build_options != none and build_options.print_stages {
         print(build_options.build_program_name +
             ": info: stage transformed-code: "
@@ -630,7 +680,7 @@ func do_all_transformations(project, msgs, build_options=none,
 
         func process_file(pfile) {
             var result = m64_ast_transform.
-                do_moose64_transforms(pfile, msgs)
+                do_moose64_transforms_post_nameresolution(pfile, msgs)
             later:
 
             await result
@@ -686,5 +736,74 @@ func do_all_transformations(project, msgs, build_options=none,
             "[t=" + time.ticks().as_str() + "]")
     }
     return later success
+}
+
+func transform_typeref_inline_constructor(
+        project_file, project_ast, msgs, is_moose64=no
+        ) {
+    func do_transform_step(node, parent) {
+        if node.kind != ast.N_STMT_VAR or
+                not node.has_type_expr {
+            return later node
+        }
+        assert(node.scope == none)
+        assert(node.symbol_info == none or
+            node.symbol_info.len == 0)
+        assert(node.subexprs.len >= 1)
+        var type_expr = node.subexprs[node.subexprs.len]
+        if not node.is_empty or not type_expr.has_init_expr {
+            return later node
+        }
+        var init_expr = type_expr.subexprs[1]
+        var parent_block = ast.get_node_parent_block(
+            node, parent
+        )
+        if parent_block == none {
+            throw new RuntimeError("Internal error, failed to "
+                "obtain parent block of node. Please report "
+                "this error to the compiler makers.")
+        }
+
+        var result = []
+        for lbl in node.var_labels {
+            var call_stmt = new call_or_assign_stmt.CallStmt()
+            var idref_expr = new ast_expr.IdRefExpr()
+            idref_expr.label = lbl
+            idref_expr.line = node.line
+            idref_expr.col = node.col
+            var idref_expr2 = new ast_expr.IdRefExpr()
+            idref_expr2.label = "init"
+            idref_expr2.line = node.line
+            idref_expr2.col = node.col
+            var optoken1 = new token.Token(
+                '.', token.T_DOT, node.line, node.col
+            )
+            var attr_op = new ast_expr.BinopExpr(optoken1)
+            attr_op.line = node.line
+            attr_op.col = node.col
+            attr_op.subexprs = [idref_expr, idref_expr2]
+            assert(init_expr.kind == ast.N_EXPR_CALLARGS)
+            var optoken2 = new token.Token(
+                '(', token.T_ENCLOSE, node.line, node.col
+            )
+            var call_expr = new ast_expr.BinopExpr(optoken2)
+            call_expr.line = node.line
+            call_expr.col = node.col
+            call_expr.subexprs = [attr_op, init_expr.copy()]
+            call_stmt.subexprs = [call_expr]
+            result.add(call_stmt)
+        }
+        type_expr.subexprs = []
+        type_expr.has_init_expr = no
+        return later [node] + result
+    }
+    var result = visit_ast_tree(
+        project_ast, do_transform_step, pass_func_boundaries=yes,
+        parent_chain=no, backward=no, subtree_parent=none,
+        return_new_root=no
+    ) later:
+
+    await result
+    return result
 }
 

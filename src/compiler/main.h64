@@ -177,6 +177,12 @@ func parse_ast_target_from_args(args, checked_ast=no,
         return tresult
     }
 
+    ast_transform.do_all_pre_nameres_transformations(
+        tresult.project_file.project, tresult.msgs,
+        build_options=build_options
+    )
+    later:
+
     if build_options.print_stages {
         print(build_options.build_program_name +
             ": info: stage checked-ast: "
@@ -670,10 +676,10 @@ func actionparser_compile(args, is_moose64=no) {
         }
 
         # Apply code transformation:
-        ast_transform.do_all_transformations(
+        ast_transform.do_all_post_nameres_transformations(
             aresult.project_file.project,
-            aresult.msgs, build_options=boptions,
-            optimize=yes) later:
+            aresult.msgs, build_options=boptions
+        ) later:
 
         # If we had an error at this stage then we need to abort:
         var had_error = no

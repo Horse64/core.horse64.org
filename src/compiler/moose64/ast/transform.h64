@@ -187,7 +187,12 @@ func get_called_func_types(
             (self_type_expr) else (self_typeinfo), arg_var_types]
 }
 
-func transform_defer(project_file, ast_result, msgs) {
+func transform_defer(
+        project_file, ast_result, msgs, is_moose64=yes
+        ) {
+    if not is_moose64 {
+        throw new RuntimeError("Not implemented.")
+    }
     var node_to_defer_added_stmts_map = {->}
     var last_sorting_prio = 1
 
@@ -480,9 +485,206 @@ func transform_defer(project_file, ast_result, msgs) {
     return result
 }
 
-func do_moose64_transforms(project_file, msgs) {
+func transform_associate_failed_checks(
+        project_file, project_ast, msgs,
+        call_exprs_to_failed_checks_map=none,
+        failed_checks_to_call_exprs_map=none,
+        is_moose64=no
+        ) {
+    if call_exprs_to_failed_checks_map == none or
+            failed_checks_to_call_exprs_map == none {
+        throw new TypeError("Map parameters weren't set.")
+    }
+    func find_followup_failed_check(
+            node, node_parent, called_obj,
+            called_item_name
+            ) {
+        var parent_block = none
+        if node_parent == none {
+            parent_block = project_ast.stms
+        } else {
+            parent_block = ast.get_node_parent_block(
+                node, node_parent
+            )
+        }
+        if parent_block == none {
+            throw new RuntimeError("Internal error, failed to "
+                "obtain parent block of node. Please report "
+                "this error to the compiler makers.")
+        }
+
+        # A helper function to check if expressions are loosely
+        # syntatically the same, it's not required to be exact
+        # since failed(...) checks are only meant to be used
+        # right after a call anyway, especially if ambiguous:
+        func loose_cmp_exprs(expr1, expr2) {
+            if expr1.kind != expr2.kind {
+                return no
+            }
+            if has_attr(expr1, "label") and
+                    expr1.label != expr2.label {
+                return no
+            }
+            if expr1.subexprs.len != expr2.subexprs.len {
+                return no
+            }
+            var idx = 1
+            while idx <= expr1.subexprs.len {
+                if not loose_cmp_exprs(exprs1.subexprs[idx],
+                        exprs2subexprs[idx]) {
+                    return no
+                }
+                idx += 1
+            }
+            return yes
+        }
+        func find_failed_check_in_subexprs(subexprs) {
+            for sexpr in subexprs {
+                if sexpr.kind == ast.N_EXPR_FAILEDCHECK and
+                        loose_cmp_exprs(sexpr.subexprs[1],
+                            called_obj) {
+                    return sexpr
+                }
+            }
+            for sexpr in subexprs {
+                var result = find_failed_check_in_subexprs(
+                    sexpr.subexprs
+                )
+                if result != none {
+                    return result
+                }
+            }
+            return none
+        }
+        var idx = parent_block.find(node)
+        assert(idx != none)
+        idx += 1
+        while idx <= parent_block.len {
+            var stmt = parent_block[idx]
+            if not {ast.N_STMT_VAR, ast.N_STMT_CALL,
+                    ast.N_STMT_IF,
+                    ast.N_STMT_ASSIGN}.has(stmt.kind) {
+                return none
+            }
+            var check = find_failed_check_in_subexprs(
+                stmt.subexprs
+            )
+            if check != none {
+                return check
+            }
+            if stmt.kind == ast.N_STMT_VAR and
+                    stmt.var_labels.has(called_item_name) {
+                return none
+            }
+            idx += 1
+        }
+        return none
+    }
+    func do_transform_step(node, parents) {
+        if node.kind == ast.N_STMT_VAR and
+                node.has_type_expr and
+                node.is_empty and
+                parents.len > 0 and
+                node.subexprs[node.subexprs.len].has_init_expr {
+            var init_expr = node.subexprs[node.subexprs.len]
+            var followup_checks = []
+            for label in node.var_labels {
+                var check = find_followup_failed_check(
+                    node, parents[parents.len], label
+                )
+                if check != none {
+                    call_exprs_to_failed_checks_map[node] = check
+                    failed_checks_to_call_exprs_map[check] = node
+                }
+            }
+            return later node
+        }
+        if node.kind != ast.N_EXPR_BINOP or
+                node.optoken.str != "(" or
+                parents.len == 0 {
+            return later node
+        }
+        var idx = parents.len
+        var stmt_parent = if idx > 1 (parents[idx - 1]) else (none)
+        var parent_stmt = parents[idx]
+        while not parent_stmt.is_stmt {
+            idx -= 1
+            if idx < 1 {
+                return later node
+            }
+            parent_stmt = parents[idx]
+            stmt_parent = if idx > 1 (parents[idx - 1]) else (none)
+        }
+        var check = find_followup_failed_check(
+            parent_stmt, parents[parents.len], label
+        )
+        if check != none {
+            call_exprs_to_failed_checks_map[node] = check
+            failed_checks_to_call_exprs_map[check] = node
+        }
+        return later node
+    }
+    var result = visit_ast_tree(
+        project_ast, do_transform_step, pass_func_boundaries=yes,
+        parent_chain=yes, backward=no, subtree_parent=none,
+        return_new_root=no
+    ) later:
+
+    await result
+    if not result {
+        return later result
+    }
+
+    var found_error = no
+    func do_error_check_step(node, parents) {
+        if node.kind != ast.N_EXPR_FAILEDCHECK {
+            return later node
+        }
+        if not failed_checks_to_call_exprs_map.has(node) {
+            if msgs == none {
+                throw new ValueError("Found invalid "
+                    "N_EXPR_FAILEDCHECK that can't be matched "
+                    "to any call.")
+            }
+            msgs.add(new msg.FileMsg(
+                "Unexpected failed(...) check used on "
+                "unrecgnized expression, must correspond to "
+                "a preceding call.",
+                kind=msg.M_ERROR, source_file=project_file,
+                line=node.line,
+                col=node.col,
+            ))
+            node.damaged = yes
+            found_error = yes
+        }
+        return later node
+    }
+    result = visit_ast_tree(
+        project_ast, do_error_check_step, pass_func_boundaries=yes,
+        parent_chain=no, backward=no, subtree_parent=none,
+        return_new_root=no
+    ) later:
+
+    await result
+    if found_error {
+        return later no
+    }
+    return later result
+}
+
+func do_moose64_transforms_pre_nameresolution(project_file, msgs) {
+    var result = ast_transform.transform_typeref_inline_constructor(
+        project_file, project_file.ast, msgs, is_moose64=yes
+    ) later:
+
+    await result
+
+    return result
+}
+
+func do_moose64_transforms_post_nameresolution(project_file, msgs) {
     var result = transform_defer(
-        project_file, project_file.ast, msgs
+        project_file, project_file.ast, msgs, is_moose64=yes
     ) later:
 
     await result
