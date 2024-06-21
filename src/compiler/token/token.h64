@@ -769,6 +769,18 @@ func can_stmt_or_expr_end_before_token(
     if token_has_lefthand(tokens[tok_pos]) {
         return no
     }
+    if tokens[tok_pos - 1].kind == T_KEYWORD and
+            tokens[tok_pos - 1].str == "failed" {
+        if tok_pos > 2 and
+                tokens[tok_pos - 2].kind == T_KEYWORD and
+                tokens[tok_pos - 2].str == "return" and
+                not check_tokens_consumed_by_return(
+                    tokens, tok_pos, is_moose64=is_moose64
+                ) {
+            return yes
+        }
+        return no
+    }
     if tokens[tok_pos - 1].kind == T_STR and
             tokens[tok_pos].kind == T_STR {
         return no

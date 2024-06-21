@@ -129,16 +129,17 @@ func parse_next_ifelse_clause_header(
                 line=token.get_line(tokens, pos),
                 col=token.get_col(tokens, pos),
             ))
-            var skiplen = token.get_naive_stmt_or_expr_len(
-                tokens, startpos, bracket_depth=0,
-                is_moose64=is_moose64
-            )
+            var skiplen = math.max(1,
+                token.skip_in_broken_stmt_to_code_block(
+                    tokens, pos - 1, bracket_depth=0
+                ) - 1)
+            pos += skiplen
             var invalid_st = new expr.InvalidExpr(
-                skiplen
+                pos - startpos
             )
             invalid_st.line = token.get_line(tokens, startpos)
             invalid_st.col = token.get_col(tokens, startpos)
-            invalid_st.token_len = skiplen
+            invalid_st.token_len = (pos - startpos)
             return later invalid_st
         }
         return later none
@@ -177,15 +178,17 @@ func parse_next_ifelse_clause_header(
             line=token.get_line(tokens, pos),
             col=token.get_col(tokens, pos),
         ))
-        var skiplen = token.get_naive_stmt_or_expr_len(
-            tokens, startpos, bracket_depth=0
-        )
+        var skiplen = math.max(1,
+            token.skip_in_broken_stmt_to_code_block(
+                tokens, pos - 1, bracket_depth=0
+            ) - 1)
+        pos += skiplen
         var invalid_st = new expr.InvalidExpr(
-            skiplen
+            pos - startpos
         )
         invalid_st.line = token.get_line(tokens, startpos)
         invalid_st.col = token.get_col(tokens, startpos)
-        invalid_st.token_len = skiplen + (pos - clausestart)
+        invalid_st.token_len = (pos - startpos)
         return later invalid_st
     }
     pos += v.token_len

@@ -40,6 +40,7 @@ type FuncStmt base ast.StmtNode {
     var type_path = none
     var has_return_type = no
     var has_arg_types = no
+    var has_failable = no
     var arg_labels = []
     var kw_arg_count = 0
 }
@@ -339,7 +340,8 @@ func parse(tokens, pos, msgs, project_file=none,
     }
 
     func get_func_arguments {
-        if tokens[pos].kind != token.T_ENCLOSE or
+        if pos > tokens_len or
+                tokens[pos].kind != token.T_ENCLOSE or
                 tokens[pos].str != "(" {
             var args = new expr.CallArgsExpr()
             args.token_len = 0
@@ -404,6 +406,15 @@ func parse(tokens, pos, msgs, project_file=none,
     # since this isn't a call.
     argsobj = none
 
+    # Check if this is 'failable':
+    if is_moose64 and not is_extend and
+            pos <= tokens_len and
+            tokens[pos].kind == token.T_KEYWORD and
+            tokens[pos].str == "failable" {
+        stmt.has_failable = yes
+        pos += 1
+    }
+
     # Parse return type if any:
     var type_expr = none
     func parse_type_if_any(
@@ -411,6 +422,7 @@ func parse(tokens, pos, msgs, project_file=none,
             is_moose64
             ) {
         if not is_moose64 or is_extend or
+                pos > tokens_len or
                 tokens[pos].kind != token.T_RIGHTPTR {
             return later 0
         }

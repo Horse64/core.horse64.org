@@ -36,6 +36,7 @@ import compiler.token as token
 
 type ReturnStmt base ast.StmtNode {
     var has_later = no
+    var has_failed = no
     var is_empty = no
 }
 
@@ -87,6 +88,12 @@ func parse(tokens, pos, msgs, project_file=none,
             tokens[pos].kind == token.T_KEYWORD and
             tokens[pos].str == "later" {
         stmt.has_later = yes
+        pos += 1
+    }
+    if pos <= tokens_len and is_moose64 and
+            tokens[pos].kind == token.T_KEYWORD and
+            tokens[pos].str == "failed" {
+        stmt.has_failed = yes
         pos += 1
     }
 
