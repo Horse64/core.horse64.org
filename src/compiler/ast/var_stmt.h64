@@ -42,6 +42,7 @@ type VarStmt base ast.StmtNode {
     var has_later_ignore = no
     var has_later_repeat = no
     var var_labels = []
+    var is_empty = no
     var has_protect = no
     var has_type_expr = no
 
@@ -119,16 +120,18 @@ func VarStmt.as_code(indent=0) {
         t += " protect"
     }
 
-    t += " = "
-    is_first = yes
-    for value in assigned_exprs {
-        if is_first {
+    if not self.is_empty {
+        t += " = "
+        is_first = yes
+        for value in assigned_exprs {
+            if is_first {
+                is_first = no
+            } else {
+                t += ","
+            }
+            t += value.as_code(indent=(indent + 4))
             is_first = no
-        } else {
-            t += ","
         }
-        t += value.as_code(indent=(indent + 4))
-        is_first = no
     }
     if self.has_later {
         if self.has_later_ignore {
@@ -298,6 +301,7 @@ func parse(tokens, pos, msgs, project_file=none,
     }
     # If now comes an appended constructor shorthand,
     # parse it:
+    var had_init_shorthand = no
     func parse_moose64_type_constructor_if_any {
         if not is_moose64 or had_error_unexpected or
                 pos > tokens_len or
@@ -319,6 +323,7 @@ func parse(tokens, pos, msgs, project_file=none,
         ) later:
 
         await inner_expr
+        had_init_shorthand = yes
         assert(inner_expr != none)
         assert(inner_expr.token_len >= 0)
         pos += inner_expr.token_len
@@ -352,10 +357,13 @@ func parse(tokens, pos, msgs, project_file=none,
     if not had_error_unexpected and
             not token.can_stmt_or_expr_end_before_token(
             tokens, pos, for_expr=no
-            ) and tokens[pos].kind != token.T_ASSIGN {
+            ) and (tokens[pos].kind != token.T_ASSIGN or
+            (is_moose64 and had_init_shorthand)) {
         var expected_remark = " expected ',', or '=', or "
             "a new statement"
-        if had_special {
+        if had_init_shorthand {
+            expected_remark = " expected a new statement"
+        } elseif had_special {
             expected_remark = " expected '=' or a new statement"
         }
         msgs.add(new msg.FileMsg(
@@ -400,6 +408,9 @@ func parse(tokens, pos, msgs, project_file=none,
                 ) + [lexpr, stmt.subexprs[stmt.subexprs.len]]
             }
             i += 1
+        }
+        if is_moose64 {
+            stmt.is_empty = yes
         }
         stmt.token_len = (pos - startpos)
         return stmt
