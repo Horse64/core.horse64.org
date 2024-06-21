@@ -155,6 +155,11 @@ type FailedCheckExpr base ast.TreeNode {
     var check_expr   # XXX: Not a subexprs since without storage.
 }
 
+func FailedCheckExpr.init {
+    base.init()
+    self.kind = ast.N_EXPR_FAILEDCHECK
+}
+
 func FailedCheckExpr.as_code(indent=0) {
     if self.damaged {
         return "(damaged failed check expr)"
@@ -238,6 +243,8 @@ func IdRefExpr.init {
 }
 
 func IdRefExpr.copy {
+    assert(self.type_path == none or
+        typename(self.type_path) == "list")
     var self_copy = base.copy()
     self_copy.type_path = self.type_path.copy()
     return self_copy
@@ -253,9 +260,11 @@ func IdRefExpr.as_json_obj {
 }
 
 func IdRefExpr.as_code(indent=0) {
+    assert(self.type_path == none or
+        typename(self.type_path) == "list")
     var t = ""
     if self.type_path != none {
-        t += self.type_path + "."
+        t += self.type_path.join(".") + "."
     }
     t += self.label
     return t

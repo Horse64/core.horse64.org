@@ -496,18 +496,20 @@ func transform_associate_failed_checks(
         throw new TypeError("Map parameters weren't set.")
     }
     func find_followup_failed_check(
-            node, node_parent, called_obj,
-            called_item_name
+            node, node_parent, called_obj
             ) {
         var parent_block = none
         if node_parent == none {
-            parent_block = project_ast.stms
+            parent_block = project_ast.stmts
         } else {
             parent_block = ast.get_node_parent_block(
                 node, node_parent
             )
         }
         if parent_block == none {
+            print("horsec: error: Fatal error in "
+                "transform_associate_failed_checks(), somehow "
+                "couldn't get parent of node: " + node.as_str())
             throw new RuntimeError("Internal error, failed to "
                 "obtain parent block of node. Please report "
                 "this error to the compiler makers.")
@@ -540,6 +542,8 @@ func transform_associate_failed_checks(
         }
         func find_failed_check_in_subexprs(subexprs) {
             for sexpr in subexprs {
+                assert(sexpr.kind != ast.N_EXPR_FAILEDCHECK or
+                    sexpr.subexprs.len >= 1)
                 if sexpr.kind == ast.N_EXPR_FAILEDCHECK and
                         loose_cmp_exprs(sexpr.subexprs[1],
                             called_obj) {
@@ -586,16 +590,17 @@ func transform_associate_failed_checks(
                 node.is_empty and
                 parents.len > 0 and
                 node.subexprs[node.subexprs.len].has_init_expr {
+            assert(node.var_labels.len == 1)
             var init_expr = node.subexprs[node.subexprs.len]
-            var followup_checks = []
-            for label in node.var_labels {
-                var check = find_followup_failed_check(
-                    node, parents[parents.len], label
-                )
-                if check != none {
-                    call_exprs_to_failed_checks_map[node] = check
-                    failed_checks_to_call_exprs_map[check] = node
-                }
+            var idref = new ast_expr.IdRefExpr()
+            idref.label = init_expr.name
+            idref.type_path = init_expr.type_path.copy()
+            var check = find_followup_failed_check(
+                node, parents[parents.len], idref
+            )
+            if check != none {
+                call_exprs_to_failed_checks_map[node] = check
+                failed_checks_to_call_exprs_map[check] = node
             }
             return later node
         }
@@ -605,18 +610,20 @@ func transform_associate_failed_checks(
             return later node
         }
         var idx = parents.len
-        var stmt_parent = if idx > 1 (parents[idx - 1]) else (none)
+        var parent_stmt_parent = if idx > 1
+            (parents[idx - 1]) else (none)
         var parent_stmt = parents[idx]
         while not parent_stmt.is_stmt {
             idx -= 1
             if idx < 1 {
                 return later node
             }
+            parent_stmt_parent = if idx > 1
+                (parents[idx - 1]) else (none)
             parent_stmt = parents[idx]
-            stmt_parent = if idx > 1 (parents[idx - 1]) else (none)
         }
         var check = find_followup_failed_check(
-            parent_stmt, parents[parents.len], label
+            parent_stmt, parent_stmt_parent, node.subexprs[1]
         )
         if check != none {
             call_exprs_to_failed_checks_map[node] = check
@@ -624,7 +631,7 @@ func transform_associate_failed_checks(
         }
         return later node
     }
-    var result = visit_ast_tree(
+    var result = ast_transform.visit_ast_tree(
         project_ast, do_transform_step, pass_func_boundaries=yes,
         parent_chain=yes, backward=no, subtree_parent=none,
         return_new_root=no
@@ -659,7 +666,7 @@ func transform_associate_failed_checks(
         }
         return later node
     }
-    result = visit_ast_tree(
+    result = ast_transform.visit_ast_tree(
         project_ast, do_error_check_step, pass_func_boundaries=yes,
         parent_chain=no, backward=no, subtree_parent=none,
         return_new_root=no
@@ -673,8 +680,25 @@ func transform_associate_failed_checks(
 }
 
 func do_moose64_transforms_pre_nameresolution(project_file, msgs) {
-    var result = ast_transform.transform_typeref_inline_constructor(
-        project_file, project_file.ast, msgs, is_moose64=yes
+    call_exprs_to_failed_checks_map = {->}
+    failed_checks_to_call_exprs_map = {->}
+    var result = transform_associate_failed_checks(
+        project_file, project_file.ast, msgs,
+        call_exprs_to_failed_checks_map=
+            call_exprs_to_failed_checks_map,
+        failed_checks_to_call_exprs_map=
+            failed_checks_to_call_exprs_map,
+        is_moose64=yes
+    ) later:
+
+    await result
+    result = ast_transform.transform_typeref_inline_constructor(
+        project_file, project_file.ast, msgs,
+        failed_checks_to_call_exprs_map=
+            failed_checks_to_call_exprs_map,
+        call_exprs_to_failed_checks_map=
+            call_exprs_to_failed_checks_map,
+        is_moose64=yes
     ) later:
 
     await result

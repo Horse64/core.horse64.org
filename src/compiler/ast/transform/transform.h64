@@ -739,7 +739,10 @@ func do_all_post_nameres_transformations(
 }
 
 func transform_typeref_inline_constructor(
-        project_file, project_ast, msgs, is_moose64=no
+        project_file, project_ast, msgs,
+        call_exprs_to_failed_checks_map=none,
+        failed_checks_to_call_exprs_map=none,
+        is_moose64=no
         ) {
     func do_transform_step(node, parent) {
         if node.kind != ast.N_STMT_VAR or
@@ -792,6 +795,16 @@ func transform_typeref_inline_constructor(
             call_expr.subexprs = [attr_op, init_expr.copy()]
             call_stmt.subexprs = [call_expr]
             result.add(call_stmt)
+            if call_exprs_to_failed_checks_map != none and
+                    call_exprs_to_failed_checks_map.has(node) {
+                var check = call_exprs_to_failed_checks_map[node]
+                call_exprs_to_failed_checks_map.del(node)
+                assert(failed_checks_to_call_exprs_map.has(check))
+                failed_checks_to_call_exprs_map[check] = (
+                    call_expr
+                )
+                check.check_expr = attr_op.copy()
+            }
         }
         type_expr.subexprs = []
         type_expr.has_init_expr = no

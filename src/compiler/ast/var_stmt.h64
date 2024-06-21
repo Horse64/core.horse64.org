@@ -323,6 +323,7 @@ func parse(tokens, pos, msgs, project_file=none,
         ) later:
 
         await inner_expr
+        var expr_pos = pos
         had_init_shorthand = yes
         assert(inner_expr != none)
         assert(inner_expr.token_len >= 0)
@@ -335,6 +336,21 @@ func parse(tokens, pos, msgs, project_file=none,
         stmt.subexprs[1].has_init_expr = yes
 
         var prev_type_expr_len = type_expr.token_len
+
+        if stmt.var_labels.len > 1 {
+            msgs.add(new msg.FileMsg(
+                "Unexpected constructor shorthand, not allowed for "
+                "variable statements with multiple assigned "
+                "names like found in line " +
+                token.get_line(tokens, startpos).as_str() +
+                ", column " +
+                token.get_col(tokens, startpos).as_str() + ".",
+                source_file=project_file,
+                line=token.get_line(tokens, expr_pos),
+                col=token.get_col(tokens, expr_pos),
+            ))
+            stmt.damaged = yes
+        }
 
         # Try trailing typeref mods, if any:
         var v = ast_typeref.parse_typeref(
@@ -381,6 +397,7 @@ func parse(tokens, pos, msgs, project_file=none,
             line=token.get_line(tokens, pos),
             col=token.get_col(tokens, pos),
         ))
+        stmt.damaged = yes
         had_error_unexpected = yes
     }
     if had_error_unexpected {
