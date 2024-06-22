@@ -497,7 +497,7 @@ func transform_associate_failed_checks(
     }
     func find_followup_failed_check(
             node, node_parent, called_obj,
-            called_item_name_if_known=none
+            called_item_name_if_known=none, debug=no
             ) {
         assert(node != node_parent)
         var parent_block = none
@@ -523,7 +523,39 @@ func transform_associate_failed_checks(
         # syntatically the same, it's not required to be exact
         # since failed(...) checks are only meant to be used
         # right after a call anyway, especially if ambiguous:
-        func loose_cmp_exprs(expr1, expr2) {
+        func loose_cmp_exprs(expr1, expr2, debug=no) {
+            if debug {
+                print("horsec: debug: loose_cmp_exprs(): "
+                    "checking expr1=" + expr1.as_str() +
+                    ", expr2=" + expr2.as_str())
+            }
+            func expr_as_path(e) {
+                if e.kind == ast.N_EXPR_IDREF {
+                    var t = e.label
+                    if e.type_path != none and
+                            e.type_path.len > 0 {
+                        assert(typename(e.type_path) == "list")
+                        t = e.type_path.join(".") + "." + t
+                    }
+                    return t
+                } elseif e.kind == ast.N_EXPR_BINOP and
+                        e.optoken.str == "." {
+                    var right_hand_path = expr_as_path(e.subexprs[2])
+                    if right_hand_path == none {
+                        return none
+                    }
+                    var left_hand_path = expr_as_path(e.subexprs[1])
+                    if left_hand_path == none {
+                        return none
+                    }
+                    return left_hand_path + "." + right_hand_path
+                }
+                return none
+            }
+            var e1path = expr_as_path(expr1)
+            if e1path != none and e1path == expr_as_path(expr2) {
+                return yes
+            }
             if expr1.kind != expr2.kind {
                 return no
             }
@@ -537,26 +569,38 @@ func transform_associate_failed_checks(
             var idx = 1
             while idx <= expr1.subexprs.len {
                 if not loose_cmp_exprs(expr1.subexprs[idx],
-                        expr2.subexprs[idx]) {
+                        expr2.subexprs[idx], debug=debug) {
                     return no
                 }
                 idx += 1
             }
             return yes
         }
-        func find_failed_check_in_subexprs(subexprs) {
+        func find_failed_check_in_subexprs(subexprs, debug=no) {
+            if debug {
+                print("horsec: debug: "
+                    "find_failed_check_in_subexprs(): "
+                    "scanning list: " +
+                    subexprs.as_str())
+            }
             for sexpr in subexprs {
                 assert(sexpr.kind != ast.N_EXPR_FAILEDCHECK or
                     sexpr.check_expr != none)
+                if debug and sexpr.kind == ast.N_EXPR_FAILEDCHECK {
+                    print("horsec: debug: "
+                        "find_followup_failed_check(): "
+                        "comparing failed() check: " +
+                        sexpr.as_str())
+                }
                 if sexpr.kind == ast.N_EXPR_FAILEDCHECK and
                         loose_cmp_exprs(sexpr.check_expr,
-                            called_obj) {
+                            called_obj, debug=debug) {
                     return sexpr
                 }
             }
             for sexpr in subexprs {
                 var result = find_failed_check_in_subexprs(
-                    sexpr.subexprs
+                    sexpr.subexprs, debug=debug
                 )
                 if result != none {
                     return result
@@ -569,35 +613,70 @@ func transform_associate_failed_checks(
         idx += 1
         while idx <= parent_block.len {
             var stmt = parent_block[idx]
+            if debug {
+                print("horsec: debug: "
+                    "find_followup_failed_check(): "
+                    "checking stmt=" + stmt.as_str())
+            }
             if not {ast.N_STMT_VAR, ast.N_STMT_CALL,
                     ast.N_STMT_IF,
                     ast.N_STMT_ASSIGN}.has(stmt.kind) {
+                if debug {
+                    print("horsec: debug: "
+                        "find_followup_failed_check(): "
+                        "bailing, there's no follow-up.")
+                }
                 return none
             }
             var check = find_failed_check_in_subexprs(
-                stmt.subexprs
+                stmt.subexprs, debug=debug
             )
             if check != none {
                 return check
+            } else {
+                if debug {
+                    print("horsec: debug: "
+                        "find_followup_failed_check(): "
+                        "no matching failed() expr found "
+                        "inside this stmt.")
+                }
             }
             if stmt.kind == ast.N_STMT_VAR and
                     (called_item_name_if_known == none or
                     stmt.var_labels.has(
                         called_item_name_if_known
                     )) {
+                if debug {
+                    print("horsec: debug: "
+                        "find_followup_failed_check(): "
+                        "bailing, there's no follow-up.")
+                }
                 return none
             }
             idx += 1
         }
+        if debug {
+            print("horsec: debug: "
+                "find_followup_failed_check(): "
+                "reached end of block, there's no follow-up.")
+        }
         return none
     }
     func do_transform_step(node, parents) {
+        var debug = no
+
         if node.kind == ast.N_STMT_VAR and
                 node.has_type_expr and
                 node.is_empty and
                 parents.len > 0 and
                 node.subexprs[node.subexprs.len].has_init_expr {
             assert(node.var_labels.len == 1)
+            if debug {
+                print("horsec: debug: "
+                    "transform_associate_failed_checks(): "
+                    "examining to find failed() follow-up: "
+                    "node=" + node.as_str())
+            }
             var init_expr = node.subexprs[node.subexprs.len]
             var idref = new ast_expr.IdRefExpr()
             idref.label = init_expr.name
@@ -607,8 +686,14 @@ func transform_associate_failed_checks(
             ).find(node) != none)
             var check = find_followup_failed_check(
                 node, parents[parents.len], idref,
-                called_item_name_if_known=node.var_labels[1]
+                called_item_name_if_known=node.var_labels[1],
+                debug=debug
             )
+            if debug {
+                print("horsec: debug: "
+                    "transform_associate_failed_checks(): "
+                    "result: check=" + check.as_str())
+            }
             if check != none {
                 call_exprs_to_failed_checks_map[node] = check
                 failed_checks_to_call_exprs_map[check] = node
