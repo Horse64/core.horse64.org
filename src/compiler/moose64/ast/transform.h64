@@ -496,8 +496,10 @@ func transform_associate_failed_checks(
         throw new TypeError("Map parameters weren't set.")
     }
     func find_followup_failed_check(
-            node, node_parent, called_obj
+            node, node_parent, called_obj,
+            called_item_name_if_known=none
             ) {
+        assert(node != node_parent)
         var parent_block = none
         if node_parent == none {
             parent_block = project_ast.stmts
@@ -510,6 +512,8 @@ func transform_associate_failed_checks(
             print("horsec: error: Fatal error in "
                 "transform_associate_failed_checks(), somehow "
                 "couldn't get parent of node: " + node.as_str())
+            print("horsec: debug: node_parent parameter was "
+                "was set to: " + node.as_str())
             throw new RuntimeError("Internal error, failed to "
                 "obtain parent block of node. Please report "
                 "this error to the compiler makers.")
@@ -532,8 +536,8 @@ func transform_associate_failed_checks(
             }
             var idx = 1
             while idx <= expr1.subexprs.len {
-                if not loose_cmp_exprs(exprs1.subexprs[idx],
-                        exprs2subexprs[idx]) {
+                if not loose_cmp_exprs(expr1.subexprs[idx],
+                        expr2.subexprs[idx]) {
                     return no
                 }
                 idx += 1
@@ -543,9 +547,9 @@ func transform_associate_failed_checks(
         func find_failed_check_in_subexprs(subexprs) {
             for sexpr in subexprs {
                 assert(sexpr.kind != ast.N_EXPR_FAILEDCHECK or
-                    sexpr.subexprs.len >= 1)
+                    sexpr.check_expr != none)
                 if sexpr.kind == ast.N_EXPR_FAILEDCHECK and
-                        loose_cmp_exprs(sexpr.subexprs[1],
+                        loose_cmp_exprs(sexpr.check_expr,
                             called_obj) {
                     return sexpr
                 }
@@ -577,7 +581,10 @@ func transform_associate_failed_checks(
                 return check
             }
             if stmt.kind == ast.N_STMT_VAR and
-                    stmt.var_labels.has(called_item_name) {
+                    (called_item_name_if_known == none or
+                    stmt.var_labels.has(
+                        called_item_name_if_known
+                    )) {
                 return none
             }
             idx += 1
@@ -595,8 +602,12 @@ func transform_associate_failed_checks(
             var idref = new ast_expr.IdRefExpr()
             idref.label = init_expr.name
             idref.type_path = init_expr.type_path.copy()
+            assert(ast.get_node_parent_block(
+                node, parents[parents.len]
+            ).find(node) != none)
             var check = find_followup_failed_check(
-                node, parents[parents.len], idref
+                node, parents[parents.len], idref,
+                called_item_name_if_known=node.var_labels[1]
             )
             if check != none {
                 call_exprs_to_failed_checks_map[node] = check
@@ -622,6 +633,11 @@ func transform_associate_failed_checks(
                 (parents[idx - 1]) else (none)
             parent_stmt = parents[idx]
         }
+        assert(parent_stmt.is_stmt)
+        assert(parent_stmt_parent == none or
+            ast.get_node_parent_block(
+                parent_stmt, parent_stmt_parent
+            ).find(parent_stmt) != none)
         var check = find_followup_failed_check(
             parent_stmt, parent_stmt_parent, node.subexprs[1]
         )

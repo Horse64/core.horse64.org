@@ -346,6 +346,7 @@ func parse(tokens, pos, msgs, project_file=none,
                 tokens[pos].kind != token.T_ENCLOSE or
                 tokens[pos].str != "(" {
             var args = new expr.CallArgsExpr()
+            assert(not args.is_stmt)
             args.token_len = 0
             return args
         }

@@ -79,6 +79,8 @@ type TreeNode {
     var line, col
 
     var token_len
+
+    var is_stmt = no
 }
 
 func TreeNode.as_str {
@@ -158,10 +160,6 @@ func TreeNode.as_json_obj {
         }
     }
     return output
-}
-
-func TreeNode.is_stmt {
-    return no
 }
 
 func set_node_parent_block(node, parent, new_block) {
@@ -277,8 +275,9 @@ func get_neighbor_statements_after(
 type StmtNode base TreeNode {
 }
 
-func StmtNode.is_stmt {
-    return yes
+func StmtNode.init {
+    base.init()
+    self.is_stmt = yes
 }
 
 enum NodeKind {
