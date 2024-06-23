@@ -28,6 +28,7 @@
 import compiler.ast as ast
 import compiler.ast.expr as ast_expr
 import compiler.token as token
+import compiler.storage.ref as st_ref
 
 const builtin_horse64_types = {}
 const builtin_horse64_type_modifiers = {}
@@ -135,7 +136,8 @@ func TypeRefFuncExpr.as_code(indent=0) {
 }
 
 func TypeRefFuncExpr.try_resolve_param_types(
-        project_file, recursive=no, is_moose64=is_moose64
+        project_file, recursive=no, force_recompute=no,
+        is_moose64=is_moose64
         ) {
     var had_failure = no
 
@@ -145,7 +147,8 @@ func TypeRefFuncExpr.try_resolve_param_types(
     func resolve_item(item) {
         if not item.is_func_ref {
             var result = item.try_resolve_to_user_type(
-                project_file, is_moose64=is_moose64
+                project_file, force_recompute=force_recompute,
+                is_moose64=is_moose64
             ) later:
 
             await result
@@ -157,6 +160,7 @@ func TypeRefFuncExpr.try_resolve_param_types(
         var result = item.try_resolve_to_user_type(
             project_file, recursive=recursive,
             skip_params=(not recursive),
+            force_recompute=force_recompute,
             is_moose64=is_moose64
         ) later:
 
@@ -166,7 +170,8 @@ func TypeRefFuncExpr.try_resolve_param_types(
     }
 
     base.try_resolve_to_user_type(
-        project_file, is_moose64=is_moose64
+        project_file, force_recompute=force_recompute,
+        is_moose64=is_moose64
     )
     later:
 
@@ -192,6 +197,7 @@ func TypeRefFuncExpr.try_resolve_param_types(
 
 func TypeRefFuncExpr.try_resolve_to_user_type(
         project_file, recursive=no, skip_params=no,
+        force_recompute=no,
         is_moose64=is_moose64
         ) {
     func run_concurrent {
@@ -200,6 +206,7 @@ func TypeRefFuncExpr.try_resolve_to_user_type(
         }
         var result = self.try_resolve_param_types(
             project_file, recursive=recursive,
+            force_recompute=force_recompute,
             is_moose64=is_moose64
         ) later:
 
@@ -342,6 +349,18 @@ func TypeRefExpr.as_code(indent=0) {
     return t
 }
 
+func TypeRefExpr.adjust_storage_to_file(pfile) {
+    if self.storage_ref == none {
+        return
+    }
+    if self.storage_ref.kind == st_ref.ST_GLOBAL {
+        var ipath = pfile.global_scope.get_import_path_for_global(
+            pfile, self.storage_ref.id
+        )
+        self.type_path = ipath
+    }
+}
+
 func get_c_builtin_for_m64_base_type(name) {
     if not builtin_moose64_types.has(name) {
         return none
@@ -375,7 +394,7 @@ func get_c_builtin_for_m64_base_type(name) {
 }
 
 func TypeRefExpr.try_resolve_to_user_type(
-        project_file, is_moose64=is_moose64
+        project_file, force_recompute=no, is_moose64=is_moose64
         ) {
     var builtin_names =
         if is_moose64 (builtin_moose64_types)
@@ -383,9 +402,10 @@ func TypeRefExpr.try_resolve_to_user_type(
     if self.is_func_ref or builtin_names.has(self.name) {
         return none
     }
-    if self.storage_ref != none {
+    if self.storage_ref != none and not force_recompute {
         return self.storage_ref.copy()
     }
+    self.adjust_storage_to_file(project_file)
     var type_path = self.type_path
     if type_path != none and type_path.len == 0 {
         type_path = none

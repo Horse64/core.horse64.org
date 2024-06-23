@@ -55,7 +55,7 @@ type DeferAddedStatements {
 func get_called_func_types(
         project_file, called_node, called_node_parent,
         get_typeref_exprs_instead_of_typeinfo=no,
-        msgs=none
+        msgs=none, is_moose64=no
         ) {
     if called_node.damaged {
         return later none
@@ -98,15 +98,24 @@ func get_called_func_types(
         had_no_error = no
         return later none
     }
+    var m64_type_ref = none
+    func recompute_user_type {
+        if func_typeinfo.func_typeexpr == none {
+            return
+        }
+        # Ensure that the func type we access is sound:
+        m64_type_ref = func_typeinfo.func_typeexpr.
+            try_resolve_to_user_type(
+                project_file, recursive=yes,
+                force_recompute=yes,
+                is_moose64=is_moose64
+            ) later:
 
-    # Ensure that the func type we access is sound:
-    var m64_type_ref = func_typeinfo.func_typeexpr.
-        try_resolve_to_user_type(
-            project_file, is_moose64=yes,
-            recursive=yes
-        ) later:
+        await m64_type_ref
+    }
+    recompute_user_type()
+    later:
 
-    await m64_type_ref
     if m64_type_ref == none {
         if msgs == none {
             throw new RuntimeError("Failed to trace back to user type.")
@@ -235,7 +244,7 @@ func transform_defer(
             project_file, node.subexprs[1].subexprs[1],
             node.subexprs[1],
             get_typeref_exprs_instead_of_typeinfo=yes,
-            msgs=msgs
+            msgs=msgs, is_moose64=is_moose64
         ) later:
 
         await result
