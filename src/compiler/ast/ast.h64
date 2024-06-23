@@ -231,7 +231,8 @@ func get_node_parent_block(node, parent) {
 }
 
 func get_neighbor_statements_after(
-        node, parent, stop_at_return=yes
+        node, parent, stop_at_return=yes,
+        copy_stmts_themselves=yes
         ) {
     if {N_STMT_DO, N_STMT_IF}.has(parent.kind) {
         for clause in parent.subexprs {
@@ -242,7 +243,11 @@ func get_neighbor_statements_after(
                 var result = []
                 pos += 1
                 while pos <= block.len {
-                    result.add(block[pos].copy())
+                    if copy_stmts_themselves {
+                        result.add(block[pos].copy())
+                    } else {
+                        result.add(block[pos])
+                    }
                     if stop_at_return and
                             block[pos].kind == N_STMT_RETURN {
                         break
@@ -259,7 +264,11 @@ func get_neighbor_statements_after(
             var result = []
             pos += 1
             while pos <= block.len {
-                result.add(block[pos].copy())
+                if copy_stmts_themselves {
+                    result.add(block[pos].copy())
+                } else {
+                    result.add(block[pos])
+                }
                 if stop_at_return and
                         block[pos].kind == N_STMT_RETURN {
                     break

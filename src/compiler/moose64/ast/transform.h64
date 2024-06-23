@@ -374,7 +374,8 @@ func transform_defer(
         }
 
         var stmts = ast.get_neighbor_statements_after(
-            node, parent, stop_at_return=yes
+            node, parent, stop_at_return=yes,
+            copy_stmts_themselves=no
         )
 
         # Find all block exit points and add the defer info:
