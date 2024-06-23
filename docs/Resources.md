@@ -130,13 +130,35 @@ It's written primarily in Horse64.
   along with the other parts of the standard library.
 
 
+Moose64
+-------
+
+Moose64 is a sibling language developed together with Horse64,
+particularly useful for handling C integration and low level code.
+
+- Check out the [Moose64 website](https://m64.horse64.org).
+
+- Here's the [Moose64 standard library](
+  https://codeberg.org/Horse64/m64.horse64.org).
+
+
+Moosec
+------
+
+The official compiler for [Moose64](#moose64) code is a binary called
+`moosec`. It's actually just a slightly different build of
+[horsec](#horsec), they share the same code base.
+
+
 HVM
 ---
 
 HVM, the "Horse Virtual Machine", provides the
 runtime powering Horse64 programs.
-HVM is primarily written in [C](
-https://en.wikipedia.org/wiki/C_%28programming_language%29).
+HVM is primarily written in [Moose64](#moose64) and
+using some [C](
+https://en.wikipedia.org/wiki/C_(programming_language)
+libarries.
 
 - Get it by fetching the **SDK**.
 
