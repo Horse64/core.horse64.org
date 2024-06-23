@@ -48,6 +48,7 @@ import compiler.storage.scope.manage as scope_manage
 import compiler.storage.ref as st_ref
 import compiler.storage.scope as st_scope
 import compiler.token as token
+import compiler.typeinfo.ast_typeref as ast_typeref
 
 var _known_readable_files = []
 

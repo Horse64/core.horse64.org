@@ -139,18 +139,36 @@ func TypeRefFuncExpr.try_resolve_param_types(
         ) {
     var had_failure = no
 
+    var builtin_names =
+        if is_moose64 (builtin_moose64_types)
+            else (builtin_horse64_types)
     func resolve_item(item) {
-        var result = item.try_resolve_param_types(
+        if not item.is_func_ref {
+            var result = item.try_resolve_to_user_type(
+                project_file, is_moose64=is_moose64
+            ) later:
+
+            await result
+            if not result and not builtin_names.has(item.name) {
+                had_failure = yes
+            }
+            return later
+        }
+        var result = item.try_resolve_to_user_type(
             project_file, recursive=recursive,
             skip_params=(not recursive),
             is_moose64=is_moose64
         ) later:
 
         await result
-        if not result {
-            had_failure = yes
-        }
+        # Func typerefs may not point to any specific actual
+        # defined function, so we ignore if this fails.
     }
+
+    base.try_resolve_to_user_type(
+        project_file, is_moose64=is_moose64
+    )
+    later:
 
     var queue = self.arg_typeref_exprs.copy()
     if self.return_typeref_expr != none {
@@ -164,13 +182,12 @@ func TypeRefFuncExpr.try_resolve_param_types(
     later:
 
     await _unused
-    arg_var_types.add(item)
 
     if queue.len == 0 {
         return later not had_failure
     }
     item = queue.pop()
-    _unused = resolve_arg_type(item) later repeat
+    _unused = resolve_item(item) later repeat
 }
 
 func TypeRefFuncExpr.try_resolve_to_user_type(
@@ -203,12 +220,56 @@ func TypeRefFuncExpr.try_resolve_to_user_type(
 }
 
 func create_typeref_from_func_node(project_file, node) {
+    var is_moose64 = project_file.project.is_moose64
     assert(node.kind == ast.N_STMT_FUNC)
     if node.symbol_info != none and
             node.symbol_info.typeref_expr != none {
         return node.symbol_info.typeref_expr
     }
     var type_expr = new TypeRefFuncExpr()
+    if node.type_path != none and node.type_path.len > 0 {
+        var anscope =
+            project_file.make_attr_names_scope_from_funcattr(
+                node, def_project_file=project_file,
+                msgs=none, is_moose64=is_moose64
+            )
+        if anscope == none {
+            throw new RuntimeError("Failed to get attr names scope.")
+        }
+        assert(not anscope.is_enum)
+        if project_file.project == none {
+            throw new RuntimeError("Unexpectedly, there's no "
+                "project_file.project set which is required for "
+                "this computation.")
+        }
+        var import_typepath = project_file.global_scope.
+            get_import_path_for_global(
+                project_file, anscope.storage_id)
+        if import_typepath.len > 0 {
+            type_expr.type_path = import_typepath
+        }
+        var self_type_expr = new TypeRefExpr()
+        var gscope = none
+        if not project_file.project.
+                storage_id_to_global_scope_map.has(anscope.storage_id) {
+            gscope = project_file.global_scope
+        } else {
+            gscope = project_file.project.
+                storage_id_to_global_scope_map[
+                    anscope.storage_id
+                ]
+        }
+        assert(gscope.storage_id_to_entry.has(
+            anscope.storage_id
+        ))
+        self_type_expr.name = gscope.storage_id_to_entry[
+            anscope.storage_id
+        ].label
+        if import_typepath.len > 0 {
+            self_type_expr.type_path = import_typepath.copy()
+        }
+        type_expr.arg_typeref_exprs.add(self_type_expr)
+    }
     if node.has_arg_types {
         var arg_count = node.extended_final_arg_count()
         var i = 1
@@ -218,6 +279,14 @@ func create_typeref_from_func_node(project_file, node) {
             )
             i += 1
         }
+    }
+    if node.has_failable and is_moose64 {
+        var failable_type_expr = new TypeRefExpr()
+        failable_type_expr.name = "moose64_failed_result_t"
+        failable_type_expr.modifiers.add(
+            new TypeRefMod("ref")
+        )
+        type_expr.arg_typeref_exprs.add(failable_type_expr)
     }
     if node.extended_final_has_return_type() {
         type_expr.return_typeref_expr =
@@ -232,6 +301,7 @@ type TypeRefExpr base ast.TreeNode {
     var modifiers = []
     var has_init_expr
     var is_func_ref = no
+    var storage_ref = none
 }
 
 func TypeRefExpr.init {
@@ -307,14 +377,31 @@ func get_c_builtin_for_m64_base_type(name) {
 func TypeRefExpr.try_resolve_to_user_type(
         project_file, is_moose64=is_moose64
         ) {
+    var builtin_names =
+        if is_moose64 (builtin_moose64_types)
+            else (builtin_horse64_types)
+    if self.is_func_ref or builtin_names.has(self.name) {
+        return none
+    }
+    if self.storage_ref != none {
+        return self.storage_ref.copy()
+    }
     var type_path = self.type_path
     if type_path != none and type_path.len == 0 {
         type_path = none
     }
+
+    if self.name == none {
+        print("horsec: error: Fatal internal error, "
+            "trying to resolve type ref with no name: " +
+            self.as_str())
+    }
+    assert(self.name != none)
     var result = project_file.try_lookup_symbol_path(
         none, name=self.name, type_path=type_path,
         is_write_access=no, is_moose64=is_moose64
     )
+    self.storage_ref = result.copy()
     return later result
 }
 

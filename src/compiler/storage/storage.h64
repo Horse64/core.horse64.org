@@ -1269,6 +1269,10 @@ func project.Project.compute_all_scopes(
 
     await success
     finalize_enum_and_type_storage(self, msgs)
+
+    self.finalize_global_scope_attr_storage(msgs)
+    later:
+
     func resolve_scope(pfile) {
         func expr_idref_resolve_visitor(node, parents) {
             var parent = if parents.len > 0
@@ -1494,7 +1498,9 @@ func project.Project.compute_all_scopes(
         for storage_id in pfile.global_scope.
                 storage_id_to_entry.keys() {
             assert(not self.storage_id_to_global_scope_map.
-                   has(storage_id))
+                   has(storage_id) or
+                   self.storage_id_to_global_scope_map
+                       [storage_id] == pfile.global_scope)
             self.storage_id_to_global_scope_map[storage_id] =
                 pfile.global_scope
         }
@@ -1511,13 +1517,6 @@ func project.Project.compute_all_scopes(
     later:
 
     await success
-    if success {
-        self.finalize_global_scope_attr_storage(msgs)
-        later:
-
-        return yes
-    }
-
     return success
 }
 
