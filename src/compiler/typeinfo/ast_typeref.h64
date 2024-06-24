@@ -135,6 +135,20 @@ func TypeRefFuncExpr.as_code(indent=0) {
     return t
 }
 
+func TypeRefFuncExpr.copy {
+    var self_copy = base.copy()
+    var old_args = self_copy.arg_typeref_exprs
+    self_copy.arg_typeref_exprs = []
+    for old_arg in old_args {
+        self_copy.arg_typeref_exprs.add(old_arg.copy())
+    }
+    self_copy.return_typeref_expr =
+        self_copy.return_typeref_expr.copy()
+    self_copy.func_storage_ref =
+        self_copy.func_storage_ref.copy()
+    return self_copy
+}
+
 func TypeRefFuncExpr.try_resolve_param_types(
         project_file, recursive=no, force_recompute=no,
         is_moose64=is_moose64
@@ -347,6 +361,16 @@ func TypeRefExpr.as_code(indent=0) {
         t += self.subexprs[1].as_code(indent=(indent + 4))
     }
     return t
+}
+
+func TypeRefExpr.copy {
+    var self_copy = base.copy()
+    var old_modifiers = self_copy.modifiers
+    self_copy.modifiers = []
+    for item in old_modifiers {
+        self_copy.modifiers.add(item.copy())
+    }
+    return self_copy
 }
 
 func TypeRefExpr.adjust_storage_to_file(pfile) {

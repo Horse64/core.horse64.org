@@ -42,6 +42,16 @@ func register_builtins_with_project(project) {
         new st_ref.StorageRef(st_ref.ST_MCREF, id),
         ["std"], package_name="m64.horse64.org")
 
+    id = m64_c_importer.get_mcref_id(project)
+    builtin_syms.register_symbol(project, "as_ref",
+        new st_ref.StorageRef(st_ref.ST_MCREF, id),
+        ["std"], package_name="m64.horse64.org")
+
+    id = m64_c_importer.get_mcref_id(project)
+    builtin_syms.register_symbol(project, "deref",
+        new st_ref.StorageRef(st_ref.ST_MCREF, id),
+        ["std"], package_name="m64.horse64.org")
+
     return later
 }
 
