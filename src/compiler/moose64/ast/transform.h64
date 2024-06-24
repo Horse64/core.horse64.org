@@ -25,6 +25,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import math from core.horse64.org
 import random from core.horse64.org
 
 import compiler.ast as ast
@@ -57,9 +58,21 @@ func get_called_func_types(
         get_typeref_exprs_instead_of_typeinfo=no,
         msgs=none, is_moose64=no
         ) {
-    if called_node.damaged {
+    if called_node.damaged or called_node_parent.damaged {
         return later none
     }
+    if called_node_parent.kind != ast.N_EXPR_BINOP or
+            called_node_parent.optoken.str != '(' or
+            called_node_parent.subexprs.len != 2 or
+            called_node_parent.subexprs[2].kind !=
+                ast.N_EXPR_CALLARGS or
+            called_node_parent.subexprs[1] != called_node {
+        throw new RuntimeError("Internal error, "
+            "get_called_func_types() called with "
+            "called_node_parent not set to valid call "
+            "expression.")
+    }
+    var call_args_expr = called_node_parent.subexprs[2]
 
     var func_typeinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
         project_file, called_node, called_node_parent,
@@ -80,7 +93,6 @@ func get_called_func_types(
             col=called_node_parent.col,
         ))
         called_node.damaged = yes
-        had_no_error = no
         return later none
     }
     if func_typeinfo.kind != typeinfo.TI_FUNCREF {
@@ -95,7 +107,6 @@ func get_called_func_types(
             col=called_node_parent.col,
         ))
         called_node.damaged = yes
-        had_no_error = no
         return later none
     }
     var m64_type_ref = none
@@ -129,7 +140,6 @@ func get_called_func_types(
             col=called_node.col,
         ))
         called_node.damaged = yes
-        had_no_error = no
         return later none
     }
 
@@ -176,7 +186,7 @@ func get_called_func_types(
             ))
             called_node.damaged = yes
             had_no_error = no
-            return later
+            return later none
         }
     }
     handle_extra_for_self_type() later:
@@ -190,6 +200,70 @@ func get_called_func_types(
         func_var_type = func_typeinfo
     }
     var arg_var_types = []
+    var arg_var_type_exprs = []
+
+    var expected_visible_args = math.max(0,
+        func_typeinfo.func_typeexpr.arg_typeref_exprs.len +
+        if self_type != none (-1) else (0))
+    if call_args_expr.subexprs.len != expected_visible_args {
+        if msgs == none {
+            throw new RuntimeError("Call has wrong number of "
+                "arguments.")
+        }
+        msgs.add(new msg.FileMsg(
+            "Unexpected wrong numbers of arguments, "
+            "expected " + expected_visible_args + " arguments.",
+            kind=msg.M_ERROR, source_file=project_file,
+            line=child_node.line,
+            col=child_node.col,
+        ))
+        called_node.damaged = yes
+        return later none
+    }
+
+    arg_var_type_exprs = func_typeinfo.func_typeexpr.
+        arg_typeref_exprs.copy()
+    func handle_args {
+        var idx = 0
+        func handle_arg(arg) {
+            idx += 1
+            var scope = called_node.scope
+            var tinfo = m64_ast_analyze.get_c_or_m64_type_of_typeref(
+                project_file, arg, store_self_expr_for_funcs=no,
+                msgs=msgs
+            ) later:
+
+            await tinfo
+            if tinfo == none {
+                called_node.damaged = yes
+            }
+            arg_var_types.add(tinfo)
+        }
+        var queue = func_typeinfo.func_typeexpr.
+            arg_typeref_exprs.copy()
+        if self_type != none and queue.len > 0 {
+            queue = queue.sub(2)
+        }
+        if queue.len == 0 {
+            return later
+        }
+        var item = queue.pop()
+        var _unused = handle_arg(item)
+        later:
+
+        await _unused
+
+        if queue.len == 0 {
+            return later
+        }
+        item = queue.pop()
+        _unused = handle_arg(item) later repeat
+    }
+    handle_args() later:
+
+    if called_node.damaged {
+        return later none
+    }
 
     return later [func_var_type,
         if get_typeref_exprs_instead_of_typeinfo
