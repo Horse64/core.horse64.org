@@ -226,6 +226,9 @@ func get_called_func_types(
 
     arg_var_type_exprs = func_typeinfo.func_typeexpr.
         arg_typeref_exprs.copy()
+    if self_type != none and arg_var_type_exprs.len > 0 {
+        arg_var_type_exprs = arg_var_type_exprs.sub(2)
+    }
     func handle_args {
         var idx = 0
         func handle_arg(arg) {
@@ -242,11 +245,7 @@ func get_called_func_types(
             }
             arg_var_types.add(tinfo)
         }
-        var queue = func_typeinfo.func_typeexpr.
-            arg_typeref_exprs.copy()
-        if self_type != none and queue.len > 0 {
-            queue = queue.sub(2)
-        }
+        var queue = arg_var_type_exprs.copy()
         if queue.len == 0 {
             return later
         }
