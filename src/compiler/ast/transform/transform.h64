@@ -740,8 +740,9 @@ func do_all_post_nameres_transformations(
 
 func transform_typeref_inline_constructor(
         project_file, project_ast, msgs,
-        call_exprs_to_failed_checks_map=none,
-        failed_checks_to_call_exprs_map=none,
+        call_expr_to_failed_check_map=none,
+        failed_check_to_call_expr_map=none,
+        parent_stmt_to_call_exprs_map=none,
         is_moose64=no
         ) {
     func do_transform_step(node, parent) {
@@ -795,14 +796,19 @@ func transform_typeref_inline_constructor(
             call_expr.subexprs = [attr_op, init_expr.copy()]
             call_stmt.subexprs = [call_expr]
             result.add(call_stmt)
-            if call_exprs_to_failed_checks_map != none and
-                    call_exprs_to_failed_checks_map.has(node) {
-                var check = call_exprs_to_failed_checks_map[node]
-                call_exprs_to_failed_checks_map.del(node)
-                assert(failed_checks_to_call_exprs_map.has(check))
-                failed_checks_to_call_exprs_map[check] = (
+            if call_expr_to_failed_check_map != none and
+                    call_expr_to_failed_check_map.has(node) {
+                var check = call_expr_to_failed_check_map[node]
+                call_expr_to_failed_check_map.del(node)
+                assert(failed_check_to_call_expr_map.has(check))
+                assert(parent_stmt_to_call_exprs_map.has(node))
+                parent_stmt_to_call_exprs_map.del(node)
+                failed_check_to_call_expr_map[check] = (
                     call_expr
                 )
+                parent_stmt_to_call_exprs_map[call_stmt] = [
+                    call_expr
+                ]
                 check.check_expr = attr_op.copy()
             }
         }

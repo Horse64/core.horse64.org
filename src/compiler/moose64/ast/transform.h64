@@ -728,12 +728,14 @@ func transform_defer(
 
 func transform_associate_failed_checks(
         project_file, project_ast, msgs,
-        call_exprs_to_failed_checks_map=none,
-        failed_checks_to_call_exprs_map=none,
+        call_expr_to_failed_check_map=none,
+        failed_check_to_call_expr_map=none,
+        parent_stmt_to_call_exprs_map=none,
         is_moose64=no
         ) {
-    if call_exprs_to_failed_checks_map == none or
-            failed_checks_to_call_exprs_map == none {
+    if call_expr_to_failed_check_map == none or
+            failed_check_to_call_expr_map == none or
+            parent_stmt_to_call_exprs_map == none {
         throw new TypeError("Map parameters weren't set.")
     }
     func find_followup_failed_check(
@@ -753,7 +755,7 @@ func transform_associate_failed_checks(
             print("horsec: error: Fatal error in "
                 "transform_associate_failed_checks(), somehow "
                 "couldn't get parent of node: " + node.as_str())
-            print("horsec: debug: node_parent parameter was "
+            print("horsec: debug: node_parent parameter "
                 "was set to: " + node.as_str())
             throw new RuntimeError("Internal error, failed to "
                 "obtain parent block of node. Please report "
@@ -817,6 +819,7 @@ func transform_associate_failed_checks(
             }
             return yes
         }
+
         func find_failed_check_in_subexprs(subexprs, debug=no) {
             if debug {
                 print("horsec: debug: "
@@ -849,6 +852,7 @@ func transform_associate_failed_checks(
             }
             return none
         }
+
         var idx = parent_block.find(node)
         assert(idx != none)
         idx += 1
@@ -936,8 +940,12 @@ func transform_associate_failed_checks(
                     "result: check=" + check.as_str())
             }
             if check != none {
-                call_exprs_to_failed_checks_map[node] = check
-                failed_checks_to_call_exprs_map[check] = node
+                call_expr_to_failed_check_map[node] = check
+                if not parent_stmt_to_call_exprs_map.has(node) {
+                    parent_stmt_to_call_exprs_map[node] = []
+                }
+                parent_stmt_to_call_exprs_map[node].add(node)
+                failed_check_to_call_expr_map[check] = node
             }
             return later node
         }
@@ -968,8 +976,12 @@ func transform_associate_failed_checks(
             parent_stmt, parent_stmt_parent, node.subexprs[1]
         )
         if check != none {
-            call_exprs_to_failed_checks_map[node] = check
-            failed_checks_to_call_exprs_map[check] = node
+            call_expr_to_failed_check_map[node] = check
+            if not parent_stmt_to_call_exprs_map.has(parent_stmt) {
+                parent_stmt_to_call_exprs_map[parent_stmt] = []
+            }
+            parent_stmt_to_call_exprs_map[parent_stmt].add(node)
+            failed_check_to_call_expr_map[check] = node
         }
         return later node
     }
@@ -989,7 +1001,7 @@ func transform_associate_failed_checks(
         if node.kind != ast.N_EXPR_FAILEDCHECK {
             return later node
         }
-        if not failed_checks_to_call_exprs_map.has(node) {
+        if not failed_check_to_call_expr_map.has(node) {
             if msgs == none {
                 throw new ValueError("Found invalid "
                     "N_EXPR_FAILEDCHECK that can't be matched "
@@ -1021,31 +1033,147 @@ func transform_associate_failed_checks(
     return later result
 }
 
-func do_moose64_transforms_pre_nameresolution(project_file, msgs) {
-    call_exprs_to_failed_checks_map = {->}
-    failed_checks_to_call_exprs_map = {->}
+func do_moose64_transforms_pre_nameresolution(
+        project_file, msgs) {
+    call_expr_to_failed_check_map = {->}
+    failed_check_to_call_expr_map = {->}
+    parent_stmt_to_call_exprs_map = {->}
+
     var result = transform_associate_failed_checks(
         project_file, project_file.ast, msgs,
-        call_exprs_to_failed_checks_map=
-            call_exprs_to_failed_checks_map,
-        failed_checks_to_call_exprs_map=
-            failed_checks_to_call_exprs_map,
+        call_expr_to_failed_check_map=
+            call_expr_to_failed_check_map,
+        failed_check_to_call_expr_map=
+            failed_check_to_call_expr_map,
+        parent_stmt_to_call_exprs_map=
+            parent_stmt_to_call_exprs_map,
         is_moose64=yes
     ) later:
 
     await result
     result = ast_transform.transform_typeref_inline_constructor(
         project_file, project_file.ast, msgs,
-        failed_checks_to_call_exprs_map=
-            failed_checks_to_call_exprs_map,
-        call_exprs_to_failed_checks_map=
-            call_exprs_to_failed_checks_map,
+        call_expr_to_failed_check_map=
+            call_expr_to_failed_check_map,
+        failed_check_to_call_expr_map=
+            failed_check_to_call_expr_map,
+        parent_stmt_to_call_exprs_map=
+            parent_stmt_to_call_exprs_map,
+        is_moose64=yes
+    ) later:
+
+    await result
+    result = transform_desugar_failed_checks(
+        project_file, project_file.ast, msgs,
+        call_expr_to_failed_check_map=
+            call_expr_to_failed_check_map,
+        failed_check_to_call_expr_map=
+            failed_check_to_call_expr_map,
+        parent_stmt_to_call_exprs_map=
+            parent_stmt_to_call_exprs_map,
         is_moose64=yes
     ) later:
 
     await result
 
     return result
+}
+
+func transform_desugar_failed_checks(
+        project_file, project_ast, msgs,
+        call_expr_to_failed_check_map=none,
+        failed_check_to_call_expr_map=none,
+        parent_stmt_to_call_exprs_map=none,
+        is_moose64=no
+        ) {
+    if call_expr_to_failed_check_map == none or
+            failed_check_to_call_expr_map == none or
+            parent_stmt_to_call_exprs_map == none {
+        throw new TypeError("Map parameters weren't set.")
+    }
+
+    var failable_calls_var_name_map = {->}
+    var parent_statements_processed = {}
+
+    func transform_failable_calls(
+            node, parents, debug=yes
+            ) {
+        var node_parent
+        if parents.len == 0 {
+            node_parent = project_ast
+        } else {
+            node_parent = parents[parents.len]
+        }
+
+        assert(node != node_parent)
+        if node.kind != ast.N_EXPR_BINOP or
+                node.optoken.str != '(' or
+                node.subexprs.len < 2 or
+                node.subexprs[2].kind != ast.N_EXPR_CALLARGS or
+                not call_expr_to_failed_check_map.has(node) {
+            return later node
+        }
+
+        var idx = parents.len
+        var parent_stmt_parent = if idx > 1
+            (parents[idx - 1]) else (none)
+        var parent_stmt = parents[idx]
+        while not parent_stmt.is_stmt {
+            idx -= 1
+            if idx < 1 {
+                return later node
+            }
+            parent_stmt_parent = if idx > 1
+                (parents[idx - 1]) else (none)
+            parent_stmt = parents[idx]
+        }
+        assert(parent_stmt.is_stmt)
+
+        assert(parent_stmt_to_call_exprs_map.has(parent_stmt))
+        if parent_statements_processed.has(parent_stmt) {
+            return later node
+        }
+
+        if debug {
+            print("horsec: debug: transform_failable_calls() will "
+                "now transform: " + parent_stmt.as_str())
+        }
+        var parent_block = none
+        if parent_stmt_parent == none {
+            parent_block = project_ast.stmts
+        } else {
+            parent_block = ast.get_node_parent_block(
+                parent_stmt, parent_stmt_parent
+            )
+        }
+        if parent_block == none {
+            print("horsec: error: Fatal error in "
+                "transform_failable_calls(), somehow "
+                "couldn't get parent of node: " +
+                parent_stmt.as_str())
+            print("horsec: debug: parent_stmt_parent parameter "
+                "was set to: " + parent_stmt_parent.as_str())
+            throw new RuntimeError("Internal error, failed to "
+                "obtain parent block of node. Please report "
+                "this error to the compiler makers.")
+        }
+
+        return later node
+    }
+
+    var result = ast_transform.visit_ast_tree(
+        project_ast, transform_failable_calls,
+        pass_func_boundaries=yes, parent_chain=yes,
+        backward=no, subtree_parent=none,
+        return_new_root=no
+    ) later:
+
+    await result
+    if not result {
+        return later result
+    }
+
+    return later result
 }
 
 func do_moose64_transforms_post_nameresolution(project_file, msgs) {
