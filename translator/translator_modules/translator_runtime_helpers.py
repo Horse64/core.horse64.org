@@ -944,6 +944,9 @@ def _container_last(container, *args, **kwargs):
         return container[-1]
     return container.last(*args, **kwargs)
 
+def _math_abs(v1):
+    return abs(v1)
+
 def _math_floor(v1):
     return math.floor(v1)
 
