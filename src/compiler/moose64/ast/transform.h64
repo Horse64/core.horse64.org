@@ -47,7 +47,7 @@ type DeferInfo {
     var called_name = "$called" + random.gen_id()
     var called_storage_ref = none
     var arg_names = []
-    var arg_storage_refs = []
+    var defer_func_var_name = none
 }
 
 type DeferAddedStatements {
@@ -331,6 +331,7 @@ func transform_defer(
         if result == none {
             return later node
         }
+
         var func_var_typeref = result[1]
         var self_typeref_expr = result[2]
         var arg_var_typerefs = result[3]
@@ -342,6 +343,7 @@ func transform_defer(
             typeref_expr=func_var_typeref, expr=expr_copy,
             line=node.line, col=node.col, add_unique_suffix=yes
         )
+        defer_info.defer_func_var_name = func_var_node.var_labels[1]
         parent_block = parent_block.sub(1, idx) + [func_var_node] +
             parent_block.sub(idx + 1)
         var self_var_node = none
@@ -400,6 +402,7 @@ func transform_defer(
             parent_block = parent_block.sub(1, idx) + [self_var_node] +
                 parent_block.sub(idx + 1)
         }
+
         var arg_var_nodes = []
         var i = 0
         for arg_typeref in arg_var_typerefs {
@@ -417,6 +420,7 @@ func transform_defer(
         ast.set_node_parent_block(node, parent, parent_block)
 
         var defer_resolve_node = new call_or_assign_stmt.CallStmt()
+        defer_resolve_node.scope = node.scope
         defer_resolve_node.line = node.line
         defer_resolve_node.col = node.col
         var optoken = new token.Token(
@@ -429,6 +433,16 @@ func transform_defer(
         var defer_resolve_args_expr = new ast_expr.CallArgsExpr()
         defer_resolve_args_expr.line = node.line
         defer_resolve_args_expr.col = node.col
+        var effective_arg_names = []
+        if self_var_node != none {
+            assert(self_var_node.var_labels.len == 1)
+            effective_arg_names.add(self_var_node.var_labels[1])
+        }
+        for arg_node in arg_var_nodes {
+            assert(arg_node.var_labels.len == 1)
+            effective_arg_names.add(arg_node.var_labels[1])
+        }
+        defer_info.arg_names = effective_arg_names
         var defer_resolve_call = new ast_expr.BinopExpr(optoken)
         defer_resolve_call.line = node.line
         defer_resolve_call.col = node.col
@@ -436,8 +450,35 @@ func transform_defer(
             defer_resolve_called_expr, defer_resolve_args_expr
         ]
         defer_resolve_node.subexprs = [defer_resolve_call]
-        func get_resolve_copy_in_scope(scope) {
-            var copy = defer_resolve_node.copy()
+
+        func copy_node_with_fixed_call_args(defer_info, node) {
+            if node.kind != ast.N_STMT_CALL or
+                    node.subexprs[1].kind != ast.N_EXPR_BINOP or
+                    node.subexprs[1].subexprs[1].kind !=
+                        ast.N_EXPR_IDREF or
+                    node.subexprs[1].subexprs[1].label !=
+                        defer_info.defer_func_var_name {
+                return node.copy()
+            }
+            var result = node.copy()
+            assert(result.subexprs[1].subexprs[2].subexprs.len == 0)
+            for name in defer_info.arg_names {
+                var ref = node.scope.lookup(name)
+                var idref = new ast_expr.IdRefExpr()
+                idref.label = name
+                idref.ref = ref
+                idref.line = node.line
+                idref.col = node.col
+                idref.scope = node.scope
+                result.subexprs[1].subexprs[2].subexprs.add(idref)
+            }
+            return result
+        }
+
+        func get_resolve_copy_in_scope(defer_info, scope) {
+            var copy = copy_node_with_fixed_call_args(
+                defer_info, defer_resolve_node
+            )
             copy.scope = scope
             copy.subexprs[1].scope = scope
             copy.subexprs[1].subexprs[1].scope = scope
@@ -457,7 +498,7 @@ func transform_defer(
                 )
                 defer_added.stmts_added_before_node.add(none)
                 defer_added.stmts_added_after_node.add(
-                    get_resolve_copy_in_scope(node.scope)
+                    get_resolve_copy_in_scope(defer_info, node.scope)
                 )
             }
         } else {
@@ -468,10 +509,11 @@ func transform_defer(
                         parent_block[parent_block.len].kind
                     ) {
                 var last_node = parent_block[parent_block.len]
-                var defer_added = get_node_defer_added(last_node, defer_info)
+                var defer_added = get_node_defer_added(
+                    last_node, defer_info)
                 defer_added.stmts_added_before_node.add(none)
                 defer_added.stmts_added_after_node.add(
-                    get_resolve_copy_in_scope(node.scope)
+                    get_resolve_copy_in_scope(defer_inf, node.scope)
                 )
             }
         }
@@ -553,11 +595,11 @@ func transform_defer(
             if return_var_node != none {
                 defer_added.stmts_added_before_node.add([
                     return_var_node,
-                    get_resolve_copy_in_scope(node.scope),
+                    get_resolve_copy_in_scope(defer_info, node.scope),
                 ])
             } else {
                 defer_added.stmts_added_before_node.add(
-                    get_resolve_copy_in_scope(node.scope),
+                    get_resolve_copy_in_scope(defer_info, node.scope),
                 )
             }
             defer_added.stmts_added_after_node.add(none)
