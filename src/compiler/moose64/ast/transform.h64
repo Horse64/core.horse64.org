@@ -299,7 +299,9 @@ func transform_defer(
     var builder = ast_builder.ASTBuilder(project_file)
 
     var had_no_error = yes
-    func do_transform_defer(node, parent) {
+    func do_transform_defer(node, parents) {
+        var parent = if parents.len > 0
+            (parents[parents.len]) else (none)
         if node.kind != ast.N_STMT_DEFER {
             return later node
         }
@@ -481,7 +483,8 @@ func transform_defer(
                     node.kind) {
                 var associated_loop = none
                 var i = parents.len
-                while i >= 1 and parents[i] != outer_parent {
+                while i >= 1 and parents.len > 0 and
+                        parents[i] != outer_parent {
                     if {ast.N_STMT_FOR, ast.N_STMT_WHILE}.has(
                             parents[i].kind) {
                         associated_loop = parents[i]
@@ -496,10 +499,67 @@ func transform_defer(
             } elseif node.kind != ast.N_STMT_RETURN {
                 return later node
             }
+            var return_var_node = none
+            if not node.is_empty and
+                    (node.subexprs[1].kind != ast.N_EXPR_LIT or
+                     (node.subexprs[1].value != none and
+                      (typename(node.subexprs[1].value) != "num" or
+                       math.abs(node.subexprs[1].value) > 10000))) {
+                var associated_func_node = none
+                var i = parents.len
+                while i >= 1 and parents[i].kind != ast.N_STMT_FUNC {
+                    i -= 1
+                }
+                if i < 1 {
+                    throw new RuntimeError("Internal error, "
+                        "failed to find func around return statement.")
+                }
+                associated_func_node = parents[i]
+                assert(associated_func_node != none)
+                if not associated_func_node.has_return_type {
+                    if msgs == none {
+                        throw new RuntimeError("Found return with "
+                            "value in func without return type.")
+                    }
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected return statement with a "
+                        "returned value, when surrounding func doesn't "
+                        "have a return type.",
+                        kind=msg.M_ERROR, source_file=project_file,
+                        line=node.line,
+                        col=node.col,
+                    ))
+                    node.damaged = yes
+                    found_error = yes
+                } else {
+                    return_var_node = builder.make_var_node(
+                        node.scope, "defer_early_return_val",
+                        typeref_expr=associated_func_node.
+                            subexprs[associated_func_node.subexprs.len],
+                        expr=node.subexprs[1],
+                        line=node.line, col=node.col,
+                        add_unique_suffix=yes
+                    )
+                    node.is_empty = no
+                    var idexpr = new ast_expr.IdRefExpr()
+                    idexpr.label = return_var_node.var_labels[1]
+                    idexpr.scope = node.scope
+                    idexpr.line = node.line
+                    idexpr.col = node.col
+                    node.subexprs = [idexpr]
+                }
+            }
             var defer_added = get_node_defer_added(node, defer_info)
-            defer_added.stmts_added_before_node.add(
-                get_resolve_copy_in_scope(node.scope)
-            )
+            if return_var_node != none {
+                defer_added.stmts_added_before_node.add([
+                    return_var_node,
+                    get_resolve_copy_in_scope(node.scope),
+                ])
+            } else {
+                defer_added.stmts_added_before_node.add(
+                    get_resolve_copy_in_scope(node.scope),
+                )
+            }
             defer_added.stmts_added_after_node.add(none)
             return later node
         }
@@ -536,7 +596,7 @@ func transform_defer(
     }
     var result = ast_transform.visit_ast_tree(
         ast_result, do_transform_defer, pass_func_boundaries=yes,
-        parent_chain=no, backward=no, subtree_parent=none,
+        parent_chain=yes, backward=no, subtree_parent=none,
         return_new_root=no
     ) later:
 
@@ -567,15 +627,22 @@ func transform_defer(
         var idx = 1
         while idx <= defer_added.stmts_added_before_node.len {
             if defer_added.stmts_added_before_node[idx] != none {
-                result = [defer_added.
-                    stmts_added_before_node[idx]] + result
+                var stmts = defer_added.
+                    stmts_added_before_node[idx]
+                if typename(stmts) != "list" {
+                    stmts = [stmts]
+                }
+                result = stmts + result
                 result_node_idx += 1
             }
             if defer_added.stmts_added_after_node[idx] != none {
+                var stmts = defer_added.
+                    stmts_added_after_node[idx]
+                if typename(stmts) != "list" {
+                    stmts = [stmts]
+                }
                 result = result.sub(1, result_node_idx) +
-                    [defer_added.
-                    stmts_added_after_node[idx]] +
-                    result.sub(result_node_idx + 1)
+                    stmts + result.sub(result_node_idx + 1)
             }
             idx += 1
         }
