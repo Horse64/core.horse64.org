@@ -383,6 +383,7 @@ func transform_defer(
             ]
             var optoken = new token.Token('(', token.T_ENCLOSE,
                 node.line, node.col)
+            assert(node.scope != none)
             var assigned_self_ref = new ast_expr.BinopExpr(
                 optoken
             )
@@ -427,10 +428,12 @@ func transform_defer(
             '(', token.T_ENCLOSE, node.line, node.col
         )
         var defer_resolve_called_expr = new ast_expr.IdRefExpr()
+        defer_resolve_called_expr.scope = node.scope
         defer_resolve_called_expr.label = func_var_node.var_labels[1]
         defer_resolve_called_expr.line = node.line
         defer_resolve_called_expr.col = node.col
         var defer_resolve_args_expr = new ast_expr.CallArgsExpr()
+        defer_resolve_args_expr.scope = node.scope
         defer_resolve_args_expr.line = node.line
         defer_resolve_args_expr.col = node.col
         var effective_arg_names = []
@@ -444,6 +447,7 @@ func transform_defer(
         }
         defer_info.arg_names = effective_arg_names
         var defer_resolve_call = new ast_expr.BinopExpr(optoken)
+        defer_resolve_call.scope = node.scope
         defer_resolve_call.line = node.line
         defer_resolve_call.col = node.col
         defer_resolve_call.subexprs = [
@@ -1063,18 +1067,6 @@ func do_moose64_transforms_pre_nameresolution(
     ) later:
 
     await result
-    result = transform_desugar_failed_checks(
-        project_file, project_file.ast, msgs,
-        call_expr_to_failed_check_map=
-            call_expr_to_failed_check_map,
-        failed_check_to_call_expr_map=
-            failed_check_to_call_expr_map,
-        parent_stmt_to_call_exprs_map=
-            parent_stmt_to_call_exprs_map,
-        is_moose64=yes
-    ) later:
-
-    await result
 
     return result
 }
@@ -1092,11 +1084,12 @@ func transform_desugar_failed_checks(
         throw new TypeError("Map parameters weren't set.")
     }
 
-    var failable_calls_var_name_map = {->}
     var parent_statements_processed = {}
+    var builder = new ast_builder.ASTBuilder(project_file)
+    var exprs_to_result_var_name_map = {->}
 
     func transform_failable_calls(
-            node, parents, debug=yes
+            node, parents, debug=no
             ) {
         var node_parent
         if parents.len == 0 {
@@ -1134,6 +1127,7 @@ func transform_desugar_failed_checks(
             return later node
         }
 
+        var exprs = parent_stmt_to_call_exprs_map[parent_stmt]
         if debug {
             print("horsec: debug: transform_failable_calls() will "
                 "now transform: " + parent_stmt.as_str())
@@ -1157,6 +1151,74 @@ func transform_desugar_failed_checks(
                 "obtain parent block of node. Please report "
                 "this error to the compiler makers.")
         }
+        idx = parent_block.find(parent_stmt)
+        assert(idx != none)
+
+        var temp_var_names = []
+        for expr in exprs {
+            var failable_var_type = new ast_typeref.TypeRefExpr()
+            failable_var_type.name = "moose64_failed_result_t"
+            var failable_init_val = new ast_expr.LiteralExpr()
+            failable_init_val.value = 0
+            failable_init_val.scope = node.scope
+            failable_init_val.line = node.line
+            failable_init_val.col = node.col
+            assert(node.scope != none)
+            var failable_result_node = builder.make_var_node(
+                node.scope, "failable_result_val_",
+                typeref_expr=failable_var_type,
+                expr=failable_init_val,
+                line=node.line, col=node.col, add_unique_suffix=yes
+            )
+            temp_var_names.add(failable_result_node.var_labels[1])
+            exprs_to_result_var_name_map[expr] =
+                failable_result_node.var_labels[1]
+            parent_block.add_at(idx, failable_result_node)
+
+            # Now add this new variable as a call argument:
+            assert(expr.kind == ast.N_EXPR_BINOP)
+            assert(expr.subexprs.len == 2)
+            assert(expr.subexprs[2].kind == ast.N_EXPR_CALLARGS)
+            var additional_arg_node = new ast_expr.IdRefExpr()
+            additional_arg_node.label =
+                failable_result_node.var_labels[1]
+            additional_arg_node.ref = node.scope.lookup(
+                failable_result_node.var_labels[1]
+            )
+            additional_arg_node.line = node.line
+            additional_arg_node.col = node.col
+            additional_arg_node.scope = node.scope
+            var as_ref_node = new ast_expr.IdRefExpr()
+            as_ref_node.scope = node.scope
+            as_ref_node.line = node.line
+            as_ref_node.col = node.col
+            as_ref_node.label = "as_ref"
+            as_ref_node.type_path = ["std"]
+            if project_file.modinfo != none and
+                    project_file.modinfo.
+                        package_name == "m64.horse64.org" and
+                    project_file.modinfo.
+                        module_name == "std" {
+                as_ref_node.type_path = none
+            }
+            as_ref_node.ref =
+                builtin_syms.try_lookup_symbol(
+                    project_file.project, "as_ref", "std",
+                    in_package_name="m64.horse64.org"
+                )
+            var combined_optoken = new token.Token(
+                '(', token.T_ENCLOSE, node.line, node.col
+            )
+            var combined_node = new ast_expr.BinopExpr(
+                combined_optoken
+            )
+            combined_node.scope = node.scope
+            combined_node.line = node.line
+            combined_node.col = node.col
+            combined_node.subexprs = [as_ref_node,
+                additional_arg_node]
+            expr.subexprs[2].subexprs.add(combined_node)
+        }
 
         return later node
     }
@@ -1173,11 +1235,85 @@ func transform_desugar_failed_checks(
         return later result
     }
 
+    func transform_failable_checks(
+            node, parents, debug=no
+            ) {
+        var node_parent
+        if parents.len == 0 {
+            node_parent = project_ast
+        } else {
+            node_parent = parents[parents.len]
+        }
+
+        assert(node != node_parent)
+        if node.kind != ast.N_EXPR_FAILEDCHECK or
+                not failed_check_to_call_expr_map.has(node) {
+            return later node
+        }
+
+        var failable_call = failed_check_to_call_expr_map[node]
+        var var_name = exprs_to_result_var_name_map[failable_call]
+
+        var failable_result_node = new ast_expr.IdRefExpr()
+        failable_result_node.label = var_name
+        failable_result_node.ref = node.scope.lookup(var_name)
+        failable_result_node.line = node.line
+        failable_result_node.col = node.col
+        failable_result_node.scope = node.scope
+        return later failable_result_node
+    }
+    result = ast_transform.visit_ast_tree(
+        project_ast, transform_failable_checks,
+        pass_func_boundaries=yes, parent_chain=yes,
+        backward=no, subtree_parent=none,
+        return_new_root=no
+    ) later:
+
+    await result
+
     return later result
 }
 
-func do_moose64_transforms_post_nameresolution(project_file, msgs) {
-    var result = transform_defer(
+func do_moose64_transforms_post_nameresolution(
+        project_file, msgs) {
+
+    var call_expr_to_failed_check_map = {->}
+    var failed_check_to_call_expr_map = {->}
+    var parent_stmt_to_call_exprs_map = {->}
+
+    var result = transform_associate_failed_checks(
+        project_file, project_file.ast, msgs,
+        call_expr_to_failed_check_map=
+            call_expr_to_failed_check_map,
+        failed_check_to_call_expr_map=
+            failed_check_to_call_expr_map,
+        parent_stmt_to_call_exprs_map=
+            parent_stmt_to_call_exprs_map,
+        is_moose64=yes
+    ) later:
+
+    await result
+    if not result {
+        return later no
+    }
+
+    result = transform_desugar_failed_checks(
+        project_file, project_file.ast, msgs,
+        call_expr_to_failed_check_map=
+            call_expr_to_failed_check_map,
+        failed_check_to_call_expr_map=
+            failed_check_to_call_expr_map,
+        parent_stmt_to_call_exprs_map=
+            parent_stmt_to_call_exprs_map,
+        is_moose64=yes,
+    ) later:
+
+    await result
+    if not result {
+        return later no
+    }
+
+    result = transform_defer(
         project_file, project_file.ast, msgs, is_moose64=yes
     ) later:
 

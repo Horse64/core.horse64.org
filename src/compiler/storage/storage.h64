@@ -1461,7 +1461,12 @@ func project.Project.compute_all_scopes(
                     replacement_idref.line = node.line
                     replacement_idref.col = node.col
                     replacement_idref.label = label
-                    replacement_idref.type_path = type_path.join(".")
+                    assert(type_path == none or
+                        typename(type_path) == "list")
+                    if type_path.len == 0 {
+                        type_path = none
+                    }
+                    replacement_idref.type_path = type_path
                     if replacement_idref.type_path == "" {
                         replacement_idref.type_path = none
                     }

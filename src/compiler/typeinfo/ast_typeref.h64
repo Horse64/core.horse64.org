@@ -381,6 +381,7 @@ func TypeRefExpr.adjust_storage_to_file(pfile) {
         var ipath = pfile.global_scope.get_import_path_for_global(
             pfile, self.storage_ref.id
         )
+        assert(typename(ipath) == "list")
         self.type_path = ipath
     }
 }

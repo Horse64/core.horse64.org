@@ -37,6 +37,7 @@ import compiler.ast.if_stmt as if_stmt
 import compiler.ast.transform.later_transform as later_transform
 import compiler.ast.var_stmt as var_stmt
 import compiler.moose64.ast.transform as m64_ast_transform
+import compiler.project as project
 import compiler.storage.ref as st_ref
 import compiler.storage.scope as scope
 import compiler.token as token
@@ -619,7 +620,8 @@ func do_all_pre_nameres_transformations(
 
         func process_file(pfile) {
             var result = m64_ast_transform.
-                do_moose64_transforms_pre_nameresolution(pfile, msgs)
+                do_moose64_transforms_pre_nameresolution(
+                    pfile, msgs)
             later:
 
             await result
@@ -680,7 +682,8 @@ func do_all_post_nameres_transformations(
 
         func process_file(pfile) {
             var result = m64_ast_transform.
-                do_moose64_transforms_post_nameresolution(pfile, msgs)
+                do_moose64_transforms_post_nameresolution(
+                    pfile, msgs)
             later:
 
             await result

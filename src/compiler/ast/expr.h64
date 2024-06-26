@@ -263,9 +263,14 @@ func IdRefExpr.as_code(indent=0) {
     assert(self.type_path == none or
         typename(self.type_path) == "list")
     var t = ""
-    if self.type_path != none {
+    if self.type_path != none and self.type_path.len > 0 {
+        for item in self.type_path {
+            assert(typename(item) == "str")
+            assert(item.len > 0)
+        }
         t += self.type_path.join(".") + "."
     }
+    assert(self.label != none and self.label.len > 0)
     t += self.label
     return t
 }
