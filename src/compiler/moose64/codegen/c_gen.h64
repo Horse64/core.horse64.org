@@ -1,0 +1,84 @@
+## @module compiler.moose64.codegen.c
+# Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import compiler.ast as ast
+import compiler.msg as msg
+
+func ast_to_c(project_file, msgs=none, build_options=none) {
+    #if node.kind == ast.N_EXPR_LITERAL {
+        
+    #}
+    return later none
+}
+
+func export_moose_project_to_c(
+        project, output_file_ext=".c.m64temp",
+        limit_to_project_files=[],
+        msgs=none, build_options=none,
+        ) {
+    func process_file(pfile) {
+        var result = ast_to_c(pfile, msgs)
+        later:
+
+        await result
+        if result == none {
+            var goterror = no
+            if msgs != none {
+                for m in msgs {
+                    if m.kind == msg.M_ERROR {
+                        goterror = yes
+                        break
+                    }
+                }
+            }
+            if not goterror {
+                if msgs == none {
+                    throw new RuntimeError("Internal error, "
+                        "unexpectedly failed to generate C code "
+                        "but no error was returned.")
+                }
+                msgs.add(new msg.FileMsg(
+                    "Internal error, unexpectedly failed to "
+                    "generate C code with no error for this file: " +
+                    if pfile.source_uri != none (pfile.source_uri)
+                        else ("<unknown anonymous file>"),
+                    source_file=pfile,
+                    line=none,
+                    col=none,
+                ))
+            }
+        }
+        return later yes
+    }
+    var result = project.do_for_all_files(process_file)
+    later:
+
+    await result
+    assert(result == yes or result == no)
+    return result
+}
+
