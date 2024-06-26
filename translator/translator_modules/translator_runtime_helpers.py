@@ -641,6 +641,17 @@ def h64_type(v):
         return "none"
     return str(result)
 
+def _container_add_at(container, idx, item):
+    if (not hasattr(container, "add_at") and
+            hasattr(container, "insert")):
+        if type(idx) not in {int, float}:
+            raise _TypeError("Index given must be of num type.")
+        py_idx = round(idx) - 1
+        if py_idx < 0 or py_idx > len(container):
+            raise _ValueError("Index out of range.")
+        return container.insert(py_idx, item)
+    return container.add_at(idx, item)
+
 def _container_add(container, item):
     if (not hasattr(container, "add") and
             hasattr(container, "append")):
