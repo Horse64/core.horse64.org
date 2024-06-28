@@ -979,7 +979,7 @@ func ProjectFile.init(
     self.is_moose64 = is_moose64
     if self.is_moose64 and self.project != none {
         self.project.is_moose64 = yes
-        self.project.file_ext = ".h64"
+        self.project.file_ext = ".m64"
         self.project.build_options.is_moose64 = yes
     }
 }
