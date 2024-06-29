@@ -525,14 +525,25 @@ func parse_to_ast_ex(
                     stmt, is_moose64=is_moose64
                 ) {
             stmt.damaged = yes
-            result.msgs.add(new msg.FileMsg(
-                "Unexpected " +
-                NodeKind.num_label(stmt.kind) + " statement, "
-                "expected a top-level statement instead.",
-                source_file=project_file,
-                line=token.get_line(tokens, pos),
-                col=token.get_col(tokens, pos),
-            ))
+            var mute_error = no
+            if stmt.kind == N_STMT_INVALID {
+                for m in result.msgs {
+                    if m.kind == msg.M_ERROR {
+                        mute_error = yes
+                        break
+                    }
+                }
+            }
+            if not mute_error {
+                result.msgs.add(new msg.FileMsg(
+                    "Unexpected " +
+                    NodeKind.num_label(stmt.kind) + " statement, "
+                    "expected a top-level statement instead.",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+            }
         }
         pos += stmt.token_len
         if is_inside_block {

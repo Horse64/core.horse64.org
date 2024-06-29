@@ -183,6 +183,8 @@ func project.ProjectFile.try_lookup_symbol_path(
                 name_to_stmt_map[entry.enum_stmt_label]
             assert(enum_stmt.kind == ast.N_STMT_ENUM)
             var anscope = enum_stmt.attr_names_scope
+            assert(entry.symbol_info != none and
+                typename(entry.symbol_info) != "list")
             assert(entry.symbol_info.storage_id >= 1 and
                 entry.symbol_info.storage_id <=
                     anscope.label_names.len)
@@ -205,6 +207,7 @@ func project.ProjectFile.try_lookup_symbol_path(
                 }
             }
         } else {
+            assert(entry.symbol_info != none)
             return new st_ref.StorageRef(
                 st_ref.ST_GLOBAL,
                 entry.symbol_info.storage_id
@@ -307,6 +310,8 @@ func project.ProjectFile.try_lookup_symbol_path(
                     name_to_stmt_map[entry.enum_stmt_label]
                 assert(enum_stmt.kind == ast.N_STMT_ENUM)
                 var anscope = enum_stmt.attr_names_scope
+                assert(entry.symbol_info != none and
+                    typename(entry.symbol_info) != "list")
                 assert(entry.symbol_info.storage_id >= 1 and
                     entry.symbol_info.storage_id <=
                         anscope.label_names.len)
@@ -319,6 +324,16 @@ func project.ProjectFile.try_lookup_symbol_path(
             if entry.symbol_info == none {
                 return no
             }
+            if entry.kind == ast.N_STMT_VAR {
+                assert(typename(entry.symbol_info) == "list")
+                var idx = entry.var_labels.find(item_name)
+                assert(idx != none)
+                return new st_ref.StorageRef(
+                    st_ref.ST_GLOBAL,
+                    entry.symbol_info[idx].storage_id
+                )
+            }
+            assert(typename(entry.symbol_info) != "list")
             return new st_ref.StorageRef(
                 st_ref.ST_GLOBAL,
                 entry.symbol_info.storage_id

@@ -41,6 +41,7 @@ type FuncStmt base ast.StmtNode {
     var has_return_type = no
     var has_arg_types = no
     var has_failable = no
+    var is_override = no
     var arg_labels = []
     var kw_arg_count = 0
 }
@@ -313,13 +314,14 @@ func parse(tokens, pos, msgs, project_file=none,
     stmt.label = name
 
     # Now we must have either '(' for arguments, or '{' for code block:
+    var m64_func_props = {"failable", "override"}
     if pos > tokens_len or
             ((tokens[pos].kind != token.T_ENCLOSE or
             not {"(", "{"}.has(tokens[pos].str)) and
             (not is_moose64 or
              (tokens[pos].kind != token.T_RIGHTPTR and
               (tokens[pos].kind != token.T_KEYWORD or
-               tokens[pos].str != "failable")))) {
+               not m64_func_props.has(tokens[pos].str))))) {
         msgs.add(new msg.FileMsg(
             "Unexpected " + token.describe_token_at(tokens, pos) +
             ", expected '(' or '{' (T_ENCLOSE) for "
@@ -410,11 +412,16 @@ func parse(tokens, pos, msgs, project_file=none,
     argsobj = none
 
     # Check if this is 'failable':
-    if is_moose64 and not is_extend and
+    while is_moose64 and not is_extend and
             pos <= tokens_len and
             tokens[pos].kind == token.T_KEYWORD and
-            tokens[pos].str == "failable" {
-        stmt.has_failable = yes
+            m64_func_props.has(tokens[pos].str) {
+        var prop = tokens[pos].str
+        if prop == "failable" {
+            stmt.has_failable = yes
+        } elseif prop == "override" {
+            stmt.is_override = yes
+        }
         pos += 1
     }
 

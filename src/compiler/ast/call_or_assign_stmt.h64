@@ -134,7 +134,8 @@ func AssignStmt.as_code(indent=0) {
 func check_call_or_assign_and_get_idx(
         tokens, pos, tokens_len, only_assigns=no, debug=no) {
     if pos > tokens_len or (
-            not {token.T_NUM, token.T_STR, token.T_BYTES,
+            not {token.T_NUM, token.T_BIGNUM,
+             token.T_STR, token.T_BYTES,
              token.T_IDENT}.has(tokens[pos].kind) and
             (tokens[pos].kind != token.T_KEYWORD or
              tokens[pos].str != "base")) {

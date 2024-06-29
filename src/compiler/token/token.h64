@@ -270,6 +270,9 @@ func parse_token_value(tok) {
             return math.parse_hex(tok.str)
         }
         return tok.str.to_num()
+    } elseif tok.kind == T_BIGNUM {
+        throw new TypeError("Cannot return actual "
+            "literal value for T_BIGNUM token.")
     } elseif tok.kind == T_STR {
         if tok.str.len == 0 or
                 not {"'", '"'}.has(tok.str[1]) {
@@ -1009,6 +1012,7 @@ func token_has_righthand(t) {
             "as", "from", "with", "for", "if",
             "elseif", "else", "do", "rescue",
             "finally", "await", "failable",
+            "override",
             "var", "const", "throw",
             "enum"}.has(t.str)) or
             t.kind == T_NEWOP {
@@ -1035,6 +1039,7 @@ func token_has_lefthand(t) {
     }
     if t.kind == T_KEYWORD and {
             "as", "from", "in", "failable",
+            "override",
             "elseif", "else", "rescue",
             "finally", "later",
             "protect"}.has(t.str) {
@@ -1054,7 +1059,7 @@ func is_special_word(value, is_moose64=no) {
             value.kind == T_BOOLCOMP
     }
     if is_moose64 and {"c_import", "failable", "failed",
-            "union"}.has(value) {
+            "union", "override"}.has(value) {
         return yes
     }
     return special_words.has(value)
@@ -1158,6 +1163,7 @@ enum TokenKind {
     T_STR,
     T_BYTES,
     T_NUM,
+    T_BIGNUM,
     T_KEYWORD,
     T_BOOL,
     T_IDENT,
@@ -2070,31 +2076,41 @@ func tokenize_str(
             }
             k -= 1
             var numtoken = str.sub(i, k)
+            var is_big_num = no
             if bignum.compare_nums(
                     limit.num_max_str,
                     numtoken) < 0 {
-                result.msgs.add(new msg.FileMsg(
-                    "Invalid unexpected number literal " +
-                    numtoken + " exceeds maximum value " +
-                    limit.num_max_str + " that "
-                    "a Horse64 num can hold.",
-                    source_file=project_file,
-                    line=line, col=col
-                ))
+                if is_moose64 {
+                    is_big_num = yes
+                } else {
+                    result.msgs.add(new msg.FileMsg(
+                        "Invalid unexpected number literal " +
+                        numtoken + " exceeds maximum value " +
+                        limit.num_max_str + " that "
+                        "a Horse64 num can hold.",
+                        source_file=project_file,
+                        line=line, col=col
+                    ))
+                }
             } elseif bignum.compare_nums(
                     limit.num_min_str,
                     numtoken) > 0 {
-                result.msgs.add(new msg.FileMsg(
-                    "Invalid unexpected number literal " +
-                    numtoken + " is below minimum value " +
-                    limit.num_min_str + " that "
-                    "a Horse64 num can hold.",
-                    source_file=project_file,
-                    line=line, col=col
-                ))
+                if is_moose64 {
+                    is_big_num = yes
+                } else {
+                    result.msgs.add(new msg.FileMsg(
+                        "Invalid unexpected number literal " +
+                        numtoken + " is below minimum value " +
+                        limit.num_min_str + " that "
+                        "a Horse64 num can hold.",
+                        source_file=project_file,
+                        line=line, col=col
+                    ))
+                }
             }
             result.tokens.add(new Token(
-                numtoken, T_NUM, line, col
+                numtoken, if is_big_num (T_BIGNUM) else (T_NUM),
+                line, col
             ))
             col += (k - i)
             i = k

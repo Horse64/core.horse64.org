@@ -1,4 +1,4 @@
-## @module compiler.typeref
+ ## @module compiler.typeref
 # Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -39,7 +39,7 @@ const builtin_moose64_types = {
     "any", "auto", "moose64_failed_result_t"
 }
 const builtin_moose64_type_modifiers = {
-    "ref", "array", "readonly"
+    "ref", "array", "c_array", "readonly"
 }
 
 type TypeRefModProp {
@@ -798,7 +798,9 @@ func _parse_typeref_notlater(
                         var prop = new TypeRefModProp_Range()
                         prop.range_value_label =
                             tokens[pos + 1].str
-                    } elseif tokens[pos + 1].kind == token.T_NUM {
+                    } elseif {token.T_NUM, token.T_BIGNUM}.has(
+                            tokens[pos + 1].kind == token.T_NUM
+                            ) {
                         var prop = new TypeRefModProp_Range()
                         prop.range_value_num =
                             tokens[pos + 1].str.to_num()
