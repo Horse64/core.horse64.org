@@ -113,7 +113,7 @@ func VarStmt.as_code(indent=0) {
         )
     }
     if type_expr != none {
-        t += "<-"
+        t += " <- "
         t += type_expr.as_code(indent=(indent + 4))
     }
     if self.has_protect {

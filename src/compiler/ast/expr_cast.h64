@@ -35,6 +35,19 @@ type TypeCastExpr base ast.TreeNode {
     var typeref_expr
 }
 
+func TypeCastExpr.init {
+    self.kind = ast.N_EXPR_TYPECAST
+}
+
+func TypeCastExpr.as_code(indent=0) {
+    var t = "as("
+    t += self.typeref_expr.as_code(indent=indent)
+    t += ", "
+    t += self.subexprs[1].as_code(indent=indent)
+    t += ")"
+    return t
+}
+
 func parse_type_cast_expr(
         tokens, pos, nesting_depth, msgs, project_file=none,
         max_len=none, is_moose64=no, debug=no

@@ -1822,18 +1822,18 @@ func CallArgsExpr.as_code(indent=0) {
         if is_first {
             is_first = no
         } else {
-            t += ","
+            t += ", "
         }
         if arg.kind == ast.N_EXPR_CALLKWARG {
             t += arg.label
             if self.has_types {
-                t += "<-" + argtypes[idx].as_str()
+                t += " <- " + argtypes[idx].as_str()
             }
             t += "=" + arg.subexprs[1].as_code(indent=indent)
         } else {
             t += arg.as_code(indent=indent)
             if self.has_types {
-                t += "<-" + argtypes[idx].as_str()
+                t += " <- " + argtypes[idx].as_str()
             }
         }
     }

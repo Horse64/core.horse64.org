@@ -155,11 +155,11 @@ func _func_stmt_to_code(stmt, is_extend=no, indent=0) {
             if is_first {
                 is_first = no
             } else {
-                t += ","
+                t += ", "
             }
             t += stmt.arg_labels[i]
             if stmt.has_arg_types {
-                t += "<-" + stmt.subexprs[stmt.kw_arg_count + i].
+                t += " <- " + stmt.subexprs[stmt.kw_arg_count + i].
                     as_code(indent=indent)
             }
             i += 1
@@ -168,11 +168,11 @@ func _func_stmt_to_code(stmt, is_extend=no, indent=0) {
             if is_first {
                 is_first = no
             } else {
-                t += ","
+                t += ", "
             }
             t += stmt.arg_labels[i]
             if stmt.has_arg_types {
-                t += "<-" + stmt.subexprs[stmt.kw_arg_count + i].
+                t += " <- " + stmt.subexprs[stmt.kw_arg_count + i].
                     as_code(indent=indent)
             }
             t += "=" + stmt.subexprs[i - pos_arg_count].
@@ -182,8 +182,14 @@ func _func_stmt_to_code(stmt, is_extend=no, indent=0) {
         t += ")"
     }
     if not is_extend and stmt.has_return_type {
-        t += "->" + stmt.subexprs[stmt.subexprs.len].
+        t += " -> " + stmt.subexprs[stmt.subexprs.len].
             as_code(indent=(indent + 4))
+    }
+    if stmt.has_failable {
+        t += " failable"
+    }
+    if stmt.is_override {
+        t += " override"
     }
     t += " {\n"
     for substmt in stmt.subblocks[1] {
@@ -411,20 +417,6 @@ func parse(tokens, pos, msgs, project_file=none,
     # since this isn't a call.
     argsobj = none
 
-    # Check if this is 'failable':
-    while is_moose64 and not is_extend and
-            pos <= tokens_len and
-            tokens[pos].kind == token.T_KEYWORD and
-            m64_func_props.has(tokens[pos].str) {
-        var prop = tokens[pos].str
-        if prop == "failable" {
-            stmt.has_failable = yes
-        } elseif prop == "override" {
-            stmt.is_override = yes
-        }
-        pos += 1
-    }
-
     # Parse return type if any:
     var type_expr = none
     func parse_type_if_any(
@@ -477,6 +469,20 @@ func parse(tokens, pos, msgs, project_file=none,
 
     await advancelen
     pos += advancelen
+
+    # Check if this is 'failable':
+    while is_moose64 and not is_extend and
+            pos <= tokens_len and
+            tokens[pos].kind == token.T_KEYWORD and
+            m64_func_props.has(tokens[pos].str) {
+        var prop = tokens[pos].str
+        if prop == "failable" {
+            stmt.has_failable = yes
+        } elseif prop == "override" {
+            stmt.is_override = yes
+        }
+        pos += 1
+    }
 
     # Now parse the required code block opening with '{' here:
     var block_result = block.parse(
