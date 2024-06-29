@@ -38,6 +38,7 @@ import uri from core.horse64.org
 import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
 import compiler.limit as climit
 import compiler.msg as msg
+import compiler.preprocessor as preprocessor
 import compiler.project as project
 
 const _math_ops_single_char = {
@@ -2134,6 +2135,7 @@ func tokenize_from_fileobj (
         fobj, project_file=none,
         keep_whitespace=no,
         keep_comments=no,
+        apply_preprocessor=no,
         is_moose64=no
         ) {
     var result = new TokensResult()
@@ -2155,6 +2157,18 @@ func tokenize_from_fileobj (
         ))
         return result
     }
+    func apply_preprocessor_if_needed {
+        if not apply_preprocessor {
+            return later
+        }
+        var new_contents = preprocessor.preprocess_file(
+            project_file.project, project_file, contents
+        ) later:
+
+        await new_contents
+        contents = new_contents
+    }
+    apply_preprocessor_if_needed() later:
     result = tokenize_str(
         contents, project_file=project_file,
         keep_whitespace=keep_whitespace,
@@ -2230,17 +2244,24 @@ func tokenize_from_uri(
         return later
     }
     ensure_project_if_needed() later:
-    project_file.project.allow_disk_access = (
-        allow_disk_access
-    )
-    project_file.project.allow_vfs_access = (
-        allow_vfs_access
-    )
+    var do_preprocess = no
+    if project_file.project != none {
+        project_file.project.allow_disk_access = (
+            allow_disk_access
+        )
+        project_file.project.allow_vfs_access = (
+            allow_vfs_access
+        )
+        if require_detect_project_dir {
+            do_preprocess = yes
+        }
+    }
     with project_file.open() later as fileobj {
         var result = tokenize_from_fileobj(fileobj,
             project_file=project_file,
             keep_whitespace=keep_whitespace,
             keep_comments=keep_comments,
+            apply_preprocessor=do_preprocess,
             is_moose64=is_moose64) later:
 
         await result

@@ -1,0 +1,80 @@
+## @module compiler.preprocessor
+# Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+prep{ if system.program_compiler_name.has("horse64-translator") }
+import translator_internals from core.horse64.org
+prep{ endif }
+import path from core.horse64.org
+import uri from core.horse64.org
+import system from core.horse64.org
+
+func preprocess_file(project, project_file, contents) {
+    prep{ if system.program_compiler_name.has("horse64-translator") }
+    # This is the code path for using the python translator runtime.
+    # When doing this, there's no HVM and none of the proper
+    # preprocessor written in Moose64, so we have to use the hacky
+    # Python preprocessor here.
+
+    if project_file.source_uri == none {
+        return later contents
+    }
+    if uri.get_protocol(project.base_dir_uri) != "file" {
+        if "prep{" in contents {
+            throw new RuntimeError(
+                "Unsupported code path for running in Python "
+                "translator, can't preprocess remote files. "
+                "Please bootstrap locally first, then retry."
+            )
+        }
+        return later contents
+    }
+    var disk_base_dir = uri.to_file_or_vfs_path(
+        project.base_dir_uri
+    )
+
+    # Ensure that the source prefix is detected if we have any:
+    var modinfo = project.get_modinfo_for_file(
+        project_file.source_uri)
+    later:
+
+    await modinfo
+
+    # Do the actual preprocessing:
+    var result = translator_internals.preprocess_file_in_translator(
+        contents, disk_base_dir, path.join(
+            disk_base_dir, project.source_dir_prefix
+        ),
+        path.join(disk_base_dir, "horse_modules"),
+        project_file.source_uri, modinfo.module_name,
+        modinfo.package_name, system.program_compiler_name
+    )
+    contents = result
+    prep{ else }
+    throw new RuntimeError("Not implemented yet.")
+    prep{ endif }
+    return later contents
+}

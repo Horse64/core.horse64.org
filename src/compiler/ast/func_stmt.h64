@@ -74,31 +74,65 @@ func FuncStmt.as_json_obj {
 ## Returns the real, final argument count when considering
 ## all 'extend func' statements that apply to this function.
 func FuncStmt.extended_final_arg_count {
-    return self.func_scope.arg_names.len
+    return self.func_scope.extended_final_arg_count()
 }
 
+## Returns the real, final keyword argument count when considering
+## all 'extend func' statements that apply to this function.
+func FuncStmt.extended_final_kw_arg_count {
+    return self.func_scope.extended_final_kw_arg_count()
+}
+
+## Returns the real, final list of argument names when considering
+## all 'extend func' statements that apply to this function.
+func FuncStmt.extended_final_arg_names {
+    return self.func_scope.extended_final_arg_names()
+}
+
+## Returns the real, final list of arg @{compiler.type_info.
+## ast_typeref.TypeRefExpr}s when considering all
+## 'extend func' statements that apply to this function.
 func FuncStmt.extended_final_arg_type_exprs {
-    return self.func_scope.arg_type_exprs.copy()
+    return self.func_scope.extended_final_arg_type_exprs()
 }
 
+## Returns the real, final return type, which when queried
+## on an 'extend func' statement will get you the base func's
+## return type.
 func FuncStmt.extended_final_has_return_type {
-    return self.func_scope.has_return_type
+    var base_func_scope = self.func_scope.base_func_scope
+    if base_func_scope == none {
+        base_func_scope = self.func_scope
+    }
+    return base_func_scope.has_return_type
 }
 
+## Returns the real, final return @{compiler.type_info.
+## ast_typeref.TypeRefExpr}, which when queried on an
+## 'extend func' statement will get you the base func's
+## return type's typeref expression.
 func FuncStmt.extended_final_return_type_expr {
-    return self.func_scope.return_type_expr
+    var base_func_scope = self.func_scope.base_func_scope
+    if base_func_scope == none {
+        base_func_scope = self.func_scope
+    }
+    return base_func_scope.return_type_expr
 }
 
 func _get_local_args_symbol_info_list(stmt) {
+    var base_func_scope = self.func_scope.base_func_scope
+    if base_func_scope == none {
+        base_func_scope = self.func_scope
+    }
     var sinfo_list = []
     for lbl in stmt.arg_labels {
         var i = 1
-        while i <= stmt.func_scope.arg_names.len {
-            if stmt.func_scope.arg_names[i] != lbl {
+        while i <= base_func_scope.arg_names.len {
+            if base_func_scope.arg_names[i] != lbl {
                 i += 1
                 continue
             }
-            sinfo_list.add(stmt.func_scope.arg_symbol_info[i])
+            sinfo_list.add(base_func_scope.arg_symbol_info[i])
             i += 1
         }
     }

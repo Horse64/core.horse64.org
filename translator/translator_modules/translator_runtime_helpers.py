@@ -3658,6 +3658,11 @@ def runmodinits():
 def _internals_get_addr(v):
     return int(id(v))
 
+def preprocess_file_in_translator(*args, **kwargs):
+    import translator_runtime_helpers_preprocessor
+    return translator_runtime_helpers_preprocessor.\
+        preprocess_file_in_translator(*args, **kwargs)
+
 def _async_final_bail_handler(err, result, funcname="main"):
     global _async_final_bails_need_extra_bail_count
     if err != None and not isinstance(err, SystemExit):
