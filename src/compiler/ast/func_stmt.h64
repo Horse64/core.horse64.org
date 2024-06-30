@@ -119,10 +119,18 @@ func FuncStmt.extended_final_return_type_expr {
     return base_func_scope.return_type_expr
 }
 
-func _get_local_args_symbol_info_list(stmt) {
+func FuncStmt.extended_final_symbol_info_list {
     var base_func_scope = self.func_scope.base_func_scope
     if base_func_scope == none {
         base_func_scope = self.func_scope
+    }
+    return base_func_scope.arg_symbol_info.copy()
+}
+
+func _get_local_args_symbol_info_list(stmt) {
+    var base_func_scope = stmt.func_scope.base_func_scope
+    if base_func_scope == none {
+        base_func_scope = stmt.func_scope
     }
     var sinfo_list = []
     for lbl in stmt.arg_labels {

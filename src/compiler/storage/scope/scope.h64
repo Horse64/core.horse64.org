@@ -151,7 +151,7 @@ func FuncScope.extended_final_kw_arg_count {
     return result[3].len
 }
 
-func FuncStmt.extended_final_arg_type_exprs {
+func FuncScope.extended_final_arg_type_exprs {
     var result = self._extended_final_arg_names_split()
     return result[2] + result[4]
 }
@@ -177,11 +177,11 @@ func FuncScope.add_arg(
     }
     var all_arg_names = self.extended_final_arg_names()
     var idx = 0
-    for arg_name in self.names {
+    for arg_name in self.arg_names {
         idx += 1
         assert(all_arg_names.has(arg_name))
         var arg_idx = all_arg_names.find(arg_name)
-        while arg_idx > base_func_scope.arg_symbol_info {
+        while arg_idx > base_func_scope.arg_symbol_info.len {
             base_func_scope.arg_symbol_info.add(none)
         }
         var sinfo = new SymbolInfo(name)

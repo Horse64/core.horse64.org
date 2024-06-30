@@ -1048,34 +1048,42 @@ func project.Project.compute_all_scopes(
                     var final_arg_labels = []
                     var final_pos_args = []
                     var final_arg_count = 0
+                    var final_arg_type_exprs = []
                     var final_kw_arg_count = 0
                     var invalid = no
                     if node.kind == ast.N_STMT_FUNCEXTEND and
                             node.kw_arg_count < node.arg_labels.len {
-                        if msgs != none {
-                            if not node.damaged {
-                                msgs.add(new msg.FileMsg(
-                                    "Unexpectedly seeing new positional "
-                                    "arguments in extend func statement, "
-                                    "this is not allowed.",
-                                    source_file=pfile,
-                                    line=node.line, col=node.col,
-                                ))
-                            }
+                        if msgs == none {
                             node.damaged = yes
-                        } else {
                             throw new ValueError(
                                 "Invalid extend func that adds "
                                 "pos args."
                             )
                         }
+                        if not node.damaged {
+                            msgs.add(new msg.FileMsg(
+                                "Unexpectedly seeing new positional "
+                                "arguments in extend func statement, "
+                                "this is not allowed.",
+                                source_file=pfile,
+                                line=node.line, col=node.col,
+                            ))
+                        }
+                        node.damaged = yes
                         invalid = yes
                     }
                     if not node.damaged {
-                        final_arg_count = node.extended_final_arg_count()
-                        final_arg_labels = node.extended_final_arg_names()
+                        final_arg_count =
+                            node.extended_final_arg_count()
+                        final_arg_labels =
+                            node.extended_final_arg_names()
                         final_pos_args = final_arg_labels.copy()
-                        final_kw_arg_count = node.extended_final_kw_arg_count()
+                        final_kw_arg_count =
+                            node.extended_final_kw_arg_count()
+                        final_arg_type_exprs =
+                            node.extended_final_arg_type_exprs()
+                        assert(final_arg_type_exprs.len ==
+                            final_arg_labels.len)
                     }
                     var final_pos_args = []
                     if final_kw_arg_count < final_arg_count {
@@ -1114,12 +1122,13 @@ func project.Project.compute_all_scopes(
                             break
                         }
                     }
-                    if not node.damaged and
-                            base_func_scope.arg_symbol_info == none {
-                        assert(node.func_scope.arg_symbol_info == none)
-                        base_func_scope.arg_symbol_info = []
-                        node.func_scope.arg_symbol_info =
-                            base_func_scope.arg_symbol_info
+                    if not node.damaged {
+                        if base_func_scope.arg_symbol_info == none {
+                            assert(node.func_scope.arg_symbol_info == none)
+                            base_func_scope.arg_symbol_info = []
+                            node.func_scope.arg_symbol_info =
+                                base_func_scope.arg_symbol_info
+                        }
                         assert(node.func_scope == base_func_scope or
                             node.func_scope.base_func_scope ==
                                 base_func_scope)
@@ -1128,11 +1137,14 @@ func project.Project.compute_all_scopes(
                             idx += 1
                             node.func_scope.add_arg(
                                 label, ast_node=node, project_file=pfile,
-                                type_expr=final_arg_type_exprs[
+                                type_expr=node.subexprs[
                                     node.kw_arg_count + idx
-                                ], kw_arg=(idx <=
-                                    node.arg_label.len - node.kw_arg_count)
+                                ], is_kw_arg=(idx <=
+                                    node.arg_labels.len -
+                                    node.kw_arg_count)
                             )
+                            assert(node.extended_final_arg_names().
+                                has(label))
                         }
                     }
                     assert(base_func_scope == none or node.damaged or
