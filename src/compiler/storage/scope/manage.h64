@@ -67,6 +67,8 @@ func project.ProjectFile.type_path_to_full_module_path_and_pfile(
     var t = pfile.modinfo.module_name
     if pfile.modinfo.package_name != none {
         t += "@" + pfile.modinfo.package_name
+    } else {
+        t += "@<unknown>"
     }
     return [t, pfile]
 }
@@ -183,6 +185,8 @@ func project.ProjectFile.try_lookup_symbol_path(
                 name_to_stmt_map[entry.enum_stmt_label]
             assert(enum_stmt.kind == ast.N_STMT_ENUM)
             var anscope = enum_stmt.attr_names_scope
+            assert(entry.symbol_info != none and
+                typename(entry.symbol_info) != "list")
             assert(entry.symbol_info.storage_id >= 1 and
                 entry.symbol_info.storage_id <=
                     anscope.label_names.len)
@@ -205,6 +209,7 @@ func project.ProjectFile.try_lookup_symbol_path(
                 }
             }
         } else {
+            assert(entry.symbol_info != none)
             return new st_ref.StorageRef(
                 st_ref.ST_GLOBAL,
                 entry.symbol_info.storage_id
@@ -307,6 +312,8 @@ func project.ProjectFile.try_lookup_symbol_path(
                     name_to_stmt_map[entry.enum_stmt_label]
                 assert(enum_stmt.kind == ast.N_STMT_ENUM)
                 var anscope = enum_stmt.attr_names_scope
+                assert(entry.symbol_info != none and
+                    typename(entry.symbol_info) != "list")
                 assert(entry.symbol_info.storage_id >= 1 and
                     entry.symbol_info.storage_id <=
                         anscope.label_names.len)
@@ -319,6 +326,16 @@ func project.ProjectFile.try_lookup_symbol_path(
             if entry.symbol_info == none {
                 return no
             }
+            if entry.kind == ast.N_STMT_VAR {
+                assert(typename(entry.symbol_info) == "list")
+                var idx = entry.var_labels.find(item_name)
+                assert(idx != none)
+                return new st_ref.StorageRef(
+                    st_ref.ST_GLOBAL,
+                    entry.symbol_info[idx].storage_id
+                )
+            }
+            assert(typename(entry.symbol_info) != "list")
             return new st_ref.StorageRef(
                 st_ref.ST_GLOBAL,
                 entry.symbol_info.storage_id
@@ -507,6 +524,7 @@ func project.ProjectFile.get_gscope_type_node_info_from_funcattr(
                     line=node.line, col=node.col,
                 ))
             }
+            func_attr_node.damaged = yes
         } else {
             throw new ValueError("Couldn't resolve func "
                 "attribute's type path.")
@@ -544,6 +562,7 @@ func project.ProjectFile.get_gscope_type_node_info_from_funcattr(
                         line=node.line, col=node.col,
                     ))
                 }
+                func_attr_node.damaged = yes
             } else {
                 throw new ValueError("Couldn't resolve func "
                     "attribute's type path.")
@@ -573,6 +592,7 @@ func project.ProjectFile.get_gscope_type_node_info_from_funcattr(
                     line=node.line, col=node.col,
                 ))
             }
+            func_attr_node.damaged = yes
         } else {
             throw new ValueError("Couldn't resolve func "
                 "attribute's type path.")
@@ -738,8 +758,8 @@ func project.ProjectFile.make_attr_names_scope_from_node(
         is_enum = if node.kind == ast.N_STMT_TYPEEXTEND or
                   node.kind == ast.N_STMT_STRUCTEXTEND (no)
                   else (yes)
-        is_struct if nodekind == ast.N_STMT_STRUCTEXTEND (yes)
-                  else (no)
+        is_struct = if nodekind == ast.N_STMT_STRUCTEXTEND (yes)
+                    else (no)
         var base_def_type = if is_enum (ast.N_STMT_ENUM) else
                             (ast.N_STMT_TYPE)
         if node.kind == ast.N_STMT_STRUCTEXTEND {
@@ -865,6 +885,7 @@ func project.ProjectFile.make_attr_names_scope_from_node(
             "'" + stmt_label + "' from " +
             key.sub(1, key.rfind("@") - 1)
         result_scope.label = stmt_label
+        result_scope.anscope_key = key
         assert(result_scope.is_enum == is_enum)
         assert(result_scope.is_struct == is_struct)
         result_scope.def_line = node.line
@@ -876,6 +897,7 @@ func project.ProjectFile.make_attr_names_scope_from_node(
         assert(self.project.attr_names_scope_map.has(key))
     } else {
         result_scope = self.project.attr_names_scope_map[key]
+        assert(result_scope.anscope_key == key)
     }
 
     assert(based_on_cext_id == none or not is_enum)

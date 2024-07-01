@@ -79,43 +79,233 @@ func SymbolInfo.as_str {
 type FuncScope {
     var last_inner_storage_id = 0
     var last_inner_ccapture_id = 0
+    var base_func_scope = none
+    var extended_by_scopes = []
     var arg_names = []
     var arg_symbol_info = []
     var arg_type_exprs = []
+    var kw_arg_count = 0
     var has_return_type = no
     var return_type_expr = none
     var is_type_attr = no
     var is_type_extend_attr = no
     var is_later_func = no
+    var is_override = no
+    var has_failable = no
     var storage_id = 0
     var owning_type_storage_id
     var owning_type_scope
-    var extends_storage_id = 0
     var inner_scope
     var parent
 }
 
+extend type project.Project {
+    var key_to_func_scope_map = {->}
+}
+
+func FuncScope._extended_final_arg_names_split {
+    var base_func_scope = self.base_func_scope
+    if base_func_scope == none {
+        base_func_scope = self
+    }
+    var pos_arg_names = []
+    var pos_arg_type_exprs = []
+    var kw_arg_names = []
+    var kw_arg_type_exprs = []
+    func add_names_of_func_scope(fscope) {
+        var idx = 0
+        for arg_name in fscope.arg_names {
+            idx += 1
+            if idx <= fscope.arg_names.len -
+                    fscope.kw_arg_count {
+                pos_arg_names.add(arg_name)
+                pos_arg_type_exprs.add(fscope.arg_type_exprs[idx])
+            } else {
+                if not kw_arg_names.has(arg_name) {
+                    kw_arg_names.add(arg_name)
+                    kw_arg_type_exprs.add(fscope.arg_type_exprs[idx])
+                }
+            }
+        }
+    }
+    add_names_of_func_scope(base_func_scope)
+    for extend_scope in base_func_scope.extended_by_scopes {
+        assert(extend_scope != base_func_scope)
+        add_names_of_func_scope(extend_scope)
+    }
+    return [pos_arg_names, pos_arg_type_exprs,
+        kw_arg_names, kw_arg_type_exprs]
+}
+
+func FuncScope.extended_final_arg_names {
+    var result = self._extended_final_arg_names_split()
+    return result[1] + result[3]
+}
+
+func FuncScope.extended_final_arg_count {
+    return self.extended_final_arg_names().len
+}
+
+func FuncScope.extended_final_kw_arg_count {
+    var result = self._extended_final_arg_names_split()
+    return result[3].len
+}
+
+func FuncScope.extended_final_arg_type_exprs {
+    var result = self._extended_final_arg_names_split()
+    return result[2] + result[4]
+}
+
 func FuncScope.add_arg(
         name, ast_node=none, type_expr=none,
-        project_file=none) {
+        project_file=none, is_kw_arg=no) {
+    var base_func_scope = self.base_func_scope
+    if base_func_scope == none {
+        if ast_node != none and
+                ast_node.kind == ast.N_STMT_FUNCEXTEND {
+            return
+        }
+        base_func_scope = self
+    }
     if self.arg_names.has(name) {
-        throw new ValueError(
-            "Invalid duplicate name specified, this "
-            "name was already used."
-        )
+        return
     }
-    var sinfo = new SymbolInfo(name)
-    if ast_node != none {
-        sinfo.def_line = ast_node.line
-        sinfo.def_col = ast_node.col
-    }
-    if project_file != none {
-        sinfo.def_file = project_file
-    }
-    sinfo.storage_id = self.arg_names.len + 1
-    self.arg_symbol_info.add(sinfo)
     self.arg_names.add(name)
     self.arg_type_exprs.add(type_expr)
+    if is_kw_arg {
+        self.kw_arg_count += 1
+    }
+    var all_arg_names = self.extended_final_arg_names()
+    var idx = 0
+    for arg_name in self.arg_names {
+        idx += 1
+        assert(all_arg_names.has(arg_name))
+        var arg_idx = all_arg_names.find(arg_name)
+        while arg_idx > base_func_scope.arg_symbol_info.len {
+            base_func_scope.arg_symbol_info.add(none)
+        }
+        var sinfo = new SymbolInfo(name)
+        base_func_scope.arg_symbol_info[arg_idx] = sinfo
+        if ast_node != none {
+            sinfo.def_line = ast_node.line
+            sinfo.def_col = ast_node.col
+        }
+        if project_file != none {
+            sinfo.def_file = project_file
+        }
+        sinfo.storage_id = arg_idx
+    }
+}
+
+func get_base_func_scope_from_func_node(
+        project_file, node, msgs=none, is_moose64=no
+        ) {
+    assert({ast.N_STMT_FUNC, ast.N_STMT_FUNCEXTEND}.has(
+        node.kind
+    ))
+    if project_file.project == none or node.damaged {
+        return none
+    }
+    if node.type_path != none and node.type_path.len > 0 {
+        var gnode_info =
+            project_file.get_gscope_type_node_info_from_funcattr(
+                node, def_project_file=project_file,
+                msgs=msgs, is_moose64=is_moose64
+            )
+        var gnode = gnode_info[1]
+        var gnode_file = gnode_info[2]
+        if gnode == none {
+            if not node.damaged {
+                if msgs == none {
+                    throw new ValueError("Failed to find base type "
+                        "for func attribute.")
+                }
+                msgs.add(new msg.FileMsg(
+                    "Unexpectedly failed to find base type "
+                    "for func attribute '" +
+                    node.label + "'.",
+                    source_file=project_file,
+                    line=node.line,
+                    col=node.col,
+                ))
+            }
+            node.damaged = yes
+            return none
+        }
+        var anscope = project_file.make_attr_names_scope_from_node(
+            gnode, msgs=msgs, is_moose64=is_moose64,
+            def_project_file=gnode_file
+        )
+        if anscope == none {
+            if not node.damaged {
+                if msgs == none {
+                    throw new ValueError("Failed to find base type "
+                        "for func attribute.")
+                }
+                msgs.add(new msg.FileMsg(
+                    "Unexpectedly failed to find base type "
+                    "for func attribute '" +
+                    node.label + "'.",
+                    source_file=project_file,
+                    line=node.line,
+                    col=node.col,
+                ))
+            }
+            node.damaged = yes
+            return none
+        }
+        var key = anscope.anscope_key + "@" + node.label
+        if not project_file.project.key_to_func_scope_map.has(key) {
+            project_file.project.key_to_func_scope_map[key] =
+                new FuncScope()
+        }
+        return project_file.project.key_to_func_scope_map[key]
+    }
+    if node.kind == ast.N_STMT_FUNC {
+        if node.scope != none {
+            # This is a local function which can't be extended,
+            # so just return an arbitrary independent func scope.
+            return new FuncScope()
+        }
+        var mod_info = project_file.modinfo
+        var type_path = "<inline>@<unknown>"
+        if mod_info != none {
+            type_path = mod_info.module_name
+            assert(type_path != none)
+            if mod_info.package_name != none {
+                type_path += "@" + mod_info.package_name
+            } else {
+                type_path += "@<unknown>"
+            }
+        }
+        var key = type_path + "@" + node.label
+        if not project_file.project.key_to_func_scope_map.has(key) {
+            project_file.project.key_to_func_scope_map[key] =
+                new FuncScope()
+        }
+        return project_file.project.key_to_func_scope_map[key]
+    }
+    assert(node.kind == ast.N_STMT_FUNCEXTEND)
+    assert(node.type_path == none or node.type_path.len == 0)
+    var full_type_path
+    full_type_path = "<inline>@<unknown>"
+    if project_file.modinfo != none and
+            project_file.modinfo.module_name != none {
+        full_type_path = project_file.modinfo.module_name
+        if project_file.modinfo != none and
+                project_file.modinfo.package_name != none {
+            full_type_path += "@" +
+                project_file.modinfo.package_name
+        } else {
+            full_type_path += "@<unknown>"
+        }
+    }
+    var key = full_type_path + "@" + node.label
+    if not project_file.project.key_to_func_scope_map.has(key) {
+        project_file.project.key_to_func_scope_map[key] =
+            new FuncScope()
+    }
+    return project_file.project.key_to_func_scope_map[key]
 }
 
 extend type func_stmt.FuncStmt {
@@ -128,6 +318,18 @@ type AttrNamesScope {
     var damaged = no
     var label
     var storage_id = none
+    var anscope_key
+}
+
+func AttrNamesScope.as_str {
+    var t = "AttrNamesScope{" +
+        "is_enum=" + self.is_enum.as_str() + "," +
+        "is_struct=" + self.is_struct.as_str() + "," +
+        "damaged=" + self.damaged.as_str() + "," +
+        "label=" + self.label.as_str() + "," +
+        "storage_id=" + self.storage_id.as_str() +
+        "}"
+    return t
 }
 
 type TypeNamesScope base AttrNamesScope {
@@ -135,8 +337,6 @@ type TypeNamesScope base AttrNamesScope {
     var display_name = none
     var base_display_name = none
 
-    var func_attr_name_to_arg_labels = {->}
-    var func_attr_name_to_kwarg_count = {->}
     var name_to_symbol_map = {->}
     var id_to_symbol_map = {->}
 
@@ -156,8 +356,6 @@ type StructNamesScope base AttrNamesScope {
     var display_name = none
     var is_error = no
 
-    var func_attr_name_to_arg_labels = {->}
-    var func_attr_name_to_kwarg_count = {->}
     var name_to_symbol_map = {->}
     var id_to_symbol_map = {->}
 

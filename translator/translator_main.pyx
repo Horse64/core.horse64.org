@@ -70,7 +70,8 @@ from translator_horphelpers import (
     horp_ini_string_get_package_license_files
 )
 
-import translator_preprocessor
+import translator_runtime_helpers_preprocessor as \
+    translator_preprocessor
 
 from translator_transformhelpers import (
     transform_h64_misc_inline_to_python,
@@ -190,6 +191,11 @@ remapped_uses = {
             "(lambda: True)",
         "debugger.get_addr":
             "_translator_runtime_helpers._internals_get_addr",
+    },
+    "translator_internals@core.horse64.org": {
+        "translator_internals.preprocess_file_in_translator":
+            "_translator_runtime_helpers."
+                "preprocess_file_in_translator",
     },
     "io@core.horse64.org": {
         "io.working_dir":
@@ -3319,7 +3325,8 @@ def translate_do_func(
                 contents, pkg_dir, pkg_src_dir,
                 project_info.repo_folder + "/horse_modules",
                 target_file,
-                modname, package_name, VERSION
+                modname, package_name,
+                "horse64-translator-py v" + VERSION
             )
         sanity_check_h64_codestring(contents, modname=modname,
             filename=target_file)

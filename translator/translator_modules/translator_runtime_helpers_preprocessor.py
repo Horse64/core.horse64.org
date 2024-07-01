@@ -26,8 +26,8 @@
 
 #cython: language_level=3, boundscheck=True, infer_types=True, cdivision=True, overflowcheck=False
 
-cdef is_ident_char(c):
-    cdef int num
+def is_ident_char(c):
+    num = None
     if c == "_":
         return True
     num = ord(c)
@@ -37,9 +37,9 @@ cdef is_ident_char(c):
         (num >= ord('A') and num <= ord('Z')) or
         (num >= ord('0') and num <= ord('9')))
 
-cdef is_identifier(str s):
-    cdef int i = 0
-    cdef int slen = len(s)
+def is_identifier(s):
+    i = 0
+    slen = len(s)
     if slen <= 0:
         return False
     while i < slen:
@@ -54,7 +54,7 @@ cdef is_identifier(str s):
         return False
     return True
 
-def evaluate_expr(expr, templ_vars):
+def evaluate_expr(expr, templ_vars, debug=False):
     expr = str(expr)
     if expr.strip() == "yes":
         return True
@@ -143,40 +143,53 @@ def evaluate_expr(expr, templ_vars):
                 pkg_name in templ_vars["___known_available_packages"]
             )
             return result
+        for tvar in templ_vars:
+            if expr.strip().startswith(tvar + ".has(") and \
+                    expr.strip().endswith(")"):
+                has_arg = expr.strip().partition(tvar + ".has(")[2]
+                has_arg = has_arg.rpartition(")")[0]
+                value = evaluate_expr(
+                    has_arg, templ_vars, debug=debug
+                )
+                if (type(value) != str and
+                        type(templ_vars[tvar]) == str):
+                    return False
+                result = value in templ_vars[tvar]
+                return result
         raise RuntimeError("Cannot parse expression: " +
             str(expr))
     if op_str == "and":
         op_left = expr[0:op_idx]
         op_right = expr[op_idx+len("and"):]
-        if evaluate_expr(op_left, templ_vars) != True:
+        if evaluate_expr(op_left, templ_vars, debug=debug) != True:
             return False
-        if evaluate_expr(op_right, templ_vars) != True:
+        if evaluate_expr(op_right, templ_vars, debug=debug) != True:
             return False
         return True
     if op_str == "or":
         op_left = expr[0:op_idx]
         op_right = expr[op_idx+len("and"):]
-        if evaluate_expr(op_left, templ_vars) == True:
+        if evaluate_expr(op_left, templ_vars, debug=debug) == True:
             return True
-        if evaluate_expr(op_right, templ_vars) == True:
+        if evaluate_expr(op_right, templ_vars, debug=debug) == True:
             return True
         return False
     if op_str == "not":
         op_right = expr[op_idx+len("not"):]
-        if evaluate_expr(op_right, templ_vars) == True:
+        if evaluate_expr(op_right, templ_vars, debug=debug) == True:
             return False
         return True
     if op_str == "==":
         op_left = expr[0:op_idx]
         op_right = expr[op_idx+len("=="):]
-        v1 = evaluate_expr(op_left, templ_vars)
-        v2 = evaluate_expr(op_right, templ_vars)
+        v1 = evaluate_expr(op_left, templ_vars, debug=debug)
+        v2 = evaluate_expr(op_right, templ_vars, debug=debug)
         return (v1 == v2)
     if op_str == "!=":
         op_left = expr[0:op_idx]
         op_right = expr[op_idx+len("!="):]
-        v1 = evaluate_expr(op_left, templ_vars)
-        v2 = evaluate_expr(op_right, templ_vars)
+        v1 = evaluate_expr(op_left, templ_vars, debug=debug)
+        v2 = evaluate_expr(op_right, templ_vars, debug=debug)
         return (v1 != v2)
     if is_identifier(op_str):
         if op_str in templ_vars:
@@ -184,10 +197,11 @@ def evaluate_expr(expr, templ_vars):
         return None
     raise RuntimeError("Operator not implemented: " + op_str)
 
-def preprocess(file_contents, templ_vars):
-    cdef int file_contents_len, i
-    cdef str in_quote
-    cdef list prep_list = []
+def preprocess(file_contents, templ_vars, debug=False):
+    file_contents_len = None
+    i = 0
+    in_quote = None
+    prep_list = []
     file_contents_len = len(file_contents)
     in_quote = ""
     
@@ -198,6 +212,11 @@ def preprocess(file_contents, templ_vars):
                 file_contents[i] == "'" or
                 file_contents[i] == "\""):
             in_quote = file_contents[i]
+        elif in_quote == "" and file_contents[i] == '#':
+            i += 1
+            while (i < file_contents_len and
+                    file_contents[i] not in {"\n", "\r"}):
+                i += 1
         elif (in_quote == "" and file_contents[i] == "p" and
                 (i <= 0 or
                  not is_ident_char(file_contents[i - 1])) and
@@ -239,6 +258,9 @@ def preprocess(file_contents, templ_vars):
                 i += 1
                 continue
         i += 1
+    if debug:
+        print("translator.py: debug: preprocess(): "
+            "prep_list(early)=" + str(prep_list))
 
     # If we got nothing, bail early:
     if len(prep_list) == 0:
@@ -402,6 +424,9 @@ def preprocess(file_contents, templ_vars):
                 prep_list[i2]["prep-children"].append(i)
             i2 += 1
         i += 1
+    if debug:
+        print("translator.py: debug: preprocess(): "
+            "prep_list=" + str(prep_list))
 
     # Now resolve and process all items:
     made_resolve_progress = True
@@ -424,7 +449,7 @@ def preprocess(file_contents, templ_vars):
                 assign_right = (prep_list[i]["expr"].
                     partition("=")[2].strip())
                 assign_right = evaluate_expr(
-                    assign_right, templ_vars
+                    assign_right, templ_vars, debug=debug
                 )
                 templ_vars[assign_left] = assign_right
                 i += 1
@@ -451,7 +476,8 @@ def preprocess(file_contents, templ_vars):
                         result = True  # else clause
                     else:
                         result = evaluate_expr(
-                            prep_list[idx]["expr"], templ_vars
+                            prep_list[idx]["expr"], templ_vars,
+                            debug=debug
                         )
                         assert(result in {True, False})
                     prep_list[idx]["expr-result"] = result
@@ -536,19 +562,21 @@ def preprocess_file_in_translator(
     if (horse_modules_dir != None and
             "/horse_modules" in
                 horse_modules_dir.replace("/", os.path.sep)):
-        for f in os.listdir(horse_modules_dir):
-            fpath = os.path.join(horse_modules_dir, f)
-            if not os.path.isdir(fpath):
-                continue
-            if (not "." in f or f.startswith(".") or f.endswith(".") or
-                    " " in f):
-                continue
-            have_deps.append(f)
-    return preprocess(file_contents, {
+        if os.path.exists(horse_modules_dir):
+            for f in os.listdir(horse_modules_dir):
+                fpath = os.path.join(horse_modules_dir, f)
+                if not os.path.isdir(fpath):
+                    continue
+                if (not "." in f or f.startswith(".") or
+                        f.endswith(".") or " " in f):
+                    continue
+                have_deps.append(f)
+    result = preprocess(file_contents, {
         "system.program_compiler_name": translator_version,
         "___known_available_packages": have_deps,
         "HORP_INFO_PROJECT_DIR": project_base_dir,
         "HORP_INFO_MODNAME": module_name,
         "HORP_INFO_PKGNAME": package_name,
-    })
+    }, debug=False)
+    return result
 

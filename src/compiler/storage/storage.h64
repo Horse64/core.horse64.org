@@ -837,9 +837,34 @@ func project.Project.compute_all_scopes(
                         node.kind == ast.N_STMT_FUNCEXTEND {
                     var is_extend =
                         (node.kind == ast.N_STMT_FUNCEXTEND)
-                    inner_scope.func_scope = new st_scope.FuncScope()
+
+                    # Get or construct func scope and base func scope:
+                    var base_func_scope =
+                        st_scope.get_base_func_scope_from_func_node(
+                            pfile, node, msgs=msgs, is_moose64=is_moose64
+                        )
+                    if node.kind == ast.N_STMT_FUNCEXTEND {
+                        inner_scope.func_scope = new st_scope.FuncScope()
+                        inner_scope.func_scope.base_func_scope =
+                            base_func_scope
+                    } else {
+                        inner_scope.func_scope = base_func_scope
+                        if inner_scope.func_scope == none {
+                            assert(node.damaged)
+                            inner_scope.func_scope =
+                                new st_scope.FuncScope()
+                        }
+                    }
+                    if node.kind == ast.N_STMT_FUNC {
+                        inner_scope.func_scope.is_override =
+                            node.is_override
+                        inner_scope.func_scope.has_failable =
+                            node.has_failable
+                    }
                     node.func_scope = inner_scope.func_scope
                     node.func_scope.inner_scope = inner_scope
+
+                    # Correctly set the parent scopes:
                     var is_toplevel = yes
                     if inner_scope.parent != none {
                         inner_scope.func_scope.parent =
@@ -857,10 +882,9 @@ func project.Project.compute_all_scopes(
                         inner_scope.func_scope.
                             is_type_extend_attr = is_extend
                     }
+
                     # Make sure our own FuncScope() is found via
                     # the global scope, which has a copy of the node:
-                    var base_arg_labels = []
-                    var base_kw_arg_count = 0
                     var gscope = pfile.global_scope
                     if is_toplevel and node.type_path == none {
                         assert(gscope.name_to_stmt_map.has(
@@ -869,10 +893,6 @@ func project.Project.compute_all_scopes(
                         assert(gnode.kind == ast.N_STMT_FUNC)
                         assert(gnode.func_scope == none)
                         gnode.func_scope = node.func_scope
-                        if is_extend {
-                            base_arg_labels = gnode.arg_labels.copy()
-                            base_kw_arg_count = gnode.kw_arg_count
-                        }
                     } elseif is_toplevel and node.type_path != none {
                         var tpath = node.type_path.copy()
                         tpath += [node.label]
@@ -963,7 +983,35 @@ func project.Project.compute_all_scopes(
                             node.func_scope.return_type_expr =
                                 node.subexprs[node.subexprs.len]
                         }
+                    } elseif node.has_return_type {
+                        if msgs != none {
+                            if not node.damaged {
+                                msgs.add(new msg.FileMsg(
+                                    "Unexpected return type for "
+                                    "func extend, this can only be "
+                                    "specified for the base function.",
+                                    source_file=pfile,
+                                    line=node.line, col=node.col,
+                                ))
+                            }
+                            node.damaged = yes
+                        } else {
+                            throw new ValueError(
+                                "Can't have return type on func extend."
+                            )
+                        }
                     }
+
+                    # Register with our base type:
+                    if node.kind == ast.N_STMT_FUNCEXTEND and
+                            base_func_scope != none {
+                        if not base_func_scope.extended_by_scopes.has(
+                                node.func_scope) {
+                            base_func_scope.extended_by_scopes.add(
+                                node.func_scope)
+                        }
+                    }
+
                     # If this is a func attribute, set association
                     # with the owning type:
                     var in_anscope = none
@@ -994,76 +1042,64 @@ func project.Project.compute_all_scopes(
                             node.damaged = yes
                         }
                         node.func_scope.owning_type_scope = in_anscope
-                        if in_anscope != none and
-                                node.kind == ast.N_STMT_FUNCEXTEND and
-                                in_anscope.
-                                func_attr_name_to_arg_labels.has(
-                                    node.label
-                                ) {
-                            base_arg_labels =
-                                in_anscope.func_attr_name_to_arg_labels[
-                                    node.label
-                                ]
-                            base_kw_arg_count =
-                                in_anscope.func_attr_name_to_kwarg_count[
-                                    node.label
-                                ]
-                        }
                     }
 
-                    # Determine the final func arg list:
-                    var final_arg_labels = node.arg_labels.copy()
-                    var final_arg_type_exprs =
-                        node.get_local_args_type_expr_list()
-                    var final_kw_arg_count = node.kw_arg_count
+                    # Verify the final func arg list:
+                    var final_arg_labels = []
+                    var final_pos_args = []
+                    var final_arg_count = 0
+                    var final_arg_type_exprs = []
+                    var final_kw_arg_count = 0
                     var invalid = no
                     if node.kind == ast.N_STMT_FUNCEXTEND and
                             node.kw_arg_count < node.arg_labels.len {
-                        if msgs != none {
-                            if not node.damaged {
-                                msgs.add(new msg.FileMsg(
-                                    "Unexpectedly seeing new positional "
-                                    "arguments in extend func statement, "
-                                    "this is not allowed.",
-                                    source_file=pfile,
-                                    line=node.line, col=node.col,
-                                ))
-                            }
+                        if msgs == none {
                             node.damaged = yes
-                        } else {
                             throw new ValueError(
                                 "Invalid extend func that adds "
                                 "pos args."
                             )
                         }
+                        if not node.damaged {
+                            msgs.add(new msg.FileMsg(
+                                "Unexpectedly seeing new positional "
+                                "arguments in extend func statement, "
+                                "this is not allowed.",
+                                source_file=pfile,
+                                line=node.line, col=node.col,
+                            ))
+                        }
+                        node.damaged = yes
                         invalid = yes
                     }
-                    if node.kind == ast.N_STMT_FUNCEXTEND {
-                        var base_pos_args = []
-                        if base_kw_arg_count < base_pos_args.len {
-                            base_pos_args = base_arg_labels.sub(
-                                1, base_pos_args.len - base_kw_arg_count
-                            )
+                    if not node.damaged {
+                        final_arg_count =
+                            node.extended_final_arg_count()
+                        final_arg_labels =
+                            node.extended_final_arg_names()
+                        final_pos_args = final_arg_labels.copy()
+                        final_kw_arg_count =
+                            node.extended_final_kw_arg_count()
+                        final_arg_type_exprs =
+                            node.extended_final_arg_type_exprs()
+                        assert(final_arg_type_exprs.len ==
+                            final_arg_labels.len)
+                    }
+                    var final_pos_args = []
+                    if final_kw_arg_count < final_arg_count {
+                        final_arg_labels = base_arg_labels.sub(
+                            1, final_arg_count - final_kw_arg_count
+                        )
+                    }
+                    var idx = 0
+                    for new_arg_label in node.arg_labels {
+                        idx += 1
+                        if idx > final_arg_count - final_kw_arg_count {
+                            continue
                         }
-                        final_arg_labels = []
-                        final_arg_type_exprs = []
-                        var idx = 0
-                        for new_arg_label in node.arg_labels {
-                            idx += 1
-                            if not base_pos_args.has(new_arg_label) {
-                                final_arg_labels.add(new_arg_label)
-                                final_kw_arg_count += 1
-                                if not node.has_arg_types {
-                                    final_arg_type_exprs.add(
-                                        none
-                                    )
-                                    continue
-                                }
-                                final_arg_type_exprs.add(
-                                    node.get_local_args_type_expr_list()[
-                                        idx])
-                                continue
-                            }
+                        # XXX/note: final_arg_labels doesn't contain the
+                        # new argument info yet.
+                        if final_arg_labels.has(new_arg_label) {
                             if msgs != none {
                                 msgs.add(new msg.FileMsg(
                                     "Unexpectedly seeing "
@@ -1086,41 +1122,34 @@ func project.Project.compute_all_scopes(
                             break
                         }
                     }
-                    if node.func_scope.arg_symbol_info == none {
-                        node.func_scope.arg_symbol_info = []
-                    }
-                    var idx = 0
-                    for label in final_arg_labels {
-                        idx += 1
-                        if node.func_scope.arg_names.has(label) and
-                                msgs != none {
-                            msgs.add(new msg.FileMsg(
-                                "Unexpected duplicate name '" +
-                                label + "'"
-                                ", used twice for different arguments "
-                                "for this func.",
-                                source_file=pfile,
-                                line=node.line, col=node.col
-                            ))
-                        } elseif node.func_scope.arg_names.has(label) {
-                            throw new ValueError("Duplicate func arg name.")
+                    if not node.damaged {
+                        if base_func_scope.arg_symbol_info == none {
+                            assert(node.func_scope.arg_symbol_info == none)
+                            base_func_scope.arg_symbol_info = []
+                            node.func_scope.arg_symbol_info =
+                                base_func_scope.arg_symbol_info
                         }
-                        node.func_scope.add_arg(
-                            label, ast_node=node, project_file=pfile,
-                            type_expr=final_arg_type_exprs[idx]
-                        )
+                        assert(node.func_scope == base_func_scope or
+                            node.func_scope.base_func_scope ==
+                                base_func_scope)
+                        var idx = 0
+                        for label in node.arg_labels {
+                            idx += 1
+                            node.func_scope.add_arg(
+                                label, ast_node=node, project_file=pfile,
+                                type_expr=node.subexprs[
+                                    node.kw_arg_count + idx
+                                ], is_kw_arg=(idx <=
+                                    node.arg_labels.len -
+                                    node.kw_arg_count)
+                            )
+                            assert(node.extended_final_arg_names().
+                                has(label))
+                        }
                     }
-                    # If this is a func attr, make sure the
-                    # argument list is registered with the anscope:
-                    if in_anscope != none and
-                            node.kind == ast.N_STMT_FUNC {
-                        in_anscope.func_attr_name_to_arg_labels[
-                            node.label
-                        ] = final_arg_labels
-                        in_anscope.func_attr_name_to_kwarg_count[
-                            node.label
-                        ] = final_kw_arg_count
-                    }
+                    assert(base_func_scope == none or node.damaged or
+                        node.func_scope.arg_symbol_info ==
+                            base_func_scope.arg_symbol_info)
                 } elseif node.kind == ast.N_STMT_FOR {
                     try_register_symbol(inner_scope,
                         node.label, msgs,
@@ -1269,6 +1298,10 @@ func project.Project.compute_all_scopes(
 
     await success
     finalize_enum_and_type_storage(self, msgs)
+
+    self.finalize_global_scope_attr_storage(msgs)
+    later:
+
     func resolve_scope(pfile) {
         func expr_idref_resolve_visitor(node, parents) {
             var parent = if parents.len > 0
@@ -1457,7 +1490,12 @@ func project.Project.compute_all_scopes(
                     replacement_idref.line = node.line
                     replacement_idref.col = node.col
                     replacement_idref.label = label
-                    replacement_idref.type_path = type_path.join(".")
+                    assert(type_path == none or
+                        typename(type_path) == "list")
+                    if type_path.len == 0 {
+                        type_path = none
+                    }
+                    replacement_idref.type_path = type_path
                     if replacement_idref.type_path == "" {
                         replacement_idref.type_path = none
                     }
@@ -1494,7 +1532,9 @@ func project.Project.compute_all_scopes(
         for storage_id in pfile.global_scope.
                 storage_id_to_entry.keys() {
             assert(not self.storage_id_to_global_scope_map.
-                   has(storage_id))
+                   has(storage_id) or
+                   self.storage_id_to_global_scope_map
+                       [storage_id] == pfile.global_scope)
             self.storage_id_to_global_scope_map[storage_id] =
                 pfile.global_scope
         }
@@ -1511,13 +1551,6 @@ func project.Project.compute_all_scopes(
     later:
 
     await success
-    if success {
-        self.finalize_global_scope_attr_storage(msgs)
-        later:
-
-        return yes
-    }
-
     return success
 }
 

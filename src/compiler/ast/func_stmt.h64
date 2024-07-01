@@ -41,6 +41,7 @@ type FuncStmt base ast.StmtNode {
     var has_return_type = no
     var has_arg_types = no
     var has_failable = no
+    var is_override = no
     var arg_labels = []
     var kw_arg_count = 0
 }
@@ -73,31 +74,73 @@ func FuncStmt.as_json_obj {
 ## Returns the real, final argument count when considering
 ## all 'extend func' statements that apply to this function.
 func FuncStmt.extended_final_arg_count {
-    return self.func_scope.arg_names.len
+    return self.func_scope.extended_final_arg_count()
 }
 
+## Returns the real, final keyword argument count when considering
+## all 'extend func' statements that apply to this function.
+func FuncStmt.extended_final_kw_arg_count {
+    return self.func_scope.extended_final_kw_arg_count()
+}
+
+## Returns the real, final list of argument names when considering
+## all 'extend func' statements that apply to this function.
+func FuncStmt.extended_final_arg_names {
+    return self.func_scope.extended_final_arg_names()
+}
+
+## Returns the real, final list of arg @{compiler.type_info.
+## ast_typeref.TypeRefExpr}s when considering all
+## 'extend func' statements that apply to this function.
 func FuncStmt.extended_final_arg_type_exprs {
-    return self.func_scope.arg_type_exprs.copy()
+    return self.func_scope.extended_final_arg_type_exprs()
 }
 
+## Returns the real, final return type, which when queried
+## on an 'extend func' statement will get you the base func's
+## return type.
 func FuncStmt.extended_final_has_return_type {
-    return self.func_scope.has_return_type
+    var base_func_scope = self.func_scope.base_func_scope
+    if base_func_scope == none {
+        base_func_scope = self.func_scope
+    }
+    return base_func_scope.has_return_type
 }
 
+## Returns the real, final return @{compiler.type_info.
+## ast_typeref.TypeRefExpr}, which when queried on an
+## 'extend func' statement will get you the base func's
+## return type's typeref expression.
 func FuncStmt.extended_final_return_type_expr {
-    return self.func_scope.return_type_expr
+    var base_func_scope = self.func_scope.base_func_scope
+    if base_func_scope == none {
+        base_func_scope = self.func_scope
+    }
+    return base_func_scope.return_type_expr
+}
+
+func FuncStmt.extended_final_symbol_info_list {
+    var base_func_scope = self.func_scope.base_func_scope
+    if base_func_scope == none {
+        base_func_scope = self.func_scope
+    }
+    return base_func_scope.arg_symbol_info.copy()
 }
 
 func _get_local_args_symbol_info_list(stmt) {
+    var base_func_scope = stmt.func_scope.base_func_scope
+    if base_func_scope == none {
+        base_func_scope = stmt.func_scope
+    }
     var sinfo_list = []
     for lbl in stmt.arg_labels {
         var i = 1
-        while i <= stmt.func_scope.arg_names.len {
-            if stmt.func_scope.arg_names[i] != lbl {
+        while i <= base_func_scope.arg_names.len {
+            if base_func_scope.arg_names[i] != lbl {
                 i += 1
                 continue
             }
-            sinfo_list.add(stmt.func_scope.arg_symbol_info[i])
+            sinfo_list.add(base_func_scope.arg_symbol_info[i])
             i += 1
         }
     }
@@ -154,11 +197,11 @@ func _func_stmt_to_code(stmt, is_extend=no, indent=0) {
             if is_first {
                 is_first = no
             } else {
-                t += ","
+                t += ", "
             }
             t += stmt.arg_labels[i]
             if stmt.has_arg_types {
-                t += "<-" + stmt.subexprs[stmt.kw_arg_count + i].
+                t += " <- " + stmt.subexprs[stmt.kw_arg_count + i].
                     as_code(indent=indent)
             }
             i += 1
@@ -167,11 +210,11 @@ func _func_stmt_to_code(stmt, is_extend=no, indent=0) {
             if is_first {
                 is_first = no
             } else {
-                t += ","
+                t += ", "
             }
             t += stmt.arg_labels[i]
             if stmt.has_arg_types {
-                t += "<-" + stmt.subexprs[stmt.kw_arg_count + i].
+                t += " <- " + stmt.subexprs[stmt.kw_arg_count + i].
                     as_code(indent=indent)
             }
             t += "=" + stmt.subexprs[i - pos_arg_count].
@@ -181,8 +224,14 @@ func _func_stmt_to_code(stmt, is_extend=no, indent=0) {
         t += ")"
     }
     if not is_extend and stmt.has_return_type {
-        t += "->" + stmt.subexprs[stmt.subexprs.len].
+        t += " -> " + stmt.subexprs[stmt.subexprs.len].
             as_code(indent=(indent + 4))
+    }
+    if stmt.has_failable {
+        t += " failable"
+    }
+    if stmt.is_override {
+        t += " override"
     }
     t += " {\n"
     for substmt in stmt.subblocks[1] {
@@ -313,13 +362,14 @@ func parse(tokens, pos, msgs, project_file=none,
     stmt.label = name
 
     # Now we must have either '(' for arguments, or '{' for code block:
+    var m64_func_props = {"failable", "override"}
     if pos > tokens_len or
             ((tokens[pos].kind != token.T_ENCLOSE or
             not {"(", "{"}.has(tokens[pos].str)) and
             (not is_moose64 or
              (tokens[pos].kind != token.T_RIGHTPTR and
               (tokens[pos].kind != token.T_KEYWORD or
-               tokens[pos].str != "failable")))) {
+               not m64_func_props.has(tokens[pos].str))))) {
         msgs.add(new msg.FileMsg(
             "Unexpected " + token.describe_token_at(tokens, pos) +
             ", expected '(' or '{' (T_ENCLOSE) for "
@@ -409,15 +459,6 @@ func parse(tokens, pos, msgs, project_file=none,
     # since this isn't a call.
     argsobj = none
 
-    # Check if this is 'failable':
-    if is_moose64 and not is_extend and
-            pos <= tokens_len and
-            tokens[pos].kind == token.T_KEYWORD and
-            tokens[pos].str == "failable" {
-        stmt.has_failable = yes
-        pos += 1
-    }
-
     # Parse return type if any:
     var type_expr = none
     func parse_type_if_any(
@@ -470,6 +511,20 @@ func parse(tokens, pos, msgs, project_file=none,
 
     await advancelen
     pos += advancelen
+
+    # Check if this is 'failable':
+    while is_moose64 and not is_extend and
+            pos <= tokens_len and
+            tokens[pos].kind == token.T_KEYWORD and
+            m64_func_props.has(tokens[pos].str) {
+        var prop = tokens[pos].str
+        if prop == "failable" {
+            stmt.has_failable = yes
+        } elseif prop == "override" {
+            stmt.is_override = yes
+        }
+        pos += 1
+    }
 
     # Now parse the required code block opening with '{' here:
     var block_result = block.parse(

@@ -30,6 +30,7 @@ import math from core.horse64.org
 import random from core.horse64.org
 
 import compiler.ast as ast
+import compiler.ast.expr_cast as ast_expr_cast
 import compiler.limit as climit
 import compiler.msg as msg
 import compiler.operator as operator
@@ -263,9 +264,14 @@ func IdRefExpr.as_code(indent=0) {
     assert(self.type_path == none or
         typename(self.type_path) == "list")
     var t = ""
-    if self.type_path != none {
+    if self.type_path != none and self.type_path.len > 0 {
+        for item in self.type_path {
+            assert(typename(item) == "str")
+            assert(item.len > 0)
+        }
         t += self.type_path.join(".") + "."
     }
+    assert(self.label != none and self.label.len > 0)
     t += self.label
     return t
 }
@@ -284,6 +290,7 @@ func BaseRefExpr.as_code(indent=0) {
 
 type LiteralExpr base ast.TreeNode {
     var value
+    var is_big_num
 }
 
 func LiteralExpr.init {
@@ -569,6 +576,14 @@ func parse_expression_unwrapped(
                 node.token_len += 1
             }
             return node
+        } elseif tokens[pos].kind == token.T_BIGNUM {
+            var node = new LiteralExpr()
+            node.value = tokens[pos]
+            node.is_big_num = yes
+            node.token_len = 1
+            node.line = startline
+            node.col = startcol
+            return node
         } elseif {token.T_NUM, token.T_BOOL,
                   token.T_NONE}.has(tokens[pos].kind) {
             # Bool, number, and none literals.
@@ -594,6 +609,18 @@ func parse_expression_unwrapped(
             node.line = startline
             node.col = startcol
             return node
+        }
+        # Handle as(...) type casts for moose64:
+        if is_moose64 and tokens[pos].kind == token.T_KEYWORD and
+                tokens[pos].str == "as" {
+            var node = ast_expr_cast.parse_type_cast_expr(
+                tokens, pos, nesting_depth + 1, msgs,
+                project_file=project_file, max_len=max_len,
+                is_moose64=is_moose64, debug=debug
+            )
+            if node != none {
+                return node
+            }
         }
         # Handle bracketed expressions, like `(1 + 2)`:
         if tokens[pos].kind == token.T_ENCLOSE and
@@ -1795,18 +1822,18 @@ func CallArgsExpr.as_code(indent=0) {
         if is_first {
             is_first = no
         } else {
-            t += ","
+            t += ", "
         }
         if arg.kind == ast.N_EXPR_CALLKWARG {
             t += arg.label
             if self.has_types {
-                t += "<-" + argtypes[idx].as_str()
+                t += " <- " + argtypes[idx].as_str()
             }
             t += "=" + arg.subexprs[1].as_code(indent=indent)
         } else {
             t += arg.as_code(indent=indent)
             if self.has_types {
-                t += "<-" + argtypes[idx].as_str()
+                t += " <- " + argtypes[idx].as_str()
             }
         }
     }

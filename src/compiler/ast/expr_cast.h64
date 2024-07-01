@@ -1,0 +1,196 @@
+## @module compiler.ast.expr_cast
+# Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import compiler.ast as ast
+import compiler.ast.expr as ast_expr
+import compiler.msg as msg
+import compiler.token as token
+import compiler.typeinfo.ast_typeref as ast_typeref
+
+type TypeCastExpr base ast.TreeNode {
+    var typeref_expr
+}
+
+func TypeCastExpr.init {
+    self.kind = ast.N_EXPR_TYPECAST
+}
+
+func TypeCastExpr.as_code(indent=0) {
+    var t = "as("
+    t += self.typeref_expr.as_code(indent=indent)
+    t += ", "
+    t += self.subexprs[1].as_code(indent=indent)
+    t += ")"
+    return t
+}
+
+func parse_type_cast_expr(
+        tokens, pos, nesting_depth, msgs, project_file=none,
+        max_len=none, is_moose64=no, debug=no
+        ) {
+    if max_len == none {
+        max_len = tokens.len
+    }
+    const startpos = pos
+    var startline = token.get_line(tokens, pos)
+    var startcol = token.get_col(tokens, pos)
+    if pos + 1 > max_len or tokens[pos].kind != token.T_KEYWORD or
+            tokens[pos].str != "as" or
+            tokens[pos + 1].kind != token.T_ENCLOSE or
+            tokens[pos + 1].str != "(" {
+        return none
+    }
+    pos += 2  # We're now past the '(' token.
+    var tref = ast_typeref._parse_typeref_notlater(
+        tokens, pos, msgs, project_file=project_file,
+        max_len=max_len, is_moose64=is_moose64, debug=debug
+    )
+    if tref == none {
+        if msgs == none {
+            throw new ValueError("Got invalid as(...) cast "
+                "not followed by typeref expression.")
+        }
+        msgs.add(new msg.FileMsg(
+            "Unexpected " + token.describe_token_at(
+                tokens, pos) +
+            ", expected a typeref expression for the "
+            "type cast starting in line " +
+            startline.as_str() +
+            ", column " +
+            startcol.as_str() + ".",
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+        var skiplen = token.get_naive_stmt_or_expr_len(
+            tokens, pos, max_len=max_len,
+            bracket_depth=1, for_expr=yes,
+            is_moose64=is_moose64
+        )
+        pos += skiplen
+        inner_expr = new ast_expr.InvalidExpr(pos - startpos)
+        return inner_expr
+    }
+    pos += tref.token_len
+    if pos > max_len or tokens[pos].kind != token.T_COMMA {
+        if msgs == none {
+            throw new ValueError("Got invalid as(...) cast "
+                "with no ',' after typeref expression.")
+        }
+        msgs.add(new msg.FileMsg(
+            "Unexpected " + token.describe_token_at(
+                tokens, pos) +
+            ", expected ',' to lead to second parameter of "
+            "the type cast starting in line " +
+            startline.as_str() +
+            ", column " +
+            startcol.as_str() + ".",
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+        var skiplen = token.get_naive_stmt_or_expr_len(
+            tokens, pos, max_len=max_len,
+            bracket_depth=1, for_expr=yes,
+            is_moose64=is_moose64
+        )
+        pos += skiplen
+        inner_expr = new ast_expr.InvalidExpr(pos - startpos)
+        return inner_expr
+    }
+    pos += 1  # Go past ','.
+    var cast_expr = ast_expr._parse_expression_notlater(
+        tokens, pos, nesting_depth + 1,
+        msgs, project_file=project_file,
+        max_len=max_len, is_moose64=is_moose64, debug=debug
+    )
+    if cast_expr == none {
+        if msgs == none {
+            throw new ValueError("Got invalid as(...) cast "
+                "that doesn't have a valid 2nd parameter.")
+        }
+        msgs.add(new msg.FileMsg(
+            "Unexpected " + token.describe_token_at(
+                tokens, pos) +
+            ", expected value to be fast for the "
+            "type cast starting in line " +
+            startline.as_str() +
+            ", column " +
+            startcol.as_str() + ".",
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+        var skiplen = token.get_naive_stmt_or_expr_len(
+            tokens, pos, max_len=max_len,
+            bracket_depth=1, for_expr=yes,
+            is_moose64=is_moose64
+        )
+        pos += skiplen
+        inner_expr = new ast_expr.InvalidExpr(pos - startpos)
+        return inner_expr
+    }
+    pos += cast_expr.token_len
+    if pos > max_len or tokens[pos].kind != token.T_ENCLOSE or
+            tokens[pos].str != ')' {
+        if msgs == none {
+            throw new ValueError("Got invalid as(...) cast "
+                "with no ')' after the parameters.")
+        }
+        msgs.add(new msg.FileMsg(
+            "Unexpected " + token.describe_token_at(
+                tokens, pos) +
+            ", expected ')' to end "
+            "the type cast starting in line " +
+            startline.as_str() +
+            ", column " +
+            startcol.as_str() + ".",
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+        var skiplen = token.get_naive_stmt_or_expr_len(
+            tokens, pos, max_len=max_len,
+            bracket_depth=1, for_expr=yes,
+            is_moose64=is_moose64
+        )
+        pos += skiplen
+        inner_expr = new ast_expr.InvalidExpr(pos - startpos)
+        return inner_expr
+    }
+    pos += 1  # Go past final ')'.
+
+    var result = new TypeCastExpr()
+    result.typeref_expr = tref
+    result.subexprs = [cast_expr]
+    result.line = startline
+    result.col = startcol
+    result.token_len = pos - startpos
+
+    return result
+}
+

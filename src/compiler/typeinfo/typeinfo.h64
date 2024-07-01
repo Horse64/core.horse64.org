@@ -119,39 +119,11 @@ func TypeInfo.convert_to_typeref_expr(
             if gscope_node.kind == ast.N_STMT_STRUCT {
                 var texpr = new ast_typeref.TypeRefExpr()
                 texpr.name = gscope_node.label
-                if gscope != local_gscope {
-                    # It's in a different module, try to set the
-                    # import path according to our actual local import
-                    # statements:
-                    var found = no
-                    for name in local_gscope.name_to_stmt_map {
-                        var item = local_gscope.name_to_stmt_map[name]
-                        if typename(item) != "list" {  # Not an import.
-                            continue
-                        }
-                        for importst in item {
-                            if importst.kind != ast.N_STMT_IMPORT {
-                                continue
-                            }
-                            if importst.project_file != none and
-                                    importst.project_file.
-                                    global_scope == gscope {
-                                found = yes
-                                if importst.renamed_as != none {
-                                    texpr.type_path = [
-                                        importst.renamed_as
-                                    ]
-                                } else {
-                                    texpr.type_path =
-                                        importst.module_path.copy()
-                                }
-                                break
-                            }
-                            if found {
-                                break
-                            }
-                        }
-                    }
+                var import_typepath = pfile.global_scope.
+                    get_import_path_for_global(
+                        pfile, self.user_type_ref.id)
+                if import_typepath.len > 0 {
+                    texpr.type_path = import_typepath
                 }
                 for mod in self.type_ref_mods {
                     texpr.modifiers.add(texpr.copy())

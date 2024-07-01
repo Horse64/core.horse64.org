@@ -130,6 +130,17 @@ folder. Feel free to suggest improvements.
 suggestions, like ChatGPT etc.** ⚠️
 
 
+Contribute funding
+------------------
+
+There's **no way to donate to the project itself.**
+
+- But [here are the involved key people
+  ](https://horse64.org/who) and how
+  to possibly help support them outside of this project
+  as a thanks, if you wanted to.
+
+
 Maintainer checklists
 ---------------------
 

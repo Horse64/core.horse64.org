@@ -38,6 +38,7 @@ import uri from core.horse64.org
 import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
 import compiler.limit as climit
 import compiler.msg as msg
+import compiler.preprocessor as preprocessor
 import compiler.project as project
 
 const _math_ops_single_char = {
@@ -270,6 +271,9 @@ func parse_token_value(tok) {
             return math.parse_hex(tok.str)
         }
         return tok.str.to_num()
+    } elseif tok.kind == T_BIGNUM {
+        throw new TypeError("Cannot return actual "
+            "literal value for T_BIGNUM token.")
     } elseif tok.kind == T_STR {
         if tok.str.len == 0 or
                 not {"'", '"'}.has(tok.str[1]) {
@@ -1009,6 +1013,7 @@ func token_has_righthand(t) {
             "as", "from", "with", "for", "if",
             "elseif", "else", "do", "rescue",
             "finally", "await", "failable",
+            "override",
             "var", "const", "throw",
             "enum"}.has(t.str)) or
             t.kind == T_NEWOP {
@@ -1035,6 +1040,7 @@ func token_has_lefthand(t) {
     }
     if t.kind == T_KEYWORD and {
             "as", "from", "in", "failable",
+            "override",
             "elseif", "else", "rescue",
             "finally", "later",
             "protect"}.has(t.str) {
@@ -1054,7 +1060,7 @@ func is_special_word(value, is_moose64=no) {
             value.kind == T_BOOLCOMP
     }
     if is_moose64 and {"c_import", "failable", "failed",
-            "union"}.has(value) {
+            "union", "override"}.has(value) {
         return yes
     }
     return special_words.has(value)
@@ -1158,6 +1164,7 @@ enum TokenKind {
     T_STR,
     T_BYTES,
     T_NUM,
+    T_BIGNUM,
     T_KEYWORD,
     T_BOOL,
     T_IDENT,
@@ -2070,31 +2077,41 @@ func tokenize_str(
             }
             k -= 1
             var numtoken = str.sub(i, k)
+            var is_big_num = no
             if bignum.compare_nums(
                     limit.num_max_str,
                     numtoken) < 0 {
-                result.msgs.add(new msg.FileMsg(
-                    "Invalid unexpected number literal " +
-                    numtoken + " exceeds maximum value " +
-                    limit.num_max_str + " that "
-                    "a Horse64 num can hold.",
-                    source_file=project_file,
-                    line=line, col=col
-                ))
+                if is_moose64 {
+                    is_big_num = yes
+                } else {
+                    result.msgs.add(new msg.FileMsg(
+                        "Invalid unexpected number literal " +
+                        numtoken + " exceeds maximum value " +
+                        limit.num_max_str + " that "
+                        "a Horse64 num can hold.",
+                        source_file=project_file,
+                        line=line, col=col
+                    ))
+                }
             } elseif bignum.compare_nums(
                     limit.num_min_str,
                     numtoken) > 0 {
-                result.msgs.add(new msg.FileMsg(
-                    "Invalid unexpected number literal " +
-                    numtoken + " is below minimum value " +
-                    limit.num_min_str + " that "
-                    "a Horse64 num can hold.",
-                    source_file=project_file,
-                    line=line, col=col
-                ))
+                if is_moose64 {
+                    is_big_num = yes
+                } else {
+                    result.msgs.add(new msg.FileMsg(
+                        "Invalid unexpected number literal " +
+                        numtoken + " is below minimum value " +
+                        limit.num_min_str + " that "
+                        "a Horse64 num can hold.",
+                        source_file=project_file,
+                        line=line, col=col
+                    ))
+                }
             }
             result.tokens.add(new Token(
-                numtoken, T_NUM, line, col
+                numtoken, if is_big_num (T_BIGNUM) else (T_NUM),
+                line, col
             ))
             col += (k - i)
             i = k
@@ -2118,6 +2135,7 @@ func tokenize_from_fileobj (
         fobj, project_file=none,
         keep_whitespace=no,
         keep_comments=no,
+        apply_preprocessor=no,
         is_moose64=no
         ) {
     var result = new TokensResult()
@@ -2139,6 +2157,18 @@ func tokenize_from_fileobj (
         ))
         return result
     }
+    func apply_preprocessor_if_needed {
+        if not apply_preprocessor {
+            return later
+        }
+        var new_contents = preprocessor.preprocess_file(
+            project_file.project, project_file, contents
+        ) later:
+
+        await new_contents
+        contents = new_contents
+    }
+    apply_preprocessor_if_needed() later:
     result = tokenize_str(
         contents, project_file=project_file,
         keep_whitespace=keep_whitespace,
@@ -2214,17 +2244,24 @@ func tokenize_from_uri(
         return later
     }
     ensure_project_if_needed() later:
-    project_file.project.allow_disk_access = (
-        allow_disk_access
-    )
-    project_file.project.allow_vfs_access = (
-        allow_vfs_access
-    )
+    var do_preprocess = no
+    if project_file.project != none {
+        project_file.project.allow_disk_access = (
+            allow_disk_access
+        )
+        project_file.project.allow_vfs_access = (
+            allow_vfs_access
+        )
+        if require_detect_project_dir {
+            do_preprocess = yes
+        }
+    }
     with project_file.open() later as fileobj {
         var result = tokenize_from_fileobj(fileobj,
             project_file=project_file,
             keep_whitespace=keep_whitespace,
             keep_comments=keep_comments,
+            apply_preprocessor=do_preprocess,
             is_moose64=is_moose64) later:
 
         await result

@@ -231,7 +231,8 @@ func get_node_parent_block(node, parent) {
 }
 
 func get_neighbor_statements_after(
-        node, parent, stop_at_return=yes
+        node, parent, stop_at_return=yes,
+        copy_stmts_themselves=yes
         ) {
     if {N_STMT_DO, N_STMT_IF}.has(parent.kind) {
         for clause in parent.subexprs {
@@ -242,7 +243,11 @@ func get_neighbor_statements_after(
                 var result = []
                 pos += 1
                 while pos <= block.len {
-                    result.add(block[pos].copy())
+                    if copy_stmts_themselves {
+                        result.add(block[pos].copy())
+                    } else {
+                        result.add(block[pos])
+                    }
                     if stop_at_return and
                             block[pos].kind == N_STMT_RETURN {
                         break
@@ -259,7 +264,11 @@ func get_neighbor_statements_after(
             var result = []
             pos += 1
             while pos <= block.len {
-                result.add(block[pos].copy())
+                if copy_stmts_themselves {
+                    result.add(block[pos].copy())
+                } else {
+                    result.add(block[pos])
+                }
                 if stop_at_return and
                         block[pos].kind == N_STMT_RETURN {
                     break
@@ -297,6 +306,7 @@ enum NodeKind {
     N_EXPR_FINALLYCLAUSE,
     N_EXPR_TYPEREF,
     N_EXPR_FAILEDCHECK,
+    N_EXPR_TYPECAST,
     N_STMT_AWAIT,
     N_STMT_THROW,
     N_STMT_TYPE,
@@ -444,7 +454,8 @@ func is_statement_allowed_as_toplevel(
         stmt, is_moose64=no
         ) {
     if {N_STMT_IMPORT, N_STMT_VAR,
-            N_STMT_FUNC, N_STMT_ENUM
+            N_STMT_FUNC, N_STMT_ENUM,
+            N_STMT_FUNCEXTEND
             }.has(stmt.kind) {
         return yes
     }
@@ -452,12 +463,13 @@ func is_statement_allowed_as_toplevel(
         if {N_STMT_C_IMPORT}.has(stmt.kind) {
             return yes
         }
-        if stmt.kind == N_STMT_STRUCT and
-                stmt.label != none {
+        if (stmt.kind == N_STMT_STRUCT and
+                stmt.label != none) or
+                stmt.kind == N_STMT_STRUCTEXTEND {
             return yes
         }
     } else {
-        if {N_STMT_TYPE}.has(stmt.kind) {
+        if {N_STMT_TYPE, N_STMT_TYPEEXTEND}.has(stmt.kind) {
             return yes
         }
     }
@@ -516,14 +528,25 @@ func parse_to_ast_ex(
                     stmt, is_moose64=is_moose64
                 ) {
             stmt.damaged = yes
-            result.msgs.add(new msg.FileMsg(
-                "Unexpected " +
-                NodeKind.num_label(stmt.kind) + " statement, "
-                "expected a top-level statement instead.",
-                source_file=project_file,
-                line=token.get_line(tokens, pos),
-                col=token.get_col(tokens, pos),
-            ))
+            var mute_error = no
+            if stmt.kind == N_STMT_INVALID {
+                for m in result.msgs {
+                    if m.kind == msg.M_ERROR {
+                        mute_error = yes
+                        break
+                    }
+                }
+            }
+            if not mute_error {
+                result.msgs.add(new msg.FileMsg(
+                    "Unexpected " +
+                    NodeKind.num_label(stmt.kind) + " statement, "
+                    "expected a top-level statement instead.",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+            }
         }
         pos += stmt.token_len
         if is_inside_block {

@@ -48,6 +48,7 @@ import compiler.storage.scope.manage as scope_manage
 import compiler.storage.ref as st_ref
 import compiler.storage.scope as st_scope
 import compiler.token as token
+import compiler.typeinfo.ast_typeref as ast_typeref
 
 var _known_readable_files = []
 
@@ -73,6 +74,7 @@ type Project {
     var tried_find_modules_dir = no
     var tried_loading_package_name = no
     var base_dir_uri = none
+    var source_dir_prefix = none
     var package_name = none
 
     var module_uri_to_file_map = {->}
@@ -351,7 +353,7 @@ func check_valid_rel_module_path(modpath, msgs=none,
     var code_cap_a = text.code('A')
     var code_cap_z = text.code('Z')
     var code_0 = text.code('0')
-    var code_9 = text.code('0')
+    var code_9 = text.code('9')
     var pos = 1
     while pos <= modpath.len {
         if {"_", path.sep}.has(modpath[pos]) {
@@ -387,10 +389,7 @@ func check_valid_rel_module_path(modpath, msgs=none,
             } else {
                 throw new InvalidModuleNameError("File is inside dir "
                     "with invalid module name with forbidden "
-                    "character: " +
-                    token.describe_char_at(modpath, pos,
-                        maybe_cutoff_glyph=no
-                ))
+                    "character.")
             }
             return no
         }
@@ -423,7 +422,7 @@ func Project.get_modinfo_for_file(file_uri, rel_path=none) {
             orig_file_uri=file_uri, is_import=no,
             packages_dir_was_trimmed=no,
             is_moose64=self.is_moose64) {
-        return none
+        return later none
     }
     var package_name = none
     var package_dir_uri = self.base_dir_uri
@@ -439,7 +438,7 @@ func Project.get_modinfo_for_file(file_uri, rel_path=none) {
         }
         var pos = rel_path.find(path.sep)
         if pos == none {
-            return none
+            return later none
         } else {
             assert(pos > 1)
             var component = rel_path.sub(1, pos - 1)
@@ -460,9 +459,13 @@ func Project.get_modinfo_for_file(file_uri, rel_path=none) {
             "while not in the actual packages directory.")
     }
     for source_dir in valid_source_nesting_dirs {
-        if module_name.lower().starts(source_dir + ".") {
+        if (module_name.lower().starts(source_dir + ".") or
+                module_name.starts(source_dir + ".")) and
+                (self.source_dir_prefix == none or
+                 self.source_dir_prefix == source_dir) {
             module_name = module_name.sub(
                 (source_dir + ".").len + 1)
+            self.source_dir_prefix = source_dir
             break
         } elseif module_name.lower() == source_dir.lower() {
             return later none
@@ -978,7 +981,7 @@ func ProjectFile.init(
     self.is_moose64 = is_moose64
     if self.is_moose64 and self.project != none {
         self.project.is_moose64 = yes
-        self.project.file_ext = ".h64"
+        self.project.file_ext = ".m64"
         self.project.build_options.is_moose64 = yes
     }
 }

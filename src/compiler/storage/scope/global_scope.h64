@@ -78,6 +78,161 @@ func GlobalScope.as_json_obj {
     return result
 }
 
+func project.Project.finalize_func_typerefs_all_files(
+        msgs=none, is_moose64=no,
+        ) {
+    # XXX/WARNING: .ensure_assigned_storage() required on ALL scopes
+    # BEFORE calling this function.
+
+    func fix_func_typeref_exprs_for_file(pfile) {
+        assert(pfile.project.is_moose64 == is_moose64)
+        for name in pfile.global_scope.name_to_stmt_map {
+            var value = pfile.global_scope.name_to_stmt_map[name]
+            if typename(value) == "list" {
+                # Import entries have no storage or symbol info.
+                continue
+            } elseif value.kind == ast.N_STMT_FUNC {
+                # (Note: the func attrs are handled in the loop below.
+                # This is just funcs which aren't attributes.)
+                assert(value.type_path == none or
+                    value.type_path.len == 0)
+                var lbl = value.label
+                assert(pfile.global_scope.name_to_stmt_map.has(lbl))
+                var si = value.symbol_info
+                si.typeref_expr =
+                    ast_typeref.create_typeref_from_func_node(
+                        pfile, value
+                    )
+                si.typeref_expr.func_storage_ref = st_ref.StorageRef(
+                    st_ref.ST_GLOBAL, si.storage_id
+                )
+            }
+        }
+        return later yes
+    }
+
+    var success = self.do_for_all_files(
+        fix_func_typeref_exprs_for_file)
+    later:
+
+    await success
+    if not success {
+        return later no
+    }
+
+    func fix_func_symbol_info_for_file(pfile) {
+        for stmt in pfile.ast.stmts {
+            if stmt.kind == ast.N_STMT_FUNC and
+                    stmt.type_path != none and
+                    stmt.type_path.len > 0 {
+                assert(stmt.scope == none)
+                var anscope = pfile.
+                    make_attr_names_scope_from_funcattr(
+                        stmt, msgs=msgs, is_moose64=is_moose64,
+                        def_project_file=pfile
+                    )
+                if anscope == none {
+                    # Note: error has already been emitted by
+                    # make_attr_names_scope_from_funcattr().
+                    continue
+                }
+                var symbol_info = stmt.symbol_info
+                assert(anscope.storage_id != none)
+                if symbol_info.typeref_expr == none {
+                    symbol_info.typeref_expr =
+                        ast_typeref.create_typeref_from_func_node(
+                            pfile, stmt
+                        )
+                }
+                if symbol_info.type_storage_ref == none {
+                    symbol_info.type_storage_ref =
+                        new st_ref.StorageRef(
+                            st_ref.ST_GLOBALATTR,
+                            [anscope.storage_id,
+                                symbol_info.storage_id]
+                        )
+                    symbol_info.typeref_expr.func_storage_ref =
+                        symbol_info.type_storage_ref
+                } else {
+                    assert(symbol_info.type_storage_ref.kind ==
+                        st_ref.ST_GLOBALATTR)
+                }
+                var lbl = stmt.label
+                anscope.name_to_symbol_map[lbl] =
+                    symbol_info
+                assert(not anscope.
+                    id_to_symbol_map.has(lbl))
+                anscope.id_to_symbol_map[lbl] =
+                    symbol_info.storage_id
+                stmt.symbol_info = symbol_info
+            }
+        }
+        return later yes
+    }
+
+    success = self.do_for_all_files(
+        fix_func_symbol_info_for_file)
+    later:
+
+    await success
+    if not success {
+        return later no
+    }
+
+    func fix_func_symbol_info_for_file(pfile) {
+        var queue = []
+        for stmt in pfile.ast.stmts {
+            if stmt.kind == ast.N_STMT_FUNC {
+                queue.add(stmt)
+            }
+        }
+
+        func handle_func(stmt) {
+            # Resolve all the function parameters, now that
+            # targeting all nested function types and user types
+            # should work.
+            var symbol_info = stmt.symbol_info
+            assert(symbol_info.typeref_expr != none)
+            var result =
+                symbol_info.typeref_expr.try_resolve_to_user_type(
+                    pfile, is_moose64=is_moose64
+                ) later:
+
+            await result
+            if not result {
+                return later no
+            }
+            return later yes
+        }
+        if queue.len == 0 {
+            return later yes
+        }
+        var item = queue.pop()
+        var result = handle_func(item) later:
+
+        await result
+        if not result {
+            return later no
+        }
+        if queue.len == 0 {
+            return later yes
+        }
+        item = queue.pop()
+        result = handle_func(item) later repeat
+    }
+
+    success = self.do_for_all_files(
+        fix_func_symbol_info_for_file)
+    later:
+
+    await success
+    if not success {
+        return later no
+    }
+
+    return later success
+}
+
 func GlobalScope.ensure_assigned_storage(
         msgs=none, project_file=none, is_moose64=no,
         debug_global_storage=no) {
@@ -85,6 +240,7 @@ func GlobalScope.ensure_assigned_storage(
             self.name_to_stmt_map.len == 0 {
         return
     }
+    assert(project_file == none or project_file.global_scope == self)
 
     var ast_tree = none
     if project_file != none and project_file.ast != none {
@@ -102,7 +258,7 @@ func GlobalScope.ensure_assigned_storage(
         if typename(value) == "list" {
             # Import entries have no storage or symbol info.
             continue
-        } elseif not {ast.N_STMT_ENUMEXTEND,
+        } elseif not {ast.N_STMT_ENUMEXTEND, ast.N_STMT_STRUCTEXTEND,
                 ast.N_STMT_TYPEEXTEND}.has(value.kind) {
             assert(not self.storage_id_to_entry.has(storage_num))
             self.storage_id_to_entry[storage_num] = value
@@ -131,7 +287,9 @@ func GlobalScope.ensure_assigned_storage(
                     "Assigning global storage id " +
                     storage_num.as_str() + " to global scope "
                     "item in file " +
-                    project_file.source_uri.as_str() +
+                    if project_file != none
+                        (project_file.source_uri.as_str()) else
+                        ("<unknown>") +
                     " with name '" + name + "'.")
             }
             if value.kind == ast.N_STMT_VAR {
@@ -142,16 +300,11 @@ func GlobalScope.ensure_assigned_storage(
             } else {
                 value.symbol_info = si
             }
-            storage_num += 1
-            if value.kind == ast.N_STMT_FUNC {
-                si.typeref_expr =
-                    ast_typeref.create_typeref_from_func_node(
-                        project_file, value
-                    )
-                si.typeref_expr.func_storage_ref = st_ref.StorageRef(
-                    st_ref.ST_GLOBAL, si.storage_id
-                )
+            if project_file != none and project_file.project != none {
+                project_file.project.storage_id_to_global_scope_map
+                    [storage_num] = self
             }
+            storage_num += 1
         }
     }
     if project_file != none and project_file.project != none {
@@ -214,6 +367,64 @@ func GlobalScope.ensure_assigned_storage(
     }
 }
 
+func GlobalScope.get_import_path_for_global(
+        project_file, storage_id
+        ) {
+    if typename(storage_id) != "num" {
+        throw new TypeError("Storage id must be number.")
+    }
+    if self.storage_id_to_entry.has(storage_id) {
+        return []
+    }
+    if not project_file.project.
+            storage_id_to_global_scope_map.has(storage_id) {
+        print("horsec: error: Fatal internal error: "
+            "GlobalScope.get_import_path_for_global() was passed "
+            "invalid storage_id G" + storage_id.as_str() + " that "
+            "isn't registered anywhere.")
+        throw new ValueError("Invalid unknown storage id.")
+    }
+    var target_gscope = project_file.project.
+        storage_id_to_global_scope_map[storage_id]
+    if target_gscope == self {
+        return []
+    }
+
+    # It's in a different module, try to set the
+    # import path according to our actual local import
+    # statements:
+    var found = no
+    for name in self.name_to_stmt_map {
+        var item = self.name_to_stmt_map[name]
+        if typename(item) != "list" {  # Not an import.
+            continue
+        }
+        for importst in item {
+            if importst.kind != ast.N_STMT_IMPORT {
+                continue
+            }
+            if importst.project_file != none and
+                    importst.project_file.
+                    global_scope == target_gscope {
+                found = yes
+                if importst.renamed_as != none {
+                    return [
+                        importst.renamed_as
+                    ]
+                } else {
+                    return importst.module_path.copy()
+                }
+                break
+            }
+            if found {
+                break
+            }
+        }
+    }
+    throw new ValueError("Unexpectedly failed "
+        "to find out how to reach given global.")
+}
+
 func GlobalScope.finalize_gscope_with_ast_tree_info(
         project_file, ast_tree, msgs=none, is_moose64=no
         ) {
@@ -259,24 +470,6 @@ func GlobalScope.finalize_gscope_with_ast_tree_info(
                 symbol_info.def_file = project_file
                 symbol_info.storage_id =
                     anscope.name_to_symbol_map.len + 1
-                symbol_info.typeref_expr =
-                    ast_typeref.create_typeref_from_func_node(
-                        project_file, stmt
-                    )
-                symbol_info.type_storage_ref =
-                    new st_ref.StorageRef(
-                        st_ref.ST_GLOBALATTR,
-                        [anscope.storage_id,
-                            symbol_info.storage_id]
-                    )
-                symbol_info.typeref_expr.func_storage_ref =
-                    symbol_info.type_storage_ref
-                anscope.name_to_symbol_map[lbl] =
-                    symbol_info
-                assert(not anscope.
-                    id_to_symbol_map.has(lbl))
-                anscope.id_to_symbol_map[lbl] =
-                    symbol_info.storage_id
                 stmt.symbol_info = symbol_info
                 continue
             }
@@ -599,14 +792,36 @@ func project.Project.finalize_global_scope_attr_storage(
                 continue
             }
             anscope.storage_id = value.symbol_info.storage_id
+            if not self.storage_id_to_global_scope_map.has(
+                    anscope.storage_id) {
+                self.storage_id_to_global_scope_map[
+                    anscope.storage_id
+                ] = gscope
+            }
         }
-
         return later yes
     }
+
     var success = self.do_for_all_files(finalize_gscope)
     later:
 
     await success
+    if not success {
+        return later
+    }
+
+    # XXX: Since typeref exprs can cross-reference modules, the
+    # anscope storage id must have been set on ALL files.
+    # Hence the following must be run after the previous
+    # finalize_gscope, rather than together in the same loop:
+    success = self.finalize_func_typerefs_all_files(
+        msgs=msgs, is_moose64=is_moose64)
+    later:
+
+    await success
+    if not success {
+        return
+    }
 
     func finalize_attr_storage(pfile) {
         pfile.ensure_ast() later:

@@ -28,7 +28,7 @@
 import math from core.horse64.org
 
 import compiler.ast as ast
-import compiler.ast.expr as expr
+import compiler.ast.expr as ast_expr
 import compiler.ast.invalid_stmt as invalid_stmt
 import compiler.ast.block as block
 import compiler.msg as msg
@@ -112,7 +112,7 @@ func parse(tokens, pos, msgs, project_file=none,
         return stmt
     }
 
-    var v = expr.parse_expression(
+    var v = ast_expr.parse_expression(
         tokens, pos, msgs,
         project_file=project_file,
         is_moose64=is_moose64

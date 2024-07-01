@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import random from core.horse64.org
+import textfmt from core.horse64.org
 
 import compiler.ast as ast
 import compiler.msg as msg

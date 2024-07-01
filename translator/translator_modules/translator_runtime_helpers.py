@@ -641,6 +641,17 @@ def h64_type(v):
         return "none"
     return str(result)
 
+def _container_add_at(container, idx, item):
+    if (not hasattr(container, "add_at") and
+            hasattr(container, "insert")):
+        if type(idx) not in {int, float}:
+            raise _TypeError("Index given must be of num type.")
+        py_idx = round(idx) - 1
+        if py_idx < 0 or py_idx > len(container):
+            raise _ValueError("Index out of range.")
+        return container.insert(py_idx, item)
+    return container.add_at(idx, item)
+
 def _container_add(container, item):
     if (not hasattr(container, "add") and
             hasattr(container, "append")):
@@ -943,6 +954,9 @@ def _container_last(container, *args, **kwargs):
             type(container) in {bytes, str, list}):
         return container[-1]
     return container.last(*args, **kwargs)
+
+def _math_abs(v1):
+    return abs(v1)
 
 def _math_floor(v1):
     return math.floor(v1)
@@ -3643,6 +3657,11 @@ def runmodinits():
 
 def _internals_get_addr(v):
     return int(id(v))
+
+def preprocess_file_in_translator(*args, **kwargs):
+    import translator_runtime_helpers_preprocessor
+    return translator_runtime_helpers_preprocessor.\
+        preprocess_file_in_translator(*args, **kwargs)
 
 def _async_final_bail_handler(err, result, funcname="main"):
     global _async_final_bails_need_extra_bail_count

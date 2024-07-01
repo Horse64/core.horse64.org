@@ -37,6 +37,7 @@ import compiler.ast
 import compiler.ast.transform as ast_transform
 import compiler.ast.analyze as analyze
 import compiler.build_options as build_options
+import compiler.moose64.codegen.c_gen as m64_c_gen
 import compiler.msg as msg
 import compiler.project as project
 import compiler.storage.scope
