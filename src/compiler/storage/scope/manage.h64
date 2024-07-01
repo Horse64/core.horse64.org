@@ -758,8 +758,8 @@ func project.ProjectFile.make_attr_names_scope_from_node(
         is_enum = if node.kind == ast.N_STMT_TYPEEXTEND or
                   node.kind == ast.N_STMT_STRUCTEXTEND (no)
                   else (yes)
-        is_struct if nodekind == ast.N_STMT_STRUCTEXTEND (yes)
-                  else (no)
+        is_struct = if nodekind == ast.N_STMT_STRUCTEXTEND (yes)
+                    else (no)
         var base_def_type = if is_enum (ast.N_STMT_ENUM) else
                             (ast.N_STMT_TYPE)
         if node.kind == ast.N_STMT_STRUCTEXTEND {

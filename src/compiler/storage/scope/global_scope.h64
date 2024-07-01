@@ -408,7 +408,7 @@ func GlobalScope.get_import_path_for_global(
                     global_scope == target_gscope {
                 found = yes
                 if importst.renamed_as != none {
-                    retun [
+                    return [
                         importst.renamed_as
                     ]
                 } else {

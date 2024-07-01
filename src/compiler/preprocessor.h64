@@ -43,7 +43,7 @@ func preprocess_file(project, project_file, contents) {
         return later contents
     }
     if uri.get_protocol(project.base_dir_uri) != "file" {
-        if "prep{" in contents {
+        if contents.has("prep{") {
             throw new RuntimeError(
                 "Unsupported code path for running in Python "
                 "translator, can't preprocess remote files. "
