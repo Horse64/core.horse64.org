@@ -750,10 +750,10 @@ func Project.find_package_dir_uri_fallback(
 
         await result
         if result == yes {
-            return path.join(item, "horse_modules")
+            return later path.join(item, "horse_modules")
         }
         if queue.len == 0 {
-            return none
+            return later none
         }
         item = queue.pop()
         result = io.exists(
