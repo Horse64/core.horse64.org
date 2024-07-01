@@ -2138,10 +2138,7 @@ func tokenize_from_fileobj (
         apply_preprocessor=no,
         is_moose64=no
         ) {
-    print("WILL TOKENIZE: " +
-        [project_file, apply_preprocessor,
-         if project_file.source_uri != none
-            (source_uri) else ("unknown")])
+    assert(apply_preprocessor == yes)
     var result = new TokensResult()
     var contents = fobj.read(
         amount=climit.max_source_file_size + 1
@@ -2256,7 +2253,9 @@ func tokenize_from_uri(
         project_file.project.allow_vfs_access = (
             allow_vfs_access
         )
-        if require_detect_project_dir {
+        if require_detect_project_dir or
+                (project_file.project.packages_dir_uri != none and
+                 project_file.project.base_dir_uri != none) {
             do_preprocess = yes
         }
     }
