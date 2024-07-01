@@ -983,23 +983,6 @@ func project.Project.compute_all_scopes(
                             node.func_scope.return_type_expr =
                                 node.subexprs[node.subexprs.len]
                         }
-                    } elseif node.has_return_type {
-                        if msgs != none {
-                            if not node.damaged {
-                                msgs.add(new msg.FileMsg(
-                                    "Unexpected return type for "
-                                    "func extend, this can only be "
-                                    "specified for the base function.",
-                                    source_file=pfile,
-                                    line=node.line, col=node.col,
-                                ))
-                            }
-                            node.damaged = yes
-                        } else {
-                            throw new ValueError(
-                                "Can't have return type on func extend."
-                            )
-                        }
                     }
 
                     # Register with our base type:
