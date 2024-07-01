@@ -32,7 +32,14 @@ import path from core.horse64.org
 import uri from core.horse64.org
 import system from core.horse64.org
 
-func preprocess_file(project, project_file, contents) {
+func preprocess_file(project, project_file, contents,
+        is_moose64=no, override_compiler_name=none) {
+    var program_name = if is_moose64 ("moosec") else ("horsec") + " "
+        "v" + system.program_version
+    if override_compiler_name != none {
+        program_name = override_compiler_name
+    }
+
     prep{ if system.program_compiler_name.has("horse64-translator") }
     # This is the code path for using the python translator runtime.
     # When doing this, there's no HVM and none of the proper
@@ -70,7 +77,7 @@ func preprocess_file(project, project_file, contents) {
         ),
         path.join(disk_base_dir, "horse_modules"),
         project_file.source_uri, modinfo.module_name,
-        modinfo.package_name, system.program_compiler_name
+        modinfo.package_name, program_name
     )
     contents = result
     prep{ else }

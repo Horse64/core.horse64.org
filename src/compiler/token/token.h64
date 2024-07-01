@@ -2163,7 +2163,8 @@ func tokenize_from_fileobj (
             return later
         }
         var new_contents = preprocessor.preprocess_file(
-            project_file.project, project_file, contents
+            project_file.project, project_file, contents,
+            is_moose64=is_moose64
         ) later:
 
         await new_contents
