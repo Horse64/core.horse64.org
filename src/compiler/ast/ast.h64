@@ -454,7 +454,8 @@ func is_statement_allowed_as_toplevel(
         stmt, is_moose64=no
         ) {
     if {N_STMT_IMPORT, N_STMT_VAR,
-            N_STMT_FUNC, N_STMT_ENUM
+            N_STMT_FUNC, N_STMT_ENUM,
+            N_STMT_FUNCEXTEND
             }.has(stmt.kind) {
         return yes
     }
@@ -462,12 +463,13 @@ func is_statement_allowed_as_toplevel(
         if {N_STMT_C_IMPORT}.has(stmt.kind) {
             return yes
         }
-        if stmt.kind == N_STMT_STRUCT and
-                stmt.label != none {
+        if (stmt.kind == N_STMT_STRUCT and
+                stmt.label != none) or
+                stmt.kind == N_STMT_STRUCTEXTEND {
             return yes
         }
     } else {
-        if {N_STMT_TYPE}.has(stmt.kind) {
+        if {N_STMT_TYPE, N_STMT_TYPEEXTEND}.has(stmt.kind) {
             return yes
         }
     }
