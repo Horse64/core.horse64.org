@@ -513,8 +513,8 @@ func project.Project.compute_all_scopes(
                 "Unexpected duplicate name '" + symbol_name + "'"
                 ", name was already used in same "
                 "scope in statement in line " +
-                old_symbol.line.as_str() +
-                ", column " + old_symbol.col.as_str() + ".",
+                old_symbol.def_line.as_str() +
+                ", column " + old_symbol.def_col.as_str() + ".",
                 source_file=pfile,
                 line=line, col=col
             ))
@@ -1137,9 +1137,12 @@ func project.Project.compute_all_scopes(
                             idx += 1
                             node.func_scope.add_arg(
                                 label, ast_node=node, project_file=pfile,
-                                type_expr=node.subexprs[
-                                    node.kw_arg_count + idx
-                                ], is_kw_arg=(idx <=
+                                type_expr=if node.has_arg_types
+                                    (node.subexprs[
+                                        node.kw_arg_count + idx
+                                    ])
+                                    else (none),
+                                is_kw_arg=(idx <=
                                     node.arg_labels.len -
                                     node.kw_arg_count)
                             )

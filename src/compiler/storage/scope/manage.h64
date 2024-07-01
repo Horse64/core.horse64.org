@@ -432,7 +432,8 @@ func project.ProjectFile.make_attr_names_scope_from_funcattr(
         ) {
     assert(node.kind == ast.N_STMT_FUNC or
         node.kind == ast.N_STMT_FUNCEXTEND)
-    if node.func_scope != none and
+    if node.kind == ast.N_STMT_FUNC and
+            node.func_scope != none and
             node.func_scope.owning_type_scope != none {
         return node.func_scope.owning_type_scope
     }
@@ -467,11 +468,12 @@ func project.ProjectFile.get_gscope_type_node_info_from_funcattr(
         action = "extended"
     }
     assert(node.type_path != none)
-    if node.func_scope != none and
+    if node.kind == ast.N_STMT_FUNC and
+            node.func_scope != none and
             node.func_scope.owning_type_storage_id != none and
             def_project_file != none and
             def_project_file.project != none {
-        # We can obvious this obvious and lazy path since it's set.
+        # We can go the obvious and lazy path since it's set.
         var pr = def_project_file.project
         assert(pr.storage_id_to_entry.has(
             node.func_scope.owning_type_storage_id))
@@ -758,7 +760,7 @@ func project.ProjectFile.make_attr_names_scope_from_node(
         is_enum = if node.kind == ast.N_STMT_TYPEEXTEND or
                   node.kind == ast.N_STMT_STRUCTEXTEND (no)
                   else (yes)
-        is_struct = if nodekind == ast.N_STMT_STRUCTEXTEND (yes)
+        is_struct = if node.kind == ast.N_STMT_STRUCTEXTEND (yes)
                     else (no)
         var base_def_type = if is_enum (ast.N_STMT_ENUM) else
                             (ast.N_STMT_TYPE)
