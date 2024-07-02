@@ -3618,31 +3618,112 @@ def _async_final_bail_required_extra_bails(extra_bails):
     global _async_final_bails_need_extra_bail_count
     _async_final_bails_need_extra_bail_count = extra_bails
 
-def _call_builtin_init_if_needed(o):
-    bases = o.__class__.__bases__
+def _get_proper_init_cls(o, self_cls_name):
+    check_cls = o.__class__
+    if check_cls.__name__ != self_cls_name:
+        def find_proper_cls(cls):
+            for base in cls.__bases__:
+                if base.__name__ == self_cls_name:
+                    return base
+            for base in cls.__bases__:
+                v = find_proper_cls(base)
+                if v != None:
+                    return v
+            return None
+        check_cls = find_proper_cls(check_cls)
+    return check_cls
+
+def _explicit_super_init_call(o, self_cls_name,
+        args=None, kwargs=None):
+    if args == None:
+        args = []
+    if kwargs == None:
+        kwargs = dict()
     debug = False
-    #if o.__class__.__name__ == "CFunc":
-    #    debug = True
-    #    print("!!!!!!!!!! CFUNC")
+    if "FuncStmt" in str(o.__class__):
+        debug = True
+    if debug:
+        print("_explicit_super_init_call on: " + str(id(o)) +
+            ", class: " + o.__class__.__name__)
+    cls = _get_proper_init_cls(o, self_cls_name)
+    bases = cls.__bases__
+
+    # Early abort:
+    if len(bases) == 1 and bases[0].__name__ == "object":
+        return
+
+    queue = list(bases)
+    while len(queue) > 0:
+        basecls = queue.pop()
+        basename = basecls.__name__
+        if debug:
+            print("CHECKING BASE CLASS: " + basename)
+        skip = False
+        found_user_init = False
+        for name in dir(basecls):
+            if not "__NO_USERDEFINED_INIT_" in name:
+                continue
+            init_name = name.rpartition("__NO_USERDEFINED_INIT_")[2]
+            if init_name == basename:
+                skip = True
+        if not skip and "__init__" in dir(basecls):
+            found_user_init = True
+            if debug:
+                print("CALLING USER INIT ON: " + str(basecls))
+            basecls.__init__(o, *args, **kwargs)
+        if not found_user_init:
+            if debug:
+                print("DIDN'T FIND USER INIT ON: " + str({
+                    "basename": basename, "skip": skip,
+                    "dir": str(dir(basecls))}))
+            inner_bases = basecls.__bases__
+            if (len(inner_bases) > 1 or (
+                    len(inner_bases) == 1 and
+                    inner_bases[0].__name__ != "object")):
+                if debug:
+                    print("MUST DESCEND INTO " + basename)
+                queue += inner_bases
+    if debug:
+        print("completed _explicit_super_init_call on: " + str(id(o)) +
+            ", class: " + o.__class__.__name__)
+
+def _call_builtin_init_if_needed(o, self_cls_name):
+    check_cls = _get_proper_init_cls(o, self_cls_name)
+    bases = check_cls.__bases__
+    debug = False
+    if "FuncStmt" in str(o.__class__):
+        debug = True
     if debug:
         print("_call_builtin_init_if_needed on: " + str(id(o)) +
             ", class: " + o.__class__.__name__)
+
+    # Abort if we don't have bases other than regular object:
     if len(bases) == 1 and bases[0].__name__ == "object":
         return
+
+    # Go through base inits we may need to call:
     for basecls in bases:
         basename = basecls.__name__
         if debug:
             print("CHECKING BASE CLASS: " + basename)
+        found_auto_init = False
         for name in dir(basecls):
-            if debug:
-                print("CHECKING NAME: " + str(name))
             if not "__NO_USERDEFINED_INIT_" in name:
                 continue
             init_name = name.rpartition("__NO_USERDEFINED_INIT_")[2]
-            if debug:
-                print("CALLING INIT ON: " + str(init_name))
             if init_name == basename:
+                found_auto_init = True
+                if debug:
+                    print("CALLING BUILT-IN INIT ON: " + str(init_name))
                 basecls.__init__(o)
+                if debug:
+                    print("DONE CALLING BUILT-IN INIT.")
+        if not found_auto_init:
+            if debug:
+                print("DIDN'T FIND BUILT-IN INIT ON: " + str(basename))
+    if debug:
+        print("completed _call_builtin_init_if_needed on: " + str(id(o)) +
+            ", class: " + o.__class__.__name__)
 
 _modinitfuncs = []
 

@@ -966,8 +966,7 @@ def translate_expression_tokens(s, sc,
                     "use it without call brackets?")
             if (i + 2 < len(s) and s[i + 1] == "." and
                     s[i + 2] == "init"):
-                s = s[:i] + ["super", "(", ")",
-                    ".", "__init__"] + s[i + 3:]
+                s = s[:i] + ["_do_super_init"] + s[i + 3:]
                 i += 3
                 continue
             s = s[:i] + ["super", "(", ")"] + s[i + 1:]
@@ -3586,12 +3585,33 @@ def translate_do_func(
                         untokenize(regtype.funcs
                             ["init"]["arguments"]) + ":\n")
                     append_t += ("        _translator_runtime_helpers." +
-                        "_call_builtin_init_if_needed(self)\n")
+                        "_call_builtin_init_if_needed(self, \"" +
+                        gencode_nameprefix + regtype.name + "\")\n")
+                    append_t += ("        def _do_super_init(*args, "
+                                "**kwargs):\n"
+                                 "            _translator_runtime_helpers."
+                                 "_explicit_super_init_call(self, '" +
+                                 gencode_nameprefix + regtype.name + "', "
+                                 "args=args, kwargs=kwargs)\n")
                     if regtype.init_code != None:
-                        append_t += regtype.init_code + "\n"
+                        append_t += ("        print('Ran builtin init on " +
+                            gencode_nameprefix + regtype.name + "/' + "
+                            "str(self.__class__))\n")
+                        append_t += ("        if (hasattr(self, "
+                            "'__RAN_AUTOINIT_" +
+                            gencode_nameprefix + regtype.name + "') and\n" +
+                                    "                self.__RAN_AUTOINIT_" +
+                            gencode_nameprefix + regtype.name + " == True):\n")
+                        append_t += ("            print('Oops already ran')\n")
+                        append_t += ("            pass\n")
+                        append_t += ("        else:\n")
+                        append_t += ("            pass\n")
+                        lines = regtype.init_code.splitlines()
+                        new_code = "    " + ("\n    ").join(lines)
+                        append_t += new_code + "\n"
                     append_t += regtype.funcs["init"]["code"] + "\n"
                     append_t += ("        pass\n")
-                elif regtype.init_code != None:
+                else:
                     inner_indent = (get_indent(
                         regtype.init_code))
                     if inner_indent is None:
@@ -3600,15 +3620,28 @@ def translate_do_func(
                         gencode_nameprefix + regtype.name + " = True\n")
                     append_t += ("    def __init__(self, " +
                         "*args, **kwargs):\n")
+                    append_t += ("        print('Ran builtin init on " +
+                        gencode_nameprefix + regtype.name + "/' + "
+                        "str(self.__class__))\n")
+                    append_t += ("        if (hasattr(self, "
+                        "'__RAN_AUTOINIT_" +
+                        gencode_nameprefix + regtype.name + "') and\n" +
+                                 "                self.__RAN_AUTOINIT_" +
+                        gencode_nameprefix + regtype.name + " == True):\n")
+                    append_t += ("            print('Oops already ran')\n")
+                    append_t += ("            return\n")
+                    append_t += ("        self.__RAN_AUTOINIT_" +
+                        gencode_nameprefix + regtype.name + " = True\n")
                     # First, make sure to call super type constructor:
                     super_result_var = (
                         "_v" + str(uuid.uuid4()).replace("-", "")
                     )
-                    append_t += (inner_indent +
-                        super_result_var + " = " +
-                        "super().__init__(*args, **kwargs)")
-                    # Now initialize all variables:
-                    append_t += regtype.init_code + "\n"
+                    append_t += ("        _translator_runtime_helpers." +
+                        "_call_builtin_init_if_needed(self, \"" +
+                        gencode_nameprefix + regtype.name + "\")\n")
+                    if regtype.init_code != None:
+                        # Now initialize all variables:
+                        append_t += regtype.init_code + "\n"
                     # Then return whatever super type constructor gave:
                     append_t + (inner_indent + "pass\n")
                 for funcname in regtype.funcs:
