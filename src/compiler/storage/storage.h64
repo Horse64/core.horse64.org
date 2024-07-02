@@ -1068,7 +1068,6 @@ func project.Project.compute_all_scopes(
                         assert(final_arg_type_exprs.len ==
                             final_arg_labels.len)
                     }
-                    var final_pos_args = []
                     if final_kw_arg_count < final_arg_count {
                         final_arg_labels = base_arg_labels.sub(
                             1, final_arg_count - final_kw_arg_count

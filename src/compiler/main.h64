@@ -662,7 +662,7 @@ func actionparser_compile(args, is_moose64=no) {
                 "Deduce and verify types... "
                 "[t=" + time.ticks().as_str() + "]")
         }
-        var success = typeinfo.ensure_all_type_info(
+        success = typeinfo.ensure_all_type_info(
             aresult.project_file.project,
             aresult.msgs, is_moose64=is_moose64) later:
         await success
