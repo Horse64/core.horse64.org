@@ -3640,7 +3640,7 @@ def _explicit_super_init_call(o, self_cls_name,
     if kwargs == None:
         kwargs = dict()
     debug = False
-    if "FuncStmt" in str(o.__class__):
+    if False and "FuncStmt" in str(o.__class__):
         debug = True
     if debug:
         print("_explicit_super_init_call on: " + str(id(o)) +
@@ -3691,7 +3691,7 @@ def _call_builtin_init_if_needed(o, self_cls_name):
     check_cls = _get_proper_init_cls(o, self_cls_name)
     bases = check_cls.__bases__
     debug = False
-    if "FuncStmt" in str(o.__class__):
+    if False and "FuncStmt" in str(o.__class__):
         debug = True
     if debug:
         print("_call_builtin_init_if_needed on: " + str(id(o)) +

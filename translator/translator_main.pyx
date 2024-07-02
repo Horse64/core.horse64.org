@@ -3594,15 +3594,15 @@ def translate_do_func(
                                  gencode_nameprefix + regtype.name + "', "
                                  "args=args, kwargs=kwargs)\n")
                     if regtype.init_code != None:
-                        append_t += ("        print('Ran builtin init on " +
-                            gencode_nameprefix + regtype.name + "/' + "
-                            "str(self.__class__))\n")
+                        #append_t += ("        print('Ran builtin init on " +
+                        #    gencode_nameprefix + regtype.name + "/' + "
+                        #    "str(self.__class__))\n")
                         append_t += ("        if (hasattr(self, "
                             "'__RAN_AUTOINIT_" +
                             gencode_nameprefix + regtype.name + "') and\n" +
                                     "                self.__RAN_AUTOINIT_" +
                             gencode_nameprefix + regtype.name + " == True):\n")
-                        append_t += ("            print('Oops already ran')\n")
+                        #append_t += ("            print('Oops already ran')\n")
                         append_t += ("            pass\n")
                         append_t += ("        else:\n")
                         append_t += ("            pass\n")
@@ -3620,15 +3620,15 @@ def translate_do_func(
                         gencode_nameprefix + regtype.name + " = True\n")
                     append_t += ("    def __init__(self, " +
                         "*args, **kwargs):\n")
-                    append_t += ("        print('Ran builtin init on " +
-                        gencode_nameprefix + regtype.name + "/' + "
-                        "str(self.__class__))\n")
+                    #append_t += ("        print('Ran builtin init on " +
+                    #    gencode_nameprefix + regtype.name + "/' + "
+                    #    "str(self.__class__))\n")
                     append_t += ("        if (hasattr(self, "
                         "'__RAN_AUTOINIT_" +
                         gencode_nameprefix + regtype.name + "') and\n" +
                                  "                self.__RAN_AUTOINIT_" +
                         gencode_nameprefix + regtype.name + " == True):\n")
-                    append_t += ("            print('Oops already ran')\n")
+                    #append_t += ("            print('Oops already ran')\n")
                     append_t += ("            return\n")
                     append_t += ("        self.__RAN_AUTOINIT_" +
                         gencode_nameprefix + regtype.name + " = True\n")
