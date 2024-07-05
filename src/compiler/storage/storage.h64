@@ -165,7 +165,8 @@ func project.Project.get_project_file_for_anscope(anscope) {
 
 func project.Project.compute_all_scopes(
         msgs, is_moose64=no,
-        debug=no, debug_global_storage=no) {
+        debug=no, debug_global_storage=no,
+        debug_failed_lookups=no) {
     if self.did_compute_scopes {
         if debug {
             print("compiler.ast.storage: compute_all_scopes() " +
@@ -1366,6 +1367,21 @@ func project.Project.compute_all_scopes(
                         ref_name = node.type_path.join(".") + "." +
                             ref_name
                     }
+                    if debug_failed_lookups {
+                        print(if is_moose64 ("moosec") else ("horsec") +
+                            ": debug: compute_all_scopes(): "
+                            "Lookup failed in file " +
+                            pfile.as_str() + " "
+                            "so we're re-tracing to debug...")
+                        var _unused = pfile.try_lookup_symbol_path(
+                            node.scope,
+                            name=node.label,
+                            type_path=node.type_path,
+                            is_write_access=is_write_access,
+                            is_moose64=is_moose64,
+                            debug=yes,
+                        )
+                    }
                     if msgs != none {
                         msgs.add(new msg.FileMsg(
                             "Unknown reference '" +
@@ -1420,6 +1436,15 @@ func project.Project.compute_all_scopes(
                 var omitted_righthands = 0
                 var failed_item_name = most_lefthand
                 var failed_item_name_from_import = no
+                var _debug_fail_info = none
+                if debug_failed_lookups {
+                    _debug_fail_info = {
+                        "func"-> "try_lookup_symbol_path",
+                        "label"-> label,
+                        "type_path"-> type_path.copy()
+                    }
+                }
+
                 var ref
                 while yes {
                     ref = pfile.try_lookup_symbol_path(
@@ -1431,6 +1456,13 @@ func project.Project.compute_all_scopes(
                             # -> import found, but doesn't have this item.
                             failed_item_name =
                                 type_path.join(".") + "." + label
+                            if debug_failed_lookups {
+                                _debug_fail_info = {
+                                    "func"-> "try_lookup_symbol_path",
+                                    "label"-> label,
+                                    "type_path"-> type_path.copy()
+                                }
+                            }
                             ref = none
                         }
                         break
@@ -1445,6 +1477,13 @@ func project.Project.compute_all_scopes(
                             failed_item_name_from_import = yes
                             failed_item_name =
                                 type_path.join(".") + "." + label
+                            if debug_failed_lookups {
+                                _debug_fail_info = {
+                                    "func"->"type_path_to_entry",
+                                    "label"-> label,
+                                    "type_path"-> type_path.copy()
+                                }
+                            }
                             # We must still continue trying, because
                             # with shadowing a local var might override
                             # an import and then this will still work
@@ -1456,6 +1495,30 @@ func project.Project.compute_all_scopes(
                     label = type_path.pop()
                 }
                 if ref == none {
+                    if debug_failed_lookups {
+                        print(if is_moose64 ("moosec") else ("horsec") +
+                            ": debug: compute_all_scopes(): "
+                            "Lookup failed in file " +
+                            pfile.as_str() + " "
+                            "so we're re-tracing to debug...")
+                        if _debug_fail_info["func"] ==
+                                "type_path_to_entry" {
+                            var _unused =
+                                pfile.global_scope.type_path_to_entry(
+                                    _debug_fail_info["type_path"],
+                                    debug=yes,
+                                )
+                        } else {
+                            var _unused =
+                                pfile.try_lookup_symbol_path(
+                                    node.scope,
+                                    name=_debug_fail_info["label"],
+                                    type_path=_debug_fail_info["type_path"],
+                                    is_write_access=is_write_access,
+                                    is_moose64=is_moose64, debug=yes
+                                )
+                        }
+                    }
                     if msgs != none {
                         msgs.add(new msg.FileMsg(
                             "Unknown reference '" +
@@ -1545,7 +1608,7 @@ extend type project.Project {
 
 func project.Project.compute_and_check_all_storage(
         msgs, build_options=none, debug=no,
-        debug_global_storage=no
+        debug_global_storage=no, debug_failed_lookups=no
         ) {
     var is_moose64 = no
     if build_options != none and build_options.is_moose64 {
@@ -1566,7 +1629,9 @@ func project.Project.compute_and_check_all_storage(
     var success = self.compute_all_scopes(
         msgs, is_moose64=is_moose64,
         debug=debug,
-        debug_global_storage=debug_global_storage) later:
+        debug_global_storage=debug_global_storage,
+        debug_failed_lookups=debug_failed_lookups,
+    ) later:
 
     await success
     return later success

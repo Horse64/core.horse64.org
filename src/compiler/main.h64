@@ -96,7 +96,7 @@ func tokenize_target_from_args(args) {
 func parse_ast_target_from_args(args, checked_ast=no,
         force_single_file=no, build_options=none,
         debug=no, debug_modules=no, debug_storage=no,
-    debug_global_storage=no) {
+        debug_global_storage=no, debug_failed_lookups=no) {
     if build_options.print_stages {
         print(build_options.build_program_name +
             ": info: stage tokens: "
@@ -194,7 +194,8 @@ func parse_ast_target_from_args(args, checked_ast=no,
         compute_and_check_all_storage(
             tresult.msgs, build_options=build_options,
             debug=debug_storage,
-            debug_global_storage=debug_global_storage)
+            debug_global_storage=debug_global_storage,
+            debug_failed_lookups=debug_failed_lookups)
     later:
 
     await success
@@ -360,6 +361,11 @@ func actionparser_compile(args, is_moose64=no) {
         "--debug-modules",
         description="Enable debugging module discovery. Prints out "
         "all file paths and associated modules when processing.")
+    defs.add_switch(
+        "--debug-failed-lookups",
+        description="Enable debugging failed storage lookups. "
+        "Prints out internal compiler details whenever a lookup "
+        "fails.")
     defs.add_switch(
         "--print-stages",
         description="Announce the various stages as they "
@@ -599,6 +605,8 @@ func actionparser_compile(args, is_moose64=no) {
             build_options=boptions,
             debug=result.args["--debug-ast"],
             debug_modules=result.args["--debug-modules"],
+            debug_failed_lookups=
+                result.args["--debug-failed-lookups"],
         )
         later:
 
@@ -630,7 +638,10 @@ func actionparser_compile(args, is_moose64=no) {
             debug=result.args["--debug-ast"],
             debug_modules=result.args["--debug-modules"],
             debug_storage=result.args["--debug-storage"],
-            debug_global_storage=result.args["--debug-global-storage"],
+            debug_global_storage=
+                result.args["--debug-global-storage"],
+            debug_failed_lookups=
+                result.args["--debug-failed-lookups"],
         )
         later:
 

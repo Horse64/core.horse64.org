@@ -75,7 +75,7 @@ func project.ProjectFile.type_path_to_full_module_path_and_pfile(
 
 func project.ProjectFile.try_lookup_symbol_path(
         local_scope, name=none, type_path=none,
-        is_write_access=yes, is_moose64=no
+        is_write_access=yes, is_moose64=no, debug=no
         ) {
     if name == none and type_path == none {
         throw new ValueError("Need to supply at least one of "
@@ -91,7 +91,17 @@ func project.ProjectFile.try_lookup_symbol_path(
     if name != none {
         check_path = check_path + [name]
     }
+    if debug {
+        print(if is_moose64 ("moosec") else ("horsec") +
+            ": debug: try_lookup_symbol_path(): "
+            "Invoked on: check_path=" + check_path.as_str())
+    }
     if check_path.len == 0 {
+        if debug {
+            print(if is_moose64 ("moosec") else ("horsec") +
+                ": debug: try_lookup_symbol_path(): "
+                "Lookup path is empty, returning none.")
+        }
         return none
     }
 
@@ -103,9 +113,33 @@ func project.ProjectFile.try_lookup_symbol_path(
         if lookup_pair != none {
             var symbol_ref = lookup_pair[1]
             if check_path.len > 1 {
+                if debug {
+                    print(if is_moose64 ("moosec") else ("horsec") +
+                        ": debug: try_lookup_symbol_path(): "
+                        "Longer global path is being shadowed "
+                        "by local scope result ref=" +
+                        symbol_ref.as_str() + " so we return none.")
+                }
                 return none
             }
+            if debug {
+                print(if is_moose64 ("moosec") else ("horsec") +
+                    ": debug: try_lookup_symbol_path(): "
+                    "Found local scope result ref=" +
+                    symbol_ref.as_str() + " so we return success.")
+            }
             return symbol_ref
+        }
+        if debug {
+            print(if is_moose64 ("moosec") else ("horsec") +
+            ": debug: try_lookup_symbol_path(): "
+            "Local scope returned nothing.")
+        }
+    } else {
+        if debug {
+            print(if is_moose64 ("moosec") else ("horsec") +
+            ": debug: try_lookup_symbol_path(): "
+            "Skipping local scope, since none was supplied.")
         }
     }
 
@@ -143,6 +177,11 @@ func project.ProjectFile.try_lookup_symbol_path(
 
     # Then, try the built-in symbols injector for things that
     # can't be "inside" e.g. an imported module:
+    if debug {
+        print(if is_moose64 ("moosec") else ("horsec") +
+            ": debug: try_lookup_symbol_path(): "
+            "Will try injections from compiler.builtin_syms module.")
+    }
     if check_path.len == 1 and
             not self.global_scope.name_to_stmt_map.has(
                 check_path[1]
@@ -161,17 +200,39 @@ func project.ProjectFile.try_lookup_symbol_path(
     }
 
     # Then, try global scopes:
+    if debug {
+        print(if is_moose64 ("moosec") else ("horsec") +
+            ": debug: try_lookup_symbol_path(): "
+            "Will try regular global scope.")
+    }
     var entry = self.global_scope.type_path_to_entry(
         check_path)
     if entry != none and has_attr(entry, "kind") and
             {ast.N_STMT_IMPORT,
             ast.N_STMT_C_IMPORT}.has(entry.kind) {
         # This can't be referenced directly.
+        if debug {
+            print(if is_moose64 ("moosec") else ("horsec") +
+                ": debug: try_lookup_symbol_path(): It matched "
+                "an import directly, but that's not valid.")
+        }
         entry = none
     }
     if entry != none {
+        if debug {
+            print(if is_moose64 ("moosec") else ("horsec") +
+                ": debug: try_lookup_symbol_path(): "
+                "Examining global entry=" + entry.as_str() + " "
+                "to consider a match.")
+        }
         if has_attr(entry, "is_enum_entry") and
                 entry.is_enum_entry {
+            if debug {
+                print(if is_moose64 ("moosec") else ("horsec") +
+                    ": debug: try_lookup_symbol_path(): "
+                    "Considering enum entry=" + entry.as_str() + " "
+                    "as a match.")
+            }
             if check_path.len > 1 {
                 return none
             }
@@ -197,6 +258,12 @@ func project.ProjectFile.try_lookup_symbol_path(
             )
         }
         if entry.symbol_info == none {
+            if debug {
+                print(if is_moose64 ("moosec") else ("horsec") +
+                    ": debug: try_lookup_symbol_path(): "
+                    "Have global entry=" + entry.as_str() + " "
+                    "but it has no symbol_info set. Aborting.")
+            }
             return none
         }
         if typename(entry.symbol_info) == "list" {
@@ -215,10 +282,20 @@ func project.ProjectFile.try_lookup_symbol_path(
                 entry.symbol_info.storage_id
             )
         }
+    } else {
+        if debug {
+            print(if is_moose64 ("moosec") else ("horsec") +
+                ": debug: try_lookup_symbol_path(): "
+                "No global entry matched.")
+        }
     }
     if check_path.len > 1 {
         # Check if this is inside some imported item:
-
+        if debug {
+            print(if is_moose64 ("moosec") else ("horsec") +
+                ": debug: try_lookup_symbol_path(): "
+                "Now checking if this is an imported item.")
+        }
         var module_item_path_without_item = check_path.sub(
             1, check_path.len - 1)
         var item_name = check_path[check_path.len]
@@ -227,6 +304,13 @@ func project.ProjectFile.try_lookup_symbol_path(
             module_item_path_without_item)
         if entry != none and {ast.N_STMT_IMPORT,
                 ast.N_STMT_C_IMPORT}.has(entry.kind) {
+            if debug {
+                print(if is_moose64 ("moosec") else ("horsec") +
+                    ": debug: try_lookup_symbol_path(): "
+                    "Found base of item_name=\"" +
+                    item_name + "\" "
+                    "in entry=" + entry.as_str() + ", investigating.")
+            }
             var can_be_non_cext_non_cref = yes
             var stmt_map = none
             if entry.kind == ast.N_STMT_C_IMPORT or
@@ -254,6 +338,12 @@ func project.ProjectFile.try_lookup_symbol_path(
             }
             var storage_id = none
             if not is_moose64 {
+                if debug {
+                    print(if is_moose64 ("moosec") else ("horsec") +
+                        ": debug: try_lookup_symbol_path(): "
+                        "Trying looking up item_name=\"" +
+                        item_name + "\" in C exts.")
+                }
                 cext.get_cext_item_storage_id(
                     item_name,
                     in_module_name=in_module_name,
@@ -265,6 +355,11 @@ func project.ProjectFile.try_lookup_symbol_path(
                         st_ref.ST_CEXT,
                         storage_id
                     )
+                }
+                if debug {
+                    print(if is_moose64 ("moosec") else ("horsec") +
+                        ": debug: try_lookup_symbol_path(): "
+                        "Not found in C exts.")
                 }
             }
 
@@ -350,6 +445,11 @@ func project.ProjectFile.try_lookup_symbol_path(
         in_module_name = self.modinfo.module_name
         in_package_name = self.modinfo.package_name
     }
+    if debug {
+        print(if is_moose64 ("moosec") else ("horsec") +
+            ": debug: try_lookup_symbol_path(): "
+            "Now trying C extensions lookup.")
+    }
     var st_id = cext.get_cext_item_storage_id(
         check_path[1], in_module_name=in_module_name,
         in_package_name=in_package_name,
@@ -358,6 +458,11 @@ func project.ProjectFile.try_lookup_symbol_path(
     if st_id != none {
         return new st_ref.StorageRef(
             st_ref.ST_CEXT, st_id)
+    }
+    if debug {
+        print(if is_moose64 ("moosec") else ("horsec") +
+            ": debug: try_lookup_symbol_path(): "
+            "All lookups failed, returning none.")
     }
     return none
 }
