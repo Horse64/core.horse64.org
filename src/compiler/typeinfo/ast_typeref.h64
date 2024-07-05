@@ -27,6 +27,7 @@
 
 import compiler.ast as ast
 import compiler.ast.expr as ast_expr
+import compiler.msg as msg
 import compiler.token as token
 import compiler.storage.ref as st_ref
 
@@ -151,7 +152,7 @@ func TypeRefFuncExpr.copy {
 
 func TypeRefFuncExpr.try_resolve_param_types(
         project_file, recursive=no, force_recompute=no,
-        is_moose64=is_moose64
+        is_moose64=no
         ) {
     var had_failure = no
 
@@ -212,7 +213,7 @@ func TypeRefFuncExpr.try_resolve_param_types(
 func TypeRefFuncExpr.try_resolve_to_user_type(
         project_file, recursive=no, skip_params=no,
         force_recompute=no,
-        is_moose64=is_moose64
+        is_moose64=no
         ) {
     func run_concurrent {
         if skip_params {
@@ -419,7 +420,7 @@ func get_c_builtin_for_m64_base_type(name) {
 }
 
 func TypeRefExpr.try_resolve_to_user_type(
-        project_file, force_recompute=no, is_moose64=is_moose64
+        project_file, force_recompute=no, is_moose64=no
         ) {
     var builtin_names =
         if is_moose64 (builtin_moose64_types)
@@ -527,7 +528,7 @@ func _parse_typeref_notlater(
                 col=token.get_col(tokens, pos),
             ))
             var skiplen = token.get_naive_stmt_or_expr_len(
-                tokens, startpos, max_len=tokens_len,
+                tokens, startpos, max_len=max_len,
                 for_expr=yes, is_moose64=is_moose64
             )
             var expr = new InvalidExpr(skiplen)
@@ -539,7 +540,7 @@ func _parse_typeref_notlater(
                 tokens[pos].str != "(" {
             return had_error(pos,
                 "Invalid " + token.describe_token_at(
-                    tokens, atpos) + " "
+                    tokens, pos) + " "
                 ", expected '(' to begin ")
         }
         pos += 1
@@ -561,7 +562,7 @@ func _parse_typeref_notlater(
             if tokens[pos].kind != token.T_IDENT {
                 return had_error(pos,
                     "Invalid " + token.describe_token_at(
-                        tokens, atpos) + " "
+                        tokens, pos) + " "
                     ", expected identifier (T_IDENT) to "
                     "start next argument, or ')' to end "
                     "arguments for ")
@@ -575,7 +576,7 @@ func _parse_typeref_notlater(
             if tokens[pos].kind != token.T_LEFTPTR {
                 return had_error(pos,
                     "Invalid " + token.describe_token_at(
-                        tokens, atpos) + " "
+                        tokens, pos) + " "
                     ", expected '<-' (T_LEFTPTR) to "
                     "continue argument for ")
             }
@@ -587,7 +588,7 @@ func _parse_typeref_notlater(
             )
             if inner_expr == none {
                 var skiplen = token.get_naive_stmt_or_expr_len(
-                    tokens, startpos, max_len=tokens_len,
+                    tokens, startpos, max_len=max_len,
                     for_expr=yes, is_moose64=is_moose64
                 )
                 var expr = new InvalidExpr(skiplen)
@@ -601,7 +602,7 @@ func _parse_typeref_notlater(
                       tokens[pos].str != ')')) {
                 return had_error(pos,
                     "Invalid " + token.describe_token_at(
-                        tokens, atpos) + " "
+                        tokens, pos) + " "
                     ", expected ')' or ',' to end previous "
                     "argument")
             }
@@ -615,7 +616,7 @@ func _parse_typeref_notlater(
             if tokens[pos].kind != token.T_LEFTPTR {
                 return had_error(pos,
                     "Invalid " + token.describe_token_at(
-                        tokens, atpos) + " "
+                        tokens, pos) + " "
                     ", expected '->' (T_LEFTPTR) to "
                     "specif return type for ")
             }
@@ -627,7 +628,7 @@ func _parse_typeref_notlater(
         )
         if return_type == none {
             var skiplen = token.get_naive_stmt_or_expr_len(
-                tokens, startpos, max_len=tokens_len,
+                tokens, startpos, max_len=max_len,
                 for_expr=yes, is_moose64=is_moose64
             )
             var expr = new InvalidExpr(skiplen)
@@ -638,7 +639,7 @@ func _parse_typeref_notlater(
                 tokens[pos].str != ')' {
             return had_error(pos,
                 "Invalid " + token.describe_token_at(
-                    tokens, atpos) + " "
+                    tokens, pos) + " "
                 ", expected ')' (T_ENCLOSE) to "
                 "end ")
         }

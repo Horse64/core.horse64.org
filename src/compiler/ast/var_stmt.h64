@@ -488,7 +488,7 @@ func parse(tokens, pos, msgs, project_file=none,
     if debug {
         print("compiler.ast.var_stmt: parse() obtained " +
             "init expression at pos=" + pos.as_str() +
-            " with len=" + v.token_len.as_str())
+            " with len=" + v2.token_len.as_str())
     }
     if not stmt.has_type_expr {
         stmt.subexprs.add(v2)

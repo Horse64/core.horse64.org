@@ -336,7 +336,7 @@ func try_eval_ast_node_value(
 }
 
 func try_eval_ast_node_type(
-        node, is_moose64=is_moose64,
+        node, is_moose64=no,
         eval_by_storage_ref_callback=none
         ) {
     var v = try_eval_ast_node_value(

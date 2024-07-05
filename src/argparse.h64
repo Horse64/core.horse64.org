@@ -54,7 +54,7 @@ enum TakesArg {
 
 func _ArgumentInfo.init(
         name, aliases=[],
-        is_switch=no, takes_arg=ARG_TAKESARG_DEFAULT,
+        is_switch=no, takes_arg=TAKESARG_DEFAULT,
         repeatable=no,
         description=none, action_func=none
         ) {

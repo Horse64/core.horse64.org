@@ -188,7 +188,6 @@ func get_called_func_types(
                 col=child_node.col,
             ))
             called_node.damaged = yes
-            had_no_error = no
             return later none
         }
     }
@@ -217,8 +216,8 @@ func get_called_func_types(
             "Unexpected wrong numbers of arguments, "
             "expected " + expected_visible_args + " arguments.",
             kind=msg.M_ERROR, source_file=project_file,
-            line=child_node.line,
-            col=child_node.col,
+            line=called_node.line,
+            col=called_node.col,
         ))
         called_node.damaged = yes
         return later none
@@ -269,7 +268,7 @@ func get_called_func_types(
 
     return later [func_var_type,
         if get_typeref_exprs_instead_of_typeinfo
-            (self_type_expr) else (self_typeinfo),
+            (self_type_expr) else (self_type_typeinfo),
         if get_typeref_exprs_instead_of_typeinfo
             (arg_var_type_exprs) else  (arg_var_types)]
 }
@@ -517,7 +516,7 @@ func transform_defer(
                     last_node, defer_info)
                 defer_added.stmts_added_before_node.add(none)
                 defer_added.stmts_added_after_node.add(
-                    get_resolve_copy_in_scope(defer_inf, node.scope)
+                    get_resolve_copy_in_scope(defer_info, node.scope)
                 )
             }
         }
@@ -576,7 +575,6 @@ func transform_defer(
                         col=node.col,
                     ))
                     node.damaged = yes
-                    found_error = yes
                 } else {
                     return_var_node = builder.make_var_node(
                         node.scope, "defer_early_return_val",
@@ -1039,9 +1037,9 @@ func transform_associate_failed_checks(
 
 func do_moose64_transforms_pre_nameresolution(
         project_file, msgs) {
-    call_expr_to_failed_check_map = {->}
-    failed_check_to_call_expr_map = {->}
-    parent_stmt_to_call_exprs_map = {->}
+    var call_expr_to_failed_check_map = {->}
+    var failed_check_to_call_expr_map = {->}
+    var parent_stmt_to_call_exprs_map = {->}
 
     var result = transform_associate_failed_checks(
         project_file, project_file.ast, msgs,

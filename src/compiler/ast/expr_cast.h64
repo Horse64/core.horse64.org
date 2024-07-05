@@ -92,8 +92,8 @@ func parse_type_cast_expr(
             is_moose64=is_moose64
         )
         pos += skiplen
-        inner_expr = new ast_expr.InvalidExpr(pos - startpos)
-        return inner_expr
+        var invexpr = new ast_expr.InvalidExpr(pos - startpos)
+        return invexpr
     }
     pos += tref.token_len
     if pos > max_len or tokens[pos].kind != token.T_COMMA {
@@ -119,8 +119,8 @@ func parse_type_cast_expr(
             is_moose64=is_moose64
         )
         pos += skiplen
-        inner_expr = new ast_expr.InvalidExpr(pos - startpos)
-        return inner_expr
+        var invexpr = new ast_expr.InvalidExpr(pos - startpos)
+        return invexpr
     }
     pos += 1  # Go past ','.
     var cast_expr = ast_expr._parse_expression_notlater(
@@ -151,8 +151,8 @@ func parse_type_cast_expr(
             is_moose64=is_moose64
         )
         pos += skiplen
-        inner_expr = new ast_expr.InvalidExpr(pos - startpos)
-        return inner_expr
+        var invexpr = new ast_expr.InvalidExpr(pos - startpos)
+        return invexpr
     }
     pos += cast_expr.token_len
     if pos > max_len or tokens[pos].kind != token.T_ENCLOSE or
@@ -179,8 +179,8 @@ func parse_type_cast_expr(
             is_moose64=is_moose64
         )
         pos += skiplen
-        inner_expr = new ast_expr.InvalidExpr(pos - startpos)
-        return inner_expr
+        var invexpr = new ast_expr.InvalidExpr(pos - startpos)
+        return invexpr
     }
     pos += 1  # Go past final ')'.
 

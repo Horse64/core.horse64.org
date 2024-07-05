@@ -52,7 +52,7 @@ func get_mcref_id(project) {
 
 func CImportInfo._process_c_include(ipath) {
     ipath = ipath.replace("/", path.sep)
-    new_items = {->}
+    var new_items = {->}
     if ipath == "stdlib.h" {
         new_items["malloc"] = new c_symbol.CFuncSymbol(
             "void *malloc(size_t size);"

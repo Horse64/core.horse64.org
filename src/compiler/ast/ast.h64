@@ -177,7 +177,7 @@ func set_node_parent_block(node, parent, new_block) {
                 continue
             }
             var idx = 0
-            for subblock in cause.subblocks {
+            for subblock in clause.subblocks {
                 idx += 1
                 search_blocks.add([clause, idx, subblock])
             }
