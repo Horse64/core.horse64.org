@@ -81,8 +81,8 @@ func GlobalScope.as_json_obj {
 func project.Project.finalize_func_typerefs_all_files(
         msgs=none, is_moose64=no,
         ) {
-    # XXX/WARNING: .ensure_assigned_storage() required on ALL scopes
-    # BEFORE calling this function.
+    # XXX/WARNING: .ensure_assigned_storage() is required on ALL
+    # scopes BEFORE calling this function.
 
     func fix_func_typeref_exprs_for_file(pfile) {
         assert(pfile.project.is_moose64 == is_moose64)
@@ -179,7 +179,7 @@ func project.Project.finalize_func_typerefs_all_files(
         return later no
     }
 
-    func fix_func_symbol_info_for_file(pfile) {
+    func fix_func_symbol_info_for_file_2(pfile) {
         var queue = []
         for stmt in pfile.ast.stmts {
             if stmt.kind == ast.N_STMT_FUNC {
@@ -222,7 +222,7 @@ func project.Project.finalize_func_typerefs_all_files(
     }
 
     success = self.do_for_all_files(
-        fix_func_symbol_info_for_file)
+        fix_func_symbol_info_for_file_2)
     later:
 
     await success
@@ -520,23 +520,47 @@ func GlobalScope.finalize_gscope_with_ast_tree_info(
     }
 }
 
-func GlobalScope.type_path_to_entry(tpath) {
+func GlobalScope.type_path_to_entry(tpath, debug=no) {
     if typename(tpath) == "str" {
         tpath = tpath.split(".")
     }
+    if debug {
+        print("horsec: debug: " +
+            "type_path_to_entry(): Got tpath=" +
+            tpath.as_str() + " and starting lookup.")
+    }
     if tpath.len == 0 or
             not self.name_to_stmt_map.has(tpath[1]) {
+        if debug {
+            print("horsec: debug: " +
+                "type_path_to_entry(): No global starting "
+                "with this path, returning none.")
+        }
         return none
     }
     # Handling of most things that aren't an import:
     if typename(self.name_to_stmt_map[tpath[1]]) != "list" {
         if tpath.len != 1 {
+            if debug {
+                print("horsec: debug: " +
+                    "type_path_to_entry(): It's not an import "
+                    "but tpath is multiple items, aborting.")
+            }
             return none
+        }
+        if debug {
+            print("horsec: debug: " +
+                "type_path_to_entry(): Found match.")
         }
         return self.name_to_stmt_map[tpath[1]]
     }
 
     # Handling of imports:
+    if debug {
+        print("horsec: debug: " +
+            "type_path_to_entry(): Type path start "
+            "matched an import, searching for a match.")
+    }
     var longest_match_len = -1
     var longest_match_entry = none
     for entry in self.name_to_stmt_map[tpath[1]] {
@@ -865,7 +889,7 @@ func project.Project.finalize_global_scope_attr_storage(
 
         return later yes
     }
-    var success = self.do_for_all_files(finalize_attr_storage)
+    success = self.do_for_all_files(finalize_attr_storage)
     later:
 
     await success
