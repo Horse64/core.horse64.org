@@ -619,19 +619,19 @@ func transform_defer(
             return later node
         }
         var next_node = queue.pop_at(1)
-        var result = ast_transform.visit_ast_tree(
+        var visit_result = ast_transform.visit_ast_tree(
             next_node, attach_defer_resolution,
             subtree_parent=[parent],
             pass_func_boundaries=no, parent_chain=yes, backward=no)
         later:
 
-        await result
-        assert(result == yes)
+        await visit_result
+        assert(visit_result == yes)
         if queue.len == 0 {
             return later node
         }
         next_node = queue.pop_at(1)
-        result = ast_transform.visit_ast_tree(
+        visit_result = ast_transform.visit_ast_tree(
             next_node, attach_defer_resolution,
             subtree_parent=[parent],
             pass_func_boundaries=no, parent_chain=yes, backward=no)

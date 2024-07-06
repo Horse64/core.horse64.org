@@ -25,6 +25,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import textfmt from core.horse64.org
+
 import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
 import compiler.ast.transform as ast_transform
@@ -373,7 +375,7 @@ func create_typeinfo_from_global_ref(
         )
         if base_typeref_expr_if_known != none {
             tinfo.func_typeexpr =
-                base_typeref_if_expr_known.copy()
+                base_typeref_expr_if_known.copy()
         } else {
             tinfo.func_typeexpr =
                 base_symbol_info_if_known.typeref_expr.copy()

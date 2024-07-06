@@ -91,6 +91,10 @@ func project.Project.finalize_func_typerefs_all_files(
             if typename(value) == "list" {
                 # Import entries have no storage or symbol info.
                 continue
+            } elseif has_attr(value, "is_enum_entry") and
+                    value.is_enum_entry {
+                # This is a single text entry of an enum, not a func.
+                continue
             } elseif value.kind == ast.N_STMT_FUNC {
                 # (Note: the func attrs are handled in the loop below.
                 # This is just funcs which aren't attributes.)
@@ -802,6 +806,8 @@ func project.Project.finalize_global_scope_attr_storage(
         for name in gscope.name_to_stmt_map {
             var value = gscope.name_to_stmt_map[name]
             if typename(value) == "list" or
+                    (has_attr(value, "is_enum_entry") and
+                     value.is_enum_entry) or
                     not {ast.N_STMT_TYPE, ast.N_STMT_ENUM,
                     ast.N_STMT_STRUCT}.has(value.kind) {
                 continue

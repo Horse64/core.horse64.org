@@ -531,7 +531,7 @@ func _parse_typeref_notlater(
                 tokens, startpos, max_len=max_len,
                 for_expr=yes, is_moose64=is_moose64
             )
-            var expr = new InvalidExpr(skiplen)
+            var expr = new ast_expr.InvalidExpr(skiplen)
             return expr
         }
         var startpos = pos
@@ -591,7 +591,7 @@ func _parse_typeref_notlater(
                     tokens, startpos, max_len=max_len,
                     for_expr=yes, is_moose64=is_moose64
                 )
-                var expr = new InvalidExpr(skiplen)
+                var expr = new ast_expr.InvalidExpr(skiplen)
                 return expr
             }
             arg_types.add(inner_expr)
@@ -631,7 +631,7 @@ func _parse_typeref_notlater(
                 tokens, startpos, max_len=max_len,
                 for_expr=yes, is_moose64=is_moose64
             )
-            var expr = new InvalidExpr(skiplen)
+            var expr = new ast_expr.InvalidExpr(skiplen)
             return expr
         }
         pos += return_type.token_len
