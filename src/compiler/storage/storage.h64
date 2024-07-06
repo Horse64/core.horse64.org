@@ -519,7 +519,7 @@ func project.Project.compute_all_scopes(
                 source_file=pfile,
                 line=line, col=col
             ))
-            return
+            return old_symbol
         } elseif local_scope.func_scope == none {
             msgs.add(new msg.FileMsg(
                 "Invalid statement declaring '" + symbol_name + "'"
@@ -530,7 +530,10 @@ func project.Project.compute_all_scopes(
             ))
             return
         }
-        local_scope.add_symbol(symbol_name, pfile, line, col)
+        var result =
+            local_scope.add_symbol(symbol_name, pfile, line, col)
+        assert(typename(result) == "list" and result.len == 2)
+        return result[2]
     }
     func compute_scope(pfile) {
         if debug {
@@ -875,9 +878,12 @@ func project.Project.compute_all_scopes(
                     }
                     if node.type_path == none {
                         assert(node.kind == ast.N_STMT_FUNC)
-                        try_register_symbol(inner_scope,
-                            node.label, msgs,
-                            pfile, node.line, node.col)
+                        var symbol_info =
+                            try_register_symbol(inner_scope,
+                                node.label, msgs,
+                                pfile, node.line, node.col)
+                        assert(node.symbol_info == none)
+                        node.symbol_info = symbol_info
                     } else {
                         inner_scope.func_scope.is_type_attr = yes
                         inner_scope.func_scope.
@@ -1137,13 +1143,17 @@ func project.Project.compute_all_scopes(
                         node.func_scope.arg_symbol_info ==
                             base_func_scope.arg_symbol_info)
                 } elseif node.kind == ast.N_STMT_FOR {
-                    try_register_symbol(inner_scope,
+                    var syminfo = try_register_symbol(inner_scope,
                         node.label, msgs,
                         pfile, node.line, node.col)
+                    assert(node.symbol_info == none)
+                    node.symbol_info = syminfo
                 } elseif node.kind == ast.N_STMT_WITH {
-                    try_register_symbol(inner_scope,
+                    var syminfo = try_register_symbol(inner_scope,
                         node.label, msgs,
                         pfile, node.line, node.col)
+                    assert(node.symbol_info == none)
+                    node.symbol_info = syminfo
                 }
             }
             if node.kind == ast.N_STMT_IF or
