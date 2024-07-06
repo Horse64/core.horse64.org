@@ -2138,7 +2138,8 @@ func tokenize_from_fileobj (
         apply_preprocessor=no,
         is_moose64=no
         ) {
-    assert(apply_preprocessor == yes)
+    assert(apply_preprocessor == yes or
+        project_file == none or project_file.project == none)
     var result = new TokensResult()
     var contents = fobj.read(
         amount=climit.max_source_file_size + 1
