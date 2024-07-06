@@ -284,8 +284,10 @@ func ensure_type_info_for_file(project_file, msgs, is_moose64=no) {
                 }
                 var queue = []
                 var exprlist = node.get_local_args_type_expr_list()
+                var sinfolist = node.get_local_args_symbol_info_list()
+                assert(exprlist.len == sinfolist.len)
                 var idx = 0
-                for item in node.get_local_args_symbol_info_list() {
+                for item in sinfolist {
                     idx += 1
                     queue.add([exprlist[idx], item])
                 }
