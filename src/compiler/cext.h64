@@ -271,7 +271,13 @@ func check_cext_is_enum_by_id(project, storage_id) {
 
 func get_cext_item_storage_info(name,
         in_module_name=none, in_package_name=none,
-        project=none, can_match_moduleless=yes) {
+        project=none, can_match_moduleless=yes,
+        debug=no) {
+    if debug {
+        print("horsec: debug: get_cext_item_storage_info(): "
+            "Looking up " + {"in_module_name"->in_module_name,
+            "in_package_name"->in_package_name}.as_str())
+    }
     _ensure_builtins_storage(project)
     if can_match_moduleless and project != none and
             project.cext_builtins_storage_map_by_name.has(name) {
@@ -281,6 +287,10 @@ func get_cext_item_storage_info(name,
             project != none and
             project.package_name_to_cext.has(in_package_name) {
         var cext_info = project.package_name_to_cext[in_package_name]
+        if debug {
+            print("horsec: debug: get_cext_item_storage_info(): "
+                "Found matching package: " + in_package_name)
+        }
         assert(cext_info != none)
         var ref = in_module_name + "." + name
         if cext_info.name_to_cmodule_map.
@@ -306,8 +316,34 @@ func get_cext_item_storage_info(name,
                     citem.storage_info = st_info
                     project.storage_id_to_citem_map[storage_id] = citem
                 }
+                assert(citem.storage_info != none)
+                assert(citem.storage_info.storage_id != none)
+                if debug {
+                    print("horsec: debug: "
+                        "get_cext_item_storage_info(): "
+                        "Found it, returning citem.")
+                }
                 return citem.storage_info
+            } else {
+                if debug {
+                    print("horsec: debug: "
+                        "get_cext_item_storage_info(): "
+                        "Not found in module : " +
+                        in_module_name.as_str())
+                }
             }
+        } else {
+            if debug {
+                print("horsec: debug: "
+                    "get_cext_item_storage_info(): "
+                    "No such module found in package: " +
+                    in_module_name.as_str())
+            }
+        }
+    } else {
+        if debug {
+            print("horsec: debug: get_cext_item_storage_info(): "
+                "No matching package found.")
         }
     }
     return none
@@ -316,16 +352,30 @@ func get_cext_item_storage_info(name,
 func get_cext_item_storage_id(name,
         in_module_name=none, in_package_name=none,
         project=none, can_match_moduleless=yes,
-        limit_to_kind=none) {
+        limit_to_kind=none, debug=no) {
     var storage_info = get_cext_item_storage_info(
         name, in_module_name=in_module_name,
         in_package_name=in_package_name, project=project,
-        can_match_moduleless=can_match_moduleless)
+        can_match_moduleless=can_match_moduleless,
+        debug=debug,
+    )
     if storage_info != none and limit_to_kind != none and
             storage_info.kind != limit_to_kind {
+        if debug {
+            print("horsec: debug: get_cext_item_storage_id(): "
+                "Wrong kind of symbol, citem found is kind=" +
+                ast.NodeKind.num_label(storage_info.kind) + " "
+                "but query is limited to kind=" +
+                ast.NodeKind.num_label(limit_to_kind) + ".")
+        }
         storage_info = none
     }
     if storage_info {
+        assert(storage_info.storage_id != none)
+        if debug {
+            print("horsec: debug: get_cext_item_storage_id(): "
+                "Found valid result, returning it.")
+        }
         return storage_info.storage_id
     }
     return none

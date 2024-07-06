@@ -344,12 +344,14 @@ func project.ProjectFile.try_lookup_symbol_path(
                         "Trying looking up item_name=\"" +
                         item_name + "\" in C exts.")
                 }
-                cext.get_cext_item_storage_id(
+                storage_id = cext.get_cext_item_storage_id(
                     item_name,
                     in_module_name=in_module_name,
                     in_package_name=in_package_name,
                     project=self.project,
-                    can_match_moduleless=no)
+                    can_match_moduleless=no,
+                    debug=debug,
+                )
                 if storage_id != none {
                     return new st_ref.StorageRef(
                         st_ref.ST_CEXT,
@@ -454,7 +456,9 @@ func project.ProjectFile.try_lookup_symbol_path(
         check_path[1], in_module_name=in_module_name,
         in_package_name=in_package_name,
         project=self.project,
-        can_match_moduleless=yes)
+        can_match_moduleless=yes,
+        debug=debug
+    )
     if st_id != none {
         return new st_ref.StorageRef(
             st_ref.ST_CEXT, st_id)
