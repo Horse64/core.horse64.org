@@ -275,6 +275,9 @@ func ensure_type_info_for_file(project_file, msgs, is_moose64=no) {
             later:
 
             func process_args {
+                if not node.has_arg_types {
+                    return
+                }
                 func handle_arg(expr_item, sinfo_item) {
                     try_resolve_symbol_typeref(
                         project_file, node, expr_item,
@@ -285,6 +288,17 @@ func ensure_type_info_for_file(project_file, msgs, is_moose64=no) {
                 var queue = []
                 var exprlist = node.get_local_args_type_expr_list()
                 var sinfolist = node.get_local_args_symbol_info_list()
+                if exprlist.len != sinfolist.len {
+                    print(if is_moose64 ("moosec") else ("horsec") +
+                        ": error: Fatal internal error: "
+                        "List of local arg type expressions doesn't "
+                        "match list of local arg symbol info in "
+                        "length: exprlist=" + exprlist.as_str() + " "
+                        "sinfolist=" + sinfolist.as_str())
+                    throw new RuntimeError("Fatal internal error, "
+                        "damaged func args with "
+                        "exprlist.len != sinfolist.len")
+                }
                 assert(exprlist.len == sinfolist.len)
                 var idx = 0
                 for item in sinfolist {
