@@ -249,7 +249,7 @@ func parse_rescue_clause_header(
         if error_typename != none {
             var iexp = new expr.IdRefExpr()
             iexp.label = error_typename
-            iexp.typepath = error_typepath
+            iexp.type_path = error_typepath
             iexp.line = typename_line
             iexp.col = typename_col
             clause.subexprs.add(iexp)

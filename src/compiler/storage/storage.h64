@@ -1371,8 +1371,13 @@ func project.Project.compute_all_scopes(
                         print(if is_moose64 ("moosec") else ("horsec") +
                             ": debug: compute_all_scopes(): "
                             "Lookup failed in file " +
-                            pfile.as_str() + " "
+                            pfile.as_str() + " [lookup location 1] "
                             "so we're re-tracing to debug...")
+                        print(if is_moose64 ("moosec") else ("horsec") +
+                            ": debug: compute_all_scopes(): "
+                            "We originally looked at this node: " +
+                            node.as_str() + " with parent: " +
+                            parent.as_str())
                         var _unused = pfile.try_lookup_symbol_path(
                             node.scope,
                             name=node.label,
@@ -1499,7 +1504,7 @@ func project.Project.compute_all_scopes(
                         print(if is_moose64 ("moosec") else ("horsec") +
                             ": debug: compute_all_scopes(): "
                             "Lookup failed in file " +
-                            pfile.as_str() + " "
+                            pfile.as_str() + " [lookup location 2] "
                             "so we're re-tracing to debug...")
                         if _debug_fail_info["func"] ==
                                 "type_path_to_entry" {
