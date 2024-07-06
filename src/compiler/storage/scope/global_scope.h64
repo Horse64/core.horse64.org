@@ -107,7 +107,7 @@ func project.Project.finalize_func_typerefs_all_files(
                     ast_typeref.create_typeref_from_func_node(
                         pfile, value
                     )
-                si.typeref_expr.func_storage_ref = st_ref.StorageRef(
+                si.typeref_expr.func_storage_ref = new st_ref.StorageRef(
                     st_ref.ST_GLOBAL, si.storage_id
                 )
             }

@@ -164,7 +164,7 @@ func TreeNode.as_json_obj {
 
 func set_node_parent_block(node, parent, new_block) {
     if parent == none {
-        throw ValueError("No parent given to set block for.")
+        throw new ValueError("No parent given to set block for.")
     }
     var search_blocks = []
     if parent.kind == N_STMT_IF or
@@ -199,7 +199,7 @@ func set_node_parent_block(node, parent, new_block) {
         block_owner.subblocks[block_idx] = new_block
         return
     }
-    throw ValueError("Failed to find block in parent.")
+    throw new ValueError("Failed to find block in parent.")
 }
 
 func get_node_parent_block(node, parent) {

@@ -295,7 +295,7 @@ func transform_defer(
         return defer_added
     }
 
-    var builder = ast_builder.ASTBuilder(project_file)
+    var builder = new ast_builder.ASTBuilder(project_file)
 
     var had_no_error = yes
     func do_transform_defer(node, parents) {
