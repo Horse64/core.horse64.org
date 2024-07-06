@@ -1,3 +1,4 @@
+*.geany
 *.kate-swp
 *~
 *.o
