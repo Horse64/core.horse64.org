@@ -125,6 +125,10 @@ func project.Project.finalize_func_typerefs_all_files(
     }
 
     func fix_func_symbol_info_for_file(pfile) {
+        if not is_moose64 {
+            # For now, we won't set type expressions for horse64.
+            return
+        }
         for stmt in pfile.ast.stmts {
             if stmt.kind == ast.N_STMT_FUNC and
                     stmt.type_path != none and
@@ -141,6 +145,7 @@ func project.Project.finalize_func_typerefs_all_files(
                     continue
                 }
                 var symbol_info = stmt.symbol_info
+                assert(symbol_info.kind == st_scope.SINFO_FUNCATTR)
                 assert(anscope.storage_id != none)
                 if symbol_info.typeref_expr == none {
                     symbol_info.typeref_expr =
@@ -792,6 +797,9 @@ func process_toplevel_stmt(
 func project.Project.finalize_global_scope_attr_storage(
         msgs
         ) {
+    # XXX/Warning: this must be called after .ensure_assigned_storage()
+    # was done project-wide on all global scopes, and after all local
+    # storage has been run on all modules in the project.
     if msgs != none {
         for m in msgs {
             if m.kind == msg.M_ERROR {
@@ -869,14 +877,16 @@ func project.Project.finalize_global_scope_attr_storage(
                 }
                 assert(stmt.symbol_info != none)
                 assert(stmt.symbol_info.kind == st_scope.SINFO_FUNCATTR)
-                assert(stmt.symbol_info.type_storage_ref != none)
-                assert(stmt.symbol_info.typeref_expr != none)
-                assert(stmt.symbol_info.type_storage_ref ==
-                    stmt.symbol_info.typeref_expr.func_storage_ref)
-                assert(stmt.symbol_info.type_storage_ref.kind ==
-                    st_ref.ST_GLOBALATTR)
-                assert(typename(stmt.symbol_info.
-                    type_storage_ref.id) == "list")
+                if is_moose64 {
+                    assert(stmt.symbol_info.type_storage_ref != none)
+                    assert(stmt.symbol_info.typeref_expr != none)
+                    assert(stmt.symbol_info.type_storage_ref ==
+                        stmt.symbol_info.typeref_expr.func_storage_ref)
+                    assert(stmt.symbol_info.type_storage_ref.kind ==
+                        st_ref.ST_GLOBALATTR)
+                    assert(typename(stmt.symbol_info.
+                        type_storage_ref.id) == "list")
+                }
 
                 var anscope = pfile.
                     make_attr_names_scope_from_funcattr(
@@ -884,12 +894,42 @@ func project.Project.finalize_global_scope_attr_storage(
                         def_project_file=pfile
                     )
                 if anscope == none {
+                    # Some previous error happened.
                     continue
                 }
 
                 assert(anscope.storage_id != none)
-                stmt.symbol_info.type_storage_ref.id[1] =
-                    anscope.storage_id
+                if is_moose64 {
+                    stmt.symbol_info.type_storage_ref.id[1] =
+                       anscope.storage_id
+                }
+            } elseif stmt.kind == ast.N_STMT_FUNCEXTEND {
+                var base_func_scope = none
+                if stmt.func_scope != none and
+                        stmt.func_scope.base_func_scope != none {
+                    base_func_scope = stmt.func_scope.base_func_scope
+                }
+                if base_func_scope == none {
+                    # Some error must have occurred.
+                    continue
+                }
+                if stmt.type_path != none and stmt.type_path.len > 0 {
+                    var anscope = pfile.
+                        make_attr_names_scope_from_funcattr(
+                            stmt, msgs=msgs, is_moose64=is_moose64,
+                            def_project_file=pfile
+                        )
+                    if anscope == none {
+                        # Must have been an error previously.
+                        continue
+                    }
+                    var type_id = anscope.storage_id
+                    var attr_id = none  # Look up via stmt.label!!!
+                } else {
+                    var global_storage_id =
+                        base_func_scope.storage_id
+                    var gscope = none  # Look up via global id in project map to gscope map!
+                }
             }
         }
 
