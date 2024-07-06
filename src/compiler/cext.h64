@@ -131,7 +131,7 @@ func CType.as_str {
     var t = "<CType '" + self.module_name.as_str() +
         "." + self.name.as_str() + "'@'" +
         self.package_name.as_str() + "' is_enum=" +
-        self.is_enum.as_str() + ">"
+        (self.kind == ast.N_STMT_ENUM).as_str() + ">"
     return t
 }
 
@@ -146,7 +146,7 @@ func CEnum.as_str {
     var t = "<CEnum '" + self.module_name.as_str() +
         "." + self.name.as_str() + "'@'" +
         self.package_name.as_str() + "' is_enum=" +
-        self.is_enum.as_str() + ">"
+        (self.kind == ast.N_STMT_ENUM).as_str() + ">"
     return t
 }
 
