@@ -25,16 +25,83 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import io from core.horse64.org
+import path from core.horse64.org
 import uri from core.horse64.org
 
 import compiler.ast as ast
 import compiler.msg as msg
+import compiler.project
+
+type CExportResult {
+    var build_base_dir_uri = none
+    var build_c_source_uris = []
+}
 
 func ast_to_c(project_file, msgs=none, build_options=none) {
     #if node.kind == ast.N_EXPR_LITERAL {
         
     #}
     return later "/* OMG C */"
+}
+
+func guess_build_dir_from_build_options(build_options, project) {
+    var boptions = build_options
+
+    if boptions.moose64_build_dir != none {
+        return later boptions.moose64_build_dir
+    }
+    var build_base_dir_uri
+    if boptions.output_dir != none {
+        build_base_dir_uri = uri.normalize(
+            boptions.output_dir
+        )
+    } elseif boptions.output_file != none {
+        build_base_dir_uri = uri.normalize(
+            uri.dirname(boptions.output_file)
+        )
+    }
+    if build_base_dir_uri == none {
+        build_base_dir_uri = project.base_dir_uri
+        if build_base_dir_uri == none {
+            return later none
+        }
+    }
+
+    # See if the build dir exists at all:
+    var exists_check = io.exists(build_base_dir_uri)
+    later:
+
+    await exits_check
+    if not exists_check {
+        # Just return this unchanged.
+        return later build_base_dir_uri
+    }
+
+    # See if the build dir ends with a common source nesting dir:
+    var path_part = uri.get_path(build_base_dir_uri)
+    var removable_component = none
+    for ndir in compiler.project.valid_source_nesting_dirs {
+        if path_part.ends("/" + ndir) or
+                path_part.ends("/" + ndir + "/") {
+            removable_component = ndir
+            break
+        }
+    }
+    if removable_component == none {
+        return later build_base_dir_uri
+    }
+
+    var parent_dir_uri = uri.traverse_up(build_base_dir_uri)
+    var test_result = compiler.project.check_is_project_dir(
+        parent_dir_uri
+    ) later:
+
+    await test_result
+    if test_result {
+        return later parent_dir_uri
+    }
+    return later build_base_dir_uri
 }
 
 func export_moose_project_to_c(
@@ -47,37 +114,57 @@ func export_moose_project_to_c(
         throw new ValueError("C export requires "
             "build_options to be passed in.")
     }
+    var program_name = boptions.build_program_name
+    var export_result = new CExportResult()
 
     var output_as_string = no
     if boptions.output_file == none and
-            boptions.output_folder == none and
+            boptions.output_dir == none and
             not name_as_temp_file {
         output_as_string = yes
         if not limit_to_entrypoint_file {
             throw new ValueError("C export not as temp file "
-                "with no output file or output folder must "
+                "with no output file or output dir must "
                 "be limited as entrypoint file so it can be "
                 "returned as one string.")
         }
     }
     var c_output_file_uri = boptions.output_file
-    var c_output_folder_uri = boptions.output_folder
+    var c_output_dir_uri = boptions.output_dir
     if name_as_temp_file {
-        # The output file or folder refer to something else,
+        # The output file or dir refers to something else,
         # like a final binary, not a C file.
         c_output_file_uri = none
-        c_output_folder_uri = uri.normalize(
+        c_output_dir_uri = uri.normalize(
+            project.base_dir_uri
+        )
+        export_result.build_base_dir_uri = uri.normalize(
             project.base_dir_uri
         )
         if project.source_dir_prefix != none and
                 project.source_dir_prefix.len > 0 {
-            c_output_folder_uri = uri.add_part(
-                c_output_folder_uri,
+            c_output_dir_uri = uri.add_part(
+                c_output_dir_uri,
                 project.source_dir_prefix
             )
         }
     }
+    # Figure out the build dir if needed:
+    func find_build_dir {
+        if export_result.build_base_dir_uri != none {
+            return later
+        }
+        var uri =
+            guess_build_dir_from_build_options(
+                boptions, project
+            ) later:
 
+        await uri
+        export_result.build_base_dir_uri = uri
+    }
+    find_build_dir() later:
+
+    # Now process each file to translate it to C:
     var output_string_result = none
     func process_file(pfile) {
         var result = ast_to_c(
@@ -120,6 +207,49 @@ func export_moose_project_to_c(
             output_string_result = result
             return later yes
         }
+
+        if c_output_dir_uri == none {
+            assert(c_output_file_uri != none)
+            c_output_dir_uri = c_output_file_uri
+        } else {
+            var output_file_uri = c_output_dir_uri
+            var file_relpath = none
+            if pfile.modinfo != none and
+                        pfile.modinfo.rel_path != none {
+                file_relpath = path.normalize(
+                    pfile.modinfo.rel_path
+                )
+                if project.source_dir_prefix != none and
+                        project.source_dir_prefix.len > 0 and
+                        file_relpath.starts(
+                            project.source_dir_prefix + path.sep
+                        ) {
+                    file_relpath = file_relpath.sub(
+                        (project.source_dir_prefix + path.sep).len
+                    )
+                }
+            } else {
+                file_relpath = "unnamed_code_file.m64"
+            }
+            file_relpath = path.normalize(file_relpath + ".c")
+            if name_as_temp_file {
+                var fname = path.basename(file_relpath)
+                fname = ".moosec." + fname + ".tmp"
+                file_relpath = path.join(
+                    path.dirname(file_relpath), fname
+                )
+            }
+            output_file_uri = uri.add_part(
+                output_file_uri, file_relpath.replace(path.sep, "/")
+            )
+        }
+        if boptions.verbose_mode {
+            print(program_name + ": info: "
+                "export_moose_project_to_c(): "
+                "Writing: " + output_file_uri)
+        }
+        export_result.build_c_source_uris.add(output_file_uri)
+
         return later yes
     }
     var result = project.do_for_all_files(process_file)
@@ -134,6 +264,9 @@ func export_moose_project_to_c(
         }
         return later none
     }
-    return later result
+    if not result {
+        return none
+    }
+    return later export_result
 }
 

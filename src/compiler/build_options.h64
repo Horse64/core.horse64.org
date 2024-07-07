@@ -35,9 +35,11 @@ enum OptimizationSetting {
 type BuildOptions {
     var optimize_levels
     var print_stages = no
+    var verbose_mode = no
     var build_program_name = "horsec"
     var is_moose64 = no
     var output_file
-    var output_folder
+    var output_dir
+    var moose64_build_dir
 }
 
