@@ -1315,6 +1315,18 @@ def _json_parse(s):
         #    "JSON parsing error: " + str(e))
         raise e
 
+def _uri_extract_path(v):
+    v = _uri_normalize(v)
+    if not "://" in v:
+        return v
+    if (v.lower().startswith("file://") or
+            v.lower().startswith("vfs://")):
+        return _uri_to_file_or_vfs_path(v).\
+            replace(os.path.sep, "/")
+    urlobj = urllib.parse.urlparse(v)
+    import os
+    return urlobj.path.replace(os.path.sep, "/")
+
 def _uri_to_file_or_vfs_path(v):
     if (not v.lower().startswith("file://") and
             not v.lower().startswith("vfs://")):

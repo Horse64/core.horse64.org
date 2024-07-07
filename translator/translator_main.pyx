@@ -365,6 +365,9 @@ remapped_uses = {
             "_translator_runtime_helpers._uri_add_part",
         "uri.traverse_up":
             "_translator_runtime_helpers._uri_traverse_up",
+        "uri.get_path":
+            "_translator_runtime_helpers." +
+            "_uri_extract_path",
         "uri.normalize":
             "_translator_runtime_helpers." +
             "_uri_normalize",
