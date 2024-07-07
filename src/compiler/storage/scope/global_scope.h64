@@ -127,7 +127,7 @@ func project.Project.finalize_func_typerefs_all_files(
     func fix_func_symbol_info_for_file(pfile) {
         if not is_moose64 {
             # For now, we won't set type expressions for horse64.
-            return
+            return later yes
         }
         for stmt in pfile.ast.stmts {
             if stmt.kind == ast.N_STMT_FUNC and
@@ -167,12 +167,16 @@ func project.Project.finalize_func_typerefs_all_files(
                         st_ref.ST_GLOBALATTR)
                 }
                 var lbl = stmt.label
+                assert(not anscope.name_to_symbol_map.has(lbl) or
+                    anscope.name_to_symbol_map[lbl] == symbol_info)
                 anscope.name_to_symbol_map[lbl] =
                     symbol_info
                 assert(not anscope.
-                    id_to_symbol_map.has(lbl))
-                anscope.id_to_symbol_map[lbl] =
-                    symbol_info.storage_id
+                        id_to_symbol_map.has(symbol_info.storage_id) or
+                    anscope.id_to_symbol_map[symbol_info.storage_id] ==
+                        symbol_info)
+                anscope.id_to_symbol_map[symbol_info.storage_id] =
+                    symbol_info
                 stmt.symbol_info = symbol_info
             }
         }
@@ -201,6 +205,9 @@ func project.Project.finalize_func_typerefs_all_files(
             # targeting all nested function types and user types
             # should work.
             var symbol_info = stmt.symbol_info
+            if not is_moose64 and symbol_info.typeref_expr == none {
+                return later yes
+            }
             assert(symbol_info.typeref_expr != none)
             var result =
                 symbol_info.typeref_expr.try_resolve_to_user_type(
@@ -480,6 +487,7 @@ func GlobalScope.finalize_gscope_with_ast_tree_info(
                 symbol_info.storage_id =
                     anscope.name_to_symbol_map.len + 1
                 stmt.symbol_info = symbol_info
+                anscope.name_to_symbol_map[lbl] = symbol_info
                 continue
             }
             assert(self.name_to_stmt_map.has(lbl))
@@ -858,7 +866,7 @@ func project.Project.finalize_global_scope_attr_storage(
 
     await success
     if not success {
-        return
+        return later
     }
 
     func finalize_attr_storage(pfile) {
@@ -894,7 +902,6 @@ func project.Project.finalize_global_scope_attr_storage(
                         def_project_file=pfile
                     )
                 if anscope == none {
-                    # Some previous error happened.
                     continue
                 }
 
@@ -910,7 +917,6 @@ func project.Project.finalize_global_scope_attr_storage(
                     base_func_scope = stmt.func_scope.base_func_scope
                 }
                 if base_func_scope == none {
-                    # Some error must have occurred.
                     continue
                 }
                 if stmt.type_path != none and stmt.type_path.len > 0 {
@@ -920,15 +926,31 @@ func project.Project.finalize_global_scope_attr_storage(
                             def_project_file=pfile
                         )
                     if anscope == none {
-                        # Must have been an error previously.
                         continue
                     }
                     var type_id = anscope.storage_id
-                    var attr_id = none  # Look up via stmt.label!!!
+                    assert(anscope.name_to_symbol_map.has(stmt.label))
+                    var sinfo = anscope.name_to_symbol_map[stmt.label]
+                    assert(stmt.symbol_info == none)
+                    assert(sinfo != none)
+                    stmt.symbol_info = sinfo
                 } else {
                     var global_storage_id =
                         base_func_scope.storage_id
-                    var gscope = none  # Look up via global id in project map to gscope map!
+                    if global_storage_id == none {
+                        continue
+                    }
+                    var gscope = pfile.project.
+                        storage_id_to_global_scope_map[
+                            global_storage_id
+                        ]
+                    assert(gscope.name_to_stmt_map.has(stmt.label))
+                    var base_stmt = gscope.name_to_stmt_map[
+                        stmt.label
+                    ]
+                    assert(stmt.symbol_info == none)
+                    assert(base_stmt.symbol_info != none)
+                    stmt.symbol_info = base_stmt.symbol_info
                 }
             }
         }
