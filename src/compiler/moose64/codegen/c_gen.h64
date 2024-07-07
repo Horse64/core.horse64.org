@@ -25,6 +25,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import uri from core.horse64.org
+
 import compiler.ast as ast
 import compiler.msg as msg
 
@@ -32,17 +34,55 @@ func ast_to_c(project_file, msgs=none, build_options=none) {
     #if node.kind == ast.N_EXPR_LITERAL {
         
     #}
-    return later none
+    return later "/* OMG C */"
 }
 
 func export_moose_project_to_c(
-        project, output_file_ext=".c.m64temp",
-        limit_to_project_files=[],
+        project, name_as_temp_file=no,
+        limit_to_entrypoint_file=no,
         msgs=none, build_options=none,
         ) {
+    var boptions = build_options
+    if boptions == none {
+        throw new ValueError("C export requires "
+            "build_options to be passed in.")
+    }
+
+    var output_as_string = no
+    if boptions.output_file == none and
+            boptions.output_folder == none and
+            not name_as_temp_file {
+        output_as_string = yes
+        if not limit_to_entrypoint_file {
+            throw new ValueError("C export not as temp file "
+                "with no output file or output folder must "
+                "be limited as entrypoint file so it can be "
+                "returned as one string.")
+        }
+    }
+    var c_output_file_uri = boptions.output_file
+    var c_output_folder_uri = boptions.output_folder
+    if name_as_temp_file {
+        # The output file or folder refer to something else,
+        # like a final binary, not a C file.
+        c_output_file_uri = none
+        c_output_folder_uri = uri.normalize(
+            project.base_dir_uri
+        )
+        if project.source_dir_prefix != none and
+                project.source_dir_prefix.len > 0 {
+            c_output_folder_uri = uri.add_part(
+                c_output_folder_uri,
+                project.source_dir_prefix
+            )
+        }
+    }
+
+    var output_string_result = none
     func process_file(pfile) {
-        var result = ast_to_c(pfile, msgs)
-        later:
+        var result = ast_to_c(
+            pfile, msgs=msgs, build_options=boptions
+        ) later:
 
         await result
         if result == none {
@@ -72,6 +112,14 @@ func export_moose_project_to_c(
                 ))
             }
         }
+        if limit_to_entrypoint_file and
+                not pfile.is_entrypoint {
+            return later yes
+        } elseif limit_to_entrypoint_file and
+                pfile.is_entrypoint and output_as_string {
+            output_string_result = result
+            return later yes
+        }
         return later yes
     }
     var result = project.do_for_all_files(process_file)
@@ -79,6 +127,13 @@ func export_moose_project_to_c(
 
     await result
     assert(result == yes or result == no)
-    return result
+
+    if output_as_string {
+        if result and output_string_result != none {
+            return later output_string_result
+        }
+        return later none
+    }
+    return later result
 }
 

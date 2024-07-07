@@ -832,6 +832,41 @@ func actionparser_compile(args, is_moose64=no) {
                 result.args["--stage"] == "c") or
             result.args["--stage"] == "binary"
         )
+        # If this is moose64, embark on our path to C:
+        if is_moose64 {
+            var success = m64_c_gen.export_moose_project_to_c(
+                aresult.project_file.project,
+                name_as_temp_file=(result.args["--stage"] != "c"),
+                limit_to_entrypoint_file=
+                    (result.args["--stage"] == "c" and
+                     (boptions.output_file != none or
+                      boptions.output_folder == none)),
+                msgs=aresult.msgs, build_options=boptions,
+            ) later:
+
+            await success
+            if result.args["--stage"] == "c" {
+                if boptions.output_file == none and
+                        boptions.output_folder == none {
+                    var have_error = no
+                    for m in aresult.msgs {
+                        if m.kind == msg.M_ERROR {
+                            have_error = yes
+                        }
+                    }
+                    if have_error {
+                        for m in aresult.msgs {
+                            print(m.as_terminal_str(prefix=program_name))
+                        }
+                        return later 1
+                    }
+                    assert(success == none or typename(success) == "str")
+                    print(success)
+                    return later 0
+                }
+            }
+            return later 0
+        }
         # Continuing here, we want the actual byte code.
         # Apply bytecode transformation:
         return later 0
