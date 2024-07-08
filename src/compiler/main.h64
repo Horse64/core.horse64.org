@@ -37,6 +37,7 @@ import compiler.ast
 import compiler.ast.transform as ast_transform
 import compiler.ast.analyze as analyze
 import compiler.build_options as build_options
+import compiler.moose64.build.c_build as m64_c_build
 import compiler.moose64.codegen.c_gen as m64_c_gen
 import compiler.msg as msg
 import compiler.project as project
@@ -943,6 +944,27 @@ func actionparser_compile(args, is_moose64=no) {
                     "Preparing to compile binary, build dir: " +
                     export_result.build_base_dir_uri.as_str() + " "
                     "[t=" + time.ticks().as_str() + "]")
+            }
+            var build_result = m64_c_build.build_project(
+                export_result, boptions, msgs=aresult.msgs
+            ) later:
+
+            await build_result
+            if not build_result {
+                var had_error = no
+                for m in aresult.msgs {
+                    if m.kind == msg.M_ERROR {
+                        had_error = yes
+                    }
+                    print(m.as_terminal_str(prefix=program_name))
+                }
+                if not had_error {
+                    print(program_name + ": error: Internal error, "
+                        "C generation returned failure without any "
+                        "error message. Please report this bug to "
+                        "the compiler makers.")
+                }
+                return later 1
             }
             return later 0
         }
