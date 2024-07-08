@@ -30,6 +30,7 @@ import path from core.horse64.org
 import uri from core.horse64.org
 
 import compiler.ast as ast
+import compiler.compiler_log as clog
 import compiler.msg as msg
 import compiler.project
 
@@ -117,6 +118,7 @@ func export_moose_project_to_c(
     }
     var program_name = boptions.build_program_name
     var export_result = new CExportResult()
+    export_result.project = project
 
     var output_as_string = no
     if boptions.output_file == none and
@@ -246,9 +248,12 @@ func export_moose_project_to_c(
             )
         }
         if boptions.verbose_mode {
-            print(program_name + ": info: "
+            clog.log_or_print(new msg.FileMsg(
                 "export_moose_project_to_c(): "
-                "Writing: " + output_file_uri)
+                "Writing to: " + output_file_uri,
+                kind=msg.M_INFO,
+                source_file=pfile,
+            ), msgs=msgs, program_name=program_name)
         }
         export_result.build_c_source_uris.add(output_file_uri)
 
@@ -264,8 +269,6 @@ func export_moose_project_to_c(
                 "URI, this protocol is currently not supported by "
                 "the C code generator.",
                 source_file=pfile,
-                line=none,
-                col=none,
             ))
             return later no
         }

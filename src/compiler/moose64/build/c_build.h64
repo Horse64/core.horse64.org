@@ -28,10 +28,57 @@
 import path from core.horse64.org
 import uri from core.horse64.org
 
+import compiler.compiler_log as clog
+import compiler.msg as msg
+
 func build_project(c_export, build_options, msgs=none) {
     var cc = "gcc"
+    var exec_ext = ".bin"
     var is_moose64 = build_options.is_moose64
     var program_name = if is_moose64 ("moosec") else ("horsec")
+    var output_file_name = "program"
+
+    var horp_available = no
+    func use_horp_detection_if_available {
+        if not horp_available {
+            return later
+        }
+    }
+    use_horp_detection_if_available()
+    later:
+
+    if not horp_available {
+        clog.log_or_print(new msg.FileMsg(
+            "This compiler version was built without horp, "
+            "assuming Linux x64 and default compiler options.",
+            kind=msg.M_WARNING,
+        ), msgs=msgs, program_name=program_name)
+    }
+
+    if c_export.project != none and
+            c_export.project.package_name != none {
+        var specific_name = c_export.project.package_name
+        if specific_name.find(".") != none {
+            specific_name = specific_name.sub(
+                1, specific_name.find(".") - 1
+            )
+        }
+        specific_name = specific_name.trim()
+        if specific_name.len > 0 {
+            output_file_name = specific_name
+        }
+    }
+    if build_options.output_file != none {
+        var user_file_name = path.basename(
+            build_options.output_file
+        ).trim()
+        if user_file_name.len > 0 {
+            output_file_name = user_file_name
+        }
+    }
+    if not output_file_name.has(".") {
+        output_file_name += exec_ext
+    }
 
     var cmd = [cc]
     for furi in c_export.build_c_source_uris {
@@ -42,14 +89,11 @@ func build_project(c_export, build_options, msgs=none) {
                     "compiler.moose64.build.c_build.build_project "
                     "function.")
             }
-            msgs.add(new msg.FileMsg(
+            clog.log_or_print(new msg.FileMsg(
                 "Unexpected " + uri.get_protocol(furi) + ":// "
                 "URI, this protocol is currently not supported by "
                 "the build backend.",
-                source_file=pfile,
-                line=none,
-                col=none,
-            ))
+            ), msgs=msgs, program_name=program_name)
             return later no
         }
         var disk_path = uri.to_file_or_vfs_path(furi)
@@ -59,8 +103,10 @@ func build_project(c_export, build_options, msgs=none) {
         cmd += [disk_path]
     }
     if build_options.verbose_mode {
-        print(program_name + ": info: Running build command: " +
-            cmd.as_str())
+        clog.log_or_print(new msg.FileMsg(
+            "Running build command: " + cmd.as_str(),
+            kind=msg.M_INFO,
+        ), msgs=msgs, program_name=program_name)
     }
     return later no
 }

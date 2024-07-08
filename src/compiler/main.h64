@@ -37,6 +37,7 @@ import compiler.ast
 import compiler.ast.transform as ast_transform
 import compiler.ast.analyze as analyze
 import compiler.build_options as build_options
+import compiler.compiler_log as clog
 import compiler.moose64.build.c_build as m64_c_build
 import compiler.moose64.codegen.c_gen as m64_c_gen
 import compiler.msg as msg
@@ -210,9 +211,13 @@ func parse_ast_target_from_args(args, checked_ast=no,
     return tresult
 }
 
-func show_ast_or_global_scope_result_to_terminal_or_file(
-        aresult, msgs, build_options=none, for_script=no,
-        is_global_scope=no,
+func show_intermediate_compile_result_to_terminal_or_file(
+        msgs, ast_result=none,
+        literal_value_result=none,
+        build_options=none, for_script=no,
+        is_global_scope=no, is_code_file=no,
+        omit_result=no,
+        fail_reason="Code compilation has failed."
         ) {
     var had_error = no
     for m in msgs {
@@ -220,20 +225,65 @@ func show_ast_or_global_scope_result_to_terminal_or_file(
             had_error = yes
         }
     }
+    var actual_result_contents = none
+    func obtain_result_contents {
+        if had_error or omit_result {
+            return later
+        }
+        if literal_value_result != none {
+            actual_result_contents = literal_value_result
+            return later
+        }
+        if ast_result == none {
+            return later
+        }
+        if is_code_file {
+            var result = ast_result.dump_as_code()
+            later:
+
+            await result
+            actual_result_contents = result
+            return later
+        }
+        if is_global_scope {
+            if for_script {
+                actual_result_contents = ast_result.as_json_obj()
+            } else {
+                actual_result_contents = ast_result.as_str()
+            }
+            return later
+        }
+        var result = ""
+        for stmt in ast_result.stmts {
+            if result.len > 0 {
+                result += ",\n"
+            }
+            result += stmt.as_str()
+        }
+        actual_result_contents = result
+        return later
+    }
+    obtain_result_contents()
+    later:
+
     if for_script or build_options.output_file != none {
         var output = {
             "error"-> none,
             "msgs"-> [],
-            "result"-> aresult.as_json_obj(),
+        }
+        if not omit_result {
+            output["result"] = actual_result_contents
         }
         for m in msgs {
             output["msgs"].add(m.as_json_obj())
         }
         if had_error {
-            output["error"] = "Code has errors."
+            output["error"] = fail_reason
+            output["success"] = no
             print(json.dump(output))
             return later 1
         }
+        output["success"] = yes
         if build_options.output_file == none {
             print(json.dump(output))
             return later 0
@@ -247,28 +297,15 @@ func show_ast_or_global_scope_result_to_terminal_or_file(
             f.close()
         }
         return later 0
-    } else {
-        for m in msgs {
-            print(m.as_terminal_str(prefix=
-                build_options.build_program_name))
-        }
-        if not had_error {
-            var output = ""
-            if is_global_scope {
-                output += aresult.as_str()
-            } else {
-                for stmt in aresult.stmts {
-                    if output.len > 0 {
-                        output += ",\n"
-                    }
-                    output += stmt.as_str()
-                }
-            }
-            print(output)
-            return later 0
-        }
-        return later 1
     }
+    for m in msgs {
+        print(m.as_terminal_str(prefix=
+            build_options.build_program_name))
+    }
+    if not omit_result {
+        print(actual_result_contents)
+    }
+    return later 0
 }
 
 func actionparser_modinfo(args, is_moose64=no) {
@@ -342,6 +379,7 @@ func actionparser_modinfo(args, is_moose64=no) {
 
 func action_compile_do(
         args_parse_result, stage, build_options=none,
+        prepend_msgs=none,
         cmd_name="compile", is_moose64=no
         ) {
     if not has_attr(args_parse_result, "args") {
@@ -383,6 +421,23 @@ func action_compile_do(
     later:
 
     await aresult
+    if prepend_msgs != none and prepend_msgs.len > 0 {
+        aresult.msgs = prepend_msgs + aresult.msgs
+    }
+
+    # Helper functions:
+    func print_stage_info(stage_name, info_text) {
+        if boptions.print_stages {
+            return
+        }
+        clog.log_or_print(new msg.FileMsg(
+            "stage " + stage_name + ": " +
+            info_text + " "
+            "[t=" + time.ticks().as_str() + "]",
+            kind=msg.M_INFO,
+        ), msgs=aresult.msgs, program_name=program_name,
+        force_print=not opt_for_script)
+    }
 
     # Apply code check and do basic analysis:
     var success = analyze.do_basic_check_and_analysis(
@@ -392,11 +447,13 @@ func action_compile_do(
     await success
     if stage == "checked-ast" or not success {
         var finalresult =
-            show_ast_or_global_scope_result_to_terminal_or_file(
-                aresult, aresult.msgs,
+            show_intermediate_compile_result_to_terminal_or_file(
+                aresult.msgs,
+                ast_result=aresult,
                 build_options=boptions,
                 for_script=opt_for_script,
-                is_global_scope=no
+                is_global_scope=no, is_code_file=no,
+                omit_result=no,
             ) later:
 
         await finalresult
@@ -404,12 +461,8 @@ func action_compile_do(
     }
 
     # Analyze the type info from type annotations if we have any:
-    if boptions.print_stages {
-        print(boptions.build_program_name +
-            ": info: stage transformed-code: "
-            "Deduce and verify types... "
-            "[t=" + time.ticks().as_str() + "]")
-    }
+    print_stage_info("transformed-code",
+            "Deduce and verify types...")
     success = typeinfo.ensure_all_type_info(
         aresult.project_file.project,
         aresult.msgs, is_moose64=is_moose64) later:
@@ -417,12 +470,8 @@ func action_compile_do(
 
     # Continuing here, we want to transform the code.
 
-    if boptions.print_stages {
-        print(boptions.build_program_name +
-            ": info: stage transformed-code: "
-            "Now applying code transformations... "
-            "[t=" + time.ticks().as_str() + "]")
-    }
+    print_stage_info("transformed-code",
+        "Now applying code transformations...")
 
     # Apply code transformation:
     ast_transform.do_all_post_nameres_transformations(
@@ -438,34 +487,17 @@ func action_compile_do(
             break
         }
     }
-    if had_error {
-        if opt_for_script {
-            var output = {
-                "error"-> "Code has errors.",
-                "msgs"-> [],
-                "result"-> none,
-            }
-            for m in aresult.msgs {
-                output["msgs"].add(m.as_json_obj())
-            }
-            print(json.dump(output))
-            return later 1
-        }
-        for m in aresult.msgs {
-            print(m.as_terminal_str(prefix=program_name))
-        }
-        return later 1
-    }
-    if (stage == "transformed-code" or
+    var omit_result_in_output = (
+        boptions.output_file != none or
+        boptions.output_dir != none
+    )
+    if not had_error and (stage == "transformed-code" or
             stage == "transformed-ast") and
             (boptions.output_file != none or
                 boptions.output_dir != none) {
-        if boptions.print_stages {
-            print(boptions.build_program_name +
-                ": info: stage transformed-code: "
-                "Preparing to output result... "
-                "[t=" + time.ticks().as_str() + "]")
-        }
+        print_stage_info("transformed-code",
+            "Preparing to output result to files...")
+        omit_result_in_output = yes
         func output_code {
             if boptions.output_file != none {
                 assert(boptions.output_dir == none)
@@ -543,20 +575,18 @@ func action_compile_do(
             return later
         }
         output_code() later:
-
-        return later 0
     }
-    if stage == "transformed-code" {
-        print(aresult.dump_as_code())
-        return later 0
-    }
-    if stage == "transformed-ast" {
+    if had_error or stage == "transformed-code" or
+            stage == "transformed-ast" {
         var finalresult =
-            show_ast_or_global_scope_result_to_terminal_or_file(
-                aresult, aresult.msgs,
+            show_intermediate_compile_result_to_terminal_or_file(
+                aresult.msgs,
+                ast_result=aresult,
                 build_options=boptions,
                 for_script=opt_for_script,
-                is_global_scope=no
+                is_global_scope=no,
+                is_code_file=(stage == "transformed-code"),
+                omit_result=omit_result_in_output,
             ) later:
 
         await finalresult
@@ -571,11 +601,8 @@ func action_compile_do(
     )
     # If this is moose64, embark on our path toward C:
     if is_moose64 {
-        if boptions.print_stages {
-            print(program_name + ": info: stage c: "
-                "Now transforming result to C. "
-                "[t=" + time.ticks().as_str() + "]")
-        }
+        print_stage_info("c",
+            "Now transforming result to C.")
 
         var export_result = m64_c_gen.export_moose_project_to_c(
             aresult.project_file.project,
@@ -588,78 +615,100 @@ func action_compile_do(
         ) later:
 
         await export_result
-        if stage == "c" {
+        var had_c_gen_error = no
+        for m in aresult.msgs {
+            if m.kind == msg.M_ERROR {
+                had_c_gen_error = yes
+            }
+        }
+        if not had_c_gen_error and export_result == none {
+            aresult.msgs.add(new msg.FileMsg("Internal error, "
+                "C generation returned failure without any "
+                "error message. Please report this bug to "
+                "the compiler makers."))
+            had_c_gen_error = yes
+        }
+        if stage == "c" or had_c_gen_error {
             if boptions.output_file == none and
                     boptions.output_dir == none {
-                var have_error = no
-                for m in aresult.msgs {
-                    if m.kind == msg.M_ERROR {
-                        have_error = yes
-                    }
-                }
-                if have_error {
-                    for m in aresult.msgs {
-                        print(m.as_terminal_str(prefix=program_name))
-                    }
-                    return later 1
-                }
                 assert(export_result == none or
                     typename(export_result) == "str")
-                print(export_result)
-                return later 0
+                var finalresult =
+                    show_intermediate_compile_result_to_terminal_or_file(
+                        aresult.msgs,
+                        literal_value_result=export_result,
+                        build_options=boptions,
+                        for_script=opt_for_script,
+                        is_global_scope=no,
+                        is_code_file=no,
+                        omit_result=no,
+                    ) later:
+
+                await finalresult
+                return later finalresult
             }
-            if boptions.print_stages {
-                print(program_name + ": info: stage c: "
-                    "Done writing files. "
-                    "[t=" + time.ticks().as_str() + "]")
+            if not had_c_gen_error {
+                print_stage_info("c",
+                    "Done writing files.")
             }
-            return later 0
-        }
-        if export_result == none {
-            var had_error = no
-            for m in aresult.msgs {
-                if m.kind == msg.M_ERROR {
-                    had_error = yes
-                }
-                print(m.as_terminal_str(prefix=program_name))
+            var finalresult =
+                show_intermediate_compile_result_to_terminal_or_file(
+                    aresult.msgs,
+                    build_options=boptions,
+                    for_script=opt_for_script,
+                    is_global_scope=no,
+                    is_code_file=no,
+                    omit_result=yes,
+                ) later:
+
+            await finalresult
+            if had_c_gen_error {
+                return later 1
             }
-            if not had_error {
-                print(program_name + ": error: Internal error, "
-                    "C generation returned failure without any "
-                    "error message. Please report this bug to "
-                    "the compiler makers.")
-            }
-            return later 1
+            return later finalresult
         }
 
-        if boptions.print_stages {
-            print(program_name + ": info: stage binary: "
-                "Preparing to compile binary, build dir: " +
-                export_result.build_base_dir_uri.as_str() + " "
-                "[t=" + time.ticks().as_str() + "]")
-        }
+        print_stage_info("binary",
+            "Preparing to compile binary, build dir: " +
+            export_result.build_base_dir_uri.as_str())
         var build_result = m64_c_build.build_project(
             export_result, boptions, msgs=aresult.msgs
         ) later:
 
         await build_result
-        if not build_result {
-            var had_error = no
-            for m in aresult.msgs {
-                if m.kind == msg.M_ERROR {
-                    had_error = yes
-                }
-                print(m.as_terminal_str(prefix=program_name))
+        var had_build_error = no
+        for m in aresult.msgs {
+            if m.kind == msg.M_ERROR {
+                had_build_error = yes
             }
-            if not had_error {
-                print(program_name + ": error: Internal error, "
-                    "binary build returned failure without any "
-                    "error message. Please report this bug to "
-                    "the compiler makers.")
-            }
+        }
+        if not had_build_error and not build_result {
+            aresult.msgs.add(new msg.FileMsg("Internal error, "
+                "binary build returned failure without any "
+                "error message. Please report this bug to "
+                "the compiler makers."))
+            had_build_error = yes
+        }
+        if not had_build_error {
+            print_stage_info("binary",
+                "Done compiling final binary.")
+        }
+        var finalresult =
+            show_intermediate_compile_result_to_terminal_or_file(
+                aresult.msgs,
+                build_options=boptions,
+                for_script=opt_for_script,
+                is_global_scope=no,
+                is_code_file=no,
+                omit_result=yes,
+                fail_reason="Creation of the output binary has failed.",
+            ) later:
+
+        await finalresult
+        if had_build_error {
             return later 1
         }
-        return later 0
+        return later finalresult
     }
     # Continuing here, we want Horse64 byte code.
     # Apply bytecode transformation:
@@ -870,6 +919,7 @@ func actionparser_compile_or_run(
     }
 
     var opt_is_single_file = boptions.force_as_single_file
+    var msgs = []
     if not is_run_cmd {
         if result.args["--stage"] == none {
             result.args["--stage"] = "binary"
@@ -940,12 +990,18 @@ func actionparser_compile_or_run(
     var opt_for_script =
         not is_run_cmd and result.args["--for-script"]
     if boptions.print_stages {
-        print(program_name + ": info: stage init: "
+        clog.log_or_print(new msg.FileMsg(
+            "stage init: "
             "Launched & done parsing options. "
-            "[t=" + time.ticks().as_str() + "]")
+            "[t=" + time.ticks().as_str() + "]",
+            kind=msg.M_INFO,
+        ), msgs=msgs, program_name=program_name)
     }
     if boptions.verbose_mode {
-        print(program_name + ": info: Now beginning to compile program.")
+        clog.log_or_print(new msg.FileMsg(
+            "Now beginning to compile program.",
+            kind=msg.M_INFO,
+        ), msgs=msgs, program_name=program_name)
     }
     if not is_run_cmd {
         if boptions.output_file != none {
@@ -979,18 +1035,25 @@ func actionparser_compile_or_run(
     if not is_run_cmd and
             result.args["--stage"] == "tokens" {
         if boptions.print_stages {
-            print(program_name + ": info: stage tokens: "
+            clog.log_or_print(new msg.FileMsg(
+                "stage tokens: "
                 "Tokenizing first target file. "
-                "[t=" + time.ticks().as_str() + "]")
+                "[t=" + time.ticks().as_str() + "]",
+                kind=msg.M_INFO,
+            ), msgs=msgs, program_name=program_name)
         }
         var tresult = tokenize_target_from_args(result.args)
         later:
 
         await tresult
+        tresult.msgs = msgs + tresult.msgs
         if boptions.print_stages {
-            print(program_name + ": info: stage tokens: "
+            clog.log_or_print(new msg.FileMsg(
+                "stage tokens: "
                 "Printing result "
-                " [t=" + time.ticks().as_str() + ".")
+                " [t=" + time.ticks().as_str() + ".",
+                kind=msg.M_INFO,
+            ), msgs=tresult.msgs, program_name=program_name)
         }
         var had_error = no
         for m in tresult.msgs {
@@ -1047,6 +1110,7 @@ func actionparser_compile_or_run(
         later:
 
         await aresult
+        aresult.msgs = msgs + aresult.msgs
         var is_global_scope = (
             result.args["--stage"] == "global-scope")
         var to_be_printed_obj = if is_global_scope
@@ -1072,7 +1136,7 @@ func actionparser_compile_or_run(
             else (result.args["--stage"])
         var compile_result = action_compile_do(
             result, stage,
-            build_options=boptions,
+            build_options=boptions, prepend_msgs=msgs,
             cmd_name="compile", is_moose64=is_moose64
         ) later:
 

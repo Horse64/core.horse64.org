@@ -70,7 +70,7 @@ func FileMsg.as_json_obj {
         "msg"-> self.content,
         "line"-> none,
         "col"-> none,
-        "file->uri"-> none,
+        "file_uri"-> none,
     }
     if self.line != none {
         output["line"] = self.line
