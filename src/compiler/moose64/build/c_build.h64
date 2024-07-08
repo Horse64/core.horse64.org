@@ -113,7 +113,7 @@ func build_project(c_export, build_options, msgs=none) {
     var dir_path = uri.to_file_or_vfs_path(
         output_file_dir_uri
     )
-    var o_opt_path = path.join(dir_path, program_name)
+    var o_opt_path = path.join(dir_path, output_file_name)
     if o_opt_path.starts("-") {
         o_opt_path = "." + path.sep + o_opt_path
     }
