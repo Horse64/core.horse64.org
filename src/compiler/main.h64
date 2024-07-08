@@ -340,19 +340,424 @@ func actionparser_modinfo(args, is_moose64=no) {
     return 0
 }
 
-func actionparser_compile(args, is_moose64=no) {
+func action_compile_do(
+        args_parse_result, stage, build_options=none,
+        cmd_name="compile", is_moose64=no
+        ) {
+    if not has_attr(args_parse_result, "args") {
+        throw new TypeError("Argument args_parse_result "
+            "doesn't seem to be valid argparse result object.")
+    }
+    var result = args_parse_result
+    var boptions = build_options
+    if boptions == none {
+        boptions = new build_options.BuildOptions()
+    }
+    boptions.is_moose64 = is_moose64
+    if not apply_compile_cmd_options_to_build_options(
+            result, boptions, cmd_name=cmd_name,
+            is_moose64=is_moose64
+            ) {
+        return later 1
+    }
+    var opt_is_single_file =
+        result.args.has("--single-file") and
+        result.args["--single-file"]
+    var opt_for_script =
+        result.args.has("--for-script") and
+        result.args["--for-script"]
+    var program_name = if is_moose64 ("moosec") else ("horsec")
+
+    var aresult = parse_ast_target_from_args(
+        result.args, checked_ast=yes,
+        force_single_file=opt_is_single_file,
+        build_options=boptions,
+        debug=result.args["--debug-ast"],
+        debug_modules=result.args["--debug-modules"],
+        debug_storage=result.args["--debug-storage"],
+        debug_global_storage=
+            result.args["--debug-global-storage"],
+        debug_failed_lookups=
+            result.args["--debug-failed-lookups"],
+    )
+    later:
+
+    await aresult
+
+    # Apply code check and do basic analysis:
+    var success = analyze.do_basic_check_and_analysis(
+        aresult.project_file.project,
+        aresult.msgs, is_moose64=is_moose64) later:
+
+    await success
+    if stage == "checked-ast" or not success {
+        var finalresult =
+            show_ast_or_global_scope_result_to_terminal_or_file(
+                aresult, aresult.msgs,
+                build_options=boptions,
+                for_script=opt_for_script,
+                is_global_scope=no
+            ) later:
+
+        await finalresult
+        return later finalresult
+    }
+
+    # Analyze the type info from type annotations if we have any:
+    if boptions.print_stages {
+        print(boptions.build_program_name +
+            ": info: stage transformed-code: "
+            "Deduce and verify types... "
+            "[t=" + time.ticks().as_str() + "]")
+    }
+    success = typeinfo.ensure_all_type_info(
+        aresult.project_file.project,
+        aresult.msgs, is_moose64=is_moose64) later:
+    await success
+
+    # Continuing here, we want to transform the code.
+
+    if boptions.print_stages {
+        print(boptions.build_program_name +
+            ": info: stage transformed-code: "
+            "Now applying code transformations... "
+            "[t=" + time.ticks().as_str() + "]")
+    }
+
+    # Apply code transformation:
+    ast_transform.do_all_post_nameres_transformations(
+        aresult.project_file.project,
+        aresult.msgs, build_options=boptions
+    ) later:
+
+    # If we had an error at this stage then we need to abort:
+    var had_error = no
+    for m in aresult.msgs {
+        if m.kind == msg.M_ERROR {
+            had_error = yes
+            break
+        }
+    }
+    if had_error {
+        if opt_for_script {
+            var output = {
+                "error"-> "Code has errors.",
+                "msgs"-> [],
+                "result"-> none,
+            }
+            for m in aresult.msgs {
+                output["msgs"].add(m.as_json_obj())
+            }
+            print(json.dump(output))
+            return later 1
+        }
+        for m in aresult.msgs {
+            print(m.as_terminal_str(prefix=program_name))
+        }
+        return later 1
+    }
+    if (stage == "transformed-code" or
+            stage == "transformed-ast") and
+            (boptions.output_file != none or
+                boptions.output_dir != none) {
+        if boptions.print_stages {
+            print(boptions.build_program_name +
+                ": info: stage transformed-code: "
+                "Preparing to output result... "
+                "[t=" + time.ticks().as_str() + "]")
+        }
+        func output_code {
+            if boptions.output_file != none {
+                assert(boptions.output_dir == none)
+                var f = io.open(boptions.output_file, "w") later:
+
+                await f
+                do {
+                    f.write(aresult.dump_as_code()) later:
+                } finally {
+                    f.close()
+                }
+                return later
+            }
+            boptions.output_dir = uri.normalize(
+                boptions.output_dir, absolute_file=yes)
+            func output_to_folder(pfile) {
+                var furi = pfile.source_uri
+                var rel_path
+                if furi == none {
+                    furi = uri.add_part(
+                        boptions.output_dir, "(inline).h64"
+                    )
+                    rel_path = "(inline).h64"
+                } else {
+                    assert(pfile.modinfo != none)
+                    rel_path = pfile.modinfo.rel_path
+                    if pfile.modinfo.package_name != none and
+                            pfile.modinfo.package_name !=
+                            aresult.project_file.
+                                project.package_name and
+                            not rel_path.lower().starts(
+                                "horse_modules") {
+                        rel_path = "horse_modules" + path.sep +
+                            pfile.modinfo.package_name +
+                            path.sep + rel_path
+                    }
+                }
+                var fname = uri.basename(furi)
+                var write_folder_uri = uri.add_part(
+                    boptions.output_dir,
+                    path.dirname(rel_path))
+                var write_furi = uri.add_part(
+                    write_folder_uri, fname)
+                if uri.get_protocol(write_folder_uri).lower() !=
+                        "file" {
+                    throw new NotImplementedError(
+                        "Can't make directory using this "
+                        "remote protocol.")
+                }
+                var write_folder_path = uri.to_file_or_vfs_path(
+                    write_folder_uri)
+                io.make_dir(uri.to_file_or_vfs_path(
+                    write_folder_uri), allow_vfs=no,
+                    allow_nested=yes, ignore_exists=yes
+                ) later:
+
+                var code = pfile.dump_as_code() later:
+
+                await code
+                var f = io.open(uri.to_file_or_vfs_path(
+                    write_furi), "w") later:
+
+                await f
+                f.write(code) later:
+
+                f.close()
+                return later yes
+            }
+            assert(boptions.output_dir != none)
+            var success = aresult.project_file.project.
+                do_for_all_files(output_to_folder)
+            later:
+
+            await success
+            return later
+        }
+        output_code() later:
+
+        return later 0
+    }
+    if stage == "transformed-code" {
+        print(aresult.dump_as_code())
+        return later 0
+    }
+    if stage == "transformed-ast" {
+        var finalresult =
+            show_ast_or_global_scope_result_to_terminal_or_file(
+                aresult, aresult.msgs,
+                build_options=boptions,
+                for_script=opt_for_script,
+                is_global_scope=no
+            ) later:
+
+        await finalresult
+        return later finalresult
+    }
+    assert(
+        (not is_moose64 and
+            {"bytecode", "run"}.has(stage)) or
+        (is_moose64 and
+            {"c"}.has(stage)) or
+        {"binary", "run"}.has(stage)
+    )
+    # If this is moose64, embark on our path toward C:
+    if is_moose64 {
+        if boptions.print_stages {
+            print(program_name + ": info: stage c: "
+                "Now transforming result to C. "
+                "[t=" + time.ticks().as_str() + "]")
+        }
+
+        var export_result = m64_c_gen.export_moose_project_to_c(
+            aresult.project_file.project,
+            name_as_temp_file=(stage != "c"),
+            limit_to_entrypoint_file=
+                (stage == "c" and
+                    (boptions.output_file != none or
+                    boptions.output_dir == none)),
+            msgs=aresult.msgs, build_options=boptions,
+        ) later:
+
+        await export_result
+        if stage == "c" {
+            if boptions.output_file == none and
+                    boptions.output_dir == none {
+                var have_error = no
+                for m in aresult.msgs {
+                    if m.kind == msg.M_ERROR {
+                        have_error = yes
+                    }
+                }
+                if have_error {
+                    for m in aresult.msgs {
+                        print(m.as_terminal_str(prefix=program_name))
+                    }
+                    return later 1
+                }
+                assert(export_result == none or
+                    typename(export_result) == "str")
+                print(export_result)
+                return later 0
+            }
+            if boptions.print_stages {
+                print(program_name + ": info: stage c: "
+                    "Done writing files. "
+                    "[t=" + time.ticks().as_str() + "]")
+            }
+            return later 0
+        }
+        if export_result == none {
+            var had_error = no
+            for m in aresult.msgs {
+                if m.kind == msg.M_ERROR {
+                    had_error = yes
+                }
+                print(m.as_terminal_str(prefix=program_name))
+            }
+            if not had_error {
+                print(program_name + ": error: Internal error, "
+                    "C generation returned failure without any "
+                    "error message. Please report this bug to "
+                    "the compiler makers.")
+            }
+            return later 1
+        }
+
+        if boptions.print_stages {
+            print(program_name + ": info: stage binary: "
+                "Preparing to compile binary, build dir: " +
+                export_result.build_base_dir_uri.as_str() + " "
+                "[t=" + time.ticks().as_str() + "]")
+        }
+        var build_result = m64_c_build.build_project(
+            export_result, boptions, msgs=aresult.msgs
+        ) later:
+
+        await build_result
+        if not build_result {
+            var had_error = no
+            for m in aresult.msgs {
+                if m.kind == msg.M_ERROR {
+                    had_error = yes
+                }
+                print(m.as_terminal_str(prefix=program_name))
+            }
+            if not had_error {
+                print(program_name + ": error: Internal error, "
+                    "C generation returned failure without any "
+                    "error message. Please report this bug to "
+                    "the compiler makers.")
+            }
+            return later 1
+        }
+        return later 0
+    }
+    # Continuing here, we want Horse64 byte code.
+    # Apply bytecode transformation:
+    return later 0
+}
+
+func apply_compile_cmd_options_to_build_options(
+        args_parse_result, build_options_ref, cmd_name="compile",
+        is_moose64=no
+        ) {
+    var program_name = if is_moose64 ("moosec") else ("horsec")
+    if not has_attr(args_parse_result, "args") {
+        throw new TypeError("Argument args_parse_result "
+            "doesn't seem to be valid argparse result object.")
+    }
+    var result = args_parse_result
+    var boptions = build_options_ref
+    boptions.optimize_level = build_options.OPTIMIZE_ALL_BUT_ASSERTS
+    boptions.print_stages =
+        result.args.has("--print-stages") and
+        result.args["--print-stages"]
+    boptions.build_program_name = program_name
+    boptions.is_moose64 = is_moose64
+    boptions.verbose_mode =
+        result.args.has("--verbose") and result.args["--verbose"]
+    boptions.moose64_build_dir =
+        if is_moose64 and result.args.has("--c-build-dir") and
+            result.args["--c-build-dir"] != none
+            (uri.normalize(result.args["--c-build-dir"]))
+            else (none)
+    if boptions.verbose_mode {
+        boptions.print_stages = yes
+    }
+    boptions.force_as_single_file = no
+    if result.args.has("--single-file") and
+            result.args["--single-file"] {
+        boptions.force_as_single_file = yes
+    } else {
+        if result.args.has("--code") and
+                result.args["--code"] != none {
+            boptions.force_as_single_file = yes
+        }
+    }
+
+    if result.args.has("--optimize-level") {
+        if result.args["--optimize-level"] == none {
+            result.args["--optimize-level"] = "all-but-asserts"
+        }
+        if result.args["--optimize-level"] == "none" {
+            boptions.optimize_level = build_options.OPTIMIZE_NONE
+        } elseif result.args["--optimize-level"] == "all-but-asserts" {
+            boptions.optimize_level = build_options.OPTIMIZE_ALL_BUT_ASSERTS
+        } elseif result.args["--optimize-level"] == "all" {
+            boptions.optimize_level = build_options.OPTIMIZE_ALL
+        } else {
+            print(program_name + ": error: Unsupported "
+                "optimization level: " +
+                result.args["--optimize-level"].as_str())
+            print("Use " + program_name + " " +
+                cmd_name.as_str() + " --help to show "
+                "available optimization levels.")
+            return no
+        }
+    }
+    if result.args.has("--code") and
+            result.args["--code"] != none and
+            resuilt.args.has("source file") and
+            result.args["source file"] != none {
+        print(program_name + ": error: Must specify "
+            "either a source file, or --code option, but not both.")
+        print("Use " + program_name + " " +
+            cmd_name.as_str() + " --help to show usage.")
+        return no
+    }
+    return yes
+}
+
+func actionparser_compile_or_run(
+        args, is_run_cmd=no, is_moose64=no
+        ) {
     var program_name = if is_moose64 ("moosec") else ("horsec")
     var command_name = if is_moose64 ("moosec compile")
                        else ("horsec compile")
+    if is_run_cmd {
+        command_name = if is_moose64 ("moosec run")
+                       else ("horsec run")
+    }
     var file_ext = if is_moose64 (".m64") else (".h64")
     var defs = new argparse.ArgumentDefs(program_name=command_name)
     defs.add_arg(
         "source file", optional=yes,
-        description="The target file to compile, "
+        description="The target file to " +
+            if is_run_cmd ("run") else ("compile") + ", "
             "must have a " + file_ext + " file extension.")
     defs.add_switch(
         "--code", aliases=["-c"], takes_arg=yes,
-        description="A code line which to compile instead of "
+        description="A code line which to " +
+            if is_run_cmd ("run") else ("compile") + " instead of "
             "a file on disk.")
     defs.add_switch(
         "--debug-ast",
@@ -382,24 +787,28 @@ func actionparser_compile(args, is_moose64=no) {
         description="Enable debug scope and storage computation. "
         "Be warned, this debugs all local scopes and will result "
         "in a lot of output.")
-    defs.add_switch(
-        "--stage", takes_arg=yes,
-        description="At which stage to stop. The default is "
-            "\"binary\" which means full compilation, other "
-            "available stages are: "
-            "tokens, ast, global-scope, checked-ast, "
-            "transformed-code, transformed-ast, bytecode.")
-    defs.add_switch(
-        "--output-file", takes_arg=yes,
-        description="Where to write the resulting binary, or "
-            "horseasm for stage setting \"bytecode\", or json file "
-            "for any other stage that isn't \"binary\".")
-    defs.add_switch(
-        "--output-dir", takes_arg=yes,
-        description="Can be used for the \"transformed-code\", "
-            "\"checked-ast\", \"transformed-ast\" stages to "
-            "write out an output file corresponding to each module in "
-            "the project (rather than just the entrypoint module).")
+    if not is_run_cmd {
+        defs.add_switch(
+            "--stage", takes_arg=yes,
+            description="At which stage to stop. The default is "
+                "\"binary\" which means full compilation, other "
+                "available stages are: "
+                "tokens, ast, global-scope, checked-ast, "
+                "transformed-code, transformed-ast, " +
+                if is_moose64 ("c, binary") else ("bytecode") + ".")
+        defs.add_switch(
+            "--output-file", takes_arg=yes,
+            description="Where to write the resulting binary, or "
+                "horseasm for stage setting \"bytecode\", or json "
+                "file for any other stage that isn't \"binary\".")
+        defs.add_switch(
+            "--output-dir", takes_arg=yes,
+            description="Can be used for the \"transformed-code\", "
+                "\"checked-ast\", \"transformed-ast\" stages to "
+                "write out an output file corresponding to each "
+                "module in the project (rather than just the "
+                "entrypoint module).")
+    }
     if is_moose64 {
         defs.add_switch(
             "--c-build-dir", takes_arg=yes,
@@ -416,10 +825,12 @@ func actionparser_compile(args, is_moose64=no) {
             "which applies all known optimizations but keeps "
             "asserts. The \"all\" setting will also remove asserts, "
             "and \"none\" won't optimize at all.")
-    defs.add_switch(
-        "--for-script",
-        description="This switch formats horsec's terminal output (like"
-            "e.g. the errors when compiling) as JSON.")
+    if not is_run_cmd {
+        defs.add_switch(
+            "--for-script",
+            description="This switch formats horsec's terminal output "
+                "(like e.g. the errors when compiling) as JSON.")
+    }
     defs.add_switch(
         "--single-file",
         description="Always treat the target file not as part of a "
@@ -444,149 +855,129 @@ func actionparser_compile(args, is_moose64=no) {
 
     # Sanity check the provided options first:
 
-    if result.args["--code"] != none and
-             result.args["source file"] != none {
-        print(program_name + ": error: Must specify "
-            "either a source file, or --code option, but not both.")
-        print("Use " + program_name + " compile --help to show usage.")
-        return later 1
-    }
     if result.args["--code"] == none and
             result.args["source file"] == none {
         print(program_name + ": error: Must specify "
             "either a source file, or --code option, but neither "
             "were given.")
-        print("Use " + program_name + " compile --help to show usage.")
+        print("Use " + program_name + " compile --help to show "
+            "usage.")
         return later 1
     }
     var boptions = new build_options.BuildOptions()
-    boptions.optimize_level = build_options.OPTIMIZE_ALL_BUT_ASSERTS
-    boptions.print_stages = result.args["--print-stages"]
-    boptions.build_program_name = program_name
-    boptions.is_moose64 = is_moose64
-    boptions.verbose_mode = result.args["--verbose"]
-    boptions.moose64_build_dir =
-        if is_moose64 and result.args["--c-build-dir"] != none
-            (uri.normalize(result.args["--c-build-dir"]))
-            else (none)
-    if boptions.verbose_mode {
-        boptions.print_stages = yes
-    }
-    var opt_is_single_file = no
-    if result.args["--single-file"] or
-            result.args["--code"] != none {
-        opt_is_single_file = yes
-    }
-    if result.args["--stage"] == none {
-        result.args["--stage"] = "binary"
-    }
-    if not possible_stages.has(result.args["--stage"]) {
-        print(program_name + ": error: Unsupported "
-            "stage: " + result.args["--stage"])
-        print("Use " + program_name + " compile --help to show "
-            "available stages.")
+    if not apply_compile_cmd_options_to_build_options(
+            result, boptions, cmd_name="compile",
+            is_moose64=is_moose64
+            ) {
         return later 1
     }
-    if result.args["--optimize-level"] == none {
-        result.args["--optimize-level"] = "all-but-asserts"
-    }
-    if result.args["--optimize-level"] == "none" {
-        boptions.optimize_level = build_options.OPTIMIZE_NONE
-    } elseif result.args["--optimize-level"] == "all-but-asserts" {
-        boptions.optimize_level = build_options.OPTIMIZE_ALL_BUT_ASSERTS
-    } elseif result.args["--optimize-level"] == "all" {
-        boptions.optimize_level = build_options.OPTIMIZE_ALL
-    } else {
-        print(program_name + ": error: Unsupported "
-            "optimization level: " + result.args["--optimize-level"])
-        print("Use " + program_name + " compile --help to show "
-            "available optimization levels.")
-        return later 1
-    }
-    if result.args["--output-dir"] != none and
-            result.args["--output-file"] != none {
-        print(program_name + ": error: Can't combine "
-            "--output-file and --output-dir options.")
-        print("Use " + program_name + " compile --help to show usage.")
-        return later 1
-    }
-    if result.args["--output-dir"] != none and
-            not {"transformed-code", "checked-ast", "c",
-                 "transformed-ast"}.has(result.args["--stage"]) {
-        print(program_name + ": error: This stage doesn't support "
-            "the --output-dir option.")
-        print("Use " + program_name + " compile --help to show usage.")
-        return later 1
-    }
-    if result.args["--output-file"] != none {
-        if {"checked-ast", "ast", "transformed-ast",
-                    "global-scope"}.has(
-                result.args["--stage"]) and
-                not result.args["--output-file"].lower().ends(".json") {
-            print(program_name + ": error: Expected "
-                "--output-file to be a .json file for this stage.")
-            print("Use " + program_name + " compile --help to show usage.")
+
+    var opt_is_single_file = boptions.force_as_single_file
+    if not is_run_cmd {
+        if result.args["--stage"] == none {
+            result.args["--stage"] = "binary"
+        }
+        if not possible_stages.has(result.args["--stage"]) {
+            print(program_name + ": error: Unsupported "
+                "stage: " + result.args["--stage"])
+            print("Use " + program_name + " compile --help to show "
+                "available stages.")
             return later 1
-        } elseif {"transformed-code"}.has(
-                result.args["--stage"]) and
-                not result.args["--output-file"].lower().ends(file_ext) {
-            print(program_name + ": error: Expected "
-                "--output-file to be a " + file_ext + " "
-                "file for this stage.")
-            print("Use " + program_name + " compile --help to show usage.")
-            return later 1
-        } elseif {"c"}.has(result.args["--stage"]) and
-                not result.args["--output-file"].lower().ends(".c") {
-            print(program_name + ": error: Expected "
-                "--output-file to be a .c "
-                "file for this stage.")
-            print("Use " + program_name + " compile --help to show usage.")
-            return later 1
-        } elseif {"bytecode"}.has(
-                result.args["--stage"]) and
-                not result.args["--output-file"].lower().ends(".hasm") {
-            print(program_name + ": error: Expected "
-                "--output-file to be a .hasm file for this stage.")
+        }
+        if result.args["--output-dir"] != none and
+                result.args["--output-file"] != none {
+            print(program_name + ": error: Can't combine "
+                "--output-file and --output-dir options.")
             print("Use " + program_name + " compile --help to show usage.")
             return later 1
         }
+        if result.args["--output-dir"] != none and
+                not {"transformed-code", "checked-ast", "c",
+                    "transformed-ast"}.has(result.args["--stage"]) {
+            print(program_name + ": error: This stage doesn't support "
+                "the --output-dir option.")
+            print("Use " + program_name + " compile --help to show "
+                "usage.")
+            return later 1
+        }
+        if result.args["--output-file"] != none {
+            if {"checked-ast", "ast", "transformed-ast",
+                        "global-scope"}.has(
+                    result.args["--stage"]) and
+                    not result.args["--output-file"].lower().ends(".json") {
+                print(program_name + ": error: Expected "
+                    "--output-file to be a .json file for this stage.")
+                print("Use " + program_name + " compile --help to "
+                    "show usage.")
+                return later 1
+            } elseif {"transformed-code"}.has(
+                    result.args["--stage"]) and
+                    not result.args["--output-file"].lower().ends(file_ext) {
+                print(program_name + ": error: Expected "
+                    "--output-file to be a " + file_ext + " "
+                    "file for this stage.")
+                print("Use " + program_name + " compile --help to "
+                    "show usage.")
+                return later 1
+            } elseif {"c"}.has(result.args["--stage"]) and
+                    not result.args["--output-file"].lower().ends(".c") {
+                print(program_name + ": error: Expected "
+                    "--output-file to be a .c "
+                    "file for this stage.")
+                print("Use " + program_name + " compile --help to "
+                    "show usage.")
+                return later 1
+            } elseif {"bytecode"}.has(
+                    result.args["--stage"]) and
+                    not result.args["--output-file"].lower().ends(".hasm") {
+                print(program_name + ": error: Expected "
+                    "--output-file to be a .hasm file for this stage.")
+                print("Use " + program_name + " compile --help to "
+                    "show usage.")
+                return later 1
+            }
+        }
+        boptions.output_file = result.args["--output-file"]
+        boptions.output_dir = result.args["--output-dir"]
     }
-    boptions.output_file = result.args["--output-file"]
-    boptions.output_dir = result.args["--output-dir"]
-    var opt_for_script = result.args["--for-script"]
+    var opt_for_script =
+        not is_run_cmd and result.args["--for-script"]
     if boptions.print_stages {
         print(program_name + ": info: stage init: "
             "Launched & done parsing options. "
             "[t=" + time.ticks().as_str() + "]")
     }
-    if boptions.output_file != none {
-        boptions.output_file = uri.normalize(boptions.output_file)
-        var prot = uri.get_protocol(boptions.output_file)
-        if {"file", "vfs"}.has(prot) {
-            var fpath = path.make_abs(uri.to_file_or_vfs_path(
-                boptions.output_file
-            ))
-            boptions.output_file =
-                if prot == "vfs" (uri.from_vfs_path(fpath))
-                    else (uri.from_disk_path(fpath))
+    if not is_run_cmd {
+        if boptions.output_file != none {
+            boptions.output_file = uri.normalize(boptions.output_file)
+            var prot = uri.get_protocol(boptions.output_file)
+            if {"file", "vfs"}.has(prot) {
+                var fpath = path.make_abs(uri.to_file_or_vfs_path(
+                    boptions.output_file
+                ))
+                boptions.output_file =
+                    if prot == "vfs" (uri.from_vfs_path(fpath))
+                        else (uri.from_disk_path(fpath))
+            }
         }
-    }
-    if boptions.output_dir != none {
-        boptions.output_dir = uri.normalize(boptions.output_dir)
-        var prot = uri.get_protocol(boptions.output_dir)
-        if {"file", "vfs"}.has(prot) {
-            var fpath = path.make_abs(uri.to_file_or_vfs_path(
-                boptions.output_dir
-            ))
-            boptions.output_dir =
-                if prot == "vfs" (uri.from_vfs_path(fpath))
-                    else (uri.from_disk_path(fpath))
+        if boptions.output_dir != none {
+            boptions.output_dir = uri.normalize(boptions.output_dir)
+            var prot = uri.get_protocol(boptions.output_dir)
+            if {"file", "vfs"}.has(prot) {
+                var fpath = path.make_abs(uri.to_file_or_vfs_path(
+                    boptions.output_dir
+                ))
+                boptions.output_dir =
+                    if prot == "vfs" (uri.from_vfs_path(fpath))
+                        else (uri.from_disk_path(fpath))
+            }
         }
     }
 
     # Actually execute what was asked of us:
 
-    if result.args["--stage"] == "tokens" {
+    if not is_run_cmd and
+            result.args["--stage"] == "tokens" {
         if boptions.print_stages {
             print(program_name + ": info: stage tokens: "
                 "Tokenizing first target file. "
@@ -641,8 +1032,9 @@ func actionparser_compile(args, is_moose64=no) {
             }
             return later 1
         }
-    } elseif result.args["--stage"] == "ast" or
-            result.args["--stage"] == "global-scope" {
+    } elseif not is_run_cmd and (
+            result.args["--stage"] == "ast" or
+            result.args["--stage"] == "global-scope") {
         var aresult = parse_ast_target_from_args(
             result.args, checked_ast=no,
             force_single_file=opt_is_single_file,
@@ -669,308 +1061,23 @@ func actionparser_compile(args, is_moose64=no) {
 
         await finalresult
         return later finalresult
-    } elseif result.args["--stage"] == "checked-ast" or
+    } elseif is_run_cmd or
+            result.args["--stage"] == "checked-ast" or
             result.args["--stage"] == "transformed-code" or
             result.args["--stage"] == "transformed-ast" or
             result.args["--stage"] == "c" or
             result.args["--stage"] == "bytecode" or
             result.args["--stage"] == "binary" {
-        var aresult = parse_ast_target_from_args(
-            result.args, checked_ast=yes,
-            force_single_file=opt_is_single_file,
+        var stage = if is_run_cmd ("run")
+            else (result.args["--stage"])
+        var compile_result = action_compile_do(
+            result, stage,
             build_options=boptions,
-            debug=result.args["--debug-ast"],
-            debug_modules=result.args["--debug-modules"],
-            debug_storage=result.args["--debug-storage"],
-            debug_global_storage=
-                result.args["--debug-global-storage"],
-            debug_failed_lookups=
-                result.args["--debug-failed-lookups"],
-        )
-        later:
-
-        await aresult
-
-        # Apply code check and do basic analysis:
-        var success = analyze.do_basic_check_and_analysis(
-            aresult.project_file.project,
-            aresult.msgs, is_moose64=is_moose64) later:
-
-        await success
-        if result.args["--stage"] == "checked-ast" or not success {
-            var finalresult =
-                show_ast_or_global_scope_result_to_terminal_or_file(
-                    aresult, aresult.msgs,
-                    build_options=boptions,
-                    for_script=opt_for_script,
-                    is_global_scope=no
-                ) later:
-
-            await finalresult
-            return later finalresult
-        }
-
-        # Analyze the type info from type annotations if we have any:
-        if boptions.print_stages {
-            print(boptions.build_program_name +
-                ": info: stage transformed-code: "
-                "Deduce and verify types... "
-                "[t=" + time.ticks().as_str() + "]")
-        }
-        success = typeinfo.ensure_all_type_info(
-            aresult.project_file.project,
-            aresult.msgs, is_moose64=is_moose64) later:
-        await success
-
-        # Continuing here, we want to transform the code.
-
-        if boptions.print_stages {
-            print(boptions.build_program_name +
-                ": info: stage transformed-code: "
-                "Now applying code transformations... "
-                "[t=" + time.ticks().as_str() + "]")
-        }
-
-        # Apply code transformation:
-        ast_transform.do_all_post_nameres_transformations(
-            aresult.project_file.project,
-            aresult.msgs, build_options=boptions
+            cmd_name="compile", is_moose64=is_moose64
         ) later:
 
-        # If we had an error at this stage then we need to abort:
-        var had_error = no
-        for m in aresult.msgs {
-            if m.kind == msg.M_ERROR {
-                had_error = yes
-                break
-            }
-        }
-        if had_error {
-            if result.args["--for-script"] {
-                var output = {
-                    "error"-> "Code has errors.",
-                    "msgs"-> [],
-                    "result"-> none,
-                }
-                for m in aresult.msgs {
-                    output["msgs"].add(m.as_json_obj())
-                }
-                print(json.dump(output))
-                return later 1
-            }
-            for m in aresult.msgs {
-                print(m.as_terminal_str(prefix=program_name))
-            }
-            return later 1
-        }
-        if (result.args["--stage"] == "transformed-code" or
-                result.args["--stage"] == "transformed-ast") and
-                (boptions.output_file != none or
-                 boptions.output_dir != none) {
-            if boptions.print_stages {
-                print(boptions.build_program_name +
-                    ": info: stage transformed-code: "
-                    "Preparing to output result... "
-                    "[t=" + time.ticks().as_str() + "]")
-            }
-            func output_code {
-                if boptions.output_file != none {
-                    assert(boptions.output_dir == none)
-                    var f = io.open(boptions.output_file, "w") later:
-
-                    await f
-                    do {
-                        f.write(aresult.dump_as_code()) later:
-                    } finally {
-                        f.close()
-                    }
-                    return later
-                }
-                boptions.output_dir = uri.normalize(
-                    boptions.output_dir, absolute_file=yes)
-                func output_to_folder(pfile) {
-                    var furi = pfile.source_uri
-                    var rel_path
-                    if furi == none {
-                        furi = uri.add_part(
-                            boptions.output_dir, "(inline).h64"
-                        )
-                        rel_path = "(inline).h64"
-                    } else {
-                        assert(pfile.modinfo != none)
-                        rel_path = pfile.modinfo.rel_path
-                        if pfile.modinfo.package_name != none and
-                                pfile.modinfo.package_name !=
-                                aresult.project_file.
-                                    project.package_name and
-                                not rel_path.lower().starts(
-                                    "horse_modules") {
-                            rel_path = "horse_modules" + path.sep +
-                                pfile.modinfo.package_name +
-                                path.sep + rel_path
-                        }
-                    }
-                    var fname = uri.basename(furi)
-                    var write_folder_uri = uri.add_part(
-                        boptions.output_dir,
-                        path.dirname(rel_path))
-                    var write_furi = uri.add_part(
-                        write_folder_uri, fname)
-                    if uri.get_protocol(write_folder_uri).lower() !=
-                            "file" {
-                        throw new NotImplementedError(
-                            "Can't make directory using this "
-                            "remote protocol.")
-                    }
-                    var write_folder_path = uri.to_file_or_vfs_path(
-                        write_folder_uri)
-                    io.make_dir(uri.to_file_or_vfs_path(
-                        write_folder_uri), allow_vfs=no,
-                        allow_nested=yes, ignore_exists=yes
-                    ) later:
-
-                    var code = pfile.dump_as_code() later:
-
-                    await code
-                    var f = io.open(uri.to_file_or_vfs_path(
-                        write_furi), "w") later:
-
-                    await f
-                    f.write(code) later:
-
-                    f.close()
-                    return later yes
-                }
-                assert(boptions.output_dir != none)
-                var success = aresult.project_file.project.
-                    do_for_all_files(output_to_folder)
-                later:
-
-                await success
-                return later
-            }
-            output_code() later:
-
-            return later 0
-        }
-        if result.args["--stage"] == "transformed-code" {
-            print(aresult.dump_as_code())
-            return later 0
-        }
-        if result.args["--stage"] == "transformed-ast" {
-            var finalresult =
-                show_ast_or_global_scope_result_to_terminal_or_file(
-                    aresult, aresult.msgs,
-                    build_options=boptions,
-                    for_script=opt_for_script,
-                    is_global_scope=no
-                ) later:
-
-            await finalresult
-            return later finalresult
-        }
-        assert(
-            (not is_moose64 and
-                result.args["--stage"] == "bytecode") or
-            (is_moose64 and
-                result.args["--stage"] == "c") or
-            result.args["--stage"] == "binary"
-        )
-        # If this is moose64, embark on our path to C:
-        if is_moose64 {
-            if boptions.print_stages {
-                print(program_name + ": info: stage c: "
-                    "Now transforming result to C. "
-                    "[t=" + time.ticks().as_str() + "]")
-            }
-
-            var export_result = m64_c_gen.export_moose_project_to_c(
-                aresult.project_file.project,
-                name_as_temp_file=(result.args["--stage"] != "c"),
-                limit_to_entrypoint_file=
-                    (result.args["--stage"] == "c" and
-                     (boptions.output_file != none or
-                      boptions.output_dir == none)),
-                msgs=aresult.msgs, build_options=boptions,
-            ) later:
-
-            await export_result
-            if result.args["--stage"] == "c" {
-                if boptions.output_file == none and
-                        boptions.output_dir == none {
-                    var have_error = no
-                    for m in aresult.msgs {
-                        if m.kind == msg.M_ERROR {
-                            have_error = yes
-                        }
-                    }
-                    if have_error {
-                        for m in aresult.msgs {
-                            print(m.as_terminal_str(prefix=program_name))
-                        }
-                        return later 1
-                    }
-                    assert(export_result == none or
-                        typename(export_result) == "str")
-                    print(export_result)
-                    return later 0
-                }
-                if boptions.print_stages {
-                    print(program_name + ": info: stage c: "
-                        "Done writing files. "
-                        "[t=" + time.ticks().as_str() + "]")
-                }
-                return later 0
-            }
-            if export_result == none {
-                var had_error = no
-                for m in aresult.msgs {
-                    if m.kind == msg.M_ERROR {
-                        had_error = yes
-                    }
-                    print(m.as_terminal_str(prefix=program_name))
-                }
-                if not had_error {
-                    print(program_name + ": error: Internal error, "
-                        "C generation returned failure without any "
-                        "error message. Please report this bug to "
-                        "the compiler makers.")
-                }
-                return later 1
-            }
-
-            if boptions.print_stages {
-                print(program_name + ": info: stage binary: "
-                    "Preparing to compile binary, build dir: " +
-                    export_result.build_base_dir_uri.as_str() + " "
-                    "[t=" + time.ticks().as_str() + "]")
-            }
-            var build_result = m64_c_build.build_project(
-                export_result, boptions, msgs=aresult.msgs
-            ) later:
-
-            await build_result
-            if not build_result {
-                var had_error = no
-                for m in aresult.msgs {
-                    if m.kind == msg.M_ERROR {
-                        had_error = yes
-                    }
-                    print(m.as_terminal_str(prefix=program_name))
-                }
-                if not had_error {
-                    print(program_name + ": error: Internal error, "
-                        "C generation returned failure without any "
-                        "error message. Please report this bug to "
-                        "the compiler makers.")
-                }
-                return later 1
-            }
-            return later 0
-        }
-        # Continuing here, we want the actual byte code.
-        # Apply bytecode transformation:
-        return later 0
+        await compile_result
+        return compile_result
     } else {
         throw new NotImplementedError("Compiler "
             "stage not implemented.")
@@ -983,9 +1090,10 @@ func do_main(is_moose64=no) {
         program_name=program_name
     )
     defs.add_arg(
-        "action", description="Pick an available actions: "
-        "compile, run. To see details for an action, use it with --help "
-        "like e.g.: " + program_name + " compile --help")
+        "action", description="Pick one of the available actions: "
+        "compile, modinfo, or run. To see details for an action, "
+        "use it with --help like e.g.: " + program_name + " compile "
+        "--help")
     defs.add_catchall(
         "action args", description="List of "
         "arguments for the specified action.", can_be_empty=yes)
@@ -1021,22 +1129,33 @@ func do_main(is_moose64=no) {
         return later result.exit_code
     }
     if result.args["action"] == "compile" {
-        var result = actionparser_compile(
+        var compile_result = actionparser_compile_or_run(
             result.args["action args"],
+            is_run_cmd=no,
             is_moose64=is_moose64
         ) later:
 
-        await result
-        return later result
+        await compile_result
+        return later compile_result
+    }
+    if result.args["action"] == "run" {
+        var run_result = actionparser_compile_or_run(
+            result.args["action args"],
+            is_run_cmd=yes,
+            is_moose64=is_moose64
+        ) later:
+
+        await run_result
+        return later run_result
     }
     if result.args["action"] == "modinfo" {
-        var result = actionparser_modinfo(
+        var modinfo_result = actionparser_modinfo(
             result.args["action args"],
             is_moose64=is_moose64
         ) later:
 
-        await result
-        return later result
+        await modinfo_result
+        return later modinfo_result
     }
     print(program_name + ": error: unknown action: " +
           result.args["action"])

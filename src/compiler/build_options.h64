@@ -33,11 +33,12 @@ enum OptimizationSetting {
 }
 
 type BuildOptions {
-    var optimize_levels
+    var optimize_level = OPTIMIZE_ALL_BUT_ASSERTS
     var print_stages = no
     var verbose_mode = no
     var build_program_name = "horsec"
     var is_moose64 = no
+    var force_as_single_file = no
     var output_file
     var output_dir
     var moose64_build_dir
