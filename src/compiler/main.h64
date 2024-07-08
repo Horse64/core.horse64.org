@@ -653,7 +653,7 @@ func action_compile_do(
             }
             if not had_error {
                 print(program_name + ": error: Internal error, "
-                    "C generation returned failure without any "
+                    "binary build returned failure without any "
                     "error message. Please report this bug to "
                     "the compiler makers.")
             }
@@ -690,9 +690,6 @@ func apply_compile_cmd_options_to_build_options(
             result.args["--c-build-dir"] != none
             (uri.normalize(result.args["--c-build-dir"]))
             else (none)
-    if boptions.verbose_mode {
-        boptions.print_stages = yes
-    }
     boptions.force_as_single_file = no
     if result.args.has("--single-file") and
             result.args["--single-file"] {
@@ -946,6 +943,9 @@ func actionparser_compile_or_run(
         print(program_name + ": info: stage init: "
             "Launched & done parsing options. "
             "[t=" + time.ticks().as_str() + "]")
+    }
+    if boptions.verbose_mode {
+        print(program_name + ": info: Now beginning to compile program.")
     }
     if not is_run_cmd {
         if boptions.output_file != none {

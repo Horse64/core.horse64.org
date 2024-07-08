@@ -25,7 +25,43 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import path from core.horse64.org
+import uri from core.horse64.org
+
 func build_project(c_export, build_options, msgs=none) {
+    var cc = "gcc"
+    var is_moose64 = build_options.is_moose64
+    var program_name = if is_moose64 ("moosec") else ("horsec")
+
+    var cmd = [cc]
+    for furi in c_export.build_c_source_uris {
+        if not {"file"}.has(uri.get_protocol(furi)) {
+            if msgs == none {
+                throw new RuntimeError("This type of URI "
+                    "is currently not handled by the "
+                    "compiler.moose64.build.c_build.build_project "
+                    "function.")
+            }
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + uri.get_protocol(furi) + ":// "
+                "URI, this protocol is currently not supported by "
+                "the build backend.",
+                source_file=pfile,
+                line=none,
+                col=none,
+            ))
+            return later no
+        }
+        var disk_path = uri.to_file_or_vfs_path(furi)
+        if disk_path.starts("-") {
+            disk_path = "." + path.sep + disk_path
+        }
+        cmd += [disk_path]
+    }
+    if build_options.verbose_mode {
+        print(program_name + ": info: Running build command: " +
+            cmd.as_str())
+    }
     return later no
 }
 
