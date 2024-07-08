@@ -238,7 +238,9 @@ func export_moose_project_to_c(
             file_relpath = path.normalize(file_relpath + ".c")
             if name_as_temp_file {
                 var fname = path.basename(file_relpath)
-                fname = ".moosec." + fname + ".tmp"
+                fname = ".moosec." + fname
+                assert(fname.ends(".c"))
+                fname = fname.sub(1, fname.len - 2) + ".tmp.c"
                 file_relpath = path.join(
                     path.dirname(file_relpath), fname
                 )

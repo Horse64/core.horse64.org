@@ -37,6 +37,36 @@ func build_project(c_export, build_options, msgs=none) {
     var is_moose64 = build_options.is_moose64
     var program_name = if is_moose64 ("moosec") else ("horsec")
     var output_file_name = "program"
+    var output_file_dir_uri = c_export.project.base_dir_uri
+    if build_options.output_file != none {
+        output_file_dir_uri = uri.dirname(
+            build_options.output_file
+        )
+    }
+
+    func fix_output_dir_if_needed {
+        if output_file_dir_uri != none and
+                {"file"}.has(uri.get_protocol(
+                    output_file_dir_uri)) {
+            return
+        }
+        if output_file_dir_uri != none {
+            clog.log_or_print(new msg.FileMsg(
+                "The given output dir protocol " +
+                uri.get_protocol(output_file_dir_uri) + ":// "
+                "isn't supported. Reverting to current dir.",
+                kind=msg.M_WARNING,
+            ), msgs=msgs, program_name=program_name)
+        }
+        var cwd_dir = io.working_dir()
+        later:
+
+        await cwd_dir
+        cwd_dir = path.make_abs(cwd_dir)
+        output_file_dir_uri = uri.from_disk_path(cwd_dir)
+    }
+    fix_output_dir_if_needed()
+    later:
 
     var horp_available = no
     func use_horp_detection_if_available {
@@ -80,7 +110,14 @@ func build_project(c_export, build_options, msgs=none) {
         output_file_name += exec_ext
     }
 
-    var cmd = [cc]
+    var dir_path = uri.to_file_or_vfs_path(
+        output_file_dir_uri
+    )
+    var o_opt_path = path.join(dir_path, program_name)
+    if o_opt_path.starts("-") {
+        o_opt_path = "." + path.sep + o_opt_path
+    }
+    var cmd = [cc, "-o", o_opt_path]
     for furi in c_export.build_c_source_uris {
         if not {"file"}.has(uri.get_protocol(furi)) {
             if msgs == none {
