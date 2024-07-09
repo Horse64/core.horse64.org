@@ -661,6 +661,41 @@ func transform_func_overrides_and_check_func_arg_sig_match(
         is_moose64=no
         ) {
     func do_transform_step(node, parent) {
+        if node.kind != ast.N_EXPR_BINOP or
+                node.optoken.str != "(" or
+                node.subexprs.len < 2 or
+                not {ast.N_EXPR_BINOP, ast.N_EXPR_IDREF}.has(
+                    node.subexprs[1].kind
+                ) or
+                (node.subexprs[1].kind == ast.N_EXPR_BINOP and
+                 (node.subexprs[1].optoken.str != "." or
+                  node.subexprs[1].subexprs.len < 2 or
+                  node.subexprs[1].subexprs[2].kind !=
+                      ast.N_EXPR_IDREF
+                 )) {
+             return later node
+        }
+        var called_ref = none
+        var is_func_attr_call = no
+        if node.subexprs[1].kind == ast.N_EXPR_IDREF {
+            called_ref = node.subexprs[1].ref
+        } else {
+            assert(node.subexprs[1].kind == ast.N_EXPR_BINOP and
+                node.subexprs[1].subexprs[2].kind == ast.N_EXPR_IDREF)
+            called_ref = node.subexprs[1].subexprs[2].ref
+        }
+        if not is_moose64 and (called_ref == none or
+                {st_ref.ST_LOCAL, st_ref.ST_ARG}.has(
+                    called_ref.kind
+                )) {
+            # We're likely calling some dynamic variable with
+            # completely unknown type, which is possible in Horse64.
+            # It's not worth trying to figure out what we're calling.
+            return later node
+        }
+        print("IDENTIFIED CALL NODE: " + node.as_str())
+        print("CALL REF INFO: " + [
+            is_func_attr_call, called_ref].as_str())
         return later node
     }
     var result = visit_ast_tree(
