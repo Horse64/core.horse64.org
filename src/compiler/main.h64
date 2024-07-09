@@ -427,7 +427,7 @@ func action_compile_do(
 
     # Helper functions:
     func print_stage_info(stage_name, info_text) {
-        if boptions.print_stages {
+        if not boptions.print_stages {
             return
         }
         clog.log_or_print(new msg.FileMsg(
