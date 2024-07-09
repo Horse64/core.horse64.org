@@ -239,9 +239,6 @@ func show_intermediate_compile_result_to_terminal_or_file(
         }
         if is_code_file {
             var result = ast_result.dump_as_code()
-            later:
-
-            await result
             actual_result_contents = result
             return later
         }
