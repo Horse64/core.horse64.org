@@ -74,7 +74,7 @@ func guess_build_dir_from_build_options(build_options, project) {
     var exists_check = io.exists(build_base_dir_uri)
     later:
 
-    await exits_check
+    await exists_check
     if not exists_check {
         # Just return this unchanged.
         return later build_base_dir_uri
@@ -212,11 +212,14 @@ func export_moose_project_to_c(
             return later yes
         }
 
+        var output_file_uri
         if c_output_dir_uri == none {
             assert(c_output_file_uri != none)
-            c_output_dir_uri = c_output_file_uri
-        } else {
-            var output_file_uri = c_output_dir_uri
+            c_output_dir_uri = path.dirname(c_output_file_uri)
+            output_file_uri = c_output_file_uri
+        }
+        if output_file_uri == none {
+            output_file_uri = c_output_dir_uri
             var file_relpath = none
             if pfile.modinfo != none and
                         pfile.modinfo.rel_path != none {
@@ -267,8 +270,8 @@ func export_moose_project_to_c(
                     "export_moose_project_to_c function.")
             }
             msgs.add(new msg.FileMsg(
-                "Unexpected " + uri.get_protocol(furi) + ":// "
-                "URI, this protocol is currently not supported by "
+                "Unexpected " + uri.get_protocol(output_file_uri) +
+                ":// URI, this protocol is currently not supported by "
                 "the C code generator.",
                 source_file=pfile,
             ))
