@@ -1316,7 +1316,9 @@ func do_moose64_transforms_post_nameresolution(
     ) later:
 
     await result
-
+    if not result {
+        return later no
+    }
     return result
 }
 

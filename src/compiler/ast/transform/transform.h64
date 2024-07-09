@@ -652,6 +652,29 @@ func do_all_pre_nameres_transformations(
     return later success
 }
 
+### This transformation will do some basic
+### verification that the amount of arguments matches the
+### ones of the target function signatures where known, and if
+### applicable transform calls to the necessary func overrides.
+func transform_func_overrides_and_check_func_arg_sig_match(
+        project_file, project_ast, msgs,
+        is_moose64=no
+        ) {
+    func do_transform_step(node, parent) {
+        return later node
+    }
+    var result = visit_ast_tree(
+        project_ast, do_transform_step, pass_func_boundaries=yes,
+        parent_chain=no, backward=no
+    ) later:
+
+    await result
+    if not result {
+        return later result
+    }
+    return later yes
+}
+
 func do_all_post_nameres_transformations(
         project, msgs, build_options=none) {
     if build_options != none and build_options.print_stages {
@@ -660,6 +683,8 @@ func do_all_post_nameres_transformations(
             "Entering checks and analysis... "
             "[t=" + time.ticks().as_str() + "]")
     }
+    var is_moose64 = (build_options != none and
+        build_options.is_moose64)
     var success = ast_analyze.do_advanced_check_and_analysis(
         project, msgs) later:
 
@@ -668,8 +693,7 @@ func do_all_post_nameres_transformations(
         return later no
     }
     func do_m64_transforms_if_needed {
-        if build_options == none or
-                not build_options.is_moose64 {
+        if not is_moose64 {
             return later yes
         }
         if build_options != none and
@@ -697,8 +721,7 @@ func do_all_post_nameres_transformations(
         return result
     }
     func do_later_transform_if_needed {
-        if build_options != none and
-                build_options.is_moose64 {
+        if is_moose64 {
             return later yes
         }
         if build_options != none and build_options.print_stages {
@@ -723,7 +746,30 @@ func do_all_post_nameres_transformations(
     if not success {
         return later no
     }
+    func do_func_call_check_and_overrides {
+        func process_file(pfile) {
+            var result =
+                transform_func_overrides_and_check_func_arg_sig_match(
+                    pfile, pfile.ast, msgs, is_moose64=is_moose64)
+            later:
 
+            await result
+            return later result
+        }
+        var result = project.do_for_all_files(process_file)
+        later:
+
+        await result
+        assert(result == yes or result == no)
+        return result
+    }
+    success = do_func_call_check_and_overrides()
+    later:
+
+    await success
+    if not success {
+        return later no
+    }
     success = do_later_transform_if_needed()
     later:
 
