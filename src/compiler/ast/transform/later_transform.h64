@@ -984,7 +984,26 @@ func first_pass_later_transform(
                 var indexes = node._owning_later_call_param_indexes
                 if indexes.len <= 1 {
                     assert(indexes.len == 1)
-                    var container_name = func_node.arg_labels[
+                    var arg_labels = func_node.arg_labels
+                    if indexes[1] < 1 or
+                            indexes[1] > arg_labels.len {
+                        print("horsec: error: in file " +
+                            pfile.source_uri.as_str() +
+                            ": Encountered invalid "
+                            "node with node."
+                            "_owning_later_call_param_indexes "
+                            "being invalid, indexes=" +
+                            indexes.as_str() + ", arg_labels=" +
+                            arg_labels.as_str() + ", "
+                            "func_node.label=" +
+                            func_node.label.as_str() + ", "
+                            "func_node=" +
+                            func_node.as_str().sub(1, 300) + "...")
+                        throw new RuntimeError("Internal error, "
+                            "node._owning_later_call_param_indexes "
+                            "are invalid.")
+                    }
+                    var container_name = arg_labels[
                         indexes[1]
                     ]
                     var container_ref = new st_ref.StorageRef(
