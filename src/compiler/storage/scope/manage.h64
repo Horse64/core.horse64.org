@@ -84,6 +84,8 @@ func project.ProjectFile.try_lookup_symbol_path(
     var check_path = type_path
     if check_path == none {
         check_path = []
+    } else {
+        check_path = check_path.copy()
     }
     if typename(check_path) == "str" {
         check_path = check_path.split(".")
@@ -155,6 +157,12 @@ func project.ProjectFile.try_lookup_symbol_path(
             check_func_scope = check_func_scope.parent
         }
         if nested_in_type_extend_attr {
+            if debug {
+                print(if is_moose64 ("moosec") else ("horsec") +
+                ": debug: try_lookup_symbol_path(): "
+                "It's an extended in an extend func, "
+                "returning success.")
+            }
             return new st_ref.StorageRef(
                 st_ref.ST_EXTENDED, 0)
         }
@@ -170,6 +178,12 @@ func project.ProjectFile.try_lookup_symbol_path(
             check_func_scope = check_func_scope.parent
         }
         if nested_in_type_attr {
+            if debug {
+                print(if is_moose64 ("moosec") else ("horsec") +
+                ": debug: try_lookup_symbol_path(): "
+                "It's a self in a func attr, "
+                "returning success.")
+            }
             return new st_ref.StorageRef(
                 st_ref.ST_SELF, 0)
         }
@@ -195,6 +209,12 @@ func project.ProjectFile.try_lookup_symbol_path(
                     (self.modinfo.package_name) else (none),
             )
         if builtin_lookup_result != none {
+            if debug {
+                print(if is_moose64 ("moosec") else ("horsec") +
+                ": debug: try_lookup_symbol_path(): "
+                "Found matching built-in, "
+                "returning success.")
+            }
             return builtin_lookup_result
         }
     }
@@ -269,6 +289,11 @@ func project.ProjectFile.try_lookup_symbol_path(
         if typename(entry.symbol_info) == "list" {
             for sym_entry in entry.symbol_info {
                 if sym_entry.name == check_path[check_path.len] {
+                    if debug {
+                        print(if is_moose64 ("moosec") else ("horsec") +
+                        ": debug: try_lookup_symbol_path(): "
+                        "Found global, returning success.")
+                    }
                     return new st_ref.StorageRef(
                         st_ref.ST_GLOBAL,
                         sym_entry.storage_id
@@ -277,6 +302,11 @@ func project.ProjectFile.try_lookup_symbol_path(
             }
         } else {
             assert(entry.symbol_info != none)
+            if debug {
+                print(if is_moose64 ("moosec") else ("horsec") +
+                ": debug: try_lookup_symbol_path(): "
+                "Found global, returning success.")
+            }
             return new st_ref.StorageRef(
                 st_ref.ST_GLOBAL,
                 entry.symbol_info.storage_id
@@ -353,6 +383,11 @@ func project.ProjectFile.try_lookup_symbol_path(
                     debug=debug,
                 )
                 if storage_id != none {
+                    if debug {
+                        print(if is_moose64 ("moosec") else ("horsec") +
+                        ": debug: try_lookup_symbol_path(): "
+                        "Matched C ext, returning success.")
+                    }
                     return new st_ref.StorageRef(
                         st_ref.ST_CEXT,
                         storage_id
@@ -374,6 +409,12 @@ func project.ProjectFile.try_lookup_symbol_path(
                         in_package_name=in_package_name
                     )
                 if builtin_lookup_result != none {
+                    if debug {
+                        print(if is_moose64 ("moosec") else ("horsec") +
+                        ": debug: try_lookup_symbol_path(): "
+                        "Found builtin inside module, "
+                        "returning success.")
+                    }
                     return builtin_lookup_result
                 }
             }
@@ -384,6 +425,12 @@ func project.ProjectFile.try_lookup_symbol_path(
                 if not entry.c_importer.known_items.has(item_name) {
                     return no
                 }
+                if debug {
+                    print(if is_moose64 ("moosec") else ("horsec") +
+                    ": debug: try_lookup_symbol_path(): "
+                    "Found C imported matching item, "
+                    "returning success.")
+                }
                 return new st_ref.StorageRef(
                     st_ref.ST_MCREF,
                     entry.c_importer.known_items[item_name].storage_id
@@ -393,7 +440,8 @@ func project.ProjectFile.try_lookup_symbol_path(
                     not stmt_map.has(item_name) {
                 return no
             }
-            # If we arrive here, it's a regular Horse64 module item.
+
+            # If we get here, it's a normal Horse64/Moose64 module item.
             def_file = entry.project_file
             entry = stmt_map[item_name]
             if typename(entry) == "list" {
@@ -422,6 +470,12 @@ func project.ProjectFile.try_lookup_symbol_path(
             }
             if entry.symbol_info == none {
                 return no
+            }
+            if debug {
+                print(if is_moose64 ("moosec") else ("horsec") +
+                ": debug: try_lookup_symbol_path(): "
+                "Found matching global, "
+                "returning success.")
             }
             if entry.kind == ast.N_STMT_VAR {
                 assert(typename(entry.symbol_info) == "list")
