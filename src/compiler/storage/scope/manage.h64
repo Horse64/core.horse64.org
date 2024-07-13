@@ -1242,7 +1242,8 @@ func visit_to_resolve_known_attrs(project_file, msgs, is_moose64=no) {
                 var parent_func_node = none
                 var i = parents.len
                 while i >= 1 {
-                    if parents[i].kind == ast.N_STMT_FUNC and
+                    if {ast.N_STMT_FUNC, ast.N_STMT_FUNCEXTEND}.has(
+                            parents[i].kind) and
                             parents[i].func_scope != none and
                             parents[i].type_path != none and
                             parents[i].type_path.len > 0 {

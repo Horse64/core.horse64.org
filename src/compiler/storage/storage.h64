@@ -72,7 +72,15 @@ func project.Project.is_ref_a_type(ref, node=none) {
         # Since this refers to an actual object instance,
         # the correct answer here is it's not a type.
         return no
+    } elseif {st_ref.ST_GLOBALATTR, st_ref._ST_ATTRERROR}.has(
+            ref.kind) {
+        # Nesting a type on a type isn't allowed, so an attribute
+        # can never be a type.
+        return no
     } else {
+        print("horsec: error: Internal error, encountered ref "
+            "in is_ref_a_type() that isn't recognized for this "
+            "check: ref=" + ref.as_str() + " node=" + node.as_str())
         throw new RuntimeError("Unsupported kind of ref for check.")
     }
 }
@@ -1358,9 +1366,39 @@ func project.Project.compute_all_scopes(
                 }
                 if (parent.kind == ast.N_STMT_TYPE or
                         parent.kind == ast.N_STMT_TYPEEXTEND or
+                        parent.kind == ast.N_STMT_STRUCTEXTEND or
                         parent.kind == ast.N_STMT_ENUMEXTEND) and
                         parent.subexprs.len > 0 and
                         parent.subexprs[1] == node {
+                    var anscope =
+                        pfile.make_attr_names_scope_from_node(
+                            parent, msgs=msgs, is_moose64=is_moose64,
+                            def_project_file=pfile
+                        )
+                    if anscope == none {
+                        parent.damaged = yes
+                        if msgs != none {
+                            throw new ValueError(
+                                "Unknown type."
+                            )
+                        }
+                        for m in msgs {
+                            if m.kind == msg.M_ERROR {
+                                # Bail, to avoid duplicating errors
+                                # already emitted by
+                                # make_attr_names_scope_from_node().
+                                return later node
+                            }
+                        }
+                        var type_str = parent.subexprs[1].as_code()
+                        msgs.add(new msg.FileMsg(
+                            "Unknown reference '" +
+                            type_str +
+                            "', can't find what it refers to.",
+                            source_file=pfile,
+                            line=node.line, col=node.col,
+                        ))
+                    }
                     return later node
                 }
                 var is_write_access =
@@ -1537,7 +1575,8 @@ func project.Project.compute_all_scopes(
                                 pfile.try_lookup_symbol_path(
                                     node.scope,
                                     name=_debug_fail_info["label"],
-                                    type_path=_debug_fail_info["type_path"],
+                                    type_path=
+                                        _debug_fail_info["type_path"],
                                     is_write_access=is_write_access,
                                     found_in_line=node.line,
                                     found_in_col=node.col,
