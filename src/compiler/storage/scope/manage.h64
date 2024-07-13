@@ -443,7 +443,9 @@ func project.ProjectFile.try_lookup_symbol_path(
             # Then, check if this is a C import:
             if entry.kind == ast.N_STMT_C_IMPORT {
                 assert(entry.c_importer != none)
-                if not entry.c_importer.known_items.has(item_name) {
+                if not entry.c_importer.known_items.has(item_name) or
+                        entry.c_importer.known_items[item_name].
+                            storage_id == none {
                     return no
                 }
                 if debug {

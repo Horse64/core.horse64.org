@@ -789,8 +789,11 @@ func process_toplevel_stmt(
     if c_importer_queue.len == 0 {
         return later
     }
+    assert(project_file != none and project_file.project != none)
+    var project = project_file.project
     var next_entry = c_importer_queue.pop()
-    var result = next_entry[1].add_import_paths(next_entry[2])
+    var result = next_entry[1].add_import_paths(
+        project, next_entry[2])
     later:
 
     await result
@@ -798,7 +801,8 @@ func process_toplevel_stmt(
         return later
     }
     next_entry = c_importer_queue.pop()
-    result = next_entry[1].add_import_paths(next_entry[2])
+    result = next_entry[1].add_import_paths(
+        project, next_entry[2])
     later repeat
 }
 

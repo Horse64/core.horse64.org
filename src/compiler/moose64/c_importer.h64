@@ -50,7 +50,7 @@ func get_mcref_id(project) {
     return id
 }
 
-func CImportInfo._process_c_include(ipath) {
+func CImportInfo._process_c_include(project, ipath) {
     ipath = ipath.replace("/", path.sep)
     var new_items = {->}
     if ipath == "stdlib.h" {
@@ -76,24 +76,28 @@ func CImportInfo._process_c_include(ipath) {
         )
     }
     for entry in new_items {
-        self.known_items[entry] = new_items[entry]
+        if not self.known_items.has(entry) {
+            self.known_items[entry] = new_items[entry]
+            self.known_items[entry].auto_assign_id(project)
+            assert(self.known_items[entry].storage_id != none)
+        }
     }
     return later
 }
 
-func CImportInfo.add_import_path(ipath) {
+func CImportInfo.add_import_path(project, ipath) {
     self.import_paths.add(ipath)
 
-    self._process_c_include(ipath) later:
+    self._process_c_include(project, ipath) later:
 }
 
-func CImportInfo.add_import_paths(ipaths) {
+func CImportInfo.add_import_paths(project, ipaths) {
     var queue = ipaths.copy()
     if queue.len == 0 {
         return later
     }
     var next_path = queue.pop()
-    var result = self.add_import_path(next_path)
+    var result = self.add_import_path(project, next_path)
     later:
 
     await result
@@ -101,7 +105,7 @@ func CImportInfo.add_import_paths(ipaths) {
         return later
     }
     next_path = queue.pop()
-    result = self.add_import_path(next_path)
+    result = self.add_import_path(project, next_path)
     later repeat
 }
 

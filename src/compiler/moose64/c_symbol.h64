@@ -25,6 +25,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import compiler.moose64.c_importer as m64_c_importer
+
 type CFuncSymbol {
     var c_func_signature protect
 
@@ -33,5 +35,14 @@ type CFuncSymbol {
 
 func CFuncSymbol.init(c_signature) {
     self.c_func_signature = c_signature
+}
+
+func CFuncSymbol.auto_assign_id(project) {
+    if self.storage_id != none {
+        return
+    }
+    var new_id = m64_c_importer.get_mcref_id(project)
+    assert(new_id != none)
+    self.storage_id = new_id
 }
 
