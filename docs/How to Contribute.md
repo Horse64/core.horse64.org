@@ -137,7 +137,7 @@ There's **no way to donate to the project itself.**
 
 - But [here is info on the key people
   ](https://horse64.org/who), if you wanted to cheer them
-  on.
+  on or to support them outside of this project.
 
 
 Maintainer checklists
