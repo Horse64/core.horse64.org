@@ -66,11 +66,13 @@ func StorageRef.as_str {
     } elseif self.kind == ST_CEXT {
         return "CX" + self.id.as_str()
     } elseif self.kind == ST_MCREF {
-        return "MCREF" + self.id.as_str()
+        return "MCRF" + self.id.as_str()
     } elseif self.kind == ST_SELF {
         return "SELF"
     } elseif self.kind == ST_BASE {
         return "BASE"
+    } elseif self.kind == ST_EXTENDED {
+        return "EXTD"
     } elseif self.kind == _ST_ATTRERROR {
         return "<_ST_ATTRERROR !! SHOULD NEVER OCCUR IN BYTECODE>"
     } elseif self.kind == _ST_RESOLVELATER {
