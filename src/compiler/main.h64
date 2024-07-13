@@ -207,7 +207,14 @@ func parse_ast_target_from_args(args, checked_ast=no,
             "Done computing storage for all files. "
             "[t=" + time.ticks().as_str() + "]")
     }
-    assert(success == yes)
+    had_error = no
+    for m in tresult.msgs {
+        if m.kind == msg.M_ERROR {
+            had_error = yes
+            break
+        }
+    }
+    assert(success == yes or had_error)
     return tresult
 }
 
