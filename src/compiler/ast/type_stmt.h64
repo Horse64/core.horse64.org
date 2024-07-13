@@ -154,6 +154,8 @@ func parse_extend_or_enum_or_type_header(
     var is_type = (tokens[pos].str == "type")
     var is_enum = (tokens[pos].str == "enum")
     var is_extended = no
+    var extend_name_line = none
+    var extend_name_col = none
     if stmt_name == "extend" {
         var variant = get_extend_variant(
             tokens, tokens_len, pos, msgs, had_damage=stmt.has_damage(),
@@ -181,6 +183,14 @@ func parse_extend_or_enum_or_type_header(
             is_enum = yes
         }
         pos += 2  # Go past "extend enum"/"extend func".
+        if pos > tokens_len {
+            assert(pos - 1 <= tokens_len)
+            extend_name_line = tokens[pos - 1].line
+            extend_name_col = tokens[pos - 1].col
+        } else {
+            extend_name_line = tokens[pos].line
+            extend_name_col = tokens[pos].col
+        }
     } else {
         pos += 1  # Go past "enum"/"type".
     }
@@ -227,6 +237,8 @@ func parse_extend_or_enum_or_type_header(
             pos += 2
         }
         var iexp = new expr.IdRefExpr()
+        iexp.line = extend_name_line
+        iexp.col = extend_name_col
         iexp.label = extend_type_name
         iexp.type_path = extend_type_path
         stmt.subexprs.add(iexp)

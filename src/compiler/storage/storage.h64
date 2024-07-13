@@ -1399,6 +1399,13 @@ func project.Project.compute_all_scopes(
                             line=node.line, col=node.col,
                         ))
                     }
+                    if node.ref == none {
+                        assert(anscope.storage_id != none)
+                        node.ref = new st_ref.StorageRef(
+                            st_ref.ST_GLOBAL,
+                            anscope.storage_id
+                        )
+                    }
                     return later node
                 }
                 var is_write_access =

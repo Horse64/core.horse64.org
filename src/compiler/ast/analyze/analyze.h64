@@ -304,10 +304,19 @@ func advanced_phase3_h64_later_and_computevals(
                             grandparent.kind != ast.N_EXPR_UNOP or
                             grandparent.subexprs[1] != parent or
                             grandparent.optoken.str != "new" {
-                        if is_regular_type or (is_error_type
-                                    and (parent == none or
-                                    parent.kind !=
-                                    ast.N_EXPR_RESCUECLAUSE)) {
+                        if (is_regular_type and (parent == none or
+                                not {ast.N_STMT_TYPE,
+                                ast.N_STMT_TYPEEXTEND,
+                                ast.N_STMT_STRUCTEXTEND,
+                                ast.N_STMT_ENUMEXTEND}.has(
+                                    parent.kind
+                                ))) or
+                                (is_error_type
+                                 and (parent == none or
+                                      not {ast.N_STMT_TYPE,
+                                      ast.N_EXPR_RESCUECLAUSE}.has(
+                                          parent.kind
+                                      ))) {
                             if msgs != none {
                                 msgs.add(new msg.FileMsg(
                                     "Invalid type reference, must "
