@@ -44,6 +44,8 @@ import compiler.moose64.c_importer as c_importer
 type GlobalScope {
     var name_to_stmt_map = {->}
     var storage_id_to_entry = {->}
+
+    var known_to_be_in_project_file = none
 }
 
 func GlobalScope.as_str {
@@ -444,6 +446,9 @@ func GlobalScope.get_import_path_for_global(
 func GlobalScope.finalize_gscope_with_ast_tree_info(
         project_file, ast_tree, msgs=none, is_moose64=no
         ) {
+    if self.known_to_be_in_project_file == none {
+        self.known_to_be_in_project_file = project_file
+    }
     for stmt in ast_tree.stmts {
         if {ast.N_STMT_FUNC, ast.N_STMT_STRUCT,
                 ast.N_STMT_TYPE}.has(stmt.kind) {

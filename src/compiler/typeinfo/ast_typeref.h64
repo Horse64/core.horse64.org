@@ -117,7 +117,7 @@ func TypeRefFuncExpr.as_code(indent=0) {
         } else {
             t += ", "
         }
-        t += "_<-" +param_type.as_code(indent=indent)
+        t += "_<-" + param_type.as_code(indent=indent)
     }
     t += ")->"
     if self.return_typeref_expr != none {

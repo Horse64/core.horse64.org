@@ -854,17 +854,52 @@ func transform_typeref_inline_constructor(
 
         var result = []
         for lbl in node.var_labels {
+            var type_st_ref = type_expr.storage_ref
+            assert(type_st_ref != none)
+            assert(type_st_ref.kind == st_ref.ST_GLOBAL)
+            var type_node = project_file.
+                storage_id_to_global_scope_map[type_st_ref.id].
+                name_to_stmt_map[type_st_ref.id]
+            var type_pfile = project_file.
+                storage_id_to_global_scope_map[type_st_ref.id].
+                known_to_be_in_project_file
+            assert(type_pfile != none)
+            var anscope = project_file.
+                make_attr_names_scope_from_node(
+                    type_node, msgs=msgs, is_moose64=is_moose64,
+                    def_project_file=type_pfile
+                )
+            assert(anscope != none)
+            if not anscope.name_to_symbol_map.has("init") {
+                # So this means we just have default init.
+                # We should probably figure out if we have some
+                # default var init here that can be failable.
+                # If it's NOT failable then we can do nothing here.
+
+                # FIXME / XXX figure this out later
+                continue  # For now, skip always.
+            }
+
             var call_stmt = new call_or_assign_stmt.CallStmt()
             var idref_expr = new ast_expr.IdRefExpr()
             idref_expr.label = lbl
             idref_expr.line = node.line
             idref_expr.col = node.col
+            idref_expr.ref =
+                node.scope.lookup(
+                    lbl, is_write_access=yes,
+                    cross_func_scopes=no,
+                )
             var idref_expr2 = new ast_expr.IdRefExpr()
             idref_expr2.label = "init"
             idref_expr2.line = node.line
             idref_expr2.col = node.col
+            idref_expr2.ref = new st_ref.StorageRef(
+                st_ref.ST_GLOBALATTR, [type_st_ref.id,
+                    anscope.name_to_symbol_map["init"].symbol_id]
+            )
             var optoken1 = new token.Token(
-                '.', token.T_DOT, node.line, node.col
+                ".", token.T_DOT, node.line, node.col
             )
             var attr_op = new ast_expr.BinopExpr(optoken1)
             attr_op.line = node.line
