@@ -195,7 +195,8 @@ Creators
 For a full list of who worked on and created Horse64,
 check the **contributors for the central packages:**
 
-- [Core tools and stdlib authors](
+- [Core tools and stdlib authors (includes both horsec and
+  moosec)](
   https://codeberg.org/Horse64/core.horse64.org/src/branch/main/AUTHORS.md),
 - [Byte code VM authors](
   https://codeberg.org/Horse64/hvm.horse64.org/src/branch/main/AUTHORS.md),
@@ -203,4 +204,9 @@ check the **contributors for the central packages:**
   https://codeberg.org/Horse64/horp.horse64.org/src/branch/main/AUTHORS.md),
 - [Runtime base library authors](
   https://codeberg.org/Spew3D/Spew3D/src/branch/main/AUTHORS.md).
+
+And for Moose64 specifically:
+
+- [Moose64 stdlib authors](
+  https://codeberg.org/Horse64/m64.horse64.org/src/branch/main/AUTHORS.md).
 
