@@ -342,6 +342,9 @@ func transform_defer(
             typeref_expr=func_var_typeref, expr=expr_copy,
             line=node.line, col=node.col, add_unique_suffix=yes
         )
+        assert(func_var_node.symbol_info != none and
+            typename(func_var_node.symbol_info) == "list" and
+            func_var_node.symbol_info.len == 1)
         defer_info.defer_func_var_name = func_var_node.var_labels[1]
         parent_block = parent_block.sub(1, idx) + [func_var_node] +
             parent_block.sub(idx + 1)
@@ -431,6 +434,10 @@ func transform_defer(
         defer_resolve_called_expr.label = func_var_node.var_labels[1]
         defer_resolve_called_expr.line = node.line
         defer_resolve_called_expr.col = node.col
+        defer_resolve_called_expr.ref =
+            node.scope.lookup(
+                func_var_node.var_labels[1], is_write_access=no
+            )
         var defer_resolve_args_expr = new ast_expr.CallArgsExpr()
         defer_resolve_args_expr.scope = node.scope
         defer_resolve_args_expr.line = node.line

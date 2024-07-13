@@ -75,7 +75,9 @@ func project.ProjectFile.type_path_to_full_module_path_and_pfile(
 
 func project.ProjectFile.try_lookup_symbol_path(
         local_scope, name=none, type_path=none,
-        is_write_access=yes, is_moose64=no, debug=no
+        is_write_access=yes,
+        found_in_line=none, found_in_col=none,
+        is_moose64=no, debug=no,
         ) {
     if name == none and type_path == none {
         throw new ValueError("Need to supply at least one of "
@@ -94,9 +96,17 @@ func project.ProjectFile.try_lookup_symbol_path(
         check_path = check_path + [name]
     }
     if debug {
+        var extra = ""
+        if found_in_line != none {
+            extra = " found in line " + found_in_line.as_str()
+            if found_in_col != none {
+                extra += ", column  " + found_in_col.as_str()
+            }
+        }
         print(if is_moose64 ("moosec") else ("horsec") +
             ": debug: try_lookup_symbol_path(): "
-            "Invoked on: check_path=" + check_path.as_str())
+            "Invoked on: check_path=" + check_path.as_str() +
+            extra)
     }
     if check_path.len == 0 {
         if debug {
@@ -177,15 +187,26 @@ func project.ProjectFile.try_lookup_symbol_path(
             }
             check_func_scope = check_func_scope.parent
         }
-        if nested_in_type_attr {
+        if nested_in_type_attr and check_path.len == 1 {
             if debug {
                 print(if is_moose64 ("moosec") else ("horsec") +
-                ": debug: try_lookup_symbol_path(): "
-                "It's a self in a func attr, "
-                "returning success.")
+                    ": debug: try_lookup_symbol_path(): "
+                    "It's a self in a func attr, "
+                    "returning success.")
             }
             return new st_ref.StorageRef(
                 st_ref.ST_SELF, 0)
+        } elseif nested_in_type_attr and check_path.len == 2 {
+            if debug {
+                print(if is_moose64 ("moosec") else ("horsec") +
+                    ": debug: try_lookup_symbol_path(): "
+                    "It's a func or var attr on a self, "
+                    "we can't fully resolve that yet. "
+                    "Returning temporary _ST_RESOLVELATER."
+                )
+            }
+            return new st_ref.StorageRef(
+                st_ref._ST_RESOLVELATER, 0)
         }
     }
 
@@ -1205,13 +1226,90 @@ func try_resolve_attr_on_ref(
     return none
 }
 
-func visit_to_resolve_known_attrs(project_file, msgs) {
-    func try_resolve_item(node, parent) {
+func visit_to_resolve_known_attrs(project_file, msgs, is_moose64=no) {
+    var pfile = project_file
+
+    func try_resolve_item(node, parents) {
+        if node.kind == ast.N_EXPR_IDREF and
+                node.type_path != none and
+                node.type_path.len > 0 and
+                (node.ref == none or
+                 (node.ref != none and
+                 node.ref.kind == st_ref._ST_RESOLVELATER)) {
+            if node.type_path[1] == "self" and
+                    node.ref != none and
+                    node.ref.kind == st_ref._ST_RESOLVELATER {
+                var parent_func_node = none
+                var i = parents.len
+                while i >= 1 {
+                    if parents[i].kind == ast.N_STMT_FUNC and
+                            parents[i].func_scope != none and
+                            parents[i].type_path != none and
+                            parents[i].type_path.len > 0 {
+                        parent_func_node = parents[i]
+                        break
+                    }
+                    i -= 1
+                }
+                assert(parent_func_node != none)
+                var anscope =
+                    pfile.make_attr_names_scope_from_funcattr(
+                        parent_func_node, msgs=msgs,
+                        is_moose64=is_moose64,
+                        def_project_file=pfile
+                    )
+                if anscope == none {
+                    if not node.damaged {
+                        if msgs == none {
+                            throw new ValueError("Failed to find "
+                                "base type for func attribute.")
+                        }
+                        msgs.add(new msg.FileMsg(
+                            "Unexpectedly failed to find base type "
+                            "for func attribute '" +
+                            node.label + "'.",
+                            source_file=pfile,
+                            line=node.line,
+                            col=node.col,
+                        ))
+                    }
+                    node.damaged = yes
+                    return later node
+                }
+                if not anscope.name_to_symbol_map.has(node.label) {
+                    if is_moose64 {
+                        if msgs == none {
+                            throw new ValueError("Found access to "
+                                "non-existing attribute.")
+                        }
+                        msgs.add(new msg.FileMsg(
+                            "Unknown reference '" + node.label +
+                            "', underlying object doesn't have " +
+                            "this attribute.",
+                            source_file=pfile,
+                            line=node.line,
+                            col=node.col,
+                        ))
+                        node.damaged = yes
+                        return later node
+                    }
+                    node.ref = new st_ref.StorageRef(
+                        st_ref._ST_ATTRERROR, none)
+                    return later node
+                }
+                var sym = anscope.name_to_symbol_map[node.label]
+                var st_id = sym.storage_id
+                node.ref = new st_ref.StorageRef(
+                    st_ref.ST_GLOBALATTR, [anscope.storage_id, st_id]
+                )
+                return later node
+            }
+        }
         return later node
     }
     var success = transform.visit_ast_tree(
         project_file.ast, try_resolve_item,
-        parent_chain=no) later:
+        parent_chain=yes) later:
 
     await success
     return success

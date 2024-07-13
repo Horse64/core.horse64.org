@@ -207,34 +207,9 @@ func get_base_func_scope_from_func_node(
         return none
     }
     if node.type_path != none and node.type_path.len > 0 {
-        var gnode_info =
-            project_file.get_gscope_type_node_info_from_funcattr(
-                node, def_project_file=project_file,
-                msgs=msgs, is_moose64=is_moose64
-            )
-        var gnode = gnode_info[1]
-        var gnode_file = gnode_info[2]
-        if gnode == none {
-            if not node.damaged {
-                if msgs == none {
-                    throw new ValueError("Failed to find base type "
-                        "for func attribute.")
-                }
-                msgs.add(new msg.FileMsg(
-                    "Unexpectedly failed to find base type "
-                    "for func attribute '" +
-                    node.label + "'.",
-                    source_file=project_file,
-                    line=node.line,
-                    col=node.col,
-                ))
-            }
-            node.damaged = yes
-            return none
-        }
-        var anscope = project_file.make_attr_names_scope_from_node(
-            gnode, msgs=msgs, is_moose64=is_moose64,
-            def_project_file=gnode_file
+        var anscope = project_file.make_attr_names_scope_from_funcattr(
+            node, msgs=msgs, is_moose64=is_moose64,
+            def_project_file=project_file
         )
         if anscope == none {
             if not node.damaged {

@@ -39,6 +39,8 @@ enum StorageKind {
     ST_SELF,
     ST_BASE,
     ST_EXTENDED,
+    _ST_ATTRERROR,  # Internally used when access causes AttributeError.
+    _ST_RESOLVELATER,  # Internally used when it can't be resolved yet.
 }
 
 type StorageRef {
@@ -69,6 +71,10 @@ func StorageRef.as_str {
         return "SELF"
     } elseif self.kind == ST_BASE {
         return "BASE"
+    } elseif self.kind == _ST_ATTRERROR {
+        return "<_ST_ATTRERROR !! SHOULD NEVER OCCUR IN BYTECODE>"
+    } elseif self.kind == _ST_RESOLVELATER {
+        return "<_ST_RESOLVELATER !! SHOULD NEVER OCCUR IN BYTECODE>"
     }
     throw new RuntimeError("Invalid StorageRef with "
         "incorrect kind set.")

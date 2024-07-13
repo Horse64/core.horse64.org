@@ -634,8 +634,9 @@ func project.Project.compute_all_scopes(
                                 ))
                             } else {
                                 throw new ValueError("Invalid statement "
-                                    "inside custom type or struct or union, "
-                                    "expected var or func attributes.")
+                                    "inside custom type or struct or "
+                                    "union, expected var or func "
+                                    "attributes.")
                             }
                         }
                         func register_var_at_root(var_labels) {
@@ -646,7 +647,8 @@ func project.Project.compute_all_scopes(
                                         has(label) {
                                     var symbol_info =
                                         new st_scope.SymbolInfo(label)
-                                    symbol_info.kind = st_scope.SINFO_VARATTR
+                                    symbol_info.kind =
+                                        st_scope.SINFO_VARATTR
                                     symbol_info.def_line = stmt.line
                                     symbol_info.def_col = stmt.col
                                     symbol_info.def_file = pfile
@@ -1369,6 +1371,8 @@ func project.Project.compute_all_scopes(
                     name=node.label,
                     type_path=node.type_path,
                     is_write_access=is_write_access,
+                    found_in_line=node.line,
+                    found_in_col=node.col,
                     is_moose64=is_moose64,
                 )
                 if result == none or result == no {
@@ -1393,6 +1397,8 @@ func project.Project.compute_all_scopes(
                             name=node.label,
                             type_path=node.type_path,
                             is_write_access=is_write_access,
+                            found_in_line=node.line,
+                            found_in_col=node.col,
                             is_moose64=is_moose64,
                             debug=yes,
                         )
@@ -1465,7 +1471,10 @@ func project.Project.compute_all_scopes(
                     ref = pfile.try_lookup_symbol_path(
                         node.scope, name=label, type_path=type_path,
                         is_write_access=is_write_access,
-                        is_moose64=is_moose64)
+                        found_in_line=node.line,
+                        found_in_col=node.col,
+                        is_moose64=is_moose64,
+                    )
                     if ref != none or type_path.len == 0 {
                         if ref == no {
                             # -> import found, but doesn't have this item.
@@ -1530,6 +1539,8 @@ func project.Project.compute_all_scopes(
                                     name=_debug_fail_info["label"],
                                     type_path=_debug_fail_info["type_path"],
                                     is_write_access=is_write_access,
+                                    found_in_line=node.line,
+                                    found_in_col=node.col,
                                     is_moose64=is_moose64, debug=yes
                                 )
                         }
@@ -1602,15 +1613,29 @@ func project.Project.compute_all_scopes(
                 pfile.global_scope
         }
         assert(success == yes)
+        return later success
+    }
+    success = self.do_for_all_files(resolve_scope)
+    later:
 
+    await success
+    if not success {
+        return later no
+    }
+    for m in msgs {
+        if m.kind == msg.M_ERROR {
+            return later no
+        }
+    }
+    func try_resolve_attrs(pfile) {
         success = scope_manage.visit_to_resolve_known_attrs(
-            pfile, msgs
+            pfile, msgs, is_moose64=is_moose64
         ) later:
 
         await success
         return later success
     }
-    success = self.do_for_all_files(resolve_scope)
+    success = self.do_for_all_files(try_resolve_attrs)
     later:
 
     await success
