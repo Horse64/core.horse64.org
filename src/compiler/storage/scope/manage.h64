@@ -1307,9 +1307,118 @@ func visit_to_resolve_known_attrs(project_file, msgs, is_moose64=no) {
                 )
                 return later node
             }
+        } elseif node.kind == ast.N_EXPR_IDREF and
+                node.ref == none {
+            if parents.len == 0 or
+                    parents[parents.len].kind != ast.N_EXPR_BINOP or
+                    parents[parents.len].optoken.str != '.' {
+                # We can't actually resolve this node in a useful way.
+                if is_moose64 {
+                    if msgs == none {
+                        throw new ValueError("Found access to "
+                            "non-existing item.")
+                    }
+                    msgs.add(new msg.FileMsg(
+                        "Unknown reference '" + node.label +
+                        "', can't find what it refers to.",
+                        source_file=pfile,
+                        line=node.line,
+                        col=node.col,
+                    ))
+                    node.damaged = yes
+                    return later node
+                }
+            }
+            func resolve_lefthand_if_needed(node, parents) {
+                var parent =
+                    if parents.len > 0 (parents[parents.len])
+                    else (none)
+                if parent.subexprs[2].kind != node {
+                    return later yes
+                }
+                if parent.subexprs[1].kind == ast.N_EXPR_BINOP and
+                        parent.subexprs[1].optoken.str == "." and
+                        parent.subexprs[1].subexprs[2].kind ==
+                            ast.N_EXPR_IDREF {
+                    var result = try_resolve_item(
+                        parent.subexprs[1].subexprs[2],
+                        parents + [parent.subexprs[1]],
+                    ) later:
+
+                    await result
+                    if result == none {
+                        return later no
+                    }
+                    return later yes
+                }
+                if parent.subexprs[1].kind == ast.N_EXPR_IDREF {
+                    var result = try_resolve_item(
+                        parent.subexprs[1],
+                        parents.copy(),
+                    ) later:
+
+                    await result
+                    if result == none {
+                        return later no
+                    }
+                    return later yes
+                }
+                return later yes
+            }
+            var result = resolve_lefthand_if_needed(
+                node, parents.copy()
+            ) later:
+
+            await result
+            if result == none {
+                return later none
+            }
+
+            var parent =
+                if parents.len > 0 (parents[parents.len])
+                else (none)
+            var left_of_us = parent.subexprs[1]
+            if left_of_us.kind == ast.N_EXPR_BINOP and
+                    left_of_us.optoken.str == "." {
+                assert(left_of_us.subexprs[2].kind == ast.N_EXPR_IDREF)
+                left_of_us = left_of_us.subexprs[2]
+            }
+            assert(left_of_us.kind == ast.N_EXPR_IDREF)
+            #print("We found a left hand ref: " + [node,
+            #    left_of_us, left_of_us.ref].as_str())
+            return later node
         }
         return later node
     }
+
+    func do_transform_step(node, parents) {
+        var parent =
+            if parents.len > 0 (parents[parents.len])
+            else (none)
+        if parent != none and parent.kind == ast.N_EXPR_BINOP and
+                parent.optoken.str == "." {
+            return later node
+        }
+        if node.kind == ast.N_EXPR_BINOP and
+                node.optoken.str == "." {
+            var result = try_resolve_item(
+                node.subexprs[2], parents + [node])
+            later:
+
+            await result
+            return result
+        }
+        if node.kind == ast.N_EXPR_IDREF {
+            var result = try_resolve_item(
+                node, parents.copy())
+            later:
+
+            await result
+            return result
+        }
+        return later node
+    }
+
     var success = transform.visit_ast_tree(
         project_file.ast, try_resolve_item,
         parent_chain=yes) later:
