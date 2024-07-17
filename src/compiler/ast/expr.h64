@@ -313,6 +313,13 @@ func LiteralExpr.as_code(indent=0) {
 
 func LiteralExpr.as_json_obj {
     var output = base.as_json_obj()
+    if self.is_big_num {
+        assert(typename(self.value) == "str")
+        output["value"] = self.value
+        output["is_big_num"] = yes
+        return output
+    }
+    output["is_big_num"] = no
     if typename(self.value) == "bytes" {
         output["value-base64"] = base64.dump(self.value)
     } else {
@@ -578,7 +585,7 @@ func parse_expression_unwrapped(
             return node
         } elseif tokens[pos].kind == token.T_BIGNUM {
             var node = new LiteralExpr()
-            node.value = tokens[pos]
+            node.value = tokens[pos].str
             node.is_big_num = yes
             node.token_len = 1
             node.line = startline
@@ -1260,6 +1267,7 @@ func parse_expression_unwrapped(
             node.line = left_hand.line
             node.col = left_hand.col
         }
+        assert(not left_hand.is_stmt)
         node.subexprs.add(left_hand)
 
         ## Helper function to either parse a right-hand item as

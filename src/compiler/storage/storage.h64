@@ -1674,12 +1674,24 @@ func project.Project.compute_all_scopes(
         }
     }
     func try_resolve_attrs(pfile) {
-        success = scope_manage.visit_to_resolve_known_attrs(
+        var inner_success = scope_manage.visit_to_mark_autoconst(
             pfile, msgs, is_moose64=is_moose64
         ) later:
 
-        await success
-        return later success
+        await inner_success
+        if not inner_success {
+            return later no
+        }
+
+        inner_success = scope_manage.visit_to_resolve_known_attrs(
+            pfile, msgs, is_moose64=is_moose64
+        ) later:
+
+        await inner_success
+        if not inner_success {
+            return later no
+        }
+        return later yes
     }
     success = self.do_for_all_files(try_resolve_attrs)
     later:

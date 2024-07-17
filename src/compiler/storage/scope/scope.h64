@@ -443,6 +443,29 @@ func LocalScope.as_str {
     return t
 }
 
+func check_if_idref_matches_var_node(
+        idref_expr, var_node
+        ) {
+    var name = idref_expr.label
+    var scope = idref_expr.scope
+    var result = scope.lookup(name,
+        is_write_access=no, cross_func_scopes=no,
+        auto_add_ccapture=no)
+    if result == none or result[2] == none or
+            not {st_ref.ST_LOCAL,
+                st_ref.ST_CCAPTURE}.has(result[1].kind) {
+        return no
+    }
+    var lookup_scope = scope
+    while lookup_scope != none {
+        if lookup_scope.name_to_symbol_map.has(name) {
+            return (lookup_scope == var_node.scope)
+        }
+        lookup_scope = lookup_scope.parent
+    }
+    return no
+}
+
 func LocalScope.lookup(name,
         is_write_access=yes, cross_func_scopes=yes,
         auto_add_ccapture=yes) {
@@ -484,26 +507,13 @@ func LocalScope.lookup(name,
         } elseif (lookup_scope.parent == none or
                 lookup_scope.parent.func_scope !=
                 lookup_scope.func_scope) {
+            var arg_idx = none
             if lookup_scope.func_scope != none {
-                var arg_idx = lookup_scope.func_scope.arg_names.find(
+                arg_idx = lookup_scope.func_scope.arg_names.find(
                     name
                 )
-                if arg_idx != none {
-                    if our_func_scope != lookup_scope.func_scope and
-                            auto_add_ccapture {
-                        # This is a closure capture.
-                        self.func_scope.last_inner_ccapture_id += 1
-                        var sinfo = new SymbolInfo(name)
-                        sinfo.storage_id = none
-                        sinfo.is_closure_captured = yes
-                        var cap_id = self.func_scope.last_inner_ccapture_id
-                        self.ccapture_id_to_symbol_map[cap_id] = sinfo
-                        self.ccapture_name_to_id_map[name] = cap_id
-                        ref = new st_ref.StorageRef(
-                            st_ref.ST_CCAPTURE, cap_id
-                        )
-                        return [ref, sinfo]
-                    }
+                if arg_idx != none and
+                        our_func_scope == lookup_scope.func_scope {
                     ref = new st_ref.StorageRef(
                         st_ref.ST_ARG, arg_idx
                     )
@@ -517,6 +527,24 @@ func LocalScope.lookup(name,
                 ]
                 ref = new st_ref.StorageRef(st_ref.ST_CCAPTURE, cap_id)
                 return [ref, sinfo]
+            }
+            if arg_idx != none {
+                if our_func_scope != lookup_scope.func_scope and
+                        auto_add_ccapture {
+                    # This is a new closure capture.
+                    self.func_scope.last_inner_ccapture_id += 1
+                    var sinfo = new SymbolInfo(name)
+                    sinfo.storage_id = none
+                    sinfo.is_closure_captured = yes
+                    var cap_id = self.func_scope.last_inner_ccapture_id
+                    self.ccapture_id_to_symbol_map[cap_id] = sinfo
+                    self.ccapture_name_to_id_map[name] = cap_id
+                    ref = new st_ref.StorageRef(
+                        st_ref.ST_CCAPTURE, cap_id
+                    )
+                    return [ref, sinfo]
+                }
+                return [ref, none]
             }
         }
         if lookup_scope.parent == none {

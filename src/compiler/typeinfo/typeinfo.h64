@@ -29,6 +29,7 @@ import textfmt from core.horse64.org
 
 import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
+import compiler.ast.expr as ast_expr
 import compiler.ast.transform as ast_transform
 import compiler.builtin_syms as builtin_syms
 import compiler.msg as msg
@@ -39,6 +40,10 @@ import compiler.typeinfo.ast_typeref as ast_typeref
 extend type st_scope.SymbolInfo {
     var typeref_expr
     var type_storage_ref
+}
+
+extend type ast_expr.IdRefExpr {
+    var typeref_expr
 }
 
 enum TypeInfoKind {

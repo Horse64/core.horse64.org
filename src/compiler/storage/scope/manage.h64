@@ -1228,6 +1228,175 @@ func try_resolve_attr_on_ref(
     return none
 }
 
+func visit_to_mark_autoconst(
+        project_file, msgs, is_moose64=no, debug=no
+        ) {
+    var pfile = project_file
+    var prog_name = if is_moose64 ("moosec") else ("horsec")
+
+    var success = yes
+    func try_mark_autoconst(node, parents) {
+        if node.kind != ast.N_STMT_VAR or
+                node.symbol_info == none or
+                node.symbol_info.len !=
+                node.var_labels.len or
+                node.scope == none or
+                node.scope.func_scope == none {
+            return later node
+        }
+        func var_is_for_sure_by_val(num) {
+            assert(num >= 1 and num <= node.var_labels.len)
+            if node.is_empty {
+                return yes
+            }
+            var val = node.subexprs[num]
+            if val.kind == ast.N_EXPR_LIT and
+                    {"num", "str", "none"}.has(
+                        val.value
+                    ) {
+                return yes
+            }
+            return no
+        }
+        if debug {
+            print(prog_name + ": debug: " +
+                "Considering these vars for auto-const: " +
+                [node.var_labels, node.symbol_info].as_str())
+        }
+        var func_node = none
+        var func_node_parent = none
+        var i = parents.len
+        while i >= 1 and parents[i].kind != ast.N_STMT_FUNC {
+            i -= 1
+        }
+        if i < 1 {
+            return later node
+        }
+        func_node = parents[i]
+        func_node_parent = if i > 1
+            (parents[i - 1]) else (none)
+
+        var has_write_assign = []
+        i = 1
+        while i <= node.var_labels.len {
+            has_write_assign.add(no)
+            i += 1
+        }
+        func find_write_assign(inode, parents) {
+            if inode.kind != ast.N_EXPR_IDREF or
+                    not node.var_labels.has(inode.label) or
+                    not st_scope.check_if_idref_matches_var_node(
+                        inode, node
+                    ) {
+                return later inode
+            }
+            var idx = node.var_labels.find(inode.label)
+            var is_by_val = var_is_for_sure_by_val(idx)
+
+            if debug {
+                print(prog_name + ": debug: " +
+                    "Examining this use for auto-const: " +
+                    [inode, parents[parents.len]].as_str())
+            }
+            var i = parents.len
+            while i >= 1 {
+                var child = if i < parents.len
+                    (parents[i + 1]) else (inode)
+                var parent = parents[i]
+                if not is_by_val and ((
+                        parent.kind == ast.N_EXPR_BINOP and
+                        parent.optoken.str == ".") or
+                        parent.kind == ast.N_EXPR_BINOP and
+                        parent.optoken.str == "(") {
+                    if debug {
+                        print(prog_name + ": debug: " +
+                            "  (Use IS potential write "
+                            "for auto-const).")
+                    }
+                    has_write_assign[idx] = yes
+                    return later inode
+                }
+                if parent.kind == ast.N_STMT_ASSIGN and
+                        parent.subexprs.find(child) <=
+                        parent.subexprs.len / 2 {
+                    if debug {
+                        print(prog_name + ": debug: " +
+                            "  (Use IS potential write "
+                            "for auto-const).")
+                    }
+                    if node.is_const and
+                            i == parents.len and
+                            not inode.is_damaged {
+                        inode.is_damaged = yes
+                        if msgs != none {
+                            msgs.add(new msg.FileMsg(
+                                "Unexpected assignment to a "
+                                "constant declared in line " +
+                                node.line.as_str() + ", "
+                                "column " +
+                                node.col.as_str() + ". "
+                                "This isn't allowed.",
+                                source_file=pfile,
+                                line=inode.line,
+                                col=inode.col,
+                            ))
+                        }
+                    }
+                    has_write_assign[idx] = yes
+                    return later inode
+                }
+                if parent.is_stmt {
+                    break
+                }
+                i -= 1
+            }
+            if debug {
+                print(prog_name + ": debug: " +
+                    "  (Use isn't write for auto-const).")
+            }
+            return later inode
+        }
+
+        var inner_success = transform.visit_ast_tree(
+            func_node, find_write_assign,
+                subtree_parent=func_node_parent,
+                parent_chain=yes) later:
+
+        await inner_success
+        if not inner_success {
+            success = no
+        }
+
+        if not node.is_const {
+            if not has_write_assign.has(yes) {
+                if debug {
+                    print(prog_name + ": debug: " +
+                        "Making it auto-const.")
+                }
+                node.is_const = yes
+            } else {
+                node.vars_autoconst_list = []
+                for has_write in has_write_assign {
+                    node.vars_autoconst_list.add(
+                        not has_write
+                    )
+                }
+            }
+        }
+
+        return later node
+    }
+    var outer_success = transform.visit_ast_tree(
+        project_file.ast, try_mark_autoconst,
+            parent_chain=yes) later:
+
+    await outer_success
+    if not outer_success {
+        success = no
+    }
+    return later success
+}
+
 func visit_to_resolve_known_attrs(project_file, msgs, is_moose64=no) {
     var pfile = project_file
 
@@ -1328,6 +1497,7 @@ func visit_to_resolve_known_attrs(project_file, msgs, is_moose64=no) {
                     node.damaged = yes
                     return later node
                 }
+                return later node
             }
             func resolve_lefthand_if_needed(node, parents) {
                 var parent =
@@ -1377,44 +1547,27 @@ func visit_to_resolve_known_attrs(project_file, msgs, is_moose64=no) {
             var parent =
                 if parents.len > 0 (parents[parents.len])
                 else (none)
-            var left_of_us = parent.subexprs[1]
-            if left_of_us.kind == ast.N_EXPR_BINOP and
-                    left_of_us.optoken.str == "." {
-                assert(left_of_us.subexprs[2].kind == ast.N_EXPR_IDREF)
-                left_of_us = left_of_us.subexprs[2]
+            var left_of_us = none
+            if parent != none and
+                    parent.kind == ast.N_EXPR_BINOP {
+                var left_of_us = parent.subexprs[1]
+                if left_of_us.kind == ast.N_EXPR_BINOP and
+                        left_of_us.optoken.str == "." {
+                    assert(left_of_us.subexprs[2].kind == ast.N_EXPR_IDREF)
+                    left_of_us = left_of_us.subexprs[2]
+                }
+                assert(left_of_us.kind == ast.N_EXPR_IDREF)
             }
-            assert(left_of_us.kind == ast.N_EXPR_IDREF)
             #print("We found a left hand ref: " + [node,
             #    left_of_us, left_of_us.ref].as_str())
+            var left_type_expr = none
+            var left_type_global_ref = none
+            #if left_of_us.ref != none and
+            #        left_of_us.ref.kind == st_ref.ST_LOCAL and
+            #        is_moose64 {
+
+            #}
             return later node
-        }
-        return later node
-    }
-
-    func do_transform_step(node, parents) {
-        var parent =
-            if parents.len > 0 (parents[parents.len])
-            else (none)
-        if parent != none and parent.kind == ast.N_EXPR_BINOP and
-                parent.optoken.str == "." {
-            return later node
-        }
-        if node.kind == ast.N_EXPR_BINOP and
-                node.optoken.str == "." {
-            var result = try_resolve_item(
-                node.subexprs[2], parents + [node])
-            later:
-
-            await result
-            return result
-        }
-        if node.kind == ast.N_EXPR_IDREF {
-            var result = try_resolve_item(
-                node, parents.copy())
-            later:
-
-            await result
-            return result
         }
         return later node
     }
