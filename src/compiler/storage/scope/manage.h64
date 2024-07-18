@@ -1606,7 +1606,7 @@ func visit_to_resolve_known_attrs(
                         "Found global attribute with no "
                         "type expr, this is an "
                         "internal error. Please report "
-                        "this to the compiler mkers: " +
+                        "this to the compiler makers: " +
                         "left_of_us=" +
                             left_of_us.as_str() + " "
                         "sinfo=" + sinfo.as_str())
