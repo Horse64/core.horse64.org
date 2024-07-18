@@ -83,6 +83,111 @@ func stmt_list_contains_later_call(
     return no
 }
 
+func ast_node_is_allowed_to_cause_type_error(
+        node, parents, allow_typename_guard=yes,
+        allow_attributeerror=no,
+        ) {
+    func check_expr_for_has_attr(origexpr) {
+        func check_expr(expr) {
+            if expr.kind == ast.N_EXPR_BINOP and
+                    expr.optoken.str == "(" and
+                    expr.subexprs.len >= 2 and
+                    expr.subexprs[1].kind == ast.N_EXPR_IDREF and
+                    expr.subexprs[1].label == "has_attr" and
+                    (expr.subexprs[1].type_path == none or
+                     expr.subexprs[1].type_path.len == 0) {
+                return yes
+            }
+            for child in expr.subexprs {
+                return check_expr(child)
+            }
+        }
+        if origexpr.kind == ast.N_EXPR_IFELSECLAUSE {
+            if check_expr(origexpr) {
+                return yes
+            }
+        }
+        for expr in origexpr.subexprs {
+            if check_expr(expr) {
+                return yes
+            }
+        }
+        return no
+    }
+    func check_expr_for_typename(origexpr) {
+        func check_expr(expr) {
+            if expr.kind == ast.N_EXPR_BINOP and
+                    expr.optoken.str == "(" and
+                    expr.subexprs.len >= 2 and
+                    expr.subexprs[1].kind == ast.N_EXPR_IDREF and
+                    expr.subexprs[1].label == "typename" and
+                    (expr.subexprs[1].type_path == none or
+                     expr.subexprs[1].type_path.len == 0) {
+                return yes
+            }
+            for child in expr.subexprs {
+                return check_expr(child)
+            }
+        }
+        if origexpr.kind == ast.N_EXPR_IFELSECLAUSE {
+            if check_expr(origexpr) {
+                return yes
+            }
+        }
+        for expr in origexpr.subexprs {
+            if check_expr(expr) {
+                return yes
+            }
+        }
+        return no
+    }
+    var i = parents.len
+    while i >= 1 {
+        if parents[i].kind == ast.N_STMT_IF {
+            for clause in parents[i].subexprs {
+                if clause.kind != ast.N_EXPR_IFELSECLAUSE or
+                        clause.subblocks.len < 1 or
+                        not clause.subblocks[1].find(node) {
+                    continue
+                }
+                if check_expr_for_has_attr(clause) or (
+                        allow_typename_guard and
+                        check_expr_for_typename(clause)) {
+                    return yes
+                }
+            }
+        } elseif parents[i].kind == ast.N_STMT_DO {
+            for clause in parents[i].subexprs {
+                if not {ast.N_EXPR_RESCUECLAUSE,
+                        N_EXPR_FINALLYCLAUSE}.has(
+                            clause.kind
+                        ) or
+                        clause.subblocks.len < 1 or
+                        not clause.subblocks[1].find(node) {
+                    continue
+                }
+                var idx = 1
+                while idx <= self.error_labels.len {
+                    if self.subexprs[idx] != none and
+                            self.subexprs[idx].kind ==
+                                ast.N_EXPR_IDREF and
+                            (self.subexprs[idx].str == "TypeError" or
+                             (allow_attributeerror and
+                              self.subexprs[idx].str ==
+                                  "AttributeError")) and
+                            (self.subexprs[idx].type_path == none or
+                             self.subexprs[idx].type_path.len == 0) {
+                        return yes
+                    }
+                    i += 1
+                }
+            }
+        }
+        i -= 1
+    }
+    return no
+}
+
 func get_global_storage_neighbor_closure(project) {
     func try_get_neighbor_node_value(node_ref) {
         if node_ref == none or node_ref.kind != st_ref.ST_GLOBAL {

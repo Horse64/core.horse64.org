@@ -459,6 +459,18 @@ func TypeRefExpr.get_c_builtin_for_m64_base_type {
     return get_c_builtin_for_m64_base_type(self.name)
 }
 
+func TypeRefExpr.may_have_len_attr {
+    if not builtin_moose64_types.has(self.name) {
+        return yes
+    }
+    for mod in self.modifiers {
+        if {"array"}.has(mod.name) {
+            return yes
+        }
+    }
+    return no
+}
+
 func TypeRefExpr.as_str {
     var t = "TypeRefExpr<" + self.as_code() + ">"
     return t

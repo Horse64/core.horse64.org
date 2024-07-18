@@ -443,6 +443,108 @@ func LocalScope.as_str {
     return t
 }
 
+func find_def_node_from_idref_node(
+        idref_expr, parents
+        ) {
+    var name = idref_expr.label
+    var scope = idref_expr.scope
+    var result = scope.lookup(name,
+        is_write_access=no, cross_func_scopes=no,
+        auto_add_ccapture=no)
+    if result == none or result[2] == none or
+            not {st_ref.ST_LOCAL,
+                st_ref.ST_CCAPTURE}.has(result[1].kind) {
+        return no
+    }
+    var def_scope = scope
+    while def_scope != none {
+        if def_scope.name_to_symbol_map.has(name) {
+            break
+        }
+        def_scope = def_scope.parent
+    }
+    var any_node_had_scope = no
+    var i = parents.len
+    while i >= 1  {
+        var this_block_has_scope =
+            (parents[i].scope == def_scope)
+        if this_block_has_scope and
+                {ast.N_STMT_FOR,
+                ast.N_STMT_WITH}.has(
+                    parents[i].kind
+                ) {
+            if parents[i].label == name {
+                return parents[i]
+            }
+        }
+        var child_node = if i < parents.len
+            (parents[i + 1]) else (idref_expr)
+        var any_block_had_scope = no
+        func find_in_block(block) {
+            if block.len > 0 and block[1].scope == def_scope {
+                any_block_had_scope = yes
+            } else {
+                return none
+            }
+            var idx = block.find(child_node)
+            if idx == none {
+                return none
+            }
+            idx -= 1
+            while idx >= 1 {
+                if block[idx].kind == ast.N_STMT_VAR and
+                        block[idx].var_labels.has(name) {
+                    return block[idx]
+                }
+                idx -= 1
+            }
+            return none
+        }
+        for block in parents[i].subblocks {
+            var result = find_in_block(block)
+            if result != none {
+                return result
+            }
+        }
+        if parents[i].kind == ast.N_STMT_IF {
+            for clause in parents[i].subexprs {
+                if clause.kind != ast.N_EXPR_IFELSECLAUSE {
+                    continue
+                }
+                for block in clause.subblocks {
+                    var result = find_in_block(block)
+                    if result != none {
+                        return result
+                    }
+                }
+            }
+        }
+        if parents[i].kind == ast.N_STMT_DO {
+            for clause in parents[i].subexprs {
+                if not {ast.N_EXPR_RESCUECLAUSE,
+                        N_EXPR_FINALLYCLAUSE}.has(
+                            clause.kind
+                        ) {
+                    continue
+                }
+                for block in clause.subblocks {
+                    var result = find_in_block(block)
+                    if result != none {
+                        return result
+                    }
+                }
+            }
+        }
+        if this_block_has_scope or any_block_had_scope {
+            any_node_had_scope = yes
+        } elseif any_node_had_scope {
+            return none
+        }
+        i -= 1
+    }
+    return none
+}
+
 func check_if_idref_matches_var_node(
         idref_expr, var_node
         ) {

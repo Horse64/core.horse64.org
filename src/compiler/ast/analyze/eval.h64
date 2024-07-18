@@ -307,7 +307,8 @@ func try_eval_ast_node_value(
                 return [AR_TYPEERROR]
             }
             if v[1] == AR_VALUE {
-                if {"bytes", "str", "num", "bool", "none"}.has(v[2]) {
+                if {"bytes", "str", "num", "bool", "none"}.has(
+                        typename(v[2])) {
                     return [AR_VALUE, v[2].as_str()]
                 }
             }

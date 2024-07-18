@@ -26,6 +26,8 @@
 # license, see accompanied LICENSE.md.
 
 import compiler.ast as ast
+import compiler.ast.analyze as ast_analyze
+import compiler.ast.analyze.eval as ast_eval
 import compiler.ast.expr as ast_expr
 import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
 import compiler.ast.func_stmt as func_stmt
@@ -1282,6 +1284,8 @@ func visit_to_mark_autoconst(
             has_write_assign.add(no)
             i += 1
         }
+
+        var found_error = no
         func find_write_assign(inode, parents) {
             if inode.kind != ast.N_EXPR_IDREF or
                     not node.var_labels.has(inode.label) or
@@ -1327,6 +1331,7 @@ func visit_to_mark_autoconst(
                     if node.is_const and
                             i == parents.len and
                             not inode.is_damaged {
+                        found_error = yes
                         inode.is_damaged = yes
                         if msgs != none {
                             msgs.add(new msg.FileMsg(
@@ -1363,7 +1368,7 @@ func visit_to_mark_autoconst(
                 parent_chain=yes) later:
 
         await inner_success
-        if not inner_success {
+        if not inner_success or found_error {
             success = no
         }
 
@@ -1397,19 +1402,26 @@ func visit_to_mark_autoconst(
     return later success
 }
 
-func visit_to_resolve_known_attrs(project_file, msgs, is_moose64=no) {
+func visit_to_resolve_known_attrs(
+        project_file, msgs, is_moose64=no, debug=no
+        ) {
     var pfile = project_file
+    var dbg_header = if is_moose64
+        ("moosec: debug: ") else ("horsec: debug: ")
 
     func try_resolve_item(node, parents) {
-        if node.kind == ast.N_EXPR_IDREF and
-                node.type_path != none and
+        if node.kind != ast.N_EXPR_IDREF {
+            return later node
+        }
+        if node.type_path != none and
                 node.type_path.len > 0 and
                 (node.ref == none or
                  (node.ref != none and
                  node.ref.kind == st_ref._ST_RESOLVELATER)) {
             if node.type_path[1] == "self" and
-                    node.ref != none and
-                    node.ref.kind == st_ref._ST_RESOLVELATER {
+                    (node.ref == none or
+                     (node.ref != none and
+                      node.ref.kind == st_ref._ST_RESOLVELATER)) {
                 var parent_func_node = none
                 var i = parents.len
                 while i >= 1 {
@@ -1476,98 +1488,302 @@ func visit_to_resolve_known_attrs(project_file, msgs, is_moose64=no) {
                 )
                 return later node
             }
-        } elseif node.kind == ast.N_EXPR_IDREF and
-                node.ref == none {
-            if parents.len == 0 or
-                    parents[parents.len].kind != ast.N_EXPR_BINOP or
-                    parents[parents.len].optoken.str != '.' {
-                # We can't actually resolve this node in a useful way.
-                if is_moose64 {
+        } elseif node.ref != none and
+                node.ref.kind != st_ref._ST_RESOLVELATER {
+            return later node
+        }
+        if parents.len == 0 or
+                parents[parents.len].kind != ast.N_EXPR_BINOP or
+                parents[parents.len].optoken.str != '.' {
+            # We can't actually resolve this node in a useful way.
+            if is_moose64 {
+                if msgs == none {
+                    throw new ValueError("Found access to "
+                        "non-existing item.")
+                }
+                msgs.add(new msg.FileMsg(
+                    "Unknown reference '" + node.label +
+                    "', can't find what it refers to.",
+                    source_file=pfile,
+                    line=node.line,
+                    col=node.col,
+                ))
+                node.damaged = yes
+                return later node
+            }
+            return later node
+        }
+
+        func resolve_lefthand_if_needed(node, parents) {
+            var parent = if parents.len > 0
+                (parents[parents.len])
+                else (none)
+            if parent.subexprs[2] != node {
+                return later yes
+            }
+            if parent.subexprs[1].kind == ast.N_EXPR_BINOP and
+                    parent.subexprs[1].optoken.str == "." and
+                    parent.subexprs[1].subexprs[2].kind ==
+                        ast.N_EXPR_IDREF {
+                var result = try_resolve_item(
+                    parent.subexprs[1].subexprs[2],
+                    parents + [parent.subexprs[1]],
+                ) later:
+
+                await result
+                if result == none {
+                    return later no
+                }
+                return later yes
+            }
+            if parent.subexprs[1].kind == ast.N_EXPR_IDREF {
+                var result = try_resolve_item(
+                    parent.subexprs[1],
+                    parents.copy(),
+                ) later:
+
+                await result
+                if result == none {
+                    return later no
+                }
+                return later yes
+            }
+            return later yes
+        }
+        var result = resolve_lefthand_if_needed(
+            node, parents.copy()
+        ) later:
+
+        await result
+        if result == none {
+            return later none
+        }
+
+        var parent =
+            if parents.len > 0 (parents[parents.len])
+            else (none)
+        var left_of_us = none
+        if parent != none and
+                parent.kind == ast.N_EXPR_BINOP {
+            var left_of_us = parent.subexprs[1]
+            if left_of_us.kind == ast.N_EXPR_BINOP and
+                    left_of_us.optoken.str == "." {
+                assert(left_of_us.subexprs[2].kind ==
+                    ast.N_EXPR_IDREF)
+                left_of_us = left_of_us.subexprs[2]
+            }
+            assert(left_of_us.kind == ast.N_EXPR_IDREF)
+        }
+        var left_type_expr = none
+        var left_type_global_ref = none
+        var left_type_vnode = none
+        if left_of_us.ref != none and
+                left_of_us.ref.kind == st_ref.ST_LOCAL {
+            var var_node =
+                st_scope.find_def_node_from_idref_node(
+                    left_of_us, parents
+                )
+            assert(var_node != none)
+            if var_node.has_type_expr {
+                left_type_expr =
+                    var_node.subexprs[var_node.subexprs.len]
+            }
+            left_type_vnode = var_node
+        } elseif left_of_us.ref != none and
+                left_of_us.ref.kind == st_ref.ST_GLOBALATTR {
+            var anscope =
+                pfile.project.storage_id_to_anscope_map[
+                    left_of_us.ref.id[1]
+                ]
+            if anscope.is_struct or anscope.is_type {
+                var sinfo = anscope.
+                    name_to_symbol_map[left_of_us.label]
+                if sinfo.typeref_expr != none {
+                    left_type_expr = sinfo.typeref_expr
+                } elseif is_moose64 {
+                    print(if is_moose64 ("moosec")
+                            else ("horsec") + ": error: "
+                        "Found global attribute with no "
+                        "type expr, this is an "
+                        "internal error. Please report "
+                        "this to the compiler mkers: " +
+                        "left_of_us=" +
+                            left_of_us.as_str() + " "
+                        "sinfo=" + sinfo.as_str())
+                    throw new RuntimeError("Internal error.")
+                }
+            }
+        } elseif left_of_us.ref != none and
+                left_of_us.ref.kind == st_ref.ST_SELF {
+            var i = parents.len
+            while i >= 1 and (
+                    parents[i].kind != ast.N_EXPR_FUNC or
+                    parents[i].type_path == none or
+                    parents[i].type_path.len == 0) {
+                i -= 1
+            }
+            if i >= 1 {
+                var anscope = self.make_attr_names_scope_from_funcattr(
+                    parents[i], msgs=msgs, is_moose64=is_moose64,
+                    def_project_file=pfile
+                )
+                assert(anscope.storage_id != none)
+                left_type_global_ref = new st_ref.StorageRef(
+                    st_ref.ST_GLOBAL, anscope.storage_id
+                )
+            }
+        }
+        func obtain_global_ref_if_needed {
+            if left_type_global_ref != none or
+                    left_type_expr == none {
+                return later
+            }
+            var result =
+                left_type_expr.try_resolve_to_user_type(
+                    project_file, force_recompute=no,
+                    is_moose64=is_moose64
+                ) later:
+
+            await result
+            left_type_global_ref = result
+        }
+        obtain_global_ref_if_needed()
+        later:
+
+        var is_attr_error = no
+        var attr_error_cause =
+            "this value doesn't have this attribute"
+        var our_type_ref = none
+        var our_type_expr = none
+        func resolve_from_global_storage(storage_id) {
+            assert(typename(storage_id) == "num")
+            var anscope =
+                pfile.project.storage_id_to_anscope_map[
+                    storage_id
+                ]
+            if anscope.is_struct or anscope.is_type {
+                if anscope.name_to_symbol_map.has(
+                        node.label
+                        ) {
+                    our_type_ref = new st_ref.StorageRef(
+                        st_ref.ST_GLOBALATTR,
+                        [storage_id,
+                            anscope.name_to_symbol_map[node.label].
+                                storage_id])
+                } else {
+                    is_attr_error = yes
+                    var stmt_name = if anscope.is_struct
+                        ("struct") else ("type")
+                    attr_error_cause = stmt_name + " doesn't "
+                        "have this attribute"
+                }
+            }
+        }
+        if left_type_global_ref != none and
+                left_type_global_ref.kind == st_ref.ST_GLOBAL {
+            resolve_from_global_storage(
+                left_type_global_ref.id
+            )
+        } elseif is_moose64 {
+            if left_type_expr != none {
+                if node.label != "as_str" and
+                        (node.label != "len" or
+                         not left_type_expr.may_have_len_attr()) {
+                    is_attr_error = yes
+                }
+            } else {
+                is_attr_error = yes
+            }
+        } elseif not is_moose64 and
+                left_type_global_ref != none and
+                left_type_global_ref.kind == st_ref.ST_LOCAL and
+                left_type_orig_var_node != none and
+                (left_type_orig_var_node.is_const or
+                    (left_type_vnode.
+                    vars_autoconst_list != none and
+                    left_type_vnode.
+                    vars_autoconst_list[
+                        left_type_vnode.var_labels.find(node.label)
+                    ])) {
+            var value_eval = [ast_eval.AR_VALUE, none]
+            var value_expr = none
+            if left_type_vnode.subexprs.len > 0 {
+                value_expr = left_type_vnode.subexprs[
+                    left_type_vnode.var_labels.find(node.label)
+                ]
+            }
+            if value_expr != none {
+                value_eval = ast_eval.try_eval_ast_node_type(
+                    value_expr, is_moose64=is_moose64,
+                )
+            }
+            if value_eval[1] == ast_eval.AR_VALUE and
+                    {"num", "bool", "none"}.has(typename(
+                        value_eval[2])) and
+                    node.label != "as_str" {
+                is_attr_error = yes
+                attr_error_cause = typename(value_eval[2]) + " "
+                    "value doesn't have this attribute"
+            }
+        }
+        if is_attr_error {
+            if is_moose64 {
+                if msgs == none {
+                    throw new ValueError("Found access to "
+                        "non-existing attribute.")
+                }
+                msgs.add(new msg.FileMsg(
+                    "Unexpected attribute name '" +
+                        node.label +
+                    "', " + attr_error_cause + ".",
+                    source_file=pfile,
+                    line=node.line,
+                    col=node.col,
+                ))
+                node.damaged = yes
+            } else {
+                var error_is_valid = ast_analyze.
+                    ast_node_is_allowed_to_cause_type_error(
+                        node, parents, allow_typename_guard=yes,
+                        allow_attributeerror=yes,
+                    )
+                if not error_is_valid {
                     if msgs == none {
-                        throw new ValueError("Found access to "
-                            "non-existing item.")
+                        throw new ValueError(
+                            "Found access to "
+                            "non-existing attribute "
+                            "without guard.")
                     }
                     msgs.add(new msg.FileMsg(
-                        "Unknown reference '" + node.label +
-                        "', can't find what it refers to.",
+                        "Unexpected attribute name '" +
+                            node.label +
+                        "', " + attr_error_cause + " "
+                        "and the access isn't guarded.",
                         source_file=pfile,
                         line=node.line,
                         col=node.col,
                     ))
                     node.damaged = yes
-                    return later node
+                } else {
+                    is_attr_error = no
                 }
-                return later node
             }
-            func resolve_lefthand_if_needed(node, parents) {
-                var parent =
-                    if parents.len > 0 (parents[parents.len])
-                    else (none)
-                if parent.subexprs[2].kind != node {
-                    return later yes
-                }
-                if parent.subexprs[1].kind == ast.N_EXPR_BINOP and
-                        parent.subexprs[1].optoken.str == "." and
-                        parent.subexprs[1].subexprs[2].kind ==
-                            ast.N_EXPR_IDREF {
-                    var result = try_resolve_item(
-                        parent.subexprs[1].subexprs[2],
-                        parents + [parent.subexprs[1]],
-                    ) later:
-
-                    await result
-                    if result == none {
-                        return later no
-                    }
-                    return later yes
-                }
-                if parent.subexprs[1].kind == ast.N_EXPR_IDREF {
-                    var result = try_resolve_item(
-                        parent.subexprs[1],
-                        parents.copy(),
-                    ) later:
-
-                    await result
-                    if result == none {
-                        return later no
-                    }
-                    return later yes
-                }
-                return later yes
-            }
-            var result = resolve_lefthand_if_needed(
-                node, parents.copy()
-            ) later:
-
-            await result
-            if result == none {
-                return later none
-            }
-
-            var parent =
-                if parents.len > 0 (parents[parents.len])
-                else (none)
-            var left_of_us = none
-            if parent != none and
-                    parent.kind == ast.N_EXPR_BINOP {
-                var left_of_us = parent.subexprs[1]
-                if left_of_us.kind == ast.N_EXPR_BINOP and
-                        left_of_us.optoken.str == "." {
-                    assert(left_of_us.subexprs[2].kind == ast.N_EXPR_IDREF)
-                    left_of_us = left_of_us.subexprs[2]
-                }
-                assert(left_of_us.kind == ast.N_EXPR_IDREF)
-            }
-            #print("We found a left hand ref: " + [node,
-            #    left_of_us, left_of_us.ref].as_str())
-            var left_type_expr = none
-            var left_type_global_ref = none
-            #if left_of_us.ref != none and
-            #        left_of_us.ref.kind == st_ref.ST_LOCAL and
-            #        is_moose64 {
-
-            #}
-            return later node
+        }
+        if debug {
+            print(dbg_header +
+                "visit_to_resolve_known_attrs(): " +
+                "node=" + node.as_str() + " "
+                "left_of_us=" + left_of_us.as_str() + " "
+                "left_type_global_ref=" +
+                    left_type_global_ref.as_str() + " "
+                "left_type_expr=" +
+                    left_type_expr.as_str() + " "
+                "is_attr_error=" +
+                    is_attr_error.as_str())
+        }
+        if left_type_expr != none and
+                node.typeref_expr == none {
+            node.typeref_expr = left_type_expr
         }
         return later node
     }
