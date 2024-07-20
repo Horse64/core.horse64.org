@@ -507,6 +507,9 @@ func resolve_st_ref_to_global_type_ref_and_expr(
             "resolve_st_ref_to_global_type_ref_and_expr() "
             "called on: node=" + node.as_str() + " "
             "type_ref=" + type_ref.as_str() + " "
+            "node_parents.len=" + if node_parents != none
+                (node_parents.len.as_str())
+                else ("<parents unset>") + " "
             "is_moose64=" + is_moose64.as_str())
     }
     if type_ref == none {
