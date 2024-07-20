@@ -297,11 +297,20 @@ func create_typeref_from_func_node(project_file, node) {
         var arg_count = node.extended_final_arg_count()
         var i = 1
         while i <= arg_count {
-            type_expr.arg_typeref_exprs.add(
-                node.extended_final_arg_type_exprs()[i]
-            )
+            if node.has_arg_types {
+                type_expr.arg_typeref_exprs.add(
+                    node.extended_final_arg_type_exprs()[i]
+                )
+            }
             i += 1
         }
+    } elseif not is_moose64 and
+            (node.extended_final_arg_count() > 0 or
+             not node.extended_final_has_return_type()) {
+        # For now, we don't support returning any signature
+        # for Horse64, unless it's very clear everything
+        # was specified.
+        return none
     }
     if node.has_failable and is_moose64 {
         var failable_type_expr = new TypeRefExpr()
@@ -314,6 +323,14 @@ func create_typeref_from_func_node(project_file, node) {
     if node.extended_final_has_return_type() {
         type_expr.return_typeref_expr =
             node.extended_final_return_type_expr()
+    } else {
+        if not is_moose64 {
+            # FIXME: For Horse64, we could scan if any return inside
+            # the function has an expression argument, and then
+            # still allow the type signature to be completed.
+            # For now, however, we don't allow this.
+            return none
+        }
     }
     return type_expr
 }
@@ -662,6 +679,18 @@ func resolve_st_ref_to_type_ref_and_expr(
         )
     } elseif value_ref.kind == st_ref.ST_GLOBAL {
         result_ref = value_ref.copy()
+        assert(result_expr == none)
+        var gscope = project_file.project.
+            storage_id_to_global_scope_map[value_ref.id]
+        assert(gscope != none)
+        var node = gscope.storage_id_to_entry[value_ref.id]
+        assert(typename(node) != "list")
+        var_node = node
+        assert(node.kind == ast.N_STMT_FUNC)
+        result_expr = create_typeref_from_func_node(
+            project_file, node
+        )
+        assert(result_expr != none)
     }
 
     func resolve_self_ref_if_needed {

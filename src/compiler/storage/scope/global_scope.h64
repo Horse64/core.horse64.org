@@ -109,9 +109,18 @@ func project.Project.finalize_func_typerefs_all_files(
                     ast_typeref.create_typeref_from_func_node(
                         pfile, value
                     )
-                si.typeref_expr.func_storage_ref = new st_ref.StorageRef(
-                    st_ref.ST_GLOBAL, si.storage_id
-                )
+                if is_moose64 and si.typeref_expr == none {
+                    print("moosec: error: Internal error, unexpectedly "
+                        "failed to compute typeref expr for func node: " +
+                        value.as_str() + " Please report this error "
+                        "to the compiler makers.")
+                    throw new RuntimeError("Internal error.")
+                }
+                if si.typeref_expr != none {
+                    si.typeref_expr.func_storage_ref = new st_ref.StorageRef(
+                        st_ref.ST_GLOBAL, si.storage_id
+                    )
+                }
             }
         }
         return later yes

@@ -532,16 +532,18 @@ func project.ProjectFile.try_lookup_symbol_path(
             ": debug: try_lookup_symbol_path(): "
             "Now trying C extensions lookup.")
     }
-    var st_id = cext.get_cext_item_storage_id(
-        check_path[1], in_module_name=in_module_name,
-        in_package_name=in_package_name,
-        project=self.project,
-        can_match_moduleless=yes,
-        debug=debug
-    )
-    if st_id != none {
-        return new st_ref.StorageRef(
-            st_ref.ST_CEXT, st_id)
+    if not is_moose64 {
+        var st_id = cext.get_cext_item_storage_id(
+            check_path[1], in_module_name=in_module_name,
+            in_package_name=in_package_name,
+            project=self.project,
+            can_match_moduleless=yes,
+            debug=debug
+        )
+        if st_id != none {
+            return new st_ref.StorageRef(
+                st_ref.ST_CEXT, st_id)
+        }
     }
     if debug {
         print(if is_moose64 ("moosec") else ("horsec") +

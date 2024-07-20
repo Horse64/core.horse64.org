@@ -41,6 +41,7 @@ import compiler.project as project
 import compiler.storage.ref as st_ref
 import compiler.storage.scope as scope
 import compiler.token as token
+import compiler.typeinfo.ast_typeref as ast_typeref
 
 type VisitQueueEntry {
     var node
@@ -661,6 +662,9 @@ func transform_func_overrides_and_check_func_arg_sig_match(
         is_moose64=no
         ) {
     func do_transform_step(node, parent) {
+        if node.damaged {
+            return node
+        }
         if node.kind != ast.N_EXPR_BINOP or
                 node.optoken.str != "(" or
                 node.subexprs.len < 2 or
@@ -696,6 +700,66 @@ func transform_func_overrides_and_check_func_arg_sig_match(
         print("IDENTIFIED CALL NODE: " + node.as_str())
         print("CALL REF INFO: " + [
             is_func_attr_call, called_ref].as_str())
+        if called_ref == none or
+                {st_ref.ST_LOCAL, st_ref.ST_ARG,
+                st_ref.ST_CCAPTURE}.has(called_ref.kind) {
+            print(if is_moose64 ("moosec") else ("horsec") + ": "
+                "error: Internal error, failed to resolve a "
+                "call or found it to be to an impossible "
+                "value type. Please report this error to "
+                "the compiler makers. Details: "
+                "called_ref=" + called_ref.as_str() + " "
+                "node=" + node.as_str())
+            throw new RuntimeError("Internal error, "
+                "failed to resolve call in valid manner.")
+        }
+
+        var func_is_external = no
+        var func_type_expr = none
+        func resolve_func_type_expr_if_needed {
+            if not is_moose64 {
+                # for now, don't even try for Horse64.
+                return later
+            }
+            var func_type_expr_result = ast_typeref.
+                resolve_st_ref_to_type_ref_and_expr(
+                    project_file, called_ref, is_moose64=is_moose64,
+                    debug=no,
+                ) later:
+
+            await func_type_expr_result
+            func_is_external = [
+                func_type_expr_result[1] != none and
+                {st_ref.ST_MCREF, st_ref.ST_CEXT}.has(
+                    func_type_expr_result[1].kind
+                )
+            ]
+            func_type_expr = func_type_expr_result[2]
+        }
+        resolve_func_type_expr_if_needed()
+        later:
+
+        if func_is_external and (not is_moose64 or
+                yes) {  # FIXME, whitelist stuff like print??
+                ##project_file.project.builtin_syms_storage.
+                ##
+            return later node
+        }
+        if is_moose64 and
+                func_type_expr == none and
+                not func_is_external {
+            print(if is_moose64 ("moosec") else ("horsec") + ": "
+                "error: Internal error, failed to obtain a "
+                "func type expr. "
+                "Please report this error to "
+                "the compiler makers. Details: "
+                "called_ref=" + called_ref.as_str() + " "
+                "node=" + node.as_str())
+            throw new RuntimeError("Internal error, "
+                "failed to obtain a valid func type expr.")
+        }
+        print("func_type_expr=" + func_type_expr.as_str())
+
         return later node
     }
     var result = visit_ast_tree(

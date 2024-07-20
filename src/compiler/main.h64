@@ -306,7 +306,7 @@ func show_intermediate_compile_result_to_terminal_or_file(
         print(m.as_terminal_str(prefix=
             build_options.build_program_name))
     }
-    if not omit_result {
+    if not omit_result and actual_result_contents != none {
         print(actual_result_contents)
     }
     return later 0
