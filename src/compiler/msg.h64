@@ -71,6 +71,7 @@ func FileMsg.as_json_obj {
         "line"-> none,
         "col"-> none,
         "file_uri"-> none,
+        "kind"-> MsgKind.num_label(self.kind),
     }
     if self.line != none {
         output["line"] = self.line
