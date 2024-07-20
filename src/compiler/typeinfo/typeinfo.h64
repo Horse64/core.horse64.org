@@ -43,7 +43,7 @@ extend type st_scope.SymbolInfo {
 }
 
 extend type ast_expr.IdRefExpr {
-    var typeref_expr
+    var value_typeref_expr
 }
 
 enum TypeInfoKind {

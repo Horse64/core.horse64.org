@@ -1404,7 +1404,7 @@ func visit_to_mark_autoconst(
 }
 
 func visit_to_resolve_known_attrs(
-        project_file, msgs, is_moose64=no, debug=yes
+        project_file, msgs, is_moose64=no, debug=no
         ) {
     var pfile = project_file
     var dbg_header = if is_moose64
@@ -1794,8 +1794,13 @@ func visit_to_resolve_known_attrs(
         later:
 
         if our_type_expr != none and
-                node.typeref_expr == none {
-            node.typeref_expr = our_type_expr
+                node.value_typeref_expr == none {
+            node.value_typeref_expr = our_type_expr.copy()
+        }
+        if our_type_ref != none and
+                node.kind == ast.N_EXPR_IDREF and
+                node.ref == none {
+            node.ref = our_type_ref.copy()
         }
         if debug {
             print(dbg_header +
