@@ -1588,10 +1588,12 @@ func visit_to_resolve_known_attrs(
             left_type_vnode = var_node
         }
         var result =
-            ast_typeref.resolve_st_ref_to_global_type_ref_and_expr(
-                project_file, left_of_us, left_of_us.ref,
+            ast_typeref.resolve_st_ref_to_type_ref_and_expr(
+                project_file, left_of_us.ref,
+                node=left_of_us,
                 node_parents=parents,
-                ignore_if_type_ref_none=yes, is_moose64=is_moose64,
+                ignore_if_ref_none=yes,
+                is_moose64=is_moose64,
                 debug=debug
             ) later:
 
@@ -1780,8 +1782,8 @@ func visit_to_resolve_known_attrs(
                 return later
             }
             var result = ast_typeref.
-                resolve_st_ref_to_global_type_ref_and_expr(
-                    project_file, node, our_type_ref,
+                resolve_st_ref_to_type_ref_and_expr(
+                    project_file, our_type_ref, node=node,
                     is_moose64=is_moose64, debug=debug,
                 ) later:
 

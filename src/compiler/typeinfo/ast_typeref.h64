@@ -493,10 +493,13 @@ func TypeRefExpr.as_str {
     return t
 }
 
-func resolve_st_ref_to_global_type_ref_and_expr(
-        project_file, node, type_ref,
-        node_parents=none,
-        ignore_if_type_ref_none=no, is_moose64=no,
+## Based on a node which can be any inline expression,
+## and a maybe already known reference for its origin,
+## this function
+func resolve_st_ref_to_type_ref_and_expr(
+        project_file, value_ref,
+        node=node, node_parents=none,
+        ignore_if_ref_none=no, is_moose64=no,
         debug=no,
         ) {
     var dbg_header = if is_moose64
@@ -504,22 +507,28 @@ func resolve_st_ref_to_global_type_ref_and_expr(
 
     if debug {
         print(dbg_header +
-            "resolve_st_ref_to_global_type_ref_and_expr() "
+            "resolve_st_ref_to_type_ref_and_expr() "
             "called on: node=" + node.as_str() + " "
-            "type_ref=" + type_ref.as_str() + " "
+            "value_ref=" + value_ref.as_str() + " "
             "node_parents.len=" + if node_parents != none
                 (node_parents.len.as_str())
                 else ("<parents unset>") + " "
             "is_moose64=" + is_moose64.as_str())
     }
-    if type_ref == none {
-        if not ignore_if_type_ref_none {
-            throw new ValueError("Need type_ref parameter set.")
+    if value_ref == none and node != none and
+            node.kind == ast.N_EXPR_IDREF and
+            node.ref != none {
+        value_ref = node.ref
+    }
+    if value_ref == none {
+        if not ignore_if_ref_none {
+            throw new ValueError("Need value_ref parameter set, "
+                "since the AST node doesn't have any ref info.")
         }
         if debug {
             print(dbg_header +
-                "resolve_st_ref_to_global_type_ref_and_expr() "
-                "result: Nothing, since type_ref is none.")
+                "resolve_st_ref_to_type_ref_and_expr() "
+                "result: Nothing, since value_ref is none.")
         }
         return later [none, none]
     }
@@ -530,7 +539,7 @@ func resolve_st_ref_to_global_type_ref_and_expr(
     var result_ref = none
     var result_expr = none
     var var_node = none
-    if type_ref.kind == st_ref.ST_LOCAL and
+    if value_ref.kind == st_ref.ST_LOCAL and
             lookup_label != none and
             node_parents != none and
             node_parents.len > 0 {
@@ -541,7 +550,7 @@ func resolve_st_ref_to_global_type_ref_and_expr(
         if var_node == none {
             if debug {
                 print(dbg_header +
-                    "resolve_st_ref_to_global_type_ref_and_expr() "
+                    "resolve_st_ref_to_type_ref_and_expr() "
                     "result: Nothing, since local var "
                     "def node wasn't found.")
             }
@@ -571,27 +580,32 @@ func resolve_st_ref_to_global_type_ref_and_expr(
                 result_ref = value.ref.copy()
             }
         }
-    } elseif type_ref.kind == st_ref.ST_ARG and
+    } elseif value_ref.kind == st_ref.ST_ARG and
             node.scope != none and node.scope.func_scope != none {
         var arg_type_exprs =
             node.scope.func_scope.extended_final_arg_type_exprs()
-        if type_ref.id >= 1 and
-                type_ref.id <= arg_type_exprs.len {
+        if value_ref.id >= 1 and
+                value_ref.id <= arg_type_exprs.len {
             result_expr = arg_type_exprs[
-                type_ref.id]
+                value_ref.id]
         }
-    } elseif type_ref.kind == st_ref.ST_GLOBALATTR and
+    } elseif value_ref.kind == st_ref.ST_GLOBALATTR and
             lookup_label != none {
         var anscope =
             project_file.project.storage_id_to_anscope_map[
-                type_ref.id[1]
+                value_ref.id[1]
             ]
+        if debug {
+            print(dbg_header +
+                "resolve_st_ref_to_type_ref_and_expr() "
+                "type scope obtained: anscope=" + anscope.as_str())
+        }
         if anscope.is_struct or anscope.is_type {
             if not anscope.name_to_symbol_map.has(
                     lookup_label) {
                 if debug {
                     print(dbg_header +
-                        "resolve_st_ref_to_global_type_ref_and_expr() "
+                        "resolve_st_ref_to_type_ref_and_expr() "
                         "result: Nothing, since global attribute "
                         "member lookup failed.")
                 }
@@ -599,8 +613,15 @@ func resolve_st_ref_to_global_type_ref_and_expr(
             }
             var sinfo = anscope.
                 name_to_symbol_map[lookup_label]
+            if debug {
+                print(dbg_header +
+                    "resolve_st_ref_to_type_ref_and_expr() "
+                    "got member symbol info: "
+                    "sinfo=" + sinfo.as_str() + " "
+                    "lookup_label='" + lookup_label.as_str() + "'")
+            }
             if sinfo.typeref_expr != none {
-                left_type_expr = sinfo.typeref_expr
+                result_expr = sinfo.typeref_expr
             } elseif is_moose64 {
                 print(if is_moose64 ("moosec")
                         else ("horsec") + ": error: "
@@ -614,7 +635,7 @@ func resolve_st_ref_to_global_type_ref_and_expr(
                 throw new RuntimeError("Internal error.")
             }
         }
-    } elseif type_ref.kind == st_ref.ST_SELF {
+    } elseif value_ref.kind == st_ref.ST_SELF {
         var i = parents.len
         while i >= 1 and (
                 parents[i].kind != ast.N_EXPR_FUNC or
@@ -625,7 +646,7 @@ func resolve_st_ref_to_global_type_ref_and_expr(
         if i < 1 {
             if debug {
                 print(dbg_header +
-                    "resolve_st_ref_to_global_type_ref_and_expr() "
+                    "resolve_st_ref_to_type_ref_and_expr() "
                     "result: Nothing, since self parent func "
                     "lookup failed.")
             }
@@ -639,8 +660,8 @@ func resolve_st_ref_to_global_type_ref_and_expr(
         result_ref = new st_ref.StorageRef(
             st_ref.ST_GLOBAL, anscope.storage_id
         )
-    } elseif type_ref.kind == st_ref.ST_GLOBAL {
-        result_ref = type_ref.copy()
+    } elseif value_ref.kind == st_ref.ST_GLOBAL {
+        result_ref = value_ref.copy()
     }
 
     func resolve_self_ref_if_needed {
@@ -648,8 +669,8 @@ func resolve_st_ref_to_global_type_ref_and_expr(
                 result_ref.kind != st_ref.ST_SELF {
             return later
         }
-        result = resolve_st_ref_to_global_type_ref_and_expr(
-            project_file, var_node, result_ref,
+        result = resolve_st_ref_to_type_ref_and_expr(
+            project_file, result_ref, node=var_node,
             is_moose64=is_moose64, debug=debug,
         )
         if result[1] != none {
@@ -685,7 +706,7 @@ func resolve_st_ref_to_global_type_ref_and_expr(
     }
     if debug {
         print(dbg_header +
-            "resolve_st_ref_to_global_type_ref_and_expr() "
+            "resolve_st_ref_to_type_ref_and_expr() "
             "result: " + [result_ref, result_expr].as_str())
     }
     return [result_ref, result_expr]
