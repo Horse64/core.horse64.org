@@ -454,7 +454,7 @@ func find_def_node_from_idref_node(
     if result == none or result[2] == none or
             not {st_ref.ST_LOCAL,
                 st_ref.ST_CCAPTURE}.has(result[1].kind) {
-        return no
+        return none
     }
     var def_scope = scope
     while def_scope != none {

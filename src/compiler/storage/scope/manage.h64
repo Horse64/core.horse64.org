@@ -39,6 +39,7 @@ import compiler.msg as msg
 import compiler.project as project
 import compiler.storage.ref as st_ref
 import compiler.storage.scope as st_scope
+import compiler.typeinfo.ast_typeref as ast_typeref
 
 func project.ProjectFile.type_path_to_full_module_path_and_pfile(
         tpath, msgs=none) {
@@ -1403,7 +1404,7 @@ func visit_to_mark_autoconst(
 }
 
 func visit_to_resolve_known_attrs(
-        project_file, msgs, is_moose64=no, debug=no
+        project_file, msgs, is_moose64=no, debug=yes
         ) {
     var pfile = project_file
     var dbg_header = if is_moose64
@@ -1584,71 +1585,23 @@ func visit_to_resolve_known_attrs(
                     left_of_us, parents
                 )
             assert(var_node != none)
-            if var_node.has_type_expr {
-                left_type_expr =
-                    var_node.subexprs[var_node.subexprs.len]
-            }
             left_type_vnode = var_node
-        } elseif left_of_us.ref != none and
-                left_of_us.ref.kind == st_ref.ST_GLOBALATTR {
-            var anscope =
-                pfile.project.storage_id_to_anscope_map[
-                    left_of_us.ref.id[1]
-                ]
-            if anscope.is_struct or anscope.is_type {
-                var sinfo = anscope.
-                    name_to_symbol_map[left_of_us.label]
-                if sinfo.typeref_expr != none {
-                    left_type_expr = sinfo.typeref_expr
-                } elseif is_moose64 {
-                    print(if is_moose64 ("moosec")
-                            else ("horsec") + ": error: "
-                        "Found global attribute with no "
-                        "type expr, this is an "
-                        "internal error. Please report "
-                        "this to the compiler makers: " +
-                        "left_of_us=" +
-                            left_of_us.as_str() + " "
-                        "sinfo=" + sinfo.as_str())
-                    throw new RuntimeError("Internal error.")
-                }
-            }
-        } elseif left_of_us.ref != none and
-                left_of_us.ref.kind == st_ref.ST_SELF {
-            var i = parents.len
-            while i >= 1 and (
-                    parents[i].kind != ast.N_EXPR_FUNC or
-                    parents[i].type_path == none or
-                    parents[i].type_path.len == 0) {
-                i -= 1
-            }
-            if i >= 1 {
-                var anscope = self.make_attr_names_scope_from_funcattr(
-                    parents[i], msgs=msgs, is_moose64=is_moose64,
-                    def_project_file=pfile
-                )
-                assert(anscope.storage_id != none)
-                left_type_global_ref = new st_ref.StorageRef(
-                    st_ref.ST_GLOBAL, anscope.storage_id
-                )
-            }
         }
-        func obtain_global_ref_if_needed {
-            if left_type_global_ref != none or
-                    left_type_expr == none {
-                return later
-            }
-            var result =
-                left_type_expr.try_resolve_to_user_type(
-                    project_file, force_recompute=no,
-                    is_moose64=is_moose64
-                ) later:
+        var result =
+            ast_typeref.resolve_st_ref_to_global_type_ref_and_expr(
+                project_file, node, left_of_us.ref,
+                node_parents=parents,
+                ignore_if_type_ref_none=yes, is_moose64=is_moose64,
+                debug=debug
+            ) later:
 
-            await result
-            left_type_global_ref = result
+        await result
+        if result[1] != none {
+            left_type_global_ref = result[1]
         }
-        obtain_global_ref_if_needed()
-        later:
+        if result[2] != none {
+            left_type_expr = result[2]
+        }
 
         var is_attr_error = no
         var attr_error_cause =
@@ -1685,14 +1638,49 @@ func visit_to_resolve_known_attrs(
                 left_type_global_ref.id
             )
         } elseif is_moose64 {
-            if left_type_expr != none {
-                if node.label != "as_str" and
-                        (node.label != "len" or
-                         not left_type_expr.may_have_len_attr()) {
+            if left_type_expr != none and
+                    (not left_type_expr.is_user_type() or
+                     left_type_global_ref != none) {
+                if (node.label != "len" or
+                         not left_type_expr.may_have_len_attr()) and
+                        (node.label != "data" or
+                         not left_type_expr.may_have_data_attr()) {
                     is_attr_error = yes
                 }
             } else {
                 is_attr_error = yes
+            }
+            if not is_attr_error and
+                    not left_type_expr.is_user_type() {
+                if node.label == "len" {
+                    our_type_expr = new ast_typeref.TypeRefFuncExpr()
+                    our_type_expr.return_typeref_expr =
+                        new ast_typeref.TypeRefExpr()
+                    our_type_expr.return_typeref_expr.name = "size"
+                    var self_type = left_type_expr.copy()
+                    our_type_expr.arg_typeref_exprs = [self_type]
+                } elseif node.label == "data" {
+                    our_type_expr = new ast_typeref.TypeRefFuncExpr()
+                    our_type_expr.return_typeref_expr =
+                        new ast_typeref.TypeRefExpr()
+                    our_type_expr.return_typeref_expr.name = "byte"
+                    our_type_expr.return_typeref_expr.
+                        modifiers.add(
+                            new ast_typeref.TypeRefMod("readonly")
+                        )
+                    our_type_expr.return_typeref_expr.
+                        modifiers.add(
+                            new ast_typeref.TypeRefMod("c_array")
+                        )
+                    var self_type = left_type_expr.copy()
+                    our_type_expr.arg_typeref_exprs = [self_type]
+                }
+            } elseif not is_attr_error and
+                    left_type_expr.is_user_type() {
+                assert(left_type_global_ref != none)
+                resolve_from_global_storage(
+                    left_type_global_ref.id
+                )
             }
         } elseif not is_moose64 and
                 left_type_global_ref != none and
@@ -1769,11 +1757,53 @@ func visit_to_resolve_known_attrs(
                 }
             }
         }
+        func resolve_our_type_ref_if_needed {
+            if our_type_expr == none or
+                    our_type_ref != none {
+                return later
+            }
+            var result =
+                our_type_expr.try_resolve_to_user_type(
+                    project_file, force_recompute=no,
+                    is_moose64=is_moose64
+                ) later:
+
+            await result
+            our_type_ref = result
+        }
+        resolve_our_type_ref_if_needed()
+        later:
+
+        func resolve_our_type_expr_if_needed {
+            if our_type_expr != none or
+                    our_type_ref == none {
+                return later
+            }
+            var result = ast_typeref.
+                resolve_st_ref_to_global_type_ref_and_expr(
+                    project_file, node, our_type_ref,
+                    is_moose64=is_moose64, debug=debug,
+                ) later:
+
+            await result
+            our_type_expr = result[2]
+        }
+        resolve_our_type_expr_if_needed()
+        later:
+
+        if our_type_expr != none and
+                node.typeref_expr == none {
+            node.typeref_expr = our_type_expr
+        }
         if debug {
             print(dbg_header +
                 "visit_to_resolve_known_attrs(): " +
                 "node=" + node.as_str() + " "
+                "our_type_expr=" + our_type_expr.as_str() + " "
+                "our_type_ref=" + our_type_ref.as_str() + " "
                 "left_of_us=" + left_of_us.as_str() + " "
+                "left_of_us.ref=" + if left_of_us != none
+                    (left_of_us.ref.as_str()) else (none) + " "
                 "left_type_global_ref=" +
                     left_type_global_ref.as_str() + " "
                 "left_type_expr=" +
@@ -1781,10 +1811,7 @@ func visit_to_resolve_known_attrs(
                 "is_attr_error=" +
                     is_attr_error.as_str())
         }
-        if left_type_expr != none and
-                node.typeref_expr == none {
-            node.typeref_expr = left_type_expr
-        }
+
         return later node
     }
 
