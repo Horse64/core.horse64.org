@@ -341,6 +341,7 @@ func actionparser_modinfo(args, is_moose64=no) {
 
     await result
     if result.output != "" {
+        assert(result.output != none)
         print(result.output)
         return result.exit_code
     }

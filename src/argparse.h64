@@ -944,6 +944,7 @@ func parse(arg_defs=none, args=none, debug=no) {
                 var usage_str = get_usage_text(arg_defs) later:
 
                 await usage_str
+                assert(usage_str != none)
                 result.output = usage_str
                 result.exit_code = 0
                 return result
@@ -1062,6 +1063,7 @@ func parse(arg_defs=none, args=none, debug=no) {
 
     await funcs_result
     if typename(funcs_result) == "str" and result.exit_code == none {
+        assert(funcs_result != none)
         result.output = funcs_result
         result.exit_code = 0
     }
