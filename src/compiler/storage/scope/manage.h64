@@ -1201,8 +1201,9 @@ func try_resolve_attr_on_ref(
             }
             if error_on_invalid {
                 throw new ValueError("The given item "
-                    "doesn't have the given attribute.")
-                }
+                    "doesn't have the given attribute."
+                )
+            }
             return none
         }
         if anscope.is_error {
@@ -1212,16 +1213,18 @@ func try_resolve_attr_on_ref(
             }
             if error_on_invalid {
                 throw new ValueError("The given item "
-                    "doesn't have the given attribute.")
-                }
+                    "doesn't have the given attribute."
+                )
+            }
             return none
         }
         # If we arrive here, it's either a struct or a type.
         if not anscope.name_to_symbol_map.has(attr_righthand) {
             if error_on_invalid {
                 throw new ValueError("The given item "
-                    "doesn't have the given attribute.")
-                }
+                    "doesn't have the given attribute."
+                )
+            }
             return none
         }
         return anscope.name_to_symbol_map[
@@ -1722,14 +1725,18 @@ func visit_to_resolve_known_attrs(
                     throw new ValueError("Found access to "
                         "non-existing attribute.")
                 }
-                msgs.add(new msg.FileMsg(
-                    "Unexpected attribute name '" +
-                        node.label +
-                    "', " + attr_error_cause + ".",
-                    source_file=pfile,
-                    line=node.line,
-                    col=node.col,
-                ))
+                if not node.damaged and
+                        (left_of_us == none or
+                        not left_of_us.damaged) {
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected attribute name '" +
+                            node.label +
+                        "', " + attr_error_cause + ".",
+                        source_file=pfile,
+                        line=node.line,
+                        col=node.col,
+                    ))
+                }
                 node.damaged = yes
             } else {
                 var error_is_valid = ast_analyze.
@@ -1744,15 +1751,17 @@ func visit_to_resolve_known_attrs(
                             "non-existing attribute "
                             "without guard.")
                     }
-                    msgs.add(new msg.FileMsg(
-                        "Unexpected attribute name '" +
-                            node.label +
-                        "', " + attr_error_cause + " "
-                        "and the access isn't guarded.",
-                        source_file=pfile,
-                        line=node.line,
-                        col=node.col,
-                    ))
+                    if not node.damaged {
+                        msgs.add(new msg.FileMsg(
+                            "Unexpected attribute name '" +
+                                node.label +
+                            "', " + attr_error_cause + " "
+                            "and the access isn't guarded.",
+                            source_file=pfile,
+                            line=node.line,
+                            col=node.col,
+                        ))
+                    }
                     node.damaged = yes
                 } else {
                     is_attr_error = no
