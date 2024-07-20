@@ -39,6 +39,7 @@ import compiler.storage.scope as st_scope
 import compiler.storage.scope.manage as scope_manage
 import compiler.storage.scope.global_scope as global_scope
 import compiler.storage.ref as st_ref
+import compiler.typeinfo as typeinfo
 
 extend type project.Project {
     var did_compute_scopes = no
@@ -647,7 +648,9 @@ func project.Project.compute_all_scopes(
                                     "attributes.")
                             }
                         }
-                        func register_var_at_root(var_labels) {
+                        func register_var_at_root(
+                                vardef_stmt, var_labels
+                                ) {
                             var idx = 0
                             for label in var_labels {
                                 idx += 1
@@ -666,6 +669,10 @@ func project.Project.compute_all_scopes(
                                         symbol_info.value_node =
                                             stmt.subexprs[idx]
                                     }
+                                    typeinfo.
+                                        set_vattr_syminfo_early_type_info(
+                                            vardef_stmt, symbol_info
+                                        )
                                     anscope.name_to_symbol_map[label] =
                                         symbol_info
                                     assert(not anscope.
@@ -714,7 +721,7 @@ func project.Project.compute_all_scopes(
                             return stmt.symbol_info
                         }
                         if stmt.kind == ast.N_STMT_VAR {
-                            register_var_at_root(stmt.var_labels)
+                            register_var_at_root(stmt, stmt.var_labels)
                             continue
                         } elseif stmt.kind == ast.N_STMT_UNION or
                                 stmt.kind == ast.N_STMT_STRUCT {
@@ -747,7 +754,7 @@ func project.Project.compute_all_scopes(
                                         add_names.add(vpath.join("."))
                                     }
                                     var root_sinfo =
-                                        register_var_at_root(add_names)
+                                        register_var_at_root(st, add_names)
                                     assert(st.symbol_info == none)
                                     st.symbol_info = []
                                     assert(typename(root_sinfo) == "list")
