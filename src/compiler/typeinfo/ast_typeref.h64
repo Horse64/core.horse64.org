@@ -31,6 +31,7 @@ import compiler.msg as msg
 import compiler.token as token
 import compiler.storage.ref as st_ref
 import compiler.storage.scope as st_scope
+import compiler.token
 
 const builtin_horse64_types = {}
 const builtin_horse64_type_modifiers = {}
@@ -42,6 +43,42 @@ const builtin_moose64_types = {
 }
 const builtin_moose64_type_modifiers = {
     "ref", "array", "c_array", "readonly"
+}
+
+func is_pos_inside_func_return_type(
+        tokens, pos, max_len=none, is_moose64=no) {
+    if max_len == none {
+        max_len = tokens.len
+    }
+    func pos_is_type_kw(pos) {
+        if pos < 1 or pos > max_len {
+            return no
+        }
+        if {token.T_KEYWORD, token.T_IDENT}.has(
+                tokens[pos].kind) and
+                ((is_moose64 and
+                 (builtin_moose64_types.has(tokens[pos].str) or
+                  builtin_moose64_type_modifiers.has(tokens[pos].str))) or
+                 (not is_moose64 and
+                  (builtin_horse64_types.has(tokens[pos].str) or
+                   builtin_horse64_type_modifiers.has(tokens[pos].str)))
+                ) {
+            return yes
+        }
+        return no
+    }
+    var i = pos
+    if not pos_is_type_kw(i) {
+        return no
+    }
+    while i >= 1 and tokens[i].kind != token.T_RIGHTPTR and
+            pos_is_type_kw(i) {
+        i -= 1
+    }
+    if i < 1 or tokens[i].kind != token.T_RIGHTPTR {
+        return no
+    }
+    return yes
 }
 
 type TypeRefModProp {
@@ -686,11 +723,15 @@ func resolve_st_ref_to_type_ref_and_expr(
         var node = gscope.storage_id_to_entry[value_ref.id]
         assert(typename(node) != "list")
         var_node = node
-        assert(node.kind == ast.N_STMT_FUNC)
-        result_expr = create_typeref_from_func_node(
-            project_file, node
-        )
-        assert(result_expr != none)
+        if node.kind == ast.N_STMT_FUNC {
+            result_expr = create_typeref_from_func_node(
+                project_file, node
+            ).copy()
+            assert(result_expr != none)
+        } elseif node.kind == ast.N_STMT_VAR and
+                node.has_type_expr and node.subexprs.len > 0 {
+            result_expr = node.subexprs[node.subexprs.len].copy()
+        }
     }
 
     func resolve_self_ref_if_needed {
@@ -1066,7 +1107,8 @@ func _parse_typeref_notlater(
             mods.add(modifier)
             pos += 1
             typeref_token_len = start_token_len + (pos - startpos)
-            if modifier_name == "array" and is_moose64 {
+            if {"array", "c_array"}.has(modifier_name) and
+                    is_moose64 {
                 while pos + 2 <= max_len and
                         tokens[pos].kind == token.T_ENCLOSE and
                         tokens[pos].str == '[' and

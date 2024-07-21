@@ -175,7 +175,8 @@ func parse(tokens, pos, msgs, project_file=none,
             tokens[pos].kind != token.T_ENCLOSE or
             tokens[pos].str != "{" {
         var skiplen = math.max(1, token.get_naive_stmt_or_expr_len(
-                tokens, pos - 1, bracket_depth=0, for_expr=no
+                tokens, pos - 1, bracket_depth=0, for_expr=no,
+                is_moose64=no,
             ) - 1)
         var invalid_st = new invalid_stmt.InvalidStmt(
             math.max(1, skiplen - 1)

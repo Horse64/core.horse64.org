@@ -36,10 +36,12 @@ import textfmt from core.horse64.org
 import uri from core.horse64.org
 
 import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
+import compiler.ast.func_stmt as func_stmt
 import compiler.limit as climit
 import compiler.msg as msg
 import compiler.preprocessor as preprocessor
 import compiler.project as project
+import compiler.typeinfo.ast_typeref as ast_typeref
 
 const _math_ops_single_char = {
     "+", "/", "*", "-", "^", "&",
@@ -767,7 +769,11 @@ func can_stmt_or_expr_end_before_token(
     }
     assert(tokens[tok_pos - 1].str != "+" or
            token_has_righthand(tokens[tok_pos - 1]))
-    if token_has_righthand(tokens[tok_pos - 1]) {
+    if token_has_righthand(tokens[tok_pos - 1]) or
+            ast_typeref.is_pos_inside_func_return_type(
+                tokens, tok_pos, is_moose64=is_moose64) or
+            func_stmt.is_pos_inside_possible_func_prop_list(
+                tokens, tok_pos, is_moose64=is_moose64) {
         return no
     }
     if token_has_lefthand(tokens[tok_pos]) {

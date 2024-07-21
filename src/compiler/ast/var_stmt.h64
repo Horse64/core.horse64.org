@@ -376,7 +376,7 @@ func parse(tokens, pos, msgs, project_file=none,
     # If we had any major errors so far, bail if necessary:
     if not had_error_unexpected and
             not token.can_stmt_or_expr_end_before_token(
-            tokens, pos, for_expr=no
+            tokens, pos, for_expr=no, is_moose64=is_moose64
             ) and (tokens[pos].kind != token.T_ASSIGN or
             (is_moose64 and had_init_shorthand)) {
         var expected_remark = " expected ',', or '=', or "

@@ -46,6 +46,7 @@ type FuncStmt base FuncStmtFuncExtentStmtShared {
     var has_arg_types = no
     var has_failable = no
     var is_override = no
+    var is_readonly = no
     var arg_labels = []
     var kw_arg_count = 0
 }
@@ -71,8 +72,50 @@ func FuncStmt.as_json_obj {
     output["type_path"] = self.type_path
     output["has_return_type"] = self.has_return_type
     output["has_arg_types"] = self.has_arg_types
+    output["has_failable"] = self.has_failable
+    output["is_override"] = self.is_override
+    output["is_readonly"] = self.is_readonly
     output["arg_labels"] = self.arg_labels
+    output["kw_arg_count"] = self.kw_arg_count
     return output
+}
+
+func is_pos_inside_possible_func_prop_list(
+        tokens, pos, max_len=none, is_moose64=no) {
+    if max_len == none {
+        max_len = tokens.len
+    }
+    var func_props
+    if is_moose64 {
+        func_props = ["failable", "override", "readonly"]
+    } else {
+        func_props = []
+    }
+    func pos_is_props_kw(pos) {
+        if pos < 1 or pos > max_len {
+            return no
+        }
+        if {token.T_KEYWORD, token.T_IDENT}.has(
+                tokens[pos].kind) and
+                func_props.has(tokens[pos].str) {
+            return yes
+        }
+        return no
+    }
+    var i = pos
+    if not pos_is_props_kw(i) {
+        return no
+    }
+    while i >= 1 and (tokens[i].kind != token.T_ENCLOSE
+            or tokens[i].str != ")") and
+            pos_is_props_kw(i) {
+        i -= 1
+    }
+    if i < 1 or tokens[i].kind != token.T_ENCLOSE or
+            tokens[i].str != ")" {
+        return no
+    }
+    return yes
 }
 
 ## Returns the real, final argument count when considering
@@ -234,6 +277,9 @@ func _func_stmt_to_code(stmt, is_extend=no, indent=0) {
         t += " -> " + stmt.subexprs[stmt.subexprs.len].
             as_code(indent=(indent + 4))
     }
+    if stmt.is_readonly {
+        t += " readonly"
+    }
     if stmt.has_failable {
         t += " failable"
     }
@@ -370,11 +416,14 @@ func parse(tokens, pos, msgs, project_file=none,
 
     # Now we must have either '(' for arguments, or '{' for code block:
     var m64_func_props = {"failable", "override"}
+    var m64_nonkw_func_props = {"readonly"}
     if pos > tokens_len or
             ((tokens[pos].kind != token.T_ENCLOSE or
             not {"(", "{"}.has(tokens[pos].str)) and
             (not is_moose64 or
              (tokens[pos].kind != token.T_RIGHTPTR and
+              (tokens[pos].kind != token.T_IDENT or
+               not m64_nonkw_func_props.has(tokens[pos].str)) and
               (tokens[pos].kind != token.T_KEYWORD or
                not m64_func_props.has(tokens[pos].str))))) {
         msgs.add(new msg.FileMsg(
@@ -466,6 +515,24 @@ func parse(tokens, pos, msgs, project_file=none,
     # since this isn't a call.
     argsobj = none
 
+    # Check if this is 'failable':
+    while is_moose64 and not is_extend and
+            pos <= tokens_len and
+            ((tokens[pos].kind == token.T_KEYWORD and
+              m64_func_props.has(tokens[pos].str)) or
+             (tokens[pos].kind == token.T_IDENT and
+              m64_nonkw_func_props.has(tokens[pos].str))) {
+        var prop = tokens[pos].str
+        if prop == "failable" {
+            stmt.has_failable = yes
+        } elseif prop == "override" {
+            stmt.is_override = yes
+        } elseif prop == "readonly" {
+            stmt.is_readonly = yes
+        }
+        pos += 1
+    }
+
     # Parse return type if any:
     var type_expr = none
     func parse_type_if_any(
@@ -518,20 +585,6 @@ func parse(tokens, pos, msgs, project_file=none,
 
     await advancelen
     pos += advancelen
-
-    # Check if this is 'failable':
-    while is_moose64 and not is_extend and
-            pos <= tokens_len and
-            tokens[pos].kind == token.T_KEYWORD and
-            m64_func_props.has(tokens[pos].str) {
-        var prop = tokens[pos].str
-        if prop == "failable" {
-            stmt.has_failable = yes
-        } elseif prop == "override" {
-            stmt.is_override = yes
-        }
-        pos += 1
-    }
 
     # Now parse the required code block opening with '{' here:
     var block_result = block.parse(
