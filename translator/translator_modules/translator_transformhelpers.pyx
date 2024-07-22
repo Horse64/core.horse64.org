@@ -1108,8 +1108,7 @@ def indent_sanity_check(s, what_in="unknown code"):
         if (s.startswith("do ") or
                 s.startswith("func ") or
                 s.startswith("with ") or
-                s.startswith("type ") or
-                s.startswith("if ")):
+                s.startswith("type ")):
             return 1
         if (s.startswith("var ") or
                 s.startswith("return ") or
@@ -1189,7 +1188,7 @@ def indent_sanity_check(s, what_in="unknown code"):
             raise ValueError("in " + str(what_in) + ", " +
                 "line " + str(i + 1) + ": " +
                 "expected indent to if at all increase after "
-                " last line, " +
+                "last line, " +
                 "but it decreased by " + str(-shift_actual) +
                 " character(s)"
             )
