@@ -25,6 +25,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import compiler.ast as ast
 import compiler.storage.scope as st_scope
 
 enum StorageKind {
@@ -102,20 +103,41 @@ func StorageRef.alike(other_ref) {
 
 func ref_to_symbol_info(project_file, node, storage_ref) {
     if storage_ref.kind == ST_GLOBAL {
-        if not project_file.global_scope.
-                storage_id_to_entry.has(storage_ref.id) {
-            return none
-        }
-        var entry = project_file.global_scope.
-            storage_id_to_entry[storage_ref.id]
+        var gscope = project_file.project.
+            storage_id_to_global_scope_map[
+            storage_ref.id]
+        var entry = gscope.storage_id_to_entry[storage_ref.id]
         if typename(entry.symbol_info) == "list" {
             for sym_info in entry.symbol_info {
                 if sym_info.storage_id == storage_ref.id {
                     return sym_info
                 }
             }
+            throw new RuntimeError("Somehow failed to "
+                "trace back storage id to symbol info in "
+                "case where it should have worked. "
+                "Please contact the compiler makers about "
+                "this bug.")
         } else {
             return entry.symbol_info
+        }
+    } elseif storage_ref.kind == ST_GLOBALATTR {
+        var gscope = project_file.project.
+            storage_id_to_global_scope_map[
+            storage_ref.id[1]]
+        var entry = gscope.storage_id_to_entry[storage_ref.id[1]]
+        assert(typename(entry) != "list")
+        assert({ast.N_STMT_STRUCT, ast.N_STMT_TYPE,
+            ast.N_STMT_ENUM}.has(entry.kind))
+        var anscope = entry.attr_names_scope
+        assert(anscope != none)
+        if anscope.is_enum {
+            throw new RuntimeError("Not implemented.")
+        } else {
+            assert(anscope.is_type or anscope.is_struct)
+            var inner_entry = anscope.id_to_symbol_map[storage_ref.id[2]]
+            assert(inner_entry.storage_id == storage_ref.id[2])
+            return inner_entry
         }
     } elseif storage_ref.kind == ST_LOCAL {
         if node.scope == none {

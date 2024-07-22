@@ -290,6 +290,7 @@ extend type func_stmt.FuncStmt {
 type AttrNamesScope {
     var is_enum = no
     var is_struct = no
+    var is_type = no
     var damaged = no
     var label
     var storage_id = none
@@ -325,11 +326,12 @@ type TypeNamesScope base AttrNamesScope {
 func TypeNamesScope.init {
     self.is_enum = no
     self.is_struct = no
+    self.is_type = yes
 }
 
 type StructNamesScope base AttrNamesScope {
-    var display_name = none
     var is_error = no
+    var display_name = none
 
     var name_to_symbol_map = {->}
     var id_to_symbol_map = {->}
@@ -342,6 +344,7 @@ type StructNamesScope base AttrNamesScope {
 func StructNamesScope.init {
     self.is_enum = no
     self.is_struct = yes
+    self.is_type = no
 }
 
 type EnumNamesScope base AttrNamesScope {

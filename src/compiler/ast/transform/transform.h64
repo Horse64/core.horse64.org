@@ -697,9 +697,9 @@ func transform_func_overrides_and_check_func_arg_sig_match(
             # It's not worth trying to figure out what we're calling.
             return later node
         }
-        print("IDENTIFIED CALL NODE: " + node.as_str())
-        print("CALL REF INFO: " + [
-            is_func_attr_call, called_ref].as_str())
+        #print("IDENTIFIED CALL NODE: " + node.as_str())
+        #print("CALL REF INFO: " + [
+        #    is_func_attr_call, called_ref].as_str())
         if called_ref == none or
                 {st_ref.ST_LOCAL, st_ref.ST_ARG,
                 st_ref.ST_CCAPTURE}.has(called_ref.kind) {

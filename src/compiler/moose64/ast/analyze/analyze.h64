@@ -88,7 +88,7 @@ func get_c_or_m64_type_of_sym_info(
 }
 
 func _get_c_or_m64_type_of_node_do(
-        project_file, node, parent,
+        project_file, node, parents,
         _known_types_map=none,
         msgs=none, debug=no
         ) {
@@ -98,6 +98,7 @@ func _get_c_or_m64_type_of_node_do(
     if _known_types_map.has(node) {
         return later _known_types_map[node]
     }
+    var parent = if parents.len > 0 (parents[parents.len]) else (none)
 
     var d_id = none
     if debug {
@@ -117,7 +118,10 @@ func _get_c_or_m64_type_of_node_do(
         msgs.add(new msg.FileMsg(
             "Internal error: Unexpectedly failed to trace "
             "back this identifier to resolved target: " +
-            node.as_str() + " "
+            node.as_str() +
+            " (with node.ref: " + if has_attr(node, "ref")
+                    (node.ref.as_str())
+                    else ("<no .ref attr>") + ") "
             "Please report this to the compiler makers.",
             source_file=project_file,
             line=node.line, col=node.col,
@@ -150,7 +154,7 @@ func _get_c_or_m64_type_of_node_do(
             return later yes
         }
         var c_type = _get_c_or_m64_type_of_node_do(
-            project_file, node.subexprs[1], node,
+            project_file, node.subexprs[1], parents + [node],
             _known_types_map=_known_types_map,
             msgs=msgs,
         ) later:
@@ -185,20 +189,21 @@ func _get_c_or_m64_type_of_node_do(
         await result
         return result
     } elseif node.kind == ast.N_EXPR_IDREF {
-        if node.ref == none {
-            return later none
+        var sym_info = none
+        if node.ref != none {
+            sym_info = st_ref.ref_to_symbol_info(
+                project_file, node, node.ref
+            )
         }
 
-        var sym_info = st_ref.ref_to_symbol_info(
-            project_file, node, node.ref
-        )
-
         if sym_info == none {
-            if debug {
+            if debug or yes {
                 print("compiler.moose64.ast.anayze: debug: "
                     "_get_c_or_m64_type_of_node_do() #" +
                     d_id + " failed "
-                    "to find symbol info")
+                    "to find symbol info for: " + [
+                        node, node.ref
+                    ].as_str())
             }
             trigger_no_symbol_info_on(node)
             return later none
@@ -220,34 +225,25 @@ func _get_c_or_m64_type_of_node_do(
         var rhand = node.subexprs[2]
         assert(rhand.kind == ast.N_EXPR_IDREF)
 
-        if rhand.ref == none {
-            var lhand = node.subexprs[1]
-            if has_attr(lhand, "ref") {
-                assert(lhand.ref != none)
-                var sym_info
-                do {
-                    sym_info = scope_manage.try_resolve_attr_on_ref(
-                        project_file, lhand, lhand.ref, rhand.label,
-                        error_on_invalid=yes
-                    )
-                } rescue ValueError {
-                    trigger_no_such_attribute_on(
-                        lhand, rhand.label
-                    )
-                }
-                if sym_info == none {
-                    trigger_no_symbol_info_on(lhand)
-                    return later none
-                }
-                var result = get_c_or_m64_type_of_sym_info(
-                    project_file, lhand, sym_info,
-                    msgs=msgs
-                ) later:
-
-                await result
-                return result
+        func resolve_rhand_via_lhand_if_needed {
+            if rhand.ref != none {
+                return later rhand.ref
             }
+            var lhand = node.subexprs[1]
+            if not has_attr(lhand, "ref") {
+                return later none
+            }
+            assert(lhand.ref != none)
+            scope_manage.try_ensure_attr_ref(
+                project_file, lhand, rhand,
+                parents,
+                error_on_invalid=yes, is_moose64=is_moose64,
+                msgs=msgs,
+            ) later:
         }
+        resolve_rhand_via_lhand_if_needed()
+        later:
+
         var sym_info = st_ref.ref_to_symbol_info(
             project_file, rhand, rhand.ref
         )
@@ -267,10 +263,11 @@ func _get_c_or_m64_type_of_node_do(
 }
 
 func get_c_or_m64_type_of_node(
-        project_file, node, parent, msgs=none, debug=no
+        project_file, node, parents, msgs=none, debug=no
         ) {
+    assert(typename(parents) == "list")
     var result = _get_c_or_m64_type_of_node_do(
-        project_file, node, parent,
+        project_file, node, parents,
         _known_types_map=none, msgs=msgs,
         debug=debug
     ) later:

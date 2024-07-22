@@ -57,10 +57,13 @@ type DeferAddedStatements {
 }
 
 func get_called_func_types(
-        project_file, called_node, called_node_parent,
+        project_file, called_node, called_node_parents,
         get_typeref_exprs_instead_of_typeinfo=no,
         msgs=none, is_moose64=no
         ) {
+    assert(typename(called_node_parents) == "list")
+    var called_node_parent = if called_node_parents.len > 0
+        (called_node_parents[called_node_parents.len]) else (none)
     if called_node.damaged or called_node_parent.damaged {
         return later none
     }
@@ -78,7 +81,7 @@ func get_called_func_types(
     var call_args_expr = called_node_parent.subexprs[2]
 
     var func_typeinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
-        project_file, called_node, called_node_parent,
+        project_file, called_node, called_node_parents,
         msgs=msgs
     ) later:
 
@@ -207,14 +210,17 @@ func get_called_func_types(
     var expected_visible_args = math.max(0,
         func_typeinfo.func_typeexpr.arg_typeref_exprs.len +
         if self_type != none (-1) else (0))
-    if call_args_expr.subexprs.len != expected_visible_args {
+    var called_args = call_args_expr.subexprs.len
+    if called_args != expected_visible_args {
         if msgs == none {
             throw new RuntimeError("Call has wrong number of "
                 "arguments.")
         }
         msgs.add(new msg.FileMsg(
             "Unexpected wrong numbers of arguments, "
-            "expected " + expected_visible_args + " arguments.",
+            "expected " + expected_visible_args.as_str() +
+            " arguments but called func takes " +
+            called_args.as_str() + ".",
             kind=msg.M_ERROR, source_file=project_file,
             line=called_node.line,
             col=called_node.col,
@@ -321,7 +327,7 @@ func transform_defer(
         }
         var result = get_called_func_types(
             project_file, node.subexprs[1].subexprs[1],
-            node.subexprs[1],
+            parents + [node, node.subexprs[1]],
             get_typeref_exprs_instead_of_typeinfo=yes,
             msgs=msgs, is_moose64=is_moose64
         ) later:

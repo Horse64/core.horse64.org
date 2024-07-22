@@ -1151,89 +1151,25 @@ func project.ProjectFile.make_attr_names_scope_from_node(
     return result_scope
 }
 
-func try_resolve_attr_on_ref(
-        project_file, node_lefthand,
-        ref_lefthand, attr_righthand,
-        error_on_invalid=no) {
-    if node_lefthand.kind == ast.N_EXPR_IDREF {
-        var sym_info = st_ref.ref_to_symbol_info(
-            project_file, node_lefthand, node_lefthand.ref
-        )
-        if sym_info == none or sym_info.typeref_expr == none {
-            return none
-        }
-        if typename(sym_info.type_storage_ref) == "str" {
-            # FIXME: handle built-in types here.
-            return none
-        }
-        if sym_info.type_storage_ref.kind != st_ref.ST_GLOBAL {
-            # Custom user types for now have to be globals,
-            # so no idea what on earth this would be.
-            return none
-        }
-        if not project_file.project.
-                storage_id_to_global_scope_map.has(
-                    sym_info.type_storage_ref.id
-                ) {
-            return none
-        }
-        var gscope = project_file.project.
-            storage_id_to_global_scope_map[
-                sym_info.type_storage_ref.id
-            ]
-        var indexed_entry = gscope.storage_id_to_entry[
-            sym_info.type_storage_ref.id
-        ]
-        if not {ast.N_STMT_STRUCT, ast.N_STMT_TYPE}.has(
-                indexed_entry.kind) {
-            if error_on_invalid {
-                throw new ValueError("The given item "
-                    "cannot be indexed in that way.")
-            }
-            return none
-        }
-        var anscope = project_file.project.
-            storage_id_to_anscope_map[
-                sym_info.type_storage_ref.id
-            ]
-        if anscope.is_enum {
-            if attr_righthand == "num_lbl" {
-                # FIXME: what do we return here??
-                return none
-            }
-            if error_on_invalid {
-                throw new ValueError("The given item "
-                    "doesn't have the given attribute."
-                )
-            }
-            return none
-        }
-        if anscope.is_error {
-            if attr_righthand == "str" {
-                # FIXME: what do we return here??
-                return none
-            }
-            if error_on_invalid {
-                throw new ValueError("The given item "
-                    "doesn't have the given attribute."
-                )
-            }
-            return none
-        }
-        # If we arrive here, it's either a struct or a type.
-        if not anscope.name_to_symbol_map.has(attr_righthand) {
-            if error_on_invalid {
-                throw new ValueError("The given item "
-                    "doesn't have the given attribute."
-                )
-            }
-            return none
-        }
-        return anscope.name_to_symbol_map[
-            attr_righthand
-        ]
+func try_ensure_attr_ref(
+        project_file, node_lefthand, node_righthand,
+        parent_chain,
+        error_on_invalid=no, is_moose64=no,  msgs=none,
+        ) {
+    assert(typename(parent_chain) == "list")
+    assert(node.righthand.kind == ast.N_EXPR_IDREF)
+    if node.righthand.ref != none {
+        return later
     }
-    return none
+
+    visit_to_resolve_known_attrs(
+        project_file, msgs,
+        start_at_root=node_righthand,
+        root_parents=parent_chain,
+        is_moose64=no, debug=no
+        ) later:
+
+    return later
 }
 
 func visit_to_mark_autoconst(
@@ -1409,7 +1345,9 @@ func visit_to_mark_autoconst(
 }
 
 func visit_to_resolve_known_attrs(
-        project_file, msgs, is_moose64=no, debug=no
+        project_file, msgs,
+        start_at_root=none, root_parents=none,
+        is_moose64=no, debug=no
         ) {
     var pfile = project_file
     var dbg_header = if is_moose64
@@ -1833,8 +1771,27 @@ func visit_to_resolve_known_attrs(
         return later node
     }
 
+    if start_at_root == none {
+        start_at_root = project_file.ast
+        if root_parents != none {
+            throw new ValueError(
+                "Cannot set root parents if root isn't used."
+            )
+        }
+    } else {
+        if root_parents == none {
+            root_parents = []
+        }
+        if typename(root_parents) != "list" {
+            throw new TypeError(
+                "The parents of the root must be supplied "
+                "as a list of the complete parent chain."
+            )
+        }
+    }
     var success = transform.visit_ast_tree(
         project_file.ast, try_resolve_item,
+        subtree_parent=root_parents,
         parent_chain=yes) later:
 
     await success
