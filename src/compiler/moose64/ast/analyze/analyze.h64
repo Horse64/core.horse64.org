@@ -54,21 +54,32 @@ func get_c_or_m64_type_of_typeref(
     if m64_type_ref == none {
         return later none
     }
+    var m64_symbol_info = st_ref.ref_to_symbol_info(
+        project_file, m64_type_ref
+    )
+    if m64_symbol_info == none {
+        return later none
+    }
     var tinfo = new typeinfo.create_typeinfo_from_global_ref(
-        m64_type_ref.type_storage_ref,
-        base_typeref_expr_if_known=m64_type_ref,
+        m64_type_ref,
+        base_symbol_info_if_known=m64_symbol_info,
+        base_typeref_expr_if_known=typeref,
         store_self_expr_for_funcs=store_self_expr_for_funcs,
     )
     return later tinfo
 }
 
 func get_c_or_m64_type_of_sym_info(
-        project_file, node_with_reference,
-        target_sym_info, msgs=none
+        project_file, target_sym_info,
+        node_with_reference=none, msgs=none
         ) {
-    if target_sym_info.type_storage_ref != none {
+    var target_ref = target_sym_info.type_storage_ref
+    if target_ref == none and node_with_reference.ref != none {
+        target_ref = node_with_reference.ref
+    }
+    if target_ref != none {
         var tinfo = new typeinfo.create_typeinfo_from_global_ref(
-            target_sym_info.type_storage_ref,
+            target_ref,
             base_symbol_info_if_known=target_sym_info,
             base_node_if_known=node_with_reference,
         )
@@ -189,15 +200,37 @@ func _get_c_or_m64_type_of_node_do(
         await result
         return result
     } elseif node.kind == ast.N_EXPR_IDREF {
+        if parent.kind == ast.N_EXPR_BINOP and
+                parent.optoken.str == "." {
+            if debug {
+                print("compiler.moose64.ast.anayze: debug: "
+                    "_get_c_or_m64_type_of_node_do() #" +
+                    d_id + ": parent is an attr access binop, "
+                    "so we're getting parent result instead...")
+            }
+            var inner_result = _get_c_or_m64_type_of_node_do(
+                project_file, parent, parents.sub(1, parents.len - 1),
+                _known_types_map=_known_types_map,
+                msgs=msgs, debug=debug
+            ) later:
+
+            await inner_result
+            if debug {
+                print("compiler.moose64.ast.anayze: debug: "
+                    "_get_c_or_m64_type_of_node_do() #" +
+                    d_id + " will return parent result now.")
+            }
+            return inner_result
+        }
         var sym_info = none
         if node.ref != none {
             sym_info = st_ref.ref_to_symbol_info(
-                project_file, node, node.ref
+                project_file, node.ref, node=node
             )
         }
 
         if sym_info == none {
-            if debug or yes {
+            if debug {
                 print("compiler.moose64.ast.anayze: debug: "
                     "_get_c_or_m64_type_of_node_do() #" +
                     d_id + " failed "
@@ -215,7 +248,8 @@ func _get_c_or_m64_type_of_node_do(
                 "symbol info: " + sym_info.as_str())
         }
         var result = get_c_or_m64_type_of_sym_info(
-            project_file, node, sym_info, msgs=msgs
+            project_file, sym_info, node_with_reference=node,
+            msgs=msgs
         ) later:
 
         await result
@@ -245,14 +279,14 @@ func _get_c_or_m64_type_of_node_do(
         later:
 
         var sym_info = st_ref.ref_to_symbol_info(
-            project_file, rhand, rhand.ref
+            project_file, rhand.ref, node=rhand
         )
         if sym_info == none {
             trigger_no_symbol_info_on(node)
             return later none
         }
         var result = get_c_or_m64_type_of_sym_info(
-            project_file, rhand, sym_info,
+            project_file, sym_info, node_with_reference=rhand,
             msgs=msgs
         ) later:
 

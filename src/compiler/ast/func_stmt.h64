@@ -36,10 +36,10 @@ import compiler.typeinfo.ast_typeref as ast_typeref
 import compiler.msg as msg
 import compiler.token as token
 
-type FuncStmtFuncExtentStmtShared base ast.StmtNode {
+type FuncStmtFuncExtendStmtShared base ast.StmtNode {
 }
 
-type FuncStmt base FuncStmtFuncExtentStmtShared {
+type FuncStmt base FuncStmtFuncExtendStmtShared {
     var label
     var type_path = none
     var has_return_type = no
@@ -120,33 +120,39 @@ func is_pos_inside_possible_func_prop_list(
 
 ## Returns the real, final argument count when considering
 ## all 'extend func' statements that apply to this function.
-func FuncStmtFuncExtentStmtShared.extended_final_arg_count {
+func FuncStmtFuncExtendStmtShared.extended_final_arg_count {
     return self.func_scope.extended_final_arg_count()
 }
 
 ## Returns the real, final keyword argument count when considering
 ## all 'extend func' statements that apply to this function.
-func FuncStmtFuncExtentStmtShared.extended_final_kw_arg_count {
+func FuncStmtFuncExtendStmtShared.extended_final_kw_arg_count {
     return self.func_scope.extended_final_kw_arg_count()
 }
 
 ## Returns the real, final list of argument names when considering
 ## all 'extend func' statements that apply to this function.
-func FuncStmtFuncExtentStmtShared.extended_final_arg_names {
+func FuncStmtFuncExtendStmtShared.extended_final_arg_names {
     return self.func_scope.extended_final_arg_names()
 }
 
 ## Returns the real, final list of arg @{compiler.type_info.
 ## ast_typeref.TypeRefExpr}s when considering all
 ## 'extend func' statements that apply to this function.
-func FuncStmtFuncExtentStmtShared.extended_final_arg_type_exprs {
+func FuncStmtFuncExtendStmtShared.extended_final_arg_type_exprs {
     return self.func_scope.extended_final_arg_type_exprs()
+}
+
+### Returns whether the final assembled func is marked as
+### "readonly" or not.
+func FuncStmtFuncExtendStmtShared.extended_final_is_readonly {
+    return self.func_scope.extended_final_is_readonly()
 }
 
 ## Returns the real, final return type, which when queried
 ## on an 'extend func' statement will get you the base func's
 ## return type.
-func FuncStmtFuncExtentStmtShared.extended_final_has_return_type {
+func FuncStmtFuncExtendStmtShared.extended_final_has_return_type {
     var base_func_scope = self.func_scope.base_func_scope
     if base_func_scope == none {
         base_func_scope = self.func_scope
@@ -158,7 +164,7 @@ func FuncStmtFuncExtentStmtShared.extended_final_has_return_type {
 ## ast_typeref.TypeRefExpr}, which when queried on an
 ## 'extend func' statement will get you the base func's
 ## return type's typeref expression.
-func FuncStmtFuncExtentStmtShared.extended_final_return_type_expr {
+func FuncStmtFuncExtendStmtShared.extended_final_return_type_expr {
     var base_func_scope = self.func_scope.base_func_scope
     if base_func_scope == none {
         base_func_scope = self.func_scope
@@ -168,7 +174,7 @@ func FuncStmtFuncExtentStmtShared.extended_final_return_type_expr {
 
 ## Get the full symbol info for the real, final arguments
 ## provided by any additional `extend func` statements.
-func FuncStmtFuncExtentStmtShared.extended_final_symbol_info_list {
+func FuncStmtFuncExtendStmtShared.extended_final_symbol_info_list {
     var base_func_scope = self.func_scope.base_func_scope
     if base_func_scope == none {
         base_func_scope = self.func_scope
@@ -213,13 +219,13 @@ func _get_local_args_type_expr_list(stmt) {
 
 ## Get the symbol info for only the arguments provided by
 ## this statement *excluding* any `extend func` statements.
-func FuncStmtFuncExtentStmtShared.get_local_args_symbol_info_list {
+func FuncStmtFuncExtendStmtShared.get_local_args_symbol_info_list {
     return _get_local_args_symbol_info_list(self)
 }
 
 ## Get type expressions for only the arguments provided by
 ## this statement *excluding* any `extend func` statements.
-func FuncStmtFuncExtentStmtShared.get_local_args_type_expr_list {
+func FuncStmtFuncExtendStmtShared.get_local_args_type_expr_list {
     return _get_local_args_type_expr_list(self)
 }
 
@@ -294,7 +300,7 @@ func _func_stmt_to_code(stmt, is_extend=no, indent=0) {
     return t
 }
 
-type FuncExtendStmt base FuncStmtFuncExtentStmtShared {
+type FuncExtendStmt base FuncStmtFuncExtendStmtShared {
     var type_path = none
     var arg_labels = []
     var kw_arg_count = 0
@@ -531,6 +537,20 @@ func parse(tokens, pos, msgs, project_file=none,
             stmt.is_readonly = yes
         }
         pos += 1
+    }
+    if (stmt.type_path == none or stmt.type_path.len == 0) and
+            is_moose64 and stmt.is_readonly {
+        if not stmt.damaged {
+            msgs.add(new msg.FileMsg(
+                "Unexpected func that isn't a func attr "
+                "but it's marked readonly, which is only "
+                "meaningful for func attrs.",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+        }
+        stmt.damaged = yes
     }
 
     # Parse return type if any:

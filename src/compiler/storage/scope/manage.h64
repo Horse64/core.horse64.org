@@ -143,6 +143,7 @@ func project.ProjectFile.try_lookup_symbol_path(
                     "Found local scope result ref=" +
                     symbol_ref.as_str() + " so we return success.")
             }
+            assert(typename(symbol_ref) != "list")
             return symbol_ref
         }
         if debug {

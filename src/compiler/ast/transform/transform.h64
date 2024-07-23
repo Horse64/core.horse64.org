@@ -683,10 +683,12 @@ func transform_func_overrides_and_check_func_arg_sig_match(
         var is_func_attr_call = no
         if node.subexprs[1].kind == ast.N_EXPR_IDREF {
             called_ref = node.subexprs[1].ref
+            assert(typename(called_ref) != "list")
         } else {
             assert(node.subexprs[1].kind == ast.N_EXPR_BINOP and
                 node.subexprs[1].subexprs[2].kind == ast.N_EXPR_IDREF)
             called_ref = node.subexprs[1].subexprs[2].ref
+            assert(typename(called_ref) != "list")
         }
         if not is_moose64 and (called_ref == none or
                 {st_ref.ST_LOCAL, st_ref.ST_ARG}.has(

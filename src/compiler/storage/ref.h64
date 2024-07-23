@@ -101,12 +101,42 @@ func StorageRef.alike(other_ref) {
         other_ref.id == self.id
 }
 
-func ref_to_symbol_info(project_file, node, storage_ref) {
+func ref_is_global_func_def(project_file, storage_ref) {
     if storage_ref.kind == ST_GLOBAL {
-        var gscope = project_file.project.
-            storage_id_to_global_scope_map[
-            storage_ref.id]
-        var entry = gscope.storage_id_to_entry[storage_ref.id]
+        var entry = st_scope.global_id_to_item(
+            project_file.project, storage_ref.id)
+        assert(entry != none)
+        return entry.kind == ast.N_STMT_FUNC
+    } elseif storage_ref.kind == ST_GLOBALATTR {
+        var entry = st_scope.global_id_to_item(
+            project_file.project, storage_ref.id[1])
+        assert(typename(entry) != "list")
+        assert({ast.N_STMT_STRUCT, ast.N_STMT_TYPE,
+            ast.N_STMT_ENUM}.has(entry.kind))
+        var anscope = entry.attr_names_scope
+        assert(anscope != none)
+        if anscope.is_enum {
+            throw new RuntimeError("Not implemented.")
+        } else {
+            assert(anscope.is_type or anscope.is_struct)
+            var inner_entry = anscope.id_to_symbol_map[storage_ref.id[2]]
+            assert(inner_entry.storage_id == storage_ref.id[2])
+            return inner_entry.typeref_expr != none and
+                inner_entry.typeref_expr.is_func_ref
+        }
+    } elseif storage_ref.kind == ST_LOCAL {
+        return no
+    } elseif storage_ref.kind == ST_ARG {
+        return no
+    }
+    return no
+}
+
+func ref_to_symbol_info(project_file, storage_ref, node=none) {
+    if storage_ref.kind == ST_GLOBAL {
+        var entry = st_scope.global_id_to_item(
+            project_file.project, storage_ref.id)
+        assert(entry != none)
         if typename(entry.symbol_info) == "list" {
             for sym_info in entry.symbol_info {
                 if sym_info.storage_id == storage_ref.id {
@@ -140,7 +170,7 @@ func ref_to_symbol_info(project_file, node, storage_ref) {
             return inner_entry
         }
     } elseif storage_ref.kind == ST_LOCAL {
-        if node.scope == none {
+        if node == none or node.scope == none {
             return none
         }
         var func_scope = node.scope.func_scope

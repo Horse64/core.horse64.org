@@ -893,3 +893,58 @@ func do_basic_check_and_analysis(project, msgs, is_moose64=no) {
     return later result
 }
 
+func is_func_call_node_for_sure_a_self_call(
+        project_file, call_node, symbol_info=none, is_moose64=no
+        ) {
+    if call_node.kind != ast.N_EXPR_BINOP or
+            call_node.optoken.str != "(" {
+        throw new ValueError("The parameter call_node "
+            "must be a call expression.")
+    }
+    var called_node = call_node.subexprs[1]
+    var is_possibly_self_obj_call =
+        (called_node.kind == ast.N_EXPR_BINOP and
+            called_node.optoken.str == "." and
+            called_node.subexprs[1].kind == ast.N_EXPR_IDREF and
+            called_node.subexprs[1].ref != none and
+            not st_ref.ref_is_global_func_def(
+                project_file, called_node.subexprs[1].ref
+            ))
+    if not is_possibly_self_obj_call {
+        return no
+    }
+    assert(called_node.subexprs[1].ref != none)
+    if not is_moose64 {
+        # Horse64 doesn't allow passing funcs around in a way
+        # where you can call the self parameter passed in
+        # explicitly (as non-implicit self call).
+        # Therefore, this only depends on whether the
+        # target func is clearly a func attr.
+        if called_node.subexprs[2].ref != none and
+                called_node.subexprs[2].ref == st_ref.ST_GLOBAL {
+            var entry = st_scope.global_id_to_item(
+                project_file.project,
+                called_node.ref.id)
+            return entry.kind == ast.N_STMT_FUNC and
+                entry.type_path != none and
+                entry.type_path.len > 0
+        }
+        return called_node.subexpr[2].ref != none and
+            called_node.subexprs[2].ref == st_ref.ST_GLOBALATTR
+    }
+    if called_node.subexprs[2].ref == none {
+        return no
+    }
+    if symbol_info == none {
+        symbol_info = st_ref.ref_to_symbol_info(
+            project_file, called_node.subexprs[2].ref,
+            node=called_node
+        )
+    }
+    if symbol_info == none or symbol_info.typeref_expr == none or
+            not symbol_info.typeref_expr.is_func_ref {
+        return no
+    }
+    return symbol_info.typeref_expr.is_func_attr
+}
+

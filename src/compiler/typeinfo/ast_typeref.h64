@@ -121,6 +121,7 @@ type TypeRefFuncExpr base TypeRefExpr {
     var arg_typeref_exprs = []
     var return_typeref_expr
     var func_storage_ref
+    var is_func_attr
 }
 
 func TypeRefFuncExpr.init {
@@ -328,7 +329,11 @@ func create_typeref_from_func_node(project_file, node) {
         if import_typepath.len > 0 {
             self_type_expr.type_path = import_typepath.copy()
         }
+        if node.extended_final_is_readonly() {
+            self_type_expr.modifiers.add(new TypeRefMod("readonly"))
+        }
         type_expr.arg_typeref_exprs.add(self_type_expr)
+        type_expr.is_func_attr = yes
     }
     if node.has_arg_types {
         var arg_count = node.extended_final_arg_count()

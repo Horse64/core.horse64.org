@@ -398,7 +398,15 @@ func create_typeinfo_from_global_ref(
         target_ref, base_typeref_expr_if_known=none,
         base_node_if_known=none,
         base_symbol_info_if_known=none,
+        self_node_if_known=none,
+        self_ref_if_known=none,
+        store_self_expr_for_funcs=no
         ) {
+    if base_node_if_known != none and target_ref == none and
+            base_node_if_known.kind == ast.N_EXPR_IDREF and
+            base_node_if_known.ref != none {
+        target_ref = base_node_if_known.ref.copy()
+    }
     if (base_typeref_expr_if_known != none and
             base_typeref_expr_if_known.is_func_ref) or
             (base_symbol_info_if_known != none and
@@ -416,17 +424,30 @@ func create_typeinfo_from_global_ref(
             tinfo.func_typeexpr =
                 base_symbol_info_if_known.typeref_expr.copy()
         }
-        if base_symbol_info_if_known != none and
-                base_symbol_info_if_known.kind == st_scope.SINFO_FUNCATTR and
-                base_node_if_known != none and
-                base_node_if_known.kind == ast.N_EXPR_IDREF and
-                base_node_if_known.ref != none and
+        if self_ref_if_known == none and
+                self_node_if_known != none and
+                self_node_if_known.kind == ast.N_EXPR_IDREF {
+            self_ref_if_known = self_node_if_known.ref
+        }
+        if self_ref_if_known and self_node_if_known != none and
+                self_node_if_known.kind == ast.N_EXPR_IDREF and
+                self_node_if_known.ref != none {
+            self_ref_if_known = self_node_if_known.ref
+        }
+        if store_self_expr_for_funcs and
+                ((base_typeref_expr_if_known != none and
+                  base_typeref_expr_if_known.is_func_attr) or
+                 (base_symbol_info_if_known != none and
+                  base_symbol_info_if_known.kind ==
+                      st_scope.SINFO_FUNCATTR)) and
+                self_ref_if_known != none and
                 {st_ref.ST_LOCAL, st_ref.ST_GLOBAL}.has(
-                    base_node_if_known.ref.kind
+                    self_ref_if_known.kind
                 ) {
             # This must be the item we're accessing the function
             # on, and it's a concrete instance.
-            tinfo.func_self_ref = base_node_if_known.ref.copy()
+            tinfo.func_self_ref = self_ref_if_known.copy()
+            assert(typename(tinfo.func_self_ref) != "list")
         }
         return tinfo
     }

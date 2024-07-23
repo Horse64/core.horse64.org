@@ -29,6 +29,7 @@ import math from core.horse64.org
 import random from core.horse64.org
 
 import compiler.ast as ast
+import compiler.ast.analyze as ast_analyze
 import compiler.ast.builder as ast_builder
 import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
 import compiler.ast.expr as ast_expr
@@ -61,6 +62,9 @@ func get_called_func_types(
         get_typeref_exprs_instead_of_typeinfo=no,
         msgs=none, is_moose64=no
         ) {
+    if not is_moose64 {
+        return later none
+    }
     assert(typename(called_node_parents) == "list")
     var called_node_parent = if called_node_parents.len > 0
         (called_node_parents[called_node_parents.len]) else (none)
@@ -79,7 +83,6 @@ func get_called_func_types(
             "expression.")
     }
     var call_args_expr = called_node_parent.subexprs[2]
-
     var func_typeinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
         project_file, called_node, called_node_parents,
         msgs=msgs
@@ -207,20 +210,31 @@ func get_called_func_types(
     var arg_var_types = []
     var arg_var_type_exprs = []
 
-    var expected_visible_args = math.max(0,
+    var expected_args = math.max(0,
         func_typeinfo.func_typeexpr.arg_typeref_exprs.len +
         if self_type != none (-1) else (0))
     var called_args = call_args_expr.subexprs.len
-    if called_args != expected_visible_args {
+    var is_self_call = ast_analyze.
+        is_func_call_node_for_sure_a_self_call(
+            project_file, called_node_parent,
+            is_moose64=is_moose64
+        )
+    if (called_args + if is_self_call (1) else (0)) !=
+            expected_args {
         if msgs == none {
             throw new RuntimeError("Call has wrong number of "
                 "arguments.")
         }
+        var expected_s =
+            if expected_args != 1 ("s") else ("")
+        var called_s =
+            if called_args != 1 ("s") else ("")
         msgs.add(new msg.FileMsg(
-            "Unexpected wrong numbers of arguments, "
-            "expected " + expected_visible_args.as_str() +
-            " arguments but called func takes " +
-            called_args.as_str() + ".",
+            "Unexpected wrong number of args, "
+            "func expects " + expected_args.as_str() +
+            " arg" + expected_s + " "
+            "but this call provides " +
+            called_args.as_str() + " arg" + called_s + ".",
             kind=msg.M_ERROR, source_file=project_file,
             line=called_node.line,
             col=called_node.col,
@@ -276,7 +290,7 @@ func get_called_func_types(
         if get_typeref_exprs_instead_of_typeinfo
             (self_type_expr) else (self_type_typeinfo),
         if get_typeref_exprs_instead_of_typeinfo
-            (arg_var_type_exprs) else  (arg_var_types)]
+            (arg_var_type_exprs) else (arg_var_types)]
 }
 
 func transform_defer(
@@ -443,7 +457,7 @@ func transform_defer(
         defer_resolve_called_expr.ref =
             node.scope.lookup(
                 func_var_node.var_labels[1], is_write_access=no
-            )
+            )[1]
         var defer_resolve_args_expr = new ast_expr.CallArgsExpr()
         defer_resolve_args_expr.scope = node.scope
         defer_resolve_args_expr.line = node.line
@@ -479,7 +493,7 @@ func transform_defer(
             var result = node.copy()
             assert(result.subexprs[1].subexprs[2].subexprs.len == 0)
             for name in defer_info.arg_names {
-                var ref = node.scope.lookup(name)
+                var ref = node.scope.lookup(name)[1]
                 var idref = new ast_expr.IdRefExpr()
                 idref.label = name
                 idref.ref = ref
@@ -1195,7 +1209,7 @@ func transform_desugar_failed_checks(
                 failable_result_node.var_labels[1]
             additional_arg_node.ref = node.scope.lookup(
                 failable_result_node.var_labels[1]
-            )
+            )[1]
             additional_arg_node.line = node.line
             additional_arg_node.col = node.col
             additional_arg_node.scope = node.scope
@@ -1267,7 +1281,7 @@ func transform_desugar_failed_checks(
 
         var failable_result_node = new ast_expr.IdRefExpr()
         failable_result_node.label = var_name
-        failable_result_node.ref = node.scope.lookup(var_name)
+        failable_result_node.ref = node.scope.lookup(var_name)[1]
         failable_result_node.line = node.line
         failable_result_node.col = node.col
         failable_result_node.scope = node.scope

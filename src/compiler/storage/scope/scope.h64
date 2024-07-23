@@ -91,6 +91,7 @@ type FuncScope {
     var is_type_extend_attr = no
     var is_later_func = no
     var is_override = no
+    var is_marked_readonly = no
     var has_failable = no
     var storage_id = 0
     var owning_type_storage_id
@@ -135,6 +136,14 @@ func FuncScope._extended_final_arg_names_split {
     }
     return [pos_arg_names, pos_arg_type_exprs,
         kw_arg_names, kw_arg_type_exprs]
+}
+
+func FuncScope.extended_final_is_readonly {
+    var base_func_scope = self.base_func_scope
+    if base_func_scope == none {
+        base_func_scope = self
+    }
+    return base_func_scope.is_marked_readonly
 }
 
 func FuncScope.extended_final_arg_names {
@@ -234,7 +243,12 @@ func get_base_func_scope_from_func_node(
             project_file.project.key_to_func_scope_map[key] =
                 new FuncScope()
         }
-        return project_file.project.key_to_func_scope_map[key]
+        var fscope = project_file.project.
+            key_to_func_scope_map[key]
+        if node.kind == ast.N_STMT_FUNC and node.is_readonly {
+            fscope.is_marked_readonly = yes
+        }
+        return fscope
     }
     if node.kind == ast.N_STMT_FUNC {
         if node.scope != none {
@@ -556,7 +570,7 @@ func check_if_idref_matches_var_node(
     var result = scope.lookup(name,
         is_write_access=no, cross_func_scopes=no,
         auto_add_ccapture=no)
-    if result == none or result[2] == none or
+    if result == none or result[1] == none or
             not {st_ref.ST_LOCAL,
                 st_ref.ST_CCAPTURE}.has(result[1].kind) {
         return no
@@ -681,6 +695,18 @@ func LocalScope.get_combined_names {
         scope = scope.parent
     }
     return names
+}
+
+func global_id_to_item(project, gid) {
+    if gid == none or project == none {
+        return none
+    }
+    if not project.storage_id_to_global_scope_map.has(gid) {
+        return none
+    }
+    var gscope = project.storage_id_to_global_scope_map[gid]
+    assert(gscope.storage_id_to_entry.has(gid))
+    return gscope.storage_id_to_entry[gid]
 }
 
 extend type ast.TreeNode {
