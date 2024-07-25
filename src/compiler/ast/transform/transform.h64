@@ -659,7 +659,7 @@ func do_all_pre_nameres_transformations(
 ### applicable transform calls to the necessary func overrides.
 func transform_func_overrides_and_check_func_arg_sig_match(
         project_file, project_ast, msgs,
-        is_moose64=no, debug=yes
+        is_moose64=no, debug=no
         ) {
     var dbg_prefix =
         if is_moose64 ("moosec: debug: ") else ("horsec: debug: ") +
@@ -706,18 +706,15 @@ func transform_func_overrides_and_check_func_arg_sig_match(
             # It's not worth trying to figure out what we're calling.
             return later node
         }
-        #print("IDENTIFIED CALL NODE: " + node.as_str())
-        #print("CALL REF INFO: " + [
-        #    is_func_attr_call, called_ref].as_str())
         if debug {
             print(dbg_prefix + " Looking at call for potential "
                 "func overrides: node=" + node.as_str() + " "
                 "called_ref=" + called_ref.as_str() + " "
                 "is_func_attr_call=" + is_func_attr_call.as_str())
         }
+
         if called_ref == none or
-                {st_ref.ST_LOCAL, st_ref.ST_ARG,
-                st_ref.ST_CCAPTURE}.has(called_ref.kind) {
+                {st_ref.ST_CCAPTURE}.has(called_ref.kind) {
             print(if is_moose64 ("moosec") else ("horsec") + ": "
                 "error: Internal error, failed to resolve a "
                 "call or found it to be to an impossible "
@@ -773,7 +770,12 @@ func transform_func_overrides_and_check_func_arg_sig_match(
             throw new RuntimeError("Internal error, "
                 "failed to obtain a valid func type expr.")
         }
-        print("func_type_expr=" + func_type_expr.as_str())
+        if debug {
+            print(dbg_prefix + " func_type_expr=" +
+                func_type_expr.as_str())
+            print(dbg_prefix + " called_ref=" +
+                called_ref.as_str())
+        }
 
         return later node
     }

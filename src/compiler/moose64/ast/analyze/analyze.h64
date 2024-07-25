@@ -37,7 +37,7 @@ import compiler.typeinfo as typeinfo
 
 func get_c_or_m64_type_of_typeref(
         project_file, typeref,
-        store_self_expr_for_funcs=no, msgs=none
+        store_self_value_ref_for_funcs=no, msgs=none
         ) {
     var c_name = typeref.get_c_builtin_for_m64_base_type()
     if c_name != none {
@@ -64,14 +64,18 @@ func get_c_or_m64_type_of_typeref(
         m64_type_ref,
         base_symbol_info_if_known=m64_symbol_info,
         base_typeref_expr_if_known=typeref,
-        store_self_expr_for_funcs=store_self_expr_for_funcs,
+        store_self_value_ref_for_funcs=
+            store_self_value_ref_for_funcs,
+        is_moose64=yes,
     )
     return later tinfo
 }
 
 func get_c_or_m64_type_of_sym_info(
         project_file, target_sym_info,
-        node_with_reference=none, msgs=none
+        node_with_reference=none,
+        store_self_value_ref_for_funcs=no,
+        msgs=none
         ) {
     var target_ref = target_sym_info.type_storage_ref
     if target_ref == none and node_with_reference.ref != none {
@@ -91,6 +95,8 @@ func get_c_or_m64_type_of_sym_info(
     }
     var result = get_c_or_m64_type_of_typeref(
         project_file, typeref_expr,
+        store_self_value_ref_for_funcs=
+            store_self_value_ref_for_funcs,
         msgs=msgs
     ) later:
 
@@ -101,6 +107,7 @@ func get_c_or_m64_type_of_sym_info(
 func _get_c_or_m64_type_of_node_do(
         project_file, node, parents,
         _known_types_map=none,
+        store_self_value_ref_for_funcs=no,
         msgs=none, debug=no
         ) {
     if _known_types_map == none {
@@ -194,6 +201,8 @@ func _get_c_or_m64_type_of_node_do(
         }
         var result = get_c_or_m64_type_of_typeref(
             project_file, node.subexprs[node.subexprs.len],
+            store_self_value_ref_for_funcs=
+                store_self_value_ref_for_funcs,
             msgs=msgs
         ) later:
 
@@ -297,12 +306,17 @@ func _get_c_or_m64_type_of_node_do(
 }
 
 func get_c_or_m64_type_of_node(
-        project_file, node, parents, msgs=none, debug=no
+        project_file, node, parents,
+        store_self_value_ref_for_funcs=no,
+        msgs=none, debug=no
         ) {
     assert(typename(parents) == "list")
     var result = _get_c_or_m64_type_of_node_do(
         project_file, node, parents,
-        _known_types_map=none, msgs=msgs,
+        _known_types_map=none,
+        store_self_value_ref_for_funcs=
+            store_self_value_ref_for_funcs,
+        msgs=msgs,
         debug=debug
     ) later:
 

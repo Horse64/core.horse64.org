@@ -400,7 +400,8 @@ func create_typeinfo_from_global_ref(
         base_symbol_info_if_known=none,
         self_node_if_known=none,
         self_ref_if_known=none,
-        store_self_expr_for_funcs=no
+        store_self_value_ref_for_funcs=no,
+        is_moose64=no
         ) {
     if base_node_if_known != none and target_ref == none and
             base_node_if_known.kind == ast.N_EXPR_IDREF and
@@ -434,7 +435,7 @@ func create_typeinfo_from_global_ref(
                 self_node_if_known.ref != none {
             self_ref_if_known = self_node_if_known.ref
         }
-        if store_self_expr_for_funcs and
+        if store_self_value_ref_for_funcs and
                 ((base_typeref_expr_if_known != none and
                   base_typeref_expr_if_known.is_func_attr) or
                  (base_symbol_info_if_known != none and
