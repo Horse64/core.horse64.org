@@ -60,8 +60,14 @@ type DeferAddedStatements {
 func get_called_func_types(
         project_file, called_node, called_node_parents,
         get_typeref_exprs_instead_of_typeinfo=no,
-        msgs=none, is_moose64=no
+        msgs=none, is_moose64=no, debug=no
         ) {
+    var dbg_prefix = if is_moose64 ("moosec: debug:")
+        else ("horsec: debug:")
+    if debug {
+        print(dbg_prefix + " get_called_func_types(): launched on "
+            "called_node=" + called_node.as_str())
+    }
     if not is_moose64 {
         return later none
     }
@@ -85,10 +91,16 @@ func get_called_func_types(
     var call_args_expr = called_node_parent.subexprs[2]
     var func_typeinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
         project_file, called_node, called_node_parents,
-        msgs=msgs
+        store_self_value_ref_for_funcs=yes,
+        msgs=msgs, debug=debug
     ) later:
 
     await func_typeinfo
+    if debug {
+        print(dbg_prefix + " get_called_func_types(): got type "
+            "of node result func_typeinfo=" +
+            func_typeinfo.as_str())
+    }
     if func_typeinfo == none {
         if msgs == none {
             throw new RuntimeError("Failed to determine node type, "
@@ -281,7 +293,7 @@ func get_called_func_types(
         return later none
     }
 
-    if self_value_ref== none {
+    if self_value_ref == none {
         return later [func_var_type, none,
             if get_typeref_exprs_instead_of_typeinfo
                 (arg_var_type_exprs) else (arg_var_types)]
@@ -343,13 +355,16 @@ func transform_defer(
             project_file, node.subexprs[1].subexprs[1],
             parents + [node, node.subexprs[1]],
             get_typeref_exprs_instead_of_typeinfo=yes,
-            msgs=msgs, is_moose64=is_moose64
+            msgs=msgs, is_moose64=is_moose64,
+            debug=no
         ) later:
 
         await result
         if result == none {
             return later node
         }
+        # XXX / FIXME debug this
+        #print("CALLED FUNC TYPES result=" + result.as_str())
 
         var func_var_typeref = result[1]
         var self_typeref_expr = result[2]
