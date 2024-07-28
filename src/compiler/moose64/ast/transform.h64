@@ -57,9 +57,32 @@ type DeferAddedStatements {
     var stmts_added_before_node = []
 }
 
+type CalledFuncTypesResult {
+    var called_func_is_attr = no
+
+    var func_var_type_expr
+    var func_var_typeinfo
+    var arg_var_type_exprs = []
+    var arg_var_typeinfos = []
+    var self_var_type_expr = no
+    var self_var_typeinfo = no
+}
+
+func CalledFuncTypesResult.as_str {
+    var map = {
+        "func_var_type_expr" -> self.func_var_type_expr,
+        "func_var_typeinfo" -> self.func_var_typeinfo,
+        "arg_var_type_exprs" -> self.arg_var_type_exprs,
+        "arg_var_typeinfos" -> self.arg_var_typeinfos,
+        "self_var_type_expr" -> self.self_var_type_expr,
+        "self_var_typeinfo" -> self.self_var_typeinfo,
+    }
+    return "CalledFuncTypesResult" + map.as_str()
+}
+
 func get_called_func_types(
         project_file, called_node, called_node_parents,
-        get_typeref_exprs_instead_of_typeinfo=no,
+        allow_matching_func_override=no,
         msgs=none, is_moose64=no, debug=no
         ) {
     var dbg_prefix = if is_moose64 ("moosec: debug:")
@@ -206,16 +229,15 @@ func get_called_func_types(
         return later none
     }
 
-    var func_var_type = func_typeinfo.func_typeexpr
-    if not get_typeref_exprs_instead_of_typeinfo {
-        func_var_type = func_typeinfo
-    }
+    var func_var_typeref = func_typeinfo.func_typeexpr
+    var func_var_typeinfo = func_typeinfo
     var arg_var_types = []
     var arg_var_type_exprs = []
 
-    var expected_args = math.max(0,
+    # Now, collect info about expected vs actually given call signature:
+    var expected_args =
         func_typeinfo.func_typeexpr.arg_typeref_exprs.len +
-        if self_value_ref != none (-1) else (0))
+        if func_typeinfo.func_typeexpr.is_func_attr (-1) else (0)
     var called_args = call_args_expr.subexprs.len
     var is_self_call = ast_analyze.
         is_func_call_node_for_sure_a_self_call(
@@ -225,8 +247,25 @@ func get_called_func_types(
     if self_value_ref == none and no {
         is_self_call = no
     }
-    if (called_args + if is_self_call (1) else (0)) !=
-            expected_args {
+    var effective_called_args =
+        called_args + if is_self_call (1) else (0)
+    var expected_with_self =
+        if func_typeinfo.func_typeexpr.is_func_attr ("with self ref")
+        else ("without self ref")
+    var called_with_self =
+        if is_self_call ("with self ref")
+        else ("without self ref")
+
+    var called_name = "func"
+    if called_node.kind == ast.N_EXPR_BINOP and
+            called_node.optoken.str == "." and
+            called_node.subexprs.len == 2 and
+            called_node.subexprs[2].kind == ast.N_EXPR_IDREF {
+        called_name = "'" + called_node.subexprs[2].label + "' "
+            "func attr"
+    }
+    if effective_called_args != expected_args +
+            if func_typeinfo.func_typeexpr.is_func_attr (1) else (0) {
         if msgs == none {
             throw new RuntimeError("Call has wrong number of "
                 "arguments.")
@@ -236,11 +275,12 @@ func get_called_func_types(
         var called_s =
             if called_args != 1 ("s") else ("")
         msgs.add(new msg.FileMsg(
-            "Unexpected wrong number of args, "
-            "func expects " + expected_args.as_str() +
-            " arg" + expected_s + " "
+            "Unexpected number of args, " +
+            called_name + " expects " + expected_args.as_str() +
+            " arg" + expected_s + " " + expected_with_self + " "
             "but this call provides " +
-            called_args.as_str() + " arg" + called_s + ".",
+            called_args.as_str() + " arg" + called_s + " " +
+            called_with_self + ".",
             kind=msg.M_ERROR, source_file=project_file,
             line=called_node.line,
             col=called_node.col,
@@ -293,16 +333,16 @@ func get_called_func_types(
         return later none
     }
 
-    if self_value_ref == none {
-        return later [func_var_type, none,
-            if get_typeref_exprs_instead_of_typeinfo
-                (arg_var_type_exprs) else (arg_var_types)]
-    }
-    return later [func_var_type,
-        if get_typeref_exprs_instead_of_typeinfo
-            (self_type_expr) else (self_type_typeinfo),
-        if get_typeref_exprs_instead_of_typeinfo
-            (arg_var_type_exprs) else (arg_var_types)]
+    var result = new CalledFuncTypesResult()
+    result.called_func_is_attr =
+        func_typeinfo.func_typeexpr.is_func_attr
+    result.func_var_type_expr = func_var_typeref
+    result.func_var_typeinfo = func_var_typeinfo
+    result.arg_var_type_exprs = arg_var_type_exprs
+    result.arg_var_typeinfos = arg_var_types
+    result.self_var_type_expr = self_type_expr
+    result.self_var_typeinfo = self_type_typeinfo
+    return result
 }
 
 func transform_defer(
@@ -354,7 +394,6 @@ func transform_defer(
         var result = get_called_func_types(
             project_file, node.subexprs[1].subexprs[1],
             parents + [node, node.subexprs[1]],
-            get_typeref_exprs_instead_of_typeinfo=yes,
             msgs=msgs, is_moose64=is_moose64,
             debug=no
         ) later:
@@ -366,9 +405,9 @@ func transform_defer(
         # XXX / FIXME debug this
         #print("CALLED FUNC TYPES result=" + result.as_str())
 
-        var func_var_typeref = result[1]
-        var self_typeref_expr = result[2]
-        var arg_var_typerefs = result[3]
+        var func_var_typeref = result.func_var_type_expr
+        var self_typeref_expr = result.self_var_type_expr
+        var arg_var_typerefs = result.arg_var_type_exprs
         var idx = parent_block.find(node)
         assert(idx != none)
         var expr_copy = node.subexprs[1].subexprs[1]
