@@ -80,16 +80,21 @@ func CalledFuncTypesResult.as_str {
     return "CalledFuncTypesResult" + map.as_str()
 }
 
-func get_called_func_types(
+func get_called_or_assigned_func_types(
         project_file, called_node, called_node_parents,
         allow_matching_func_override=no,
+        allow_noncall_ref=no,
         msgs=none, is_moose64=no, debug=no
         ) {
     var dbg_prefix = if is_moose64 ("moosec: debug:")
         else ("horsec: debug:")
     if debug {
-        print(dbg_prefix + " get_called_func_types(): launched on "
-            "called_node=" + called_node.as_str())
+        print(dbg_prefix + " get_called_or_assigned_func_types(): "
+            "launched on called_node=" + called_node.as_str())
+    }
+    if allow_noncall_ref {
+        throw new RuntimeError("Option allow_noncall_ref=yes "
+            "isn't implemented yet.")
     }
     if not is_moose64 {
         return later none
@@ -100,6 +105,7 @@ func get_called_func_types(
     if called_node.damaged or called_node_parent.damaged {
         return later none
     }
+    var is_call = no
     if called_node_parent.kind != ast.N_EXPR_BINOP or
             called_node_parent.optoken.str != '(' or
             called_node_parent.subexprs.len != 2 or
@@ -107,7 +113,7 @@ func get_called_func_types(
                 ast.N_EXPR_CALLARGS or
             called_node_parent.subexprs[1] != called_node {
         throw new RuntimeError("Internal error, "
-            "get_called_func_types() called with "
+            "get_called_or_assigned_func_types() called with "
             "called_node_parent not set to valid call "
             "expression.")
     }
@@ -120,8 +126,8 @@ func get_called_func_types(
 
     await func_typeinfo
     if debug {
-        print(dbg_prefix + " get_called_func_types(): got type "
-            "of node result func_typeinfo=" +
+        print(dbg_prefix + " get_called_or_assigned_func_types(): "
+            "got type of node result func_typeinfo=" +
             func_typeinfo.as_str())
     }
     if func_typeinfo == none {
@@ -144,7 +150,7 @@ func get_called_func_types(
             throw new RuntimeError("The called node isn't a function.")
         }
         msgs.add(new msg.FileMsg(
-            "Unexpected call to non-function item, "
+            "Unexpected call to non-func item, "
             "this isn't allowed.",
             kind=msg.M_ERROR, source_file=project_file,
             line=called_node_parent.line,
@@ -391,7 +397,7 @@ func transform_defer(
                 "obtain parent block of node. Please report "
                 "this error to the compiler makers.")
         }
-        var result = get_called_func_types(
+        var result = get_called_or_assigned_func_types(
             project_file, node.subexprs[1].subexprs[1],
             parents + [node, node.subexprs[1]],
             msgs=msgs, is_moose64=is_moose64,
