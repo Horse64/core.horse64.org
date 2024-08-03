@@ -101,6 +101,45 @@ func StorageRef.alike(other_ref) {
         other_ref.id == self.id
 }
 
+func ref_to_item_name(project_file, fref) {
+    if fref != none and fref.kind == ST_GLOBAL {
+        var entry = st_scope.global_id_to_item(
+            project_file.project, storage_ref.id)
+        if {ast.N_STMT_FUNC, ast.N_STMT_STRUCT,
+                ast.N_STMT_TYPE}.has(entry.kind) {
+            return entry.label
+        }
+        return none
+    } elseif fref != none and fref.kind = ST_GLOBALATTR {
+        var entry = st_scope.global_id_to_item(
+            project_file.project, storage_ref.id[1])
+        assert(typename(entry) != "list")
+        assert({ast.N_STMT_STRUCT, ast.N_STMT_TYPE,
+            ast.N_STMT_ENUM}.has(entry.kind))
+        var anscope = entry.attr_names_scope
+        assert(anscope != none)
+        if anscope.is_enum {
+            # FIXME: possibly implement this some day.
+            return none
+        } else {
+            assert(anscope.is_type or anscope.is_struct)
+            var symbol = anscope.id_to_symbol_map[
+                storage_ref.id[2]]
+            assert(symbol.storage_id == storage_ref.id[2])
+            for name in anscope.name_to_symbol_map {
+                if anscope.name_to_symbol_map[name].storage_id ==
+                        symbol.storage_id {
+                    return name
+                }
+            }
+            throw new RuntimeError("Global attr not found "
+                "in AttrNamesScope symbol map. This shouldn't "
+                "happen.)
+        }
+    }
+    return none
+}
+
 func ref_is_global_func_def(project_file, storage_ref) {
     if storage_ref.kind == ST_GLOBAL {
         var entry = st_scope.global_id_to_item(

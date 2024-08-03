@@ -668,7 +668,9 @@ func transform_func_overrides_and_check_func_arg_sig_match(
         print(dbg_prefix + " Looking at file: " +
             project_file.as_str())
     }
-    func do_transform_step(node, parent) {
+    func do_transform_step(node, parents) {
+        var parent = if parents.len > 0
+            (parents[parents.len]) else (none)
         if node.damaged {
             return node
         }
@@ -687,14 +689,24 @@ func transform_func_overrides_and_check_func_arg_sig_match(
              return later node
         }
         var called_ref = none
+        var called_node = none
+        var called_node_parents = none
+        var called_args_node = noe
         var is_func_attr_call = no
         if node.subexprs[1].kind == ast.N_EXPR_IDREF {
             called_ref = node.subexprs[1].ref
+            called_node = node.subexprs[1]
+            called_args_node = node.subexprs[2]
+            called_node_parents = parents + [node]
             assert(typename(called_ref) != "list")
         } else {
             assert(node.subexprs[1].kind == ast.N_EXPR_BINOP and
+                node.subexprs[1].optoken.str == "." and
                 node.subexprs[1].subexprs[2].kind == ast.N_EXPR_IDREF)
             called_ref = node.subexprs[1].subexprs[2].ref
+            called_node = node.subexprs[1]
+            called_args_node = node.subexprs[2]
+            called_node_parents = parents + [node]
             assert(typename(called_ref) != "list")
         }
         if not is_moose64 and (called_ref == none or
@@ -709,6 +721,7 @@ func transform_func_overrides_and_check_func_arg_sig_match(
         if debug {
             print(dbg_prefix + " Looking at call for potential "
                 "func overrides: node=" + node.as_str() + " "
+                "called_node=" + called_node.as_str() + " "
                 "called_ref=" + called_ref.as_str() + " "
                 "is_func_attr_call=" + is_func_attr_call.as_str())
         }
@@ -733,19 +746,35 @@ func transform_func_overrides_and_check_func_arg_sig_match(
                 # for now, don't even try for Horse64.
                 return later
             }
+            if debug {
+                print(dbg_prefix + " "
+                    "resolve_func_type_expr_if_needed(): "
+                    "Resolving to func expr...")
+            }
             var func_type_expr_result = ast_typeref.
                 resolve_st_ref_to_type_ref_and_expr(
-                    project_file, called_ref, is_moose64=is_moose64,
-                    debug=no,
+                    project_file, called_ref, node=called_node,
+                    node_parents=called_node_parents,
+                    allow_func_override_for_args_node=
+                        called_node_args,
+                    is_moose64=is_moose64,
+                    debug=debug,
                 ) later:
 
             await func_type_expr_result
-            func_is_external = [
+            func_is_external =
                 func_type_expr_result[1] != none and
                 {st_ref.ST_MCREF, st_ref.ST_CEXT}.has(
                     func_type_expr_result[1].kind
                 )
-            ]
+            if debug {
+                print(dbg_prefix + " " +
+                    "resolve_func_type_expr_if_needed(): "
+                    "Result: func_is_external=" +
+                        func_is_external.as_str() + " "
+                    "func_type_expr_result=" +
+                    func_type_expr_result.as_str())
+            }
             func_type_expr = func_type_expr_result[2]
         }
         resolve_func_type_expr_if_needed()
@@ -762,10 +791,11 @@ func transform_func_overrides_and_check_func_arg_sig_match(
                 not func_is_external {
             print(if is_moose64 ("moosec") else ("horsec") + ": "
                 "error: Internal error, failed to obtain a "
-                "func type expr. "
+                "func type expr when we expected to get one. "
                 "Please report this error to "
                 "the compiler makers. Details: "
                 "called_ref=" + called_ref.as_str() + " "
+                "callednode=" + called_node.as_str() + " "
                 "node=" + node.as_str())
             throw new RuntimeError("Internal error, "
                 "failed to obtain a valid func type expr.")
@@ -781,7 +811,7 @@ func transform_func_overrides_and_check_func_arg_sig_match(
     }
     var result = visit_ast_tree(
         project_ast, do_transform_step, pass_func_boundaries=yes,
-        parent_chain=no, backward=no
+        parent_chain=yes, backward=no
     ) later:
 
     await result

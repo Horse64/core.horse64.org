@@ -197,6 +197,9 @@ type CalledFuncTypesResult {
 
     var func_var_type_expr
     var func_var_typeinfo
+    var func_var_name
+    var func_was_overridden
+    var func_ref
     var arg_var_type_exprs = []
     var arg_var_typeinfos = []
     var self_var_type_expr = no
@@ -207,6 +210,9 @@ func CalledFuncTypesResult.as_str {
     var map = {
         "func_var_type_expr" -> self.func_var_type_expr,
         "func_var_typeinfo" -> self.func_var_typeinfo,
+        "func_var_name" -> self.func_var_name,
+        "func_was_overridden -> self.func_was_overriden,
+        "func_ref" -> self.func_ref,
         "arg_var_type_exprs" -> self.arg_var_type_exprs,
         "arg_var_typeinfos" -> self.arg_var_typeinfos,
         "self_var_type_expr" -> self.self_var_type_expr,
@@ -299,7 +305,7 @@ func get_called_or_assigned_func_types(
         if func_typeinfo.func_typeexpr == none {
             return
         }
-        # Ensure that the func type we access is sound:
+        # Try to trace back the actual func we're calling:
         m64_type_ref = func_typeinfo.func_typeexpr.
             try_resolve_to_user_type(
                 project_file, recursive=yes,
@@ -312,20 +318,12 @@ func get_called_or_assigned_func_types(
     recompute_user_type()
     later:
 
-    if m64_type_ref == none {
-        if msgs == none {
-            throw new RuntimeError("Failed to trace back to user type.")
-        }
-        msgs.add(new msg.FileMsg(
-            "Unexpected reference to a broken type, "
-            "the referenced type or any nested type inside "
-            "wasn't found.",
-            kind=msg.M_ERROR, source_file=project_file,
-            line=called_node.line,
-            col=called_node.col,
-        ))
-        called_node.damaged = yes
-        return later none
+    var called_name = none
+    if m64_type_ref != none {
+        # Not a func pointer, we know the name of
+        # what exactly we're calling.
+        called_name = st_ref.ref_to_item_name(
+            project_file, m64_type_ref)
     }
 
     # Return assembled result:
@@ -479,6 +477,9 @@ func get_called_or_assigned_func_types(
         func_typeinfo.func_typeexpr.is_func_attr
     result.func_var_type_expr = func_var_typeref
     result.func_var_typeinfo = func_var_typeinfo
+    result.func_var_name = called_name
+    result.func_ref = m64_type_ref
+    result.func_was_overridden = changed_to_override
     result.arg_var_type_exprs = arg_var_type_exprs
     result.arg_var_typeinfos = arg_var_types
     result.self_var_type_expr = self_type_expr

@@ -557,7 +557,8 @@ func TypeRefExpr.as_str {
 ## this function
 func resolve_st_ref_to_type_ref_and_expr(
         project_file, value_ref,
-        node=node, node_parents=none,
+        node=none, node_parents=none,
+        allow_func_override_for_args_node=none,
         ignore_if_ref_none=no, is_moose64=no,
         debug=no,
         ) {
@@ -568,11 +569,62 @@ func resolve_st_ref_to_type_ref_and_expr(
         print(dbg_header +
             "resolve_st_ref_to_type_ref_and_expr() "
             "called on: node=" + node.as_str() + " "
+            "allow_func_override_for_args_node=" +
+                allow_func_override_for_args_node.as_str() + " "
             "value_ref=" + value_ref.as_str() + " "
             "node_parents.len=" + if node_parents != none
                 (node_parents.len.as_str())
                 else ("<parents unset>") + " "
             "is_moose64=" + is_moose64.as_str())
+    }
+    if allow_func_override_for_args_node != none and
+            (allow_func_override_for_args_node.kind !=
+                ast.N_EXPR_CALLARGS or
+            node == none or
+            node_parents == none or node_parents.len == 0 or
+            node_parents[node.parents.len].kind !=
+                ast.N_EXPR_BINOP or
+            node_parents[node.parents.len].optoken.str != "(" or
+            node_parents[node.parents.len].subexprs[2] !=
+                allow_func_override_for_args_node {
+        throw new RuntimeError(
+            "Internal error: "
+            "Invalid allow_func_override_for_args_node "
+            "parameter not matching node_parents chain, or "
+            "node is unset. One of those three parameters "
+            "is bugged. Please report this error to the "
+            "compiler makers.")
+    }
+    func try_resolve_override_if_needed {
+        if allow_func_override_for_args_node == none {
+            return later
+        }
+        # In this case, delegate to get_called_or_assigned_func_types()
+        # which can resolve func overrides.
+        var result = ast_analyze.
+            get_called_or_assigned_func_types(
+                project_file, node,
+                node_parents,
+                allow_matching_func_override=yes,
+                allow_noncall_ref=no,
+                is_moose64=is_moose64,
+                debug=debug,
+            ) later:
+
+        await result
+        if result or result.func_var_name == none or
+                result.func_ref == none or
+                result.func_var_type_expr == none {
+            # Couldn't be resolved to exact known function
+            # and therefore also guaranteed not identified as
+            # any override.
+            return later
+        }
+        # This function may be an override, so update
+        # our info from what we obtained above:
+        var result_ref = result.func_ref
+        var result_type_expr = func_var_type_expr
+        return later [result_ref, result_type_expr]
     }
     if value_ref == none and node != none and
             node.kind == ast.N_EXPR_IDREF and
@@ -778,6 +830,12 @@ func resolve_st_ref_to_type_ref_and_expr(
             st_ref.ST_ARG}.has(result_ref.kind) {
         # This isn't a useful end result here.
         result_ref = none
+    }
+    if result_ref == none and
+            value_ref != none and
+            {st_ref.ST_MCREF, st_ref.ST_CEXT}.has(
+            value_ref.kind) {
+        result_ref = value_ref.copy()
     }
     if debug {
         print(dbg_header +
