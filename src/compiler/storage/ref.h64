@@ -104,15 +104,15 @@ func StorageRef.alike(other_ref) {
 func ref_to_item_name(project_file, fref) {
     if fref != none and fref.kind == ST_GLOBAL {
         var entry = st_scope.global_id_to_item(
-            project_file.project, storage_ref.id)
+            project_file.project, fref.id)
         if {ast.N_STMT_FUNC, ast.N_STMT_STRUCT,
                 ast.N_STMT_TYPE}.has(entry.kind) {
             return entry.label
         }
         return none
-    } elseif fref != none and fref.kind = ST_GLOBALATTR {
+    } elseif fref != none and fref.kind == ST_GLOBALATTR {
         var entry = st_scope.global_id_to_item(
-            project_file.project, storage_ref.id[1])
+            project_file.project, fref.id[1])
         assert(typename(entry) != "list")
         assert({ast.N_STMT_STRUCT, ast.N_STMT_TYPE,
             ast.N_STMT_ENUM}.has(entry.kind))
@@ -124,8 +124,8 @@ func ref_to_item_name(project_file, fref) {
         } else {
             assert(anscope.is_type or anscope.is_struct)
             var symbol = anscope.id_to_symbol_map[
-                storage_ref.id[2]]
-            assert(symbol.storage_id == storage_ref.id[2])
+                fref.id[2]]
+            assert(symbol.storage_id == fref.id[2])
             for name in anscope.name_to_symbol_map {
                 if anscope.name_to_symbol_map[name].storage_id ==
                         symbol.storage_id {
@@ -134,7 +134,7 @@ func ref_to_item_name(project_file, fref) {
             }
             throw new RuntimeError("Global attr not found "
                 "in AttrNamesScope symbol map. This shouldn't "
-                "happen.)
+                "happen.")
         }
     }
     return none

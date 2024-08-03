@@ -580,13 +580,13 @@ func resolve_st_ref_to_type_ref_and_expr(
     if allow_func_override_for_args_node != none and
             (allow_func_override_for_args_node.kind !=
                 ast.N_EXPR_CALLARGS or
-            node == none or
-            node_parents == none or node_parents.len == 0 or
-            node_parents[node.parents.len].kind !=
+             node == none or
+             node_parents == none or node_parents.len == 0 or
+             node_parents[node.parents.len].kind !=
                 ast.N_EXPR_BINOP or
-            node_parents[node.parents.len].optoken.str != "(" or
-            node_parents[node.parents.len].subexprs[2] !=
-                allow_func_override_for_args_node {
+             node_parents[node.parents.len].optoken.str != "(" or
+             node_parents[node.parents.len].subexprs[2] !=
+                allow_func_override_for_args_node) {
         throw new RuntimeError(
             "Internal error: "
             "Invalid allow_func_override_for_args_node "

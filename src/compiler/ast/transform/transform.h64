@@ -691,7 +691,7 @@ func transform_func_overrides_and_check_func_arg_sig_match(
         var called_ref = none
         var called_node = none
         var called_node_parents = none
-        var called_args_node = noe
+        var called_args_node = none
         var is_func_attr_call = no
         if node.subexprs[1].kind == ast.N_EXPR_IDREF {
             called_ref = node.subexprs[1].ref

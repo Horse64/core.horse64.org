@@ -211,7 +211,7 @@ func CalledFuncTypesResult.as_str {
         "func_var_type_expr" -> self.func_var_type_expr,
         "func_var_typeinfo" -> self.func_var_typeinfo,
         "func_var_name" -> self.func_var_name,
-        "func_was_overridden -> self.func_was_overriden,
+        "func_was_overridden" -> self.func_was_overriden,
         "func_ref" -> self.func_ref,
         "arg_var_type_exprs" -> self.arg_var_type_exprs,
         "arg_var_typeinfos" -> self.arg_var_typeinfos,
@@ -318,11 +318,12 @@ func get_called_or_assigned_func_types(
     recompute_user_type()
     later:
 
-    var called_name = none
+    var func_changed_to_override = no
+    var func_actual_name = none
     if m64_type_ref != none {
         # Not a func pointer, we know the name of
         # what exactly we're calling.
-        called_name = st_ref.ref_to_item_name(
+        func_actual_name = st_ref.ref_to_item_name(
             project_file, m64_type_ref)
     }
 
@@ -477,9 +478,9 @@ func get_called_or_assigned_func_types(
         func_typeinfo.func_typeexpr.is_func_attr
     result.func_var_type_expr = func_var_typeref
     result.func_var_typeinfo = func_var_typeinfo
-    result.func_var_name = called_name
+    result.func_var_name = func_actual_name
     result.func_ref = m64_type_ref
-    result.func_was_overridden = changed_to_override
+    result.func_was_overridden = func_changed_to_override
     result.arg_var_type_exprs = arg_var_type_exprs
     result.arg_var_typeinfos = arg_var_types
     result.self_var_type_expr = self_type_expr
