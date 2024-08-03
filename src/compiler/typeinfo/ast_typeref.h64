@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import compiler.ast as ast
+import compiler.ast.analyze as ast_analyze
 import compiler.ast.expr as ast_expr
 import compiler.msg as msg
 import compiler.token as token
@@ -582,10 +583,10 @@ func resolve_st_ref_to_type_ref_and_expr(
                 ast.N_EXPR_CALLARGS or
              node == none or
              node_parents == none or node_parents.len == 0 or
-             node_parents[node.parents.len].kind !=
+             node_parents[node_parents.len].kind !=
                 ast.N_EXPR_BINOP or
-             node_parents[node.parents.len].optoken.str != "(" or
-             node_parents[node.parents.len].subexprs[2] !=
+             node_parents[node_parents.len].optoken.str != "(" or
+             node_parents[node_parents.len].subexprs[2] !=
                 allow_func_override_for_args_node) {
         throw new RuntimeError(
             "Internal error: "
@@ -595,9 +596,11 @@ func resolve_st_ref_to_type_ref_and_expr(
             "is bugged. Please report this error to the "
             "compiler makers.")
     }
+
+    var override_resolution_result = none
     func try_resolve_override_if_needed {
         if allow_func_override_for_args_node == none {
-            return later
+            return later none
         }
         # In this case, delegate to get_called_or_assigned_func_types()
         # which can resolve func overrides.
@@ -618,13 +621,19 @@ func resolve_st_ref_to_type_ref_and_expr(
             # Couldn't be resolved to exact known function
             # and therefore also guaranteed not identified as
             # any override.
-            return later
+            return later none
         }
         # This function may be an override, so update
         # our info from what we obtained above:
         var result_ref = result.func_ref
         var result_type_expr = func_var_type_expr
-        return later [result_ref, result_type_expr]
+        override_resolution_result =
+            [result_ref, result_type_expr]
+    }
+    try_resolve_override_if_needed() later:
+
+    if override_resolution_result != none {
+        return later override_resolution_result
     }
     if value_ref == none and node != none and
             node.kind == ast.N_EXPR_IDREF and
@@ -777,17 +786,17 @@ func resolve_st_ref_to_type_ref_and_expr(
         var gscope = project_file.project.
             storage_id_to_global_scope_map[value_ref.id]
         assert(gscope != none)
-        var node = gscope.storage_id_to_entry[value_ref.id]
+        var gnode = gscope.storage_id_to_entry[value_ref.id]
         assert(typename(node) != "list")
-        var_node = node
-        if node.kind == ast.N_STMT_FUNC {
+        var_node = gnode
+        if gnode.kind == ast.N_STMT_FUNC {
             result_expr = create_typeref_from_func_node(
-                project_file, node
+                project_file, gnode
             ).copy()
-            assert(result_expr != none)
-        } elseif node.kind == ast.N_STMT_VAR and
-                node.has_type_expr and node.subexprs.len > 0 {
-            result_expr = node.subexprs[node.subexprs.len].copy()
+            assert(result_expr != gnone)
+        } elseif gnode.kind == ast.N_STMT_VAR and
+                gnode.has_type_expr and gnode.subexprs.len > 0 {
+            result_expr = gnode.subexprs[gnode.subexprs.len].copy()
         }
     }
 

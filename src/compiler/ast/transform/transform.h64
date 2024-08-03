@@ -756,7 +756,7 @@ func transform_func_overrides_and_check_func_arg_sig_match(
                     project_file, called_ref, node=called_node,
                     node_parents=called_node_parents,
                     allow_func_override_for_args_node=
-                        called_node_args,
+                        called_args_node,
                     is_moose64=is_moose64,
                     debug=debug,
                 ) later:
