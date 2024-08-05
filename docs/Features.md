@@ -54,7 +54,7 @@ func check_config {
 ```
 
 And thanks to its **mostly [independent runtime](
-/docs/Resources.md#what-is-the-runtime)**, it's easy to
+/docs/Runtime%20Concerns.md#what-is-the-runtime)**, it's easy to
 get it going.
 
 
