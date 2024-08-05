@@ -13,9 +13,12 @@ underlying implementations.
 What is the runtime
 -------------------
 
-Horse64 has its own independent runtime based on
-[HVM](/docs/Resources.md#hvm). Other than C to build it,
-it doesn't depend on other pre-existing languages.
+Horse64 has its own untime based on [HVM](/docs/Resources.md#hvm)
+which is meant to be independent in a way that it should run
+out-of-the-box on most systems without prior install.
+Other than [C](
+https://en.wikipedia.org/wiki/C_(programming_language) for
+building it, it doesn't depend on other pre-existing languages.
 
 
 How code reaches the runtime
