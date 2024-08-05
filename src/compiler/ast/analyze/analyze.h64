@@ -225,6 +225,7 @@ func get_called_or_assigned_func_types(
         project_file, called_node, called_node_parents,
         allow_matching_func_override=no,
         allow_noncall_ref=no,
+        ignore_arg_mismatch=no,
         msgs=none, is_moose64=no, debug=no
         ) {
     var dbg_prefix = if is_moose64 ("moosec: debug:")
@@ -377,7 +378,9 @@ func get_called_or_assigned_func_types(
     # Now, collect info about expected vs actually given call signature:
     var expected_args =
         func_typeinfo.func_typeexpr.arg_typeref_exprs.len +
-        if func_typeinfo.func_typeexpr.is_func_attr (-1) else (0)
+        if func_typeinfo.func_typeexpr.is_func_attr (-1) else (0) +
+        if func_typeinfo.func_typeexpr.is_failable (-1) else (0)
+    assert(expected_args >= 0)
     var called_args = call_args_expr.subexprs.len
     var is_self_call = ast_analyze.
         is_func_call_node_for_sure_a_self_call(
@@ -389,10 +392,49 @@ func get_called_or_assigned_func_types(
     }
     var effective_called_args =
         called_args + if is_self_call (1) else (0)
-    var expected_with_self =
+    var last_param_m64_type = none
+    func determine_last_param_type_if_needed {
+        if call_args_expr.subexprs.len <= 0 {
+            return later
+        }
+        last_param_m64_type =
+            m64_ast_analyze.get_c_or_m64_type_of_node(
+                project_file, call_args_expr.subexprs[
+                    call_args_expr.subexprs.len
+                ], called_node_parents + [call_args_expr],
+                store_self_value_ref_for_funcs=no,
+                msgs=none, debug=no
+            ) later:
+
+        await last_param_m64_type
+        if last_param_m64_type == none {
+            print(if is_moose64 ("hoosec")
+                else ("moosec") + ": "
+                "error: Internal error, failed to determine "
+                "type of this node: "
+                "arg_expr=" +
+                call_args_expr.subexprs[
+                    call_args_expr.subexprs.len
+                ].as_str())
+            throw new RuntimeError(
+                "Internal error: Failed to determine "
+                "type of last call parameter. Please "
+                "report this error to the compiler makers."
+            )
+        }
+    }
+    determine_last_param_type_if_needed() later:
+    var is_failable_call =
+        last_param_m64_type != none and
+        last_param_m64_type.kind == TI_USERTYPE and
+        last_param_m64_type.user_type_ref.name ==
+            "moose64_failed_result_t" and
+        last_param_m64_type.modifiers.len == 1 and
+        last_param_m64_type.modifiers[1].name == "ref"
+    var expected_with_self_str =
         if func_typeinfo.func_typeexpr.is_func_attr ("with self ref")
         else ("without self ref")
-    var called_with_self =
+    var called_with_self_str =
         if is_self_call ("with self ref")
         else ("without self ref")
 
@@ -404,29 +446,65 @@ func get_called_or_assigned_func_types(
         called_name = "'" + called_node.subexprs[2].label + "' "
             "func attr"
     }
+
+    var signature_mismatch = no
     if effective_called_args != expected_args +
-            if func_typeinfo.func_typeexpr.is_func_attr (1) else (0) {
-        if msgs == none {
-            throw new RuntimeError("Call has wrong number of "
-                "arguments.")
+            if func_typeinfo.func_typeexpr.is_func_attr (1) else (0) +
+            if func_typeinfo.func_typeexpr.is_failable (1) else (0) {
+        signature_mismatch = yes
+    }
+
+    if signature_mismatch {
+        # Try to find override...
+        # FIXME: implement this
+
+        # If we didn't find an override, error:
+        if not ignore_arg_mismatch {
+            if msgs == none {
+                print("oopsie " + [
+                    func_typeinfo.func_typeexpr,
+                    func_typeinfo.func_typeexpr.arg_typeref_exprs.len,
+                    expected_args,
+                    called_node_parents[called_node_parents.len],
+                    called_node_parents[
+                        called_node_parents.len - 2].as_code(),
+                ].as_str())
+                print(if is_moose64 ("hoosec")
+                        else ("moosec") + ": "
+                    "error: Internal error, "
+                    "rgs mismatch in unexpected context, "
+                    "effective_called_args=" +
+                        effective_called_args.as_str() + " "
+                    "expected_args=" +
+                        expected_args.as_str() + " "
+                    "is_failable_call=" +
+                        is_failable_call.as_str() + " "
+                    "is_self_call=" +
+                        is_self_call.as_str() + " "
+                    "is_func_attr=" +
+                        func_typeinfo.func_typeexpr.
+                        is_func_attr.as_str())
+                throw new RuntimeError("Call has wrong number of "
+                    "arguments.")
+            }
+            var expected_s =
+                if expected_args != 1 ("s") else ("")
+            var called_s =
+                if called_args != 1 ("s") else ("")
+            msgs.add(new msg.FileMsg(
+                "Unexpected number of args, " +
+                called_name + " expects " + expected_args.as_str() +
+                " arg" + expected_s + " " + expected_with_self + " "
+                "but this call provides " +
+                called_args.as_str() + " arg" + called_s + " " +
+                called_with_self + ".",
+                kind=msg.M_ERROR, source_file=project_file,
+                line=called_node.line,
+                col=called_node.col,
+            ))
+            called_node.damaged = yes
+            return later none
         }
-        var expected_s =
-            if expected_args != 1 ("s") else ("")
-        var called_s =
-            if called_args != 1 ("s") else ("")
-        msgs.add(new msg.FileMsg(
-            "Unexpected number of args, " +
-            called_name + " expects " + expected_args.as_str() +
-            " arg" + expected_s + " " + expected_with_self + " "
-            "but this call provides " +
-            called_args.as_str() + " arg" + called_s + " " +
-            called_with_self + ".",
-            kind=msg.M_ERROR, source_file=project_file,
-            line=called_node.line,
-            col=called_node.col,
-        ))
-        called_node.damaged = yes
-        return later none
     }
 
     arg_var_type_exprs = func_typeinfo.func_typeexpr.

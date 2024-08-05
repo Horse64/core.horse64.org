@@ -25,6 +25,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import compiler.ast as ast
 import compiler.moose64.builtins as m64_builtins
 import compiler.moose64.c_importer as c_importer
 import compiler.project as project
@@ -84,37 +85,111 @@ func project.Project.init_builtin_syms(is_moose64=no) {
 func get_m64_c_type_builtin_by_name(
         project, name, create_if_missing=no
         ) {
+    var item = get_m64_item_by_name(
+        project, name, create_if_missing=create_if_missing,
+        must_be_c_type=yes,
+        in_module_name=none, in_package_name=none
+    )
+    if item != none {
+        return item.symbol_storage_ref.as_str()
+    }
+    return none
+}
+
+func is_ast_node_referring_to_m64_std_as_ref(
+        project_file, node, is_moose64=no) {
+    if not is_moose64 {
+        return no
+    }
+    var as_ref_info =
+        get_m64_item_by_name(
+            project_file.project, "as_ref",
+            in_module_name="std")
+    var as_ref_storage_ref =
+    as_ref_info.symbol_storage_ref
+    if node.kind == ast.N_EXPR_IDREF and
+            node.label == "as_ref" and
+            node.ref != none and
+            node.ref.kind == st_ref.ST_MCREF and
+            node.ref.alike(
+                as_ref_storage_ref
+            ) {
+        return yes
+    }
+    return no
+}
+
+func get_m64_item_by_name(
+        project, name, create_if_missing=no,
+        must_be_c_type=no,
+        in_module_name=none, in_package_name=none
+        ) {
     var st = project.builtin_syms_storage
+    if in_package_name != none and in_package_name.has("$") {
+        throw new RuntimeError("Invalid package name given.")
+    }
+    if in_module_name != none and typename(in_module_name) == "list" {
+        in_module_name = ".".join(in_module_name)
+    }
+    if in_module_name != none and in_module_name.has("$") {
+        throw new RuntimeError("Invalid module name given.")
+    }
+    if in_module_name != none and
+            in_package_name == none {
+        in_package_name = "m64.horse64.org"
+    }
+    if in_package_name == none {
+        in_package_name = "$any"
+    }
+    if in_module_name == none {
+        in_module_name = "$any"
+    }
 
     var item = none
-    if st.package_to_item_list_map.has("$any") {
-        for inner_item in st.package_to_item_list_map["$any"] {
+    if st.package_to_item_list_map.has(in_package_name) {
+        for inner_item in st.package_to_item_list_map[in_package_name] {
             if inner_item.symbol_name == name {
-                item = inner_item
-                break
+                if (in_module_name == "$any" and
+                        (inner_item.module_path != none and
+                         inner_item.module_path.join(".") ==
+                            "$any")) or
+                        (in_module_name != "$any" and
+                         inner_item.module_path != none and
+                         inner_item.module_path.len > 0 and
+                         ".".join(inner_item.module_path) ==
+                            in_module_name) {
+                    item = inner_item
+                    break
+                }
             }
         }
     }
     if item != none or not create_if_missing {
-        if item != none and not item.is_c_builtin_type {
+        if item != none and must_be_c_type and
+                not item.is_c_builtin_type {
             item = none
         }
         if item == none {
             return none
         }
-        return item.symbol_storage_ref.as_str()
+        return item
     }
     var new_id = c_importer.get_mcref_id(project)
     var ref = new st_ref.StorageRef(st_ref.ST_MCREF, new_id)
 
     var st_item = register_symbol(
-        project, name, ref, none, is_hidden=yes,
+        project, name, ref, if in_module_name != "$any"
+            (in_module_name) else (none),
+        package_name=if in_package_name != "$any"
+            (in_package_name) else (none),
+        is_hidden=(in_package_name == "$any" and must_be_c_type),
         _return_internal_item_instead_of_ref=yes
     )
     if st_item != none {
-        st_item.is_c_builtin_type = yes
-        var ref_result = ref.copy()
-        return ref_result
+        if must_be_c_type {
+            st_item.is_c_builtin_type = yes
+        }
+        return st_item
     }
     return none
 }

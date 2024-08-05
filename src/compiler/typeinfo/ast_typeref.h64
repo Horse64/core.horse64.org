@@ -122,6 +122,7 @@ type TypeRefFuncExpr base TypeRefExpr {
     var arg_typeref_exprs = []
     var return_typeref_expr
     var func_storage_ref
+    var is_failable = no
     var is_func_attr
 }
 
@@ -362,6 +363,7 @@ func create_typeref_from_func_node(project_file, node) {
             new TypeRefMod("ref")
         )
         type_expr.arg_typeref_exprs.add(failable_type_expr)
+        type_expr.is_failable = yes
     }
     if node.extended_final_has_return_type() {
         type_expr.return_typeref_expr =
@@ -609,7 +611,7 @@ func resolve_st_ref_to_type_ref_and_expr(
                 project_file, node,
                 node_parents,
                 allow_matching_func_override=yes,
-                allow_noncall_ref=no,
+                #ignore_arg_mismatch=yes,  # FIXME
                 is_moose64=is_moose64,
                 debug=debug,
             ) later:
@@ -626,7 +628,7 @@ func resolve_st_ref_to_type_ref_and_expr(
         # This function may be an override, so update
         # our info from what we obtained above:
         var result_ref = result.func_ref
-        var result_type_expr = func_var_type_expr
+        var result_type_expr = result.func_var_type_expr
         override_resolution_result =
             [result_ref, result_type_expr]
     }

@@ -29,11 +29,13 @@ import random from core.horse64.org
 import textfmt from core.horse64.org
 
 import compiler.ast as ast
+import compiler.builtin_syms as builtin_syms
 import compiler.msg as msg
 import compiler.storage.ref as st_ref
 import compiler.storage.scope.manage as scope_manage
 import compiler.token as token
 import compiler.typeinfo as typeinfo
+import compiler.typeinfo.ast_typeref as ast_typeref
 
 func get_c_or_m64_type_of_typeref(
         project_file, typeref,
@@ -246,7 +248,7 @@ func _get_c_or_m64_type_of_node_do(
         ) later:
 
         await result
-        return result
+        return later result
     } elseif node.kind == ast.N_EXPR_IDREF {
         if parent.kind == ast.N_EXPR_BINOP and
                 parent.optoken.str == "." {
@@ -311,7 +313,34 @@ func _get_c_or_m64_type_of_node_do(
             _known_typeinfo_map[node] = result.copy()
             _known_typeinfo_map[node].func_self_ref = none
         }
-        return result
+        return later result
+    } elseif node.kind == ast.N_EXPR_BINOP and
+            node.optoken.str == "(" {
+        if builtin_syms.is_ast_node_referring_to_m64_std_as_ref(
+                project_file, node.subexprs[1], is_moose64=yes) {
+            var inner_result = _get_c_or_m64_type_of_node_do(
+                project_file, node.subexprs[2], parents + [node],
+                _known_typeinfo_map=_known_typeinfo_map,
+                store_self_value_ref_for_funcs=
+                    store_self_value_ref_for_funcs,
+                msgs=msgs, debug=debug
+            ) later:
+
+            await inner_result
+            if inner_result == none {
+                return later none
+            }
+            if inner_result.kind == typeinfo.TI_USERTYPE {
+                inner_result.user_type_ref.modifiers.add(
+                    new ast_typeref.TypeRefMod("ref")
+                )
+            }
+            inner_result.modifiers.add(
+                new ast_typeref.TypeRefMod("ref")
+            )
+            return later inner_result
+        }
+        return later none
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "." {
         var rhand = node.subexprs[2]
@@ -376,11 +405,15 @@ func _get_c_or_m64_type_of_node_do(
                 print(dbg_prefix + " unsetting result.func_self_ref.")
             }
         }
-        return result
+        return later result
     }
     return later none
 }
 
+### Get the C or m64 type that is assoiated with the given
+### AST node in the form of a @{compiler.typeinfo.TypeInfo} object.
+### @returns (compiler.typeinfo.TypeInfo, none) The type info for
+###     the node, or `none` if it can't be determined.
 func get_c_or_m64_type_of_node(
         project_file, node, parents,
         store_self_value_ref_for_funcs=no,

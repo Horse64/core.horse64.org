@@ -61,7 +61,7 @@ enum TypeInfoKind {
 type TypeInfo {
     var kind
     var c_type_name
-    var type_ref_mods = []
+    var modifiers = []
 
     ## For `TI_USERTYPE` or `TI_FUNCREF`, this holds a @{compiler.
     ## storage.ref.StorageRef} that points to the global scope item.
@@ -455,6 +455,10 @@ func create_typeinfo_from_global_ref(
     assert(target_ref.kind != st_ref.ST_LOCAL)
     var tinfo = new TypeInfo(TI_USERTYPE)
     tinfo.user_type_ref = target_ref.copy()
+    tinfo.modifiers = []
+    for mod in tinfo.user_type_ref.modifiers {
+        tinfo.modifiers.add(mod.copy())
+    }
     return tinfo
 }
 
