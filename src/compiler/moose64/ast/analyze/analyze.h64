@@ -53,6 +53,7 @@ func get_c_or_m64_type_of_typeref(
     ) later:
 
     await m64_type_ref
+    assert(m64_type_ref.kind != st_ref.ST_LOCAL)
     if m64_type_ref == none {
         return later none
     }
@@ -76,14 +77,34 @@ func get_c_or_m64_type_of_typeref(
 func get_c_or_m64_type_of_sym_info(
         project_file, target_sym_info,
         node_with_reference=none,
+        node_with_reference_parents=none,
         store_self_value_ref_for_funcs=no,
         msgs=none
         ) {
+    var typeref_expr = none
     var target_ref = target_sym_info.type_storage_ref
-    if target_ref == none and node_with_reference.ref != none {
+    if target_ref == none and node_with_reference.ref != none and
+            node_with_reference_parents != none and
+            node_with_reference_parents.len > 0 and
+            node_with_reference.ref == st_ref.ST_LOCAL {
+        var varnode = st_scope.find_def_node_from_idref_node(
+            node_with_reference, node_with_reference_parents
+        )
+        if varnode != none or varnode.kind != ast.N_STMT_VAR {
+            if not varnode.has_type_expr {
+                return later none
+            }
+            typeref_expr = varnode.subexprs[varnode.subexprs.len]
+        }
+    }
+    if target_ref == none and node_with_reference.ref != none and
+            {st_ref.ST_GLOBAL, st_ref.ST_GLOBALATTR,
+                st_ref.ST_CEXT, st_ref.ST_MCREF}.has(
+                    node_with_reference.ref.kind) {
         target_ref = node_with_reference.ref
     }
     if target_ref != none {
+        assert(target_ref.kind != st_ref.ST_LOCAL)
         var tinfo = new typeinfo.create_typeinfo_from_global_ref(
             target_ref,
             base_symbol_info_if_known=target_sym_info,
@@ -91,7 +112,9 @@ func get_c_or_m64_type_of_sym_info(
         )
         return later tinfo
     }
-    var typeref_expr = target_sym_info.typeref_expr
+    if typeref_expr == none {
+        typeref_expr = target_sym_info.typeref_expr
+    }
     if typeref_expr == none {
         return later none
     }
@@ -304,6 +327,7 @@ func _get_c_or_m64_type_of_node_do(
         }
         var result = get_c_or_m64_type_of_sym_info(
             project_file, sym_info, node_with_reference=node,
+            node_with_reference_parents=parents,
             msgs=msgs
         ) later:
 
@@ -384,6 +408,7 @@ func _get_c_or_m64_type_of_node_do(
         }
         var result = get_c_or_m64_type_of_sym_info(
             project_file, sym_info, node_with_reference=rhand,
+            node_with_reference_parents=parents + [node],
             msgs=msgs
         ) later:
 
