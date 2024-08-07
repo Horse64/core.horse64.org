@@ -140,7 +140,11 @@ func _get_c_or_m64_type_of_node_do(
     }
     if _known_typeinfo_map.has(node) and
             not store_self_value_ref_for_funcs {
-        return later _known_typeinfo_map[node].copy()
+        var result = _known_typeinfo_map[node].copy()
+        print("moosec: debug: "
+            "_get_c_or_m64_type_of_node_do() FAST PATH: " +
+            "Returning cached result=" + result.as_str())
+        return later result
     }
     var parent = if parents.len > 0 (parents[parents.len]) else (none)
 
@@ -257,7 +261,8 @@ func _get_c_or_m64_type_of_node_do(
     if debug {
         print(dbg_prefix + " continuing after checking left-hand: "
             "left_hand_instance_ref=" +
-            left_hand_instance_ref.as_str())
+            left_hand_instance_ref.as_str() + " "
+            "node.kind=" + ast.NodeKind.num_label(node.kind))
     }
     if node.kind == ast.N_STMT_VAR {
         if not node.has_type_expr {
@@ -271,6 +276,10 @@ func _get_c_or_m64_type_of_node_do(
         ) later:
 
         await result
+        if debug {
+            print(dbg_prefix + " Got N_STMT_VAR result=" +
+                result.as_str())
+        }
         return later result
     } elseif node.kind == ast.N_EXPR_IDREF {
         if parent.kind == ast.N_EXPR_BINOP and
@@ -337,11 +346,19 @@ func _get_c_or_m64_type_of_node_do(
             _known_typeinfo_map[node] = result.copy()
             _known_typeinfo_map[node].func_self_ref = none
         }
+        if debug {
+            print(dbg_prefix + " Got N_EXPR_IDREF result=" +
+                result.as_str())
+        }
         return later result
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "(" {
         if builtin_syms.is_ast_node_referring_to_m64_std_as_ref(
                 project_file, node.subexprs[1], is_moose64=yes) {
+            if debug {
+                print(dbg_prefix + " Got call binop on " +
+                    "built-in 'as_ref'...")
+            }
             var inner_result = _get_c_or_m64_type_of_node_do(
                 project_file, node.subexprs[2], parents + [node],
                 _known_typeinfo_map=_known_typeinfo_map,
@@ -363,6 +380,9 @@ func _get_c_or_m64_type_of_node_do(
                 new ast_typeref.TypeRefMod("ref")
             )
             return later inner_result
+        }
+        if debug {
+            print(dbg_prefix + " Got generic call binop...")
         }
         return later none
     } elseif node.kind == ast.N_EXPR_BINOP and
@@ -429,6 +449,10 @@ func _get_c_or_m64_type_of_node_do(
             if debug {
                 print(dbg_prefix + " unsetting result.func_self_ref.")
             }
+        }
+        if debug {
+            print(dbg_prefix + " Got N_EXPR_BINOP '.' result=" +
+                result.as_str())
         }
         return later result
     }
