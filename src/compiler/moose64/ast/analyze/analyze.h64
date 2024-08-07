@@ -32,6 +32,7 @@ import compiler.ast as ast
 import compiler.builtin_syms as builtin_syms
 import compiler.msg as msg
 import compiler.storage.ref as st_ref
+import compiler.storage.scope as st_scope
 import compiler.storage.scope.manage as scope_manage
 import compiler.token as token
 import compiler.typeinfo as typeinfo
@@ -79,22 +80,61 @@ func get_c_or_m64_type_of_sym_info(
         node_with_reference=none,
         node_with_reference_parents=none,
         store_self_value_ref_for_funcs=no,
-        msgs=none
+        msgs=none, debug=no
         ) {
+    var dbg_prefix = ""
+    if debug {
+        d_id = random.gen_id()
+        dbg_prefix = "moosec: debug: "
+            "get_c_or_m64_type_of_sym_info() #" + d_id
+    }
+    if debug {
+        print(dbg_prefix + " Examining target_sym_info=" +
+            target_sym_info.as_str() + " "
+            "node_with_reference=" +
+                node_with_reference.as_str() + " "
+            "node_with_reference.ref=" +
+                if node_with_reference != none
+                    (node_with_reference.ref.as_str()) else
+                    ("<is none>") + " "
+            "node_with_reference_parents.len=" +
+                if node_with_reference_parents != none
+                    (node_with_reference_parents.len.as_str()) else
+                    ("<is none>"))
+    }
+
     var typeref_expr = none
     var target_ref = target_sym_info.type_storage_ref
-    if target_ref == none and node_with_reference.ref != none and
+    if debug {
+        print(dbg_prefix + " Found initial target_ref=" +
+            target_ref.as_str())
+    }
+    if target_ref == none and node_with_reference != none and
+            node_with_reference.ref != none and
             node_with_reference_parents != none and
             node_with_reference_parents.len > 0 and
-            node_with_reference.ref == st_ref.ST_LOCAL {
-        var varnode = st_scope.find_def_node_from_idref_node(
+            node_with_reference.ref.kind == st_ref.ST_LOCAL {
+        var var_node = st_scope.find_def_node_from_idref_node(
             node_with_reference, node_with_reference_parents
         )
-        if varnode != none or varnode.kind != ast.N_STMT_VAR {
-            if not varnode.has_type_expr {
+        if debug {
+            print(dbg_prefix + " Tried to get var_node=" +
+                var_node.as_str())
+        }
+        if var_node != none or var_node.kind != ast.N_STMT_VAR {
+            if not var_node.has_type_expr {
                 return later none
             }
-            typeref_expr = varnode.subexprs[varnode.subexprs.len]
+            typeref_expr = var_node.subexprs[var_node.subexprs.len]
+        }
+    } elseif target_ref == none and
+            node_with_reference != none and
+            node_with_reference.ref.kind == st_ref.ST_LOCAL {
+        if debug {
+            print(dbg_prefix + " Warning: this is a local var "
+                "ref, but there's not enough info supplied to "
+                "even try to trace back to the var_node "
+                "defining it.")
         }
     }
     if target_ref == none and node_with_reference.ref != none and
@@ -154,7 +194,7 @@ func _get_c_or_m64_type_of_node_do(
         d_id = random.gen_id()
         dbg_prefix = "moosec: debug: "
             "_get_c_or_m64_type_of_node_do() #" + d_id
-        print(dbg_prefix + " running on: " +
+        print(dbg_prefix + " Running on: " +
             node.as_str() + " with store_self_value_ref_for_funcs=" +
             store_self_value_ref_for_funcs.as_str())
     }
@@ -196,8 +236,9 @@ func _get_c_or_m64_type_of_node_do(
     var left_hand_instance_ref = none
     func evaluate_lefthand_sides_if_needed(node) {
         if debug {
-            print(dbg_prefix + " evaluate_lefthand_sides_if_needed() "
-                "with node=" + node.as_str())
+            print(dbg_prefix +
+                " In evaluate_lefthand_sides_if_needed(): "
+                "Starting with node=" + node.as_str())
         }
         if node.kind != ast.N_EXPR_BINOP or
                 node.optoken.str != "." {
@@ -220,8 +261,9 @@ func _get_c_or_m64_type_of_node_do(
             return later yes
         }
         if debug {
-            print(dbg_prefix + " evaluate_lefthand_sides_if_needed() "
-                "now trying to get type on node.subexprs[1]=" +
+            print(dbg_prefix +
+                " In evaluate_lefthand_sides_if_needed(): "
+                "Now trying to get type on node.subexprs[1]=" +
                 node.subexprs[1].as_str())
         }
         var c_type = _get_c_or_m64_type_of_node_do(
@@ -232,8 +274,9 @@ func _get_c_or_m64_type_of_node_do(
 
         await c_type
         if debug {
-            print(dbg_prefix + " evaluate_lefthand_sides_if_needed() "
-                "result: c_type=" + c_type.as_str())
+            print(dbg_prefix +
+                " In evaluate_lefthand_sides_if_needed(): "
+                "Result: c_type=" + c_type.as_str())
         }
         if c_type == none and (
                 has_attr(node.subexprs[1], "ref") and
@@ -251,15 +294,15 @@ func _get_c_or_m64_type_of_node_do(
         # This means there isn't a useful way we can derive
         # any type from a left hand that's present.
         if debug {
-            print(dbg_prefix + " aborting: "
-                "no useful left-hand from which we could derive type "
-                "of full expression")
+            print(dbg_prefix + " Aborting: "
+                "no useful left-hand from which we could derive "
+                "type of full expression")
         }
         return later none
     }
 
     if debug {
-        print(dbg_prefix + " continuing after checking left-hand: "
+        print(dbg_prefix + " Continuing after checking left-hand: "
             "left_hand_instance_ref=" +
             left_hand_instance_ref.as_str() + " "
             "node.kind=" + ast.NodeKind.num_label(node.kind))
@@ -285,8 +328,10 @@ func _get_c_or_m64_type_of_node_do(
         if parent.kind == ast.N_EXPR_BINOP and
                 parent.optoken.str == "." {
             if debug {
-                print(dbg_prefix + " parent is an attr access binop, "
-                    "so we're getting parent result instead...")
+                print(dbg_prefix + " The parent is an "
+                    "attr access binop, "
+                    "so we're getting parent result "
+                    "instead...")
             }
             var inner_result = _get_c_or_m64_type_of_node_do(
                 project_file, parent, parents.sub(1, parents.len - 1),
@@ -298,9 +343,8 @@ func _get_c_or_m64_type_of_node_do(
 
             await inner_result
             if debug {
-                print("compiler.moose64.ast.anayze: debug: "
-                    "_get_c_or_m64_type_of_node_do() #" +
-                    d_id + " will return parent result now.")
+                print(dbg_prefix + " Will return "
+                    "parent result now.")
             }
             if inner_result != none and
                     not _known_typeinfo_map.has(node) {
@@ -318,9 +362,7 @@ func _get_c_or_m64_type_of_node_do(
 
         if sym_info == none {
             if debug {
-                print("compiler.moose64.ast.anayze: debug: "
-                    "_get_c_or_m64_type_of_node_do() #" +
-                    d_id + " failed "
+                print(dbg_prefix + " Failed "
                     "to find symbol info for: " + [
                         node, node.ref
                     ].as_str())
@@ -329,15 +371,13 @@ func _get_c_or_m64_type_of_node_do(
             return later none
         }
         if debug {
-            print("compiler.moose64.ast.anayze: debug: "
-                "_get_c_or_m64_type_of_node_do() #" +
-                d_id + " got "
+            print(dbg_prefix + " Got "
                 "symbol info: " + sym_info.as_str())
         }
         var result = get_c_or_m64_type_of_sym_info(
             project_file, sym_info, node_with_reference=node,
             node_with_reference_parents=parents,
-            msgs=msgs
+            msgs=msgs, debug=debug
         ) later:
 
         await result
@@ -390,7 +430,7 @@ func _get_c_or_m64_type_of_node_do(
         var rhand = node.subexprs[2]
         assert(rhand.kind == ast.N_EXPR_IDREF)
         if debug {
-            print(dbg_prefix + " now evaluating binop with "
+            print(dbg_prefix + " Now evaluating binop with "
                 "rhand=" + rhand.as_str())
         }
 
@@ -429,7 +469,7 @@ func _get_c_or_m64_type_of_node_do(
         var result = get_c_or_m64_type_of_sym_info(
             project_file, sym_info, node_with_reference=rhand,
             node_with_reference_parents=parents + [node],
-            msgs=msgs
+            msgs=msgs, debug=debug
         ) later:
 
         await result
@@ -441,13 +481,13 @@ func _get_c_or_m64_type_of_node_do(
         if store_self_value_ref_for_funcs and
                 left_hand_instance_ref != none {
             if debug {
-                print(dbg_prefix + " setting result.func_self_ref=" +
+                print(dbg_prefix + " Setting result.func_self_ref=" +
                     left_hand_instance_ref.as_str())
             }
             result.func_self_ref = left_hand_instance_ref
         } else {
             if debug {
-                print(dbg_prefix + " unsetting result.func_self_ref.")
+                print(dbg_prefix + " Unsetting result.func_self_ref.")
             }
         }
         if debug {
