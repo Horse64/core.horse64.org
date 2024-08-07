@@ -757,6 +757,7 @@ func transform_func_overrides_and_check_func_arg_sig_match(
                     node_parents=called_node_parents,
                     allow_func_override_for_args_node=
                         called_args_node,
+                    msgs=msgs,
                     is_moose64=is_moose64,
                     debug=debug,
                 ) later:

@@ -426,7 +426,7 @@ func get_called_or_assigned_func_types(
     determine_last_param_type_if_needed() later:
     var is_failable_call =
         last_param_m64_type != none and
-        last_param_m64_type.kind == TI_USERTYPE and
+        last_param_m64_type.kind == typeinfo.TI_USERTYPE and
         last_param_m64_type.user_type_ref.name ==
             "moose64_failed_result_t" and
         last_param_m64_type.modifiers.len == 1 and
@@ -472,7 +472,7 @@ func get_called_or_assigned_func_types(
                 print(if is_moose64 ("hoosec")
                         else ("moosec") + ": "
                     "error: Internal error, "
-                    "rgs mismatch in unexpected context, "
+                    "args mismatch in unexpected context, "
                     "effective_called_args=" +
                         effective_called_args.as_str() + " "
                     "expected_args=" +
@@ -491,17 +491,21 @@ func get_called_or_assigned_func_types(
                 if expected_args != 1 ("s") else ("")
             var called_s =
                 if called_args != 1 ("s") else ("")
-            msgs.add(new msg.FileMsg(
-                "Unexpected number of args, " +
-                called_name + " expects " + expected_args.as_str() +
-                " arg" + expected_s + " " + expected_with_self + " "
-                "but this call provides " +
-                called_args.as_str() + " arg" + called_s + " " +
-                called_with_self + ".",
-                kind=msg.M_ERROR, source_file=project_file,
-                line=called_node.line,
-                col=called_node.col,
-            ))
+            if not called_node.damaged {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected number of args, " +
+                    called_name + " expects " +
+                        expected_args.as_str() + " "
+                    "arg" + expected_s + " " +
+                        expected_with_self_str + " "
+                    "but this call provides " +
+                    called_args.as_str() + " arg" + called_s + " " +
+                    called_with_self_str + ".",
+                    kind=msg.M_ERROR, source_file=project_file,
+                    line=called_node.line,
+                    col=called_node.col,
+                ))
+            }
             called_node.damaged = yes
             return later none
         }

@@ -470,6 +470,8 @@ func get_c_builtin_for_m64_base_type(name) {
         return "uint32_t"
     } elseif name == "u64" or name == "size" {
         return "uint64_t"
+    } elseif name == "moose64_failed_result_t" {
+        return "uint32_t"
     } elseif name == "any" {
         return "void"
     } else {
@@ -562,7 +564,8 @@ func resolve_st_ref_to_type_ref_and_expr(
         project_file, value_ref,
         node=none, node_parents=none,
         allow_func_override_for_args_node=none,
-        ignore_if_ref_none=no, is_moose64=no,
+        ignore_if_ref_none=no,
+        msgs=none, is_moose64=no,
         debug=no,
         ) {
     var dbg_header = if is_moose64
@@ -612,12 +615,14 @@ func resolve_st_ref_to_type_ref_and_expr(
                 node_parents,
                 allow_matching_func_override=yes,
                 #ignore_arg_mismatch=yes,  # FIXME
+                msgs=msgs,
                 is_moose64=is_moose64,
                 debug=debug,
             ) later:
 
         await result
-        if result or result.func_var_name == none or
+        if result == none or
+                result.func_var_name == none or
                 result.func_ref == none or
                 result.func_var_type_expr == none {
             # Couldn't be resolved to exact known function
