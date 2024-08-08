@@ -82,7 +82,7 @@ func project.Project.init_builtin_syms(is_moose64=no) {
     return later
 }
 
-func get_m64_c_type_builtin_by_name(
+func get_m64_c_type_builtin_ref_by_name(
         project, name, create_if_missing=no
         ) {
     var item = get_m64_item_by_name(
@@ -91,7 +91,7 @@ func get_m64_c_type_builtin_by_name(
         in_module_name=none, in_package_name=none
     )
     if item != none {
-        return item.symbol_storage_ref.as_str()
+        return item.symbol_storage_ref.copy()
     }
     return none
 }
@@ -106,7 +106,7 @@ func is_ast_node_referring_to_m64_std_as_ref(
             project_file.project, "as_ref",
             in_module_name="std")
     var as_ref_storage_ref =
-    as_ref_info.symbol_storage_ref
+        as_ref_info.symbol_storage_ref
     if node.kind == ast.N_EXPR_IDREF and
             node.label == "as_ref" and
             node.ref != none and

@@ -105,7 +105,6 @@ func get_c_or_m64_type_of_sym_info(
 
     var typeref_expr = none
     var target_ref = target_sym_info.type_storage_ref
-    assert(has_attr(target_ref, "kind"))
     if debug {
         print(dbg_prefix + " Found initial target_ref=" +
             target_ref.as_str())
@@ -143,10 +142,9 @@ func get_c_or_m64_type_of_sym_info(
                 st_ref.ST_CEXT, st_ref.ST_MCREF}.has(
                     node_with_reference.ref.kind) {
         target_ref = node_with_reference.ref
-        assert(has_attr(target_ref, "kind"))
     }
     if target_ref != none {
-        assert(has_attr(target_ref, "kind"))
+        assert(target_ref == none or has_attr(target_ref, "kind"))
         assert(target_ref.kind != st_ref.ST_LOCAL)
         var tinfo = new typeinfo.create_typeinfo_from_global_ref(
             target_ref,
