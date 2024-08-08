@@ -639,7 +639,7 @@ def h64_type(v):
         return "bool"
     elif v == None:
         return "none"
-    return str(result)
+    return "obj"
 
 def _container_add_at(container, idx, item):
     if (not hasattr(container, "add_at") and
