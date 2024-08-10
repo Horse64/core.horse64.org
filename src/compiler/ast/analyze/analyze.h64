@@ -307,6 +307,7 @@ func get_called_or_assigned_func_types(
             return
         }
         # Try to trace back the actual func we're calling:
+        assert(func_typeinfo.func_typeexpr.is_func_ref)
         m64_type_ref = func_typeinfo.func_typeexpr.
             try_resolve_to_user_type(
                 project_file, recursive=yes,
@@ -461,14 +462,6 @@ func get_called_or_assigned_func_types(
         # If we didn't find an override, error:
         if not ignore_arg_mismatch {
             if msgs == none {
-                print("oopsie " + [
-                    func_typeinfo.func_typeexpr,
-                    func_typeinfo.func_typeexpr.arg_typeref_exprs.len,
-                    expected_args,
-                    called_node_parents[called_node_parents.len],
-                    called_node_parents[
-                        called_node_parents.len - 2].as_code(),
-                ].as_str())
                 print(if is_moose64 ("hoosec")
                         else ("moosec") + ": "
                     "error: Internal error, "

@@ -151,6 +151,10 @@ func get_c_or_m64_type_of_sym_info(
             base_symbol_info_if_known=target_sym_info,
             base_node_if_known=node_with_reference,
         )
+        if debug {
+            print(dbg_prefix + " create_typeinfo_from_global_ref "
+                "returned tinfo=" + tinfo.as_str())
+        }
         return later tinfo
     }
     if typeref_expr == none {

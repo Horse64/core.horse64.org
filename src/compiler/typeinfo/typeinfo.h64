@@ -42,6 +42,15 @@ extend type st_scope.SymbolInfo {
     var type_storage_ref
 }
 
+extend func st_scope.SymbolInfo.as_str {
+    var result = extended()
+    assert(result.ends("}"))
+    result = result.sub(1, result.len - 1) + ", " +
+        "typeref_expr=" + self.typeref_expr.as_str()
+
+    return result
+}
+
 extend type ast_expr.IdRefExpr {
     var value_typeref_expr
 }
@@ -425,7 +434,7 @@ func create_typeinfo_from_global_ref(
         if base_typeref_expr_if_known != none {
             tinfo.func_typeexpr =
                 base_typeref_expr_if_known.copy()
-        } else {
+        } elseif base_symbol_info_if_known != none {
             tinfo.func_typeexpr =
                 base_symbol_info_if_known.typeref_expr.copy()
         }

@@ -109,6 +109,7 @@ func project.Project.finalize_func_typerefs_all_files(
                     ast_typeref.create_typeref_from_func_node(
                         pfile, value
                     )
+                assert(si.typeref_expr.is_func_ref)
                 if is_moose64 and si.typeref_expr == none {
                     print("moosec: error: Internal error, unexpectedly "
                         "failed to compute typeref expr for func node: " +
@@ -163,6 +164,7 @@ func project.Project.finalize_func_typerefs_all_files(
                         ast_typeref.create_typeref_from_func_node(
                             pfile, stmt
                         )
+                    assert(symbol_info.typeref_expr.is_func_ref)
                 }
                 if symbol_info.type_storage_ref == none {
                     symbol_info.type_storage_ref =
