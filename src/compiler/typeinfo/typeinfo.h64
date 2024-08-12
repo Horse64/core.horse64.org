@@ -434,9 +434,11 @@ func create_typeinfo_from_global_ref(
         if base_typeref_expr_if_known != none {
             tinfo.func_typeexpr =
                 base_typeref_expr_if_known.copy()
+            assert(tinfo.func_typeexpr.is_func_ref)
         } elseif base_symbol_info_if_known != none {
             tinfo.func_typeexpr =
                 base_symbol_info_if_known.typeref_expr.copy()
+            assert(tinfo.func_typeexpr.is_func_ref)
         }
         if self_ref_if_known == none and
                 self_node_if_known != none and
