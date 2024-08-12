@@ -64,8 +64,7 @@ When to use Horse64
 (This is very subjective.)
 
 - 🛡️ **If you need an approachable but not reckless language.**
-  Clean dynamic types meet Ahead-Of-Time checks not common
-  in scripting *by default.*
+  Clean dynamic types meet better Ahead-Of-Time checks.
 
 - 📦 **If you need self-contained deployment.**
   Ship server and desktop apps more easily.
