@@ -165,6 +165,14 @@ func FuncScope.extended_final_arg_type_exprs {
     return result[2] + result[4]
 }
 
+func FuncScope.extended_final_symbol_info_list {
+    var base_func_scope = self.base_func_scope
+    if base_func_scope == none {
+        base_func_scope = self
+    }
+    return base_func_scope.arg_symbol_info.copy()
+}
+
 func FuncScope.add_arg(
         name, ast_node=none, type_expr=none,
         project_file=none, is_kw_arg=no) {

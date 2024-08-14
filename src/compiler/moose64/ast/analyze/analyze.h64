@@ -64,6 +64,7 @@ func get_c_or_m64_type_of_typeref(
     if m64_symbol_info == none {
         return later none
     }
+
     var tinfo = new typeinfo.create_typeinfo_from_global_ref(
         m64_type_ref,
         base_symbol_info_if_known=m64_symbol_info,

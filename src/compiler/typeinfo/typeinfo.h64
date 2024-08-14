@@ -161,18 +161,50 @@ func set_vattr_syminfo_early_type_info(
     }
 }
 
-func try_resolve_symbol_typeref(
+func try_resolve_symbol_typeref_or_type_expr(
         project_file, var_decl_node, type_expr,
         sym_info, msgs, is_moose64=no
         ) {
-    if var_decl_node.damaged or
-            sym_info.type_storage_ref != none {
+    if var_decl_node.damaged or (sym_info != none and
+            sym_info.type_storage_ref != none) {
         return later
     }
-    if type_expr != none {
+    if type_expr != none and sym_info != none {
+        if {st_scope.SINFO_FUNC, st_scope.SINFO_FUNCATTR}.has(
+                sym_info.kind
+                ) and not type_expr.is_func_ref {
+            throw new TypeError("The given type_expr "
+                "isn't referring to a func, but the given "
+                "sym_info is. This doesn't make any sense.")
+        }
         sym_info.typeref_expr = type_expr.copy()
     }
-    if sym_info.typeref_expr == none {
+    if type_expr != none {
+        if type_expr.is_user_type {
+            return later none
+        }
+        var st_ref = type_expr.try_resolve_to_user_type(
+            project_file, is_moose64=is_moose64
+        ) later:
+
+        await st_ref
+        if st_ref == none and (
+                not type_expr.is_func_ref or
+                type_expr.func_storage_ref != none) {
+            var_decl_node.damaged = yes
+            msgs.add(new msg.FileMsg(
+                "Unexpected typeref " +
+                sym_info.typeref_expr.as_str() + ", "
+                "failed to find referenced underlying type.",
+                source_file=project_file,
+                line=var_decl_node.line,
+                col=var_decl_node.col,
+            ))
+        }
+        return later
+    }
+    if sym_info == none or
+            sym_info.typeref_expr == none {
         return later
     }
     var name = sym_info.name
@@ -251,7 +283,7 @@ func ensure_type_info_for_file(project_file, msgs, is_moose64=no) {
             func process_labels {
                 func handle_label(lbl) {
                     idx += 1
-                    try_resolve_symbol_typeref(
+                    try_resolve_symbol_typeref_or_type_expr(
                         project_file, node, type_expr,
                         node.symbol_info[idx], msgs,
                         is_moose64=is_moose64
@@ -298,9 +330,9 @@ func ensure_type_info_for_file(project_file, msgs, is_moose64=no) {
                     return later
                 }
                 var type_expr = node.subexprs[node.subexprs.len]
-                try_resolve_symbol_typeref(
+                try_resolve_symbol_typeref_or_type_expr(
                     project_file, node, type_expr,
-                    node.symbol_info, msgs,
+                    none, msgs,
                     is_moose64=is_moose64
                 ) later:
             }
@@ -312,7 +344,7 @@ func ensure_type_info_for_file(project_file, msgs, is_moose64=no) {
                     return
                 }
                 func handle_arg(expr_item, sinfo_item) {
-                    try_resolve_symbol_typeref(
+                    try_resolve_symbol_typeref_or_type_expr(
                         project_file, node, expr_item,
                         sinfo_item, msgs,
                         is_moose64=is_moose64

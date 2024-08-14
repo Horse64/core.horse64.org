@@ -171,7 +171,9 @@ func ref_is_global_func_def(project_file, storage_ref) {
     return no
 }
 
-func ref_to_symbol_info(project_file, storage_ref, node=none) {
+func ref_to_symbol_info(
+        project_file, storage_ref, node=none
+        ) {
     if storage_ref.kind == ST_GLOBAL {
         var entry = st_scope.global_id_to_item(
             project_file.project, storage_ref.id)
@@ -227,7 +229,20 @@ func ref_to_symbol_info(project_file, storage_ref, node=none) {
             return entry
         }
     } elseif storage_ref.kind == ST_ARG {
-        return none
+        if node.scope == none {
+            return none
+        }
+        var fscope = node.scope.func_scope
+        if fscope == none {
+            return none
+        }
+        var sinfolist = fscope.extended_final_symbol_info_list()
+        assert(typename(sinfolist) == "list")
+        if storage_ref.id < 0 or storage_ref.id > sinfolist.len {
+            return none
+        }
+        var entry = sinfolist[storage_ref.id]
+        return entry
     }
     return none
 }
