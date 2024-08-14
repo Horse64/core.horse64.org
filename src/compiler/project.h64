@@ -678,6 +678,8 @@ func Project.ensure_global_scope_for_full_project(
 }
 
 func Project.do_for_all_files(callback) {
+    var program_name =
+        if self.is_moose64 ("moosec") else ("horsec")
     var file_queue = []
     for pfile in self.module_uri_to_file_map.values() {
         file_queue.add(pfile)
@@ -697,7 +699,8 @@ func Project.do_for_all_files(callback) {
         do {
             await resume_process
         } rescue any as e {
-            print("horsec: error: Unexpected unrecoverable "
+            print(program_name + ": error: "
+                "Unexpected unrecoverable "
                 "internal error in do_for_all_files(), processing "
                 "file " + next_file.source_uri.as_str() + " -> " +
                 e.as_str())
