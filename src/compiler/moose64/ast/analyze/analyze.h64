@@ -179,8 +179,10 @@ func _get_c_or_m64_type_of_node_do(
         project_file, node, parents,
         _known_typeinfo_map=none,
         store_self_value_ref_for_funcs=no,
+        disable_binop_parent_fallback=no,
         msgs=none, debug=no
         ) {
+    var is_moose64 = yes
     if _known_typeinfo_map == none {
         _known_typeinfo_map = {->}
     }
@@ -275,6 +277,7 @@ func _get_c_or_m64_type_of_node_do(
         var c_type = _get_c_or_m64_type_of_node_do(
             project_file, node.subexprs[1], parents + [node],
             _known_typeinfo_map=_known_typeinfo_map,
+            disable_binop_parent_fallback=yes,
             msgs=msgs,
         ) later:
 
@@ -332,7 +335,8 @@ func _get_c_or_m64_type_of_node_do(
         return later result
     } elseif node.kind == ast.N_EXPR_IDREF {
         if parent.kind == ast.N_EXPR_BINOP and
-                parent.optoken.str == "." {
+                parent.optoken.str == "." and
+                not disable_binop_parent_fallback {
             if debug {
                 print(dbg_prefix + " The parent is an "
                     "attr access binop, "
@@ -449,9 +453,16 @@ func _get_c_or_m64_type_of_node_do(
                 return later none
             }
             assert(lhand.ref != none)
+
+            if debug {
+                print(dbg_prefix + " Calling "
+                    "try_ensure_attr_ref on "
+                    "lhand=" + lhand.as_str() + ", "
+                    "rhand=" + rhand.as_str())
+            }
             scope_manage.try_ensure_attr_ref(
                 project_file, lhand, rhand,
-                parents,
+                parents + [node],
                 error_on_invalid=yes, is_moose64=is_moose64,
                 msgs=msgs,
             ) later:
@@ -460,13 +471,17 @@ func _get_c_or_m64_type_of_node_do(
         later:
 
         if debug {
-            print(dbg_prefix + " got rhand.ref=" + rhand.ref.as_str())
+            print(dbg_prefix + " Got rhand.ref=" + rhand.ref.as_str())
+        }
+        if rhand.ref == none {
+            trigger_no_symbol_info_on(node)
+            return later none
         }
         var sym_info = st_ref.ref_to_symbol_info(
             project_file, rhand.ref, node=rhand
         )
         if debug {
-            print(dbg_prefix + " got sym_info=" + sym_info.as_str())
+            print(dbg_prefix + " Got sym_info=" + sym_info.as_str())
         }
         if sym_info == none {
             trigger_no_symbol_info_on(node)

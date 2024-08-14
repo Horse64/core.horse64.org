@@ -124,6 +124,7 @@ type TypeRefFuncExpr base TypeRefExpr {
     var func_storage_ref
     var is_failable = no
     var is_func_attr
+    var is_special_madeup_builtin = yes # Like .len, etc.
 }
 
 func TypeRefFuncExpr.init {

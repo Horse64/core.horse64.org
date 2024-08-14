@@ -1155,11 +1155,11 @@ func project.ProjectFile.make_attr_names_scope_from_node(
 func try_ensure_attr_ref(
         project_file, node_lefthand, node_righthand,
         parent_chain,
-        error_on_invalid=no, is_moose64=no,  msgs=none,
+        error_on_invalid=no, is_moose64=no, msgs=none,
         ) {
     assert(typename(parent_chain) == "list")
-    assert(node.righthand.kind == ast.N_EXPR_IDREF)
-    if node.righthand.ref != none {
+    assert(node_righthand.kind == ast.N_EXPR_IDREF)
+    if node_righthand.ref != none {
         return later
     }
 
@@ -1167,7 +1167,7 @@ func try_ensure_attr_ref(
         project_file, msgs,
         start_at_root=node_righthand,
         root_parents=parent_chain,
-        is_moose64=no, debug=no
+        is_moose64=is_moose64, debug=no
         ) later:
 
     return later
@@ -1470,6 +1470,12 @@ func visit_to_resolve_known_attrs(
                     parent.subexprs[1].optoken.str == "." and
                     parent.subexprs[1].subexprs[2].kind ==
                         ast.N_EXPR_IDREF {
+                if parent.subexprs[1].subexprs[2].ref != none and
+                        parent.subexprs[1].subexprs[2].ref.kind !=
+                        st_ref._ST_RESOLVELATER {
+                    return later yes
+                }
+                parent.subexprs[1].subexprs[2].ref = none
                 var result = try_resolve_item(
                     parent.subexprs[1].subexprs[2],
                     parents + [parent.subexprs[1]],
@@ -1482,6 +1488,12 @@ func visit_to_resolve_known_attrs(
                 return later yes
             }
             if parent.subexprs[1].kind == ast.N_EXPR_IDREF {
+                if parent.subexprs[1].ref != none and
+                        parent.subexprs[1].ref.kind !=
+                        st_ref._ST_RESOLVELATER {
+                    return later yes
+                }
+                parent.subexprs[1].ref = none
                 var result = try_resolve_item(
                     parent.subexprs[1],
                     parents.copy(),
@@ -1500,7 +1512,7 @@ func visit_to_resolve_known_attrs(
         ) later:
 
         await result
-        if result == none {
+        if result == no {
             return later none
         }
 
@@ -1522,6 +1534,7 @@ func visit_to_resolve_known_attrs(
         var left_type_expr = none
         var left_type_global_ref = none
         var left_type_vnode = none
+        var left_type_symbol_info = none
         if left_of_us.ref != none and
                 left_of_us.ref.kind == st_ref.ST_LOCAL {
             var var_node =
@@ -1530,6 +1543,24 @@ func visit_to_resolve_known_attrs(
                 )
             assert(var_node != none)
             left_type_vnode = var_node
+        }
+        if no and left_of_us.ref != none and
+                left_of_us.ref.kind == st_ref.ST_ARG {
+            if left_of_us.scope != none and
+                    left_of_us.scope.func_scope != none {
+                var fscope = left_of_us.scope.func_scope
+                if fscope == none {
+                    return none
+                }
+                var sinfolist =
+                    fscope.extended_final_symbol_info_list()
+                assert(typename(sinfolist) == "list")
+                if left_of_us.ref.id < 0 or
+                        left_of_us.ref.id > sinfolist.len {
+                    return none
+                }
+                left_type_symbol_info = sinfolist[left_of_us.ref.id]
+            }
         }
         var result =
             ast_typeref.resolve_st_ref_to_type_ref_and_expr(
@@ -1554,7 +1585,7 @@ func visit_to_resolve_known_attrs(
             "this value doesn't have this attribute"
         var our_type_ref = none
         var our_type_expr = none
-        func resolve_from_global_storage(storage_id) {
+        func resolve_usertype_attr_from_global_storage(storage_id) {
             assert(typename(storage_id) == "num")
             var anscope =
                 pfile.project.storage_id_to_anscope_map[
@@ -1579,8 +1610,11 @@ func visit_to_resolve_known_attrs(
             }
         }
         if left_type_global_ref != none and
-                left_type_global_ref.kind == st_ref.ST_GLOBAL {
-            resolve_from_global_storage(
+                left_type_global_ref.kind == st_ref.ST_GLOBAL and
+                (left_type_expr == none or
+                 left_type_expr.is_user_type()) {
+            # Indexing a global user type, let's resolve this:
+            resolve_usertype_attr_from_global_storage(
                 left_type_global_ref.id
             )
         } elseif is_moose64 {
@@ -1600,6 +1634,7 @@ func visit_to_resolve_known_attrs(
                     not left_type_expr.is_user_type() {
                 if node.label == "len" {
                     our_type_expr = new ast_typeref.TypeRefFuncExpr()
+                    our_type_expr.is_special_madeup_builtin = yes
                     our_type_expr.return_typeref_expr =
                         new ast_typeref.TypeRefExpr()
                     our_type_expr.return_typeref_expr.name = "size"
@@ -1607,6 +1642,7 @@ func visit_to_resolve_known_attrs(
                     our_type_expr.arg_typeref_exprs = [self_type]
                 } elseif node.label == "data" {
                     our_type_expr = new ast_typeref.TypeRefFuncExpr()
+                    our_type_expr.is_special_madeup_builtin = yes
                     our_type_expr.return_typeref_expr =
                         new ast_typeref.TypeRefExpr()
                     our_type_expr.return_typeref_expr.name = "byte"
@@ -1624,7 +1660,7 @@ func visit_to_resolve_known_attrs(
             } elseif not is_attr_error and
                     left_type_expr.is_user_type() {
                 assert(left_type_global_ref != none)
-                resolve_from_global_storage(
+                resolve_usertype_attr_from_global_storage(
                     left_type_global_ref.id
                 )
             }
@@ -1755,6 +1791,7 @@ func visit_to_resolve_known_attrs(
         if debug {
             print(dbg_header +
                 "visit_to_resolve_known_attrs(): " +
+                "is_moose64=" + is_moose64.as_str() + " "
                 "node=" + node.as_str() + " "
                 "our_type_expr=" + our_type_expr.as_str() + " "
                 "our_type_ref=" + our_type_ref.as_str() + " "
@@ -1791,7 +1828,7 @@ func visit_to_resolve_known_attrs(
         }
     }
     var success = transform.visit_ast_tree(
-        project_file.ast, try_resolve_item,
+        start_at_root, try_resolve_item,
         subtree_parent=root_parents,
         parent_chain=yes) later:
 
