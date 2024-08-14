@@ -124,7 +124,6 @@ type TypeRefFuncExpr base TypeRefExpr {
     var func_storage_ref
     var is_failable = no
     var is_func_attr
-    var is_special_madeup_builtin = yes # Like .len, etc.
 }
 
 func TypeRefFuncExpr.init {
@@ -391,6 +390,9 @@ type TypeRefExpr base ast.TreeNode {
     var has_init_expr
     var is_func_ref = no
     var storage_ref = none
+
+    var is_special_madeup_builtin = no  # Like .len, etc.
+    var special_madeup_builtin_base_expr = none
 }
 
 func TypeRefExpr.init {
@@ -529,6 +531,9 @@ func TypeRefExpr.get_c_builtin_for_m64_base_type {
 }
 
 func TypeRefExpr.is_user_type {
+    if self.is_special_madeup_builtin {
+        return no
+    }
     return not builtin_moose64_types.has(self.name)
 }
 

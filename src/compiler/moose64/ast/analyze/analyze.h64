@@ -474,6 +474,30 @@ func _get_c_or_m64_type_of_node_do(
             print(dbg_prefix + " Got rhand.ref=" + rhand.ref.as_str())
         }
         if rhand.ref == none {
+            if rhand.kind == ast.N_EXPR_IDREF and
+                    has_attr(rhand, "value_typeref_expr") and
+                    rhand.value_typeref_expr != none and
+                    rhand.value_typeref_expr.
+                        is_special_madeup_builtin {
+                # This is a built-in like .len on an array.
+                # We can't get a symbol info for this.
+                var tinfo = new typeinfo.TypeInfo(
+                    typeinfo.TI_M64BUILTIN_TYPE
+                )
+                tinfo._orig_typeexpr = rhand.value_typeref_expr.copy()
+                if rhand.value_typeref_expr.is_func_ref {
+                    tinfo.func_typeexpr = tinfo._orig_typeexpr
+                } else {
+                    tinfo.c_type_name =
+                        ast_typeref.get_c_builtin_for_m64_base_type(
+                            rhand.value_typeref_expr.name
+                        )
+                    for mod in rhand.value_typeref_expr.modifiers {
+                        tinfo.modifiers = mod.copy()
+                    }
+                }
+                return tinfo
+            }
             trigger_no_symbol_info_on(node)
             return later none
         }

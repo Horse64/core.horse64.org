@@ -57,6 +57,7 @@ extend type ast_expr.IdRefExpr {
 
 enum TypeInfoKind {
     TI_H64BUILTIN_TYPE,
+    TI_M64BUILTIN_TYPE,
     TI_C_TYPE,
     TI_USERTYPE,
     TI_FUNCREF,
@@ -76,8 +77,10 @@ type TypeInfo {
     ## storage.ref.StorageRef} that points to the global scope item.
     var user_type_ref
 
-    ## For `TI_FUNCREF`, this retains the @{compiler.typeinfo.
-    ## ast_typeref.TypeRefFuncExpr} with the exact parameter types.
+    ## For `TI_FUNCREF` or if it's a `TI_H64BUILTIN_TYPE`/
+    ## `TI_M64BUILTIN_TYPE` that is a known func, this retains the
+    ## @{compiler.typeinfo.ast_typeref.TypeRefFuncExpr} with the exact
+    ## parameter types.
     var func_typeexpr
 
     ## For `TI_FUNCREF`, this is either @{none} or if it was a func attr
