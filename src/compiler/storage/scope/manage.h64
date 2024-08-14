@@ -1544,24 +1544,6 @@ func visit_to_resolve_known_attrs(
             assert(var_node != none)
             left_type_vnode = var_node
         }
-        if no and left_of_us.ref != none and
-                left_of_us.ref.kind == st_ref.ST_ARG {
-            if left_of_us.scope != none and
-                    left_of_us.scope.func_scope != none {
-                var fscope = left_of_us.scope.func_scope
-                if fscope == none {
-                    return none
-                }
-                var sinfolist =
-                    fscope.extended_final_symbol_info_list()
-                assert(typename(sinfolist) == "list")
-                if left_of_us.ref.id < 0 or
-                        left_of_us.ref.id > sinfolist.len {
-                    return none
-                }
-                left_type_symbol_info = sinfolist[left_of_us.ref.id]
-            }
-        }
         var result =
             ast_typeref.resolve_st_ref_to_type_ref_and_expr(
                 project_file, left_of_us.ref,
