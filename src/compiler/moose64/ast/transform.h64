@@ -979,6 +979,11 @@ func transform_desugar_failed_checks(
             additional_arg_node.line = node.line
             additional_arg_node.col = node.col
             additional_arg_node.scope = node.scope
+            var args_node = new ast_expr.CallArgsExpr()
+            args_node.scope = node.scope
+            args_node.line = node.line
+            args_node.col = node.col
+            args_node.subexprs = [additional_arg_node]
             var as_ref_node = new ast_expr.IdRefExpr()
             as_ref_node.scope = node.scope
             as_ref_node.line = node.line
@@ -1007,7 +1012,7 @@ func transform_desugar_failed_checks(
             combined_node.line = node.line
             combined_node.col = node.col
             combined_node.subexprs = [as_ref_node,
-                additional_arg_node]
+                args_node]
             expr.subexprs[2].subexprs.add(combined_node)
         }
 
