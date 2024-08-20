@@ -456,32 +456,27 @@ func TypeRefExpr.adjust_storage_to_file(pfile) {
     }
 }
 
+const _m64_to_c_name_map = {
+    "i32"-> "int32_t",
+    "i64"-> "int64_t",
+    "bool"-> "signed char",
+    "byte"-> "unsigned char",
+    "i16"-> "int16_t",
+    "u16"-> "uint16_t",
+    "u32"-> "uint32_t",
+    "u64"-> "uint64_t",
+    "size"-> "uint64_t",
+    "moose64_failed_result_t"-> "uint32_t",
+    "any"->"void",
+    "empty"-> "void",
+}
+
 func get_c_builtin_for_m64_base_type(name) {
     if not builtin_moose64_types.has(name) {
         return none
     }
-    if name == "i32" {
-        return "int32_t"
-    } elseif name == "i64" {
-        return "int64_t"
-    } elseif name == "bool" {
-        return "signed char"
-    } elseif name == "byte" {
-        return "unsigned char"
-    } elseif name == "i16" {
-        return "int16_t"
-    } elseif name == "u16" {
-        return "uint16_t"
-    } elseif name == "u32" {
-        return "uint32_t"
-    } elseif name == "u64" or name == "size" {
-        return "uint64_t"
-    } elseif name == "moose64_failed_result_t" {
-        return "uint32_t"
-    } elseif name == "any" {
-        return "void"
-    } elseif name == "empty" {
-        return "void"
+    if _m64_to_c_name_map.has(name) {
+        return _m64_to_c_name_map[name]
     } else {
         print("horsec: error: Internal error, "
             "encountered unhandled C builtin type: " +

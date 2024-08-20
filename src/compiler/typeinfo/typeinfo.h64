@@ -71,6 +71,13 @@ enum TypeInfoKind {
 type TypeInfo {
     var kind
     var c_type_name
+
+    ## If set, this is the original horse64 or moose64 type name
+    ## before converstion to the corresponding C type.
+    var orig_type_name = none
+
+    ## The @{type modifiers|compiler.typeinfo.ast_typeref.TypeRefMod},
+    ## if any.
     var modifiers = []
 
     ## For `TI_USERTYPE` or `TI_FUNCREF`, this holds a @{compiler.
@@ -113,12 +120,24 @@ func TypeInfo._set_orig_type_expr(texpr) {
 }
 
 func TypeInfo.convert_to_typeref_expr(
-        in_project_file=none, in_local_scope=none
+        in_project_file=none, in_local_scope=none,
+        is_moose64=no
         ) {
     if self.func_typeexpr != none {
         return self.func_typeexpr.copy()
     } elseif self._orig_typeexpr != none {
         return self._orig_typeexpr.copy()
+    } elseif is_moose64 and
+            self.orig_type_name != none and
+            ast_typeref.builtin_moose64_types.has(
+                self.orig_type_name
+            ) {
+        var expr = new ast_typeref.TypeRefExpr()
+        expr.name = self.orig_type_name
+        for mod in self.modifiers {
+            expr.modifiers.add(mod.copy)
+        }
+        return expr
     } elseif self.user_type_ref != none and
             in_project_file != none and
             {st_ref.ST_GLOBAL,

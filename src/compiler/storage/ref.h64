@@ -172,8 +172,17 @@ func ref_is_global_func_def(project_file, storage_ref) {
 }
 
 func ref_to_symbol_info(
-        project_file, storage_ref, node=none
+        project_file, storage_ref, node=none,
+        is_moose64=no, debug=no
         ) {
+    var dbg_prefix = ""
+    if debug {
+        if is_moose64 {
+            dbg_prefix = "moosec: debug:"
+        } else {
+            dbg_prefix = "horsec: debug:"
+        }
+    }
     if storage_ref.kind == ST_GLOBAL {
         var entry = st_scope.global_id_to_item(
             project_file.project, storage_ref.id)
@@ -203,6 +212,16 @@ func ref_to_symbol_info(
         } else {
             assert(anscope.is_type or anscope.is_struct)
             if not anscope.id_to_symbol_map.has(storage_ref.id[2]) {
+                if debug {
+                    print(dbg_prefix + "Unexpectedly failed "
+                        "to find global attribute in respective type "
+                        "or struct scope, " +
+                        "anscope=" + anscope.as_str() + " "
+                        "anscope.id_to_symbol_map=" +
+                            anscope.id_to_symbol_map.as_str() + " "
+                        "storage_ref=" + storage_ref.as_str()
+                    )
+                }
                 return none
             }
             var inner_entry =

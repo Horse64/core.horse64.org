@@ -677,8 +677,9 @@ func project.Project.compute_all_scopes(
                                         symbol_info
                                     assert(not anscope.
                                         id_to_symbol_map.has(label))
-                                    anscope.id_to_symbol_map[label] =
+                                    anscope.id_to_symbol_map[
                                         symbol_info.storage_id
+                                    ] = symbol_info
                                     if stmt.symbol_info == none {
                                         stmt.symbol_info = []
                                     }

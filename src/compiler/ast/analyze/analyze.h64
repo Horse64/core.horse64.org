@@ -28,7 +28,6 @@
 import random from core.horse64.org
 
 import compiler.ast as ast
-import compiler.ast.analyze as ast_analyze
 import compiler.ast.analyze.eval as ast_eval
 import compiler.ast.expr as ast_expr
 import compiler.ast.func_stmt as func_stmt
@@ -385,7 +384,7 @@ func get_called_or_assigned_func_types(
         if func_typeinfo.func_typeexpr.is_failable (-1) else (0)
     assert(expected_args >= 0)
     var called_args = call_args_expr.subexprs.len
-    var is_self_call = ast_analyze.
+    var is_self_call =
         is_func_call_node_for_sure_a_self_call(
             project_file, called_node_parent,
             is_moose64=is_moose64
@@ -441,10 +440,11 @@ func get_called_or_assigned_func_types(
         assert(msgs != none)
         return later none
     }
+
     var is_failable_call =
         last_param_m64_type != none and
-        last_param_m64_type.kind == typeinfo.TI_USERTYPE and
-        last_param_m64_type.user_type_ref.name ==
+        last_param_m64_type.kind == typeinfo.TI_C_TYPE and
+        last_param_m64_type.orig_type_name ==
             "moose64_failed_result_t" and
         last_param_m64_type.modifiers.len == 1 and
         last_param_m64_type.modifiers[1].name == "ref"
@@ -1329,7 +1329,7 @@ func is_func_call_node_for_sure_a_self_call(
     if symbol_info == none {
         symbol_info = st_ref.ref_to_symbol_info(
             project_file, called_node.subexprs[2].ref,
-            node=called_node
+            node=called_node, is_moose64=is_moose64,
         )
     }
     if symbol_info == none or symbol_info.typeref_expr == none or
