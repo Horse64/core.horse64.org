@@ -30,7 +30,7 @@ import textfmt from core.horse64.org
 
 import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
-import compiler.builtin_syms as builtin_syms
+import compiler.moose64.builtins as m64_builtins
 import compiler.msg as msg
 import compiler.storage.ref as st_ref
 import compiler.storage.scope as st_scope
@@ -409,7 +409,7 @@ func _get_c_or_m64_type_of_node_do(
         return later result
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "(" {
-        if builtin_syms.is_ast_node_referring_to_m64_std_as_ref(
+        if m64_builtins.is_ast_node_referring_to_m64_std_as_ref(
                 project_file, node.subexprs[1], is_moose64=yes) {
             if debug {
                 print(dbg_prefix + " Got call binop on " +
@@ -443,11 +443,12 @@ func _get_c_or_m64_type_of_node_do(
                         called_args.as_str() + " "
                         "arg" + called_s + ".",
                         kind=msg.M_ERROR, source_file=project_file,
-                        line=called_node.line,
-                        col=called_node.col,
+                        line=node.subexprs[1].line,
+                        col=node.subexprs[1].col,
                     ))
                 }
                 node.damaged = yes
+                node.subexprs[1].damaged = yes
                 node.subexprs[2].damaged = yes
                 return none
             }
@@ -480,12 +481,110 @@ func _get_c_or_m64_type_of_node_do(
             inner_result.modifiers.add(
                 new ast_typeref.TypeRefMod("ref")
             )
+            if debug {
+                print(dbg_prefix + " Returning final ref type "
+                    "typeinfo=" + inner_result.as_str())
+            }
             return later inner_result
+        } elseif m64_builtins.is_ast_node_referring_to_m64_std_size_of(
+                project_file, node.subexprs[1], is_moose64=yes) {
+            if debug {
+                print(dbg_prefix + " Got call binop on " +
+                    "built-in 'size_of'.")
+            }
+            if debug {
+                print(dbg_prefix + " Get typeinfo on what size_of() "
+                    "was called on...")
+            }
+            assert(node.subexprs[2].kind == ast.N_EXPR_CALLARGS)
+            if node.subexprs[2].subexprs.len != 1 {
+                if msgs == none {
+                    print(if is_moose64 ("hoosec")
+                        else ("moosec") + ": "
+                            "error: Internal error, "
+                            "as_ref call with not exactly 1 arg "
+                            "found: " + node.as_str())
+                    throw new RuntimeError(
+                        "Call has wrong number of "
+                        "arguments.")
+                }
+                if not node.damaged and
+                        not node.subexprs[2].damaged {
+                    var called_args =
+                        node.subexprs[2].subexprs.len
+                    var called_s = "s"
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected number of args, " +
+                        "size_of expects 1 arg " +
+                        "but this call provides " +
+                        called_args.as_str() + " "
+                        "arg" + called_s + ".",
+                        kind=msg.M_ERROR, source_file=project_file,
+                        line=node.subexprs[1].line,
+                        col=node.subexprs[1].col,
+                    ))
+                }
+                node.damaged = yes
+                node.subexprs[1].damaged = yes
+                node.subexprs[2].damaged = yes
+                return none
+            }
+            var inner_result = _get_c_or_m64_type_of_node_do(
+                project_file, node.subexprs[2].subexprs[1],
+                parents + [node, node.subexprs[2]],
+                _known_typeinfo_map=_known_typeinfo_map,
+                store_self_value_ref_for_funcs=
+                store_self_value_ref_for_funcs,
+                msgs=msgs, debug=debug
+            ) later:
+
+            await inner_result
+            if debug {
+                print(dbg_prefix + " Got size_of() arg typeinfo=" +
+                    inner_result.as_str())
+            }
+            if inner_result == none {
+                if node.subexprs[2].damaged or
+                        node.subexprs[2].subexprs[1].damaged {
+                    node.damaged = yes
+                }
+                return later none
+            }
+            var size_result = new typeinfo.TypeInfo(
+                TI_C_TYPE
+            )
+            size_result.orig_type_name = "size"
+            size_result.c_type_name =
+                ast_typeref.get_c_builtin_for_m64_base_type("size")
+            if debug {
+                print(dbg_prefix + " Returning final ref type "
+                    "typeinfo=" + size_result.as_str())
+            }
+            var try_get_size = none
+            if inner_result.modifiers.len == 0 and
+                    inner_result.kind == typeinfo.TI_C_TYPE {
+                assert(inner_result.c_type_name != none)
+                try_get_size = ast_typeref.get_known_c_type_size(
+                    inner_result.c_type_name
+                )
+            }
+            if try_get_size != none {
+                size_result.known_literal_value_token =
+                    new token.Token(
+                        try_get_size.as_str(), token.T_NUM,
+                        node.subexprs[2].subexprs[1].line,
+                        node.subexprs[2].subexprs[1].col
+                    )
+            }
+            return later size_result
         }
         if debug {
             print(dbg_prefix + " Got generic call binop, calling "
                 "get_called_or_assigned_func_types()...")
         }
+        var called_node = node.subexprs[1]
+        var called_node_parents =
+            parents + [node]
 
         var result = ast_analyze.get_called_or_assigned_func_types(
             project_file, called_node, called_node_parents,
@@ -496,7 +595,8 @@ func _get_c_or_m64_type_of_node_do(
         ) later:
 
         await result
-        var func_type_expr = result.func_var_type_expr
+        var func_type_expr =
+            if result != none (result.func_var_type_expr) else (none)
         if func_type_expr == none {
             if debug {
                 print(dbg_prefix + " No result from "

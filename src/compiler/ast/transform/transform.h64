@@ -797,7 +797,7 @@ func transform_func_overrides_and_check_func_arg_sig_match(
                 "Please report this error to "
                 "the compiler makers. Details: "
                 "called_ref=" + called_ref.as_str() + " "
-                "callednode=" + called_node.as_str() + " "
+                "called_node=" + called_node.as_str() + " "
                 "node=" + node.as_str())
             throw new RuntimeError("Internal error, "
                 "failed to obtain a valid func type expr.")

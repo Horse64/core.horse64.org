@@ -25,7 +25,6 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-import compiler.ast as ast
 import compiler.moose64.builtins as m64_builtins
 import compiler.moose64.c_importer as c_importer
 import compiler.project as project
@@ -82,44 +81,7 @@ func project.Project.init_builtin_syms(is_moose64=no) {
     return later
 }
 
-func get_m64_c_type_builtin_ref_by_name(
-        project, name, create_if_missing=no
-        ) {
-    var item = get_m64_item_by_name(
-        project, name, create_if_missing=create_if_missing,
-        must_be_c_type=yes,
-        in_module_name=none, in_package_name=none
-    )
-    if item != none {
-        return item.symbol_storage_ref.copy()
-    }
-    return none
-}
-
-func is_ast_node_referring_to_m64_std_as_ref(
-        project_file, node, is_moose64=no) {
-    if not is_moose64 {
-        return no
-    }
-    var as_ref_info =
-        get_m64_item_by_name(
-            project_file.project, "as_ref",
-            in_module_name="std")
-    var as_ref_storage_ref =
-        as_ref_info.symbol_storage_ref
-    if node.kind == ast.N_EXPR_IDREF and
-            node.label == "as_ref" and
-            node.ref != none and
-            node.ref.kind == st_ref.ST_MCREF and
-            node.ref.alike(
-                as_ref_storage_ref
-            ) {
-        return yes
-    }
-    return no
-}
-
-func get_m64_item_by_name(
+func get_item_by_name(
         project, name, create_if_missing=no,
         must_be_c_type=no,
         in_module_name=none, in_package_name=none
@@ -192,20 +154,6 @@ func get_m64_item_by_name(
         return st_item
     }
     return none
-}
-
-func get_m64_c_type_builtin_by_id(project, storage_id) {
-    assert(typename(storage_id) == "num")
-    var st = project.builtin_syms_storage
-
-    if not st.storage_id_to_item_map.has(storage_id) {
-        return none
-    }
-    var st_item = st.storage_id_to_item_map[storage_id]
-    if not st_item.is_c_builtin_type {
-        return none
-    }
-    return st_item
 }
 
 func register_symbol(project, symbol_name, symbol_ref,

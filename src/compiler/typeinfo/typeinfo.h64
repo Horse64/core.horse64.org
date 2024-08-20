@@ -31,7 +31,7 @@ import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
 import compiler.ast.expr as ast_expr
 import compiler.ast.transform as ast_transform
-import compiler.builtin_syms as builtin_syms
+import compiler.moose64.builtins as m64_builtins
 import compiler.msg as msg
 import compiler.storage.ref as st_ref
 import compiler.storage.scope as st_scope
@@ -94,6 +94,11 @@ type TypeInfo {
     ## on an object instance, the @{compiler.storage.ref.StorageRef}
     ## that points to the concrete object instance.
     var func_self_ref
+
+    ## This can be set to a {token|compiler.token.Token} representing
+    ## a known value, if easily known in the given context. Usually,
+    ## it'll be set to @{none}.
+    var known_literal_value_token = none
 
     var _orig_typeexpr protect
 }
@@ -234,7 +239,7 @@ func try_resolve_symbol_typeref_or_type_expr(
         var cname = type_expr.get_c_builtin_for_m64_base_type()
         if cname != none {
             var builtin_ref =
-                builtin_syms.get_m64_c_type_builtin_ref_by_name(
+                m64_builtins.get_m64_c_type_builtin_ref_by_name(
                     project_file.project, cname, create_if_missing=yes
                 )
             if builtin_ref == none {
