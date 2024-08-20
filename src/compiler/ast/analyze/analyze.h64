@@ -277,13 +277,15 @@ func get_called_or_assigned_func_types(
             throw new RuntimeError("Failed to determine node type, "
                 "internal error.")
         }
-        msgs.add(new msg.FileMsg(
-            "Unexpectedly failed to determine C type of "
-            "called function. Did you use cyclic references?",
-            kind=msg.M_ERROR, source_file=project_file,
-            line=called_node_parent.line,
-            col=called_node_parent.col,
-        ))
+        if not called_node.damaged {
+            msgs.add(new msg.FileMsg(
+                "Unexpectedly failed to determine C type of "
+                "called function. Did you use cyclic references?",
+                kind=msg.M_ERROR, source_file=project_file,
+                line=called_node_parent.line,
+                col=called_node_parent.col,
+            ))
+        }
         called_node.damaged = yes
         return later none
     }
@@ -409,6 +411,16 @@ func get_called_or_assigned_func_types(
 
         await last_param_m64_type
         if last_param_m64_type == none {
+            if msgs != none {
+                for m in msgs {
+                    if m.kind == msg.M_ERROR {
+                        # In this case, this is
+                        # probably a follow-up error.
+                        last_param_m64_type = "type-error"
+                        return later
+                    }
+                }
+            }
             print(if is_moose64 ("hoosec")
                 else ("moosec") + ": "
                 "error: Internal error, failed to determine "
@@ -416,7 +428,7 @@ func get_called_or_assigned_func_types(
                 "arg_expr=" +
                 call_args_expr.subexprs[
                     call_args_expr.subexprs.len
-                ].as_str())
+                ].as_str() + " (got msgs=" + msgs.as_str() + ")")
             throw new RuntimeError(
                 "Internal error: Failed to determine "
                 "type of last call parameter. Please "
@@ -425,6 +437,10 @@ func get_called_or_assigned_func_types(
         }
     }
     determine_last_param_type_if_needed() later:
+    if last_param_m64_type == "type-error" {
+        assert(msgs != none)
+        return later none
+    }
     var is_failable_call =
         last_param_m64_type != none and
         last_param_m64_type.kind == typeinfo.TI_USERTYPE and

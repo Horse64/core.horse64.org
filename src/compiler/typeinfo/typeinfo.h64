@@ -506,8 +506,11 @@ func create_typeinfo_from_global_ref(
     var tinfo = new TypeInfo(TI_USERTYPE)
     tinfo.user_type_ref = target_ref.copy()
     tinfo.modifiers = []
-    for mod in tinfo.user_type_ref.modifiers {
-        tinfo.modifiers.add(mod.copy())
+    if base_typeref_expr_if_known != none {
+        var texpr = base_typeref_expr_if_known
+        for mod in texpr.modifiers {
+            tinfo.modifiers.add(mod.copy())
+        }
     }
     return tinfo
 }

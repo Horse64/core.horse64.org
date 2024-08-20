@@ -184,11 +184,7 @@ func ref_to_symbol_info(
                     return sym_info
                 }
             }
-            throw new RuntimeError("Somehow failed to "
-                "trace back storage id to symbol info in "
-                "case where it should have worked. "
-                "Please contact the compiler makers about "
-                "this bug.")
+            return none
         } else {
             return entry.symbol_info
         }
@@ -206,7 +202,11 @@ func ref_to_symbol_info(
             throw new RuntimeError("Not implemented.")
         } else {
             assert(anscope.is_type or anscope.is_struct)
-            var inner_entry = anscope.id_to_symbol_map[storage_ref.id[2]]
+            if not anscope.id_to_symbol_map.has(storage_ref.id[2]) {
+                return none
+            }
+            var inner_entry =
+                anscope.id_to_symbol_map[storage_ref.id[2]]
             assert(inner_entry.storage_id == storage_ref.id[2])
             return inner_entry
         }
@@ -223,7 +223,7 @@ func ref_to_symbol_info(
                 scope = scope.parent
                 continue
             }
-            var entry = node.scope.storage_id_to_symbol_map[
+            var entry = scope.storage_id_to_symbol_map[
                 storage_ref.id
             ]
             return entry

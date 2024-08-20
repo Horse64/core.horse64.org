@@ -407,10 +407,47 @@ func _get_c_or_m64_type_of_node_do(
                 project_file, node.subexprs[1], is_moose64=yes) {
             if debug {
                 print(dbg_prefix + " Got call binop on " +
-                    "built-in 'as_ref'...")
+                    "built-in 'as_ref'.")
+            }
+            if debug {
+                print(dbg_prefix + " Get typeinfo on what as_ref() "
+                    "was called on...")
+            }
+            assert(node.subexprs[2].kind == ast.N_EXPR_CALLARGS)
+            if node.subexprs[2].subexprs.len != 1 {
+                if msgs == none {
+                    print(if is_moose64 ("hoosec")
+                        else ("moosec") + ": "
+                            "error: Internal error, "
+                            "as_ref call with not exactly 1 arg "
+                            "found: " + node.as_str())
+                    throw new RuntimeError(
+                        "Call has wrong number of "
+                        "arguments.")
+                }
+                if not node.damaged and
+                        not node.subexprs[2].damaged {
+                    var called_args =
+                        node.subexprs[2].subexprs.len
+                    var called_s = "s"
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected number of args, " +
+                        "as_ref expects 1 arg " +
+                        "but this call provides " +
+                        called_args.as_str() + " "
+                        "arg" + called_s + ".",
+                        kind=msg.M_ERROR, source_file=project_file,
+                        line=called_node.line,
+                        col=called_node.col,
+                    ))
+                }
+                node.damaged = yes
+                node.subexprs[2].damaged = yes
+                return none
             }
             var inner_result = _get_c_or_m64_type_of_node_do(
-                project_file, node.subexprs[2], parents + [node],
+                project_file, node.subexprs[2].subexprs[1],
+                parents + [node, node.subexprs[2]],
                 _known_typeinfo_map=_known_typeinfo_map,
                 store_self_value_ref_for_funcs=
                     store_self_value_ref_for_funcs,
@@ -418,7 +455,15 @@ func _get_c_or_m64_type_of_node_do(
             ) later:
 
             await inner_result
+            if debug {
+                print(dbg_prefix + " Got as_ref() arg typeinfo=" +
+                    inner_result.as_str())
+            }
             if inner_result == none {
+                if node.subexprs[2].damaged or
+                        node.subexprs[2].subexprs[1].damaged {
+                    node.damaged = yes
+                }
                 return later none
             }
             if inner_result.kind == typeinfo.TI_USERTYPE {
@@ -432,9 +477,52 @@ func _get_c_or_m64_type_of_node_do(
             return later inner_result
         }
         if debug {
-            print(dbg_prefix + " Got generic call binop...")
+            print(dbg_prefix + " Got generic call binop, calling "
+                "get_called_or_assigned_func_types()...")
         }
-        return later none
+
+        var result = ast_analyze.get_called_or_assigned_func_types(
+            project_file, called_node, called_node_parents,
+            allow_matching_func_override=no,
+            allow_noncall_ref=no,
+            ignore_arg_mismatch=no,
+            msgs=none, is_moose64=no, debug=no
+        ) later:
+
+        await result
+        var func_type_expr = result.func_var_type_expr
+        if func_type_expr == none {
+            if debug {
+                print(dbg_prefix + " No result from "
+                    "get_called_or_assigned_func_types(), "
+                    "seems like this node can't be resolved: "
+                    "called_node=" + called_node.as_str()
+                )
+            }
+            return later none
+        }
+        if debug {
+            print(dbg_prefix + " Obtained func_type_expr=" +
+                func_type_expr.as_str())
+        }
+        if func_type_expr.return_typeref_expr == none or
+                (not return_typeref_expr.is_user_type and
+                return_typeref_expr.name == "empty") {
+            var tinfo = new typeinfo.TypeInfo(typeinfo.TI_C_TYPE)
+            tinfo.c_type_name = "void"
+            tinfo._orig_typeexpr = new ast_typeref.TypeRefExpr()
+            tinfo._orig_typeexpr.name = "empty"
+            return tinfo
+        }
+
+        var tinfo = get_c_or_m64_type_of_typeref(
+            project_file,
+            func_type_expr.return_typeref_expr,
+            store_self_value_ref_for_funcs=no, msgs=msgs
+        ) later:
+
+        await tinfo
+        return tinfo
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "." {
         var rhand = node.subexprs[2]

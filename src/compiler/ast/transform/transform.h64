@@ -709,7 +709,7 @@ func transform_func_overrides_and_check_func_arg_sig_match(
             called_node_parents = parents + [node]
             assert(typename(called_ref) != "list")
         }
-        assert(called_args_node.kind == as.N_EXPR_CALLARGS)
+        assert(called_args_node.kind == ast.N_EXPR_CALLARGS)
         if not is_moose64 and (called_ref == none or
                 {st_ref.ST_LOCAL, st_ref.ST_ARG}.has(
                     called_ref.kind
