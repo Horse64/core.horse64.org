@@ -124,6 +124,15 @@ func TypeInfo._set_orig_type_expr(texpr) {
     self._orig_typeexpr = texpr.copy()
 }
 
+func TypeInfo.add_ref_modifier {
+    var mod = new ast_typeref.TypeRefMod("ref")
+    self.modifiers.add(mod)
+    if self._orig_typeexpr != none {
+        self._orig_typeexpr = self._orig_typeexpr.copy()
+        self._orig_typeexpr.modifiers.add(mod)
+    }
+}
+
 func TypeInfo.convert_to_typeref_expr(
         in_project_file=none, in_local_scope=none,
         is_moose64=no

@@ -212,12 +212,22 @@ func _get_c_or_m64_type_of_node_do(
             store_self_value_ref_for_funcs.as_str())
     }
     func trigger_no_symbol_info_on(node) {
+        if node.damaged {
+            return
+        }
         if msgs == none {
+            if debug {
+                print("moosec: debug: "
+                    "Unexpectedly failed to "
+                    "get symbol info on node=" +
+                    node.as_str())
+            }
             throw new ValueError(
                 "Internal error: Unexpectedly failed to "
                 "get symbol info."
             )
         }
+        node.damaged = yes
         msgs.add(new msg.FileMsg(
             "Internal error: Unexpectedly failed to trace "
             "back this identifier to resolved target: " +
@@ -232,11 +242,15 @@ func _get_c_or_m64_type_of_node_do(
     }
 
     func trigger_no_such_attribute_on(node, aname) {
+        if node.damaged {
+            return
+        }
         if msgs == none {
             throw new ValueError(
                 "The given type doesn't have this attribute."
             )
         }
+        node.damaged = yes
         msgs.add(new msg.FileMsg(
             "The attribute " + textfmt.as_escaped_code_string(
                 aname
@@ -368,8 +382,53 @@ func _get_c_or_m64_type_of_node_do(
             }
             return inner_result
         }
+
+        var return_type_with_ref_modifier = no
         var sym_info = none
-        if node.ref != none {
+        if node.ref != none and node.ref.kind == st_ref.ST_SELF {
+            var func_node = none
+            var i = parents.len
+            while i >= 1 {
+                if parents[i].kind == ast.N_STMT_FUNC or
+                        parents[i].kind == ast.N_STMT_FUNCEXTEND {
+                    func_node = parents[i]
+                    break
+                }
+                i -= 1
+            }
+            if func_node == none {
+                if not node.damaged {
+                    if msgs == none {
+                        throw new ValueError(
+                            "Found invalid use of 'self "
+                            "outside of function."
+                        )
+                    }
+                    msgs.add(new msg.FileMsg(
+                        "Invalid use of 'self' outside "
+                        "of a function.",
+                        line=node.line, col.node.col
+                    ))
+                }
+                node.damaged = yes
+                return none
+            }
+            var anscope = project_file.
+                make_attr_names_scope_from_funcattr(
+                    func_node, msgs=msgs, is_moose64=is_moose64,
+                    def_project_file=project_file,
+                )
+            if anscope == none {
+                return none
+            }
+            var type_st_ref = new st_ref.StorageRef(
+                st_ref.ST_GLOBAL, anscope.storage_id
+            )
+            sym_info = st_ref.ref_to_symbol_info(
+                project_file, type_st_ref, is_moose64=is_moose64,
+            )
+            return_type_with_ref_modifier = yes
+        } elseif node.ref != none {
             sym_info = st_ref.ref_to_symbol_info(
                 project_file, node.ref, node=node,
                 is_moose64=is_moose64,
@@ -397,6 +456,11 @@ func _get_c_or_m64_type_of_node_do(
         ) later:
 
         await result
+
+        if result != none and
+                return_type_with_ref_modifier {
+            result.add_ref_modifier()
+        }
         if result != none and
                 not _known_typeinfo_map.has(node) {
             _known_typeinfo_map[node] = result.copy()
