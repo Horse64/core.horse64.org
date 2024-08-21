@@ -635,13 +635,32 @@ func resolve_st_ref_to_type_ref_and_expr(
                 project_file, node,
                 node_parents,
                 allow_matching_func_override=yes,
-                #ignore_arg_mismatch=yes,  # FIXME
                 msgs=msgs,
                 is_moose64=is_moose64,
                 debug=debug,
             ) later:
 
         await result
+        if debug {
+            var have_known_error_msg = no
+            if msgs != none {
+                for m in msgs {
+                    if m.kind == msg.M_ERROR {
+                        have_known_error_msg = yes
+                        break
+                    }
+                }
+            }
+            print(dbg_header +
+                "resolve_st_ref_to_type_ref_and_expr(): "
+                "Got get_called_or_assigned_func_types result, "
+                "result=" + result.as_str() +
+                " (is msgs set: " +
+                    (msgs != none).as_str() + ", "
+                "node.damaged: " + node.damaged.as_str() + ", "
+                "have_known_error_msg=" +
+                    have_known_error_msg.as_str() + ")")
+        }
         if result == none or
                 result.func_var_name == none or
                 result.func_ref == none or

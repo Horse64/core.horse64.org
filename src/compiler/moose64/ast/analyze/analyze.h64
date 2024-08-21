@@ -43,6 +43,7 @@ func get_c_or_m64_type_of_typeref(
         project_file, typeref,
         store_self_value_ref_for_funcs=no, msgs=none
         ) {
+    var is_moose64 = yes
     var c_name = typeref.get_c_builtin_for_m64_base_type()
     if c_name != none {
         var tinfo = new typeinfo.TypeInfo(typeinfo.TI_C_TYPE)

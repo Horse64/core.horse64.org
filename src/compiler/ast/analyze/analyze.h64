@@ -210,7 +210,7 @@ func CalledFuncTypesResult.as_str {
         "func_var_type_expr" -> self.func_var_type_expr,
         "func_var_typeinfo" -> self.func_var_typeinfo,
         "func_var_name" -> self.func_var_name,
-        "func_was_overridden" -> self.func_was_overriden,
+        "func_was_overridden" -> self.func_was_overridden,
         "func_ref" -> self.func_ref,
         "arg_var_type_exprs" -> self.arg_var_type_exprs,
         "arg_var_typeinfos" -> self.arg_var_typeinfos,

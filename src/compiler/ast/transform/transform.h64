@@ -37,6 +37,7 @@ import compiler.ast.if_stmt as if_stmt
 import compiler.ast.transform.later_transform as later_transform
 import compiler.ast.var_stmt as var_stmt
 import compiler.moose64.ast.transform as m64_ast_transform
+import compiler.msg as msg
 import compiler.project as project
 import compiler.storage.ref as st_ref
 import compiler.storage.scope as scope
@@ -668,6 +669,8 @@ func transform_func_overrides_and_check_func_arg_sig_match(
         print(dbg_prefix + " Looking at file: " +
             project_file.as_str())
     }
+
+    var had_error = no
     func do_transform_step(node, parents) {
         var parent = if parents.len > 0
             (parents[parents.len]) else (none)
@@ -788,9 +791,32 @@ func transform_func_overrides_and_check_func_arg_sig_match(
                 ##
             return later node
         }
+        # For Moose64, we require that non-external funcs fully resolve:
         if is_moose64 and
                 func_type_expr == none and
                 not func_is_external {
+            var user_was_informed_of_broken_node = no
+            if msgs != none and (node.damaged or
+                    called_node.damaged) {
+                for m in msgs {
+                    if m.kind == msg.M_ERROR {
+                        user_was_informed_of_broken_node = yes
+                        break
+                    }
+                }
+            }
+            if user_was_informed_of_broken_node {
+                called_node.damaged = yes
+                node.damaged = yes
+                if debug {
+                    print(dbg_prefix + " The call appears to be "
+                        "faulty, node.damaged is set. Bail out.")
+                }
+                had_error = yes
+                return later node
+            }
+            # If we arrive here, this isn't a properly handled
+            # error situation and something went very wrong:
             print(if is_moose64 ("moosec") else ("horsec") + ": "
                 "error: Internal error, failed to obtain a "
                 "func type expr when we expected to get one. "
@@ -798,7 +824,9 @@ func transform_func_overrides_and_check_func_arg_sig_match(
                 "the compiler makers. Details: "
                 "called_ref=" + called_ref.as_str() + " "
                 "called_node=" + called_node.as_str() + " "
-                "node=" + node.as_str())
+                "node=" + node.as_str() + " "
+                "node.damaged=" + node.damaged.as_str() + " "
+                "(msgs is set: " + (msgs != none).as_str() + ")")
             throw new RuntimeError("Internal error, "
                 "failed to obtain a valid func type expr.")
         }
@@ -817,8 +845,8 @@ func transform_func_overrides_and_check_func_arg_sig_match(
     ) later:
 
     await result
-    if not result {
-        return later result
+    if not result or had_error {
+        return later no
     }
     return later yes
 }
