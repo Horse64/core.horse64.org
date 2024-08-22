@@ -234,7 +234,7 @@ func get_called_or_assigned_func_types(
         else ("horsec: debug:")
     if debug {
         print(dbg_prefix + " get_called_or_assigned_func_types(): "
-            "launched on called_node=" + called_node.as_str())
+            "Launched on called_node=" + called_node.as_str())
     }
     if allow_noncall_ref {
         throw new RuntimeError("Option allow_noncall_ref=yes "
@@ -272,18 +272,31 @@ func get_called_or_assigned_func_types(
             called_node.subexprs.len == 2 and
             called_node.subexprs[2].kind == ast.N_EXPR_IDREF and
             called_node.subexprs[2].ref != none and
-            called_node.subexprs[2].kind == st_ref.ST_MCREF {
+            called_node.subexprs[2].ref.kind == st_ref.ST_MCREF {
         is_external = yes
     }
 
     var call_args_expr = called_node_parent.subexprs[2]
-    var func_typeinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
-        project_file, called_node, called_node_parents,
-        store_self_value_ref_for_funcs=yes,
-        msgs=msgs, debug=debug
-    ) later:
+    var func_typeinfo = none
+    func obtain_func_info_if_possible {
+        if is_external {
+            # This might be allowed later in some cases when
+            # C header parsing works, but for now, it isn't.
+            return later
+        }
+        func_typeinfo =
+            m64_ast_analyze.get_c_or_m64_type_of_node(
+                project_file, called_node, called_node_parents,
+                store_self_value_ref_for_funcs=yes,
+                msgs=msgs, debug=debug
+            ) later:
 
-    await func_typeinfo
+        await func_typeinfo
+        return later
+    }
+    obtain_func_info_if_possible()
+    later:
+
     if debug {
         print(dbg_prefix + " get_called_or_assigned_func_types(): "
             "got type of node result func_typeinfo=" +
