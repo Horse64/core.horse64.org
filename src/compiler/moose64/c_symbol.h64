@@ -33,7 +33,7 @@ type CFuncSymbol {
     var storage_id protect
 }
 
-func CFuncSymbol.init(c_signature) {
+func CFuncSymbol.init(c_signature, _override_func_signature=none) {
     self.c_func_signature = c_signature
 }
 

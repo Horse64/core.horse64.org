@@ -31,27 +31,40 @@ import compiler.project as project
 import compiler.storage.ref as st_ref
 import textfmt
 
+enum BuiltinItemKind {
+    BI_FUNC,
+    BI_STRUCT,
+    BI_TYPE,
+    BI_ENUM,
+    BI_ERROR,
+}
+
 type BuiltinSymsStorageItem {
     var package_name = none
     var module_path = []
     var symbol_name
     var symbol_storage_ref
+    var kind
     var is_c_builtin_type = no
     var hidden = no
 }
 
 func BuiltinSymsStorageItem.init(
-        symbol_name, symbol_ref, module_path,
-        package_name=none
+        symbol_name, symbol_ref, item_kind,
+        module_path, package_name=none,
+        func_signature=none
         ) {
     self.symbol_name = symbol_name
     self.symbol_storage_ref = symbol_ref.copy()
     self.module_path = module_path.copy()
     self.package_name = package_name
+    self.kind = item_kind
 }
 
 func BuiltinSymsStorageItem.as_str {
     var t = "BuiltinSymsStorageItem{" +
+        "kind='" + BuiltinItemKind.num_label(
+            self.symbol_name) + "', "
         "symbol_name=" + textfmt.as_escaped_code_string(
             self.symbol_name
         ) + "}"
@@ -157,7 +170,9 @@ func get_item_by_name(
 }
 
 func register_symbol(project, symbol_name, symbol_ref,
-        module_name, package_name=none, is_hidden=no,
+        item_kind,
+        module_name, package_name=none,
+        func_signature=none, is_hidden=no,
         _return_internal_item_instead_of_ref=no) {
     if project.builtin_syms_storage == none {
         throw new RuntimeError(
@@ -215,8 +230,9 @@ func register_symbol(project, symbol_name, symbol_ref,
 
     assert(package_name != none or modpath.join(".") != "$any")
     var st_item = new BuiltinSymsStorageItem(
-        symbol_name, symbol_ref,
-        modpath, package_name=package_name)
+        symbol_name, symbol_ref, item_kind,
+        modpath, package_name=package_name,
+        func_signature=func_signature)
     st_item.hidden = (is_hidden == yes)
     st.package_to_item_list_map[package_name].add(
         st_item

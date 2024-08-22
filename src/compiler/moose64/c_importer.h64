@@ -55,24 +55,34 @@ func CImportInfo._process_c_include(project, ipath) {
     var new_items = {->}
     if ipath == "stdlib.h" {
         new_items["malloc"] = new c_symbol.CFuncSymbol(
-            "void *malloc(size_t size);"
+            "void *malloc(size_t size);",
+            _override_func_signature="(<-size)->any ref"
         )
         new_items["free"] = new c_symbol.CFuncSymbol(
-            "void free(void *ptr);"
+            "void free(void *ptr);",
+            _override_func_signature="(<-size)->empty"
         )
     } elseif ipath == "string.h" {
         new_items["memcpy"] = new c_symbol.CFuncSymbol(
-            "void *memcpy(void *dest, const void *src, size_t n);"
+            "void *memcpy(void *dest, const void *src, size_t n);",
+            _override_func_signature=
+                "(<-any ref, <-readonly any ref, "
+                "size)->any ref"
         )
         new_items["memmove"] = new c_symbol.CFuncSymbol(
-            "void *memmove(void *dest, const void *src, size_t n);"
+            "void *memmove(void *dest, const void *src, size_t n);",
+            _override_func_signature=
+                "(<-any ref, <-readonly any ref, "
+                "size)->any ref"
         )
         new_items["strlen"] = new c_symbol.CFuncSymbol(
-            "size_t strlen(const char *);"
+            "size_t strlen(const char *);",
+            _override_func_signature=
+                "(<-readonly byte ref)->size"
         )
     } elseif ipath == "stdio.h" {
         new_items["printf"] = new c_symbol.CFuncSymbol(
-            "int printf(const char *fmt, ...);"
+            "int printf(const char *fmt, ...);",
         )
     }
     for entry in new_items {

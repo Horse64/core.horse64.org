@@ -30,7 +30,6 @@ import compiler.builtin_syms as builtin_syms
 import compiler.storage.ref as st_ref
 import compiler.moose64.c_importer as m64_c_importer
 
-
 func get_m64_c_type_builtin_by_id(project, storage_id) {
     assert(typename(storage_id) == "num")
     var st = project.builtin_syms_storage
@@ -111,22 +110,23 @@ func register_builtins_with_project(project) {
     id = m64_c_importer.get_mcref_id(project)
     builtin_syms.register_symbol(project, "size_of",
         new st_ref.StorageRef(st_ref.ST_MCREF, id),
-        ["std"],  package_name="m64.horse64.org")
-
-    id = m64_c_importer.get_mcref_id(project)
-    builtin_syms.register_symbol(project, "addr",
-        new st_ref.StorageRef(st_ref.ST_MCREF, id),
-        ["std"], package_name="m64.horse64.org")
+        builtin_syms.BI_FUNC, ["std"],
+        func_signature="(<-any)->size",
+        package_name="m64.horse64.org")
 
     id = m64_c_importer.get_mcref_id(project)
     builtin_syms.register_symbol(project, "as_ref",
         new st_ref.StorageRef(st_ref.ST_MCREF, id),
-        ["std"], package_name="m64.horse64.org")
+        builtin_syms.BI_FUNC, ["std"],
+        func_signature="(<-any)->any ref",
+        package_name="m64.horse64.org")
 
     id = m64_c_importer.get_mcref_id(project)
     builtin_syms.register_symbol(project, "deref",
         new st_ref.StorageRef(st_ref.ST_MCREF, id),
-        ["std"], package_name="m64.horse64.org")
+        builtin_syms.BI_FUNC, ["std"],
+        func_signature="(<-any ref)->any",
+        package_name="m64.horse64.org")
 
     return later
 }

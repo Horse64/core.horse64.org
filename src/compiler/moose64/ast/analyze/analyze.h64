@@ -30,6 +30,7 @@ import textfmt from core.horse64.org
 
 import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
+import compiler.builtin_syms as builtin_syms
 import compiler.moose64.builtins as m64_builtins
 import compiler.msg as msg
 import compiler.storage.ref as st_ref
@@ -437,6 +438,36 @@ func _get_c_or_m64_type_of_node_do(
         }
 
         if sym_info == none {
+            if node.ref.kind == st_ref.ST_MCREF and
+                    (node.ref.id == builtin_syms.get_item_by_name(
+                        project_file.project, "size_of",
+                        in_module_name="std").symbol_storage_ref.id or
+                    node.ref.id == builtin_syms.get_item_by_name(
+                        project_file.project, "as_ref",
+                        in_module_name="std").symbol_storage_ref.id) {
+                if msgs != none {
+                    throw new ValueError("Unexpected reference "
+                        "to a compiler "
+                        "built-in special func that can only be called, "
+                        "not referenced.")
+                }
+                if not node.damaged {
+                    node.damaged = yes
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected reference "
+                        "to built-in special func \"" + node.label +
+                        "\" that can only be called, not referenced.",
+                        source_file=project_file,
+                        line=node.line, col=node.col,
+                    ))
+                }
+                return later none
+            } elseif node.ref.kind == st_ref.ST_MCREF {
+                # FIXME: Obtain C func signature. For now,
+                # we don't support this.
+                return later none
+            }
+
             if debug {
                 print(dbg_prefix + " Failed "
                     "to find symbol info for: " + [
