@@ -376,7 +376,7 @@ func get_called_or_assigned_func_types(
             project_file, self_value_ref,
             node=called_node.subexprs[1],
             node_parents=called_node_parents + [called_node],
-            is_moose64=is_moose64,
+            is_moose64=is_moose64, msgs=msgs,
         ) later:
 
         await result
@@ -430,13 +430,44 @@ func get_called_or_assigned_func_types(
         if call_args_expr.subexprs.len <= 0 {
             return later
         }
+        # If last parameter is a C item, don't try to determine
+        # type (since it's not a failable anyway, and we allow
+        # for the signature for C externals to be unknown):
+        if call_args_expr.subexprs[
+                    call_args_expr.subexprs.len
+                ].kind == ast.N_EXPR_IDREF and
+                call_args_expr.subexprs[
+                    call_args_expr.subexprs.len
+                ].ref != none and
+                call_args_expr.subexprs[
+                    call_args_expr.subexprs.len
+                ].ref.kind == st_ref.ST_MCREF {
+            return later
+        } elseif call_args_expr.subexprs[
+                    call_args_expr.subexprs.len
+                ].kind == ast.N_EXPR_BINOP and
+                call_args_expr.subexprs[
+                    call_args_expr.subexprs.len
+                ].optoken.str == "." and
+                call_args_expr.subexprs[
+                    call_args_expr.subexprs.len
+                ].subexprs[2].kind == ast.N_EXPR_IDREF and
+                call_args_expr.subexprs[
+                    call_args_expr.subexprs.len
+                ].subexprs[2].ref != none and
+                call_args_expr.subexprs[
+                    call_args_expr.subexprs.len
+                ].subexprs[2].ref.kind == st_ref.ST_MCREF {
+            return later
+        }
+        # Determine the parameter type:
         last_param_m64_type =
             m64_ast_analyze.get_c_or_m64_type_of_node(
                 project_file, call_args_expr.subexprs[
                     call_args_expr.subexprs.len
                 ], called_node_parents + [call_args_expr],
                 store_self_value_ref_for_funcs=no,
-                msgs=none, debug=no
+                msgs=msgs, debug=no
             ) later:
 
         await last_param_m64_type
