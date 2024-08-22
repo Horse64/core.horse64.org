@@ -221,17 +221,19 @@ func project.ProjectFile.try_lookup_symbol_path(
                 check_path[2]
             )
             if result != none and check_path.len == 2 and
-                    # XXX: In Moose64, `self.some_func_attr(...)` must
-                    # not be pulled into one item, because if `self`
-                    # doesn't remain a separate expression then the call
-                    # won't be identified as a call-with-self-reference
-                    # by the type checker later.
-                    # (This is because Moose64 doesn't treat func attrs
-                    # as closures, unlike Hose64.)
+                    # XXX: In Moose64, `self.some_func_attr(...)`
+                    # must not be pulled into one item, because
+                    # if `self` doesn't remain a separate
+                    # AST item then the call won't be identified
+                    # as a call-with-self-reference by the type
+                    # checker later.
+                    # (This is because Moose64 doesn't treat
+                    # func attrs as closures, unlike Hose64.)
                     # Enforce this here:
                     (not is_moose64 or
                      (type(result[1]) != "list" and
-                      result[1].kind != ast.N_STMT_FUNC)) {
+                      result[1].kind != st_scope.SINFO_FUNCATTR)) {
+                assert(result[1].kind != st_scope.SINFO_FUNC)
                 return result[2]
             } elseif result == none and not is_moose64 {
                 # Return explicit missing attribute failure:

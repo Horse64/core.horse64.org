@@ -358,15 +358,18 @@ func TypeNamesScope.init {
 
 func TypeNamesScope.get_item_if_present(
         name, project=none) {
+    if project == none {
+        return none
+    }
     var anscope = self
     while yes {
         if anscope.name_to_symbol_map.has(name) {
-            var item = anscope.name_to_symbol_map[name]
+            var sinfo = anscope.name_to_symbol_map[name]
             for storage_id in anscope.id_to_symbol_map {
-                if anscope.id_to_symbol_map[storage_id] != item {
+                if anscope.id_to_symbol_map[storage_id] != sinfo {
                     continue
                 }
-                return [item, new st_ref.StorageRef(
+                return [sinfo, new st_ref.StorageRef(
                     st_ref.ST_GLOBALATTR, [
                         anscope.storage_id, storage_id])]
             }
@@ -405,13 +408,16 @@ func StructNamesScope.init {
 
 func StructNamesScope.get_item_if_present(
         name, project=none) {
+    if project == none {
+        return none
+    }
     if self.name_to_symbol_map.has(name) {
-        var item = self.name_to_symbol_map[name]
+        var sinfo = self.name_to_symbol_map[name]
         for storage_id in self.id_to_symbol_map {
-            if self.id_to_symbol_map[storage_id] != item {
+            if self.id_to_symbol_map[storage_id] != sinfo {
                 continue
             }
-            return [item, new st_ref.StorageRef(
+            return [sinfo, new st_ref.StorageRef(
                 st_ref.ST_GLOBALATTR, [
                     self.storage_id, storage_id])]
         }

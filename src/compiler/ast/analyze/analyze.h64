@@ -1403,6 +1403,26 @@ func is_func_call_node_for_sure_a_self_call(
         }
     }
 
+    if not is_moose64 {
+        # Horse64 doesn't allow passing funcs around in a way
+        # where you can call the self parameter passed in
+        # explicitly (as non-implicit self call).
+        # Therefore, this only depends on whether the
+        # target func is clearly a func attr.
+        if called_node_ref != none and
+                called_node_ref == st_ref.ST_GLOBAL {
+            var entry = st_scope.global_id_to_item(
+                project_file.project,
+                called_node_ref.id)
+            return entry.kind == ast.N_STMT_FUNC and
+                entry.type_path != none and
+                entry.type_path.len > 0
+        }
+        return called_node_ref != none and
+            called_node_ref == st_ref.ST_GLOBALATTR
+    }
+    assert(is_moose64)
+
     var is_possibly_self_obj_call =
         (called_node.kind == ast.N_EXPR_BINOP and
             called_node.optoken.str == "." and
@@ -1416,31 +1436,17 @@ func is_func_call_node_for_sure_a_self_call(
                 "debug: is_func_call_node_for_sure_a_self_call(): "
                 "Found a node that can't be a self call: "
                 "called_node=" + called_node.as_str() + " "
-                "potential_self_ref=" + potential_self_ref.as_str() + " "
+                "called_node_ref=" +
+                    called_node_ref.as_str() + " "
+                "potential_self_ref=" +
+                    potential_self_ref.as_str() + " "
                 "called_node_parent=" + called_node_parent.as_str())
         }
         return no
     }
-    assert(called_node.subexprs[1].ref != none)
-    if not is_moose64 {
-        # Horse64 doesn't allow passing funcs around in a way
-        # where you can call the self parameter passed in
-        # explicitly (as non-implicit self call).
-        # Therefore, this only depends on whether the
-        # target func is clearly a func attr.
-        if called_node.subexprs[2].ref != none and
-                called_node.subexprs[2].ref == st_ref.ST_GLOBAL {
-            var entry = st_scope.global_id_to_item(
-                project_file.project,
-                called_node.ref.id)
-            return entry.kind == ast.N_STMT_FUNC and
-                entry.type_path != none and
-                entry.type_path.len > 0
-        }
-        return called_node.subexpr[2].ref != none and
-            called_node.subexprs[2].ref == st_ref.ST_GLOBALATTR
-    }
-    if called_node.subexprs[2].ref == none {
+    assert(potential_self_ref != none)
+
+    if called_node_ref == none {
         return no
     }
     if symbol_info == none {
