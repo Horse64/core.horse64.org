@@ -428,6 +428,8 @@ func get_called_or_assigned_func_types(
         if func_typeinfo.func_typeexpr.is_failable (-1) else (0)
     assert(expected_args >= 0)
     var called_args = call_args_expr.subexprs.len
+    assert(not is_moose64 or (has_attr(called_node, "ref") and
+        called_node.ref != none))
     var is_self_call =
         is_func_call_node_for_sure_a_self_call(
             project_file, called_node_parent,
@@ -535,8 +537,9 @@ func get_called_or_assigned_func_types(
             called_node.optoken.str == "." and
             called_node.subexprs.len == 2 and
             called_node.subexprs[2].kind == ast.N_EXPR_IDREF {
-        called_name = "'" + called_node.subexprs[2].label + "' "
-            "func attr"
+        called_name = "'" + called_node.subexprs[2].label + "'"
+    } elseif called_node.kind == ast.N_EXPR_IDREF {
+        called_name = "'" + called_node.label + "'"
     }
 
     var signature_mismatch = no

@@ -534,7 +534,7 @@ func _get_c_or_m64_type_of_node_do(
                     var called_s = "s"
                     msgs.add(new msg.FileMsg(
                         "Unexpected number of args, " +
-                        "as_ref expects 1 arg " +
+                        "'as_ref' expects 1 arg " +
                         "but this call provides " +
                         called_args.as_str() + " "
                         "arg" + called_s + ".",
@@ -611,7 +611,7 @@ func _get_c_or_m64_type_of_node_do(
                     var called_s = "s"
                     msgs.add(new msg.FileMsg(
                         "Unexpected number of args, " +
-                        "size_of expects 1 arg " +
+                        "'size_of' expects 1 arg " +
                         "but this call provides " +
                         called_args.as_str() + " "
                         "arg" + called_s + ".",
