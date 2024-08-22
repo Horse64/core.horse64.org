@@ -197,8 +197,9 @@ type CalledFuncTypesResult {
     var func_var_type_expr
     var func_var_typeinfo
     var func_var_name
-    var func_was_overridden
+    var func_was_overridden = no
     var func_ref
+    var is_external = no
     var arg_var_type_exprs = []
     var arg_var_typeinfos = []
     var self_var_type_expr = no
@@ -207,15 +208,16 @@ type CalledFuncTypesResult {
 
 func CalledFuncTypesResult.as_str {
     var map = {
-        "func_var_type_expr" -> self.func_var_type_expr,
-        "func_var_typeinfo" -> self.func_var_typeinfo,
-        "func_var_name" -> self.func_var_name,
+        "func_var_type_expr"-> self.func_var_type_expr,
+        "func_var_typeinfo"-> self.func_var_typeinfo,
+        "func_var_name"-> self.func_var_name,
         "func_was_overridden" -> self.func_was_overridden,
-        "func_ref" -> self.func_ref,
-        "arg_var_type_exprs" -> self.arg_var_type_exprs,
-        "arg_var_typeinfos" -> self.arg_var_typeinfos,
-        "self_var_type_expr" -> self.self_var_type_expr,
-        "self_var_typeinfo" -> self.self_var_typeinfo,
+        "func_ref"-> self.func_ref,
+        "is_external"-> self.is_external,
+        "arg_var_type_exprs"-> self.arg_var_type_exprs,
+        "arg_var_typeinfos"-> self.arg_var_typeinfos,
+        "self_var_type_expr"-> self.self_var_type_expr,
+        "self_var_typeinfo"-> self.self_var_typeinfo,
     }
     return "CalledFuncTypesResult" + map.as_str()
 }
@@ -225,6 +227,7 @@ func get_called_or_assigned_func_types(
         allow_matching_func_override=no,
         allow_noncall_ref=no,
         ignore_arg_mismatch=no,
+        verify_external_func_args=no,  # FIXME: Enable once supported!
         msgs=none, is_moose64=no, debug=no
         ) {
     var dbg_prefix = if is_moose64 ("moosec: debug:")
@@ -258,6 +261,21 @@ func get_called_or_assigned_func_types(
             "called_node_parent not set to valid call "
             "expression.")
     }
+
+    var is_external = no
+    if called_node.kind == ast.N_EXPR_IDREF and
+            called_node.ref != none and
+            called_node.ref.kind == st_ref.ST_MCREF {
+        is_external = yes
+    } elseif called_node.kind == ast.N_EXPR_BINOP and
+            called_node.optoken.str == "." and
+            called_node.subexprs.len == 2 and
+            called_node.subexprs[2].kind == ast.N_EXPR_IDREF and
+            called_node.subexprs[2].ref != none and
+            called_node.subexprs[2].kind == st_ref.ST_MCREF {
+        is_external = yes
+    }
+
     var call_args_expr = called_node_parent.subexprs[2]
     var func_typeinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
         project_file, called_node, called_node_parents,
@@ -272,6 +290,19 @@ func get_called_or_assigned_func_types(
             func_typeinfo.as_str())
     }
     if func_typeinfo == none {
+        if is_external and
+                not verify_external_func_args {
+            var result = new CalledFuncTypesResult()
+            result.is_external = yes
+            if called_node.kind == ast.N_EXPR_IDREF {
+                result.func_ref = called_node.ref.copy()
+            } elseif called_node.kind == ast.N_EXPR_BINOP {
+                assert(called_node.optoken.str == ".")
+                assert(called_node.subexprs[2].kind == ast.N_EXPR_IDREF)
+                result.func_ref = called_node.subexprs[2].ref.copy()
+            }
+            return later result
+        }
         if msgs == none {
             throw new RuntimeError("Failed to determine node type, "
                 "internal error.")
@@ -330,7 +361,7 @@ func get_called_or_assigned_func_types(
             project_file, m64_type_ref)
     }
 
-    # Return assembled result:
+    # Handle self ref if any:
     var self_value_ref = if func_typeinfo.func_self_ref != none
         (func_typeinfo.func_self_ref.copy()) else (none)
     var self_type_typeinfo = none
@@ -565,6 +596,7 @@ func get_called_or_assigned_func_types(
     }
 
     var result = new CalledFuncTypesResult()
+    result.is_external = is_external
     result.called_func_is_attr =
         func_typeinfo.func_typeexpr.is_func_attr
     result.func_var_type_expr = func_var_typeref
