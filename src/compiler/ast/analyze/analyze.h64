@@ -263,16 +263,18 @@ func get_called_or_assigned_func_types(
     }
 
     var is_external = no
-    if called_node.kind == ast.N_EXPR_IDREF and
-            called_node.ref != none and
-            called_node.ref.kind == st_ref.ST_MCREF {
-        is_external = yes
-    } elseif called_node.kind == ast.N_EXPR_BINOP and
-            called_node.optoken.str == "." and
-            called_node.subexprs.len == 2 and
-            called_node.subexprs[2].kind == ast.N_EXPR_IDREF and
-            called_node.subexprs[2].ref != none and
-            called_node.subexprs[2].ref.kind == st_ref.ST_MCREF {
+    var called_node_ref = none
+    if called_node.kind == ast.N_EXPR_IDREF {
+        called_node_ref = called_node.ref
+    } else {
+        assert(called_node.kind == ast.N_EXPR_BINOP and
+               called_node.optoken.str == "." and
+               called_node.subexprs.len == 2 and
+               called_node.subexprs[2].kind == ast.N_EXPR_IDREF)
+        called_node_ref = called_node.subexprs[2].ref
+    }
+    if called_node_ref != none and
+            called_node_ref.kind == st_ref.ST_MCREF {
         is_external = yes
     }
 
@@ -403,9 +405,10 @@ func get_called_or_assigned_func_types(
                 "on an item with a broken type. "
                 "Was the item declared with a forbidden cyclic type?",
                 kind=msg.M_ERROR, source_file=project_file,
-                line=child_node.line,
-                col=child_node.col,
+                line=called_node_parent.line,
+                col=called_node_parent.col,
             ))
+            called_node_parent.damaged = yes
             called_node.damaged = yes
             return later none
         }
@@ -428,11 +431,11 @@ func get_called_or_assigned_func_types(
         if func_typeinfo.func_typeexpr.is_failable (-1) else (0)
     assert(expected_args >= 0)
     var called_args = call_args_expr.subexprs.len
-    assert(not is_moose64 or (has_attr(called_node, "ref") and
-        called_node.ref != none))
+
     var is_self_call =
         is_func_call_node_for_sure_a_self_call(
             project_file, called_node_parent,
+            called_node_ref=called_node_ref,
             is_moose64=is_moose64
         )
     if self_value_ref == none and no {
@@ -1364,7 +1367,9 @@ func do_basic_check_and_analysis(project, msgs, is_moose64=no) {
 }
 
 func is_func_call_node_for_sure_a_self_call(
-        project_file, call_node, symbol_info=none, is_moose64=no
+        project_file, call_node, symbol_info=none,
+        called_node_ref=none,
+        is_moose64=no, debug=no
         ) {
     if call_node.kind != ast.N_EXPR_BINOP or
             call_node.optoken.str != "(" {
@@ -1372,15 +1377,48 @@ func is_func_call_node_for_sure_a_self_call(
             "must be a call expression.")
     }
     var called_node = call_node.subexprs[1]
+    var called_node_parent = call_node
+    var potential_self_ref = none
+    if called_node.kind == ast.N_EXPR_IDREF {
+        if called_node_ref == none {
+            called_node_ref = called_node.ref
+        }
+    } elseif called_node.kind == ast.N_EXPR_BINOP and
+            called_node.optoken.str == "." and
+            called_node.subexprs.len >= 2 and
+            called_node.subexprs[2].kind == ast.N_EXPR_IDREF {
+        if called_node_ref == none {
+            called_node_ref =
+                called_node.subexprs[2].ref
+        }
+        if called_node.subexprs[1].kind == ast.N_EXPR_IDREF {
+            potential_self_ref = called_node.subexprs[1].ref
+        } elseif called_node.subexprs[1].kind ==
+                ast.N_EXPR_BINOP and
+                called_node.subexprs[1].optoken.str == "." and
+                called_node.subexprs[1].
+                    subexprs[2].kind == ast.N_EXPR_IDREF {
+            potential_self_ref = called_node.subexprs[1].
+                subexprs[2]
+        }
+    }
+
     var is_possibly_self_obj_call =
         (called_node.kind == ast.N_EXPR_BINOP and
             called_node.optoken.str == "." and
-            called_node.subexprs[1].kind == ast.N_EXPR_IDREF and
-            called_node.subexprs[1].ref != none and
+            potential_self_ref != none and
             not st_ref.ref_is_global_func_def(
-                project_file, called_node.subexprs[1].ref
+                project_file, potential_self_ref
             ))
     if not is_possibly_self_obj_call {
+        if debug {
+            print(if is_moose64 ("moosec: ") else ("horsec: ") +
+                "debug: is_func_call_node_for_sure_a_self_call(): "
+                "Found a node that can't be a self call: "
+                "called_node=" + called_node.as_str() + " "
+                "potential_self_ref=" + potential_self_ref.as_str() + " "
+                "called_node_parent=" + called_node_parent.as_str())
+        }
         return no
     }
     assert(called_node.subexprs[1].ref != none)

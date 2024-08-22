@@ -802,12 +802,13 @@ func resolve_st_ref_to_type_ref_and_expr(
                 throw new RuntimeError("Internal error.")
             }
         }
-    } elseif value_ref.kind == st_ref.ST_SELF {
-        var i = parents.len
+    } elseif value_ref.kind == st_ref.ST_SELF and
+            node_parents != none {
+        var i = node_parents.len
         while i >= 1 and (
-                parents[i].kind != ast.N_EXPR_FUNC or
-                parents[i].type_path == none or
-                parents[i].type_path.len == 0) {
+                node_parents[i].kind != ast.N_STMT_FUNC or
+                node_parents[i].type_path == none or
+                node_parents[i].type_path.len == 0) {
             i -= 1
         }
         if i < 1 {
@@ -819,10 +820,11 @@ func resolve_st_ref_to_type_ref_and_expr(
             }
             return later [none, none]
         }
-        var anscope = self.make_attr_names_scope_from_funcattr(
-            parents[i], msgs=msgs, is_moose64=is_moose64,
-            def_project_file=project_file
-        )
+        var anscope = project_file.
+            make_attr_names_scope_from_funcattr(
+                node_parents[i], msgs=msgs, is_moose64=is_moose64,
+                def_project_file=project_file
+            )
         assert(anscope.storage_id != none)
         result_ref = new st_ref.StorageRef(
             st_ref.ST_GLOBAL, anscope.storage_id

@@ -163,14 +163,21 @@ func project.ProjectFile.try_lookup_symbol_path(
     if check_path[1] == "extended" and
             local_scope != none and local_scope.func_scope != none {
         var nested_in_type_extend_attr = no
+        var type_anscope = none
         var check_func_scope = local_scope.func_scope
         while check_func_scope != none {
             if check_func_scope.is_type_extend_attr {
                 nested_in_type_extend_attr = yes
+                var base_fscope = check_func_scope
+                while base_fscope.base_func_scope != none {
+                    base_fscope = base_fscope.base_func_scope
+                }
+                type_anscope = base_fscope.owning_type_scope
+                assert(type_anscope != none)
             }
             check_func_scope = check_func_scope.parent
         }
-        if nested_in_type_extend_attr {
+        if nested_in_type_extend_attr and check_path.len == 1 {
             if debug {
                 print(if is_moose64 ("moosec") else ("horsec") +
                 ": debug: try_lookup_symbol_path(): "
@@ -184,10 +191,18 @@ func project.ProjectFile.try_lookup_symbol_path(
     if check_path[1] == "self" and
             local_scope != none and local_scope.func_scope != none {
         var nested_in_type_attr = no
+        var type_anscope = none
         var check_func_scope = local_scope.func_scope
         while check_func_scope != none {
             if check_func_scope.is_type_attr {
                 nested_in_type_attr = yes
+                var base_fscope = check_func_scope
+                while base_fscope.base_func_scope != none {
+                    base_fscope = base_fscope.base_func_scope
+                }
+                type_anscope = base_fscope.
+                    owning_type_scope
+                assert(type_anscope != none)
             }
             check_func_scope = check_func_scope.parent
         }
@@ -200,17 +215,28 @@ func project.ProjectFile.try_lookup_symbol_path(
             }
             return new st_ref.StorageRef(
                 st_ref.ST_SELF, 0)
-        } elseif nested_in_type_attr and check_path.len == 2 {
-            if debug {
-                print(if is_moose64 ("moosec") else ("horsec") +
-                    ": debug: try_lookup_symbol_path(): "
-                    "It's a func or var attr on a self, "
-                    "we can't fully resolve that yet. "
-                    "Returning temporary _ST_RESOLVELATER."
-                )
+        } elseif nested_in_type_attr and
+                check_path.len == 2 {
+            var result = type_anscope.get_item_if_present(
+                check_path[2]
+            )
+            if result != none and check_path.len == 2 and
+                    # XXX: In Moose64, `self.some_func_attr(...)` must
+                    # not be pulled into one item, because if `self`
+                    # doesn't remain a separate expression then the call
+                    # won't be identified as a call-with-self-reference
+                    # by the type checker later.
+                    # (This is because Moose64 doesn't treat func attrs
+                    # as closures, unlike Hose64.)
+                    # Enforce this here:
+                    (not is_moose64 or
+                     (type(result[1]) != "list" and
+                      result[1].kind != ast.N_STMT_FUNC)) {
+                return result[2]
+            } elseif result == none and not is_moose64 {
+                # Return explicit missing attribute failure:
+                return no
             }
-            return new st_ref.StorageRef(
-                st_ref._ST_RESOLVELATER, 0)
         }
     }
 
@@ -344,7 +370,8 @@ func project.ProjectFile.try_lookup_symbol_path(
                 "No global entry matched.")
         }
     }
-    if check_path.len > 1 {
+    if check_path.len > 1 and
+            not {"self", "extended"}.has(check_path[1]) {
         # Check if this is inside some imported item:
         if debug {
             print(if is_moose64 ("moosec") else ("horsec") +
@@ -1354,95 +1381,24 @@ func visit_to_resolve_known_attrs(
     var dbg_header = if is_moose64
         ("moosec: debug: ") else ("horsec: debug: ")
 
+    var resolved_something = no
+    var failure = no
     func try_resolve_item(node, parents) {
         if node.kind != ast.N_EXPR_IDREF {
             return later node
         }
-        if node.type_path != none and
-                node.type_path.len > 0 and
-                (node.ref == none or
-                 (node.ref != none and
-                 node.ref.kind == st_ref._ST_RESOLVELATER)) {
-            if node.type_path[1] == "self" and
-                    (node.ref == none or
-                     (node.ref != none and
-                      node.ref.kind == st_ref._ST_RESOLVELATER)) {
-                var parent_func_node = none
-                var i = parents.len
-                while i >= 1 {
-                    if {ast.N_STMT_FUNC, ast.N_STMT_FUNCEXTEND}.has(
-                            parents[i].kind) and
-                            parents[i].func_scope != none and
-                            parents[i].type_path != none and
-                            parents[i].type_path.len > 0 {
-                        parent_func_node = parents[i]
-                        break
-                    }
-                    i -= 1
-                }
-                assert(parent_func_node != none)
-                var anscope =
-                    pfile.make_attr_names_scope_from_funcattr(
-                        parent_func_node, msgs=msgs,
-                        is_moose64=is_moose64,
-                        def_project_file=pfile
-                    )
-                if anscope == none {
-                    if not node.damaged {
-                        if msgs == none {
-                            throw new ValueError("Failed to find "
-                                "base type for func attribute.")
-                        }
-                        msgs.add(new msg.FileMsg(
-                            "Unexpectedly failed to find base type "
-                            "for func attribute '" +
-                            node.label + "'.",
-                            source_file=pfile,
-                            line=node.line,
-                            col=node.col,
-                        ))
-                    }
-                    node.damaged = yes
-                    return later node
-                }
-                if not anscope.name_to_symbol_map.has(node.label) {
-                    if is_moose64 {
-                        if msgs == none {
-                            throw new ValueError("Found access to "
-                                "non-existing attribute.")
-                        }
-                        msgs.add(new msg.FileMsg(
-                            "Unknown reference '" + node.label +
-                            "', underlying object doesn't have " +
-                            "this attribute.",
-                            source_file=pfile,
-                            line=node.line,
-                            col=node.col,
-                        ))
-                        node.damaged = yes
-                        return later node
-                    }
-                    node.ref = new st_ref.StorageRef(
-                        st_ref._ST_ATTRERROR, none)
-                    return later node
-                }
-                var sym = anscope.name_to_symbol_map[node.label]
-                var st_id = sym.storage_id
-                node.ref = new st_ref.StorageRef(
-                    st_ref.ST_GLOBALATTR, [anscope.storage_id, st_id]
-                )
-                return later node
-            }
-        } elseif node.ref != none and
+        if node.ref != none and
                 node.ref.kind != st_ref._ST_RESOLVELATER {
             return later node
         }
         if parents.len == 0 or
                 parents[parents.len].kind != ast.N_EXPR_BINOP or
                 parents[parents.len].optoken.str != '.' {
-            # We can't actually resolve this node in a useful way.
+            # We can't actually ever resolve this node in a useful
+            # way. Bail out, and emit error if this is Moose64.
             if is_moose64 {
                 if msgs == none {
+                    failure = yes
                     throw new ValueError("Found access to "
                         "non-existing item.")
                 }
@@ -1513,7 +1469,8 @@ func visit_to_resolve_known_attrs(
 
         await result
         if result == no {
-            return later none
+            failure = yes
+            return later node
         }
 
         var parent =
@@ -1680,6 +1637,7 @@ func visit_to_resolve_known_attrs(
         if is_attr_error {
             if is_moose64 {
                 if msgs == none {
+                    failure = yes
                     throw new ValueError("Found access to "
                         "non-existing attribute.")
                 }
@@ -1696,6 +1654,7 @@ func visit_to_resolve_known_attrs(
                     ))
                 }
                 node.damaged = yes
+                resolved_something = yes
             } else {
                 var error_is_valid = ast_analyze.
                     ast_node_is_allowed_to_cause_type_error(
@@ -1721,6 +1680,7 @@ func visit_to_resolve_known_attrs(
                         ))
                     }
                     node.damaged = yes
+                    resolved_something = yes
                 } else {
                     is_attr_error = no
                 }
@@ -1764,11 +1724,13 @@ func visit_to_resolve_known_attrs(
         if our_type_expr != none and
                 node.value_typeref_expr == none {
             node.value_typeref_expr = our_type_expr.copy()
+            resolved_something = yes
         }
         if our_type_ref != none and
                 node.kind == ast.N_EXPR_IDREF and
                 node.ref == none {
             node.ref = our_type_ref.copy()
+            resolved_something = yes
         }
         if debug {
             print(dbg_header +
@@ -1787,7 +1749,6 @@ func visit_to_resolve_known_attrs(
                 "is_attr_error=" +
                     is_attr_error.as_str())
         }
-
         return later node
     }
 
@@ -1815,6 +1776,17 @@ func visit_to_resolve_known_attrs(
         parent_chain=yes) later:
 
     await success
-    return success
+    if not success or failure {
+        return no
+    }
+    if not resolved_something {
+        return yes
+    }
+    resolved_something = no
+    success = transform.visit_ast_tree(
+        start_at_root, try_resolve_item,
+        subtree_parent=root_parents,
+        parent_chain=yes
+    ) later repeat
 }
 

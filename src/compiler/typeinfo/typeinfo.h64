@@ -295,7 +295,7 @@ func try_resolve_symbol_typeref_or_type_expr(
 func ensure_type_info_for_file(project_file, msgs, is_moose64=no) {
     var ast_tree = project_file.ast
 
-    func resolve_typeref_visitor(node, parent) {
+    func resolve_typeref_visitor(node, parent, max_recurse=200) {
         if node.damaged {
             return later node
         }

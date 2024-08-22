@@ -330,6 +330,11 @@ func AttrNamesScope.as_str {
     return t
 }
 
+func AttrNamesScope.get_item_if_present(
+        name, project=none) {
+    return none
+}
+
 type TypeNamesScope base AttrNamesScope {
     var is_error = no
     var display_name = none
@@ -351,6 +356,35 @@ func TypeNamesScope.init {
     self.is_type = yes
 }
 
+func TypeNamesScope.get_item_if_present(
+        name, project=none) {
+    var anscope = self
+    while yes {
+        if anscope.name_to_symbol_map.has(name) {
+            var item = anscope.name_to_symbol_map[name]
+            for storage_id in anscope.id_to_symbol_map {
+                if anscope.id_to_symbol_map[storage_id] != item {
+                    continue
+                }
+                return [item, new st_ref.StorageRef(
+                    st_ref.ST_GLOBALATTR, [
+                        anscope.storage_id, storage_id])]
+            }
+            throw new RuntimeError("Encountered damaged "
+                "item which is in name_to_symbol_map but "
+                "doesn't have corresponding id_to_symbol_map entry.")
+        }
+        if anscope.base_global_id != none {
+            assert(anscope._base_anscope_key != none)
+            anscope = project.
+                attr_names_scope_map[anscope._base_anscope_key]
+            continue
+        }
+        break
+    }
+    return none
+}
+
 type StructNamesScope base AttrNamesScope {
     var is_error = no
     var display_name = none
@@ -369,6 +403,25 @@ func StructNamesScope.init {
     self.is_type = no
 }
 
+func StructNamesScope.get_item_if_present(
+        name, project=none) {
+    if self.name_to_symbol_map.has(name) {
+        var item = self.name_to_symbol_map[name]
+        for storage_id in self.id_to_symbol_map {
+            if self.id_to_symbol_map[storage_id] != item {
+                continue
+            }
+            return [item, new st_ref.StorageRef(
+                st_ref.ST_GLOBALATTR, [
+                    self.storage_id, storage_id])]
+        }
+        throw new RuntimeError("Encountered damaged "
+            "item which is in name_to_symbol_map but "
+            "doesn't have corresponding id_to_symbol_map entry.")
+    }
+    return none
+}
+
 type EnumNamesScope base AttrNamesScope {
     var first_entry_pos
     var label_names = []
@@ -380,6 +433,18 @@ type EnumNamesScope base AttrNamesScope {
 func EnumNamesScope.init {
     self.is_enum = yes
     self.is_struct = no
+}
+
+func EnumNamesScope.get_item_if_present(
+        name, project=none) {
+    var idx = self.label_names.find(name)
+    if idx != none {
+        return [self.label_names[name],
+            new st_ref.StorageRef(
+                st_ref.ST_NUMLITERAL, self.label_nums[idx]
+            )]
+    }
+    return none
 }
 
 type LocalScope {
