@@ -1020,6 +1020,30 @@ func project.Project.compute_all_scopes(
                         }
                     }
 
+                    # If we have arg types, register this properly:
+                    if node.has_arg_types {
+                        if not node.extended_final_set_has_arg_types() {
+                            if msgs != none {
+                                msgs.add(new msg.FileMsg(
+                                    "Unexpectedly found " +
+                                    if node.kind == ast.N_STMT_FUNCEXTEND
+                                        ("func extend ") else
+                                        ("func definition ") +
+                                    "where arg types aren't "
+                                    "consistently specified across "
+                                    "base and all extensions.",
+                                    source_file=pfile,
+                                    line=node.line, col=node.col,
+                                ))
+                                node.damaged = yes
+                            } else {
+                                throw new ValueError(
+                                    "Invalid func or extend func ."
+                                )
+                            }
+                        }
+                    }
+
                     # If this is a func attribute, set association
                     # with the owning type:
                     var in_anscope = none

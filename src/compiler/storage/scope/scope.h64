@@ -86,6 +86,7 @@ type FuncScope {
     var arg_type_exprs = []
     var kw_arg_count = 0
     var has_return_type = no
+    var has_arg_types = no
     var return_type_expr = none
     var is_type_attr = no
     var is_type_extend_attr = no

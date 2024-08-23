@@ -1772,8 +1772,8 @@ func CallKWArgExpr.init {
     self.kind = ast.N_EXPR_CALLKWARG
 }
 
-func CallKWArgExpr.as_json_output {
-    var output = base.as_json_output()
+func CallKWArgExpr.as_json_obj {
+    var output = base.as_json_obj()
     output["label"] = self.label
     return output
 }
@@ -1787,8 +1787,8 @@ func ArgNameExpr.init {
     self.kind = ast.N_EXPR_ARGNAME
 }
 
-func ArgNameExpr.as_json_output {
-    var output = base.as_json_output()
+func ArgNameExpr.as_json_obj {
+    var output = base.as_json_obj()
     output["label"] = self.label
     return output
 }
@@ -1798,7 +1798,7 @@ func ArgNameExpr.as_code(indent=0) {
 }
 
 type CallArgsExpr base ast.TreeNode {
-    var has_types
+    var has_types = no
 }
 
 func CallArgsExpr.init {
@@ -1806,8 +1806,8 @@ func CallArgsExpr.init {
     self.kind = ast.N_EXPR_CALLARGS
 }
 
-func CallArgsExpr.as_json_output {
-    var output = base.as_json_output()
+func CallArgsExpr.as_json_obj {
+    var output = base.as_json_obj()
     output["has_types"] = self.has_types
     return output
 }

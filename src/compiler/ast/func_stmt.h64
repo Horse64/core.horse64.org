@@ -160,6 +160,29 @@ func FuncStmtFuncExtendStmtShared.extended_final_has_return_type {
     return base_func_scope.has_return_type
 }
 
+func FuncStmtFuncExtendStmtShared.extended_final_has_arg_types {
+    var base_func_scope = self.func_scope.base_func_scope
+    if base_func_scope == none {
+        base_func_scope = self.func_scope
+    }
+    return base_func_scope.has_arg_types
+}
+
+func FuncStmtFuncExtendStmtShared.extended_final_set_has_arg_types {
+    if self.extended_final_has_arg_types() {
+        return yes
+    }
+    if self.extended_final_arg_count() > 0 {
+        return no
+    }
+    var base_func_scope = self.func_scope.base_func_scope
+    if base_func_scope == none {
+        base_func_scope = self.func_scope
+    }
+    base_func_scope.has_arg_types = yes
+    return yes
+}
+
 ## Returns the real, final return @{compiler.type_info.
 ## ast_typeref.TypeRefExpr}, which when queried on an
 ## 'extend func' statement will get you the base func's

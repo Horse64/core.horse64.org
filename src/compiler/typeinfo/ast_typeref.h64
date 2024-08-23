@@ -191,6 +191,11 @@ func TypeRefFuncExpr.copy {
     return self_copy
 }
 
+func TypeRefFuncExpr.as_str {
+    var t = "TypeRefFuncExpr<" + self.as_code() + ">"
+    return t
+}
+
 func TypeRefFuncExpr.try_resolve_param_types(
         project_file, recursive=no, force_recompute=no,
         is_moose64=no
@@ -285,9 +290,13 @@ func TypeRefFuncExpr.try_resolve_to_user_type(
     return later self.func_storage_ref.copy()
 }
 
-func create_typeref_from_func_node(project_file, node) {
+func create_typeref_from_func_node(
+        project_file, node, debug=no
+        ) {
     var is_moose64 = project_file.project.is_moose64
     assert(node.kind == ast.N_STMT_FUNC)
+    assert(node.extended_final_arg_count() == 0 or
+        not is_moose64 or node.extended_final_has_arg_types())
     if node.symbol_info != none and
             node.symbol_info.typeref_expr != none {
         return node.symbol_info.typeref_expr
@@ -317,7 +326,9 @@ func create_typeref_from_func_node(project_file, node) {
         var self_type_expr = new TypeRefExpr()
         var gscope = none
         if not project_file.project.
-                storage_id_to_global_scope_map.has(anscope.storage_id) {
+                storage_id_to_global_scope_map.has(
+                    anscope.storage_id
+                ) {
             gscope = project_file.global_scope
         } else {
             gscope = project_file.project.
@@ -340,15 +351,13 @@ func create_typeref_from_func_node(project_file, node) {
         type_expr.arg_typeref_exprs.add(self_type_expr)
         type_expr.is_func_attr = yes
     }
-    if node.has_arg_types {
+    if node.extended_final_has_arg_types() {
         var arg_count = node.extended_final_arg_count()
         var i = 1
         while i <= arg_count {
-            if node.has_arg_types {
-                type_expr.arg_typeref_exprs.add(
-                    node.extended_final_arg_type_exprs()[i]
-                )
-            }
+            type_expr.arg_typeref_exprs.add(
+                node.extended_final_arg_type_exprs()[i]
+            )
             i += 1
         }
     } elseif not is_moose64 and
@@ -379,6 +388,18 @@ func create_typeref_from_func_node(project_file, node) {
             # For now, however, we don't allow this.
             return none
         }
+    }
+    if debug {
+        print(if is_moose64 ("moosec: ") else ("horsec: ") +
+            "debug: "
+            "create_typeref_from_func_node(): " +
+            "Got result: "
+            "node.extended_final_has_arg_types()=" +
+                node.extended_final_has_arg_types().as_str() + " "
+            "node.extended_final_arg_count()=" +
+                node.extended_final_arg_count().as_str() + " "
+            "node=" + node.as_str().sub(1, 200) + "... " +
+            "type_expr=" + type_expr.as_str())
     }
     return type_expr
 }
