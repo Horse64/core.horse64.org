@@ -90,6 +90,7 @@ func get_c_or_m64_type_of_sym_info(
         store_self_value_ref_for_funcs=no,
         msgs=none, debug=no
         ) {
+    const is_moose64 = yes
     var dbg_prefix = ""
     if debug {
         d_id = random.gen_id()
@@ -150,6 +151,50 @@ func get_c_or_m64_type_of_sym_info(
                 st_ref.ST_CEXT, st_ref.ST_MCREF}.has(
                     node_with_reference.ref.kind) {
         target_ref = node_with_reference.ref
+    }
+    if target_ref == none and node_with_reference.ref != none and
+            node_with_reference.ref.kind == st_ref.ST_SELF and
+            node_with_reference_parents != none and
+            node_with_reference_parents.len >= 1 {
+        var owning_func_attr_node = none
+        var i = node_with_reference_parents.len
+        while i >= 1 {
+            if {ast.N_STMT_FUNC, ast.N_STMT_FUNCEXTEND}.has(
+                    node_with_reference_parents[i].kind) {
+                owning_func_attr_node =
+                    node_with_reference_parents[i]
+                break
+            }
+            i -= 1
+        }
+        if debug {
+            var owning_func_attr_str = "none"
+            if owning_func_attr_node != none {
+                owning_func_attr_str = owning_func_attr_node.as_str() +
+                    "..."
+            }
+            print(dbg_prefix + " Found self ref with "
+                "owning_func_attr_node=" +
+                    owning_func_attr_str)
+        }
+        if owning_func_attr_node != none {
+            var anscope = project_file.
+                make_attr_names_scope_from_funcattr(
+                    owning_func_attr_node, msgs=msg,
+                    is_moose64=is_moose64,
+                    def_project_file=project_file
+                )
+            if debug {
+                print(dbg_prefix + " Found associated "
+                    "anscope for self: anscope=" +
+                    anscope.as_str())
+            }
+            if anscope != none {
+                target_ref = new st_ref.StorageRef(
+                    st_ref.ST_GLOBAL, anscope.storage_id
+                )
+            }
+        }
     }
     if target_ref != none {
         assert(target_ref == none or has_attr(target_ref, "kind"))
@@ -647,7 +692,7 @@ func _get_c_or_m64_type_of_node_do(
                 return later none
             }
             var size_result = new typeinfo.TypeInfo(
-                TI_C_TYPE
+                typeinfo.TI_C_TYPE
             )
             size_result.orig_type_name = "size"
             size_result.c_type_name =

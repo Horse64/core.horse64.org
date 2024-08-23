@@ -46,7 +46,9 @@ extend func st_scope.SymbolInfo.as_str {
     var result = extended()
     assert(result.ends("}"))
     result = result.sub(1, result.len - 1) + ", " +
-        "typeref_expr=" + self.typeref_expr.as_str()
+        "typeref_expr=" + self.typeref_expr.as_str() + ", " +
+        "type_storage_ref=" + self.type_storage_ref.as_str()
+        "}"
 
     return result
 }

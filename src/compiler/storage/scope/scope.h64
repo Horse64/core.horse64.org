@@ -72,7 +72,8 @@ func SymbolInfo.as_str {
         "storage_id=" +
             self.storage_id.as_str() + ", "
         "def_line=" + self.def_line.as_str() + ", " +
-        "def_col=" + self.def_col.as_str() + "}"
+        "def_col=" + self.def_col.as_str()
+    t += "}"
     return t
 }
 
