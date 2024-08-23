@@ -305,6 +305,7 @@ func create_typeref_from_func_node(
         return node.symbol_info.typeref_expr
     }
     var type_expr = new TypeRefFuncExpr()
+    type_expr.is_func_attr = no
     if node.type_path != none and node.type_path.len > 0 {
         var anscope =
             project_file.make_attr_names_scope_from_funcattr(
@@ -397,6 +398,10 @@ func create_typeref_from_func_node(
             "debug: "
             "create_typeref_from_func_node(): " +
             "Got result: "
+            "node.label='" + node.label + "' "
+            "node.type_path=" + node.type_path.as_str() + " "
+            "type_expr.is_func_attr=" +
+                type_expr.is_func_attr.as_str() + " "
             "node.extended_final_has_arg_types()=" +
                 node.extended_final_has_arg_types().as_str() + " "
             "node.extended_final_arg_count()=" +

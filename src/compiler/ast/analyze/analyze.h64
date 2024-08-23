@@ -533,8 +533,12 @@ func get_called_or_assigned_func_types(
             "moose64_failed_result_t" and
         last_param_m64_type.modifiers.len == 1 and
         last_param_m64_type.modifiers[1].name == "ref"
+    var expected_failable_call =
+        func_typeinfo.func_typeexpr.is_failable
+    var expected_self_call =
+        func_typeinfo.func_typeexpr.is_func_attr
     var expected_with_self_str =
-        if func_typeinfo.func_typeexpr.is_func_attr ("with self ref")
+        if expected_self_call ("with self ref")
         else ("without self ref")
     var called_with_self_str =
         if is_self_call ("with self ref")
@@ -553,7 +557,9 @@ func get_called_or_assigned_func_types(
     var signature_mismatch = no
     if effective_called_args != expected_args +
             if func_typeinfo.func_typeexpr.is_func_attr (1) else (0) +
-            if func_typeinfo.func_typeexpr.is_failable (1) else (0) {
+            if func_typeinfo.func_typeexpr.is_failable (1) else (0) or
+            is_failable_call != expected_failable_call or
+            is_self_call != expected_self_call {
         signature_mismatch = yes
     }
 
@@ -576,6 +582,8 @@ func get_called_or_assigned_func_types(
                         is_failable_call.as_str() + " "
                     "is_self_call=" +
                         is_self_call.as_str() + " "
+                    "expected_self_call=" +
+                        expected_self_call.as_str() + " "
                     "is_func_attr=" +
                         func_typeinfo.func_typeexpr.
                         is_func_attr.as_str())
@@ -590,6 +598,10 @@ func get_called_or_assigned_func_types(
                 print(dbg_prefix +
                     " get_called_or_assigned_func_types(): "
                     "Got args mismatch, debug info: "
+                    "is_self_call=" +
+                        is_self_call.as_str() + " "
+                    "expected_self_call=" +
+                        expected_self_call.as_str() + " "
                     "func_typeinfo=" +
                         func_typeinfo.as_str() + " "
                     "func_typeinfo.func_typeexpr=" +
@@ -599,19 +611,55 @@ func get_called_or_assigned_func_types(
                         called_node_parent.as_str())
             }
             if not called_node.damaged {
-                msgs.add(new msg.FileMsg(
-                    "Unexpected number of args, " +
-                    called_name + " expects " +
+                # Emit an error message:
+                var arg_count_mismatch =
+                    (expected_args != called_args)
+                if not arg_count_mismatch and
+                        is_failable_call != expected_failable_call {
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected " +
+                        if is_failable_call ("failable guarded call")
+                            else ("regular unguarded call") + " "
+                        "of func that " +
+                        if expected_failable_call
+                            ("is marked failable")
+                            else ("is regular non-failable") +
+                        ".",
+                        kind=msg.M_ERROR, source_file=project_file,
+                        line=called_node.line,
+                        col=called_node.col
+                    ))
+                } elseif is_self_call ==
+                        func_typeinfo.func_typeexpr.is_func_attr {
+                    # Since self call matches, omit self info:
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected number of args, " +
+                        called_name + " expects " +
+                            expected_args.as_str() + " "
+                        "arg" + expected_s + " " +
+                        "but this call provides " +
+                        called_args.as_str() +
+                        " arg" + called_s + ".",
+                        kind=msg.M_ERROR, source_file=project_file,
+                        line=called_node.line,
+                        col=called_node.col,
+                    ))
+                } else {
+                    # Due to self-call mismatch, include self info:
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected number of args, " +
+                        called_name + " expects " +
                         expected_args.as_str() + " "
-                    "arg" + expected_s + " " +
+                        "arg" + expected_s + " " +
                         expected_with_self_str + " "
-                    "but this call provides " +
-                    called_args.as_str() + " arg" + called_s + " " +
-                    called_with_self_str + ".",
-                    kind=msg.M_ERROR, source_file=project_file,
-                    line=called_node.line,
-                    col=called_node.col,
-                ))
+                        "but this call provides " +
+                        called_args.as_str() + " arg" + called_s + " " +
+                        called_with_self_str + ".",
+                        kind=msg.M_ERROR, source_file=project_file,
+                        line=called_node.line,
+                        col=called_node.col,
+                    ))
+                }
             }
             called_node.damaged = yes
             return later none
