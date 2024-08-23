@@ -612,6 +612,7 @@ func resolve_st_ref_to_type_ref_and_expr(
              node_parents[node_parents.len].kind !=
                 ast.N_EXPR_BINOP or
              node_parents[node_parents.len].optoken.str != "(" or
+             node_parents[node_parents.len].subexprs[1] != node or
              node_parents[node_parents.len].subexprs[2] !=
                 allow_func_override_for_args_node) {
         throw new RuntimeError(
@@ -756,52 +757,6 @@ func resolve_st_ref_to_type_ref_and_expr(
             result_expr = arg_type_exprs[
                 value_ref.id]
         }
-    } elseif value_ref.kind == st_ref.ST_GLOBALATTR and
-            lookup_label != none {
-        var anscope =
-            project_file.project.storage_id_to_anscope_map[
-                value_ref.id[1]
-            ]
-        if debug {
-            print(dbg_header +
-                "resolve_st_ref_to_type_ref_and_expr() "
-                "type scope obtained: anscope=" + anscope.as_str())
-        }
-        if anscope.is_struct or anscope.is_type {
-            if not anscope.name_to_symbol_map.has(
-                    lookup_label) {
-                if debug {
-                    print(dbg_header +
-                        "resolve_st_ref_to_type_ref_and_expr() "
-                        "result: Nothing, since global attribute "
-                        "member lookup failed.")
-                }
-                return later [none, none]
-            }
-            var sinfo = anscope.
-                name_to_symbol_map[lookup_label]
-            if debug {
-                print(dbg_header +
-                    "resolve_st_ref_to_type_ref_and_expr() "
-                    "got member symbol info: "
-                    "sinfo=" + sinfo.as_str() + " "
-                    "lookup_label='" + lookup_label.as_str() + "'")
-            }
-            if sinfo.typeref_expr != none {
-                result_expr = sinfo.typeref_expr
-            } elseif is_moose64 {
-                print(if is_moose64 ("moosec")
-                        else ("horsec") + ": error: "
-                    "Found global attribute with no "
-                    "type expr, this is an "
-                    "internal error. Please report "
-                    "this to the compiler makers: " +
-                    "left_of_us=" +
-                        left_of_us.as_str() + " "
-                    "sinfo=" + sinfo.as_str())
-                throw new RuntimeError("Internal error.")
-            }
-        }
     } elseif value_ref.kind == st_ref.ST_SELF and
             node_parents != none {
         var i = node_parents.len
@@ -829,15 +784,25 @@ func resolve_st_ref_to_type_ref_and_expr(
         result_ref = new st_ref.StorageRef(
             st_ref.ST_GLOBAL, anscope.storage_id
         )
-    } elseif value_ref.kind == st_ref.ST_GLOBAL {
+    } elseif value_ref.kind == st_ref.ST_GLOBAL or
+            value_ref.kind == st_ref.ST_GLOBALATTR {
         result_ref = value_ref.copy()
+    }
+    if result_expr == none and
+            result_ref != none and
+            result_ref.kind == st_ref.ST_GLOBAL {
         assert(result_expr == none)
         var gscope = project_file.project.
-            storage_id_to_global_scope_map[value_ref.id]
+            storage_id_to_global_scope_map[result_ref.id]
         assert(gscope != none)
-        var gnode = gscope.storage_id_to_entry[value_ref.id]
-        assert(typename(node) != "list")
+        var gnode = gscope.storage_id_to_entry[result_ref.id]
+        assert(typename(gnode) != "list")
         var_node = gnode
+        if debug {
+            print(dbg_header +
+                "resolve_st_ref_to_type_ref_and_expr(): "
+                "Obtained global node: gnode=" + gnode.as_str())
+        }
         if gnode.kind == ast.N_STMT_FUNC {
             result_expr = create_typeref_from_func_node(
                 project_file, gnode
@@ -846,6 +811,58 @@ func resolve_st_ref_to_type_ref_and_expr(
         } elseif gnode.kind == ast.N_STMT_VAR and
                 gnode.has_type_expr and gnode.subexprs.len > 0 {
             result_expr = gnode.subexprs[gnode.subexprs.len].copy()
+        } elseif is_moose64 and gnode.kind == ast.N_STMT_STRUCT {
+            result_expr = new TypeRefExpr()
+            result_expr.name = gnode.label
+            result_expr.storage_ref = result_ref.copy()
+        }
+    } elseif result_expr == none and
+            result_ref != none and
+            result_ref.kind == st_ref.ST_GLOBALATTR and
+            lookup_label != none {
+        var anscope =
+            project_file.project.storage_id_to_anscope_map[
+                result_ref.id[1]
+            ]
+        if debug {
+            print(dbg_header +
+            "resolve_st_ref_to_type_ref_and_expr() "
+            "type scope obtained: anscope=" + anscope.as_str())
+        }
+        if anscope.is_struct or anscope.is_type {
+            if not anscope.name_to_symbol_map.has(
+                lookup_label) {
+                if debug {
+                    print(dbg_header +
+                    "resolve_st_ref_to_type_ref_and_expr() "
+                    "result: Nothing, since global attribute "
+                    "member lookup failed.")
+                }
+                return later [none, none]
+            }
+            var sinfo = anscope.
+            name_to_symbol_map[lookup_label]
+            if debug {
+                print(dbg_header +
+                "resolve_st_ref_to_type_ref_and_expr() "
+                "got member symbol info: "
+                "sinfo=" + sinfo.as_str() + " "
+                "lookup_label='" + lookup_label.as_str() + "'")
+            }
+            if sinfo.typeref_expr != none {
+                result_expr = sinfo.typeref_expr
+            } elseif is_moose64 {
+                print(if is_moose64 ("moosec")
+                else ("horsec") + ": error: "
+                    "Found global attribute with no "
+                    "type expr, this is an "
+                    "internal error. Please report "
+                    "this to the compiler makers: " +
+                    "left_of_us=" +
+                    left_of_us.as_str() + " "
+                    "sinfo=" + sinfo.as_str())
+                throw new RuntimeError("Internal error.")
+            }
         }
     }
 
