@@ -370,6 +370,16 @@ func FuncStmt.get_local_args_type_expr_list {
     return _get_local_args_type_expr_list(self)
 }
 
+## Check whether this func stmt was ever extended in the
+## entire code base by a func extent stmt somewhere.
+func FuncStmt.was_ever_extended {
+    base_func_scope = self.func_scope.base_func_scope
+    if base_func_scope == none {
+        base_func_scope = self.func_scope
+    }
+    return base_func_scope.extended_by_scopes.len > 0
+}
+
 func parse(tokens, pos, msgs, project_file=none,
            is_moose64=no, debug=no) {
     var stmt

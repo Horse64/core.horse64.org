@@ -297,6 +297,9 @@ func create_typeref_from_func_node(
     assert(node.kind == ast.N_STMT_FUNC)
     assert(node.extended_final_arg_count() == 0 or
         not is_moose64 or node.extended_final_has_arg_types())
+    assert(node.extended_final_arg_count() == 0 or
+        not is_moose64 or node.was_ever_extended() or
+        node.has_arg_types)
     if node.symbol_info != none and
             node.symbol_info.typeref_expr != none {
         return node.symbol_info.typeref_expr

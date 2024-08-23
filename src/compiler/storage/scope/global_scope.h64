@@ -783,6 +783,20 @@ func process_toplevel_stmt(
             } elseif statement.kind == ast.N_STMT_FUNC {
                 stand_in_node = new func_stmt.FuncStmt()
                 stand_in_node.label = statement.label
+                stand_in_node.type_path =
+                    statement.type_path.copy()
+                stand_in_node.arg_labels =
+                    statement.arg_labels.copy()
+                stand_in_node.kw_arg_count =
+                    statement.kw_arg_count
+                stand_in_node.has_failable =
+                    statement.has_failable
+                stand_in_node.has_arg_types =
+                    statement.has_arg_types
+                stand_in_node.is_override =
+                    statement.is_override
+                stand_in_node.is_readonly =
+                    statement.is_readonly
             } elseif statement.kind == ast.N_STMT_VAR {
                 stand_in_node = new var_stmt.VarStmt()
                 stand_in_node.var_labels = [name]
