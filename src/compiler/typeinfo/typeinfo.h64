@@ -109,6 +109,39 @@ func TypeInfo.init(ti_kind) {
     self.kind = ti_kind
 }
 
+func create_from_simple_m64_type(m64_type) {
+    const is_moose64 = yes
+    var c_type_name = ast_typeref._m64_to_c_map[m64_type]
+    var tinfo = new TypeInfo(TI_C_TYPE)
+    tinfo.c_type_name = c_type_name
+    tinfo.orig_type_name = m64_type + ""
+    return tinfo
+}
+
+func create_typeinfo_from_simple_c_type(
+        c_type, is_moose64=no) {
+    if not is_moose64 {
+        throw new RuntimeError("Not implemented for Horse64.")
+    }
+    var reverse_types = []
+    for entry in ast_typeref._m64_to_c_map {
+        if ast_typeref._m64_to_c_map[entry] == c_type {
+            reverse_types.add(entry)
+        }
+    }
+    if reverse_types.len != 1 {
+        throw new ValueError(
+            "Cannot create TypeInfo() directly from this "
+            "C type, since it doesn't have a direct "
+            "unique Moose64 reverse."
+        )
+    }
+    var tinfo = new TypeInfo(TI_C_TYPE)
+    tinfo.c_type_name = c_type + ""
+    tinfo.orig_type_name = reverse_types[1]
+    return tinfo
+}
+
 func TypeInfo.as_str {
     var t = "TypeInfo{"
         "kind=" + TypeInfoKind.num_label(self.kind) + " "
