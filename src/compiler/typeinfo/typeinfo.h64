@@ -191,6 +191,16 @@ func TypeInfo._set_orig_type_expr(texpr) {
     self._orig_typeexpr = texpr.copy()
 }
 
+func TypeInfo.describe_to_user(project=none, is_moose64=no) {
+    var texpr = self.converet_to_typeref_expr(
+        project=project, is_moose64=is_moose64
+    )
+    if texpr == none {
+        return "<unknown type description>"
+    }
+    return texpr.as_code()
+}
+
 func TypeInfo.add_ref_modifier {
     var mod = new ast_typeref.TypeRefMod("ref")
     self.modifiers.add(mod)
@@ -201,7 +211,8 @@ func TypeInfo.add_ref_modifier {
 }
 
 func TypeInfo.convert_to_typeref_expr(
-        in_project_file=none, in_local_scope=none,
+        project=none, in_local_scope=none,
+        in_project_file=none,
         is_moose64=no
         ) {
     if self.func_typeexpr != none {
@@ -220,17 +231,18 @@ func TypeInfo.convert_to_typeref_expr(
         }
         return expr
     } elseif self.user_type_ref != none and
-            in_project_file != none and
+            (project != none or in_project_file != none) and
             {st_ref.ST_GLOBAL,
              st_ref.ST_MCREF}.has(self.user_type_ref.kind) {
-        var pfile = in_project_file
-        var local_gscope = in_project_file.global_scope
+        if project == none and in_project_file != none {
+            project = in_project_file.project
+        }
         if self.user_type_ref.kind == st_ref.ST_GLOBAL and
-                pfile.project != none and
-                pfile.project.storage_id_to_global_scope_map.has(
+                project != none and
+                project.storage_id_to_global_scope_map.has(
                     self.user_type_ref.id
                 ) {
-            var gscope = pfile.project.
+            var gscope = project.
                 storage_id_to_global_scope_map[self.user_type_ref.id]
             var gscope_node = gscope.storage_id_to_entry[
                 self.user_type_ref.id
@@ -238,11 +250,16 @@ func TypeInfo.convert_to_typeref_expr(
             if gscope_node.kind == ast.N_STMT_STRUCT {
                 var texpr = new ast_typeref.TypeRefExpr()
                 texpr.name = gscope_node.label
-                var import_typepath = pfile.global_scope.
-                    get_import_path_for_global(
-                        pfile, self.user_type_ref.id)
-                if import_typepath.len > 0 {
-                    texpr.type_path = import_typepath
+                if in_project_file != none {
+                    var import_typepath = in_project_file.
+                        global_scope.get_import_path_for_global(
+                            in_project_file,
+                            self.user_type_ref.id
+                        )
+                    if import_type_path != none and
+                            import_typepath.len > 0 {
+                        texpr.type_path = import_typepath
+                    }
                 }
                 for mod in self.type_ref_mods {
                     texpr.modifiers.add(texpr.copy())

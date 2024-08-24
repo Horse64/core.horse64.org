@@ -32,6 +32,7 @@ import textfmt from core.horse64.org
 import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
 import compiler.builtin_syms as builtin_syms
+import compiler.moose64.autocast as autocast
 import compiler.moose64.builtins as m64_builtins
 import compiler.msg as msg
 import compiler.storage.ref as st_ref
@@ -463,7 +464,35 @@ func _get_c_or_m64_type_of_node_do(
         if debug {
             print(dbg_prefix + " Obtained operand types: "
                 "left_side_type=" + left_side_type.as_str() + " "
-                "right_side_type=" + right_side_type.as_str())
+                "right_side_type=" + right_side_type.as_str() + " "
+                "optoken.str='" + node.optoken.str.as_str() + "'")
+        }
+        var result = autocast.get_math_binop_autocast(
+            left_side_type, right_side_type, is_cmp_op=no
+        )
+        if debug {
+            print(dbg_prefix + " Obtained autocast info for "
+                "binop: result=" + result.as_str())
+        }
+        if result.incompatible {
+            if msgs == none {
+                throw new ValueError("Found binary operator "
+                    "applied on incompatible operators.")
+            }
+            msgs.add(new msg.FileMsg(
+                "Unexpected '" + node.optoken.str.as_str() +
+                "' operator applied to incompatible types " +
+                left_side_type.describe_to_user(
+                    project=project_file.project,
+                    is_moose64=yes
+                ) + " "
+                "and " + right_side_type.describe_to_user(
+                    project=project_file.project,
+                    is_moose64=yes
+                ) + ".",
+                source_file=project_file,
+                line=node.line, col=node.col,
+            ))
         }
         return later none
     } elseif node.kind == ast.N_EXPR_IDREF {
@@ -890,6 +919,9 @@ func _get_c_or_m64_type_of_node_do(
                 if rhand.value_typeref_expr.is_func_ref {
                     tinfo.func_typeexpr = tinfo._orig_typeexpr
                 } else {
+                    tinfo.kind = typeinfo.TI_C_TYPE
+                    tinfo.orig_type_name =
+                        rhand.value_typeref_expr.name
                     tinfo.c_type_name =
                         ast_typeref.get_c_builtin_for_m64_base_type(
                             rhand.value_typeref_expr.name
