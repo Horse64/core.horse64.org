@@ -109,6 +109,33 @@ func TypeInfo.init(ti_kind) {
     self.kind = ti_kind
 }
 
+func TypeInfo.copy {
+    var copied = base.copy()
+    copied.modifiers = []
+    for mod in self.modifiers {
+        copied.modifiers.add(mod.copy())
+    }
+    if self._orig_typeexpr != none {
+        copied._orig_typeexpr = self._orig_typeexpr.copy()
+    }
+    if self.known_literal_value_token != none {
+        if not {"num", "bool", "none", "str",
+                "bytes"}.has(
+                    typename(self.known_literal_value_token)
+                ) {
+            copied.known_literal_value_token =
+                self.known_literal_value_token.copy()
+        }
+    }
+    if self.func_self_ref != none {
+        copied.func_self_ref = self.func_self_ref.copy()
+    }
+    if self.func_typeexpr != none {
+        copied.func_typeexpr = self.func_typeexpr.copy()
+    }
+    return copied
+}
+
 func create_from_simple_m64_type(m64_type) {
     const is_moose64 = yes
     var c_type_name = ast_typeref._m64_to_c_map[m64_type]

@@ -36,7 +36,107 @@ type BinopAutocastResult {
     var incompatible = no
 }
 
-func get_math_binop_autocast(left_hand_typeinfo, right_hand_typeinfo) {
+func get_num_filtered_mods(tinfo) {
+    var result = []
+    for mod in tinfo.modifiers {
+        if {"readonly", "const"}.has(mod.name) {
+            continue
+        }
+        result.add(mod.copy())
+    }
+    return result
+}
+
+func check_if_allowed_implicit_cast_from_to(
+        from_typeinfo, to_typeinfo
+        ) {
+    var right_hand_source_typeinfo = from_typeinfo
+    var left_hand_target_typeinfo = to_typeinfo
+
+    var refs_left = 0
+    var refs_right = 0
+    for mod in left_hand_typeinfo.modifiers {
+        if {"ref", "c_array"}.has(mod.name) {
+            refs_left += 1
+        }
+    }
+    for mod in right_hand_typeinfo.modifiers {
+        if {"ref", "c_array"}.has(mod.name) {
+            refs_right += 1
+        }
+    }
+    if refs_left > 0 and refs_left == refs_right and
+            right_hand_source_typeinfo.kind ==
+                left_hand_target_typeinfo.kind {
+        # FIXME: Check readonly, c_array sizes, and other details.
+        if left_hand_target_typeinfo.kind == typeinfo.TI_C_TYPE and
+                right_hand_source_typeinfo.kind == typeinfo.TI_C_TYPE {
+            return (
+                left_hand_target_typeinfo.orig_type_name != none and
+                left_hand_target_typeinfo.orig_type_name ==
+                    right_hand_source_typeinfo.orig_typename)
+        } elseif left_hand_target_typeinfo.kind ==
+                    typeinfo.TI_USERTYPE and
+                right_hand_source_typeinfo.kind ==
+                    typeinfo.TI_USERTYPE {
+            return (
+                left_hand_target_typeinfo.user_type_ref.alike(
+                    right_hand_source_typeinfo.user_type_ref
+                )
+            )
+        }
+        return no
+    } elseif refs_left == 0 and refs_right == 0 and
+            left_hand_target_typeinfo.kind == typeinfo.TI_USERTYPE and
+            right_hand_target_typeinfo.kind == typeinfo.TI_USERTYPE {
+        return (
+            left_hand_target_typeinfo.user_type_ref.alike(
+                right_hand_source_typeinfo.user_type_ref
+            )
+        )
+    }
+    if refs_left > 0 and refs_right == 0 and
+            right_hand_source_typeinfo.kind == typeinfo.TI_C_TYPE and
+            right_hand_source_typeinfo.orig_type_name == "addr" {
+        return yes
+    }
+    if refs_right > 0 and refs_left == 0 and
+            left_hand_target_typeinfo.kind == typeinfo.TI_C_TYPE and
+            {"addr", "addr_diff", "size", "u64"}.has(
+                left_hand_target_typinfo.orig_type_name
+            ) {
+        return yes
+    }
+    if refs_left == 0 and refs_right == 0 and
+            left_hand_target_typeinfo.kind == typeinfo.TI_C_TYPE and
+            right_hand_source_typeinfo.kind == typeinfo.TI_C_TYPE and
+            ast_typeref.builtin_moose64_num_types.has(
+                left_hand_target_typeinfo.name
+            ) and ast_typeref.builtin_moose64_num_types.has(
+                right_hand_source_typeinfo.name
+            ) {
+        if {"addr", "addr_diff"}.has(
+                left_hand_target_typeinfo.name
+                ) and {"f32", "f64"}.has(
+                right_hand_source.typeinfo.name
+                ) {
+            return no
+        }
+        if {"f32", "f64"}.has(
+                left_hand_target_typeinfo.name
+                ) and {"addr", "addr_diff"}.has(
+                right_hand_source.typeinfo.name
+                ) {
+            return no
+        }
+        return yes
+    }
+    return no
+}
+
+func get_math_binop_autocast(
+        left_hand_typeinfo, right_hand_typeinfo, is_cmp_op=no
+        ) {
     var result = new BinopAutocastResult()
     func cast_all_to(name, override_result=none) {
         result.cast_lefthand_to =
@@ -54,12 +154,80 @@ func get_math_binop_autocast(left_hand_typeinfo, right_hand_typeinfo) {
 
     # Below is the section for ref types:
 
-    # FIXME ...
+    var refs_left = 0
+    var refs_right = 0
+    for mod in left_hand_typeinfo.modifiers {
+        if mod.name == "ref" {
+            refs_left += 1
+        }
+    }
+    for mod in right_hand_typeinfo.modifiers {
+        if mod.name == "ref" {
+            refs_right += 1
+        }
+    }
+    if refs_left > 0 and refs_right == 0 and
+            right_hand_typeinfo.kind == typeinfo.TI_CI_TYPE and
+            get_num_filtered_mods(refs_right).len == 0 {
+        if ast_typeref.builtin_moose64_unsigned_num_types.has(
+                right_hand_typeinfo.orig_type_name
+                ) {
+            result = cast_all_to("addr")
+            result.result_type =
+                left_hand_typeinfo.copy()
+            return result
+        } elseif ast_typeref.builtin_moose64_signed_num_types.has(
+                right_hand_typeinfo.orig_type_name
+                ) {
+            result = cast_all_to("addr_diff")
+            result.result_type =
+                left_hand_typeinfo.copy()
+            return result
+        }
+        result.incompatible = yes
+        return result
+    } elseif refs_right > 0 and refs_left == 0 and
+            left_hand_typeinfo.kind == typeinfo.TI_CI_TYPE and
+            get_num_filtered_mods(refs_left).len == 0 {
+        if left_hand_typeinfo.orig_type_name == "addr" {
+            return cast_all_to("addr")
+        } elseif left_hand_typeinfo.orig_type_name == "addr_diff" {
+            return cast_all_to("addr_diff")
+        } elseif is_cmp_op and
+                ast_typeref.builtin_moose64_signed_num_types.has(
+                    left_hand_typeinfo.orig_type_name
+                ) {
+            return cast_all_to("addr_diff")
+        } elseif is_cmp_op and
+                ast_typeref.builtin_moose64_unsigned_num_types.has(
+                    left_hand_typeinfo.orig_type_name
+                ) {
+            return cast_all_to("addr")
+        }
+        result.incompatible = yes
+        return result
+    }
 
     # Below is the section for non-ref-types:
 
-    if left_hand_typeinfo.modifiers.len > 0 or
-            right_hand_typeinfo.modifiers.len > 0 {
+    var right_hand_num_filtered_mods = []
+    var left_hand_num_filtered_mods = []
+    for mod in left_hand_typeinfo.modifiers {
+        if {"readonly", "const"}.has(mod.name) {
+            continue
+        }
+        left_hand_num_filtered_mods.add(mod.copy())
+    }
+    for mod in right_hand_typeinfo.modifiers {
+        if {"readonly", "const"}.has(mod.name) {
+            continue
+        }
+        right_hand_num_filtered_mods.add(mod.copy())
+    }
+    if left_hand_num_filtered_mods.len > 0 or
+            right_hand_num_filtered_mods.len > 0 or
+            left_hand_typeinfo.kind != typeinfo.TI_C_TYPE or
+            right_hand_typeinfo.kind != typeinfo.TI_C_TYPE {
         result.incompatible = yes
         return result
     }
@@ -89,69 +257,101 @@ func get_math_binop_autocast(left_hand_typeinfo, right_hand_typeinfo) {
             )
         return result
     }
-    if left_hand_typeinfo.kind == typeinfo.TI_C_TYPE and
-            right_hand_typeinfo.kind == typeinfo.TI_C_TYPE {
-        if left_hand_typeinfo.orig_type_name == "f64" {
-            if {"f32", "f64", "byte", "u8", "i8",
-                    "u16", "i16", "u32", "i32", "u64", "i64"}.has(
-                    right_hand_typeinfo.orig_type_name) {
-                return cast_all_to("f64")
-            }
-        } elseif left_hand_typeinfo.orig_type_name == "f32" {
-            if {"f64", "u64", "i64"}.has(
-                    right_hand_typeinfo.orig_type_name) {
-                if right_hand_typeinfo.orig_type_name == "f64" {
-                    return cast_all_to("f64")
-                } else {
-                    return cast_all_to("f64", override_result="f32")
-                }
-            } elseif {"f32", "byte", "u8", "i8",
-                    "u16", "i16", "u32", "i32"}.has(
-                    right_hand_typeinfo.orig_type_name) {
-                return cast_all_to("f32")
-            }
-        }
-        var sizes = [64, 32, 16]
-        var i = 1
-        while i <= sizes.len {
-            var size = sizes[i]
-            var size_s = size.as_str()
-            if left_hand_typeinfo.orig_type_name == "u" + size_s or
-                    left_hand_typeinfo.orig_type_name == "i" + size_s {
-                if right_hand_typeinfo.orig_type_name == "f64" {
-                    return cast_all_to("f64")
-                } elseif right_hand_typeinfo.orig_type_name == "f32" {
-                    return cast_all_to("f64", override_result="f32")
-                }
-                if {"i64", "i32", "i16", "i8"}.has(
-                        right_hand_typeinfo.orig_type_name) or
-                        (left_hand_typeinfo.orig_type_name == "i64" and
-                         {"u8", "byte"}.has(
-                            right_hand_typeinfo.orig_type_name
-                        )) {
-                    var right_hand_bits = 8
-                    if right_hand_typeinfo.orig_type_name != "byte" {
-                        right_hand_bits = right_hand_typeinfo.
-                            orig_type_name.sub(1).to_num() 
-                    }
-                    return cast_all_to("i" + math.max(
-                        size, right_hand_bits
-                    ).as_str())
-                } elseif {"u64", "u32", "u16", "u8", "byte"}.has(
-                        right_hand_typeinfo.orig_type_name) {
-                    var right_hand_bits = 8
-                    if right_hand_typeinfo.orig_type_name != "byte" {
-                        right_hand_bits = right_hand_typeinfo.
-                            orig_type_name.sub(1).to_num()
-                    }
-                    return cast_all_to("u" + math.max(
-                        size, right_hand_bits
-                    )).as_str()
-                }
-            }
-            i += 1
+    var addr_types = {"addr", "addr_diff"}
+    var addr_compatible_nums = {"i8", "u8",
+        "byte", "size", "i16", "u16", "i32", "u32",
+        "i64", "u64", "addr", "addr_diff"}
+    if (addr_types.has(
+            left_hand_typeinfo.orig_type_name) and
+            addr_compatible_nums.has(
+                right_hand_typeinfo.orig_type_name
+            )) or (addr_types.has(
+                right_hand_typeinfo.orig_type_name
+            ) and addr_compatible_nums.has(
+                left_hand_typeinfo.orig_type_name
+            )) {
+        if ast_typeref.builtin_moose64_unsigned_num_types.has(
+                left_hand_typeinfo.orig_type_name
+                ) and ast_typref.builtin_moose64_unsigned_num_types.has(
+                    right_hand_typeinfo.orig_type_name
+                ) {
+            return cast_all_to("u64", "addr")
+        } elseif left_hand_typeinfo.orig_type_name == "addr" or
+                right_hand_typeinfo.orig_type_name == "addr" {
+            return cast_all_to("i64", override_result="addr")
+        } else {
+            return cast_all_to("addr_diff")
         }
     }
+    if left_hand_typeinfo.orig_type_name == "f64" {
+        if {"f32", "f64", "byte", "u8", "i8", "size",
+                "u16", "i16", "u32", "i32", "u64", "i64"
+                }.has(
+                    right_hand_typeinfo.orig_type_name
+                ) {
+            return cast_all_to("f64")
+        }
+    } elseif left_hand_typeinfo.orig_type_name == "f32" {
+        if {"f64", "u64", "i64", "size"}.has(
+                right_hand_typeinfo.orig_type_name) {
+            if right_hand_typeinfo.orig_type_name == "f64" {
+                return cast_all_to("f64")
+            } else {
+                return cast_all_to("f64", override_result="f32")
+            }
+        } elseif {"f32", "byte", "u8", "i8",
+                "u16", "i16", "u32", "i32"}.has(
+                right_hand_typeinfo.orig_type_name) {
+            return cast_all_to("f32")
+        }
+    }
+    var sizes = [64, 32, 16]
+    var i = 1
+    while i <= sizes.len {
+        var size = sizes[i]
+        var size_s = size.as_str()
+        if left_hand_typeinfo.orig_type_name == "u" + size_s or
+                (size == 64 and
+                left_hand_typeinfo.orig_type_name == "size") or
+                left_hand_typeinfo.orig_type_name == "i" + size_s {
+            if right_hand_typeinfo.orig_type_name == "f64" {
+                return cast_all_to("f64")
+            } elseif right_hand_typeinfo.orig_type_name == "f32" {
+                if size >= 64 {
+                    return cast_all_to("f64", override_result="f32")
+                } else {
+                    return cast_all_to("f32")
+                }
+            }
+            if ast_typeref.builtin_moose64_signed_num_types.has(
+                        right_hand_typeinfo.orig_type_name) or
+                    ast_typeref.builtin_moose64_signed_num_types.has(
+                        left_hand_typeinfo.orig_type_name
+                    ) {
+                var right_hand_bits = 8
+                if right_hand_typeinfo.orig_type_name != "byte" {
+                    right_hand_bits = right_hand_typeinfo.
+                        orig_type_name.sub(1).to_num()
+                }
+                return cast_all_to("i" + math.max(
+                    size, right_hand_bits
+                ).as_str())
+            } else {
+                var right_hand_bits = 8
+                if right_hand_typeinfo.orig_type_name == "size" {
+                    right_hand_bits = 64
+                } elseif right_hand_typeinfo.orig_type_name != "byte" {
+                    right_hand_bits = right_hand_typeinfo.
+                        orig_type_name.sub(1).to_num()
+                }
+                return cast_all_to("u" + math.max(
+                    size, right_hand_bits
+                )).as_str()
+            }
+        }
+        i += 1
+    }
+
     result.incompatible = yes
     return result
 }

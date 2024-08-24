@@ -37,7 +37,7 @@ import compiler.token
 const builtin_horse64_types = {}
 const builtin_horse64_type_modifiers = {}
 const builtin_moose64_types = {
-    "byte", "i8", "i16", "u16",
+    "byte", "i8", "i16", "u16", "addr", "addr_diff",
     "i32", "i64", "size", "u32", "u64",
     "f32", "f64", "bool", "empty",
     "any", "auto", "moose64_failed_result_t"
@@ -45,6 +45,17 @@ const builtin_moose64_types = {
 const builtin_moose64_type_modifiers = {
     "ref", "array", "c_array", "readonly"
 }
+const builtin_moose64_unsigned_num_types = {
+    "byte", "u8", "u16", "u32", "u64", "size",
+    "addr"
+}
+const builtin_moose64_signed_num_types = {
+    "i8", "i16", "i32", "i64", "f32",
+    "f64", "addr_diff"
+}
+const builtin_moose64_num_types =
+    builtin_moose64_unsigned_num_types +
+    builtin_moose64_signed_num_types
 
 func is_pos_inside_func_return_type(
         tokens, pos, max_len=none, is_moose64=no) {
@@ -510,6 +521,8 @@ const _m64_to_c_name_map = {
     "u32"-> "uint32_t",
     "u64"-> "uint64_t",
     "size"-> "uint64_t",
+    "addr_diff"-> "intptr_t",
+    "addr"-> "uintptr_t",
     "moose64_failed_result_t"-> "uint32_t",
     "any"->"void",
     "empty"-> "void",
