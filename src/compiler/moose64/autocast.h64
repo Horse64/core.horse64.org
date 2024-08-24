@@ -1,0 +1,158 @@
+## @module compiler.moose64.autocast
+# Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import compiler.token as token
+import compiler.typeinfo as typeinfo
+
+type BinopAutocastResult {
+    var cast_lefthand_to
+    var cast_righthand_to
+    var result_type
+
+    var incompatible = no
+}
+
+func get_math_binop_autocast(left_hand_typeinfo, right_hand_typeinfo) {
+    var result = new BinopAutocastResult()
+    func cast_all_to(name, override_result=none) {
+        result.cast_lefthand_to =
+            typeinfo.create_from_simple_m64_type(name)
+        result.cast_righthand_to =
+            typeinfo.create_from_simple_m64_type(name)
+        var result_name = name
+        if override_result != none {
+            result_name = override_result
+        }
+        result.result_type =
+            typeinfo.create_from_simple_m64_type(result_name)
+        return result
+    }
+
+    # Below is the section for ref types:
+
+    # FIXME ...
+
+    # Below is the section for non-ref-types:
+
+    if left_hand_typeinfo.modifiers.len > 0 or
+            right_hand_typeinfo.modifiers.len > 0 {
+        result.incompatible = yes
+        return result
+    }
+    if left_hand_typeinfo.orig_type_name != none and
+            (right_hand_typeinfo.orig_type_name ==
+                left_hand_typeinfo.orig_type_name or
+             {"u8", "byte", "i8"}.has(
+                right_hand_typeinfo.orig_type_name
+             ) and {"u8", "byte", "i8"}.has(
+                left_hand_typeinfo.orig_type_name
+             )) {
+        if {"empty", "any", "bool"}.has(
+                left_hand_typeinfo.orig_type_name) {
+            result.incompatible = yes
+            return result
+        }
+        var result_name = left_hand_typeinfo.orig_type_name
+        if (left_hand_typeinfo.orig_type_name == "i8" or
+                right_hand_typeinfo.orig_type_name == "i8") and
+                left_hand_typeinfo.orig_type_name !=
+                    right_hand_typeinfo.orig_type_name {
+            return cast_all_to("i8")
+        }
+        result.result_type =
+            typeinfo.create_from_simple_m64_type(
+                result_name
+            )
+        return result
+    }
+    if left_hand_typeinfo.kind == typeinfo.TI_C_TYPE and
+            right_hand_typeinfo.kind == typeinfo.TI_C_TYPE {
+        if left_hand_typeinfo.orig_type_name == "f64" {
+            if {"f32", "f64", "byte", "u8", "i8",
+                    "u16", "i16", "u32", "i32", "u64", "i64"}.has(
+                    right_hand_typeinfo.orig_type_name) {
+                return cast_all_to("f64")
+            }
+        } elseif left_hand_typeinfo.orig_type_name == "f32" {
+            if {"f64", "u64", "i64"}.has(
+                    right_hand_typeinfo.orig_type_name) {
+                if right_hand_typeinfo.orig_type_name == "f64" {
+                    return cast_all_to("f64")
+                } else {
+                    return cast_all_to("f64", override_result="f32")
+                }
+            } elseif {"f32", "byte", "u8", "i8",
+                    "u16", "i16", "u32", "i32"}.has(
+                    right_hand_typeinfo.orig_type_name) {
+                return cast_all_to("f32")
+            }
+        }
+        var sizes = [64, 32, 16]
+        var i = 1
+        while i <= sizes.len {
+            var size = sizes[i]
+            var size_s = size.as_str()
+            if left_hand_typeinfo.orig_type_name == "u" + size_s or
+                    left_hand_typeinfo.orig_type_name == "i" + size_s {
+                if right_hand_typeinfo.orig_type_name == "f64" {
+                    return cast_all_to("f64")
+                } elseif right_hand_typeinfo.orig_type_name == "f32" {
+                    return cast_all_to("f64", override_result="f32")
+                }
+                if {"i64", "i32", "i16", "i8"}.has(
+                        right_hand_typeinfo.orig_type_name) or
+                        (left_hand_typeinfo.orig_type_name == "i64" and
+                         {"u8", "byte"}.has(
+                            right_hand_typeinfo.orig_type_name
+                        )) {
+                    var right_hand_bits = 8
+                    if right_hand_typeinfo.orig_type_name != "byte" {
+                        right_hand_bits = right_hand_typeinfo.
+                            orig_type_name.sub(1).to_num() 
+                    }
+                    return cast_all_to("i" + math.max(
+                        size, right_hand_bits
+                    ).as_str())
+                } elseif {"u64", "u32", "u16", "u8", "byte"}.has(
+                        right_hand_typeinfo.orig_type_name) {
+                    var right_hand_bits = 8
+                    if right_hand_typeinfo.orig_type_name != "byte" {
+                        right_hand_bits = right_hand_typeinfo.
+                            orig_type_name.sub(1).to_num()
+                    }
+                    return cast_all_to("u" + math.max(
+                        size, right_hand_bits
+                    )).as_str()
+                }
+            }
+            i += 1
+        }
+    }
+    result.incompatible = yes
+    return result
+}
+
