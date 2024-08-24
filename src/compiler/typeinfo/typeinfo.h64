@@ -138,7 +138,7 @@ func TypeInfo.copy {
 
 func create_from_simple_m64_type(m64_type) {
     const is_moose64 = yes
-    var c_type_name = ast_typeref._m64_to_c_map[m64_type]
+    var c_type_name = ast_typeref._m64_to_c_name_map[m64_type]
     var tinfo = new TypeInfo(TI_C_TYPE)
     tinfo.c_type_name = c_type_name
     tinfo.orig_type_name = m64_type + ""
@@ -151,8 +151,8 @@ func create_typeinfo_from_simple_c_type(
         throw new RuntimeError("Not implemented for Horse64.")
     }
     var reverse_types = []
-    for entry in ast_typeref._m64_to_c_map {
-        if ast_typeref._m64_to_c_map[entry] == c_type {
+    for entry in ast_typeref._m64_to_c_name_map {
+        if ast_typeref._m64_to_c_name_map[entry] == c_type {
             reverse_types.add(entry)
         }
     }
@@ -175,7 +175,12 @@ func TypeInfo.as_str {
         "c_type_name=" + if self.c_type_name != none
             (textfmt.as_escaped_code_string(self.c_type_name))
             else ("none") + " "
-        "user_type_ref=" + self.user_type_ref.as_str() + " "
+    if self.kind == TI_C_TYPE {
+        t += "orig_type_name=" + if self.orig_type_name != none
+            (textfmt.as_escaped_code_string(self.orig_type_name))
+            else ("none") + " "
+    }
+    t += "user_type_ref=" + self.user_type_ref.as_str() + " "
         "func_typeexpr=" + self.func_typeexpr.as_str() + " "
         "func_self_ref=" + self.func_self_ref.as_str() +
         "}"

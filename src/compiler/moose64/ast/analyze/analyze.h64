@@ -25,6 +25,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import bignum from core.horse64.org
 import random from core.horse64.org
 import textfmt from core.horse64.org
 
@@ -399,6 +400,72 @@ func _get_c_or_m64_type_of_node_do(
                 result.as_str())
         }
         return later result
+    } elseif node.kind == ast.N_EXPR_LIT and
+            (typename(node.value) == "num" or
+             (typename(node.value) == "str" and
+              node.is_big_nuM)) {
+        var num_as_str = node.value.as_str()
+        if num_as_str.find(".") == none {
+            if bignum.compare_nums(
+                    num_as_str, "2147483647") > 0 or
+                    bignum.compare_nums(
+                    num_as_str, "-2147483648") < 0 {
+                var result = typeinfo.
+                    create_from_simple_m64_type("i64")
+                return result
+            }
+            var result = typeinfo.
+                create_from_simple_m64_type("i32")
+            return result
+        }
+        var result = typeinfo.
+            create_from_simple_m64_type("f64")
+        return result
+    } elseif node.kind == ast.N_EXPR_BINOP and
+            node.subexprs.len >= 2 and
+            token.math_ops.has(node.optoken.str) {
+        if debug {
+            print(dbg_prefix + " Found math binary op '" +
+                node.optoken.str + "', evaluating types of "
+                "operands...")
+        }
+
+        var left_side_type = _get_c_or_m64_type_of_node_do(
+            project_file, node.subexprs[1], parents + [node],
+            _known_typeinfo_map=_known_typeinfo_map,
+            store_self_value_ref_for_funcs=no,
+            msgs=msgs, debug=debug
+        ) later:
+
+        await left_side_type
+        var right_side_type = _get_c_or_m64_type_of_node_do(
+            project_file, node.subexprs[2], parents + [node],
+            _known_typeinfo_map=_known_typeinfo_map,
+            store_self_value_ref_for_funcs=no,
+            msgs=msgs, debug=debug
+        ) later:
+
+        await right_side_type
+        if left_side_type == none or right_side_type == none {
+            if debug {
+                print(dbg_prefix + " Failed to get one side of "
+                    "the binary op, aborting: left_side_type=" +
+                    left_side_type.as_str() + " "
+                    "right_side_type=" +
+                    right_side_type.as_str() + " "
+                    "left_hand_node=" +
+                        node.subexprs[1].as_str() + " "
+                    "right_hand_node=" +
+                        node.subexprs[2].as_str())
+            }
+            return later none
+        }
+        if debug {
+            print(dbg_prefix + " Obtained operand types: "
+                "left_side_type=" + left_side_type.as_str() + " "
+                "right_side_type=" + right_side_type.as_str())
+        }
+        return later none
     } elseif node.kind == ast.N_EXPR_IDREF {
         if parent.kind == ast.N_EXPR_BINOP and
                 parent.optoken.str == "." and
