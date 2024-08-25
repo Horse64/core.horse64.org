@@ -105,7 +105,7 @@ func check_if_allowed_implicit_cast_from_to(
         return no
     } elseif refs_left == 0 and refs_right == 0 and
             left_hand_target_typeinfo.kind == typeinfo.TI_USERTYPE and
-            right_hand_target_typeinfo.kind == typeinfo.TI_USERTYPE {
+            right_hand_source_typeinfo.kind == typeinfo.TI_USERTYPE {
         return (
             left_hand_target_typeinfo.user_type_ref.alike(
                 right_hand_source_typeinfo.user_type_ref
