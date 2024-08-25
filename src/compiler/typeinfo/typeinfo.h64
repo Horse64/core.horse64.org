@@ -149,7 +149,7 @@ func create_typeinfo_from_typeexpr(type_expr, is_moose64=no) {
     if not is_moose64 {
         throw new RuntimeError("Not implemented for Horse64.")
     }
-    if not type_expr.is_func_attr and
+    if not type_expr.is_func_ref and
             not type_expr.is_user_type and
             ast_typeref._m64_to_c_name_map.has(
                 type_expr.name
@@ -164,7 +164,7 @@ func create_typeinfo_from_typeexpr(type_expr, is_moose64=no) {
         }
         tinfo._orig_typeexpr = type_expr.copy()
         return tinfo
-    } elseif type_expr.is_func_attr and
+    } elseif type_expr.is_func_ref and
             self.func_typeexpr != none {
         var tinfo = new TypeInfo(TI_FUNCREF)
         tinfo.func_typeexpr = type_expr.copy()
@@ -174,7 +174,7 @@ func create_typeinfo_from_typeexpr(type_expr, is_moose64=no) {
         }
         tinfo._orig_typeexpr = type_expr.copy()
         return tinfo
-    } elseif not type_expr.is_func_attr and
+    } elseif not type_expr.is_func_ref and
             type_expr.is_user_type and
             type_expr.storage_ref != none {
         var tinfo = new TypeInfo(TI_USERTYPE)

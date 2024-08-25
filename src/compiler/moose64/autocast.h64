@@ -72,12 +72,12 @@ func check_if_allowed_implicit_cast_from_to(
 
     var refs_left = 0
     var refs_right = 0
-    for mod in left_hand_typeinfo.modifiers {
+    for mod in left_hand_target_typeinfo.modifiers {
         if {"ref", "c_array"}.has(mod.name) {
             refs_left += 1
         }
     }
-    for mod in right_hand_typeinfo.modifiers {
+    for mod in right_hand_source_typeinfo.modifiers {
         if {"ref", "c_array"}.has(mod.name) {
             refs_right += 1
         }
@@ -174,12 +174,12 @@ func get_math_binop_autocast(
     var refs_left = 0
     var refs_right = 0
     for mod in left_hand_typeinfo.modifiers {
-        if mod.name == "ref" {
+        if {"ref", "c_array"}.has(mod.name) {
             refs_left += 1
         }
     }
     for mod in right_hand_typeinfo.modifiers {
-        if mod.name == "ref" {
+        if {"ref", "c_array"}.has(mod.name) {
             refs_right += 1
         }
     }

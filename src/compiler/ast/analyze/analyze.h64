@@ -33,6 +33,7 @@ import compiler.ast.expr as ast_expr
 import compiler.ast.func_stmt as func_stmt
 import compiler.ast.transform as ast_transform
 import compiler.limit as compiler_limit
+import compiler.moose64.autocast as autocast
 import compiler.moose64.ast.analyze as m64_ast_analyze
 import compiler.msg as msg
 import compiler.storage.ref as st_ref
@@ -591,12 +592,10 @@ func get_called_or_assigned_func_types(
         var indexes = []
         var i = 1
         while i <= call_args_expr.subexprs.len {
-            if i == 1 and is_self_call {
-                i += 1
-            }
             if i == call_args_expr.subexprs.len and
                     is_failable_call {
                 i += 1
+                continue
             }
             indexes.add(i)
             i += 1
@@ -649,7 +648,11 @@ func get_called_or_assigned_func_types(
                 return later yes
             }
             var next_idx = index_queue.pop()
-            var result = obtain_arg(next_idx)
+            assert(next_idx >= 1 and
+                next_idx <= call_args_expr.subexprs.len)
+            var result = obtain_arg(next_idx) later:
+
+            await result
             if not result {
                 return later no
             }
@@ -658,10 +661,9 @@ func get_called_or_assigned_func_types(
             }
 
             next_idx = index_queue.pop()
-            result = obtain_arg(next_idx)
-            if not result {
-                return later no
-            }
+            assert(next_idx >= 1 and
+                next_idx <= call_args_expr.subexprs.len)
+            result = obtain_arg(next_idx) later repeat
         }
         var result = create_arg_list()
         later:
@@ -702,9 +704,10 @@ func get_called_or_assigned_func_types(
                     "report this error to the compiler makers."
                 )
             }
-            var allowed = check_if_allowed_implicit_cast_from_to(
-                arg_actual_type, signature_typeinfo
-            )
+            var allowed = autocast.
+                check_if_allowed_implicit_cast_from_to(
+                    arg_actual_type, signature_typeinfo
+                )
             if not allowed {
                 signature_arg_mismatch_info = [
                     idx, signature_typeinfo, arg_actual_type
@@ -727,11 +730,12 @@ func get_called_or_assigned_func_types(
             return later
         }
         var next_arg = args_queue.pop()
-        var matches = test_arg(
-            next_arg[1], next_arg[2]
-        )
+        var does_match = test_arg(
+            next_arg[1], next_arg[2], next_arg[3]
+        ) later:
 
-        if not matches {
+        await does_match
+        if not does_match {
             signature_mismatch = yes
             return later
         }
@@ -740,10 +744,9 @@ func get_called_or_assigned_func_types(
             return later
         }
         next_arg = args_queue.pop()
-        matches = test_arg(
-            next_arg[1], next_arg[2]
-        )
-        return later
+        does_match = test_arg(
+            next_arg[1], next_arg[2], next_arg[3]
+        ) later repeat
     }
     evaluate_param_types_if_needed()
     later:
