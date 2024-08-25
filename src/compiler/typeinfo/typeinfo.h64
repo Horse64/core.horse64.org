@@ -145,6 +145,52 @@ func create_from_simple_m64_type(m64_type) {
     return tinfo
 }
 
+func create_typeinfo_from_typeexpr(type_expr, is_moose64=no) {
+    if not is_moose64 {
+        throw new RuntimeError("Not implemented for Horse64.")
+    }
+    if not type_expr.is_func_attr and
+            not type_expr.is_user_type and
+            ast_typeref._m64_to_c_name_map.has(
+                type_expr.name
+            ) {
+        var tinfo = new TypeInfo(TI_C_TYPE)
+        tinfo.c_type_name = ast_typeref._m64_to_c_name_map[
+            type_exprname + ""
+        ]
+        tinfo.orig_type_name =  type_expr.name + ""
+        for mod in type_expr.modifiers {
+            tinfo.modifiers.add(mod)
+        }
+        tinfo._orig_typeexpr = type_expr.copy()
+        return tinfo
+    } elseif type_expr.is_func_attr and
+            self.func_typeexpr != none {
+        var tinfo = new TypeInfo(TI_FUNCREF)
+        tinfo.func_typeexpr = type_expr.copy()
+        if type_expr.func_storage_ref != none {
+            tinfo.user_type_ref =
+                type_expr.func_storage_ref.copy()
+        }
+        tinfo._orig_typeexpr = type_expr.copy()
+        return tinfo
+    } elseif not type_expr.is_func_attr and
+            type_expr.is_user_type and
+            type_expr.storage_ref != none {
+        var tinfo = new TypeInfo(TI_USERTYPE)
+        tinfo.orig_type_name = type_expr.name
+        tinfo.user_type_ref =
+            type_expr.storage_ref
+        for mod in type_expr.modifiers {
+            tinfo.modifiers.add(mod)
+        }
+        tinfo._orig_typeexpr = type_expr.copy()
+        return tinfo
+    } else {
+        return none
+    }
+}
+
 func create_typeinfo_from_simple_c_type(
         c_type, is_moose64=no) {
     if not is_moose64 {
@@ -192,7 +238,7 @@ func TypeInfo._set_orig_type_expr(texpr) {
 }
 
 func TypeInfo.describe_to_user(project=none, is_moose64=no) {
-    var texpr = self.converet_to_typeref_expr(
+    var texpr = self.convert_to_typeref_expr(
         project=project, is_moose64=is_moose64
     )
     if texpr == none {
@@ -621,6 +667,10 @@ func create_typeinfo_from_global_ref(
     }
     assert(target_ref.kind != st_ref.ST_LOCAL)
     var tinfo = new TypeInfo(TI_USERTYPE)
+    if base_typeref_expr_if_known != none and
+            base_typeref_expr_if_known.name != none {
+        tinfo.orig_type_name = base_typeref_expr_if_known.name
+    }
     tinfo.user_type_ref = target_ref.copy()
     tinfo.modifiers = []
     if base_typeref_expr_if_known != none {
