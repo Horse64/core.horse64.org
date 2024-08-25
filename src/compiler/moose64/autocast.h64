@@ -25,8 +25,11 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import math from core.horse64.org
+
 import compiler.token as token
 import compiler.typeinfo as typeinfo
+import compiler.typeinfo.ast_typeref as ast_typeref
 
 type BinopAutocastResult {
     var cast_lefthand_to
@@ -34,6 +37,20 @@ type BinopAutocastResult {
     var result_type
 
     var incompatible = no
+}
+
+func BinopAutocastResult.as_str {
+    var t = "BinopAutocastResult{" +
+        "cast_lefthand_to=" +
+            self.cast_lefthand_to.as_str() + ","
+        "cast_righthand_to=" +
+            self.cast_righthand_to.as_str() + ","
+        "result_type=" +
+            self.result_type.as_str() + ","
+        "incompatible=" +
+            self.incompatible.as_str() +
+        "}"
+    return t
 }
 
 func get_num_filtered_mods(tinfo) {
@@ -331,7 +348,7 @@ func get_math_binop_autocast(
                 var right_hand_bits = 8
                 if right_hand_typeinfo.orig_type_name != "byte" {
                     right_hand_bits = right_hand_typeinfo.
-                        orig_type_name.sub(1).to_num()
+                        orig_type_name.sub(2).to_num()
                 }
                 return cast_all_to("i" + math.max(
                     size, right_hand_bits
@@ -342,7 +359,7 @@ func get_math_binop_autocast(
                     right_hand_bits = 64
                 } elseif right_hand_typeinfo.orig_type_name != "byte" {
                     right_hand_bits = right_hand_typeinfo.
-                        orig_type_name.sub(1).to_num()
+                        orig_type_name.sub(2).to_num()
                 }
                 return cast_all_to("u" + math.max(
                     size, right_hand_bits
