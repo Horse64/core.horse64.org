@@ -145,18 +145,20 @@ func create_from_simple_m64_type(m64_type) {
     return tinfo
 }
 
-func create_typeinfo_from_typeexpr(type_expr, is_moose64=no) {
+func create_typeinfo_from_typeexpr(
+        type_expr, is_moose64=no, debug=no
+        ) {
     if not is_moose64 {
         throw new RuntimeError("Not implemented for Horse64.")
     }
     if not type_expr.is_func_ref and
-            not type_expr.is_user_type and
+            not type_expr.is_user_type() and
             ast_typeref._m64_to_c_name_map.has(
                 type_expr.name
             ) {
         var tinfo = new TypeInfo(TI_C_TYPE)
         tinfo.c_type_name = ast_typeref._m64_to_c_name_map[
-            type_exprname + ""
+            type_expr.name + ""
         ]
         tinfo.orig_type_name =  type_expr.name + ""
         for mod in type_expr.modifiers {
@@ -175,7 +177,7 @@ func create_typeinfo_from_typeexpr(type_expr, is_moose64=no) {
         tinfo._orig_typeexpr = type_expr.copy()
         return tinfo
     } elseif not type_expr.is_func_ref and
-            type_expr.is_user_type and
+            type_expr.is_user_type() and
             type_expr.storage_ref != none {
         var tinfo = new TypeInfo(TI_USERTYPE)
         tinfo.orig_type_name = type_expr.name
@@ -187,6 +189,18 @@ func create_typeinfo_from_typeexpr(type_expr, is_moose64=no) {
         tinfo._orig_typeexpr = type_expr.copy()
         return tinfo
     } else {
+        if debug {
+            print("moosec: debug: "
+                "create_typeinfo_from_typeexpr(): "
+                "Failed to return type expr, debug "
+                "info is: " +
+                [type_expr, type_expr.is_func_ref,
+                type_expr.is_user_type(),
+                type_expr.name,
+                ast_typeref._m64_to_c_name_map.has(
+                    type_expr.name
+                )].as_str())
+        }
         return none
     }
 }

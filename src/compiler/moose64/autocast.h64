@@ -91,7 +91,7 @@ func check_if_allowed_implicit_cast_from_to(
             return (
                 left_hand_target_typeinfo.orig_type_name != none and
                 left_hand_target_typeinfo.orig_type_name ==
-                    right_hand_source_typeinfo.orig_typename)
+                    right_hand_source_typeinfo.orig_type_name)
         } elseif left_hand_target_typeinfo.kind ==
                     typeinfo.TI_USERTYPE and
                 right_hand_source_typeinfo.kind ==
@@ -128,21 +128,21 @@ func check_if_allowed_implicit_cast_from_to(
             left_hand_target_typeinfo.kind == typeinfo.TI_C_TYPE and
             right_hand_source_typeinfo.kind == typeinfo.TI_C_TYPE and
             ast_typeref.builtin_moose64_num_types.has(
-                left_hand_target_typeinfo.name
+                left_hand_target_typeinfo.orig_type_name
             ) and ast_typeref.builtin_moose64_num_types.has(
-                right_hand_source_typeinfo.name
+                right_hand_source_typeinfo.orig_type_name
             ) {
         if {"addr", "addr_diff"}.has(
-                left_hand_target_typeinfo.name
+                left_hand_target_typeinfo.orig_type_name
                 ) and {"f32", "f64"}.has(
-                right_hand_source.typeinfo.name
+                right_hand_source.typeinfo.orig_type_name
                 ) {
             return no
         }
         if {"f32", "f64"}.has(
-                left_hand_target_typeinfo.name
+                left_hand_target_typeinfo.orig_type_name
                 ) and {"addr", "addr_diff"}.has(
-                right_hand_source.typeinfo.name
+                right_hand_source.typeinfo.orig_type_name
                 ) {
             return no
         }
