@@ -104,6 +104,29 @@ func is_ast_node_referring_to_m64_std_as_ref(
     return no
 }
 
+func is_ast_node_referring_to_m64_std_deref(
+    project_file, node, is_moose64=no) {
+    if not is_moose64 {
+        return no
+    }
+    var as_ref_info =
+    builtin_syms.get_item_by_name(
+        project_file.project, "deref",
+        in_module_name="std")
+    var as_ref_storage_ref =
+    as_ref_info.symbol_storage_ref
+    if node.kind == ast.N_EXPR_IDREF and
+            node.label == "deref" and
+            node.ref != none and
+            node.ref.kind == st_ref.ST_MCREF and
+            node.ref.alike(
+                as_ref_storage_ref
+            ) {
+        return yes
+    }
+    return no
+}
+
 func register_builtins_with_project(project) {
     var id
 

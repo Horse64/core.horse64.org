@@ -584,6 +584,9 @@ func _get_c_or_m64_type_of_node_do(
                         project_file.project, "size_of",
                         in_module_name="std").symbol_storage_ref.id or
                     node.ref.id == builtin_syms.get_item_by_name(
+                        project_file.project, "deref",
+                        in_module_name="std").symbol_storage_ref.id or
+                    node.ref.id == builtin_syms.get_item_by_name(
                         project_file.project, "as_ref",
                         in_module_name="std").symbol_storage_ref.id) {
                 if msgs == none {
@@ -723,6 +726,10 @@ func _get_c_or_m64_type_of_node_do(
                     "typeinfo=" + inner_result.as_str())
             }
             return later inner_result
+        } elseif m64_builtins.is_ast_node_referring_to_m64_std_deref(
+                project_file, node.subexprs[1], is_moose64=yes) {
+            # FIXME: implement this
+            return later none
         } elseif m64_builtins.is_ast_node_referring_to_m64_std_size_of(
                 project_file, node.subexprs[1], is_moose64=yes) {
             if debug {
