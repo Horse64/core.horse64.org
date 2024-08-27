@@ -251,14 +251,25 @@ func TypeInfo._set_orig_type_expr(texpr) {
     self._orig_typeexpr = texpr.copy()
 }
 
-func TypeInfo.describe_to_user(project=none, is_moose64=no) {
+func TypeInfo.describe_to_user(
+        project=none, add_quotes_where_useful=no,
+        is_moose64=no) {
     var texpr = self.convert_to_typeref_expr(
         project=project, is_moose64=is_moose64
     )
     if texpr == none {
-        return "<unknown type description>"
+        return "<unknown type description for typeinfo=" +
+            self.as_str() + ">"
     }
-    return texpr.as_code()
+    var t = texpr.as_code()
+    if add_quotes_where_useful {
+        if texpr.is_func_ref or
+                texpr.is_user_type() {
+            return "'" + t + "'"
+        }
+        return t
+    }
+    return t
 }
 
 func TypeInfo.add_ref_modifier {
@@ -290,6 +301,37 @@ func TypeInfo.convert_to_typeref_expr(
             expr.modifiers.add(mod.copy)
         }
         return expr
+
+    } elseif self.user_type_ref != none and
+            (project != none or in_project_file != none) and
+            self.user_type_ref.kind == st_ref.ST_GLOBALATTR {
+        if project == none and in_project_file != none {
+            project = in_project_file.project
+        }
+        if project != none and
+                project.storage_id_to_global_scope_map.has(
+                    self.user_type_ref.id[1]
+                ) {
+            var gitem = st_scope.global_id_to_item(
+                project, self.user_type_ref.id[1]
+            )
+            var anscope = project.get_any_file().
+                make_attr_names_scope_from_gid(
+                    self.user_type_ref.id[1],
+                    is_moose64=is_moose64)
+            if has_attr(anscope, "id_to_symbol_map") and
+                    anscope.id_to_symbol_map.has(
+                        self.user_type_ref.id[2]
+                    ) {
+                var sym = anscope.id_to_symbol_map[
+                    self.user_type_ref.id[2]
+                ]
+                if sym.typeref_expr != none {
+                    return sym.typeref_expr.copy()
+                }
+                return none
+            }
+        }
     } elseif self.user_type_ref != none and
             (project != none or in_project_file != none) and
             {st_ref.ST_GLOBAL,
@@ -302,11 +344,9 @@ func TypeInfo.convert_to_typeref_expr(
                 project.storage_id_to_global_scope_map.has(
                     self.user_type_ref.id
                 ) {
-            var gscope = project.
-                storage_id_to_global_scope_map[self.user_type_ref.id]
-            var gscope_node = gscope.storage_id_to_entry[
-                self.user_type_ref.id
-            ]
+            var gscope_node = st_scope.global_id_to_item(
+                project, self.user_type_ref.id
+            )
             if gscope_node.kind == ast.N_STMT_STRUCT {
                 var texpr = new ast_typeref.TypeRefExpr()
                 texpr.name = gscope_node.label

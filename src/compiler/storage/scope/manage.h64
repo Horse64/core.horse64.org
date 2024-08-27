@@ -674,6 +674,31 @@ func project.ProjectFile.make_attr_names_scope_from_funcattr(
     )
 }
 
+## Like @{compiler.project.ProjectFile.make_attr_names_scope_from_node},
+## but instead this works by supplying the global storage id of
+## the `type` or `struct` or `enum` definition in question.
+func project.ProjectFile.make_attr_names_scope_from_gid(
+        storage_id, msgs=none, is_moose64=no,
+        ) {
+    if not self.project.storage_id_to_global_scope_map.has(
+            storage_id) {
+        return none
+    }
+    var gscope = self.project.
+        storage_id_to_global_scope_map[storage_id]
+    var def_pfile = gscope.known_to_be_in_project_file
+    if def_pfile == none {
+        return none
+    }
+    var gscope_node = gscope.storage_id_to_entry[
+        storage_id
+    ]
+    return self.make_attr_names_scope_from_node(
+        gscope_node, msgs=msgs, is_moose64=is_moose64,
+        def_project_file=def_pfile
+    )
+}
+
 ## Find the type underlying the given func attribute AST node,
 ## and get its stand-in global scope AST node from whatever
 ## project file it actually is defined in.

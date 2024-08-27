@@ -120,7 +120,7 @@ func check_if_allowed_implicit_cast_from_to(
     if refs_right > 0 and refs_left == 0 and
             left_hand_target_typeinfo.kind == typeinfo.TI_C_TYPE and
             {"addr", "addr_diff", "size", "u64"}.has(
-                left_hand_target_typinfo.orig_type_name
+                left_hand_target_typeinfo.orig_type_name
             ) {
         return yes
     }

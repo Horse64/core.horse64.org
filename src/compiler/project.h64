@@ -264,6 +264,22 @@ func find_project_base(file_uri) {
     ) later repeat
 }
 
+func Project.get_any_file {
+    var any_file = none
+    for pfile in self.no_uri_files {
+        any_file = pfile
+        break
+    }
+    if any_file == none {
+        for puri in self.module_uri_to_file_map {
+            any_file = self.
+                module_uri_to_file_map[puri]
+            break
+        }
+    }
+    return any_file
+}
+
 func Project.guess_base_from_file_uri(
         source_uri, do_nothing_if_set=no,
         error_on_failure=yes

@@ -484,10 +484,12 @@ func _get_c_or_m64_type_of_node_do(
                 "' operator applied to incompatible types " +
                 left_side_type.describe_to_user(
                     project=project_file.project,
+                    add_quotes_where_useful=yes,
                     is_moose64=yes
                 ) + " "
                 "and " + right_side_type.describe_to_user(
                     project=project_file.project,
+                    add_quotes_where_useful=yes,
                     is_moose64=yes
                 ) + ".",
                 source_file=project_file,
@@ -713,8 +715,9 @@ func _get_c_or_m64_type_of_node_do(
                 }
                 return later none
             }
-            if inner_result.kind == typeinfo.TI_USERTYPE {
-                inner_result.user_type_ref.modifiers.add(
+            if inner_result.kind == typeinfo.TI_USERTYPE and
+                    inner_result._orig_typeexpr != none {
+                inner_result._orig_typeexpr.modifiers.add(
                     new ast_typeref.TypeRefMod("ref")
                 )
             }
@@ -728,8 +731,124 @@ func _get_c_or_m64_type_of_node_do(
             return later inner_result
         } elseif m64_builtins.is_ast_node_referring_to_m64_std_deref(
                 project_file, node.subexprs[1], is_moose64=yes) {
-            # FIXME: implement this
-            return later none
+            if debug {
+                print(dbg_prefix + " Got call binop on " +
+                "built-in 'deref'.")
+            }
+            if debug {
+                print(dbg_prefix + " Get typeinfo on what deref() "
+                "was called on...")
+            }
+            assert(node.subexprs[2].kind == ast.N_EXPR_CALLARGS)
+            if node.subexprs[2].subexprs.len != 1 {
+                if msgs == none {
+                    print(if is_moose64 ("hoosec")
+                        else ("moosec") + ": "
+                            "error: Internal error, "
+                            "deref call with not exactly 1 arg "
+                            "found: " + node.as_str())
+                    throw new RuntimeError(
+                        "Call has wrong number of "
+                        "arguments.")
+                }
+                if not node.damaged and
+                        not node.subexprs[2].damaged {
+                    var called_args =
+                    node.subexprs[2].subexprs.len
+                    var called_s = "s"
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected number of args, " +
+                        "'deref' expects 1 arg " +
+                        "but this call provides " +
+                        called_args.as_str() + " "
+                        "arg" + called_s + ".",
+                        kind=msg.M_ERROR, source_file=project_file,
+                        line=node.subexprs[1].line,
+                        col=node.subexprs[1].col,
+                    ))
+                }
+                node.damaged = yes
+                node.subexprs[1].damaged = yes
+                node.subexprs[2].damaged = yes
+                return later none
+            }
+            var inner_result = _get_c_or_m64_type_of_node_do(
+                project_file, node.subexprs[2].subexprs[1],
+                parents + [node, node.subexprs[2]],
+                _known_typeinfo_map=_known_typeinfo_map,
+                store_self_value_ref_for_funcs=
+                store_self_value_ref_for_funcs,
+                msgs=msgs, debug=debug
+            ) later:
+
+            await inner_result
+            if debug {
+                print(dbg_prefix + " Got size_of() arg typeinfo=" +
+                inner_result.as_str())
+            }
+            if inner_result == none {
+                if node.subexprs[2].damaged or
+                        node.subexprs[2].subexprs[1].damaged {
+                    node.damaged = yes
+                }
+                return later none
+            }
+            var type_result = inner_result.copy()
+            var old_deref_counter = 0
+            var new_modifiers = []
+            for mod in type_result.modifiers {
+                if {"c_array", "ref"}.has(mod.name) {
+                    old_deref_counter += 1
+                    if old_deref_counter > 1 {
+                        new_modifiers.add(mod)
+                    }
+                }
+            }
+            if old_deref_counter <= 0 {
+                if msgs == none {
+                    print(if is_moose64 ("hoosec")
+                        else ("moosec") + ": "
+                            "error: Internal error, "
+                            "deref called on item that isn't "
+                            "a ref.")
+                    throw new RuntimeError(
+                        "Call has wrong number of "
+                        "arguments.")
+                }
+                if not node.damaged and
+                        not node.subexprs[2].damaged {
+                    var called_args =
+                    node.subexprs[2].subexprs.len
+                    var called_s = "s"
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected use of 'deref' "
+                        "since type " +
+                        inner_result.describe_to_user(
+                            project=project_file.project,
+                            add_quotes_where_useful=yes,
+                            is_moose64=is_moose64
+                        ) + " isn't a reference.",
+                        kind=msg.M_ERROR,
+                        source_file=project_file,
+                        line=node.subexprs[1].line,
+                        col=node.subexprs[1].col,
+                    ))
+                }
+                node.damaged = yes
+                node.subexprs[1].damaged = yes
+                node.subexprs[2].damaged = yes
+                return later none
+            }
+            type_result.modifiers = new_modifiers
+            if type_result.kind == typeinfo.TI_USERTYPE and
+                    type_result._orig_typeexpr != none {
+                type_result._orig_typeexpr.modifiers = []
+                for mod in new_modifiers {
+                    type_result._orig_typeexpr.
+                        modifiers.add(mod.copy())
+                }
+            }
+            return later type_result
         } elseif m64_builtins.is_ast_node_referring_to_m64_std_size_of(
                 project_file, node.subexprs[1], is_moose64=yes) {
             if debug {
@@ -933,8 +1052,9 @@ func _get_c_or_m64_type_of_node_do(
                         ast_typeref.get_c_builtin_for_m64_base_type(
                             rhand.value_typeref_expr.name
                         )
+                    tinfo.modifiers = []
                     for mod in rhand.value_typeref_expr.modifiers {
-                        tinfo.modifiers = mod.copy()
+                        tinfo.modifiers.add(mod.copy())
                     }
                 }
                 return tinfo
