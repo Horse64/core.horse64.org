@@ -1744,8 +1744,9 @@ func is_func_call_node_for_sure_a_self_call(
     }
     if symbol_info == none {
         symbol_info = st_ref.ref_to_symbol_info(
-            project_file, called_node.subexprs[2].ref,
-            node=called_node, is_moose64=is_moose64,
+            called_node.subexprs[2].ref,
+            node=called_node, project=project_file.project,
+            is_moose64=is_moose64,
         )
     }
     if symbol_info == none or symbol_info.typeref_expr == none or

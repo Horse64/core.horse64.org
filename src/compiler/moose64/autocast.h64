@@ -184,8 +184,8 @@ func get_math_binop_autocast(
         }
     }
     if refs_left > 0 and refs_right == 0 and
-            right_hand_typeinfo.kind == typeinfo.TI_CI_TYPE and
-            get_num_filtered_mods(refs_right).len == 0 {
+            right_hand_typeinfo.kind == typeinfo.TI_C_TYPE and
+            get_num_filtered_mods(right_hand_typeinfo).len == 0 {
         if ast_typeref.builtin_moose64_unsigned_num_types.has(
                 right_hand_typeinfo.orig_type_name
                 ) {
@@ -204,7 +204,7 @@ func get_math_binop_autocast(
         result.incompatible = yes
         return result
     } elseif refs_right > 0 and refs_left == 0 and
-            left_hand_typeinfo.kind == typeinfo.TI_CI_TYPE and
+            left_hand_typeinfo.kind == typeinfo.TI_C_TYPE and
             get_num_filtered_mods(refs_left).len == 0 {
         if left_hand_typeinfo.orig_type_name == "addr" {
             return cast_all_to("addr")

@@ -172,7 +172,8 @@ func ref_is_global_func_def(project_file, storage_ref) {
 }
 
 func ref_to_symbol_info(
-        project_file, storage_ref, node=none,
+        storage_ref, node=none,
+        project=none,
         is_moose64=no, debug=no
         ) {
     var dbg_prefix = ""
@@ -184,8 +185,11 @@ func ref_to_symbol_info(
         }
     }
     if storage_ref.kind == ST_GLOBAL {
+        if project == none {
+            return none
+        }
         var entry = st_scope.global_id_to_item(
-            project_file.project, storage_ref.id)
+            project, storage_ref.id)
         assert(entry != none)
         if typename(entry.symbol_info) == "list" {
             for sym_info in entry.symbol_info {
@@ -198,7 +202,10 @@ func ref_to_symbol_info(
             return entry.symbol_info
         }
     } elseif storage_ref.kind == ST_GLOBALATTR {
-        var gscope = project_file.project.
+        if project == none {
+            return none
+        }
+        var gscope = project.
             storage_id_to_global_scope_map[
             storage_ref.id[1]]
         var entry = gscope.storage_id_to_entry[storage_ref.id[1]]

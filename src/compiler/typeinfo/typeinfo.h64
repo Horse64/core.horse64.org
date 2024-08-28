@@ -235,14 +235,22 @@ func TypeInfo.as_str {
         "c_type_name=" + if self.c_type_name != none
             (textfmt.as_escaped_code_string(self.c_type_name))
             else ("none") + " "
-    if self.kind == TI_C_TYPE {
+    if self.kind == TI_C_TYPE or
+            (self.kind == TI_USERTYPE and
+             self.orig_type_name != none) {
         t += "orig_type_name=" + if self.orig_type_name != none
             (textfmt.as_escaped_code_string(self.orig_type_name))
             else ("none") + " "
     }
+    if self.kind == TI_USERTYPE and
+            self._orig_typeexpr != none {
+        t += "_orig_typeexpr=" +
+            self._orig_typeexpr.as_str() + " "
+    }
     t += "user_type_ref=" + self.user_type_ref.as_str() + " "
         "func_typeexpr=" + self.func_typeexpr.as_str() + " "
-        "func_self_ref=" + self.func_self_ref.as_str() +
+        "func_self_ref=" + self.func_self_ref.as_str() + " "
+        "modifiers=" + self.modifiers.as_str() +
         "}"
     return t
 }
@@ -668,6 +676,7 @@ func create_typeinfo_from_global_ref(
         self_node_if_known=none,
         self_ref_if_known=none,
         store_self_value_ref_for_funcs=no,
+        project=none,
         is_moose64=no
         ) {
     if base_node_if_known != none and target_ref == none and
@@ -740,6 +749,31 @@ func create_typeinfo_from_global_ref(
     if base_typeref_expr_if_known != none {
         var texpr = base_typeref_expr_if_known
         for mod in texpr.modifiers {
+            tinfo.modifiers.add(mod.copy())
+        }
+    } elseif project != none and
+            tinfo._orig_typeexpr == none {
+        var sinfo = st_ref.ref_to_symbol_info(
+            target_ref,
+            project=project, is_moose64=is_moose64,
+        )
+        if sinfo.typeref_expr != none and
+                not sinfo.typeref_expr.is_func_ref {
+            if sinfo.typeref_expr.is_user_type() {
+                tinfo._orig_typeexpr =
+                    sinfo.typeref_expr.copy()
+            } elseif sinfo.typeref_expr.modifiers.len > 0 and
+                    tinfo.modifiers.len == 0 {
+                for mod in sinfo.typeref_expr.modifiers {
+                    tinfo.modifiers.add(mod.copy())
+                }
+            }
+        }
+    }
+    if tinfo._orig_typeexpr != none and
+            tinfo.modifiers.len == 0 and
+            tinfo._orig_typeexpr.modifiers.len > 0 {
+        for mod in tinfo._orig_typeexpr.modifiers {
             tinfo.modifiers.add(mod.copy())
         }
     }

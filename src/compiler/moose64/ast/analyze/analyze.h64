@@ -68,7 +68,8 @@ func get_c_or_m64_type_of_typeref(
         return later none
     }
     var m64_symbol_info = st_ref.ref_to_symbol_info(
-        project_file, m64_type_ref, is_moose64=is_moose64,
+        m64_type_ref, project=project_file.project,
+        is_moose64=is_moose64,
     )
     if m64_symbol_info == none {
         return later none
@@ -80,6 +81,7 @@ func get_c_or_m64_type_of_typeref(
         base_typeref_expr_if_known=typeref,
         store_self_value_ref_for_funcs=
             store_self_value_ref_for_funcs,
+        project=project_file.project,
         is_moose64=yes,
     )
     return later tinfo
@@ -205,6 +207,8 @@ func get_c_or_m64_type_of_sym_info(
             target_ref,
             base_symbol_info_if_known=target_sym_info,
             base_node_if_known=node_with_reference,
+            project=project_file.project,
+            is_moose64=is_moose64,
         )
         if debug {
             print(dbg_prefix + " create_typeinfo_from_global_ref "
@@ -572,12 +576,14 @@ func _get_c_or_m64_type_of_node_do(
                 st_ref.ST_GLOBAL, anscope.storage_id
             )
             sym_info = st_ref.ref_to_symbol_info(
-                project_file, type_st_ref, is_moose64=is_moose64,
+                type_st_ref, project=project_file.project,
+                is_moose64=is_moose64,
             )
             return_type_with_ref_modifier = yes
         } elseif node.ref != none {
             sym_info = st_ref.ref_to_symbol_info(
-                project_file, node.ref, node=node,
+                node.ref, node=node,
+                project=project_file.project,
                 is_moose64=is_moose64,
             )
         }
@@ -1065,7 +1071,8 @@ func _get_c_or_m64_type_of_node_do(
             return later none
         }
         var sym_info = st_ref.ref_to_symbol_info(
-            project_file, rhand.ref, node=rhand,
+            rhand.ref, node=rhand,
+            project=project_file.project,
             is_moose64=is_moose64,
         )
         if debug {
