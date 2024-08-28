@@ -495,6 +495,8 @@ func _get_c_or_m64_type_of_node_do(
                 source_file=project_file,
                 line=node.line, col=node.col,
             ))
+            node.damaged = yes
+            return later none
         }
         return later result.result_type
     } elseif node.kind == ast.N_EXPR_IDREF {

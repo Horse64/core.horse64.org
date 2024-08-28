@@ -503,6 +503,8 @@ func ensure_type_info_for_file(project_file, msgs, is_moose64=no) {
             func process_labels {
                 func handle_label(lbl) {
                     idx += 1
+                    assert(node.symbol_info[idx].name ==
+                           node.var_labels[idx])
                     try_resolve_symbol_typeref_or_type_expr(
                         project_file, node, type_expr,
                         node.symbol_info[idx], msgs,
@@ -724,6 +726,14 @@ func create_typeinfo_from_global_ref(
     if base_typeref_expr_if_known != none and
             base_typeref_expr_if_known.name != none {
         tinfo.orig_type_name = base_typeref_expr_if_known.name
+        if not base_typeref_expr_if_known.is_func_ref and
+                base_typeref_expr_if_known.is_user_type() {
+            tinfo._orig_typeexpr =
+                base_typeref_expr_if_known.copy()
+        } elseif not base_typeref_expr_if_known.is_func_ref and
+                not base_typeref_expr_if_known.is_user_type() {
+            tinfo.kind = typeinfo.TI_C_TYPE
+        }
     }
     tinfo.user_type_ref = target_ref.copy()
     tinfo.modifiers = []

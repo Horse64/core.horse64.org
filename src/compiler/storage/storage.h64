@@ -651,6 +651,10 @@ func project.Project.compute_all_scopes(
                         func register_var_at_root(
                                 vardef_stmt, var_labels
                                 ) {
+                            assert(vardef_stmt.symbol_info == none or
+                                vardef_stmt.symbol_info.len == 0)
+                            vardef_stmt.symbol_info = []
+                            var new_symbol_info = []
                             var idx = 0
                             for label in var_labels {
                                 idx += 1
@@ -680,10 +684,11 @@ func project.Project.compute_all_scopes(
                                     anscope.id_to_symbol_map[
                                         symbol_info.storage_id
                                     ] = symbol_info
-                                    if stmt.symbol_info == none {
-                                        stmt.symbol_info = []
+                                    if node.symbol_info == none {
+                                        node.symbol_info = []
                                     }
-                                    stmt.symbol_info.add(symbol_info)
+                                    node.symbol_info.add(symbol_info)
+                                    new_symbol_info.add(symbol_info)
                                     continue
                                 }
                                 # If we arrive here, this name is taken.
@@ -719,10 +724,13 @@ func project.Project.compute_all_scopes(
                                         "attribute with duplicate name.")
                                 }
                             }
-                            return stmt.symbol_info
+                            return new_symbol_info
                         }
                         if stmt.kind == ast.N_STMT_VAR {
-                            register_var_at_root(stmt, stmt.var_labels)
+                            assert(stmt.symbol_info == none)
+                            stmt.symbol_info =
+                                register_var_at_root(
+                                    stmt, stmt.var_labels)
                             continue
                         } elseif stmt.kind == ast.N_STMT_UNION or
                                 stmt.kind == ast.N_STMT_STRUCT {
@@ -754,9 +762,9 @@ func project.Project.compute_all_scopes(
                                     for vpath in var_paths {
                                         add_names.add(vpath.join("."))
                                     }
+                                    assert(st.symbol_info == none)
                                     var root_sinfo =
                                         register_var_at_root(st, add_names)
-                                    assert(st.symbol_info == none)
                                     st.symbol_info = []
                                     assert(typename(root_sinfo) == "list")
                                     st.symbol_info = root_sinfo

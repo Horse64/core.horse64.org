@@ -257,6 +257,14 @@ func parse(tokens, pos, msgs, project_file=none,
         stmt.subexprs.add(v)
         had_special = yes
         pos += v.token_len
+        if debug {
+            print("compiler.ast.var_stmt: parse_type_if_any(): "
+                "For var stmt with var_labels=" +
+                    stmt.var_labels.as_str() + ", got "
+                "result with token len #" +
+                v.token_len.as_str() + ": "
+                "v=" + v.as_str())
+        }
         return later (pos - startpos)
     }
     var parsed_len = parse_type_if_any(
