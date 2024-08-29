@@ -1014,10 +1014,13 @@ func _get_c_or_m64_type_of_node_do(
                 return later rhand.ref
             }
             var lhand = node.subexprs[1]
-            if not has_attr(lhand, "ref") {
+            if not has_attr(lhand, "ref") and
+                    (lhand.kind != ast.N_EXPR_BINOP or
+                    lhand.optoken.str != "." or
+                    lhand.subexprs.len != 2 or
+                    lhand.subexprs[2].kind != ast.N_EXPR_IDREF) {
                 return later none
             }
-            assert(lhand.ref != none)
 
             if debug {
                 print(dbg_prefix + " Calling "
@@ -1029,7 +1032,7 @@ func _get_c_or_m64_type_of_node_do(
                 project_file, lhand, rhand,
                 parents + [node],
                 error_on_invalid=yes, is_moose64=is_moose64,
-                msgs=msgs,
+                msgs=msgs, debug=debug,
             ) later:
         }
         resolve_rhand_via_lhand_if_needed()
@@ -1046,6 +1049,12 @@ func _get_c_or_m64_type_of_node_do(
                         is_special_madeup_builtin {
                 # This is a built-in like .len on an array.
                 # We can't get a symbol info for this.
+                if debug {
+                    print(dbg_prefix + " The right hand is a special "
+                        "made up built-in, "
+                        "rhand.value_typeref_expr=" +
+                            rhand.value_typeref_expr.as_str())
+                }
                 var tinfo = new typeinfo.TypeInfo(
                     typeinfo.TI_M64BUILTIN_TYPE
                 )
@@ -1053,9 +1062,11 @@ func _get_c_or_m64_type_of_node_do(
                 if rhand.value_typeref_expr.is_func_ref {
                     tinfo.func_typeexpr = tinfo._orig_typeexpr
                 } else {
+                    assert(not rhand.value_typeref_expr.is_user_type())
                     tinfo.kind = typeinfo.TI_C_TYPE
                     tinfo.orig_type_name =
                         rhand.value_typeref_expr.name
+                    assert(tinfo.orig_type_name != none)
                     tinfo.c_type_name =
                         ast_typeref.get_c_builtin_for_m64_base_type(
                             rhand.value_typeref_expr.name
@@ -1064,6 +1075,10 @@ func _get_c_or_m64_type_of_node_do(
                     for mod in rhand.value_typeref_expr.modifiers {
                         tinfo.modifiers.add(mod.copy())
                     }
+                }
+                if debug {
+                    print(dbg_prefix + " The right hand builtin " +
+                        "was resolved to: tinfo=" + tinfo.as_str())
                 }
                 return tinfo
             }

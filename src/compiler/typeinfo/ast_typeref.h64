@@ -94,9 +94,11 @@ func is_pos_inside_func_return_type(
 }
 
 type TypeRefModProp {
+    var prop_name = "unknown"
 }
 
 type TypeRefModProp_Range base TypeRefModProp {
+    var prop_name = "range"
     var range_value_num
     var range_value_label
 }
@@ -110,6 +112,21 @@ func TypeRefModProp_Range.as_str {
     }
     t += "]"
     return t
+}
+
+func TypeRefModProp_Range.is_equivalent_prop_to(other_mod) {
+    if other_mod.prop_name != self.prop_name {
+        return no
+    }
+    if self.range_value_num != none {
+        if self.range_value_num !=
+                other_mod.range_value_num {
+            return no
+        }
+    } else {
+        return no
+    }
+    return yes
 }
 
 type TypeRefMod {
@@ -127,6 +144,36 @@ func TypeRefMod.as_str {
         t += prop.as_str()
     }
     return t
+}
+
+func TypeRefMod.is_equivalent_mod_to(other_mod) {
+    if self.name != other_mod.name {
+        return no
+    }
+    if self.props.len != other_mod.props.len {
+        return no
+    }
+
+    var claimed_indexes = {}
+    for prop in self.props {
+        var found_equivalent = no
+        var idx = 0
+        for other_prop in other_tinfo.props {
+            idx += 1
+            if claimed_indexes.has(idx) {
+                continue
+            }
+            if other_prop.is_equivalent_prop_to(prop) {
+                claimed_indexes.add(idx)
+                found_equivalent = yes
+                break
+            }
+        }
+        if not found_equivalent {
+            return no
+        }
+    }
+    return yes
 }
 
 type TypeRefFuncExpr base TypeRefExpr {

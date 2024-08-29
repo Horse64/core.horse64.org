@@ -1209,7 +1209,8 @@ func project.ProjectFile.make_attr_names_scope_from_node(
 func try_ensure_attr_ref(
         project_file, node_lefthand, node_righthand,
         parent_chain,
-        error_on_invalid=no, is_moose64=no, msgs=none,
+        error_on_invalid=no, msgs=none, is_moose64=no,
+        debug=no
         ) {
     assert(typename(parent_chain) == "list")
     assert(node_righthand.kind == ast.N_EXPR_IDREF)
@@ -1221,7 +1222,7 @@ func try_ensure_attr_ref(
         project_file, msgs,
         start_at_root=node_righthand,
         root_parents=parent_chain,
-        is_moose64=is_moose64, debug=no
+        is_moose64=is_moose64, debug=debug
         ) later:
 
     return later

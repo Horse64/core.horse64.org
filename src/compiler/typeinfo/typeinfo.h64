@@ -109,6 +109,54 @@ func TypeInfo.init(ti_kind) {
     self.kind = ti_kind
 }
 
+func TypeInfo.has_equivalent_modifiers(
+        other_tinfo, allow_autodrop_mods=no,
+        allow_autoadd_mods=no
+        ) {
+    var droppable_names = []
+    var addable_names = ["readonly"]
+    if not allow_autodrop_mods and
+            not allow_autoadd_mods and
+            other_tinfo.modifiers.len != self.modifiers.len {
+        return no
+    }
+    var claimed_indexes = {}
+    for mod in self.modifiers {
+        var found_equivalent = no
+        var idx = 0
+        for other_mod in other_tinfo.modifiers {
+            idx += 1
+            if claimed_indexes.has(idx) {
+                continue
+            }
+            if other_mod.is_equivalent_mod_to(mod) {
+                claimed_indexes.add(idx)
+                found_equivalent = yes
+                break
+            }
+        }
+        if not found_equivalent {
+            if not allow_autoadd_mods or
+                    not addable_names.has(mod.name) {
+                return no
+            }
+        }
+    }
+    if claimed_indexes.len < other_tinfo.modifiers.len and
+            not allow_autodrop_mods {
+        return no
+    }
+    var idx = 0
+    for other_mod in other_tinfo.modifiers {
+        idx += 1
+        if not claimed_indexes.has(idx) and
+                not droppable_names.has(other_mod.name) {
+            return no
+        }
+    }
+    return yes
+}
+
 func TypeInfo.copy {
     var copied = base.copy()
     copied.modifiers = []
@@ -271,8 +319,9 @@ func TypeInfo.describe_to_user(
     }
     var t = texpr.as_code()
     if add_quotes_where_useful {
-        if texpr.is_func_ref or
-                texpr.is_user_type() {
+        if texpr.is_func_ref {
+            return "'" + t + "' (func)"
+        } elseif texpr.is_user_type() {
             return "'" + t + "'"
         }
         return t
@@ -306,7 +355,7 @@ func TypeInfo.convert_to_typeref_expr(
         var expr = new ast_typeref.TypeRefExpr()
         expr.name = self.orig_type_name
         for mod in self.modifiers {
-            expr.modifiers.add(mod.copy)
+            expr.modifiers.add(mod.copy())
         }
         return expr
 
@@ -369,8 +418,8 @@ func TypeInfo.convert_to_typeref_expr(
                         texpr.type_path = import_typepath
                     }
                 }
-                for mod in self.type_ref_mods {
-                    texpr.modifiers.add(texpr.copy())
+                for mod in self.modifiers {
+                    texpr.modifiers.add(mod.copy())
                 }
                 return texpr
             }

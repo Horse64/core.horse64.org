@@ -85,13 +85,20 @@ func check_if_allowed_implicit_cast_from_to(
     if refs_left > 0 and refs_left == refs_right and
             right_hand_source_typeinfo.kind ==
                 left_hand_target_typeinfo.kind {
-        # FIXME: Check readonly, c_array sizes, and other details.
+        if not left_hand_target_typeinfo.has_equivalent_modifiers(
+                right_hand_source_typeinfo,
+                allow_autodrop_mods=yes,
+                allow_autoadd_mods=yes,
+                ) {
+            return no
+        }
         if left_hand_target_typeinfo.kind == typeinfo.TI_C_TYPE and
                 right_hand_source_typeinfo.kind == typeinfo.TI_C_TYPE {
             return (
                 left_hand_target_typeinfo.orig_type_name != none and
-                left_hand_target_typeinfo.orig_type_name ==
-                    right_hand_source_typeinfo.orig_type_name)
+                (left_hand_target_typeinfo.orig_type_name ==
+                    right_hand_source_typeinfo.orig_type_name or
+                left_hand_target_typeinfo.orig_type_name == "any"))
         } elseif left_hand_target_typeinfo.kind ==
                     typeinfo.TI_USERTYPE and
                 right_hand_source_typeinfo.kind ==
@@ -261,6 +268,11 @@ func get_math_binop_autocast(
             result.incompatible = yes
             return result
         }
+        if not left_hand_typeinfo.has_equivalent_modifiers(
+                right_hand_typeinfo.modifiers) {
+            result.incompatible = yes
+            return result
+        }
         var result_name = left_hand_typeinfo.orig_type_name
         if (left_hand_typeinfo.orig_type_name == "i8" or
                 right_hand_typeinfo.orig_type_name == "i8") and
@@ -268,10 +280,7 @@ func get_math_binop_autocast(
                     right_hand_typeinfo.orig_type_name {
             return cast_all_to("i8")
         }
-        result.result_type =
-            typeinfo.create_from_simple_m64_type(
-                result_name
-            )
+        result.result_type = left_hand_typeinfo.copy()
         return result
     }
     var addr_types = {"addr", "addr_diff"}

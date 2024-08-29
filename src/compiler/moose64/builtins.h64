@@ -138,6 +138,13 @@ func register_builtins_with_project(project) {
         package_name="m64.horse64.org")
 
     id = m64_c_importer.get_mcref_id(project)
+    builtin_syms.register_symbol(project, "assert",
+        new st_ref.StorageRef(st_ref.ST_MCREF, id),
+        builtin_syms.BI_FUNC, ["std"],
+        func_signature="(<-any ref)->empty",
+        package_name="m64.horse64.org")
+
+    id = m64_c_importer.get_mcref_id(project)
     builtin_syms.register_symbol(project, "as_ref",
         new st_ref.StorageRef(st_ref.ST_MCREF, id),
         builtin_syms.BI_FUNC, ["std"],
