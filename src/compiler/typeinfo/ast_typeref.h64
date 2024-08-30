@@ -147,7 +147,9 @@ func TypeRefMod.as_str {
 }
 
 func TypeRefMod.is_equivalent_mod_to(other_mod) {
-    if self.name != other_mod.name {
+    if self.name != other_mod.name and
+            (not {"ref", "c_array"}.has(self.name) or
+            not {"ref", "c_array"}.has(other_mod.name)) {
         return no
     }
     if self.props.len != other_mod.props.len {

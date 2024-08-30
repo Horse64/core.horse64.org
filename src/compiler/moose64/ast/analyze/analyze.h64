@@ -47,8 +47,9 @@ func get_c_or_m64_type_of_typeref(
         store_self_value_ref_for_funcs=no, msgs=none
         ) {
     var is_moose64 = yes
-    var c_name = typeref.get_c_builtin_for_m64_base_type()
-    if c_name != none {
+    if not typeref.is_user_type() {
+        var c_name = typeref.get_c_builtin_for_m64_base_type()
+        assert(c_name != none)
         var tinfo = new typeinfo.TypeInfo(typeinfo.TI_C_TYPE)
         tinfo._set_orig_type_expr(typeref)
         tinfo.orig_type_name = typeref.name
