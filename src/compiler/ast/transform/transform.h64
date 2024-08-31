@@ -27,6 +27,7 @@
 
 import debugger from core.horse64.org
 import random from core.horse64.org
+import textfmt from core.horse64.org
 import time from core.horse64.org
 
 import compiler.ast as ast
@@ -695,9 +696,11 @@ func transform_func_overrides_and_check_func_arg_sig_match(
         var called_node = none
         var called_node_parents = none
         var called_args_node = none
+        var called_lbl_name = none
         var is_func_attr_call = no
         if node.subexprs[1].kind == ast.N_EXPR_IDREF {
             called_ref = node.subexprs[1].ref
+            called_lbl_name = node.subexprs[1].label
             called_node = node.subexprs[1]
             called_args_node = node.subexprs[2]
             called_node_parents = parents + [node]
@@ -705,13 +708,16 @@ func transform_func_overrides_and_check_func_arg_sig_match(
         } else {
             assert(node.subexprs[1].kind == ast.N_EXPR_BINOP and
                 node.subexprs[1].optoken.str == "." and
-                node.subexprs[1].subexprs[2].kind == ast.N_EXPR_IDREF)
+                node.subexprs[1].subexprs[2].
+                    kind == ast.N_EXPR_IDREF)
             called_ref = node.subexprs[1].subexprs[2].ref
+            called_lbl_name = node.subexprs[1].subexprs[2].label
             called_node = node.subexprs[1]
             called_args_node = node.subexprs[2]
             called_node_parents = parents + [node]
             assert(typename(called_ref) != "list")
         }
+
         assert(called_args_node.kind == ast.N_EXPR_CALLARGS)
         if not is_moose64 and (called_ref == none or
                 {st_ref.ST_LOCAL, st_ref.ST_ARG}.has(
@@ -724,7 +730,10 @@ func transform_func_overrides_and_check_func_arg_sig_match(
         }
         if debug {
             print(dbg_prefix + " Looking at call for potential "
-                "func overrides: node=" + node.as_str() + " "
+                "func overrides: "
+                "called_lbl_name=" + textfmt.
+                    as_escaped_code_string(called_lbl_name) + " "
+                "node=" + node.as_str() + " "
                 "called_node=" + called_node.as_str() + " "
                 "called_ref=" + called_ref.as_str() + " "
                 "is_func_attr_call=" + is_func_attr_call.as_str())
@@ -786,9 +795,7 @@ func transform_func_overrides_and_check_func_arg_sig_match(
         later:
 
         if func_is_external and (not is_moose64 or
-                yes) {  # FIXME, whitelist stuff like print??
-                ##project_file.project.builtin_syms_storage.
-                ##
+                yes) {  # FIXME, Change once we can resolve this.
             return later node
         }
         # For Moose64, we require that non-external funcs fully resolve:
@@ -922,6 +929,7 @@ func do_all_post_nameres_transformations(
     if not success {
         return later no
     }
+    var had_error = no
     func do_func_call_check_and_overrides {
         func process_file(pfile) {
             var result =
@@ -930,14 +938,18 @@ func do_all_post_nameres_transformations(
             later:
 
             await result
-            return later result
+            if not result {
+                had_error = yes
+            }
+            # Even if we had an error, process all files:
+            return later yes
         }
         var result = project.do_for_all_files(process_file)
         later:
 
         await result
         assert(result == yes or result == no)
-        return result
+        return (result and not had_error)
     }
     success = do_func_call_check_and_overrides()
     later:

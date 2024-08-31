@@ -956,7 +956,7 @@ func _get_c_or_m64_type_of_node_do(
 
         var result = ast_analyze.get_called_or_assigned_func_types(
             project_file, called_node, called_node_parents,
-            allow_matching_func_override=no,
+            allow_matching_func_override=yes,
             allow_noncall_ref=no,
             ignore_arg_mismatch=no,
             msgs=none, is_moose64=no, debug=no
