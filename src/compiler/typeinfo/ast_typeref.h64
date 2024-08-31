@@ -33,6 +33,7 @@ import compiler.token as token
 import compiler.storage.ref as st_ref
 import compiler.storage.scope as st_scope
 import compiler.token
+import compiler.typeinfo as typeinfo
 
 const builtin_horse64_types = {}
 const builtin_horse64_type_modifiers = {}
@@ -543,6 +544,18 @@ func TypeRefExpr.adjust_storage_to_file(pfile) {
         assert(typename(ipath) == "list")
         self.type_path = ipath
     }
+}
+
+func TypeRefExpr.is_readonly {
+    var t = typeinfo.TypeInfo(typeinfo.TI_USERTYPE)
+    t.modifiers = self.modifiers.copy()
+    return t.is_readonly()
+}
+
+func TypeRefExpr.is_array {
+    var t = typeinfo.TypeInfo(typeinfo.TI_USERTYPE)
+    t.modifiers = self.modifiers.copy()
+    return t.is_array()
 }
 
 func get_known_c_type_size(c_type) {

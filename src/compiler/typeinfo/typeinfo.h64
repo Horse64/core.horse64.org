@@ -109,15 +109,32 @@ func TypeInfo.init(ti_kind) {
     self.kind = ti_kind
 }
 
+func TypeInfo.is_readonly {
+    for mod in self.modifiers {
+        if {"readonly"}.has(mod.name) {
+            return yes
+        }
+    }
+    return no
+}
+
+func TypeInfo.is_array {
+    for mod in self.modifiers {
+        if {"ref", "c_array"}.has(mod.name) {
+            return no
+        }
+        if {"array"}.has(mod.name) {
+            return yes
+        }
+    }
+    return no
+}
+
 func get_known_type_size(tinfo) {
-    var is_array = no
+    var is_array = tinfo.is_array()
     var mods_without_refs_and_junk = []
     for mod in tinfo.modifiers {
-        if {"ref", "c_array", "readonly"}.has(mod.name) {
-            continue
-        }
-        if {"array"}.has(mod.name) and not is_array {
-            is_array = yes
+        if {"ref", "c_array", "array", "readonly"}.has(mod.name) {
             continue
         }
         mods_without_refs.add(mod.copy())

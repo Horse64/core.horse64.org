@@ -1598,31 +1598,35 @@ func visit_to_resolve_known_attrs(
             } else {
                 is_attr_error = yes
             }
+            var is_array = left_type_expr.is_array()
             if not is_attr_error and
-                    not left_type_expr.is_user_type() {
-                if node.label == "len" {
-                    our_type_expr = new ast_typeref.TypeRefExpr()
-                    our_type_expr.is_special_madeup_builtin = yes
-                    our_type_expr.name = "size"
-                    var self_type = left_type_expr.copy()
-                    our_type_expr.special_madeup_builtin_base_expr =
-                        self_type
-                } elseif node.label == "data" {
-                    our_type_expr = new ast_typeref.TypeRefExpr()
-                    our_type_expr.is_special_madeup_builtin = yes
-                    our_type_expr.name = "byte"
+                    not left_type_expr.is_user_type() and
+                    node.label == "len" {
+                our_type_expr = new ast_typeref.TypeRefExpr()
+                our_type_expr.is_special_madeup_builtin = yes
+                our_type_expr.name = "size"
+                var self_type = left_type_expr.copy()
+                our_type_expr.special_madeup_builtin_base_expr =
+                    self_type
+            } elseif not is_attr_error and
+                    is_array and
+                    node.label == "data" {
+                our_type_expr = new ast_typeref.TypeRefExpr()
+                our_type_expr.is_special_madeup_builtin = yes
+                our_type_expr.name = "byte"
+                if left_type_expr.is_readonly() {
                     our_type_expr.
                         modifiers.add(
                             new ast_typeref.TypeRefMod("readonly")
                         )
-                    our_type_expr.
-                        modifiers.add(
-                            new ast_typeref.TypeRefMod("c_array")
-                        )
-                    var self_type = left_type_expr.copy()
-                    our_type_expr.special_madeup_builtin_base_expr =
-                        self_type
                 }
+                our_type_expr.
+                    modifiers.add(
+                        new ast_typeref.TypeRefMod("c_array")
+                    )
+                var self_type = left_type_expr.copy()
+                our_type_expr.special_madeup_builtin_base_expr =
+                    self_type
             } elseif not is_attr_error and
                     left_type_expr.is_user_type() {
                 assert(left_type_global_ref != none)
