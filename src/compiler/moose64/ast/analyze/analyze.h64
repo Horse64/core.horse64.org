@@ -932,14 +932,10 @@ func _get_c_or_m64_type_of_node_do(
                 print(dbg_prefix + " Returning final ref type "
                     "typeinfo=" + size_result.as_str())
             }
-            var try_get_size = none
-            if inner_result.modifiers.len == 0 and
-                    inner_result.kind == typeinfo.TI_C_TYPE {
-                assert(inner_result.c_type_name != none)
-                try_get_size = ast_typeref.get_known_c_type_size(
-                    inner_result.c_type_name
+            var try_get_size =
+                typeinfo.get_known_type_size(
+                    inner_result
                 )
-            }
             if try_get_size != none {
                 size_result.known_literal_value_token =
                     new token.Token(

@@ -33,7 +33,7 @@ import compiler.ast.expr as ast_expr
 import compiler.ast.func_stmt as func_stmt
 import compiler.ast.transform as ast_transform
 import compiler.limit as compiler_limit
-import compiler.moose64.autocast as autocast
+import compiler.moose64.autocast as m64_autocast
 import compiler.moose64.ast.analyze as m64_ast_analyze
 import compiler.msg as msg
 import compiler.storage.ref as st_ref
@@ -707,7 +707,8 @@ func get_called_or_assigned_func_types(
                     "report this error to the compiler makers."
                 )
             }
-            var allowed = autocast.
+            assert(is_moose64)
+            var allowed = m64_autocast.
                 check_if_allowed_implicit_cast_from_to(
                     arg_actual_type, signature_typeinfo
                 )

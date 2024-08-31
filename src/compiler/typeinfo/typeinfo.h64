@@ -109,6 +109,31 @@ func TypeInfo.init(ti_kind) {
     self.kind = ti_kind
 }
 
+func get_known_type_size(tinfo) {
+    var is_array = no
+    var mods_without_refs_and_junk = []
+    for mod in tinfo.modifiers {
+        if {"ref", "c_array", "readonly"}.has(mod.name) {
+            continue
+        }
+        if {"array"}.has(mod.name) and not is_array {
+            is_array = yes
+            continue
+        }
+        mods_without_refs.add(mod.copy())
+    }
+    if is_array or mods_without_refs_and_junk.len > 0 {
+        return none
+    }
+    if tinfo.kind != TI_C_TYPE {
+        # Not implemented for now.
+        return none
+    }
+    return ast_typeref.get_known_c_type_size(
+        tinfo.c_type_name
+    )
+}
+
 func TypeInfo.has_equivalent_modifiers(
         other_tinfo, allow_autodrop_mods=no,
         allow_autoadd_mods=no
@@ -129,7 +154,11 @@ func TypeInfo.has_equivalent_modifiers(
             if claimed_indexes.has(idx) {
                 continue
             }
-            if other_mod.is_equivalent_mod_to(mod) {
+            if other_mod.is_equivalent_mod_to(mod) or
+                    (other_mod.name == "array" and
+                     self.kind == TI_C_TYPE and
+                     self.orig_type_name == "any" and
+                     mod.name == "ref") {
                 claimed_indexes.add(idx)
                 found_equivalent = yes
                 break
@@ -280,9 +309,11 @@ func create_typeinfo_from_simple_c_type(
 func TypeInfo.as_str {
     var t = "TypeInfo{"
         "kind=" + TypeInfoKind.num_label(self.kind) + " "
-        "c_type_name=" + if self.c_type_name != none
+    if self.kind == TI_C_TYPE {
+        t += "c_type_name=" + if self.c_type_name != none
             (textfmt.as_escaped_code_string(self.c_type_name))
             else ("none") + " "
+    }
     if self.kind == TI_C_TYPE or
             (self.kind == TI_USERTYPE and
              self.orig_type_name != none) {
@@ -295,11 +326,15 @@ func TypeInfo.as_str {
         t += "_orig_typeexpr=" +
             self._orig_typeexpr.as_str() + " "
     }
-    t += "user_type_ref=" + self.user_type_ref.as_str() + " "
-        "func_typeexpr=" + self.func_typeexpr.as_str() + " "
-        "func_self_ref=" + self.func_self_ref.as_str() + " "
-        "modifiers=" + self.modifiers.as_str() +
-        "}"
+    if self.kind != TI_C_TYPE {
+        t += "type_ref=" + self.user_type_ref.as_str() + " "
+    }
+    if self.kind != TI_C_TYPE and self.kind != TI_USERTYPE {
+        t += "func_typeexpr=" + self.func_typeexpr.as_str() + " "
+            "func_self_ref=" + self.func_self_ref.as_str() + " "
+    }
+    t += "modifiers=" + self.modifiers.as_str()
+    t += "}"
     return t
 }
 
@@ -733,6 +768,23 @@ func create_typeinfo_from_global_ref(
             base_node_if_known.ref != none {
         target_ref = base_node_if_known.ref.copy()
     }
+    if base_typeref_expr_if_known == none or
+            base_symbol_info_if_known == none {
+        var sinfo = st_ref.ref_to_symbol_info(
+            target_ref, project=project,
+            is_moose64=is_moose64,
+        )
+        if sinfo != none {
+            if base_symbol_info_if_known == none {
+                base_symbol_info_if_known = sinfo
+            }
+            if base_typeref_expr_if_known == none and
+                    sinfo.typeref_expr != none {
+                base_typeref_expr_if_known =
+                    sinfo.typeref_expr
+            }
+        }
+    }
     if (base_typeref_expr_if_known != none and
             base_typeref_expr_if_known.is_func_ref) or
             (base_symbol_info_if_known != none and
@@ -790,7 +842,7 @@ func create_typeinfo_from_global_ref(
                 base_typeref_expr_if_known.copy()
         } elseif not base_typeref_expr_if_known.is_func_ref and
                 not base_typeref_expr_if_known.is_user_type() {
-            tinfo.kind = typeinfo.TI_C_TYPE
+            tinfo.kind = TI_C_TYPE
         }
     }
     tinfo.user_type_ref = target_ref.copy()
