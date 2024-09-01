@@ -26,11 +26,14 @@
 # license, see accompanied LICENSE.md.
 
 import io from core.horse64.org
+import math from core.horse64.org
 import path from core.horse64.org
 import uri from core.horse64.org
+import textfmt from core.horse64.org
 
 import compiler.ast as ast
 import compiler.compiler_log as clog
+import compiler.limit as climit
 import compiler.msg as msg
 import compiler.project
 
@@ -40,11 +43,70 @@ type CExportResult {
     var build_c_source_uris = []
 }
 
+func node_list_to_c_strings(project_file, node_list,
+        msgs=none, build_options=none) {
+    var queue = node_list.copy()
+    var result = []
+    if queue.len == 0 {
+        return later result
+    }
+    var node = queue.pop_at(1)
+    var next_result = node_to_c_string(project_file, node,
+        msgs=msgs, build_options=build_options)
+        later:
+
+    await next_result
+    if next_result == none {
+        return later none
+    }
+    result.add(next_result)
+    if queue.len == 0 {
+        return later result
+    }
+    node = queue.pop_at(1)
+    next_result = node_to_c_string(
+        project_file, node,
+        msgs=msgs, build_options=build_options)
+        later repeat
+}
+
+func node_to_c_string(project_file, node, msgs=none,
+        build_options=none) {
+    if node.kind == ast.N_EXPR_LIT and
+            typename(node.value) == "str" and
+            not node.is_big_num {
+        return later textfmt.as_escaped_code_string(
+            node.value
+        )
+    } elseif node.kind == ast.N_STMT_FUNC {
+        if node.type_path != none and node.type_path.len > 0 {
+            return later ""
+        }
+        return "void " + node.label + "() {\n" + "}"
+    }
+    return later ""
+}
+
 func ast_to_c(project_file, msgs=none, build_options=none) {
-    #if node.kind == ast.N_EXPR_LITERAL {
-        
-    #}
-    return later "/* OMG C */"
+    var max_nesting = math.round((climit.max_statement_nesting +
+        climit.max_expression_nesting) * 1.5)
+
+    var stmt_strs = node_list_to_c_strings(
+        project_file, project_file.ast.stmts,
+        msgs=msgs, build_options=build_options)
+    later:
+
+    await stmt_strs
+    if stmt_strs == none {
+        # There was an error.
+        return later none
+    }
+    var t = "#include <stdio.h>\n"
+        "#include <stdlib.h>\n"
+    for stmt_s in stmt_strs {
+        t += stmt_s + "\n"
+    }
+    return later t
 }
 
 func guess_build_dir_from_build_options(build_options, project) {
