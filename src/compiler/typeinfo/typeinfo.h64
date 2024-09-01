@@ -556,7 +556,9 @@ func try_resolve_symbol_typeref_or_type_expr(
         if cname != none {
             var builtin_ref =
                 m64_builtins.get_m64_c_type_builtin_ref_by_name(
-                    project_file.project, cname, create_if_missing=yes
+                    project_file.project, cname,
+                    create_if_missing=yes,
+                    create_type=m64_builtins.BI_BASICTYPE,
                 )
             if builtin_ref == none {
                 var_decl_node.damaged = yes

@@ -309,6 +309,7 @@ func get_base_func_scope_from_func_node(
 
 extend type func_stmt.FuncStmt {
     var func_scope
+    var _owning_anscope_key
 }
 
 type AttrNamesScope {
@@ -337,6 +338,21 @@ func AttrNamesScope.get_item_if_present(
     return none
 }
 
+func AttrNamesScope.get_funcattr_node(attr_id) {
+    if not has_attr(self, "id_to_origin_gscope_map") {
+        return none
+    }
+    if not self.id_to_origin_gscope_map.has(attr_id) {
+        return none
+    }
+    var gscope = self.id_to_origin_gscope_map[
+        attr_id]
+    gnode = gscope.get_func_attr_node_by_anscope(
+        self, attr_id
+    )
+    return gnode
+}
+
 type TypeNamesScope base AttrNamesScope {
     var is_error = no
     var display_name = none
@@ -344,6 +360,7 @@ type TypeNamesScope base AttrNamesScope {
 
     var name_to_symbol_map = {->}
     var id_to_symbol_map = {->}
+    var id_to_origin_gscope_map = {->}
 
     var base_global_id = none
     var base_cext_id = none
@@ -396,6 +413,7 @@ type StructNamesScope base AttrNamesScope {
 
     var name_to_symbol_map = {->}
     var id_to_symbol_map = {->}
+    var id_to_origin_gscope_map = {->}
 
     var storage_id = none
 

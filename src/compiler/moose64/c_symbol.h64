@@ -25,16 +25,86 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import text from core.horse64.org
+
 import compiler.moose64.c_importer as m64_c_importer
 
 type CFuncSymbol {
     var c_func_signature protect
 
     var storage_id protect
+
+    var symbol_name
+
+    var is_csymbol = yes
+}
+
+func is_idlike_char(c) {
+    return (text.code(c) >= text.code("0") and
+        text.code(c) <= text.code("9")) or
+        (text.code(c) >= text.code("A") and
+        text.code(c) <= text.code("Z")) or
+        (text.code(c) >= text.code("a") and
+        text.code(c) <= text.code("z")) or
+        text.code(c) > 127 or
+        c == "_"
+}
+
+func get_ident_ending_at(s, idx) {
+    if idx < 1 or idx > s.len or
+            not is_idlike_char(s[idx]) {
+        return none
+    }
+    var end_idx = idx
+    while idx >= 1 and is_idlike_char(s[idx]) {
+        idx -= 1
+    }
+    var start_idx = idx + 1
+    assert(start_idx <= end_idx)
+    assert(is_idlike_char(s[start_idx]))
+    if text.code(s[start_idx]) >= text.code("0") and
+            text.code(s[start_idx]) <= text.code("9") {
+        return none
+    }
+    return s.sub(start_idx, end_idx)
 }
 
 func CFuncSymbol.init(c_signature, _override_func_signature=none) {
     self.c_func_signature = c_signature
+
+    var symbol_name = none
+    var had_bracket = no
+    var last_idlike_idx = none
+    var last_nonspace_idx = none
+    var i = 1
+    while i <= c_signature.len {
+        var c = c_signature[i]
+        if i > 1 and c == "(" {
+            if last_idlike_idx != none and
+                    last_nonspace_idx == last_idlike_idx {
+                symbol_name =
+                    get_ident_ending_at(c_signature,
+                        last_nonspace_idx)
+                break
+            }
+            last_nonspace_idx = i
+            had_bracket = yes
+        } elseif is_idlike_char(c) {
+            if had_bracket {
+                break
+            }
+            last_idlike_idx = i
+            last_nonspace_idx = i
+        } elseif c != " " or c == "\t" {
+            last_nonspace_idx = i
+        }
+        i += 1
+    }
+    if symbol_name == none {
+        throw new ValueError("Got C signature but failed "
+            "to extract func name.")
+    }
+    self.symbol_name = symbol_name
 }
 
 func CFuncSymbol.auto_assign_id(project) {
@@ -44,5 +114,8 @@ func CFuncSymbol.auto_assign_id(project) {
     var new_id = m64_c_importer.get_mcref_id(project)
     assert(new_id != none)
     self.storage_id = new_id
+    assert(not project.storage_id_to_csymbol_map.
+        has(self.storage_id))
+    project.storage_id_to_csymbol_map[self.storage_id] = self
 }
 

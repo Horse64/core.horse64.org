@@ -44,6 +44,7 @@ import compiler.moose64.c_importer as c_importer
 type GlobalScope {
     var name_to_stmt_map = {->}
     var storage_id_to_entry = {->}
+    var func_attr_nodes = {}
 
     var known_to_be_in_project_file = none
 }
@@ -502,8 +503,13 @@ func GlobalScope.finalize_gscope_with_ast_tree_info(
                 symbol_info.def_file = project_file
                 symbol_info.storage_id =
                     anscope.name_to_symbol_map.len + 1
+
                 stmt.symbol_info = symbol_info
                 anscope.name_to_symbol_map[lbl] = symbol_info
+                anscope.id_to_symbol_map[
+                    symbol_info.storage_id] = symbol_info
+                anscope.id_to_origin_gscope_map[
+                    symbol_info.storage_id] = self
                 continue
             }
             assert(self.name_to_stmt_map.has(lbl))
@@ -702,13 +708,99 @@ func get_statement_global_names(statement) {
     return []
 }
 
+func GlobalScope.get_func_attr_node_by_anscope(
+        anscope, attr_id
+        ) {
+    for fattr_node in self.func_attr_nodes {
+        if fattr_node._owning_anscope_key !=
+                anscope.anscope_key {
+            continue
+        }
+        if fattr_node.symbol_info.storage_id != attr_id {
+            continue
+        }
+        return fattr_node
+    }
+    return none
+}
+
+func GlobalScope.internal_find_func_attr_by_localpath(
+        name, scope_local_type_path
+        ) {
+    var scope = self
+    var type_path = scope_local_type_path
+    var found_match = no
+    for fattr_node in scope.func_attr_nodes {
+        if fattr_node.label != name or
+                type_path == none or
+                fattr_node.type_path.len !=
+                type_path.len {
+            continue
+        }
+        var fits = yes
+        var i = 1
+        while i <= fattr_node.type_path.len {
+            if fattr_node.type_path[i] !=
+                    type_path[i] {
+                fits = no
+                break
+            }
+            i += 1
+        }
+        if not fits {
+            continue
+        }
+        return fattr_node
+    }
+    return none
+}
+
 func process_toplevel_stmt(
         scope, statement, msgs,
         project_file=none, is_moose64=no,
         debug=no) {
     assert(statement != none)
+
+    func get_func_statement_standin(statement) {
+        stand_in_node = new func_stmt.FuncStmt()
+        stand_in_node.label = statement.label
+        stand_in_node.type_path =
+            statement.type_path.copy()
+        stand_in_node.arg_labels =
+            statement.arg_labels.copy()
+        stand_in_node.kw_arg_count =
+            statement.kw_arg_count
+        stand_in_node.has_failable =
+            statement.has_failable
+        stand_in_node.has_arg_types =
+            statement.has_arg_types
+        stand_in_node.is_override =
+            statement.is_override
+        stand_in_node.is_readonly =
+            statement.is_readonly
+        stand_in_node.kind = statement.kind
+        stand_in_node.line = statement.line
+        stand_in_node.col = statement.col
+        return stand_in_node
+    }
+
     var names = get_statement_global_names(statement)
     if names.len == 0 {
+        if typename(statement) != "list" and
+                statement.kind == ast.N_STMT_FUNC and
+                statement.type_path != none and
+                statement.type_path.len > 0 {
+            var found_match =
+                scope.internal_find_func_attr_by_localpath(
+                    statement.label,
+                    statement.type_path) != none
+            if not found_match {
+                var snode = get_func_statement_standin(
+                    statement
+                )
+                scope.func_attr_nodes.add(snode)
+            }
+        }
         return later
     }
     var c_importer_queue = []
@@ -781,22 +873,9 @@ func process_toplevel_stmt(
             } elseif statement.kind == ast.N_STMT_TYPEEXTEND {
                 stand_in_node = new type_stmt.TypeExtendStmt()
             } elseif statement.kind == ast.N_STMT_FUNC {
-                stand_in_node = new func_stmt.FuncStmt()
-                stand_in_node.label = statement.label
-                stand_in_node.type_path =
-                    statement.type_path.copy()
-                stand_in_node.arg_labels =
-                    statement.arg_labels.copy()
-                stand_in_node.kw_arg_count =
-                    statement.kw_arg_count
-                stand_in_node.has_failable =
-                    statement.has_failable
-                stand_in_node.has_arg_types =
-                    statement.has_arg_types
-                stand_in_node.is_override =
-                    statement.is_override
-                stand_in_node.is_readonly =
-                    statement.is_readonly
+                stand_in_node = get_func_statement_standin(
+                    statement
+                )
             } elseif statement.kind == ast.N_STMT_VAR {
                 stand_in_node = new var_stmt.VarStmt()
                 stand_in_node.var_labels = [name]
@@ -918,7 +997,20 @@ func project.Project.finalize_global_scope_attr_storage(
                     continue
                 }
                 assert(stmt.symbol_info != none)
-                assert(stmt.symbol_info.kind == st_scope.SINFO_FUNCATTR)
+                assert(stmt.symbol_info.kind ==
+                    st_scope.SINFO_FUNCATTR)
+                var fattr_stand_in =
+                    pfile.global_scope.
+                        internal_find_func_attr_by_localpath(
+                            stmt.label,
+                            stmt.type_path)
+                assert(fattr_stand_in != none)
+                assert(fattr_stand_in.symbol_info == none or
+                    fattr_stand_in.symbol_info.kind ==
+                        stmt.symbol_info.kind and
+                    fattr_stand_in.symbol_info.storage_id ==
+                        stmt.symbol_info.storage_id)
+                fattr_stand_in.symbol_info = stmt.symbol_info.copy()
                 if is_moose64 {
                     assert(stmt.symbol_info.type_storage_ref != none)
                     assert(stmt.symbol_info.typeref_expr != none)
@@ -929,6 +1021,7 @@ func project.Project.finalize_global_scope_attr_storage(
                     assert(typename(stmt.symbol_info.
                         type_storage_ref.id) == "list")
                 }
+                assert(stmt.func_scope != none)
 
                 var anscope = pfile.
                     make_attr_names_scope_from_funcattr(
@@ -939,6 +1032,9 @@ func project.Project.finalize_global_scope_attr_storage(
                     continue
                 }
 
+                stmt._owning_anscope_key = anscope.anscope_key
+                fattr_stand_in._owning_anscope_key =
+                    anscope.anscope_key
                 assert(anscope.storage_id != none)
                 if is_moose64 {
                     stmt.symbol_info.type_storage_ref.id[1] =

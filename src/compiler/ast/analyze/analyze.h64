@@ -32,10 +32,12 @@ import compiler.ast.analyze.eval as ast_eval
 import compiler.ast.expr as ast_expr
 import compiler.ast.func_stmt as func_stmt
 import compiler.ast.transform as ast_transform
+import compiler.builtin_syms as builtin_syms
 import compiler.limit as compiler_limit
 import compiler.moose64.autocast as m64_autocast
 import compiler.moose64.ast.analyze as m64_ast_analyze
 import compiler.msg as msg
+import compiler.storage.scope as st_scope
 import compiler.storage.ref as st_ref
 import compiler.typeinfo as typeinfo
 import compiler.typeinfo.ast_typeref as ast_typeref
@@ -194,6 +196,170 @@ func ast_node_is_allowed_to_cause_type_error(
     return no
 }
 
+func find_func_overrides_by_st_ref(
+        storage_ref, project, msgs=none,
+        is_moose64=no) {
+    var gnode = none
+    var gscope = none
+    var func_name = none
+    var anscope = none
+    var is_func_attr = no
+    if storage_ref.kind == st_ref.ST_GLOBAL {
+        gnode = st_scope.global_id_to_item(
+            project, storage_ref.id)
+        assert(gnode != none)
+        if typename(gnode.symbol_info) == "list" {
+            gnode = none
+        }
+        if gnode != none and
+                gnode.kind == ast.N_STMT_FUNC {
+            var gscope = project.
+                storage_id_to_global_scope_map[storage_ref.id]
+            if gscope == none {
+                gnode = none
+            } else {
+                func_name = gnode.label
+            }
+        }
+    } elseif storage_ref.kind == st_ref.ST_GLOBALATTR {
+        var func_sinfo = st_ref.ref_to_symbol_info(
+            storage_ref, project=project,
+            is_moose64=is_moose64
+        )
+        if func_sinfo != none {
+            is_func_attr = yes
+            anscope = project.get_any_file().
+            make_attr_names_scope_from_gid(
+                storage_ref.id[1], msgs=msgs,
+                is_moose64=is_moose64
+            )
+            if anscope == none {
+                gnode = none
+            } else {
+                var gnode = anscope.get_funcattr_node(
+                    storage_ref.id[2]
+                )
+            }
+            if gnode.kind == ast.N_STMT_FUNC {
+                func_name = gnode.label
+            }
+        }
+    } else {
+        throw new ValueError("Unsupported kind of "
+            "StorageRef was passed in.")
+    }
+    if gnode == none or gnode.kind != ast.N_STMT_FUNC or
+            func_name == none {
+        throw new ValueError("Item that was specified "
+            "by storage reference doesn't seem to be "
+            "a function.")
+    }
+    print("FIXME: LISTING OVERRIDES FOR " + [
+        gnode, is_func_attr
+    ].as_str())
+    var result = []
+    if is_func_attr {
+        assert(anscope != none)
+        var all_nonoverridden_names = {}
+        for alt_func_name in anscope.name_to_symbol_map {
+            var sym = anscope.name_to_symbol_map[alt_func_name]
+            if not {st_scope.SINFO_FUNCATTR,
+                    st_scope.SINFO_FUNC}.has(sym.kind) {
+                continue
+            }
+            var gnode = anscope.get_funcattr_node(
+                sym.storage_id
+            )
+            if gnode.is_override {
+                continue
+            }
+            all_nonoverridden_names.add(gnode.label)
+        }
+        for alt_func_name in anscope.name_to_symbol_map {
+            if not alt_func_name.starts(
+                    func_name + "_") {
+                continue
+            }
+            var sym = anscope.name_to_symbol_map[alt_func_name]
+            if not {st_scope.SINFO_FUNCATTR,
+                    st_scope.SINFO_FUNC}.has(sym.kind) {
+                continue
+            }
+            var gnode = anscope.get_funcattr_node(
+                sym.storage_id
+            )
+            if not gnode.is_override {
+                continue
+            }
+            var overridden_name = none
+            for name in all_nonoverridden_names {
+                if alt_func_name.starts(name + "_") and
+                        (overridden_name == none or
+                        overridden_name.len < name.len) {
+                    overridden_name = name
+                }
+            }
+            if overridden_name != func_name {
+                continue
+            }
+            result.add([
+                new st_ref.StorageRef(
+                    st_ref.ST_GLOBALATTR, [
+                        anscope.storage_id, sym.storage_id
+                    ]
+                ), gnode
+            ])
+        }
+    } else {
+        assert(gscope != none)
+        var all_nonoverridden_names = {}
+        for alt_func_name in gscope.name_to_stmt_map {
+            var gnode = gscope.name_to_stmt_map[
+                alt_func_name
+            ]
+            if typename(gnode) == "list" or
+                    gnode.kind != ast.N_STMT_FUNC or
+                    gnode.is_override {
+                continue
+            }
+            all_nonoverridden_names.add(gnode.label)
+        }
+        for alt_func_name in gscope.name_to_stmt_map {
+            if not alt_func_name.starts(
+                    func_name + "_") {
+                continue
+            }
+            var gnode = gscope.name_to_stmt_map[
+                alt_func_name]
+            if typename(gnode) == "list" or
+                    gnode.kind != ast.N_STMT_FUNC {
+                continue
+            }
+            if not gnode.is_override {
+                continue
+            }
+            var overridden_name = none
+            for name in all_nonoverridden_names {
+                if alt_func_name.starts(name + "_") and
+                        (overridden_name == none or
+                        overridden_name.len < name.len) {
+                    overridden_name = name
+                }
+            }
+            if overridden_name != func_name {
+                continue
+            }
+            result.add([
+                new st_ref.StorageRef(
+                    st_ref.ST_GLOBAL,
+                    gnode.symbol_info.storage_id
+                ), gnode
+            ])
+        }
+    }
+    return result
+}
+
 type CalledFuncTypesResult {
     var called_func_is_attr = no
 
@@ -266,15 +432,18 @@ func get_called_or_assigned_func_types(
     }
 
     var is_external = no
+    var called_node_name = none
     var called_node_ref = none
     if called_node.kind == ast.N_EXPR_IDREF {
         called_node_ref = called_node.ref
+        called_node_name = called_node.label
     } else {
         assert(called_node.kind == ast.N_EXPR_BINOP and
                called_node.optoken.str == "." and
                called_node.subexprs.len == 2 and
                called_node.subexprs[2].kind == ast.N_EXPR_IDREF)
         called_node_ref = called_node.subexprs[2].ref
+        called_node_name = called_node.subexprs[2].label
     }
     if called_node_ref != none and
             called_node_ref.kind == st_ref.ST_MCREF {
@@ -312,6 +481,11 @@ func get_called_or_assigned_func_types(
         if is_external and
                 not verify_external_func_args {
             var result = new CalledFuncTypesResult()
+            result.func_var_name =
+                builtin_syms.get_item_name_by_storage_ref(
+                    project_file.project, called_node.ref
+                )
+            assert(result.func_var_name != none)
             result.is_external = yes
             if called_node.kind == ast.N_EXPR_IDREF {
                 result.func_ref = called_node.ref.copy()
@@ -367,6 +541,11 @@ func get_called_or_assigned_func_types(
             ) later:
 
         await m64_type_ref
+        if m64_type_ref != none and
+                func_typeinfo.user_type_ref == none {
+            func_typeinfo.user_type_ref =
+                m64_type_ref.copy()
+        }
     }
     recompute_user_type()
     later:
@@ -429,6 +608,10 @@ func get_called_or_assigned_func_types(
 
     var func_var_typeref = func_typeinfo.func_typeexpr
     var func_var_typeinfo = func_typeinfo
+    var func_st_ref = func_var_typeinfo.user_type_ref
+    if func_st_ref == none and func_var_typeref != none {
+        func_st_ref = func_var_typeref.func_storage_ref
+    }
     var arg_var_types = []
     var arg_var_type_exprs = []
 
@@ -831,7 +1014,17 @@ func get_called_or_assigned_func_types(
         if allow_matching_func_override {
             # FIXME: implement this
             print("FIXME: CHECK FOR OVERRIDE FOR: " +
-                called_node.as_str())
+                [called_node, func_st_ref,
+                func_var_typeinfo.user_type_ref].as_str())
+            var override_info_list =
+                find_func_overrides_by_st_ref(
+                    func_var_typeinfo.user_type_ref,
+                    project_file.project,
+                    msgs=msgs,
+                    is_moose64=is_moose64
+                )
+            print("FIXME: GOT LIST: " +
+                override_info_list.as_str())
         }
 
         # If we didn't find an override, error:

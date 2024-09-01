@@ -205,10 +205,8 @@ func ref_to_symbol_info(
         if project == none {
             return none
         }
-        var gscope = project.
-            storage_id_to_global_scope_map[
-            storage_ref.id[1]]
-        var entry = gscope.storage_id_to_entry[storage_ref.id[1]]
+        var entry = st_scope.global_id_to_item(
+            project, storage_ref.id[1])
         assert(typename(entry) != "list")
         assert({ast.N_STMT_STRUCT, ast.N_STMT_TYPE,
             ast.N_STMT_ENUM}.has(entry.kind))

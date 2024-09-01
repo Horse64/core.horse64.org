@@ -32,6 +32,8 @@ import compiler.project as project
 
 extend type project.Project {
     var _last_id_used_by_m64_c_importer = none
+
+    var storage_id_to_csymbol_map = {->}
 }
 
 type CImportInfo {
