@@ -802,11 +802,17 @@ func resolve_st_ref_to_type_ref_and_expr(
         if result.func_was_overridden {
             # If confirmed an actual override, rewrite call:
             if node.kind == ast.N_EXPR_IDREF {
-                node.label =
-                    result.func_var_name
+                if node.label ==
+                        result.func_var_preoverridden_name {
+                    node.label =
+                        result.func_var_name
+                }
             } else {
                 assert(node.subexprs[2].kind == ast.N_EXPR_IDREF)
-                node.subexprs[2].label = result.func_var_name
+                if node.subexprs[2].label ==
+                        result.func_var_preoverridden_name {
+                    node.subexprs[2].label = result.func_var_name
+                }
             }
         }
     }

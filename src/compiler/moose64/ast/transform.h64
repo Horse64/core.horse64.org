@@ -125,10 +125,16 @@ func transform_defer(
         }
         if result.func_was_overridden {
             if cnode.kind == ast.N_EXPR_IDREF {
-                cnode.label = result.func_var_name
+                if cnode.label ==
+                        result.func_var_preoverridden_name {
+                    cnode.label = result.func_var_name
+                }
             } else {
                 assert(cnode.subexprs[2].kind == ast.N_EXPR_IDREF)
-                cnode.subexprs[2].label = result.func_var_name
+                if cnode.subexprs[2].label ==
+                        result.func_var_preoverridden_name {
+                    cnode.subexprs[2].label = result.func_var_name
+                }
             }
         }
 

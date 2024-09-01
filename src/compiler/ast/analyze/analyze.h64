@@ -366,6 +366,7 @@ type CalledFuncTypesResult {
     var func_var_type_expr
     var func_var_typeinfo
     var func_var_name
+    var func_var_preoverridden_name
     var func_was_overridden = no
     var func_ref
     var is_external = no
@@ -381,6 +382,8 @@ func CalledFuncTypesResult.as_str {
         "func_var_type_expr"-> self.func_var_type_expr,
         "func_var_typeinfo"-> self.func_var_typeinfo,
         "func_var_name"-> self.func_var_name,
+        "func_var_preoverridden_name"->
+            self.func_var_preoverridden_name,
         "func_was_overridden" -> self.func_was_overridden,
         "func_ref"-> self.func_ref,
         "is_external"-> self.is_external,
@@ -1090,6 +1093,8 @@ func get_called_or_assigned_func_types(
         }
         if inner_result != none {
             signature_mismatch = no
+            inner_result.func_var_preoverridden_name =
+                called_node_name
             inner_result.func_was_overridden = yes
             override_success_result = inner_result
             return yes
