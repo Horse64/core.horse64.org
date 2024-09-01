@@ -70,18 +70,12 @@ func check_if_allowed_implicit_cast_from_to(
     var right_hand_source_typeinfo = from_typeinfo
     var left_hand_target_typeinfo = to_typeinfo
 
-    var refs_left = 0
-    var refs_right = 0
-    for mod in left_hand_target_typeinfo.modifiers {
-        if {"ref", "c_array", "array"}.has(mod.name) {
-            refs_left += 1
-        }
-    }
-    for mod in right_hand_source_typeinfo.modifiers {
-        if {"ref", "c_array", "array"}.has(mod.name) {
-            refs_right += 1
-        }
-    }
+    var refs_left = left_hand_target_typeinfo.ref_count(
+        include_c_arrays=yes, include_arrays=yes
+    )
+    var refs_right = right_hand_source_typeinfo.ref_count(
+        include_c_arrays=yes, include_arrays=yes
+    )
     var target_is_any = (
         left_hand_target_typeinfo.kind == typeinfo.TI_C_TYPE and
         left_hand_target_typeinfo.orig_type_name == "any"
@@ -185,18 +179,12 @@ func get_math_binop_autocast(
 
     # Below is the section for ref types:
 
-    var refs_left = 0
-    var refs_right = 0
-    for mod in left_hand_typeinfo.modifiers {
-        if {"ref", "c_array"}.has(mod.name) {
-            refs_left += 1
-        }
-    }
-    for mod in right_hand_typeinfo.modifiers {
-        if {"ref", "c_array"}.has(mod.name) {
-            refs_right += 1
-        }
-    }
+    var refs_left = left_hand_typeinfo.ref_count(
+        include_c_arrays=yes, include_arrays=no
+    )
+    var refs_right = right_hand_typeinfo.ref_count(
+        include_c_arrays=yes, include_arrays=no
+    )
     if refs_left > 0 and refs_right == 0 and
             right_hand_typeinfo.kind == typeinfo.TI_C_TYPE and
             get_num_filtered_mods(right_hand_typeinfo).len == 0 {

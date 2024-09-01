@@ -410,6 +410,7 @@ func create_typeref_from_func_node(
         if import_typepath.len > 0 {
             self_type_expr.type_path = import_typepath.copy()
         }
+        self_type_expr.modifiers.add(new TypeRefMod("ref"))
         if node.extended_final_is_readonly() {
             self_type_expr.modifiers.add(new TypeRefMod("readonly"))
         }
@@ -556,6 +557,17 @@ func TypeRefExpr.is_array {
     var t = typeinfo.TypeInfo(typeinfo.TI_USERTYPE)
     t.modifiers = self.modifiers.copy()
     return t.is_array()
+}
+
+func TypeRefExpr.ref_count(
+        include_c_arrays=yes,
+        include_arrays=no) {
+    var t = typeinfo.TypeInfo(typeinfo.TI_USERTYPE)
+    t.modifiers = self.modifiers.copy()
+    return t.ref_count(
+        include_c_arrays=include_c_arrays,
+        include_arrays=include_arrays,
+    )
 }
 
 func get_known_c_type_size(c_type) {

@@ -438,6 +438,7 @@ func get_called_or_assigned_func_types(
         if func_typeinfo.func_typeexpr.is_func_attr (-1) else (0) +
         if func_typeinfo.func_typeexpr.is_failable (-1) else (0)
     assert(expected_args >= 0)
+    var called_args_exprs = call_args_expr.subexprs.copy()
     var called_args = call_args_expr.subexprs.len
 
     var is_self_call =
@@ -446,51 +447,48 @@ func get_called_or_assigned_func_types(
             called_node_ref=called_node_ref,
             is_moose64=is_moose64
         )
-    if self_value_ref == none and no {
-        is_self_call = no
-    }
     var effective_called_args =
         called_args + if is_self_call (1) else (0)
     var last_param_m64_type = none
     func determine_last_param_type_if_needed {
-        if call_args_expr.subexprs.len <= 0 {
+        if called_args_exprs.len <= 0 {
             return later
         }
         # If last parameter is a C item, don't try to determine
         # type (since it's not a failable anyway, and we allow
         # for the signature for C externals to be unknown):
-        if call_args_expr.subexprs[
-                    call_args_expr.subexprs.len
+        if called_args_exprs[
+                    called_args_exprs.len
                 ].kind == ast.N_EXPR_IDREF and
-                call_args_expr.subexprs[
-                    call_args_expr.subexprs.len
+                called_args_exprs[
+                    called_args_exprs.len
                 ].ref != none and
-                call_args_expr.subexprs[
-                    call_args_expr.subexprs.len
+                called_args_exprs[
+                    called_args_exprs.len
                 ].ref.kind == st_ref.ST_MCREF {
             return later
-        } elseif call_args_expr.subexprs[
-                    call_args_expr.subexprs.len
+        } elseif called_args_exprs[
+                    called_args_exprs.len
                 ].kind == ast.N_EXPR_BINOP and
-                call_args_expr.subexprs[
-                    call_args_expr.subexprs.len
+                called_args_exprs[
+                    called_args_exprs.len
                 ].optoken.str == "." and
-                call_args_expr.subexprs[
-                    call_args_expr.subexprs.len
+                called_args_exprs[
+                    called_args_exprs.len
                 ].subexprs[2].kind == ast.N_EXPR_IDREF and
-                call_args_expr.subexprs[
-                    call_args_expr.subexprs.len
+                called_args_exprs[
+                    called_args_exprs.len
                 ].subexprs[2].ref != none and
-                call_args_expr.subexprs[
-                    call_args_expr.subexprs.len
+                called_args_exprs[
+                    called_args_exprs.len
                 ].subexprs[2].ref.kind == st_ref.ST_MCREF {
             return later
         }
         # Determine the parameter type:
         last_param_m64_type =
             m64_ast_analyze.get_c_or_m64_type_of_node(
-                project_file, call_args_expr.subexprs[
-                    call_args_expr.subexprs.len
+                project_file, called_args_exprs[
+                    called_args_exprs.len
                 ], called_node_parents + [call_args_expr],
                 store_self_value_ref_for_funcs=no,
                 msgs=msgs, debug=no
@@ -513,8 +511,8 @@ func get_called_or_assigned_func_types(
                 "error: Internal error, failed to determine "
                 "type of this node: "
                 "arg_expr=" +
-                call_args_expr.subexprs[
-                    call_args_expr.subexprs.len
+                called_args_exprs[
+                    called_args_exprs.len
                 ].as_str() + " (got msgs=" + msgs.as_str() + ")")
             throw new RuntimeError(
                 "Internal error: Failed to determine "
@@ -555,6 +553,7 @@ func get_called_or_assigned_func_types(
         expected_actual_arg_typeexprs =
             expected_actual_arg_typeexprs.sub(2)
     }
+    var is_called_with_adhoc_self = no
     var expected_with_self_str =
         if expected_self_call ("with self ref")
         else ("without self ref")
@@ -571,6 +570,73 @@ func get_called_or_assigned_func_types(
     } elseif called_node.kind == ast.N_EXPR_IDREF {
         called_name = "'" + called_node.label + "'"
     }
+
+    func determine_adhoc_self_call {
+        var could_be_adhoc_self_call = no
+        if expected_self_call and not is_self_call and
+                called_args >= expected_args + 1 and
+                called_args_exprs.len > 0 {
+            could_be_adhoc_self_call = yes
+        }
+        if not could_be_adhoc_self_call {
+            return later
+        }
+
+        var potential_self_ref = none
+        var arg_type =
+            m64_ast_analyze.get_c_or_m64_type_of_node(
+                project_file, called_args_exprs[
+                    1
+                ], called_node_parents + [call_args_expr],
+                store_self_value_ref_for_funcs=no,
+                msgs=msgs, debug=no
+            ) later:
+
+        await arg_type
+        if arg_type == none {
+            return later
+        }
+        if arg_type.ref_count(
+                include_c_arrays=no, include_arrays=no
+                ) != 1 or
+                arg_type.kind != typeinfo.TI_USERTYPE or
+                arg_type.user_type_ref == none {
+            return later
+        }
+        potential_self_ref = arg_type.user_type_ref
+
+        assert(func_typeinfo.func_typeexpr.
+                arg_typeref_exprs.len >= 1)
+        assert(func_typeinfo.func_typeexpr.
+                arg_typeref_exprs[1].ref_count(
+                include_c_arrays=no, include_arrays=no
+            ) == 1)
+        assert(func_typeinfo.func_typeexpr.
+                arg_typeref_exprs[1].is_user_type() and
+            func_typeinfo.func_typeexpr.
+                arg_typeref_exprs[1].storage_ref != none)
+
+        if potential_self_ref.alike(
+                func_typeinfo.func_typeexpr.
+                arg_typeref_exprs[1].storage_ref
+                ) {
+            is_called_with_adhoc_self = yes
+
+            assert(self_value_ref == none)
+            sself_value_ref = potential_self_ref.copy()
+            assert(self_type_typeinfo == none)
+            self_type_typeinfo = arg_type
+            assert(self_type_expr == none)
+            self_type_expr = called_args_exprs[1]
+
+            called_with_self_str = "with self ref"
+            is_self_call = yes
+            called_args_exprs = called_args_exprs.sub(2)
+            called_args -= 1
+        }
+    }
+    determine_adhoc_self_call()
+    later:
 
     # If any mismatched argument is found, this will be
     # set to [idx, signature_typeinfo, actual_arg_typeinfo]:
@@ -593,8 +659,8 @@ func get_called_or_assigned_func_types(
 
         var indexes = []
         var i = 1
-        while i <= call_args_expr.subexprs.len {
-            if i == call_args_expr.subexprs.len and
+        while i <= called_args_exprs.len {
+            if i == called_args_exprs.len and
                     is_failable_call {
                 i += 1
                 continue
@@ -607,7 +673,7 @@ func get_called_or_assigned_func_types(
                 # Determine the argument type:
                 var arg_type =
                     m64_ast_analyze.get_c_or_m64_type_of_node(
-                        project_file, call_args_expr.subexprs[
+                        project_file, called_args_exprs[
                             arg_idx
                         ], called_node_parents + [call_args_expr],
                         store_self_value_ref_for_funcs=no,
@@ -629,9 +695,9 @@ func get_called_or_assigned_func_types(
                             else ("moosec") + ": "
                         "error: Internal error, "
                         "failed to determine type of this node: "
-                        "call_args_exprs.subexprs[" +
+                        "called_args_exprs[" +
                             arg_idx.as_str() + "]=" +
-                        call_args_expr.subexprs[
+                        called_args_exprs[
                             arg_idx
                         ].as_str() +
                         " (got msgs=" + msgs.as_str() + ")")
@@ -652,7 +718,7 @@ func get_called_or_assigned_func_types(
 
             var next_idx = index_queue.pop_at(1)
             assert(next_idx >= 1 and
-                next_idx <= call_args_expr.subexprs.len)
+                next_idx <= called_args_exprs.len)
             var result = obtain_arg(next_idx) later:
 
             await result
@@ -665,7 +731,7 @@ func get_called_or_assigned_func_types(
 
             next_idx = index_queue.pop_at(1)
             assert(next_idx >= 1 and
-                next_idx <= call_args_expr.subexprs.len)
+                next_idx <= called_args_exprs.len)
             result = obtain_arg(next_idx) later repeat
         }
         var result = create_arg_list()
@@ -899,7 +965,7 @@ func get_called_or_assigned_func_types(
             }
             called_node.damaged = yes
             if debug and signature_arg_mismatch_info != none and
-                    is_moose64 and call_args_expr.subexprs.len > 0 {
+                    is_moose64 and called_args_exprs.len > 0 {
                 print(dbg_prefix +
                     " get_called_or_assigned_func_types(): "
                     "Re-tracing first mismatching type "
@@ -907,7 +973,7 @@ func get_called_or_assigned_func_types(
                 var arg_type =
                     m64_ast_analyze.get_c_or_m64_type_of_node(
                         project_file,
-                        call_args_expr.subexprs[
+                        called_args_exprs[
                             signature_arg_mismatch_info[1]
                         ],
                         called_node_parents + [call_args_expr],

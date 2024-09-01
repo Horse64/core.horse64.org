@@ -130,6 +130,20 @@ func TypeInfo.is_array {
     return no
 }
 
+func TypeInfo.ref_count(include_c_arrays=yes, include_arrays=no) {
+    var count = 0
+    for mod in self.modifiers {
+        if mod.name == "ref" {
+            count += 1
+        } elseif include_c_arrays and mod.name == "c_array" {
+            count += 1
+        } elseif include_arrays and mod.name == "array" {
+            count += 1
+        }
+    }
+    return count
+}
+
 func get_known_type_size(tinfo) {
     var is_array = tinfo.is_array()
     var mods_without_refs_and_junk = []
