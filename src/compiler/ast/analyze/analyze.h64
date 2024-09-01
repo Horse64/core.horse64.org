@@ -254,9 +254,7 @@ func find_func_overrides_by_st_ref(
             "by storage reference doesn't seem to be "
             "a function.")
     }
-    print("FIXME: LISTING OVERRIDES FOR " + [
-        gnode, is_func_attr
-    ].as_str())
+
     var result = []
     if is_func_attr {
         assert(anscope != none)
@@ -303,6 +301,7 @@ func find_func_overrides_by_st_ref(
                 continue
             }
             result.add([
+                sym.typeref_expr.copy(),
                 new st_ref.StorageRef(
                     st_ref.ST_GLOBALATTR, [
                         anscope.storage_id, sym.storage_id
@@ -350,6 +349,7 @@ func find_func_overrides_by_st_ref(
                 continue
             }
             result.add([
+                gnode.symbol_info.typeref_expr.copy(),
                 new st_ref.StorageRef(
                     st_ref.ST_GLOBAL,
                     gnode.symbol_info.storage_id
@@ -373,6 +373,7 @@ type CalledFuncTypesResult {
     var arg_var_typeinfos = []
     var self_var_type_expr = no
     var self_var_typeinfo = no
+    var have_args_mismatch = no
 }
 
 func CalledFuncTypesResult.as_str {
@@ -387,6 +388,7 @@ func CalledFuncTypesResult.as_str {
         "arg_var_typeinfos"-> self.arg_var_typeinfos,
         "self_var_type_expr"-> self.self_var_type_expr,
         "self_var_typeinfo"-> self.self_var_typeinfo,
+        "have_args_mismatch"-> self.have_args_mismatch,
     }
     return "CalledFuncTypesResult" + map.as_str()
 }
@@ -397,6 +399,9 @@ func get_called_or_assigned_func_types(
         allow_noncall_ref=no,
         ignore_arg_mismatch=no,
         verify_external_func_args=no,  # FIXME: Enable once supported!
+        _internal_override_called_func_name=none,
+        _internal_override_called_func_st_ref=none,
+        _internal_override_called_func_typerefexpr=none,
         msgs=none, is_moose64=no, debug=no
         ) {
     var dbg_prefix = if is_moose64 ("moosec: debug:")
@@ -445,6 +450,12 @@ func get_called_or_assigned_func_types(
         called_node_ref = called_node.subexprs[2].ref
         called_node_name = called_node.subexprs[2].label
     }
+    if _internal_override_called_func_name != none {
+        called_node_name = _internal_override_called_func_name
+    }
+    if _internal_override_called_func_st_ref != none {
+        called_node_ref = _internal_override_called_func_st_ref
+    }
     if called_node_ref != none and
             called_node_ref.kind == st_ref.ST_MCREF {
         is_external = yes
@@ -458,12 +469,43 @@ func get_called_or_assigned_func_types(
             # C header parsing works, but for now, it isn't.
             return later
         }
+        if _internal_override_called_func_typerefexpr != none {
+            # This is used if we're meant to check out a func
+            # override. Retain the self value ref in this case:
+            var unaltered_typeinfo =
+                m64_ast_analyze.get_c_or_m64_type_of_node(
+                    project_file, called_node, called_node_parents,
+                    store_self_value_ref_for_funcs=yes,
+                    msgs=msgs, debug=debug
+                ) later:  # (What we originally would have called.)
+
+            await unaltered_typeinfo
+            func_typeinfo = m64_ast_analyze.
+                get_c_or_m64_type_of_typeref(
+                    project_file,
+                    _internal_override_called_func_typerefexpr,
+                    store_self_value_ref_for_funcs=no,
+                    msgs=msgs
+                ) later:  # (The override.)
+
+            await func_typeinfo
+            if unaltered_typeinfo == none or
+                    func_typeinfo == none {
+                func_typeinfo = none
+                return later
+            }
+            if unaltered_typeinfo.func_self_ref != none {
+                func_typeinfo.func_self_ref =
+                    unaltered_typeinfo.func_self_ref.copy()
+            }
+            return later
+        }
         func_typeinfo =
             m64_ast_analyze.get_c_or_m64_type_of_node(
                 project_file, called_node, called_node_parents,
                 store_self_value_ref_for_funcs=yes,
                 msgs=msgs, debug=debug
-            ) later:
+            ) later:  # Get type info from our call node.
 
         await func_typeinfo
         return later
@@ -1009,25 +1051,101 @@ func get_called_or_assigned_func_types(
         return later none
     }
 
-    if signature_mismatch {
-        # Try to find override...
-        if allow_matching_func_override {
-            # FIXME: implement this
-            print("FIXME: CHECK FOR OVERRIDE FOR: " +
-                [called_node, func_st_ref,
-                func_var_typeinfo.user_type_ref].as_str())
-            var override_info_list =
-                find_func_overrides_by_st_ref(
-                    func_var_typeinfo.user_type_ref,
-                    project_file.project,
-                    msgs=msgs,
-                    is_moose64=is_moose64
-                )
-            print("FIXME: GOT LIST: " +
-                override_info_list.as_str())
+    var override_success_result = none
+    func try_finding_override(entry) {
+        var typeref_expr = entry[1]
+        var storage_ref = entry[2]
+        var name = entry[3].label
+        if debug {
+            print(dbg_prefix +
+                " get_called_or_assigned_func_types(): "
+                "Will now test entry=" + entry.as_str() + " "
+                "as an override...")
+        }
+        var inner_result = get_called_or_assigned_func_types(
+            project_file, called_node, called_node_parents,
+            allow_matching_func_override=no,
+            allow_noncall_ref=no,
+            ignore_arg_mismatch=yes,
+            verify_external_func_args=
+                verify_external_func_args,
+            _internal_override_called_func_name=name,
+            _internal_override_called_func_st_ref=storage_ref,
+            _internal_override_called_func_typerefexpr=
+                typeref_expr,
+            msgs=msgs, is_moose64=is_moose64, debug=debug
+        ) later:
+
+        await inner_result
+        if inner_result.have_args_mismatch {
+            inner_result = none
+        }
+        if debug {
+            print(dbg_prefix +
+                " get_called_or_assigned_func_types(): "
+                "Override test returned result=" +
+                inner_result.as_str() + " (" +
+                "success: " +
+                (inner_result != none).as_str() + ")")
+        }
+        if inner_result != none {
+            signature_mismatch = no
+            inner_result.func_was_overridden = yes
+            override_success_result = inner_result
+            return yes
+        }
+        return no
+    }
+    func try_finding_override_if_needed {
+        if not signature_mismatch or
+                not allow_matching_func_override {
+            return later
+        }
+        if debug {
+            print(dbg_prefix +
+                " get_called_or_assigned_func_types(): "
+                "The signature doesn't match and overrides are "
+                "allowed. Let's go looking for one...")
         }
 
-        # If we didn't find an override, error:
+        var override_info_list =
+        find_func_overrides_by_st_ref(
+            func_var_typeinfo.user_type_ref,
+            project_file.project,
+            msgs=msgs,
+            is_moose64=is_moose64
+        )
+        if override_info_list.len == 0 {
+            return
+        }
+        var entry = override_info_list.pop()
+        var result = try_finding_override(entry)
+        later:
+
+        await result
+        if result {
+            return
+        }
+        if override_info_list.len == 0 {
+            return
+        }
+        entry = override_info_list.pop()
+        result = try_finding_override(entry)
+        later repeat
+    }
+    try_finding_override_if_needed()
+    later:
+
+    # If we have an override result, return that instead:
+    if override_success_result != none {
+        return override_success_result
+    }
+
+    # Otherwise, return error if needed:
+    var have_args_mismatch = no
+    if signature_mismatch {
+        have_args_mismatch = yes
+
         if not ignore_arg_mismatch {
             if msgs == none {
                 print(if is_moose64 ("hoosec")
@@ -1242,6 +1360,7 @@ func get_called_or_assigned_func_types(
     result.arg_var_typeinfos = arg_var_types
     result.self_var_type_expr = self_type_expr
     result.self_var_typeinfo = self_type_typeinfo
+    result.have_args_mismatch = have_args_mismatch
     return result
 }
 

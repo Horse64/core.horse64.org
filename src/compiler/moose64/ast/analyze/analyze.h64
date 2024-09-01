@@ -407,9 +407,26 @@ func _get_c_or_m64_type_of_node_do(
         }
         return later result
     } elseif node.kind == ast.N_EXPR_LIT and
+            typename(node.value) == "bool" {
+        var result = typeinfo.
+            create_from_simple_m64_type("bool")
+        return result
+    } elseif node.kind == ast.N_EXPR_LIT and
+            typename(node.value) == "str" and
+            not node.is_big_num {
+        var result = typeinfo.
+            create_from_simple_m64_type("byte")
+        result.modifiers.add(new ast_typeref.TypeRefMod(
+            "readonly"
+        ))
+        result.modifiers.add(new ast_typeref.TypeRefMod(
+            "c_array"
+        ))
+        return result
+    } elseif node.kind == ast.N_EXPR_LIT and
             (typename(node.value) == "num" or
              (typename(node.value) == "str" and
-              node.is_big_nuM)) {
+              node.is_big_num)) {
         var num_as_str = node.value.as_str()
         if num_as_str.find(".") == none {
             if bignum.compare_nums(
