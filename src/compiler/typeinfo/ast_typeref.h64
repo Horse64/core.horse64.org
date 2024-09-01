@@ -700,7 +700,7 @@ func TypeRefExpr.as_str {
 func resolve_st_ref_to_type_ref_and_expr(
         project_file, value_ref,
         node=none, node_parents=none,
-        allow_func_override_for_args_node=none,
+        apply_func_override_for_args_node=none,
         ignore_if_ref_none=no,
         msgs=none, is_moose64=no,
         debug=no,
@@ -712,16 +712,16 @@ func resolve_st_ref_to_type_ref_and_expr(
         print(dbg_header +
             "resolve_st_ref_to_type_ref_and_expr() "
             "called on: node=" + node.as_str() + " "
-            "allow_func_override_for_args_node=" +
-                allow_func_override_for_args_node.as_str() + " "
+            "apply_func_override_for_args_node=" +
+                apply_func_override_for_args_node.as_str() + " "
             "value_ref=" + value_ref.as_str() + " "
             "node_parents.len=" + if node_parents != none
                 (node_parents.len.as_str())
                 else ("<parents unset>") + " "
             "is_moose64=" + is_moose64.as_str())
     }
-    if allow_func_override_for_args_node != none and
-            (allow_func_override_for_args_node.kind !=
+    if apply_func_override_for_args_node != none and
+            (apply_func_override_for_args_node.kind !=
                 ast.N_EXPR_CALLARGS or
              node == none or
              node_parents == none or node_parents.len == 0 or
@@ -730,10 +730,10 @@ func resolve_st_ref_to_type_ref_and_expr(
              node_parents[node_parents.len].optoken.str != "(" or
              node_parents[node_parents.len].subexprs[1] != node or
              node_parents[node_parents.len].subexprs[2] !=
-                allow_func_override_for_args_node) {
+                apply_func_override_for_args_node) {
         throw new RuntimeError(
             "Internal error: "
-            "Invalid allow_func_override_for_args_node "
+            "Invalid apply_func_override_for_args_node "
             "parameter not matching node_parents chain, or "
             "node is unset. One of those three parameters "
             "is bugged. Please report this error to the "
@@ -742,7 +742,7 @@ func resolve_st_ref_to_type_ref_and_expr(
 
     var override_resolution_result = none
     func try_resolve_override_if_needed {
-        if allow_func_override_for_args_node == none {
+        if apply_func_override_for_args_node == none {
             return later none
         }
         # In this case, delegate to get_called_or_assigned_func_types()
@@ -751,7 +751,13 @@ func resolve_st_ref_to_type_ref_and_expr(
             get_called_or_assigned_func_types(
                 project_file, node,
                 node_parents,
-                allow_matching_func_override=yes,
+                allow_matching_func_override=(
+                    node.kind ==
+                        ast.N_EXPR_IDREF or
+                    (node.kind == ast.N_EXPR_BINOP and
+                    node.optoken.str == "." and
+                    node.subexprs[2].kind == ast.N_EXPR_IDREF)
+                ),
                 msgs=msgs,
                 is_moose64=is_moose64,
                 debug=debug,
@@ -793,6 +799,16 @@ func resolve_st_ref_to_type_ref_and_expr(
         var result_type_expr = result.func_var_type_expr
         override_resolution_result =
             [result_ref, result_type_expr]
+        if result.func_was_overridden {
+            # If confirmed an actual override, rewrite call:
+            if node.kind == ast.N_EXPR_IDREF {
+                node.label =
+                    result.func_var_name
+            } else {
+                assert(node.subexprs[2].kind == ast.N_EXPR_IDREF)
+                node.subexprs[2].label = result.func_var_name
+            }
+        }
     }
     try_resolve_override_if_needed() later:
 

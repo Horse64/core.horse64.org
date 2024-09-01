@@ -764,11 +764,12 @@ func transform_func_overrides_and_check_func_arg_sig_match(
                     "resolve_func_type_expr_if_needed(): "
                     "Resolving to func expr...")
             }
+            # XXX: This call here does the actual override:
             var func_type_expr_result = ast_typeref.
                 resolve_st_ref_to_type_ref_and_expr(
                     project_file, called_ref, node=called_node,
                     node_parents=called_node_parents,
-                    allow_func_override_for_args_node=
+                    apply_func_override_for_args_node=
                         called_args_node,
                     msgs=msgs,
                     is_moose64=is_moose64,
@@ -790,6 +791,16 @@ func transform_func_overrides_and_check_func_arg_sig_match(
                     func_type_expr_result.as_str())
             }
             func_type_expr = func_type_expr_result[2]
+            if func_type_expr_result[1] != none {
+                # Since this may have been an override,
+                # the label may have been changed:
+                if node.subexprs[1].kind == ast.N_EXPR_IDREF {
+                    called_lbl_name = node.subexprs[1].label
+                } else {
+                    called_lbl_name = node.subexprs[1].
+                        subexprs[2].label
+                }
+            }
         }
         resolve_func_type_expr_if_needed()
         later:

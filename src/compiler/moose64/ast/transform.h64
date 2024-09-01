@@ -85,7 +85,7 @@ func transform_defer(
     func do_transform_defer(node, parents) {
         var parent = if parents.len > 0
             (parents[parents.len]) else (none)
-        if node.kind != ast.N_STMT_DEFER {
+        if node.kind != ast.N_STMT_DEFER or node.damaged {
             return later node
         }
 
@@ -103,19 +103,34 @@ func transform_defer(
                 "obtain parent block of node. Please report "
                 "this error to the compiler makers.")
         }
+        var cnode = node.subexprs[1].subexprs[1]
         var result = ast_analyze.get_called_or_assigned_func_types(
             project_file, node.subexprs[1].subexprs[1],
             parents + [node, node.subexprs[1]],
+            allow_matching_func_override=(
+                cnode.kind ==
+                    ast.N_EXPR_IDREF or
+                (cnode.kind == ast.N_EXPR_BINOP and
+                cnode.optoken.str == "." and
+                cnode.subexprs[2].kind == ast.N_EXPR_IDREF)
+            ),
+            ignore_arg_mismatch=no,
             msgs=msgs, is_moose64=is_moose64,
             debug=no
         ) later:
 
         await result
-        if result == none {
+        if result == none or node.damaged {
             return later node
         }
-        # XXX / FIXME debug this
-        #print("CALLED FUNC TYPES result=" + result.as_str())
+        if result.func_was_overridden {
+            if cnode.kind == ast.N_EXPR_IDREF {
+                cnode.label = result.func_var_name
+            } else {
+                assert(cnode.subexprs[2].kind == ast.N_EXPR_IDREF)
+                cnode.subexprs[2].label = result.func_var_name
+            }
+        }
 
         var func_var_typeref = result.func_var_type_expr
         var self_typeref_expr = result.self_var_type_expr

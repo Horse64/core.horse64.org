@@ -828,7 +828,11 @@ func get_called_or_assigned_func_types(
 
     if signature_mismatch {
         # Try to find override...
-        # FIXME: implement this
+        if allow_matching_func_override {
+            # FIXME: implement this
+            print("FIXME: CHECK FOR OVERRIDE FOR: " +
+                called_node.as_str())
+        }
 
         # If we didn't find an override, error:
         if not ignore_arg_mismatch {
