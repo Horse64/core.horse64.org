@@ -43,7 +43,22 @@ type CExportResult {
     var build_c_source_uris = []
 }
 
-func node_list_to_c_strings(project_file, node_list,
+func get_global_symbol_c_name(project_file, global_name) {
+    var pkg_name = "unknown_moose64_package"
+    var mod_name = "unknown_moose64_module"
+    if project_file.modinfo != none {
+        if project_file.modinfo.module_name != none {
+            mod_name = project_file.modinfo.module_name
+        }
+        if project_file.modinfo.package_name != none {
+            pkg_name = project_file.modinfo.package_name
+        }
+    }
+    return "m64__" + pkg_name.replace(".", "_") + "__" +
+        mod_name.replace(".", "__") + "__" + global_name
+}
+
+func node_list_to_c_strings(project_file, node_list, parents,
         msgs=none, build_options=none) {
     var queue = node_list.copy()
     var result = []
@@ -51,7 +66,8 @@ func node_list_to_c_strings(project_file, node_list,
         return later result
     }
     var node = queue.pop_at(1)
-    var next_result = node_to_c_string(project_file, node,
+    var next_result = node_to_c_string(
+        project_file, node, parents,
         msgs=msgs, build_options=build_options)
         later:
 
@@ -65,12 +81,12 @@ func node_list_to_c_strings(project_file, node_list,
     }
     node = queue.pop_at(1)
     next_result = node_to_c_string(
-        project_file, node,
+        project_file, node, parents,
         msgs=msgs, build_options=build_options)
         later repeat
 }
 
-func node_to_c_string(project_file, node, msgs=none,
+func node_to_c_string(project_file, node, parents, msgs=none,
         build_options=none) {
     if node.kind == ast.N_EXPR_LIT and
             typename(node.value) == "str" and
@@ -82,7 +98,28 @@ func node_to_c_string(project_file, node, msgs=none,
         if node.type_path != none and node.type_path.len > 0 {
             return later ""
         }
-        return "void " + node.label + "() {\n" + "}"
+        var c_return_type = "void"
+        var func_tinfo = get_c_or_m64_type_of_node(
+            project_file, node, parents,
+            store_self_value_ref_for_funcs=no,
+            msgs=msgs
+        ) later:
+
+        await func_tinfo
+        if func_tinfo == none or
+                func_tinfo.kind == typeinfo.TI_FUNCREF or
+                func_tinfo.func_typeexpr == none {
+            throw new RuntimeError("Unexpectedly failed "
+                "to get usable function type info.")
+        }
+        if func_tinfo.func_typeexpr.return_typeref_expr != none {
+            var rexpr = func_tinfo.func_typeexpr.
+                return_typeref_expr
+            c_return_type = rexpr.as_c_code()
+        }
+        var t = c_return_type + " " + get_global_symbol_c_name(
+            project_file, node.label) + "() {\n" + "}"
+        return later t
     }
     return later ""
 }
@@ -92,7 +129,7 @@ func ast_to_c(project_file, msgs=none, build_options=none) {
         climit.max_expression_nesting) * 1.5)
 
     var stmt_strs = node_list_to_c_strings(
-        project_file, project_file.ast.stmts,
+        project_file, project_file.ast.stmts, [],
         msgs=msgs, build_options=build_options)
     later:
 

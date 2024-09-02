@@ -130,6 +130,11 @@ func TypeRefModProp_Range.is_equivalent_prop_to(other_mod) {
     return yes
 }
 
+
+func TypeRefModProp_Range.as_c_code(indent=0) {
+    return self.as_str()
+}
+
 type TypeRefMod {
     var name
     var props = []
@@ -145,6 +150,16 @@ func TypeRefMod.as_str {
         t += prop.as_str()
     }
     return t
+}
+
+func TypeRefMod.as_c_code(indent=0) {
+    if self.name == "readonly" {
+        return "const"
+    }
+    for prop in self.props {
+        t += prop.as_c_code(indent=0)
+    }
+    return self.name
 }
 
 func TypeRefMod.is_equivalent_mod_to(other_mod) {
@@ -234,6 +249,54 @@ func TypeRefFuncExpr.as_code(indent=0) {
     if self.has_init_expr {
         assert(self.subexprs.len == 1)
         t += self.subexprs[1].as_code(indent=(indent + 4))
+    }
+    return t
+}
+
+func TypeRefFuncExpr.as_c_code(indent=0) {
+    if self.damaged {
+        return "(damaged type ref func expr.)"
+    }
+    var prefix_mod_names = {"readonly"}
+    var t = ""
+
+    for mod in self.modifiers {
+        if prefix_mod_names.has(mod.name) {
+            if t != "" {
+                t += " "
+            }
+            t += mod.as_c_code(indent=(indent + 4))
+        }
+    }
+    if self.return_typeref_expr != none {
+        t += self.return_typeref_expr.as_c_code(
+            indent=(indent + 4))
+    }
+    # FIXME: Handle global name adjustment here.
+    t += "(*" + self.name + ")"
+
+    if t != "" {
+        t += " "
+    }
+    t += "("
+    var is_first_param = yes
+    for param_type in self.arg_typeref_exprs {
+        if is_first_param {
+            is_first_param = no
+        } else {
+            t += ", "
+        }
+        t += param_type.as_as_code(indent=(indent + 4))
+    }
+    t += ")"
+    for mod in self.modifiers {
+        if not prefix_mod_names.has(mod.name) {
+            t += " " + mod.as_c_code(indent=(indent = 4))
+        }
+    }
+    if self.has_init_expr {
+        assert(self.subexprs.len == 1)
+        t += self.subexprs[1].as_c_code(indent=(indent + 4))
     }
     return t
 }
@@ -520,6 +583,45 @@ func TypeRefExpr.as_code(indent=0) {
     if self.has_init_expr {
         assert(self.subexprs.len == 1)
         t += self.subexprs[1].as_code(indent=(indent + 4))
+    }
+    return t
+}
+
+func TypeRefExpr.as_c_code(indent=0) {
+    if self.damaged {
+        return "(damaged type ref expr.)"
+    }
+    var prefix_mod_names = {"readonly"}
+    var t = ""
+    for mod in self.modifiers {
+        if prefix_mod_names.has(mod.name) {
+            if t != "" {
+                t += " "
+            }
+            t += mod.as_c_code(indent=indent)
+        }
+    }
+    if t != "" {
+        t += " "
+    }
+    if self.type_path != none and self.type_path.len > 0 {
+        t = self.type_path.join(".") + "." + t
+    }
+    if self.is_user_type() or
+            not _m64_to_c_name_map.has(self.name) {
+        # FIXME: Handle global name adjustment here.
+        t += self.name
+    } else {
+        t += _m64_to_c_name_map[self.name]
+    }
+    for mod in self.modifiers {
+        if not prefix_mod_names.has(mod.name) {
+            t += " " + mod.as_c_code(indent=indent)
+        }
+    }
+    if self.has_init_expr {
+        assert(self.subexprs.len == 1)
+        t += self.subexprs[1].as_c_code(indent=(indent + 4))
     }
     return t
 }
