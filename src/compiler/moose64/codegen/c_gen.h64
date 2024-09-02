@@ -34,6 +34,7 @@ import textfmt from core.horse64.org
 import compiler.ast as ast
 import compiler.compiler_log as clog
 import compiler.limit as climit
+import compiler.moose64.ast.analyze as m64_ast_analyze
 import compiler.msg as msg
 import compiler.project
 
@@ -99,7 +100,7 @@ func node_to_c_string(project_file, node, parents, msgs=none,
             return later ""
         }
         var c_return_type = "void"
-        var func_tinfo = get_c_or_m64_type_of_node(
+        var func_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
             project_file, node, parents,
             store_self_value_ref_for_funcs=no,
             msgs=msgs

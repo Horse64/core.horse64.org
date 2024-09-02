@@ -291,7 +291,7 @@ func TypeRefFuncExpr.as_c_code(indent=0) {
     t += ")"
     for mod in self.modifiers {
         if not prefix_mod_names.has(mod.name) {
-            t += " " + mod.as_c_code(indent=(indent = 4))
+            t += " " + mod.as_c_code(indent=(indent + 4))
         }
     }
     if self.has_init_expr {
