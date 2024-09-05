@@ -131,7 +131,9 @@ func TypeRefModProp_Range.is_equivalent_prop_to(other_mod) {
 }
 
 
-func TypeRefModProp_Range.as_c_code(indent=0) {
+func TypeRefModProp_Range.as_c_code(
+        indent=0, global_name_assign_callback=none,
+        project=none, is_moose64=no) {
     return self.as_str()
 }
 
@@ -152,12 +154,21 @@ func TypeRefMod.as_str {
     return t
 }
 
-func TypeRefMod.as_c_code(indent=0) {
+func TypeRefMod.as_c_code(
+        indent=0, global_name_assign_callback=none,
+        project=none, is_moose64=no
+        ) {
     if self.name == "readonly" {
         return "const"
     }
+    if {"ref", "c_array"}.has(self.name) {
+        return "*"
+    }
     for prop in self.props {
-        t += prop.as_c_code(indent=0)
+        t += prop.as_c_code(indent=0,
+            global_name_assign_callback=
+                global_name_assign_callback,
+            project=project, is_moose64=is_moose64)
     }
     return self.name
 }
@@ -209,7 +220,7 @@ func TypeRefFuncExpr.init {
     self.type_path = none
 }
 
-func TypeRefFuncExpr.as_code(indent=0) {
+func TypeRefFuncExpr.as_str(indent=0) {
     if self.damaged {
         return "(damaged type ref func expr.)"
     }
@@ -234,11 +245,11 @@ func TypeRefFuncExpr.as_code(indent=0) {
         } else {
             t += ", "
         }
-        t += "_<-" + param_type.as_code(indent=indent)
+        t += "_<-" + param_type.as_str()
     }
     t += ")->"
     if self.return_typeref_expr != none {
-        t += self.return_typeref_expr.as_code(indent=indent)
+        t += self.return_typeref_expr.as_str(indent=indent)
     }
     t += ")"
     for mod in self.modifiers {
@@ -248,12 +259,15 @@ func TypeRefFuncExpr.as_code(indent=0) {
     }
     if self.has_init_expr {
         assert(self.subexprs.len == 1)
-        t += self.subexprs[1].as_code(indent=(indent + 4))
+        t += self.subexprs[1].as_str(indent=indent)
     }
     return t
 }
 
-func TypeRefFuncExpr.as_c_code(indent=0) {
+func TypeRefFuncExpr.as_c_code(
+        indent=0, global_name_assign_callback=none,
+        project=none, is_moose64=no
+        ) {
     if self.damaged {
         return "(damaged type ref func expr.)"
     }
@@ -265,15 +279,25 @@ func TypeRefFuncExpr.as_c_code(indent=0) {
             if t != "" {
                 t += " "
             }
-            t += mod.as_c_code(indent=(indent + 4))
+            t += mod.as_c_code(indent=(indent + 4),
+                global_name_assign_callback=
+                    global_name_assign_callback,
+                project=project, is_moose64=is_moose64)
         }
     }
-    if self.return_typeref_expr != none {
+    if self.return_typeref_expr != none and
+            (self.return_typeref_expr.is_user_type() or
+            self.return_typeref_expr.name != "empty") {
         t += self.return_typeref_expr.as_c_code(
-            indent=(indent + 4))
+            indent=(indent + 4),
+            global_name_assign_callback=
+                global_name_assign_callback,
+            project=project, is_moose64=is_moose64)
+    } else {
+        t += "void"
     }
     # FIXME: Handle global name adjustment here.
-    t += "(*" + self.name + ")"
+    t += " (*" + if self.name != none (self.name) else ("") + ")"
 
     if t != "" {
         t += " "
@@ -286,17 +310,19 @@ func TypeRefFuncExpr.as_c_code(indent=0) {
         } else {
             t += ", "
         }
-        t += param_type.as_as_code(indent=(indent + 4))
+        t += param_type.as_c_code(indent=(indent + 4),
+            global_name_assign_callback=
+                global_name_assign_callback,
+            project=project, is_moose64=is_moose64)
     }
     t += ")"
     for mod in self.modifiers {
         if not prefix_mod_names.has(mod.name) {
-            t += " " + mod.as_c_code(indent=(indent + 4))
+            t += " " + mod.as_c_code(indent=(indent + 4),
+                global_name_assign_callback=
+                    global_name_assign_callback,
+                project=project, is_moose64=is_moose64)
         }
-    }
-    if self.has_init_expr {
-        assert(self.subexprs.len == 1)
-        t += self.subexprs[1].as_c_code(indent=(indent + 4))
     }
     return t
 }
@@ -587,7 +613,10 @@ func TypeRefExpr.as_code(indent=0) {
     return t
 }
 
-func TypeRefExpr.as_c_code(indent=0) {
+func TypeRefExpr.as_c_code(
+        indent=0, global_name_assign_callback=none,
+        project=none, is_moose64=no
+        ) {
     if self.damaged {
         return "(damaged type ref expr.)"
     }
@@ -598,7 +627,10 @@ func TypeRefExpr.as_c_code(indent=0) {
             if t != "" {
                 t += " "
             }
-            t += mod.as_c_code(indent=indent)
+            t += mod.as_c_code(indent=indent,
+                global_name_assign_callback=
+                    global_name_assign_callback,
+                project=project, is_moose64=is_moose64)
         }
     }
     if t != "" {
@@ -609,19 +641,41 @@ func TypeRefExpr.as_c_code(indent=0) {
     }
     if self.is_user_type() or
             not _m64_to_c_name_map.has(self.name) {
-        # FIXME: Handle global name adjustment here.
-        t += self.name
+        var sinfo = none
+        if global_name_assign_callback != none and
+                self.storage_ref != none {
+            sinfo = st_ref.ref_to_symbol_info(
+                self.storage_ref,
+                project=project,
+                is_moose64=is_moose64
+            )
+            if sinfo.def_file == none {
+                sinfo = none
+            }
+        }
+        if sinfo != none {
+            t += global_name_assign_callback(sinfo.name,
+                project_file=sinfo.def_file)
+        } else {
+            t += self.name
+        }
     } else {
         t += _m64_to_c_name_map[self.name]
     }
     for mod in self.modifiers {
         if not prefix_mod_names.has(mod.name) {
-            t += " " + mod.as_c_code(indent=indent)
+            t += " " + mod.as_c_code(indent=indent,
+                global_name_assign_callback=
+                    global_name_assign_callback,
+                project=project, is_moose64=is_moose64)
         }
     }
     if self.has_init_expr {
         assert(self.subexprs.len == 1)
-        t += self.subexprs[1].as_c_code(indent=(indent + 4))
+        t += self.subexprs[1].as_c_code(indent=(indent + 4),
+            global_name_assign_callback=
+                global_name_assign_callback,
+            project=project, is_moose64=is_moose64)
     }
     return t
 }

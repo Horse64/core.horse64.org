@@ -45,7 +45,11 @@ type CExportResult {
     var build_c_source_uris = []
 }
 
-func get_global_symbol_c_name(project_file, global_name) {
+func get_global_symbol_c_name(global_name, project_file=none) {
+    if project_file == none {
+        throw new ValueError("The project_file opion must be "
+            "specified.")
+    }
     var pkg_name = "unknown_moose64_package"
     var mod_name = "unknown_moose64_module"
     if project_file.modinfo != none {
@@ -61,7 +65,7 @@ func get_global_symbol_c_name(project_file, global_name) {
 }
 
 func node_list_to_c_strings(project_file, node_list, parents,
-        msgs=none, build_options=none) {
+        indent=0, msgs=none, build_options=none) {
     var queue = node_list.copy()
     var result = []
     if queue.len == 0 {
@@ -69,7 +73,7 @@ func node_list_to_c_strings(project_file, node_list, parents,
     }
     var node = queue.pop_at(1)
     var next_result = node_to_c_string(
-        project_file, node, parents,
+        project_file, node, parents, indent=indent,
         msgs=msgs, build_options=build_options)
         later:
 
@@ -83,19 +87,63 @@ func node_list_to_c_strings(project_file, node_list, parents,
     }
     node = queue.pop_at(1)
     next_result = node_to_c_string(
-        project_file, node, parents,
+        project_file, node, parents, indent=indent,
         msgs=msgs, build_options=build_options)
         later repeat
 }
 
-func node_to_c_string(project_file, node, parents, msgs=none,
-        build_options=none) {
+func node_to_c_string(project_file, node, parents,
+        indent=0, msgs=none, build_options=none) {
+    const is_moose64 = yes
+    const project = project_file.project
+    var indent_str = " ".rep(indent)
     if node.kind == ast.N_EXPR_LIT and
             typename(node.value) == "str" and
             not node.is_big_num {
         return later textfmt.as_escaped_code_string(
             node.value
         )
+    } elseif node.kind == ast.N_STMT_VAR {
+        var c_var_type = "void"
+        var var_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
+            project_file, node, parents,
+            store_self_value_ref_for_funcs=no,
+            msgs=msgs
+        ) later:
+
+        await var_tinfo
+        if var_tinfo == none {
+            throw new RuntimeError("Unexpectedly failed "
+                "to get usable var def type info.")
+        }
+        var texpr = var_tinfo.convert_to_typeref_expr(
+            project=project_file.project,
+            in_local_scope=node.scope,
+            in_project_file=project_file,
+            is_moose64=is_moose64
+        )
+        var c_var_type = texpr.as_c_code(
+            global_name_assign_callback=
+                get_global_symbol_c_name,
+            project=project, is_moose64=is_moose64)
+        var t = ""
+        if node.scope == none {
+            # This must be a global variable.
+            for lbl in node.var_labels {
+                t += indent_str + c_var_type + " " +
+                    get_global_symbol_c_name(
+                        lbl, project_file=project_file) + ";\n"
+            }
+        } else {
+            for lbl in node.var_labels {
+                t += indent_str + c_var_type + " " +
+                    lbl + ";\n"
+            }
+        }
+        if t.ends("\n") {
+            t = t.sub(1, t.len - 1)
+        }
+        return later t
     } elseif node.kind == ast.N_STMT_FUNC {
         if node.type_path != none and node.type_path.len > 0 {
             return later ""
@@ -117,10 +165,27 @@ func node_to_c_string(project_file, node, parents, msgs=none,
         if func_tinfo.func_typeexpr.return_typeref_expr != none {
             var rexpr = func_tinfo.func_typeexpr.
                 return_typeref_expr
-            c_return_type = rexpr.as_c_code()
+            c_return_type = rexpr.as_c_code(
+                global_name_assign_callback=
+                    get_global_symbol_c_name,
+                project=project, is_moose64=is_moose64)
         }
-        var t = c_return_type + " " + get_global_symbol_c_name(
-            project_file, node.label) + "() {\n" + "}"
+        var t = indent_str + c_return_type + " " +
+            get_global_symbol_c_name(
+                node.label, project_file=project_file
+            ) + "() {\n"
+
+        var contents = node_list_to_c_strings(
+            project_file, node.subblocks[1],
+            parents + [node], indent=(indent + 4),
+            msgs=msgs, build_options=build_options)
+            later:
+
+        await contents
+        for line in contents {
+            t += line + "\n"
+        }
+        t += indent_str + "}"
         return later t
     }
     return later ""
