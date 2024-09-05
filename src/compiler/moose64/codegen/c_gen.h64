@@ -37,6 +37,7 @@ import compiler.limit as climit
 import compiler.moose64.ast.analyze as m64_ast_analyze
 import compiler.msg as msg
 import compiler.project
+import compiler.typeinfo as typeinfo
 
 type CExportResult {
     var project
@@ -104,11 +105,11 @@ func node_to_c_string(project_file, node, parents, msgs=none,
             project_file, node, parents,
             store_self_value_ref_for_funcs=no,
             msgs=msgs
-        ) later:
+            ) later:
 
         await func_tinfo
         if func_tinfo == none or
-                func_tinfo.kind == typeinfo.TI_FUNCREF or
+                func_tinfo.kind != typeinfo.TI_FUNCREF or
                 func_tinfo.func_typeexpr == none {
             throw new RuntimeError("Unexpectedly failed "
                 "to get usable function type info.")

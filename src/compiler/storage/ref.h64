@@ -179,12 +179,19 @@ func ref_to_symbol_info(
     var dbg_prefix = ""
     if debug {
         if is_moose64 {
-            dbg_prefix = "moosec: debug:"
+            dbg_prefix = "moosec: debug: "
+                "ref_to_symbol_info():"
         } else {
-            dbg_prefix = "horsec: debug:"
+            dbg_prefix = "horsec: debug: "
+                "ref_to_symbol_info():"
         }
     }
     if storage_ref.kind == ST_GLOBAL {
+        if debug {
+            print(dbg_prefix + " Trying to resolve global "
+                "id=" + storage_ref.id.as_str() + " "
+                "project=" + project.as_str())
+        }
         if project == none {
             return none
         }
@@ -218,9 +225,9 @@ func ref_to_symbol_info(
             assert(anscope.is_type or anscope.is_struct)
             if not anscope.id_to_symbol_map.has(storage_ref.id[2]) {
                 if debug {
-                    print(dbg_prefix + "Unexpectedly failed "
-                        "to find global attribute in respective type "
-                        "or struct scope, " +
+                    print(dbg_prefix + " Unexpectedly failed "
+                        "to find global attribute in respective "
+                        "type or struct scope, " +
                         "anscope=" + anscope.as_str() + " "
                         "anscope.id_to_symbol_map=" +
                             anscope.id_to_symbol_map.as_str() + " "

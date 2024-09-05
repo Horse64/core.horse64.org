@@ -1014,6 +1014,83 @@ func _get_c_or_m64_type_of_node_do(
 
         await tinfo
         return tinfo
+    } elseif {ast.N_STMT_FUNC,
+              ast.N_STMT_FUNCEXTEND}.has(node.kind) {
+        if debug {
+            print(dbg_prefix + " Got a func node " +
+                "(func scope set: " +
+                if node.func_scope != none ("yes")
+                    else ("no") + ")")
+        }
+        var fscope = node.func_scope
+        if fscope == none {
+            return later none
+        }
+        if node.type_path == none or node.type_path.len == 0 {
+            var global_ref = new st_ref.StorageRef(
+                st_ref.ST_GLOBAL, fscope.storage_id)
+            if debug {
+                print(dbg_prefix + " The func node " +
+                    "is a standalone, getting type from "
+                    "storage: global_ref=" +
+                    global_ref.as_str())
+            }
+            var tinfo = typeinfo.
+                create_typeinfo_from_global_ref(
+                    global_ref, base_node_if_known=node,
+                    project=project_file.project,
+                    is_moose64=is_moose64, debug=debug,
+                )
+            assert(tinfo == none or tinfo.kind == typeinfo.TI_FUNCREF)
+            if debug {
+                print(dbg_prefix + " Type result: "
+                    "tinfo=" + tinfo.as_str())
+            }
+            return later tinfo
+        }
+        if debug {
+            print(dbg_prefix + " The func node " +
+                "is a func attr. Obtaining anscope...")
+        }
+        var anscope = project_file.
+            make_attr_names_scope_from_funcattr(
+                node, msgs=msgs, is_moose64=is_moose64,
+                def_project_file=project_file
+            )
+        if debug {
+            print(dbg_prefix + " Got anscope=" +
+                anscope.as_str())
+        }
+        if anscope == none {
+            return later none
+        }
+        var symbol_info = anscope.name_to_symbol_map[
+            node.label]
+        if debug {
+            print(dbg_prefix + " Got symbol_info=" +
+                symbol_info.as_str())
+        }
+        var global_ref = new st_ref.StorageRef(
+            st_ref.ST_GLOBALATTR, [anscope.storage_id,
+            symbol_info.storage_id])
+        if debug {
+            print(dbg_prefix + " Getting type from "
+                "storage: global_ref=" +
+                global_ref.as_str())
+        }
+        var tinfo = typeinfo.
+            create_typeinfo_from_global_ref(
+                global_ref, base_node_if_known=node,
+                base_symbol_info_if_known=symbol_info,
+                project=project_file.project,
+                is_moose64=is_moose64
+            )
+        assert(tinfo == none or tinfo.kind == typeinfo.TI_FUNCREF)
+        if debug {
+            print(dbg_prefix + " Type result: "
+                "tinfo=" + tinfo.as_str())
+        }
+        return later tinfo
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "." {
         var rhand = node.subexprs[2]

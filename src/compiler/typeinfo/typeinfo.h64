@@ -358,7 +358,7 @@ func TypeInfo.as_str {
             self._orig_typeexpr.as_str() + " "
     }
     if self.kind != TI_C_TYPE {
-        t += "type_ref=" + self.user_type_ref.as_str() + " "
+        t += "user_type_ref=" + self.user_type_ref.as_str() + " "
     }
     if self.kind != TI_C_TYPE and self.kind != TI_USERTYPE {
         t += "func_typeexpr=" + self.func_typeexpr.as_str() + " "
@@ -794,7 +794,7 @@ func create_typeinfo_from_global_ref(
         self_ref_if_known=none,
         store_self_value_ref_for_funcs=no,
         project=none,
-        is_moose64=no
+        is_moose64=no, debug=no
         ) {
     if base_node_if_known != none and target_ref == none and
             base_node_if_known.kind == ast.N_EXPR_IDREF and
@@ -805,7 +805,7 @@ func create_typeinfo_from_global_ref(
             base_symbol_info_if_known == none {
         var sinfo = st_ref.ref_to_symbol_info(
             target_ref, project=project,
-            is_moose64=is_moose64,
+            is_moose64=is_moose64, debug=debug
         )
         if sinfo != none {
             if base_symbol_info_if_known == none {
@@ -818,12 +818,31 @@ func create_typeinfo_from_global_ref(
             }
         }
     }
+    if debug {
+        var node_s = base_node_if_known.as_str()
+        if node_s.len > 100 {
+            node_s = node_s.sub(1, 100) + "..."
+        }
+        print(if is_moose64 ("moosec: ") else ("horsec: ") +
+            "debug: create_typeinfo_from_global_ref(): Got "
+            "target_ref=" + target_ref.as_str() + " "
+            "base_symbol_info_if_known=" +
+                base_symbol_info_if_known.as_str() + " "
+            "base_typeref_expr_if_known=" +
+                base_typeref_expr_if_known.as_str() + " "
+            "base_node_if_known=" + node_s + " "
+            "project=" + project.as_str())
+    }
+
     if (base_typeref_expr_if_known != none and
             base_typeref_expr_if_known.is_func_ref) or
             (base_symbol_info_if_known != none and
              {st_scope.SINFO_FUNC, st_scope.SINFO_FUNCATTR}.has(
                  base_symbol_info_if_known.kind
-             )) {
+             )) or
+            (base_node_if_known != none and
+             {ast.N_STMT_FUNC, ast.N_STMT_FUNCEXTEND}.has(
+                 base_node_if_known.kind)) {
         assert(target_ref.kind != st_ref.ST_LOCAL)
         var tinfo = new TypeInfo(
             TI_FUNCREF
@@ -836,6 +855,19 @@ func create_typeinfo_from_global_ref(
             tinfo.func_typeexpr =
                 base_symbol_info_if_known.typeref_expr.copy()
             assert(tinfo.func_typeexpr.is_func_ref)
+        }
+        if tinfo.user_type_ref == none and
+                tinfo.func_typeexpr != none and
+                tinfo.func_typeexpr.func_storage_ref != none {
+            tinfo.user_type_ref =
+                tinfo.func_typeexpr.func_storage_ref.copy()
+        }
+        if tinfo.user_type_ref == none and
+                target_ref != none and
+                {st_ref.ST_GLOBAL, st_ref.ST_GLOBALATTR}.has(
+                    target_ref.kind
+                ) {
+            tinfo.user_type_ref = target_ref.copy()
         }
         if self_ref_if_known == none and
                 self_node_if_known != none and
