@@ -37,6 +37,7 @@ import compiler.limit as climit
 import compiler.moose64.ast.analyze as m64_ast_analyze
 import compiler.msg as msg
 import compiler.project
+import compiler.storage.ref as st_ref
 import compiler.typeinfo as typeinfo
 
 type CExportResult {
@@ -103,6 +104,88 @@ func node_to_c_string(project_file, node, parents,
         return later textfmt.as_escaped_code_string(
             node.value
         )
+    } elseif node.kind == ast.N_STMT_ASSIGN {
+        var assign_count = math.floor(node.subexprs.len / 2)
+        if assign_count < 1 {
+            return ""
+        }
+        var queue = []
+        var idx = 1
+        while idx <= assign_count {
+            queue.add([
+                node.subexprs[idx],
+                node.subexprs[idx + assign_count]
+            ])
+            idx += 1
+        }
+        var t = ""
+        func handle_assigned_value(entry) {
+            var left_hand_str = node_to_c_string(
+                project_file, entry[1],
+                parents + [node], indent=indent,
+                msgs=msgs, build_options=build_options)
+            later:
+
+            await left_hand_str
+            var right_hand_str = node_to_c_string(
+                project_file, entry[2],
+                parents + [node], indent=indent,
+                msgs=msgs, build_options=build_options)
+            later:
+
+            await right_hand_str
+            t += left_hand_str + " = " +
+                right_hand_str + ";\n"
+        }
+
+        if queue.len == 0 {
+            return later t
+        }
+        var entry = queue.pop_at(1)
+        var result = handle_assigned_value(entry)
+        later:
+
+        await result
+        if queue.len == 0 {
+            if t.ends("\n") {
+                t = t.sub(1, t.len - 1)
+            }
+            return later t
+        }
+        entry = queue.pop()
+        result = handle_assigned_value(entry)
+        later repeat
+    } elseif node.kind == ast.N_EXPR_IDREF {
+        assert(node.ref != none)
+        if {st_ref.ST_GLOBAL, st_ref.ST_GLOBALATTR}.has(
+                node.ref) {
+            var sinfo = st_ref.ref_to_symbol_info(
+                self.storage_ref,
+                project=project,
+                is_moose64=is_moose64
+            )
+            assert(sinfo != none)
+            var effective_name = sinfo.label
+            if sinfo.def_file != none {
+                effective_name =
+                    get_global_symbol_c_name(
+                        sinfo.label,
+                        project_file=sinfo.def_file)
+            }
+            return effective_name
+        }
+        return node.label
+    } elseif node.kind == ast.N_EXPR_LIT and
+            typename(node.value) == "bool" {
+        return if node.value (1) else (0)
+    } elseif node.kind == ast.N_EXPR_LIT and
+            node.value == none {
+        return "((void*) 0)"
+    } elseif node.kind == ast.N_EXPR_LIT and
+            (typename(node.value) == "num" or
+             (typename(node.value) == "str" and
+              node.is_big_num)) {
+        return node.value.as_str()
     } elseif node.kind == ast.N_STMT_VAR {
         var c_var_type = "void"
         var var_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
@@ -127,7 +210,9 @@ func node_to_c_string(project_file, node, parents,
                 get_global_symbol_c_name,
             project=project, is_moose64=is_moose64)
         var t = ""
+        var is_global = no
         if node.scope == none {
+            is_global = yes
             # This must be a global variable.
             for lbl in node.var_labels {
                 t += indent_str + c_var_type + " " +
@@ -140,6 +225,68 @@ func node_to_c_string(project_file, node, parents,
                     lbl + ";\n"
             }
         }
+        func handle_assigned_values_if_needed {
+            if node.is_empty {
+                return later
+            }
+            var assigned_exprs = node.subexprs
+            if node.has_type_expr and assigned_exprs.len > 0 {
+                assigned_exprs = assigned_exprs.sub(
+                    1, assigned_exprs.len - 1
+                )
+            }
+
+            func handle_assigned_value(entry) {
+                var expr_result = node_to_c_string(
+                    project_file, entry[2], parents + [node],
+                    indent=indent,
+                    msgs=msgs, build_options=build_options)
+                later:
+
+                await expr_result
+                if expr_result == none or
+                        expr_result.trim() == "" {
+                    return later
+                }
+                t += indent_str
+                if is_global {
+                    t += get_global_symbol_c_name(
+                        entry[1], project_file=project_file)
+                } else {
+                    t += entry[1]
+                }
+                t += " = " + expr_result + ";\n"
+            }
+
+            var queue = []
+            var idx = 0
+            for lbl in node.var_labels {
+                idx += 1
+                if idx < 1 or idx > assigned_exprs.len {
+                    continue
+                }
+                queue.add([
+                    lbl, assigned_exprs[idx]
+                ])
+            }
+            if queue.len == 0 {
+                return later
+            }
+            var entry = queue.pop_at(1)
+            var result = handle_assigned_value(entry)
+            later:
+
+            await result
+            if queue.len == 0 {
+                return later
+            }
+            entry = queue.pop()
+            result = handle_assigned_value(entry)
+            later repeat
+        }
+        handle_assigned_values_if_needed()
+        later:
+
         if t.ends("\n") {
             t = t.sub(1, t.len - 1)
         }

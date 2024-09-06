@@ -310,6 +310,9 @@ func GlobalScope.ensure_assigned_storage(
             }
             si.def_line = value.line
             si.def_col = value.col
+            if project_file != none {
+                si.def_file = project_file
+            }
             si.storage_id = storage_num
             if debug_global_storage {
                 print("compiler.storage.scope.global_scope: "
@@ -381,6 +384,9 @@ func GlobalScope.ensure_assigned_storage(
             var si = new st_scope.SymbolInfo(label)
             si.def_line = value.line
             si.def_col = value.col
+            if project_file != none {
+                si.def_file = project_file
+            }
             si.storage_id = pos
             entry.symbol_info = si
             self.name_to_stmt_map[label] = entry
