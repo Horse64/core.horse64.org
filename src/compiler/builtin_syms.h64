@@ -64,11 +64,18 @@ func BuiltinSymsStorageItem.init(
 }
 
 func BuiltinSymsStorageItem.as_str {
+    var mod_path_str = ""
+    if self.module_path != none and
+            self.module_path.len > 0 {
+        mod_path_str = ("module_path=" +
+            self.module_path.join(".") + ", ")
+    }
     var t = "BuiltinSymsStorageItem{" +
         "kind='" + BuiltinItemKind.num_label(
             self.kind) + "', "
         "symbol_name=" + textfmt.as_escaped_code_string(
-            self.symbol_name + ", "
+            self.symbol_name + ", " +
+        mod_path_str +
         "symbol_storage_ref=" +
             self.symbol_storage_ref.as_str() + ""
         ) + "}"
@@ -155,7 +162,7 @@ func get_item_by_name(
     }
     if in_module_name != none and
             in_package_name == none {
-        in_package_name = "m64.horse64.org"
+        in_package_name = "$unnamed_default"
     }
     if in_package_name == none {
         in_package_name = "$any"
@@ -168,6 +175,9 @@ func get_item_by_name(
     if st.package_to_item_list_map.has(in_package_name) {
         for inner_item in st.package_to_item_list_map[in_package_name] {
             if inner_item.symbol_name == name {
+                assert(inner_item.module_path == none or
+                    typename(inner_item.module_path) == "list")
+                assert(typename(in_module_name) == "str")
                 if (in_module_name == "$any" and
                         (inner_item.module_path != none and
                          inner_item.module_path.join(".") ==
@@ -240,6 +250,8 @@ func register_symbol(project, symbol_name, symbol_ref,
     if modpath.join(".") == "$any" {
         assert(package_name == none or package_name == "$any")
         package_name = "$any"
+    } elseif package_name == none {
+        package_name = "$unnamed_default"
     }
     var st = project.builtin_syms_storage
     if not st.package_to_item_list_map.has(package_name) {

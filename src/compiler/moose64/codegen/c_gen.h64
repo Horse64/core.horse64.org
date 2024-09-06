@@ -35,6 +35,7 @@ import compiler.ast as ast
 import compiler.compiler_log as clog
 import compiler.limit as climit
 import compiler.moose64.ast.analyze as m64_ast_analyze
+import compiler.moose64.builtins as m64_builtins
 import compiler.msg as msg
 import compiler.project
 import compiler.storage.ref as st_ref
@@ -135,11 +136,12 @@ func node_to_c_string(project_file, node, parents,
         return left_hand + "." + right_hand
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "(" {
-        var left_hand = none
+        var left_hand_str = none
+        var right_closing_str = ""
         var self_call_arg_str = none
 
         func try_get_left_hand_self_call {
-            if left_hand != none {
+            if left_hand_str != none {
                 return later
             }
             if node.subexprs[1].kind != ast.N_EXPR_BINOP or
@@ -172,14 +174,14 @@ func node_to_c_string(project_file, node, parents,
                     st_ref.ST_ARG}.has(self_st_ref.kind) {
                 return later
             }
-            left_hand = node_to_c_string(
+            left_hand_str = node_to_c_string(
                 project_file, node.subexprs[1].subexprs[2],
                 parents + [node],
                 indent=indent,
                 msgs=msgs, build_options=build_options)
             later:
 
-            await left_hand
+            await left_hand_str
             self_call_arg_str = node_to_c_string(
                 project_file, self_expr,
                 parents + [node],
@@ -191,22 +193,57 @@ func node_to_c_string(project_file, node, parents,
         }
         try_get_left_hand_self_call() later:
 
-        func try_get_left_hand_regular {
-            if left_hand != none {
+        func try_get_left_hand_builtins {
+            if left_hand_str != none {
                 return later
             }
-            left_hand = node_to_c_string(
+            var is_as_ref = m64_builtins.
+                is_ast_node_referring_to_m64_std_as_ref(
+                    project_file, node.subexprs[1],
+                    is_moose64=is_moose64
+                )
+            var is_deref = m64_builtins.
+                is_ast_node_referring_to_m64_std_deref(
+                    project_file, node.subexprs[1],
+                    is_moose64=is_moose64
+                )
+            var is_size_of = m64_builtins.
+                is_ast_node_referring_to_m64_std_size_of(
+                    project_file, node.subexprs[1],
+                    is_moose64=is_moose64
+                )
+            if not is_as_ref and not is_deref and
+                    not is_size_of {
+                return later
+            }
+            if is_as_ref {
+                left_hand_str = "(&"
+                right_closing_str = ")"
+            } elseif is_deref {
+                left_hand_str = "(*"
+                right_closing_str = ")"
+            } else {
+                left_hand_str = "sizeof"
+            }
+        }
+        try_get_left_hand_builtins() later:
+
+        func try_get_left_hand_regular {
+            if left_hand_str != none {
+                return later
+            }
+            left_hand_str = node_to_c_string(
                 project_file, node.subexprs[1],
                 parents + [node],
                 indent=indent,
                 msgs=msgs, build_options=build_options)
             later:
 
-            await left_hand
+            await left_hand_str
         }
         try_get_left_hand_regular() later:
 
-        var t = left_hand + "("
+        var t = left_hand_str + "("
         var is_first_arg = yes
         if self_call_arg_str != none {
             is_first_arg = no
@@ -241,7 +278,7 @@ func node_to_c_string(project_file, node, parents,
 
         await result
         if queue.len == 0 {
-            return later t + ")"
+            return later t + ")" + right_closing_str
         }
         entry = queue.pop()
         result = handle_arg_value(entry)
