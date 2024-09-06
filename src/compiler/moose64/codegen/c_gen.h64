@@ -263,18 +263,18 @@ func node_to_c_string(project_file, node, parents,
             return node.label
         }
         if {st_ref.ST_GLOBAL, st_ref.ST_GLOBALATTR}.has(
-                node.ref) {
+                node.ref.kind) {
             var sinfo = st_ref.ref_to_symbol_info(
-                self.storage_ref,
+                node.ref,
                 project=project,
                 is_moose64=is_moose64
             )
             assert(sinfo != none)
-            var effective_name = sinfo.label
+            var effective_name = sinfo.name
             if sinfo.def_file != none {
                 effective_name =
                     get_global_symbol_c_name(
-                        sinfo.label,
+                        sinfo.name,
                         project_file=sinfo.def_file)
             }
             return effective_name
