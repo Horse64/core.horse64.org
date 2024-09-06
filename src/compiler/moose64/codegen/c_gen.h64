@@ -314,6 +314,8 @@ func node_to_c_string(project_file, node, parents,
             global_name_assign_callback=
                 get_global_symbol_c_name,
             project=project, is_moose64=is_moose64)
+        assert(not c_var_type.has("."))
+
         var t = ""
         var is_global = no
         if node.scope == none {

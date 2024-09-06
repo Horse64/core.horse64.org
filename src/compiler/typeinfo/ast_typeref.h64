@@ -636,9 +636,6 @@ func TypeRefExpr.as_c_code(
     if t != "" {
         t += " "
     }
-    if self.type_path != none and self.type_path.len > 0 {
-        t = self.type_path.join(".") + "." + t
-    }
     if self.is_user_type() or
             not _m64_to_c_name_map.has(self.name) {
         var sinfo = none
