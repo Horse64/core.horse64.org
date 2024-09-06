@@ -67,6 +67,13 @@ func get_global_symbol_c_name(global_name, project_file=none) {
         mod_name.replace(".", "__") + "__" + global_name
 }
 
+func optoken_to_c_token(token) {
+    if token.str == "^^" {
+        return "^"
+    }
+    return token.str
+}
+
 func node_list_to_c_strings(project_file, node_list, parents,
         indent=0, msgs=none, build_options=none) {
     var queue = node_list.copy()
@@ -116,6 +123,137 @@ func node_to_c_string(project_file, node, parents,
 
         await inner_result
         return indent_str + inner_result + ";"
+    } elseif node.kind == ast.N_STMT_IF {
+        var is_first = yes
+        func handle_single_clause(clause) {
+            if clause.kind == ast.N_EXPR_IFELSECLAUSE {
+                if clause.is_else {
+                    is_first = no
+                    var contents_strs = node_list_to_c_strings(
+                        project_file, clause.subblocks[1],
+                        parents + [node, clause],
+                        indent=(indent + 4),
+                        msgs=msgs, build_options=build_options)
+                    later:
+
+                    await contents_strs
+                    var t = indent_str + "else {"
+                    for line in contents_strs {
+                        t += "\n" + line
+                    }
+                    t += "\n" + indent_str + "}"
+                    return later t
+                }
+                var conditional_str = node_to_c_string(
+                    project_file, clause.subexprs[1],
+                    parents + [node, clause],
+                    indent=indent,
+                    msgs=msgs, build_options=build_options)
+                later:
+
+                await conditional_str
+                var contents_strs = node_list_to_c_strings(
+                    project_file, clause.subblocks[1],
+                    parents + [node, clause],
+                    indent=(indent + 4),
+                    msgs=msgs, build_options=build_options)
+                later:
+
+                await contents_strs
+                var t = indent_str
+                if is_first {
+                    is_first = no
+                    t += "if (" + conditional_str + ") {"
+                } else {
+                    t += "else if (" + conditional_str + ") {"
+                }
+                for line in contents_strs {
+                    t += "\n" + line
+                }
+                t += "\n" + indent_str + "}"
+                return later t
+            }
+            return later ""
+        }
+
+        func handle_clauses {
+            var result = []
+            var queue = node.subexprs
+            if queue.len == 0 {
+                return later result
+            }
+            var clause = queue.pop()
+            var cls_result = handle_single_clause(
+                clause
+            ) later:
+
+            await cls_result
+            result.add(cls_result)
+            if queue.len == 0 {
+                return later result
+            }
+            clause = queue.pop()
+            cls_result = handle_single_clause(
+                clause
+            ) later repeat
+        }
+        var result = handle_clauses() later:
+
+        await result
+        var t = ""
+        for clause_str in result {
+            t += clause_str
+        }
+        if t.ends("\n") {
+            t = t.sub(1, t.len - 1)
+        }
+        return later t
+    } elseif node.kind == ast.N_STMT_WHILE {
+        var expression_str = node_to_c_string(
+            project_file, node.subexprs[1],
+            parents + [node],
+            indent=indent,
+            msgs=msgs, build_options=build_options)
+        later:
+
+        await expression_str
+        var contents = node_list_to_c_strings(
+            project_file, node.subblocks[1],
+            parents + [node], indent=(indent + 4),
+            msgs=msgs, build_options=build_options
+        )
+        later:
+
+        await contents
+        var t = indent_str + "while (" +
+            expression_str + ") {\n"
+        for line in contents {
+            t += line + "\n"
+        }
+        return t + indent_str + "}"
+    } elseif node.kind == ast.N_STMT_RETURN {
+        var expr_str = none
+        func get_expression_if_needed() {
+            if node.is_empty {
+                return later
+            }
+            expr_str = node_to_c_string(
+                project_file, node.subexprs[1],
+                parents + [node],
+                indent=indent,
+                msgs=msgs, build_options=build_options)
+            later:
+
+            await expr_str
+        }
+        get_expression_if_needed() later:
+
+        var t = indent_str + "return"
+        if expr_str != none and expr_str.len > 0 {
+            t += " " + expr_str
+        }
+        t += ";"
+        return later t
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "." {
         if node.subexprs[2].kind == ast.N_EXPR_IDREF and
@@ -170,7 +308,7 @@ func node_to_c_string(project_file, node, parents,
         later:
 
         await right_hand_str
-        return left_hand_str + "." + right_hand_str
+        return later left_hand_str + "." + right_hand_str
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "(" {
         var left_hand_str = none
@@ -366,7 +504,8 @@ func node_to_c_string(project_file, node, parents,
         later:
 
         await right_hand
-        return left_hand + node.optoken.str + right_hand
+        return "(" + left_hand + ") " + optoken_to_c_token(
+            node.optoken) + " (" + right_hand + ")"
     } elseif node.kind == ast.N_STMT_ASSIGN {
         var assign_count = math.floor(node.subexprs.len / 2)
         if assign_count < 1 {
@@ -397,7 +536,9 @@ func node_to_c_string(project_file, node, parents,
             later:
 
             await right_hand_str
-            t += left_hand_str + " = " +
+            t += indent_str + left_hand_str + " " +
+                optoken_to_c_token(
+                    node.assign_token) + " " +
                 right_hand_str + ";\n"
         }
 
@@ -437,12 +578,14 @@ func node_to_c_string(project_file, node, parents,
                         sinfo.name,
                         project_file=sinfo.def_file)
             }
+            assert(effective_name != none)
             return effective_name
         }
+        assert(node.label != none)
         return node.label
     } elseif node.kind == ast.N_EXPR_LIT and
             typename(node.value) == "bool" {
-        return if node.value (1) else (0)
+        return if node.value ("1") else ("0")
     } elseif node.kind == ast.N_EXPR_LIT and
             node.value == none {
         return "((void*) 0)"
@@ -592,8 +735,9 @@ func node_to_c_string(project_file, node, parents,
         var contents = node_list_to_c_strings(
             project_file, node.subblocks[1],
             parents + [node], indent=(indent + 4),
-            msgs=msgs, build_options=build_options)
-            later:
+            msgs=msgs, build_options=build_options
+        )
+        later:
 
         await contents
         for line in contents {
@@ -621,6 +765,7 @@ func ast_to_c(project_file, msgs=none, build_options=none) {
     }
     var t = "#include <stdio.h>\n"
         "#include <stdlib.h>\n"
+        "#include <stdint.h>\n"
     for stmt_s in stmt_strs {
         t += stmt_s + "\n"
     }
