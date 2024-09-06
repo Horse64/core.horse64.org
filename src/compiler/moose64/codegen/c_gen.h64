@@ -135,17 +135,84 @@ func node_to_c_string(project_file, node, parents,
         return left_hand + "." + right_hand
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "(" {
-        var left_hand = node_to_c_string(
-            project_file, node.subexprs[1],
-            parents + [node],
-            indent=indent,
-            msgs=msgs, build_options=build_options)
-        later:
+        var left_hand = none
+        var self_call_arg_str = none
 
-        await left_hand
+        func try_get_left_hand_self_call {
+            if left_hand != none {
+                return later
+            }
+            if node.subexprs[1].kind != ast.N_EXPR_BINOP or
+                    node.subexprs[1].optoken.str != "." or
+                    node.subexprs[1].subexprs.len < 2 or
+                    node.subexprs[1].subexprs[2].kind !=
+                        ast.N_EXPR_IDREF or
+                    node.subexprs[1].subexprs[2].ref == none or
+                    node.subexprs[1].subexprs[2].ref.kind !=
+                        st_ref.ST_GLOBALATTR {
+                return later
+            }
+
+            var self_expr = node.subexprs[1].subexprs[1]
+            var self_st_ref = none
+            if self_expr.kind == ast.N_EXPR_IDREF {
+                self_st_ref = self_expr.ref
+            } elseif self_expr.kind == ast.N_EXPR_BINOP and
+                    self_expr.optoken.str == "." and
+                    self_expr.subexprs.len >= 2 and
+                    self_expr.subexprs[2].kind ==
+                        ast.N_EXPR_IDREF and
+                    self_expr.subexprs[2].ref != none {
+                self_st_ref = self_expr.subexprs[2].ref
+            } else {
+                return later
+            }
+            if not {st_ref.ST_GLOBAL, st_ref.ST_LOCAL,
+                    st_ref.ST_SELF, st_ref.ST_MCREF,
+                    st_ref.ST_ARG}.has(self_st_ref.kind) {
+                return later
+            }
+            left_hand = node_to_c_string(
+                project_file, node.subexprs[1].subexprs[2],
+                parents + [node],
+                indent=indent,
+                msgs=msgs, build_options=build_options)
+            later:
+
+            await left_hand
+            self_call_arg_str = node_to_c_string(
+                project_file, self_expr,
+                parents + [node],
+                indent=indent,
+                msgs=msgs, build_options=build_options)
+            later:
+
+            await self_call_arg_str
+        }
+        try_get_left_hand_self_call() later:
+
+        func try_get_left_hand_regular {
+            if left_hand != none {
+                return later
+            }
+            left_hand = node_to_c_string(
+                project_file, node.subexprs[1],
+                parents + [node],
+                indent=indent,
+                msgs=msgs, build_options=build_options)
+            later:
+
+            await left_hand
+        }
+        try_get_left_hand_regular() later:
+
         var t = left_hand + "("
-
         var is_first_arg = yes
+        if self_call_arg_str != none {
+            is_first_arg = no
+            t += self_call_arg_str
+        }
+
         func handle_arg_value(arg_expr) {
             var arg_expr_str = node_to_c_string(
                 project_file, arg_expr,
