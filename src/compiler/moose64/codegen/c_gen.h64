@@ -104,6 +104,109 @@ func node_to_c_string(project_file, node, parents,
         return later textfmt.as_escaped_code_string(
             node.value
         )
+    } elseif node.kind == ast.N_STMT_CALL {
+        var call_expr = node.subexprs[1]
+        var inner_result = node_to_c_string(
+            project_file, call_expr, parents + [node],
+            indent=indent,
+            msgs=msgs, build_options=build_options)
+        later:
+
+        await inner_result
+        return indent_str + inner_result + ";"
+    } elseif node.kind == ast.N_EXPR_BINOP and
+            node.optoken.str == "." {
+        var left_hand = node_to_c_string(
+            project_file, node.subexprs[1],
+            parents + [node],
+            indent=indent,
+            msgs=msgs, build_options=build_options)
+        later:
+
+        await left_hand
+        var right_hand = node_to_c_string(
+            project_file, node.subexprs[2],
+            parents + [node],
+            indent=indent,
+            msgs=msgs, build_options=build_options)
+        later:
+
+        await right_hand
+        return left_hand + "." + right_hand
+    } elseif node.kind == ast.N_EXPR_BINOP and
+            node.optoken.str == "(" {
+        var left_hand = node_to_c_string(
+            project_file, node.subexprs[1],
+            parents + [node],
+            indent=indent,
+            msgs=msgs, build_options=build_options)
+        later:
+
+        await left_hand
+        var t = left_hand + "("
+
+        var is_first_arg = yes
+        func handle_arg_value(arg_expr) {
+            var arg_expr_str = node_to_c_string(
+                project_file, arg_expr,
+                parents + [node, node.subexprs[2]],
+                indent=indent,
+                msgs=msgs, build_options=build_options)
+            later:
+
+            await arg_expr_str
+            if is_first_arg {
+                is_first_arg = no
+            } else {
+                t += ", "
+            }
+            t += arg_expr_str
+        }
+
+        assert(node.subexprs[2].kind == ast.N_EXPR_CALLARGS)
+        var queue = node.subexprs[2].subexprs
+        if queue.len == 0 {
+            return later t
+        }
+        var entry = queue.pop_at(1)
+        var result = handle_arg_value(entry)
+        later:
+
+        await result
+        if queue.len == 0 {
+            return later t + ")"
+        }
+        entry = queue.pop()
+        result = handle_arg_value(entry)
+        later repeat
+    } elseif node.kind == ast.N_EXPR_UNOP {
+        var left_hand = node_to_c_string(
+            project_file, node.subexprs[1],
+            parents + [node],
+            indent=indent,
+            msgs=msgs, build_options=build_options)
+        later:
+
+        await left_hand
+        return node.optoken.str + left_hand
+    } elseif node.kind == ast.N_EXPR_BINOP {
+        var left_hand = node_to_c_string(
+            project_file, node.subexprs[1],
+            parents + [node],
+            indent=indent,
+            msgs=msgs, build_options=build_options)
+        later:
+
+        await left_hand
+        var right_hand = node_to_c_string(
+            project_file, node.subexprs[2],
+            parents + [node],
+            indent=indent,
+            msgs=msgs, build_options=build_options)
+        later:
+
+        await right_hand
+        return left_hand + node.optoken.str + right_hand
     } elseif node.kind == ast.N_STMT_ASSIGN {
         var assign_count = math.floor(node.subexprs.len / 2)
         if assign_count < 1 {
@@ -156,7 +259,9 @@ func node_to_c_string(project_file, node, parents,
         result = handle_assigned_value(entry)
         later repeat
     } elseif node.kind == ast.N_EXPR_IDREF {
-        assert(node.ref != none)
+        if node.ref == none {
+            return node.label
+        }
         if {st_ref.ST_GLOBAL, st_ref.ST_GLOBALATTR}.has(
                 node.ref) {
             var sinfo = st_ref.ref_to_symbol_info(
