@@ -38,6 +38,7 @@ import compiler.moose64.ast.analyze as m64_ast_analyze
 import compiler.moose64.builtins as m64_builtins
 import compiler.msg as msg
 import compiler.project
+import compiler.storage.scope as st_scope
 import compiler.storage.ref as st_ref
 import compiler.typeinfo as typeinfo
 
@@ -117,23 +118,59 @@ func node_to_c_string(project_file, node, parents,
         return indent_str + inner_result + ";"
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "." {
-        var left_hand = node_to_c_string(
+        if node.subexprs[2].kind == ast.N_EXPR_IDREF and
+                node.subexprs[2].ref != none and
+                node.subexprs[2].ref.kind ==
+                    st_ref.ST_GLOBALATTR {
+            var sinfo = st_ref.ref_to_symbol_info(
+                node.subexprs[2].ref,
+                project=project,
+                is_moose64=is_moose64
+            )
+            if sinfo != none and
+                    sinfo.kind == st_scope.SINFO_FUNCATTR {
+                # XXX: This is a func attr on an object.
+                # We don't care about the self value here,
+                # since N_EXPR_BINOP '(' for calls doesn't
+                # ever call this N_EXPR_BINOP '.' directly.
+                # This means we're outside of the context of
+                # a call.
+                var result_str = node_to_c_string(
+                    project_file, node.subexprs[2],
+                    parents + [node],
+                    indent=indent,
+                    msgs=msgs, build_options=build_options)
+                later:
+
+                await result_str
+                if parents.len == 0 or
+                        parents[parents.len].kind !=
+                            ast.N_EXPR_BINOP or
+                        parents[parents.len].optoken.str != "." {
+                    # Usually, we want to return this as
+                    # explicit address reference.
+                    return later "&(" + result_str + ")"
+                }
+                return later result_str
+            }
+        }
+        var left_hand_str = node_to_c_string(
             project_file, node.subexprs[1],
             parents + [node],
             indent=indent,
             msgs=msgs, build_options=build_options)
         later:
 
-        await left_hand
-        var right_hand = node_to_c_string(
+        await left_hand_str
+        var right_hand_str = node_to_c_string(
             project_file, node.subexprs[2],
             parents + [node],
             indent=indent,
             msgs=msgs, build_options=build_options)
         later:
 
-        await right_hand
-        return left_hand + "." + right_hand
+        await right_hand_str
+        return left_hand_str + "." + right_hand_str
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "(" {
         var left_hand_str = none
@@ -174,9 +211,24 @@ func node_to_c_string(project_file, node, parents,
                     st_ref.ST_ARG}.has(self_st_ref.kind) {
                 return later
             }
+            var self_arg_tinfo = m64_ast_analyze.
+                get_c_or_m64_type_of_node(
+                    project_file, self_expr,
+                    parents + [node, node.subexprs[1]],
+                    store_self_value_ref_for_funcs=no,
+                    msgs=msgs
+                ) later:
+
+            await self_arg_tinfo
+            var add_extra_ref = (
+                self_arg_tinfo.ref_count(
+                    include_c_arrays=no,
+                    include_arrays=no
+                ) == 0)
+
             left_hand_str = node_to_c_string(
                 project_file, node.subexprs[1].subexprs[2],
-                parents + [node],
+                parents + [node, node.subexprs[1]],
                 indent=indent,
                 msgs=msgs, build_options=build_options)
             later:
@@ -184,12 +236,16 @@ func node_to_c_string(project_file, node, parents,
             await left_hand_str
             self_call_arg_str = node_to_c_string(
                 project_file, self_expr,
-                parents + [node],
+                parents + [node, node.subexprs[1]],
                 indent=indent,
                 msgs=msgs, build_options=build_options)
             later:
 
             await self_call_arg_str
+            if add_extra_ref {
+                self_call_arg_str = "&(" +
+                    self_call_arg_str + ")"
+            }
         }
         try_get_left_hand_self_call() later:
 
