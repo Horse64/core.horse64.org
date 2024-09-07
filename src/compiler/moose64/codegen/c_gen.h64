@@ -46,6 +46,7 @@ type CExportResult {
     var project
     var build_base_dir_uri = none
     var build_c_source_uris = []
+    var build_c_include_uris = []
 }
 
 func get_global_symbol_c_name(global_name, project_file=none) {
@@ -67,6 +68,32 @@ func get_global_symbol_c_name(global_name, project_file=none) {
         mod_name.replace(".", "__") + "__" + global_name
 }
 
+type CExportTracker {
+    var project
+
+    var known_array_types_map = {->}
+}
+
+extend type compiler.project.Project {
+    var c_export_tracker
+}
+
+func CExportTracker.register_array_type(typeinfo) {
+    var array_info = typeinfo.get_array_type_info(
+        typeinfo
+    )
+    if array_info == none {
+        throw new ValueError("Could not register this "
+            "type as array type, it's invalid.")
+    }
+    if not self.known_array_types_map.has(
+            array_info[1]) {
+        self.known_array_types_map[array_info[1]] =
+            array_info[2].copy()
+    }
+    return array_info
+}
+
 func optoken_to_c_token(token) {
     if token.str == "^^" {
         return "^"
@@ -75,7 +102,8 @@ func optoken_to_c_token(token) {
 }
 
 func node_list_to_c_strings(project_file, node_list, parents,
-        indent=0, msgs=none, build_options=none) {
+        indent=0, add_to_header_callback=none,
+        msgs=none, build_options=none) {
     var queue = node_list.copy()
     var result = []
     if queue.len == 0 {
@@ -84,6 +112,7 @@ func node_list_to_c_strings(project_file, node_list, parents,
     var node = queue.pop_at(1)
     var next_result = node_to_c_string(
         project_file, node, parents, indent=indent,
+        add_to_header_callback=add_to_header_callback,
         msgs=msgs, build_options=build_options)
         later:
 
@@ -91,19 +120,23 @@ func node_list_to_c_strings(project_file, node_list, parents,
     if next_result == none {
         return later none
     }
-    result.add(next_result)
+    if next_result.trim().len > 0 {
+        result.add(next_result)
+    }
     if queue.len == 0 {
         return later result
     }
     node = queue.pop_at(1)
     next_result = node_to_c_string(
         project_file, node, parents, indent=indent,
+        add_to_header_callback=add_to_header_callback,
         msgs=msgs, build_options=build_options)
         later repeat
 }
 
 func node_to_c_string(project_file, node, parents,
-        indent=0, msgs=none, build_options=none) {
+        indent=0, add_to_header_callback=none,
+        msgs=none, build_options=none) {
     const is_moose64 = yes
     const project = project_file.project
     var indent_str = " ".rep(indent)
@@ -118,6 +151,7 @@ func node_to_c_string(project_file, node, parents,
         var inner_result = node_to_c_string(
             project_file, call_expr, parents + [node],
             indent=indent,
+            add_to_header_callback=add_to_header_callback,
             msgs=msgs, build_options=build_options)
         later:
 
@@ -133,6 +167,8 @@ func node_to_c_string(project_file, node, parents,
                         project_file, clause.subblocks[1],
                         parents + [node, clause],
                         indent=(indent + 4),
+                        add_to_header_callback=
+                            add_to_header_callback,
                         msgs=msgs, build_options=build_options)
                     later:
 
@@ -148,6 +184,8 @@ func node_to_c_string(project_file, node, parents,
                     project_file, clause.subexprs[1],
                     parents + [node, clause],
                     indent=indent,
+                    add_to_header_callback=
+                        add_to_header_callback,
                     msgs=msgs, build_options=build_options)
                 later:
 
@@ -156,6 +194,8 @@ func node_to_c_string(project_file, node, parents,
                     project_file, clause.subblocks[1],
                     parents + [node, clause],
                     indent=(indent + 4),
+                    add_to_header_callback=
+                        add_to_header_callback,
                     msgs=msgs, build_options=build_options)
                 later:
 
@@ -182,7 +222,7 @@ func node_to_c_string(project_file, node, parents,
             if queue.len == 0 {
                 return later result
             }
-            var clause = queue.pop()
+            var clause = queue.pop_at(1)
             var cls_result = handle_single_clause(
                 clause
             ) later:
@@ -192,7 +232,7 @@ func node_to_c_string(project_file, node, parents,
             if queue.len == 0 {
                 return later result
             }
-            clause = queue.pop()
+            clause = queue.pop_at(1)
             cls_result = handle_single_clause(
                 clause
             ) later repeat
@@ -213,6 +253,7 @@ func node_to_c_string(project_file, node, parents,
             project_file, node.subexprs[1],
             parents + [node],
             indent=indent,
+            add_to_header_callback=add_to_header_callback,
             msgs=msgs, build_options=build_options)
         later:
 
@@ -220,6 +261,7 @@ func node_to_c_string(project_file, node, parents,
         var contents = node_list_to_c_strings(
             project_file, node.subblocks[1],
             parents + [node], indent=(indent + 4),
+            add_to_header_callback=add_to_header_callback,
             msgs=msgs, build_options=build_options
         )
         later:
@@ -241,6 +283,8 @@ func node_to_c_string(project_file, node, parents,
                 project_file, node.subexprs[1],
                 parents + [node],
                 indent=indent,
+                add_to_header_callback=
+                    add_to_header_callback,
                 msgs=msgs, build_options=build_options)
             later:
 
@@ -277,6 +321,8 @@ func node_to_c_string(project_file, node, parents,
                     project_file, node.subexprs[2],
                     parents + [node],
                     indent=indent,
+                    add_to_header_callback=
+                        add_to_header_callback,
                     msgs=msgs, build_options=build_options)
                 later:
 
@@ -296,6 +342,7 @@ func node_to_c_string(project_file, node, parents,
             project_file, node.subexprs[1],
             parents + [node],
             indent=indent,
+            add_to_header_callback=add_to_header_callback,
             msgs=msgs, build_options=build_options)
         later:
 
@@ -304,6 +351,7 @@ func node_to_c_string(project_file, node, parents,
             project_file, node.subexprs[2],
             parents + [node],
             indent=indent,
+            add_to_header_callback=add_to_header_callback,
             msgs=msgs, build_options=build_options)
         later:
 
@@ -368,6 +416,8 @@ func node_to_c_string(project_file, node, parents,
                 project_file, node.subexprs[1].subexprs[2],
                 parents + [node, node.subexprs[1]],
                 indent=indent,
+                add_to_header_callback=
+                    add_to_header_callback,
                 msgs=msgs, build_options=build_options)
             later:
 
@@ -376,6 +426,8 @@ func node_to_c_string(project_file, node, parents,
                 project_file, self_expr,
                 parents + [node, node.subexprs[1]],
                 indent=indent,
+                add_to_header_callback=
+                    add_to_header_callback,
                 msgs=msgs, build_options=build_options)
             later:
 
@@ -482,6 +534,7 @@ func node_to_c_string(project_file, node, parents,
             project_file, node.subexprs[1],
             parents + [node],
             indent=indent,
+            add_to_header_callback=add_to_header_callback,
             msgs=msgs, build_options=build_options)
         later:
 
@@ -492,6 +545,7 @@ func node_to_c_string(project_file, node, parents,
             project_file, node.subexprs[1],
             parents + [node],
             indent=indent,
+            add_to_header_callback=add_to_header_callback,
             msgs=msgs, build_options=build_options)
         later:
 
@@ -500,12 +554,17 @@ func node_to_c_string(project_file, node, parents,
             project_file, node.subexprs[2],
             parents + [node],
             indent=indent,
+            add_to_header_callback=add_to_header_callback,
             msgs=msgs, build_options=build_options)
         later:
 
         await right_hand
+        var trail = ""
+        if optoken_to_c_token(node.optoken) == '[' {
+            trail = "]"
+        }
         return "(" + left_hand + ") " + optoken_to_c_token(
-            node.optoken) + " (" + right_hand + ")"
+            node.optoken) + " (" + right_hand + ")" + trail
     } elseif node.kind == ast.N_STMT_ASSIGN {
         var assign_count = math.floor(node.subexprs.len / 2)
         if assign_count < 1 {
@@ -525,6 +584,8 @@ func node_to_c_string(project_file, node, parents,
             var left_hand_str = node_to_c_string(
                 project_file, entry[1],
                 parents + [node], indent=indent,
+                add_to_header_callback=
+                    add_to_header_callback,
                 msgs=msgs, build_options=build_options)
             later:
 
@@ -532,6 +593,8 @@ func node_to_c_string(project_file, node, parents,
             var right_hand_str = node_to_c_string(
                 project_file, entry[2],
                 parents + [node], indent=indent,
+                add_to_header_callback=
+                    add_to_header_callback,
                 msgs=msgs, build_options=build_options)
             later:
 
@@ -735,6 +798,8 @@ func node_to_c_string(project_file, node, parents,
         var contents = node_list_to_c_strings(
             project_file, node.subblocks[1],
             parents + [node], indent=(indent + 4),
+            add_to_header_callback=
+                add_to_header_callback,
             msgs=msgs, build_options=build_options
         )
         later:
@@ -750,11 +815,32 @@ func node_to_c_string(project_file, node, parents,
 }
 
 func ast_to_c(project_file, msgs=none, build_options=none) {
+    if project_file.project.c_export_tracker == none {
+        project_file.project.c_export_tracker =
+            new CExportTracker()
+    }
+
     var max_nesting = math.round((climit.max_statement_nesting +
         climit.max_expression_nesting) * 1.5)
 
+    var header_contents = ""
+    func ast_to_c_header_callback(
+            project_file, header_line,
+            msgs=none, build_options=none) {
+        while header_line.starts("\n") {
+            header_line = header_line.sub(2)
+        }
+        while header_line.ends("\n") {
+            header_line = header_line.sub(
+                1, header_line.len - 1)
+        }
+        header_contents += "\n" + header_line
+    }
+
     var stmt_strs = node_list_to_c_strings(
         project_file, project_file.ast.stmts, [],
+        add_to_header_callback=
+            ast_to_c_header_callback,
         msgs=msgs, build_options=build_options)
     later:
 
@@ -769,7 +855,15 @@ func ast_to_c(project_file, msgs=none, build_options=none) {
     for stmt_s in stmt_strs {
         t += stmt_s + "\n"
     }
-    return later t
+    var include_guard_name = "__M64_HEADER_"
+    include_guard_name += get_global_symbol_c_name(
+        "GUARD", project_file=project_file)
+    header_contents =
+        "\n#ifndef " + include_guard_name + "\n" +
+        "#define " + include_guard_name + "\n" +
+        header_contents +
+        "\n#endif  // " + include_guard_name + "\n"
+    return later [t, header_contents]
 }
 
 func guess_build_dir_from_build_options(build_options, project) {
@@ -895,12 +989,14 @@ func export_moose_project_to_c(
     # Now process each file to translate it to C:
     var output_string_result = none
     func process_file(pfile) {
-        var c_result = ast_to_c(
+        var c_result
+        var header_result
+        var combined_result = ast_to_c(
             pfile, msgs=msgs, build_options=boptions
         ) later:
 
-        await c_result
-        if c_result == none {
+        await combined_result
+        if combined_result == none {
             var goterror = no
             if msgs != none {
                 for m in msgs {
@@ -928,6 +1024,9 @@ func export_moose_project_to_c(
             }
             return later no
         }
+        c_result = combined_result[1]
+        header_result = combined_result[2]
+
         if limit_to_entrypoint_file and
                 not pfile.is_entrypoint {
             return later yes
@@ -938,6 +1037,8 @@ func export_moose_project_to_c(
         }
 
         var output_file_uri
+        var output_header_file_uri
+        var output_file_dir_uri
         if c_output_dir_uri == none {
             assert(c_output_file_uri != none)
             c_output_dir_uri = path.dirname(c_output_file_uri)
@@ -977,38 +1078,104 @@ func export_moose_project_to_c(
                 output_file_uri, file_relpath.replace(path.sep, "/")
             )
         }
-        if boptions.verbose_mode {
-            clog.log_or_print(new msg.FileMsg(
-                "export_moose_project_to_c(): "
-                "Writing to: " + output_file_uri,
-                kind=msg.M_INFO,
-                source_file=pfile,
-            ), msgs=msgs, program_name=program_name)
+        if output_file_dir_uri == none {
+            output_file_dir_uri = uri.traverse_up(
+                output_file_uri
+            )
         }
-        export_result.build_c_source_uris.add(output_file_uri)
+        if output_header_file_uri == none {
+            var header_name = uri.basename(
+                output_file_uri
+            )
+            if header_name.lower().ends(".c") {
+                header_name = header_name.sub(
+                    1, header_name.len - 2
+                )
+            }
+            header_name += ".h"
+            output_header_file_uri = uri.add_part(
+                uri.traverse_up(output_file_uri), header_name
+            )
+        }
 
         if not {"file"}.has(uri.get_protocol(output_file_uri)) {
             if msgs == none {
                 throw new RuntimeError("This type of URI "
-                    "is currently not handled by the "
-                    "compiler.moose64.codegen.c_gen."
-                    "export_moose_project_to_c function.")
+                "is currently not handled by the "
+                "compiler.moose64.codegen.c_gen."
+                "export_moose_project_to_c function.")
             }
             msgs.add(new msg.FileMsg(
                 "Unexpected " + uri.get_protocol(output_file_uri) +
-                ":// URI, this protocol is currently not supported by "
-                "the C code generator.",
+                ":// URI, this protocol is currently not "
+                "supported by the C code generator.",
                 source_file=pfile,
             ))
             return later no
         }
-        var disk_path = uri.to_file_or_vfs_path(output_file_uri)
-        with io.open(disk_path, "w") later as f {
-            f.write(c_result)
-            later:
 
-            return later yes
+        if boptions.verbose_mode {
+            clog.log_or_print(new msg.FileMsg(
+                "export_moose_project_to_c(): "
+                "Ensuring folder exists: " +
+                    output_file_dir_uri,
+                kind=msg.M_INFO,
+                source_file=pfile,
+            ), msgs=msgs, program_name=program_name)
         }
+        io.make_dir(
+            uri.to_file_or_vfs_path(
+                output_file_dir_uri
+            ), allow_vfs=no,
+            allow_nested=yes, ignore_exists=yes
+        ) later:
+
+        func write_main_file() {
+            if boptions.verbose_mode {
+                clog.log_or_print(new msg.FileMsg(
+                    "export_moose_project_to_c(): "
+                    "Writing to: " + output_file_uri,
+                    kind=msg.M_INFO,
+                    source_file=pfile,
+                ), msgs=msgs, program_name=program_name)
+            }
+            export_result.build_c_source_uris.add(
+                output_file_uri)
+
+            var disk_path = uri.to_file_or_vfs_path(
+                output_file_uri)
+            with io.open(disk_path, "w") later as f {
+                f.write(c_result)
+                later:
+
+                return later
+            }
+        }
+        write_main_file() later:
+
+        func write_header_file() {
+            if boptions.verbose_mode {
+                clog.log_or_print(new msg.FileMsg(
+                    "export_moose_project_to_c(): "
+                    "Writing to: " + output_header_file_uri,
+                    kind=msg.M_INFO,
+                    source_file=pfile,
+                ), msgs=msgs, program_name=program_name)
+            }
+            export_result.build_c_include_uris.add(
+                output_header_file_uri)
+
+            var disk_path = uri.to_file_or_vfs_path(
+                output_header_file_uri)
+            with io.open(disk_path, "w") later as f {
+                f.write(header_result)
+                later:
+
+                return later
+            }
+        }
+        write_header_file() later:
+
         return later yes
     }
     var result = project.do_for_all_files(process_file)

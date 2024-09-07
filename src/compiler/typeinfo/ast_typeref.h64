@@ -620,6 +620,42 @@ func TypeRefExpr.as_c_code(
     if self.damaged {
         return "(damaged type ref expr.)"
     }
+
+    if self.is_array() {
+        var ainfo = self.get_array_info(
+            is_moose64=is_moose64)
+        assert(ainfo != none)
+        var inner_tinfo = ainfo[2]
+        var t = ""
+        for mod in ainfo[3] {
+            if prefix_mod_names.has(mod.name) {
+                if t != "" {
+                    t += " "
+                }
+                t += mod.as_c_code(indent=indent,
+                    global_name_assign_callback=
+                    global_name_assign_callback,
+                    project=project, is_moose64=is_moose64)
+            }
+        }
+        if t != "" {
+            t += " "
+        }
+        t += "struct __m64arraystruct__" + ainfo[1]
+        for mod in ainfo[3] {
+            if not prefix_mod_names.has(mod.name) {
+                if t != "" {
+                    t += " "
+                }
+                t += mod.as_c_code(indent=indent,
+                    global_name_assign_callback=
+                    global_name_assign_callback,
+                    project=project, is_moose64=is_moose64)
+            }
+        }
+        return t
+    }
+
     var prefix_mod_names = {"readonly"}
     var t = ""
     for mod in self.modifiers {
@@ -710,6 +746,12 @@ func TypeRefExpr.is_array {
     var t = typeinfo.TypeInfo(typeinfo.TI_USERTYPE)
     t.modifiers = self.modifiers.copy()
     return t.is_array()
+}
+
+func TypeRefExpr.get_array_info(is_moose64=no) {
+    var t = typeinfo.create_typeinfo_from_typeexpr(
+        self, is_moose64=is_moose64)
+    return typeinfo.get_array_type_info(t)
 }
 
 func TypeRefExpr.ref_count(

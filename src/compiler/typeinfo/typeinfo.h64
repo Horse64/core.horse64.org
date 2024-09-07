@@ -119,15 +119,26 @@ func TypeInfo.is_readonly {
 }
 
 func TypeInfo.is_array {
+    var array_idx = none
+    var idx = 0
     for mod in self.modifiers {
-        if {"ref", "c_array"}.has(mod.name) {
-            return no
-        }
+        idx += 1
         if {"array"}.has(mod.name) {
-            return yes
+            array_idx = idx
         }
     }
-    return no
+    if not array_idx {
+        return no
+    }
+    idx = 0
+    for mod in self.modifiers {
+        idx += 1
+        if {"ref", "c_array"}.has(mod.name) and
+                idx > array_idx {
+            return no
+        }
+    }
+    return yes
 }
 
 func TypeInfo.ref_count(include_c_arrays=yes, include_arrays=no) {
@@ -944,5 +955,75 @@ func create_typeinfo_from_global_ref(
         }
     }
     return tinfo
+}
+
+func get_array_type_info(type_info) {
+    var mods_without_array_parts = []
+    var array_type_mods = []
+    var found_array_mod = no
+    var nested_arrays = no
+    var found_readonly_mod = no
+    var last_array_idx = none
+
+    var idx = 0
+    for mod in type_info.modifiers {
+        idx += 1
+        if mod.name == "array" {
+            if found_array_mod {
+                nested_arrays = yes
+            }
+            found_array_mod = yes
+            last_array_idx = idx
+            continue
+        }
+        if mod.name == "readonly" {
+            found_readonly_mod = yes
+        }
+    }
+    if not found_array_mod {
+        return none
+    }
+
+    idx = 0
+    for mod in type_info.modifiers {
+        idx += 1
+        if {"ref", "c_array"}.has(mod.name) {
+            if idx < last_array_idx {
+                array_type_mods.add(mod.copy())
+            } else {
+                mods_without_array_parts.add(mod.copy())
+            }
+            continue
+        }
+        if mod.name == "readonly" {
+            array_type_mods.add(mod.copy())
+            continue
+        }
+        if mod.name == "array" {
+            if idx < last_array_idx {
+                array_type_mods.add(mod.copy())
+            }
+            continue
+        }
+        mods_without_array_parts.add(mod.copy())
+    }
+
+    var inner_type = type_info.copy()
+    inner_type.modifiers = array_type_mods
+    var array_key = none
+    if nested_arrays {
+        var array_name_result = get_array_type_info(
+            inner_type)
+        assert(array_name_result != none)
+        array_key = "__m64_array__" +
+        array_name_result[1]
+    } else {
+        array_key = "__m64_array__" +
+        inner_type.as_str().
+        replace(" ", "_").replace(".", "__")
+    }
+
+    return [array_key, inner_type,
+        mods_without_array_parts]
 }
 
