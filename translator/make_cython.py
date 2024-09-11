@@ -30,6 +30,7 @@ import hashlib
 import os
 import platform
 import subprocess
+import sys
 
 MY_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -41,6 +42,17 @@ def filehash(path):
 
 if __name__ == "__main__":
     print("Building Cython modules for translator...")
+    force_rebuild = False
+    i = 1
+    while i < len(sys.argv):
+        if sys.argv[i] == "--force-rebuild":
+            force_rebuild = True
+        elif sys.argv[i] == "--":
+            break
+        elif sys.argv[i] in ["--version", "-v", "-V"]:
+            print("make_cython version: 2024-08-09")
+            sys.exit(0)
+        i += 1
     items = [os.path.join(MY_DIR, "..",
         "translator", "translator_main.pyx")]
     for p in os.listdir(os.path.join(MY_DIR, "..",
@@ -76,11 +88,15 @@ if __name__ == "__main__":
                 old_hash = f.read().strip()
             if old_hash == source_hash:
                 print("Hash match for " + fullp + "!")
-                if fullp_lib_link != None:
-                    if os.path.exists(fullp_lib_link):
-                        os.remove(fullp_lib_link)
-                    os.symlink(fullp_lib, fullp_lib_link)
-                continue
+                if force_rebuild:
+                    print("Rebuilding anyway due to --force-rebuild "
+                        "option.")
+                else:
+                    if fullp_lib_link != None:
+                        if os.path.exists(fullp_lib_link):
+                            os.remove(fullp_lib_link)
+                        os.symlink(fullp_lib, fullp_lib_link)
+                    continue
         subprocess.check_output([
             "cython", "-o", fullp_c, fullp
         ])
