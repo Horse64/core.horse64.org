@@ -72,6 +72,8 @@ type CExportTracker {
     var project
 
     var known_array_types_map = {->}
+    var file_to_full_types_referenced_map = {->}
+    var file_to_partial_types_referenced_map = {->}
 }
 
 extend type compiler.project.Project {
