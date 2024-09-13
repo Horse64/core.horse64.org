@@ -51,7 +51,7 @@ type CExportResult {
 
 func get_global_symbol_c_name(global_name, project_file=none) {
     if project_file == none {
-        throw new ValueError("The project_file opion must be "
+        throw new ValueError("The project_file option must be "
             "specified.")
     }
     var pkg_name = "unknown_moose64_package"
@@ -94,6 +94,16 @@ func CExportTracker.register_array_type(typeinfo) {
             array_info[2].copy()
     }
     return array_info
+}
+
+func CExportTracker.generate_c_types_header_str() {
+    var t = "\n"
+    for array_key in self.known_array_types_map {
+        t += "struct " + array_key + " {\n"
+        t += "    uint64_t len;\n"
+        t += "};\n"
+    }
+    return t
 }
 
 func optoken_to_c_token(token) {
@@ -863,6 +873,7 @@ func ast_to_c(project_file, msgs=none, build_options=none) {
     header_contents =
         "\n#ifndef " + include_guard_name + "\n" +
         "#define " + include_guard_name + "\n" +
+        "// FIXME: moosec will insert type info here later.\n" +
         header_contents +
         "\n#endif  // " + include_guard_name + "\n"
     return later [t, header_contents]
@@ -990,6 +1001,7 @@ func export_moose_project_to_c(
 
     # Now process each file to translate it to C:
     var output_string_result = none
+    var pfile_to_header_uri_map = {->}
     func process_file(pfile) {
         var c_result
         var header_result
@@ -1098,6 +1110,8 @@ func export_moose_project_to_c(
             output_header_file_uri = uri.add_part(
                 uri.traverse_up(output_file_uri), header_name
             )
+            pfile_to_header_uri_map[pfile] =
+                output_header_file_uri
         }
 
         if not {"file"}.has(uri.get_protocol(output_file_uri)) {
@@ -1176,8 +1190,10 @@ func export_moose_project_to_c(
                 return later
             }
         }
-        write_header_file() later:
+        var write_success = write_header_file()
+        later:
 
+        await write_success
         return later yes
     }
     var result = project.do_for_all_files(process_file)
@@ -1195,6 +1211,73 @@ func export_moose_project_to_c(
     if not result {
         return none
     }
+
+    func process_header_types_for_file(pfile) {
+        var header_types_str = pfile.project.
+            c_export_tracker.generate_c_types_header_str()
+
+        if not pfile_to_header_uri_map.has(pfile) {
+            return later yes
+        }
+        var output_header_file_uri =
+            pfile_to_header_uri_map[pfile]
+        if boptions.verbose_mode {
+            clog.log_or_print(new msg.FileMsg(
+                "export_moose_project_to_c(): "
+                "Inserting full type info for: " +
+                output_header_file_uri,
+                kind=msg.M_INFO,
+                source_file=pfile,
+            ), msgs=msgs, program_name=program_name)
+        }
+
+        var header_str = none
+        func read_header_file() {
+            var disk_path = uri.to_file_or_vfs_path(
+                output_header_file_uri)
+            with io.open(disk_path, "r") later as f {
+                header_str = f.read()
+                later:
+
+                await header_str
+                return later yes
+            }
+        }
+        var read_success = read_header_file()
+        later:
+
+        await read_success
+        var placeholder =
+            "// FIXME: moosec will insert type info here later."
+        var pos = header_str.find(placeholder)
+        if pos == none {
+            return later yes
+        }
+        header_str = header_str.sub(1, pos - 1) +
+            header_types_str + header_str.sub(pos + placeholder.len)
+
+        func write_header_file() {
+            var disk_path = uri.to_file_or_vfs_path(
+                output_header_file_uri)
+            with io.open(disk_path, "w") later as f {
+                f.write(header_str)
+                later:
+
+                return later yes
+            }
+        }
+        var write_success = write_header_file()
+        later:
+
+        await write_success
+        return later yes
+    }
+    result = project.do_for_all_files(
+        process_header_types_for_file)
+    later:
+
+    await result
+    assert(result == yes or result == no)
     return later export_result
 }
 
