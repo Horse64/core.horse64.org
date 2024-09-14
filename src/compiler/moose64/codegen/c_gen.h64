@@ -93,8 +93,43 @@ func CExportTracker.register_m64_array_type(array_info) {
     return array_info
 }
 
-func CExportTracker.generate_c_types_header_str() {
+func CExportTracker.generate_c_types_header_str(
+        project_file) {
+    const is_moose64 = no
     var t = "\n"
+
+    var c_file_include_paths = []
+
+    var include_project_files_set = {}
+
+    func handle_gscope_entry(entry_name, entry) {
+        if entry.kind == ast.N_STMT_C_IMPORT {
+            print("C import: " + entry.as_str())
+            for fpath in entry.file_paths {
+                c_file_include_paths.add(fpath + "")
+            }
+        } elseif entry.kind == ast.N_STMT_IMPORT {
+            print("import: " + entry.as_str())
+        } elseif entry.kind == ast.N_STMT_STRUCT {
+            print("struct: " + entry.as_str())
+        } elseif entry.kind == ast.N_STMT_TYPE {
+            throw new RuntimeError("Type statements "
+                "aren't supported for Moose64.")
+        }
+    }
+    for entry_name in project_file.global_scope.name_to_stmt_map {
+        var entry = project_file.global_scope.name_to_stmt_map[
+            entry_name
+        ]
+        if typename(entry) == "list" {
+            for item in entry {
+                handle_gscope_entry(entry_name, item)
+            }
+        } else {
+            handle_gscope_entry(entry_name, entry)
+        }
+    }
+
     for array_key in self.known_array_types_map {
         t += "struct __m64arraystruct__" + array_key + " {\n"
         t += "    uint64_t len;\n"
@@ -1219,7 +1254,9 @@ func export_moose_project_to_c(
 
     func process_header_types_for_file(pfile) {
         var header_types_str = pfile.project.
-            c_export_tracker.generate_c_types_header_str()
+            c_export_tracker.generate_c_types_header_str(
+                pfile
+            )
 
         if not pfile_to_header_uri_map.has(pfile) {
             return later yes
