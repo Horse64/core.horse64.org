@@ -130,11 +130,14 @@ func TypeRefModProp_Range.is_equivalent_prop_to(other_mod) {
     return yes
 }
 
-
-func TypeRefModProp_Range.as_c_code(
-        indent=0, global_name_assign_callback=none,
-        project=none, is_moose64=no) {
-    return self.as_str()
+func TypeRefModProp_Range.as_array_key {
+    var t = "m64_mod_prop_range_"
+    if self.range_value_num != none {
+        t += self.range_value_num.as_str()
+    } else {
+        t += self.range_value_label.as_str()
+    }
+    return t
 }
 
 type TypeRefMod {
@@ -154,9 +157,17 @@ func TypeRefMod.as_str {
     return t
 }
 
+func TypeRefMod.as_str {
+    var t = self.name + ""
+    for prop in self.props {
+        t += prop.as_str()
+    }
+    return t
+}
+
 func TypeRefMod.as_c_code(
         indent=0, global_name_assign_callback=none,
-        project=none, is_moose64=no
+        project=none, project_file=none, is_moose64=no
         ) {
     if self.name == "readonly" {
         return "const"
@@ -168,7 +179,8 @@ func TypeRefMod.as_c_code(
         t += prop.as_c_code(indent=0,
             global_name_assign_callback=
                 global_name_assign_callback,
-            project=project, is_moose64=is_moose64)
+            project=project, project_file=project_file,
+            is_moose64=is_moose64)
     }
     return self.name
 }
@@ -267,7 +279,8 @@ func TypeRefFuncExpr.as_str(indent=0) {
 func TypeRefFuncExpr.as_c_code(
         indent=0, global_name_assign_callback=none,
         global_register_m64_array_callback=none,
-        project=none, is_moose64=no
+        project=none, project_file=none,
+        is_moose64=no
         ) {
     if self.damaged {
         return "(damaged type ref func expr.)"
@@ -283,7 +296,8 @@ func TypeRefFuncExpr.as_c_code(
             t += mod.as_c_code(indent=(indent + 4),
                 global_name_assign_callback=
                     global_name_assign_callback,
-                project=project, is_moose64=is_moose64)
+                project=project, project_file=project_file,
+                is_moose64=is_moose64)
         }
     }
     if self.return_typeref_expr != none and
@@ -295,7 +309,8 @@ func TypeRefFuncExpr.as_c_code(
                 global_name_assign_callback,
             global_register_m64_array_callback=
                 global_register_m64_array_callback,
-            project=project, is_moose64=is_moose64)
+            project=project, project_file=project_file,
+            is_moose64=is_moose64)
     } else {
         t += "void"
     }
@@ -318,7 +333,8 @@ func TypeRefFuncExpr.as_c_code(
                 global_name_assign_callback,
             global_register_m64_array_callback=
                 global_register_m64_array_callback,
-            project=project, is_moose64=is_moose64)
+            project=project, project_file=project_file,
+            is_moose64=is_moose64)
     }
     t += ")"
     for mod in self.modifiers {
@@ -326,7 +342,8 @@ func TypeRefFuncExpr.as_c_code(
             t += " " + mod.as_c_code(indent=(indent + 4),
                 global_name_assign_callback=
                     global_name_assign_callback,
-                project=project, is_moose64=is_moose64)
+                project=project, project_file=project_file,
+                is_moose64=is_moose64)
         }
     }
     return t
@@ -621,16 +638,22 @@ func TypeRefExpr.as_code(indent=0) {
 func TypeRefExpr.as_c_code(
         indent=0, global_name_assign_callback=none,
         global_register_m64_array_callback=none,
-        project=none, is_moose64=no
+        project=none, project_file=none,
+        is_moose64=no
         ) {
     if self.damaged {
         return "(damaged type ref expr.)"
     }
 
+    if project_file != none and project == none {
+        project = project_file.project
+    }
     if self.is_array() {
         var ainfo = self.get_array_info(
             global_register_m64_array_callback=
                 global_register_m64_array_callback,
+            project=project,
+            project_file=project_file,
             is_moose64=is_moose64)
         assert(ainfo != none)
         var inner_tinfo = ainfo[2]
@@ -643,7 +666,8 @@ func TypeRefExpr.as_c_code(
                 t += mod.as_c_code(indent=indent,
                     global_name_assign_callback=
                         global_name_assign_callback,
-                    project=project, is_moose64=is_moose64)
+                    project=project, project_file=project_file,
+                    is_moose64=is_moose64)
             }
         }
         if t != "" {
@@ -658,7 +682,8 @@ func TypeRefExpr.as_c_code(
                 t += mod.as_c_code(indent=indent,
                     global_name_assign_callback=
                         global_name_assign_callback,
-                    project=project, is_moose64=is_moose64)
+                    project=project, project_file=project_file,
+                    is_moose64=is_moose64)
             }
         }
         return t
@@ -674,7 +699,8 @@ func TypeRefExpr.as_c_code(
             t += mod.as_c_code(indent=indent,
                 global_name_assign_callback=
                     global_name_assign_callback,
-                project=project, is_moose64=is_moose64)
+                project=project, project_file=project_file,
+                is_moose64=is_moose64)
         }
     }
     if t != "" {
@@ -708,7 +734,8 @@ func TypeRefExpr.as_c_code(
             t += " " + mod.as_c_code(indent=indent,
                 global_name_assign_callback=
                     global_name_assign_callback,
-                project=project, is_moose64=is_moose64)
+                project=project, project_file=project_file,
+                is_moose64=is_moose64)
         }
     }
     if self.has_init_expr {
@@ -716,7 +743,8 @@ func TypeRefExpr.as_c_code(
         t += self.subexprs[1].as_c_code(indent=(indent + 4),
             global_name_assign_callback=
                 global_name_assign_callback,
-            project=project, is_moose64=is_moose64)
+            project=project, project_file=project_file,
+            is_moose64=is_moose64)
     }
     return t
 }
@@ -758,12 +786,15 @@ func TypeRefExpr.is_array {
 
 func TypeRefExpr.get_array_info(
         global_register_m64_array_callback=none,
+        project=none, project_file=none,
         is_moose64=no) {
     var t = typeinfo.create_typeinfo_from_typeexpr(
         self, is_moose64=is_moose64)
     return typeinfo.get_array_type_info(
         t, global_register_m64_array_callback=
-            global_register_m64_array_callback)
+            global_register_m64_array_callback,
+        project=project, project_file=project_file,
+        is_moose64=is_moose64)
 }
 
 func TypeRefExpr.ref_count(
@@ -825,13 +856,17 @@ func get_c_builtin_for_m64_base_type(name) {
     }
 }
 
-func TypeRefExpr.try_resolve_to_user_type(
+func TypeRefExpr.try_resolve_to_user_type_nonrecursive(
         project_file, force_recompute=no, is_moose64=no
         ) {
     var builtin_names =
         if is_moose64 (builtin_moose64_types)
             else (builtin_horse64_types)
     if self.is_func_ref or builtin_names.has(self.name) {
+        if self.is_func_ref and self.storage_ref == none and
+                self.func_storage_ref != none {
+            self.storage_ref = self.func_storage_ref.copy()
+        }
         return none
     }
     if self.storage_ref != none and not force_recompute {
@@ -854,7 +889,16 @@ func TypeRefExpr.try_resolve_to_user_type(
         is_write_access=no, is_moose64=is_moose64
     )
     self.storage_ref = result.copy()
-    return later result
+    return result
+}
+
+func TypeRefExpr.try_resolve_to_user_type(
+        project_file, force_recompute=no, is_moose64=no
+        ) {
+    return later self.try_resolve_to_user_type_nonrecursive(
+        project_file, force_recompute=force_recompute,
+        is_moose64=is_moose64,
+    )
 }
 
 func TypeRefExpr.get_c_builtin_for_m64_base_type {

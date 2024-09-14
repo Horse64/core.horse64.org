@@ -96,7 +96,7 @@ func CExportTracker.register_m64_array_type(array_info) {
 func CExportTracker.generate_c_types_header_str() {
     var t = "\n"
     for array_key in self.known_array_types_map {
-        t += "struct " + array_key + " {\n"
+        t += "struct __m64arraystruct__" + array_key + " {\n"
         t += "    uint64_t len;\n"
         t += "};\n"
     }
@@ -691,7 +691,8 @@ func node_to_c_string(project_file, node, parents,
             global_register_m64_array_callback=
                 project_file.project.c_export_tracker.
                     register_m64_array_type,
-            project=project, is_moose64=is_moose64)
+            project=project, project_file=project_file,
+            is_moose64=is_moose64)
         assert(not c_var_type.has("."))
 
         var t = ""
@@ -803,7 +804,8 @@ func node_to_c_string(project_file, node, parents,
                 global_register_m64_array_callback=
                     project_file.project.c_export_tracker.
                         register_m64_array_type,
-                project=project, is_moose64=is_moose64)
+                project=project, project_file=project_file,
+                is_moose64=is_moose64)
         }
         var t = indent_str + c_return_type + " " +
             get_global_symbol_c_name(

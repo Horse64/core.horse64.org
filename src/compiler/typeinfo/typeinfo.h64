@@ -958,7 +958,12 @@ func create_typeinfo_from_global_ref(
 }
 
 func get_array_type_info(type_info,
-        global_register_m64_array_callback=none) {
+        project=none, project_file=none,
+        global_register_m64_array_callback=none,
+        is_moose64=no) {
+    if project_file != none and project == none {
+        project = project_file.project
+    }
     var mods_without_array_parts = []
     var array_type_mods = []
     var found_array_mod = no
@@ -1017,14 +1022,39 @@ func get_array_type_info(type_info,
             inner_type,
             global_register_m64_array_callback=
                 global_register_m64_array_callback,
+            project=project,
+            project_file=project_file,
+            is_moose64=is_moose64,
         )
         assert(array_name_result != none)
         array_key = "__m64_array__" +
         array_name_result[1]
     } else {
+        var inner_type_key_str = none
+        var inner_type_expr =
+            inner_type.convert_to_typeref_expr(
+                project=project,
+                is_moose64=is_moose64
+            )
+        if inner_type_expr != none {
+            inner_type_expr.try_resolve_to_user_type_nonrecursive(
+                project_file, is_moose64=is_moose64
+            )
+        }
+        if inner_type_expr != none and
+                inner_type_expr.storage_ref != none and
+                {st_ref.ST_GLOBAL, st_ref.ST_GLOBALATTR}.has(
+                    inner_type_expr.storage_ref.kind
+                ) {
+            inner_type_key_str = inner_type_expr.storage_ref.as_str()
+        } else {
+            inner_type_key_str = inner_type.orig_type_name
+        }
+        for mod in inner_type.modifiers {
+            inner_type_key_str += mod.as_array_key()
+        }
         array_key = "__m64_array__" +
-        inner_type.as_str().
-        replace(" ", "_").replace(".", "__")
+            inner_type_key_str
     }
 
     var result = [array_key, inner_type,
