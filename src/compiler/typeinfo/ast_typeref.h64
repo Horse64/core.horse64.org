@@ -266,6 +266,7 @@ func TypeRefFuncExpr.as_str(indent=0) {
 
 func TypeRefFuncExpr.as_c_code(
         indent=0, global_name_assign_callback=none,
+        global_register_m64_array_callback=none,
         project=none, is_moose64=no
         ) {
     if self.damaged {
@@ -292,6 +293,8 @@ func TypeRefFuncExpr.as_c_code(
             indent=(indent + 4),
             global_name_assign_callback=
                 global_name_assign_callback,
+            global_register_m64_array_callback=
+                global_register_m64_array_callback,
             project=project, is_moose64=is_moose64)
     } else {
         t += "void"
@@ -313,6 +316,8 @@ func TypeRefFuncExpr.as_c_code(
         t += param_type.as_c_code(indent=(indent + 4),
             global_name_assign_callback=
                 global_name_assign_callback,
+            global_register_m64_array_callback=
+                global_register_m64_array_callback,
             project=project, is_moose64=is_moose64)
     }
     t += ")"
@@ -615,6 +620,7 @@ func TypeRefExpr.as_code(indent=0) {
 
 func TypeRefExpr.as_c_code(
         indent=0, global_name_assign_callback=none,
+        global_register_m64_array_callback=none,
         project=none, is_moose64=no
         ) {
     if self.damaged {
@@ -623,6 +629,8 @@ func TypeRefExpr.as_c_code(
 
     if self.is_array() {
         var ainfo = self.get_array_info(
+            global_register_m64_array_callback=
+                global_register_m64_array_callback,
             is_moose64=is_moose64)
         assert(ainfo != none)
         var inner_tinfo = ainfo[2]
@@ -634,7 +642,7 @@ func TypeRefExpr.as_c_code(
                 }
                 t += mod.as_c_code(indent=indent,
                     global_name_assign_callback=
-                    global_name_assign_callback,
+                        global_name_assign_callback,
                     project=project, is_moose64=is_moose64)
             }
         }
@@ -649,7 +657,7 @@ func TypeRefExpr.as_c_code(
                 }
                 t += mod.as_c_code(indent=indent,
                     global_name_assign_callback=
-                    global_name_assign_callback,
+                        global_name_assign_callback,
                     project=project, is_moose64=is_moose64)
             }
         }
@@ -748,10 +756,14 @@ func TypeRefExpr.is_array {
     return t.is_array()
 }
 
-func TypeRefExpr.get_array_info(is_moose64=no) {
+func TypeRefExpr.get_array_info(
+        global_register_m64_array_callback=none,
+        is_moose64=no) {
     var t = typeinfo.create_typeinfo_from_typeexpr(
         self, is_moose64=is_moose64)
-    return typeinfo.get_array_type_info(t)
+    return typeinfo.get_array_type_info(
+        t, global_register_m64_array_callback=
+            global_register_m64_array_callback)
 }
 
 func TypeRefExpr.ref_count(

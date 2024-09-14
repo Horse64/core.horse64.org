@@ -80,10 +80,7 @@ extend type compiler.project.Project {
     var c_export_tracker
 }
 
-func CExportTracker.register_array_type(typeinfo) {
-    var array_info = typeinfo.get_array_type_info(
-        typeinfo
-    )
+func CExportTracker.register_m64_array_type(array_info) {
     if array_info == none {
         throw new ValueError("Could not register this "
             "type as array type, it's invalid.")
@@ -691,6 +688,9 @@ func node_to_c_string(project_file, node, parents,
         var c_var_type = texpr.as_c_code(
             global_name_assign_callback=
                 get_global_symbol_c_name,
+            global_register_m64_array_callback=
+                project_file.project.c_export_tracker.
+                    register_m64_array_type,
             project=project, is_moose64=is_moose64)
         assert(not c_var_type.has("."))
 
@@ -800,6 +800,9 @@ func node_to_c_string(project_file, node, parents,
             c_return_type = rexpr.as_c_code(
                 global_name_assign_callback=
                     get_global_symbol_c_name,
+                global_register_m64_array_callback=
+                    project_file.project.c_export_tracker.
+                        register_m64_array_type,
                 project=project, is_moose64=is_moose64)
         }
         var t = indent_str + c_return_type + " " +
