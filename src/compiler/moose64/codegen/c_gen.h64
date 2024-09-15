@@ -1080,6 +1080,49 @@ func guess_build_dir_from_build_options(build_options, project) {
     return later build_base_dir_uri
 }
 
+func get_c_output_uri_from_project_file(
+        project_file, c_output_dir_uri,
+        name_as_temp_file=no
+        ) {
+    var output_file_uri = c_output_dir_uri
+    var file_relpath = none
+    if project_file.modinfo != none and
+                project_file.modinfo.rel_path != none {
+        file_relpath = path.normalize(
+            project_file.modinfo.rel_path
+        )
+        if project_file.project.source_dir_prefix != none and
+                project_file.project.
+                    source_dir_prefix.len > 0 and
+                file_relpath.starts(
+                    project_file.project.
+                        source_dir_prefix + path.sep
+                ) {
+            file_relpath = file_relpath.sub(
+                (project_file.project.
+                    source_dir_prefix + path.sep).len
+            )
+        }
+    } else {
+        file_relpath = "unnamed_code_file.m64"
+    }
+    file_relpath = path.normalize(file_relpath + ".c")
+    if name_as_temp_file {
+        var fname = path.basename(file_relpath)
+        fname = ".moosec." + fname
+        assert(fname.ends(".c"))
+        fname = fname.sub(1, fname.len - 2) + ".tmp.c"
+        file_relpath = path.join(
+            path.dirname(file_relpath), fname
+        )
+    }
+
+    output_file_uri = uri.add_part(
+        output_file_uri, file_relpath.replace(path.sep, "/")
+    )
+    return ouput_file_uri
+}
+
 func export_moose_project_to_c(
         project, name_as_temp_file=no,
         limit_to_entrypoint_file=no,
@@ -1202,37 +1245,11 @@ func export_moose_project_to_c(
         }
         if output_file_uri == none {
             output_file_uri = c_output_dir_uri
-            var file_relpath = none
-            if pfile.modinfo != none and
-                        pfile.modinfo.rel_path != none {
-                file_relpath = path.normalize(
-                    pfile.modinfo.rel_path
+            output_file_uri =
+                get_c_output_uri_from_project_file(
+                    pfile, c_output_dir_uri,
+                    name_as_temp_file=name_as_temp_file
                 )
-                if project.source_dir_prefix != none and
-                        project.source_dir_prefix.len > 0 and
-                        file_relpath.starts(
-                            project.source_dir_prefix + path.sep
-                        ) {
-                    file_relpath = file_relpath.sub(
-                        (project.source_dir_prefix + path.sep).len
-                    )
-                }
-            } else {
-                file_relpath = "unnamed_code_file.m64"
-            }
-            file_relpath = path.normalize(file_relpath + ".c")
-            if name_as_temp_file {
-                var fname = path.basename(file_relpath)
-                fname = ".moosec." + fname
-                assert(fname.ends(".c"))
-                fname = fname.sub(1, fname.len - 2) + ".tmp.c"
-                file_relpath = path.join(
-                    path.dirname(file_relpath), fname
-                )
-            }
-            output_file_uri = uri.add_part(
-                output_file_uri, file_relpath.replace(path.sep, "/")
-            )
         }
         if output_file_dir_uri == none {
             output_file_dir_uri = uri.traverse_up(
