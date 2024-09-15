@@ -98,20 +98,46 @@ func CExportTracker.generate_c_types_header_str(
     const is_moose64 = no
     var t = "\n"
 
+    var t_c_include_str = "\n#include <stdlib.h>\n#include <stdint.h>\n"
     var c_file_include_paths = []
 
+    var t_m64_include_str = "\n"
     var include_project_files_set = {}
 
     func handle_gscope_entry(entry_name, entry) {
         if entry.kind == ast.N_STMT_C_IMPORT {
-            print("C import: " + entry.as_str())
             for fpath in entry.file_paths {
                 c_file_include_paths.add(fpath + "")
+                t_c_include_str += "\n#include " +
+                    textfmt.as_escaped_code_string(
+                        fpath, for_c_code=yes
+                    )
             }
         } elseif entry.kind == ast.N_STMT_IMPORT {
-            print("import: " + entry.as_str())
+            if entry.project_file != none {
+                var found = no
+                for existing_entry in include_project_files_set {
+                    if existing_entry == entry or
+                            (existing_entry.source_uri != none and
+                             entry.source_uri != none and
+                             existing_entry.source_uri ==
+                                entry.source_uri) {
+                         found = yes
+                     }
+                }
+                if not found {
+                    include_project_files_set.add(entry.project_file)
+                    var target_path = entry.project_file.
+                        modinfo.rel_path
+                    target_path += ".h"
+                    t_m64_include_str += "\n#include " +
+                        textfmt.as_escaped_code_string(
+                            target_path, for_c_code=yes
+                        )
+                }
+            }
         } elseif entry.kind == ast.N_STMT_STRUCT {
-            print("struct: " + entry.as_str())
+            #print("struct: " + entry.as_str())
         } elseif entry.kind == ast.N_STMT_TYPE {
             throw new RuntimeError("Type statements "
                 "aren't supported for Moose64.")
@@ -135,7 +161,7 @@ func CExportTracker.generate_c_types_header_str(
         t += "    uint64_t len;\n"
         t += "};\n"
     }
-    return t
+    return t_c_include_str + t_m64_include_str + t
 }
 
 func optoken_to_c_token(token) {
