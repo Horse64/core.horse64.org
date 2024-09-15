@@ -138,7 +138,8 @@ func wrap(multiline_text, length,
 ## Horse64 code file or many other programming languages,
 ## by escaping back slashes etc.
 func as_escaped_code_string(
-        s, quote_type='"', never_escape_quotes=no
+        s, quote_type='"', never_escape_quotes=no,
+        for_c_code=no
         ) {
     if quote_type != "'" and quote_type != '"' {
         throw new ValueError("Unsupported quote type.")
