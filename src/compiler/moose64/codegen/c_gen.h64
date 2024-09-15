@@ -68,12 +68,86 @@ func get_global_symbol_c_name(global_name, project_file=none) {
         mod_name.replace(".", "__") + "__" + global_name
 }
 
+func get_c_header_uri_for_type(
+        type_node=none, type_storage_ref=none,
+        project_file=none, project=none
+        ) {
+    if project_file != none and project == none {
+        project = project_file.project
+    }
+    if type_storage_ref != none and
+            not {st_ref.ST_GLOBAL}.has(
+                type_storage_ref.kind) {
+        type_storage_ref = none
+    }
+    if type_storage_ref == none and
+            type_node != none and
+            type_node.kind == ast.N_EXPR_IDREF and
+            type_node.ref != none and
+            {st_ref.ST_GLOBAL}.has(type_node.ref.kind) {
+        type_storage_ref = type_node.ref
+    } elseif type_storage_ref == none and
+            type_node != none and
+            type_node.kind == ast.N_EXPR_BINOP and
+            type_node.optoken.str == "." and
+            type_node.subexprs.len >= 2 and
+            type_node.subexprs[2].kind == ast.N_EXPR_IDREF and
+            type_node.subexprs[2].ref != none and
+            {st_ref.ST_GLOBAL}.has(
+                type_node.subexprs[2].ref.kind
+            ) {
+        type_storage_ref = type_node.subexprs[2].ref
+    }
+    if type_storage_ref == none {
+        return none
+    }
+    assert(type_storage_ref.kind == st_ref.ST_GLOBAL)
+    if project == none {
+        return none
+    }
+    assert(project.storage_id_to_global_scope_map.has(
+        type_storage_ref.id))
+    var type_gscope =
+        project.storage_id_to_global_scope_map[type_storage_ref.id]
+    assert(type_gscope != none)
+    assert(type_gscope.storage_id_to_entry_map.has(
+        type_storage_ref.id))
+    var def_node =
+        type_gscope.storage_id_to_entry_map[type_storage_ref.id]
+    if def_node.kind != ast.N_STMT_STRUCT and
+            def_node.kind != ast.N_STMT_TYPE {
+        throw new TypeError("Referenced item isn't a "
+            "Horse64 type or Moose64 struct.")
+    }
+    var def_pfile = none
+    for pfile in project.no_uri_files {
+        if pfile.global_scope == type_gscope {
+            def_pfile = pfile
+            break
+        }
+    }
+    if def_pfile == none {
+        for pfile_uri in project.module_uri_to_file_map {
+            var cmp_file = project.module_uri_to_file_map[
+                pfile_uri
+            ]
+            if cmp_file.global_scope == type_gscope {
+                def_pfile = cmp_file
+                break
+            }
+        }
+    }
+    if def_pfile == none {
+        throw new RuntimeError("Unexpectedly failed to "
+            "find project_file for a type's "
+            "global scope. This shouldn't ever happen.")
+    }
+}
+
 type CExportTracker {
     var project
 
     var known_array_types_map = {->}
-    var file_to_full_types_referenced_map = {->}
-    var file_to_partial_types_referenced_map = {->}
 }
 
 extend type compiler.project.Project {
@@ -103,6 +177,8 @@ func CExportTracker.generate_c_types_header_str(
 
     var t_m64_include_str = "\n"
     var include_project_files_set = {}
+
+    var other_headers_map = {->}
 
     func handle_gscope_entry(entry_name, entry) {
         if entry.kind == ast.N_STMT_C_IMPORT {
