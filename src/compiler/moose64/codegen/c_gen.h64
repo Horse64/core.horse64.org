@@ -69,9 +69,14 @@ func get_global_symbol_c_name(global_name, project_file=none) {
 }
 
 func get_c_header_uri_for_type(
+        c_output_dir_uri,
         type_node=none, type_storage_ref=none,
-        project_file=none, project=none
+        name_as_temp_file=no,
+        project_file=none, project=none,
         ) {
+    if c_output_dir_uri == none {
+        return none
+    }
     if project_file != none and project == none {
         project = project_file.project
     }
@@ -86,6 +91,40 @@ func get_c_header_uri_for_type(
             type_node.ref != none and
             {st_ref.ST_GLOBAL}.has(type_node.ref.kind) {
         type_storage_ref = type_node.ref
+    } elseif type_storage_ref == none and
+            type_node != none and
+            {ast.N_STMT_TYPE, ast.N_STMT_STRUCT}.has(
+                type_node.kind
+            ) and project_file.global_scope.name_to_stmt_map.has(
+                type_node.label
+            ) and typename(
+                project_file.global_scope.name_to_stmt_map[
+                    type_node.label
+                ]
+            ) != "list" and
+            project_file.global_scope.name_to_stmt_map[
+                    type_node.label
+            ].kind == type_node.kind and
+            project_file.global_scope.name_to_stmt_map[
+                    type_node.label
+            ].label == type_node.label {
+        var found_storage_id
+        for check_storage_id in project_file.global_scope.
+                storage_id_to_entry {
+            var entry = project_file.global_scope.
+                storage_id_to_entry[check_storage_id]
+            if typename(entry) != "list" and
+                    entry.kind == type_node.kind and
+                    entry.label == type_node.label {
+                found_storage_id = check_storage_id
+                break
+            }
+        }
+        if found_storage_id != none {
+            type_storage_ref = new st_ref.StorageRef(
+                st_ref.ST_GLOBAL, found_storage_id
+            )
+        }
     } elseif type_storage_ref == none and
             type_node != none and
             type_node.kind == ast.N_EXPR_BINOP and
@@ -110,10 +149,10 @@ func get_c_header_uri_for_type(
     var type_gscope =
         project.storage_id_to_global_scope_map[type_storage_ref.id]
     assert(type_gscope != none)
-    assert(type_gscope.storage_id_to_entry_map.has(
+    assert(type_gscope.storage_id_to_entry.has(
         type_storage_ref.id))
     var def_node =
-        type_gscope.storage_id_to_entry_map[type_storage_ref.id]
+        type_gscope.storage_id_to_entry[type_storage_ref.id]
     if def_node.kind != ast.N_STMT_STRUCT and
             def_node.kind != ast.N_STMT_TYPE {
         throw new TypeError("Referenced item isn't a "
@@ -142,6 +181,24 @@ func get_c_header_uri_for_type(
             "find project_file for a type's "
             "global scope. This shouldn't ever happen.")
     }
+    var pfile_c_uri = get_c_output_uri_from_project_file(
+        def_pfile, c_output_dir_uri,
+        name_as_temp_file=name_as_temp_file
+    )
+    assert(pfile_c_uri != none and
+        pfile_c_uri.ends(".c"))
+    if name_as_temp_file {
+        assert(pfile_c_uri.ends(".tmp.c"))
+        pfile_c_uri = pfile_c_uri.sub(
+            1, pfile_c_uri.len - ".tmp.c".len
+        ) + ".type-skeleton." + def_node.label + ".tmp.h"
+    } else {
+        assert(pfile_c_uri.ends(".c"))
+        pfile_c_uri = pfile_c_uri.sub(
+            1, pfile_c_uri.len - ".c".len
+        ) + ".type-skeleton." + def_node.label + ".h"
+    }
+    return pfile_c_uri
 }
 
 type CExportTracker {
@@ -168,7 +225,8 @@ func CExportTracker.register_m64_array_type(array_info) {
 }
 
 func CExportTracker.generate_c_types_header_str(
-        project_file) {
+        project_file, c_output_dir_uri,
+        name_as_temp_file=no) {
     const is_moose64 = no
     var t = "\n"
 
@@ -213,7 +271,11 @@ func CExportTracker.generate_c_types_header_str(
                 }
             }
         } elseif entry.kind == ast.N_STMT_STRUCT {
-            #print("struct: " + entry.as_str())
+            var c_header_uri = get_c_header_uri_for_type(
+                c_output_dir_uri, type_node=entry,
+                name_as_temp_file=name_as_temp_file,
+                project_file=project_file,
+            )
         } elseif entry.kind == ast.N_STMT_TYPE {
             throw new RuntimeError("Type statements "
                 "aren't supported for Moose64.")
@@ -1120,7 +1182,7 @@ func get_c_output_uri_from_project_file(
     output_file_uri = uri.add_part(
         output_file_uri, file_relpath.replace(path.sep, "/")
     )
-    return ouput_file_uri
+    return output_file_uri
 }
 
 func export_moose_project_to_c(
@@ -1238,16 +1300,19 @@ func export_moose_project_to_c(
         var output_file_uri
         var output_header_file_uri
         var output_file_dir_uri
-        if c_output_dir_uri == none {
+        var c_output_dir_uri_concrete = c_output_dir_uri
+        if c_output_dir_uri_concrete == none {
             assert(c_output_file_uri != none)
-            c_output_dir_uri = path.dirname(c_output_file_uri)
+            c_output_dir_uri_concrete = path.dirname(
+                c_output_file_uri
+            )
             output_file_uri = c_output_file_uri
         }
         if output_file_uri == none {
-            output_file_uri = c_output_dir_uri
+            output_file_uri = c_output_dir_uri_concrete
             output_file_uri =
                 get_c_output_uri_from_project_file(
-                    pfile, c_output_dir_uri,
+                    pfile, c_output_dir_uri_concrete,
                     name_as_temp_file=name_as_temp_file
                 )
         }
@@ -1372,9 +1437,18 @@ func export_moose_project_to_c(
     }
 
     func process_header_types_for_file(pfile) {
+        var c_output_dir_uri_concrete = c_output_dir_uri
+        if c_output_dir_uri_concrete == none {
+            assert(c_output_file_uri != none)
+            c_output_dir_uri_concrete = path.dirname(
+                c_output_file_uri
+            )
+            output_file_uri = c_output_file_uri
+        }
         var header_types_str = pfile.project.
             c_export_tracker.generate_c_types_header_str(
-                pfile
+                pfile, c_output_dir_uri_concrete,
+                name_as_temp_file=name_as_temp_file
             )
 
         if not pfile_to_header_uri_map.has(pfile) {
