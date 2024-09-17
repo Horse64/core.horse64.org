@@ -263,6 +263,14 @@ func CExportTracker.generate_c_types_header_str(
                     include_project_files_set.add(entry.project_file)
                     var target_path = entry.project_file.
                         modinfo.rel_path
+                    if project_file.project.source_dir_prefix != none and
+                            project_file.project.
+                                source_dir_prefix.len > 0 {
+                        target_path = path.join(
+                            project_file.project.source_dir_prefix,
+                            target_path
+                        )
+                    }
                     target_path += ".h"
                     t_m64_include_str += "\n#include " +
                         textfmt.as_escaped_code_string(
@@ -1165,8 +1173,19 @@ func get_c_output_uri_from_project_file(
                     source_dir_prefix + path.sep).len
             )
         }
+        if file_relpath.starts(path.sep) {
+            file_relpath = file_relpath.sub(2)
+        }
     } else {
         file_relpath = "unnamed_code_file.m64"
+    }
+    if project_file.project.source_dir_prefix != none and
+            project_file.project.
+                source_dir_prefix.len > 0 {
+        file_relpath = path.join(
+            project_file.project.source_dir_prefix,
+            file_relpath
+        )
     }
     file_relpath = path.normalize(file_relpath + ".c")
     if name_as_temp_file {
