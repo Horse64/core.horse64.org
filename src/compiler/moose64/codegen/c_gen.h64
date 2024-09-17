@@ -224,6 +224,10 @@ func CExportTracker.register_m64_array_type(array_info) {
     return array_info
 }
 
+func m64_identifier_to_c_identifier(label) {
+    return label
+}
+
 func CExportTracker.generate_c_types_header_str(
         project_file, c_output_dir_uri,
         name_as_temp_file=no) {
@@ -263,14 +267,7 @@ func CExportTracker.generate_c_types_header_str(
                     include_project_files_set.add(entry.project_file)
                     var target_path = entry.project_file.
                         modinfo.rel_path
-                    if project_file.project.source_dir_prefix != none and
-                            project_file.project.
-                                source_dir_prefix.len > 0 {
-                        target_path = path.join(
-                            project_file.project.source_dir_prefix,
-                            target_path
-                        )
-                    }
+                    assert(target_path != none)
                     target_path += ".h"
                     t_m64_include_str += "\n#include " +
                         textfmt.as_escaped_code_string(
@@ -284,30 +281,88 @@ func CExportTracker.generate_c_types_header_str(
                 name_as_temp_file=name_as_temp_file,
                 project_file=project_file,
             )
+            var t_struct = "\n"
+            var header_guard_name = "UNNAMED_CODE_FILE"
+            if project_file.modinfo != none and
+                    project_file.modinfo.rel_path != none {
+                var guardappend = project_file.modinfo.rel_path
+                guardappend = guardappend.upper()
+                if guardappend.ends(".M64") {
+                    guardappend = guardappend.sub(
+                        1, guardappend.len - ".M64".len)
+                }
+                guardappend = guardappend.replace("/", "__")
+                guardappend = guardappend.replace("\\", "__")
+                guardappend = guardappend.replace(".", "__")
+                while "___" in guardappend {
+                    guardappend = guardappend.replace("___", "__")
+                }
+                while guardappend.ends("_") {
+                    guardappend = guardappend.sub(
+                        1, guardappend.len - 1)
+                }
+                while guardappend.starts("_") {
+                    guardappend = guardappend.sub(2)
+                }
+                header_guard_name = m64_identifier_to_c_identifier(
+                    guardappend
+                )
+            }
+            header_guard_name += "__TYPE_SKELETON__"
+            header_guard_name += m64_identifier_to_c_identifier(
+                entry.label.upper()
+            ) + "__H_"
+            t_struct += "#ifndef " + header_guard_name + "\n"
+            t_struct += "#define " + header_guard_name + "\n"
+            t_struct += "struct " +
+                m64_identifier_to_c_identifier(entry.label) + " {\n"
+            t_struct += "}\n"
+            t_struct += "#endif  // " + header_guard_name + "\n"
         } elseif entry.kind == ast.N_STMT_TYPE {
             throw new RuntimeError("Type statements "
                 "aren't supported for Moose64.")
         }
+        return later
     }
+    var handle_queue = []
     for entry_name in project_file.global_scope.name_to_stmt_map {
         var entry = project_file.global_scope.name_to_stmt_map[
             entry_name
         ]
         if typename(entry) == "list" {
             for item in entry {
-                handle_gscope_entry(entry_name, item)
+                handle_queue.add([entry_name, item])
             }
         } else {
-            handle_gscope_entry(entry_name, entry)
+            handle_queue.add([entry_name, entry])
         }
     }
+    func process_queue {
+        if handle_queue.len == 0 {
+            return later
+        }
+        var next_entry = handle_queue.pop()
+        var result = handle_gscope_entry(
+            next_entry[1], next_entry[2]
+        ) later:
+
+        await result
+        if handle_queue.len == 0 {
+            return later
+        }
+        next_entry = handle_queue.pop()
+        result = handle_gscope_entry(
+            next_entry[1], next_entry[2]
+        ) later repeat
+    }
+    process_queue() later:
 
     for array_key in self.known_array_types_map {
         t += "struct __m64arraystruct__" + array_key + " {\n"
         t += "    uint64_t len;\n"
         t += "};\n"
     }
-    return t_c_include_str + t_m64_include_str + t
+    return later t_c_include_str + t_m64_include_str + t
 }
 
 func optoken_to_c_token(token) {
@@ -1161,6 +1216,11 @@ func get_c_output_uri_from_project_file(
         file_relpath = path.normalize(
             project_file.modinfo.rel_path
         )
+        if file_relpath.starts(path.sep) {
+            file_relpath = file_relpath.sub(2)
+        }
+    } else {
+        file_relpath = "unnamed_code_file.m64"
         if project_file.project.source_dir_prefix != none and
                 project_file.project.
                     source_dir_prefix.len > 0 and
@@ -1173,19 +1233,6 @@ func get_c_output_uri_from_project_file(
                     source_dir_prefix + path.sep).len
             )
         }
-        if file_relpath.starts(path.sep) {
-            file_relpath = file_relpath.sub(2)
-        }
-    } else {
-        file_relpath = "unnamed_code_file.m64"
-    }
-    if project_file.project.source_dir_prefix != none and
-            project_file.project.
-                source_dir_prefix.len > 0 {
-        file_relpath = path.join(
-            project_file.project.source_dir_prefix,
-            file_relpath
-        )
     }
     file_relpath = path.normalize(file_relpath + ".c")
     if name_as_temp_file {
@@ -1468,7 +1515,9 @@ func export_moose_project_to_c(
             c_export_tracker.generate_c_types_header_str(
                 pfile, c_output_dir_uri_concrete,
                 name_as_temp_file=name_as_temp_file
-            )
+            ) later:
+
+        await header_types_str
 
         if not pfile_to_header_uri_map.has(pfile) {
             return later yes
