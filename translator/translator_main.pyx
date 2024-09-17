@@ -275,7 +275,7 @@ remapped_uses = {
             "_remapped_os.path.normpath",
         "path.is_abs": "_remapped_os.path.isabs",
         "path.join":
-            "_remapped_os.path.join",
+            "_translator_runtime_helpers._path_join",
         "path.basename" : "_remapped_os.path.basename",
         "path.dirname": "_remapped_os.path.dirname",
         "path.sep": "_remapped_os.path.sep",

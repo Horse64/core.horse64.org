@@ -3751,6 +3751,21 @@ def runmodinits():
 def _internals_get_addr(v):
     return int(id(v))
 
+def _path_join(*args):
+    import os
+    path_sep = os.path.sep + ""
+    result = ""
+    for item in args:
+        if len(result) > 0 and \
+                not result.endswith(path_sep):
+            result += path_sep
+        if len(result) > 0:
+            while item.startswith(path_sep) or \
+                    item.startswith("/"):
+                item = item[1:]
+        result += item.replace("/", path_sep)
+    return result
+
 def preprocess_file_in_translator(*args, **kwargs):
     import translator_runtime_helpers_preprocessor
     return translator_runtime_helpers_preprocessor.\
