@@ -49,6 +49,32 @@ type CExportResult {
     var build_c_include_uris = []
 }
 
+func truncate_path_src_dir_if_present(
+        fpath, project=none) {
+    if project == none {
+        throw new ValueError("The project option must "
+            "be specified.")
+    }
+    if project.source_dir_prefix != none and
+            project.source_dir_prefix.len > 0 and
+            (fpath == project.source_dir_prefix or
+                fpath.starts(
+                    project.source_dir_prefix +
+                    path.sep) or
+                fpath.starts(
+                    project.source_dir_prefix +
+                    "/")) {
+        fpath = fpath.sub(
+            project.source_dir_prefix.len + 1
+        )
+        while fpath.starts(path.sep) or
+                fpath.starts("/") {
+            fpath = fpath.sub(2)
+        }
+    }
+    return fpath
+}
+
 func get_global_symbol_c_name(global_name, project_file=none) {
     if project_file == none {
         throw new ValueError("The project_file option must be "
@@ -263,7 +289,7 @@ func m64_identifier_to_c_identifier(label) {
 
 func get_rel_path_inside_output_dir(
         output_base_dir_uri, inner_file_uri,
-        project=none) {
+        project=none, include_src_dir_prefix=yes) {
     if project == none {
         throw new ValueError("The project option "
             "must be set.")
@@ -275,15 +301,24 @@ func get_rel_path_inside_output_dir(
     if inner_file_uri.starts(output_base_dir_uri) {
         rel_dir_path = inner_file_uri.sub(
             output_base_dir_uri.len + 1)
-        while rel_dir_path.starts(path.sep) {
+        while rel_dir_path.starts(path.sep) or
+                rel_dir_path.starts("/") {
             rel_dir_path = rel_dir_path.sub(2)
         }
+        rel_dir_path = path.normalize(rel_dir_path)
+        if not include_src_dir_prefix {
+            rel_dir_path = truncate_path_src_dir_if_present(
+                rel_dir_path, project=project
+            )
+        }
     } else {
-        rel_dir_path = path.basename(inner_file_uri)
-        if project.source_dir_prefix != none and
+        rel_dir_path = uri.basename(inner_file_uri)
+        if include_src_dir_prefix and
+                project.source_dir_prefix != none and
                 project.source_dir_prefix.len > 0 {
             rel_dir_path = path.join(
-                project.source_dir_prefix, rel_dir_path
+                project.source_dir_prefix,
+                rel_dir_path
             )
         }
     }
@@ -334,6 +369,9 @@ func CExportTracker.generate_c_types_header_strs(
                         modinfo.rel_path
                     assert(target_path != none)
                     target_path += ".h"
+                    target_path = truncate_path_src_dir_if_present(
+                        target_path, project=project_file.project
+                    )
                     t_m64_include_str += "\n#include " +
                         textfmt.as_escaped_code_string(
                             target_path, for_c_code=yes
@@ -418,9 +456,14 @@ func CExportTracker.generate_c_types_header_strs(
             t_struct += "#endif  // " + header_guard_name + "\n"
             other_headers_map[c_header_uri] = t_struct
 
+            var include_path = path.normalize(c_header_rel_path)
+            include_path = truncate_path_src_dir_if_present(
+                include_path, project=project_file.project
+            )
+            
             types_include_str += "#include " +
                 textfmt.as_escaped_code_string(
-                    c_header_rel_path, for_c_code=yes
+                    include_path, for_c_code=yes
                 ) + "\n"
         } elseif entry.kind == ast.N_STMT_TYPE {
             throw new RuntimeError("Type statements "
@@ -1205,7 +1248,8 @@ func node_to_c_string(project_file, node, parents,
     return later ""
 }
 
-func ast_to_c(project_file, msgs=none, build_options=none) {
+func ast_to_c(project_file, msgs=none, build_options=none,
+        target_write_dir_uri=none, target_write_uri=none) {
     if project_file.project.c_export_tracker == none {
         project_file.project.c_export_tracker =
             new CExportTracker()
@@ -1215,6 +1259,40 @@ func ast_to_c(project_file, msgs=none, build_options=none) {
         climit.max_expression_nesting) * 1.5)
 
     var header_contents = ""
+    var target_rel_path_without_src = "unnamed_code_file.m64.c"
+    if target_write_uri != none {
+        if target_write_dir_uri != none {
+            target_rel_path_without_src =
+                get_rel_path_inside_output_dir(
+                    target_write_dir_uri, target_write_uri,
+                    project=project_file.project,
+                    include_src_dir_prefix=no
+                )
+        } else {
+            target_rel_path_without_src = uri.basename(
+                target_write_uri
+            )
+        }
+    } elseif project_file.modinfo != none and
+            project_file.modinfo.rel_path != none {
+        target_rel_path_without_src =
+            project_file.modinfo.rel_path
+        target_rel_path_without_src =
+            truncate_path_src_dir_if_present(
+                target_rel_path_without_src,
+                project=project_file.project
+            )
+        if not target_rel_path_without_src.ends(".m64") {
+            target_rel_path_without_src += ".m64"
+        }
+        target_rel_path_without_src += ".c"
+    }
+        
+    assert(target_rel_path_without_src != none)
+    var header_name = target_rel_path_without_src
+    assert(header_name.ends(".c"))
+    header_name = header_name.sub(
+        1, header_name.len - ".c".len) + ".h"
     func ast_to_c_header_callback(
             project_file, header_line,
             msgs=none, build_options=none) {
@@ -1243,6 +1321,10 @@ func ast_to_c(project_file, msgs=none, build_options=none) {
     var t = "#include <stdio.h>\n"
         "#include <stdlib.h>\n"
         "#include <stdint.h>\n"
+    t += "\n#include " +
+        textfmt.as_escaped_code_string(
+            header_name, for_c_code=yes
+        ) + "\n"
     for stmt_s in stmt_strs {
         t += stmt_s + "\n"
     }
@@ -1431,7 +1513,9 @@ func export_moose_project_to_c(
         var c_result
         var header_result
         var combined_result = ast_to_c(
-            pfile, msgs=msgs, build_options=boptions
+            pfile, msgs=msgs, build_options=boptions,
+            target_write_dir_uri=c_output_dir_uri,
+            target_write_uri=c_output_file_uri,
         ) later:
 
         await combined_result
