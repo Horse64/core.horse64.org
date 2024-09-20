@@ -68,7 +68,7 @@ func get_global_symbol_c_name(global_name, project_file=none) {
         mod_name.replace(".", "__") + "__" + global_name
 }
 
-func get_c_header_uri_for_type(
+func get_c_header_uri_and_info_for_type(
         c_output_dir_uri,
         type_node=none, type_storage_ref=none,
         name_as_temp_file=no,
@@ -198,7 +198,8 @@ func get_c_header_uri_for_type(
             1, pfile_c_uri.len - ".c".len
         ) + ".type-skeleton." + def_node.label + ".h"
     }
-    return pfile_c_uri
+    return [pfile_c_uri, type_storage_ref.copy(),
+        def_pfile]
 }
 
 type CExportTracker {
@@ -276,11 +277,38 @@ func CExportTracker.generate_c_types_header_strs(
                 }
             }
         } elseif entry.kind == ast.N_STMT_STRUCT {
-            var c_header_uri = get_c_header_uri_for_type(
+            var result = get_c_header_uri_and_info_for_type(
                 c_output_dir_uri, type_node=entry,
                 name_as_temp_file=name_as_temp_file,
                 project_file=project_file,
             )
+            if result == none {
+                throw new RuntimeError("Failed to get "
+                    "C header URI for type.")
+            }
+            var c_header_uri = result[1]
+            var type_st_ref = result[2]
+            var type_def_file = result[3]
+
+            var type_pkg_name = ["unnamed_pkg"]
+            var type_mod_path = ["unnamed_code_file"]
+            if type_def_file != none and
+                    type_def_file.modinfo != none and
+                    type_def_file.modinfo.module_name != none {
+                type_mod_path = type_def_file.modinfo.module_name
+                if typename(type_mod_path) == "str" {
+                    type_mod_path = type_mod_path.split(".")
+                } else {
+                    type_mod_path = type_mod_path.copy()
+                }
+            }
+            if type_def_file != none and
+                    type_def_file.modinfo != none and
+                    type_def_file.modinfo.package_name != none {
+                type_pkg_name = type_def_file.modinfo.package_name
+                assert(typename(type_pkg_name) == "str")
+            }
+
             var t_struct = "\n"
             var header_guard_name = "UNNAMED_CODE_FILE"
             if project_file.modinfo != none and
@@ -314,9 +342,13 @@ func CExportTracker.generate_c_types_header_strs(
             ) + "__H_"
             t_struct += "#ifndef " + header_guard_name + "\n"
             t_struct += "#define " + header_guard_name + "\n"
+            
             t_struct += "struct " +
-                m64_identifier_to_c_identifier(entry.label) + " {\n"
-            t_struct += "}\n"
+                m64_identifier_to_c_identifier(
+                    "m64__" + type_pkg_name.replace(".", "_") +
+                    "__" + type_mod_path.join("__") + "__" +
+                    entry.label) + " {\n"
+            t_struct += "};\n"
             t_struct += "#endif  // " + header_guard_name + "\n"
             other_headers_map[c_header_uri] = t_struct
         } elseif entry.kind == ast.N_STMT_TYPE {
