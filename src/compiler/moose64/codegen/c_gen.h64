@@ -446,13 +446,15 @@ func CExportTracker.generate_c_types_header_strs(
             ) + "__H_"
             t_struct += "#ifndef " + header_guard_name + "\n"
             t_struct += "#define " + header_guard_name + "\n"
-            
-            t_struct += "struct " +
-                m64_identifier_to_c_identifier(
-                    "m64__" + type_pkg_name.replace(".", "_") +
-                    "__" + type_mod_path.join("__") + "__" +
-                    entry.label) + " {\n"
+
+            var struct_lbl = m64_identifier_to_c_identifier(
+                "m64__" + type_pkg_name.replace(".", "_") +
+                "__" + type_mod_path.join("__") + "__" +
+                entry.label)
+            t_struct += "struct " + struct_lbl + " {\n"
             t_struct += "};\n"
+            t_struct += "typedef struct " + struct_lbl +
+                " " + struct_lbl + ";\n"
             t_struct += "#endif  // " + header_guard_name + "\n"
             other_headers_map[c_header_uri] = t_struct
 
