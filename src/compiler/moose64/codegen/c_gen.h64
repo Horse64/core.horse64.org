@@ -228,7 +228,7 @@ func m64_identifier_to_c_identifier(label) {
     return label
 }
 
-func CExportTracker.generate_c_types_header_str(
+func CExportTracker.generate_c_types_header_strs(
         project_file, c_output_dir_uri,
         name_as_temp_file=no) {
     const is_moose64 = no
@@ -318,6 +318,7 @@ func CExportTracker.generate_c_types_header_str(
                 m64_identifier_to_c_identifier(entry.label) + " {\n"
             t_struct += "}\n"
             t_struct += "#endif  // " + header_guard_name + "\n"
+            other_headers_map[c_header_uri] = t_struct
         } elseif entry.kind == ast.N_STMT_TYPE {
             throw new RuntimeError("Type statements "
                 "aren't supported for Moose64.")
@@ -362,7 +363,10 @@ func CExportTracker.generate_c_types_header_str(
         t += "    uint64_t len;\n"
         t += "};\n"
     }
-    return later t_c_include_str + t_m64_include_str + t
+    return later [
+        t_c_include_str + t_m64_include_str + t,
+        other_headers_map
+    ]
 }
 
 func optoken_to_c_token(token) {
@@ -1511,19 +1515,85 @@ func export_moose_project_to_c(
             )
             output_file_uri = c_output_file_uri
         }
-        var header_types_str = pfile.project.
-            c_export_tracker.generate_c_types_header_str(
+        var header_types_result = pfile.project.
+            c_export_tracker.generate_c_types_header_strs(
                 pfile, c_output_dir_uri_concrete,
                 name_as_temp_file=name_as_temp_file
             ) later:
 
-        await header_types_str
+        await header_types_result
+        var header_types_str = header_types_result[1]
+        var ancillary_headers_map = header_types_result[2]
 
         if not pfile_to_header_uri_map.has(pfile) {
+            # Somehow, we're not generating headers for this file.
+            # Could be the case if output is limited to a single
+            # file in the project.
             return later yes
         }
         var output_header_file_uri =
             pfile_to_header_uri_map[pfile]
+
+        func output_ancillary_header(header_uri, content) {
+            if not {"file"}.has(uri.get_protocol(header_uri)) {
+                if msgs == none {
+                    throw new RuntimeError("This type of URI "
+                    "is currently not handled by the "
+                    "compiler.moose64.codegen.c_gen."
+                    "export_moose_project_to_c function.")
+                }
+                msgs.add(new msg.FileMsg(
+                    "Unexpected " + uri.get_protocol(header_uri) +
+                    ":// URI, this protocol is currently not "
+                    "supported by the C code generator.",
+                    source_file=pfile,
+                ))
+                return later no
+            }
+            if boptions.verbose_mode {
+                clog.log_or_print(new msg.FileMsg(
+                    "export_moose_project_to_c(): "
+                    "Writing to: " + header_uri,
+                    kind=msg.M_INFO,
+                    source_file=pfile,
+                ), msgs=msgs, program_name=program_name)
+            }
+            var disk_path = uri.to_file_or_vfs_path(header_uri)
+            with io.open(disk_path, "w") later as f {
+                f.write(content)
+                later:
+
+                return later yes
+            }
+            return later yes
+        }
+        func output_ancillary_headers() {
+            var queue = []
+            for key in ancillary_headers_map {
+                queue.add([key, ancillary_headers_map[key]])
+            }
+            if queue.len == 0 {
+                return later
+            }
+            var item = queue.pop()
+            var result = output_ancillary_header(
+                item[1], item[2]
+            ) later:
+
+            await result
+            if not result {
+                return later
+            }
+            if queue.len == 0 {
+                return later
+            }
+            item = queue.pop()
+            result = output_ancillary_header(
+                item[1], item[2]
+            ) later repeat
+        }
+        output_ancillary_headers() later:
+
         if boptions.verbose_mode {
             clog.log_or_print(new msg.FileMsg(
                 "export_moose_project_to_c(): "
@@ -1533,7 +1603,6 @@ func export_moose_project_to_c(
                 source_file=pfile,
             ), msgs=msgs, program_name=program_name)
         }
-
         var header_str = none
         func read_header_file() {
             var disk_path = uri.to_file_or_vfs_path(
