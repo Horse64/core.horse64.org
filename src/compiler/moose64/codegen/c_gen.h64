@@ -68,12 +68,21 @@ func get_global_symbol_c_name(global_name, project_file=none) {
         mod_name.replace(".", "__") + "__" + global_name
 }
 
+type CHeaderUriInfo {
+    var c_header_uri
+    var c_header_rel_path
+    var type_storage_ref
+    var type_def_file
+}
+
 func get_c_header_uri_and_info_for_type(
         c_output_dir_uri,
         type_node=none, type_storage_ref=none,
+        base_header_uri=none,
         name_as_temp_file=no,
         project_file=none, project=none,
         ) {
+    var result = new CHeaderUriInfo()
     if c_output_dir_uri == none {
         return none
     }
@@ -181,25 +190,48 @@ func get_c_header_uri_and_info_for_type(
             "find project_file for a type's "
             "global scope. This shouldn't ever happen.")
     }
-    var pfile_c_uri = get_c_output_uri_from_project_file(
-        def_pfile, c_output_dir_uri,
-        name_as_temp_file=name_as_temp_file
-    )
+    var pfile_c_uri = base_header_uri
+    if pfile_c_uri == none {
+        pfile_c_uri = get_c_output_uri_from_project_file(
+            def_pfile, c_output_dir_uri,
+            name_as_temp_file=name_as_temp_file
+        )
+    } elseif pfile_c_uri.ends(".h") {
+        pfile_c_uri = pfile_c_uri.sub(
+            1, pfile_c_uri.len - ".h".len
+        ) + ".c"
+    }
     assert(pfile_c_uri != none and
         pfile_c_uri.ends(".c"))
+    var header_skeleton_uri = uri.add_part(
+        c_output_dir_uri,
+        get_rel_path_inside_output_dir(
+            c_output_dir_uri, pfile_c_uri,
+            project=project
+        ))
     if name_as_temp_file {
-        assert(pfile_c_uri.ends(".tmp.c"))
-        pfile_c_uri = pfile_c_uri.sub(
-            1, pfile_c_uri.len - ".tmp.c".len
-        ) + ".type-skeleton." + def_node.label + ".tmp.h"
+        assert(header_skeleton_uri.ends(".m64.tmp.c"))
+        header_skeleton_uri = header_skeleton_uri.sub(
+            1, header_skeleton_uri.len - ".m64.tmp.c".len
+        ) + ".type-skeleton." + def_node.label + ".m64.tmp.h"
     } else {
-        assert(pfile_c_uri.ends(".c"))
-        pfile_c_uri = pfile_c_uri.sub(
-            1, pfile_c_uri.len - ".c".len
-        ) + ".type-skeleton." + def_node.label + ".h"
+        assert(header_skeleton_uri.ends(".m64.c"))
+        header_skeleton_uri = header_skeleton_uri.sub(
+            1, header_skeleton_uri.len - ".m64.c".len
+        ) + ".type-skeleton." + def_node.label + ".m64.h"
     }
-    return [pfile_c_uri, type_storage_ref.copy(),
-        def_pfile]
+    assert(header_skeleton_uri.ends(".h"))
+
+    var c_header_rel_path = get_rel_path_inside_output_dir(
+        c_output_dir_uri, header_skeleton_uri,
+        project=project)
+    assert(c_header_rel_path.ends(".h"))
+
+    result.c_header_uri = header_skeleton_uri
+    result.c_header_rel_path = c_header_rel_path
+    result.type_storage_ref = type_storage_ref
+    result.type_def_file = def_pfile
+    return result
 }
 
 type CExportTracker {
@@ -229,18 +261,50 @@ func m64_identifier_to_c_identifier(label) {
     return label
 }
 
+func get_rel_path_inside_output_dir(
+        output_base_dir_uri, inner_file_uri,
+        project=none) {
+    if project == none {
+        throw new ValueError("The project option "
+            "must be set.")
+    }
+    output_base_dir_uri = uri.normalize(output_base_dir_uri)
+    inner_file_uri = uri.normalize(inner_file_uri)
+
+    var rel_dir_path
+    if inner_file_uri.starts(output_base_dir_uri) {
+        rel_dir_path = inner_file_uri.sub(
+            output_base_dir_uri.len + 1)
+        while rel_dir_path.starts(path.sep) {
+            rel_dir_path = rel_dir_path.sub(2)
+        }
+    } else {
+        rel_dir_path = path.basename(inner_file_uri)
+        if project.source_dir_prefix != none and
+                project.source_dir_prefix.len > 0 {
+            rel_dir_path = path.join(
+                project.source_dir_prefix, rel_dir_path
+            )
+        }
+    }
+    return rel_dir_path
+}
+
 func CExportTracker.generate_c_types_header_strs(
         project_file, c_output_dir_uri,
+        base_header_uri=none,
         name_as_temp_file=no) {
     const is_moose64 = no
     var t = "\n"
 
-    var t_c_include_str = "\n#include <stdlib.h>\n#include <stdint.h>\n"
+    var t_c_include_str =
+        "#include <stdlib.h>\n#include <stdint.h>\n"
     var c_file_include_paths = []
 
     var t_m64_include_str = "\n"
     var include_project_files_set = {}
 
+    var types_include_str = "\n"
     var other_headers_map = {->}
 
     func handle_gscope_entry(entry_name, entry) {
@@ -279,6 +343,7 @@ func CExportTracker.generate_c_types_header_strs(
         } elseif entry.kind == ast.N_STMT_STRUCT {
             var result = get_c_header_uri_and_info_for_type(
                 c_output_dir_uri, type_node=entry,
+                base_header_uri=base_header_uri,
                 name_as_temp_file=name_as_temp_file,
                 project_file=project_file,
             )
@@ -286,9 +351,10 @@ func CExportTracker.generate_c_types_header_strs(
                 throw new RuntimeError("Failed to get "
                     "C header URI for type.")
             }
-            var c_header_uri = result[1]
-            var type_st_ref = result[2]
-            var type_def_file = result[3]
+            var c_header_uri = result.c_header_uri
+            var type_st_ref = result.type_storage_ref
+            var type_def_file = result.type_def_file
+            var c_header_rel_path = result.c_header_rel_path
 
             var type_pkg_name = ["unnamed_pkg"]
             var type_mod_path = ["unnamed_code_file"]
@@ -351,6 +417,11 @@ func CExportTracker.generate_c_types_header_strs(
             t_struct += "};\n"
             t_struct += "#endif  // " + header_guard_name + "\n"
             other_headers_map[c_header_uri] = t_struct
+
+            types_include_str += "#include " +
+                textfmt.as_escaped_code_string(
+                    c_header_rel_path, for_c_code=yes
+                ) + "\n"
         } elseif entry.kind == ast.N_STMT_TYPE {
             throw new RuntimeError("Type statements "
                 "aren't supported for Moose64.")
@@ -396,7 +467,12 @@ func CExportTracker.generate_c_types_header_strs(
         t += "};\n"
     }
     return later [
-        t_c_include_str + t_m64_include_str + t,
+        "\n#ifdef __M64_DO_INCLUDE_C_TYPES\n" +
+        t_c_include_str +
+        "\n#undef __M64_DO_INCLUDE_C_TYPES\n"
+        "#endif  // __M64_DO_INCLUDE_C_TYPES\n" +
+        types_include_str + "\n" +
+        t_m64_include_str + t,
         other_headers_map
     ]
 }
@@ -451,7 +527,7 @@ func node_to_c_string(project_file, node, parents,
             typename(node.value) == "str" and
             not node.is_big_num {
         return later textfmt.as_escaped_code_string(
-            node.value
+            node.value, for_c_code=yes
         )
     } elseif node.kind == ast.N_STMT_CALL {
         var call_expr = node.subexprs[1]
@@ -1539,6 +1615,13 @@ func export_moose_project_to_c(
     }
 
     func process_header_types_for_file(pfile) {
+        if not pfile_to_header_uri_map.has(pfile) {
+            # Somehow, we're not generating headers for this file.
+            # Could be the case if output is limited to a single
+            # file in the project.
+            return later yes
+        }
+
         var c_output_dir_uri_concrete = c_output_dir_uri
         if c_output_dir_uri_concrete == none {
             assert(c_output_file_uri != none)
@@ -1550,6 +1633,8 @@ func export_moose_project_to_c(
         var header_types_result = pfile.project.
             c_export_tracker.generate_c_types_header_strs(
                 pfile, c_output_dir_uri_concrete,
+                base_header_uri=
+                    pfile_to_header_uri_map[pfile],
                 name_as_temp_file=name_as_temp_file
             ) later:
 
@@ -1557,12 +1642,7 @@ func export_moose_project_to_c(
         var header_types_str = header_types_result[1]
         var ancillary_headers_map = header_types_result[2]
 
-        if not pfile_to_header_uri_map.has(pfile) {
-            # Somehow, we're not generating headers for this file.
-            # Could be the case if output is limited to a single
-            # file in the project.
-            return later yes
-        }
+
         var output_header_file_uri =
             pfile_to_header_uri_map[pfile]
 
