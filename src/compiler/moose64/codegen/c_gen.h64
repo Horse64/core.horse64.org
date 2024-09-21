@@ -32,6 +32,7 @@ import uri from core.horse64.org
 import textfmt from core.horse64.org
 
 import compiler.ast as ast
+import compiler.ast.analyze as ast_analyze
 import compiler.compiler_log as clog
 import compiler.limit as climit
 import compiler.moose64.ast.analyze as m64_ast_analyze
@@ -39,6 +40,7 @@ import compiler.moose64.builtins as m64_builtins
 import compiler.msg as msg
 import compiler.project
 import compiler.storage.scope as st_scope
+import compiler.storage.scope.manage as scope_manage
 import compiler.storage.ref as st_ref
 import compiler.typeinfo as typeinfo
 
@@ -92,6 +94,131 @@ func get_global_symbol_c_name(global_name, project_file=none) {
     }
     return "m64__" + pkg_name.replace(".", "_") + "__" +
         mod_name.replace(".", "__") + "__" + global_name
+}
+
+func get_c_func_signature(
+        from_node=none, from_node_project_file=none,
+        from_type_expr=none, from_storage_ref=none,
+        indent=0,
+        generate_code=no,
+        generate_code_ast_parents_if_closure=none,
+        generate_code_add_to_header_callback=none,
+        project=none,
+        msgs=none, is_moose64=no) {
+    var func_info = ast_analyze.get_func_info_with_true_node(
+        from_node=from_node,
+        from_node_project_file=from_node_project_file,
+        from_type_expr=from_type_expr,
+        from_storage_ref=from_storage_ref,
+        project=project, is_moose64=is_moose64
+    ) later:
+
+    await func_info
+    if func_info == none {
+        return later none
+    }
+    var func_c_name = none
+    var func_name = func_info.name
+    var func_typeref_expr = func_info.typeref_expr
+    var func_shallow_node = func_info.shallow_node
+    var func_node = func_info.true_node
+    var func_project_file = func_info.node_project_file
+    if func_info.is_func_attr {
+        var type_mod_name = "unnamed_code_file"
+        assert(func_info.owning_type_project_file != none)
+        func_c_name = get_global_symbol_c_name(
+            func_info.owning_type_anscope.label + "__" + func_name,
+            project_file=func_info.owning_type_project_file
+        )
+    } else {
+        func_c_name = get_global_symbol_c_name(
+            func_name, project_file=func_info.node_project_file
+        )
+    }
+
+    func_project_file.ensure_ast() later:
+
+    var c_return_type = "void"
+    var func_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
+        func_project_file, func_node, [],
+        store_self_value_ref_for_funcs=no,
+        msgs=msgs
+    ) later:
+
+    await func_tinfo
+    if func_tinfo == none or
+            func_tinfo.kind != typeinfo.TI_FUNCREF or
+            func_tinfo.func_typeexpr == none {
+        throw new RuntimeError("Unexpectedly failed "
+            "to get usable function type info.")
+    }
+    if func_tinfo.func_typeexpr.return_typeref_expr != none {
+        var rexpr = func_tinfo.func_typeexpr.
+            return_typeref_expr
+        c_return_type = rexpr.as_c_code(
+            global_name_assign_callback=
+                get_global_symbol_c_name,
+            global_register_m64_array_callback=
+                project.c_export_tracker.
+                    register_m64_array_type,
+            project=project,
+            project_file=func_info.node_project_file,
+            is_moose64=is_moose64)
+    }
+    var indent_str = " ".rep(indent)
+    var t = indent_str + c_return_type + " " +
+        get_global_symbol_c_name(
+            node.label,
+            project_file=func_info.node_project_file
+        ) + "("
+    var arg_exprs = func_scope.extended_final_arg_type_exprs()
+    var arg_names = func_scope.extended_final_arg_names()
+    var arg_idx = 0
+    for arg_name in arg_names {
+        arg_idx += 1
+        if arg_idx > 1 {
+            t += ", "
+        }
+        t += arg_exprs[arg_idx].as_c_code(
+            global_name_assign_callback=
+                get_global_symbol_c_name,
+            global_register_m64_array_callback=
+                project.c_export_tracker.
+                    register_m64_array_type,
+            project=project,
+            project_file=func_info.node_project_file,
+            is_moose64=is_moose64)
+        t += " "
+        t += arg_names[arg_idx]
+    }
+
+    if not generate_code {
+        t += ")"
+        return later t
+    }
+    if not is_moose64 {
+        throw new RuntimeError("Can't generate C code "
+            "if not in moose64 mode.")
+    }
+    t += ") {\n"
+
+    var contents = node_list_to_c_strings(
+        project_file, func_node.subblocks[1],
+        generate_code_ast_parents_if_closure + [func_node],
+        indent=(indent + 4),
+        add_to_header_callback=
+            generate_code_add_to_header_callback,
+        msgs=msgs, build_options=build_options
+    )
+    later:
+
+    await contents
+    for line in contents {
+        t += line + "\n"
+    }
+    t += indent_str + "}"
+
+    return later t
 }
 
 type CHeaderUriInfo {
@@ -1203,54 +1330,22 @@ func node_to_c_string(project_file, node, parents,
         }
         return later t
     } elseif node.kind == ast.N_STMT_FUNC {
-        if node.type_path != none and node.type_path.len > 0 {
-            return later ""
-        }
-        var c_return_type = "void"
-        var func_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
-            project_file, node, parents,
-            store_self_value_ref_for_funcs=no,
-            msgs=msgs
-            ) later:
-
-        await func_tinfo
-        if func_tinfo == none or
-                func_tinfo.kind != typeinfo.TI_FUNCREF or
-                func_tinfo.func_typeexpr == none {
-            throw new RuntimeError("Unexpectedly failed "
-                "to get usable function type info.")
-        }
-        if func_tinfo.func_typeexpr.return_typeref_expr != none {
-            var rexpr = func_tinfo.func_typeexpr.
-                return_typeref_expr
-            c_return_type = rexpr.as_c_code(
-                global_name_assign_callback=
-                    get_global_symbol_c_name,
-                global_register_m64_array_callback=
-                    project_file.project.c_export_tracker.
-                        register_m64_array_type,
-                project=project, project_file=project_file,
-                is_moose64=is_moose64)
-        }
-        var t = indent_str + c_return_type + " " +
-            get_global_symbol_c_name(
-                node.label, project_file=project_file
-            ) + "() {\n"
-
-        var contents = node_list_to_c_strings(
-            project_file, node.subblocks[1],
-            parents + [node], indent=(indent + 4),
-            add_to_header_callback=
+        var t = get_c_func_signature(
+            from_node=node,
+            from_node_project_file=project_file,
+            indent=indent,
+            generate_code=yes,
+            generate_code_ast_parents_if_closure=parents,
+            generate_code_add_to_header_callback=
                 add_to_header_callback,
-            msgs=msgs, build_options=build_options
-        )
-        later:
+            project=project_file.project,
+            msgs=msgs, is_moose64=is_moose64
+        ) later:
 
-        await contents
-        for line in contents {
-            t += line + "\n"
+        await t
+        if t == none {
+            return ""
         }
-        t += indent_str + "}"
         return later t
     }
     return later ""

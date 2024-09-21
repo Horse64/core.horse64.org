@@ -81,6 +81,68 @@ func GlobalScope.as_json_obj {
     return result
 }
 
+func project.Project.get_true_global_node_from_shallow_node(
+        shallow_node, project_file=none, is_moose64=no
+        ) {
+    if typename(shallow_node) == "list" or
+            shallow_node.symbol_info == none or
+            project_file == none {
+        return later none
+    }
+
+    project_file.ensure_ast()
+    later:
+
+    if shallow_node.kind == ast.N_STMT_FUNC and
+            shallow_node.func_scope != none and
+            shallow_node.func_scope.is_closure {
+        # FIXME: We need to walk the entire AST here to find it.
+        return later none
+    }
+    for stmt in project_file.ast.stmts {
+        if stmt.kind != shallow_node.kind {
+            continue
+        }
+        if {ast.N_STMT_FUNC, ast.N_STMT_TYPE,
+                ast.N_STMT_STRUCT}.has(stmt.kind) and
+                (stmt.kind != ast.N_STMT_FUNC or
+                 ((stmt.type_path == none or
+                   stmt.type_path.len == 0) and
+                   shallow_node.type_path == none or
+                   shallow_node.type_path.len == 0)) {
+            if stmt.label != shallow_node.label {
+                continue
+            }
+            return later stmt
+        }
+        if stmt.kind == ast.N_STMT_FUNC and
+                shallow_node.type_path == none and
+                shallow_node.type_path.len > 0 and
+                stmt.type_path != none and
+                stmt.type_path.len > 0 {
+            if stmt.label != shallow_node.label or
+                    stmt.type_path.len !=
+                    shallow_node.type_path.len {
+                continue
+            }
+            var mismatch = no
+            var idx = 0
+            for path_item in stmt.type_path {
+                idx += 1
+                if shallow_node.type_path[idx] != path_item {
+                    mismatch = yes
+                    break
+                }
+            }
+            if mismatch {
+                continue
+            }
+            return later stmt
+        }
+    }
+    return later none
+}
+
 func project.Project.finalize_func_typerefs_all_files(
         msgs=none, is_moose64=no,
         ) {

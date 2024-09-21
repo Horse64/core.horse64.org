@@ -93,6 +93,7 @@ type FuncScope {
     var is_type_extend_attr = no
     var is_later_func = no
     var is_override = no
+    var is_closure = no
     var is_marked_readonly = no
     var has_failable = no
     var storage_id = 0
@@ -264,7 +265,9 @@ func get_base_func_scope_from_func_node(
         if node.scope != none {
             # This is a local function which can't be extended,
             # so just return an arbitrary independent func scope.
-            return new FuncScope()
+            var fscope = new FuncScope()
+            fscope.is_closure = yes
+            return fscope
         }
         var mod_info = project_file.modinfo
         var type_path = "<inline>@<unknown>"
@@ -339,6 +342,7 @@ func AttrNamesScope.get_item_if_present(
 }
 
 func AttrNamesScope.get_funcattr_node(attr_id) {
+    assert(typename(attr_id) == "num")
     if not has_attr(self, "id_to_origin_gscope_map") {
         return none
     }
@@ -351,6 +355,18 @@ func AttrNamesScope.get_funcattr_node(attr_id) {
         self, attr_id
     )
     return gnode
+}
+
+func AttrNamesScope.get_funcattr_typeref_expr(attr_id) {
+    assert(typename(attr_id) == "num")
+    var gnode = self.get_funcattr_node(attr_id)
+    if gnode == none {
+        return none
+    }
+    assert(gnode.symbol_info != none)
+    assert(gnode.symbol_info.typeref_expr != none)
+    assert(gnode.symbol_info.typeref_expr.is_func_ref)
+    return gnode.symbol_info.typeref_expr
 }
 
 type TypeNamesScope base AttrNamesScope {

@@ -1006,6 +1006,9 @@ func project.Project.compute_all_scopes(
                                 )
                             }
                         }
+                    } else {
+                        assert(node.func_scope.is_closure)
+                        # FIXME: register closure node here somewhere.
                     }
                     # Remember the return type:
                     if node.kind == ast.N_STMT_FUNC {

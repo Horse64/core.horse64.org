@@ -196,6 +196,177 @@ func ast_node_is_allowed_to_cause_type_error(
     return no
 }
 
+type FuncInfoResult {
+    var name
+    var is_func_attr
+    var typeref_expr
+    var shallow_node
+    var true_node
+    var node_global_scope
+    var node_project_file
+    var storage_ref
+    var owning_type_anscope
+    var owning_type_storage_ref
+    var owning_type_project_file
+}
+
+func get_func_info(
+        from_node=none, from_node_project_file=none,
+        from_type_expr=none, from_storage_ref=none,
+        project=none, is_moose64=no) {
+    var node = from_node
+    var anscope = none
+    var gscope = none
+    if from_node != none and from_node_project_file == none {
+        throw new RuntimeError("If from_node is set, then "
+            "from_node_project_file must be set as well.")
+    }
+    if project == none and from_node_project_file != none {
+        project = from_node_project_file.project
+    }
+    if project == none {
+        throw new RuntimeError("Either from_node_project_file or "
+            "project option must be set.")
+    }
+    if node != none {
+        assert(from_node_project_file != none)
+        global_scope = from_node_project_file.global_scope
+    }
+    if node == none and from_storage_ref != none and
+            from_storage_ref.kind == st_ref.ST_GLOBAL {
+        node = st_scope.global_id_to_item(
+            project_file.project, from_storage_ref.id)
+        if node == none or typename(node) == "list" or
+                node.kind != ast.N_STMT_FUNC {
+            node = none
+        } else {
+            global_scope = project.storage_id_to_global_scope_map[
+                from_storage_ref.id
+            ]
+            from_node_project_file =
+            gscope.known_to_be_in_project_file
+            assert(from_node_project_file != none)
+        }
+    } elseif node == none and from_storage_ref == none and
+            from_storage_ref.kind == st_ref.ST_GLOBALATTR {
+        assert(typename(from_storage_ref.id) == "list")
+        var type_node = st_scope.global_id_to_item(
+            project_file.project, from_storage_ref.id[1])
+        if type_node != none and
+                typename(type_node) != "list" and
+                {ast.N_STMT_STRUCT,
+                ast.N_STMT_TYPE}.has(type_node.kind) {
+            assert(type_node.func_scope != none)
+            anscope = type_node.func_scope.owning_type_scope
+            if anscope == none {
+                throw new RuntimeError("Unexpectedly failed to "
+                "get AttrNamesScope from func node.")
+            }
+            node = anscope.get_funcattr_node(
+                from_storage_ref.id[2]
+            )
+            if node == none {
+                anscope = none
+            } else {
+                global_scope = anscope.id_to_origin_gscope_map[
+                    from_storage_ref.id[2]
+                ]
+                assert(global_scope != none)
+            }
+        }
+    }
+    if node != none and anscope == none and
+            node.type_path != none and
+            node.type_path.len > 0 {
+        anscope = scope_manage.
+            make_attr_names_scope_from_funcattr(
+                node, is_moose64=is_moose64,
+                def_project_file=from_node_project_file
+            )
+        if anscope == none {
+            throw new RuntimeError("Unexpectedly failed to "
+                "get AttrNamesScope from func node.")
+        }
+    }
+    if node != none and from_storage_ref == none {
+        if node.type_path == none or node.type_path.len == 0 {
+            from_storage_ref = new st_ref.StorageRef(
+                st_ref.ST_GLOBAL, node.symbol_info.storage_id
+            )
+        } else {
+            assert(anscope != none)
+            assert(node.symbol_info != none)
+            assert(node.symbol_info.storage_id != none)
+            from_storage_ref = new st_ref.StorageRef(
+                st_ref.ST_GLOBALATTR, [
+                    anscope.storage_id, node.symbol_info.storage_id
+                ]
+            )
+        }
+    }
+    if node == none {
+        return none
+    }
+    if node != none and from_type_expr == none {
+        assert(node.symbol_info != none)
+        from_type_expr = node.symbol_info.typeref_expr
+        assert(from_type_expr.is_func_ref)
+    }
+    var result = new FuncInfoResult()
+    result.name = node.label
+    result.is_func_attr = (node.type_path != none and
+        node.type_path.len > 0)
+    result.typeref_expr = from_type_expr
+    result.shallow_node = node
+    result.func_scope = node.func_scope
+    result.node_global_scope = global_scope
+    result.node_project_file =
+        global_scope.known_to_be_in_project_file
+    result.storage_ref = from_storage_ref
+    if anscope != none and result.is_func_attr {
+        result.owning_type_anscope = anscope
+        result.owning_type_storage_ref = new st_ref.StorageRef(
+            st_ref.ST_GLOBAL, anscope.storage_id
+        )
+        var gscope = project.storage_id_to_global_scope_map[
+            anscope.storage_id
+        ]
+        result.owning_type_project_file =
+            gscope.known_to_be_in_project_file
+    }
+    return result
+}
+
+func get_func_info_with_true_node(
+        from_node=none, from_node_project_file=none,
+        from_type_expr=none, from_storage_ref=none,
+        project=none, is_moose64=no) {
+    var result = get_func_info(
+        from_node=from_node,
+        from_node_project_file=from_node_project_file,
+        from_type_expr=from_type_expr,
+        from_storage_ref=from_storage_ref,
+        project=project, is_moose64=is_moose64
+    )
+    if result == none {
+        return later none
+    }
+    var project = result.node_project_file.project
+    var true_node = project.
+        get_true_global_node_from_shallow_node(
+            shallow_node,
+            project_file=result.node_project_file,
+            is_moose64=is_moose64
+        ) later:
+
+    await true_node
+    if true_node == none {
+        return later none
+    }
+    result.true_node = true_node
+    return result
+}
+
 func find_func_overrides_by_st_ref(
         storage_ref, project, msgs=none,
         is_moose64=no) {
@@ -229,10 +400,10 @@ func find_func_overrides_by_st_ref(
         if func_sinfo != none {
             is_func_attr = yes
             anscope = project.get_any_file().
-            make_attr_names_scope_from_gid(
-                storage_ref.id[1], msgs=msgs,
-                is_moose64=is_moose64
-            )
+                make_attr_names_scope_from_gid(
+                    storage_ref.id[1], msgs=msgs,
+                    is_moose64=is_moose64
+                )
             if anscope == none {
                 gnode = none
             } else {
@@ -1114,12 +1285,12 @@ func get_called_or_assigned_func_types(
         }
 
         var override_info_list =
-        find_func_overrides_by_st_ref(
-            func_var_typeinfo.user_type_ref,
-            project_file.project,
-            msgs=msgs,
-            is_moose64=is_moose64
-        )
+            find_func_overrides_by_st_ref(
+                func_var_typeinfo.user_type_ref,
+                project_file.project,
+                msgs=msgs,
+                is_moose64=is_moose64
+            )
         if override_info_list.len == 0 {
             return
         }
