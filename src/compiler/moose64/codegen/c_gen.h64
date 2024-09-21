@@ -451,13 +451,21 @@ func get_rel_path_inside_output_dir(
     return rel_dir_path
 }
 
-func CExportTracker.generate_c_types_header_strs(
+type CExportTrackerHeaderAndTypesInfo {
+    var main_header_str
+    var other_headers_map = {->}
+    var type_func_attrs_code
+}
+
+func CExportTracker.generate_c_types_and_header_info(
         project_file, c_output_dir_uri,
         base_header_uri=none,
         name_as_temp_file=no) {
     const is_moose64 = no
-    var t = "\n"
 
+    var header_result = new CExportTrackerHeaderAndTypesInfo()
+
+    var t = "\n"
     var t_c_include_str =
         "#include <stdlib.h>\n#include <stdint.h>\n"
     var c_file_include_paths = []
@@ -643,15 +651,16 @@ func CExportTracker.generate_c_types_header_strs(
         t += "};\n"
         t += "#endif  // " + arr_struct_guard + "\n"
     }
-    return later [
+    header_result.main_header_str =
         "\n#ifdef __M64_DO_INCLUDE_C_TYPES\n" +
         t_c_include_str +
         "\n#undef __M64_DO_INCLUDE_C_TYPES\n"
         "#endif  // __M64_DO_INCLUDE_C_TYPES\n" +
         types_include_str + "\n" +
-        t_m64_include_str + t,
+        t_m64_include_str + t
+    header_result.other_headers_map =
         other_headers_map
-    ]
+    return header_result
 }
 
 func optoken_to_c_token(token) {
@@ -1818,7 +1827,7 @@ func export_moose_project_to_c(
             output_file_uri = c_output_file_uri
         }
         var header_types_result = pfile.project.
-            c_export_tracker.generate_c_types_header_strs(
+            c_export_tracker.generate_c_types_and_header_info(
                 pfile, c_output_dir_uri_concrete,
                 base_header_uri=
                     pfile_to_header_uri_map[pfile],
@@ -1826,8 +1835,9 @@ func export_moose_project_to_c(
             ) later:
 
         await header_types_result
-        var header_types_str = header_types_result[1]
-        var ancillary_headers_map = header_types_result[2]
+        var header_types_str = header_types_result.main_header_str
+        var ancillary_headers_map =
+            header_types_result.other_headers_map
 
 
         var output_header_file_uri =
