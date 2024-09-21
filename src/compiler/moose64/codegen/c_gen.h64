@@ -103,6 +103,7 @@ func get_c_func_signature(
         generate_code=no,
         generate_code_ast_parents_if_closure=none,
         generate_code_add_to_header_callback=none,
+        generate_code_build_options=none,
         project=none,
         msgs=none, is_moose64=no) {
     var func_info = ast_analyze.get_func_info_with_true_node(
@@ -122,6 +123,7 @@ func get_c_func_signature(
     var func_typeref_expr = func_info.typeref_expr
     var func_shallow_node = func_info.shallow_node
     var func_node = func_info.true_node
+    var func_scope = func_info.func_scope
     var func_project_file = func_info.node_project_file
     if func_info.is_func_attr {
         var type_mod_name = "unnamed_code_file"
@@ -167,10 +169,7 @@ func get_c_func_signature(
     }
     var indent_str = " ".rep(indent)
     var t = indent_str + c_return_type + " " +
-        get_global_symbol_c_name(
-            node.label,
-            project_file=func_info.node_project_file
-        ) + "("
+        func_c_name + "("
     var arg_exprs = func_scope.extended_final_arg_type_exprs()
     var arg_names = func_scope.extended_final_arg_names()
     var arg_idx = 0
@@ -203,12 +202,12 @@ func get_c_func_signature(
     t += ") {\n"
 
     var contents = node_list_to_c_strings(
-        project_file, func_node.subblocks[1],
+        func_info.node_project_file, func_node.subblocks[1],
         generate_code_ast_parents_if_closure + [func_node],
         indent=(indent + 4),
         add_to_header_callback=
             generate_code_add_to_header_callback,
-        msgs=msgs, build_options=build_options
+        msgs=msgs, build_options=generate_code_build_options
     )
     later:
 
@@ -1338,6 +1337,7 @@ func node_to_c_string(project_file, node, parents,
             generate_code_ast_parents_if_closure=parents,
             generate_code_add_to_header_callback=
                 add_to_header_callback,
+            generate_code_build_options=build_options,
             project=project_file.project,
             msgs=msgs, is_moose64=is_moose64
         ) later:

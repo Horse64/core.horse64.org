@@ -108,15 +108,15 @@ func project.Project.get_true_global_node_from_shallow_node(
                 (stmt.kind != ast.N_STMT_FUNC or
                  ((stmt.type_path == none or
                    stmt.type_path.len == 0) and
-                   shallow_node.type_path == none or
-                   shallow_node.type_path.len == 0)) {
+                  (shallow_node.type_path == none or
+                   shallow_node.type_path.len == 0))) {
             if stmt.label != shallow_node.label {
                 continue
             }
             return later stmt
         }
         if stmt.kind == ast.N_STMT_FUNC and
-                shallow_node.type_path == none and
+                shallow_node.type_path != none and
                 shallow_node.type_path.len > 0 and
                 stmt.type_path != none and
                 stmt.type_path.len > 0 {

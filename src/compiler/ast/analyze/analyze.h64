@@ -200,6 +200,7 @@ type FuncInfoResult {
     var name
     var is_func_attr
     var typeref_expr
+    var func_scope
     var shallow_node
     var true_node
     var node_global_scope
@@ -260,7 +261,7 @@ func get_func_info(
             anscope = type_node.func_scope.owning_type_scope
             if anscope == none {
                 throw new RuntimeError("Unexpectedly failed to "
-                "get AttrNamesScope from func node.")
+                    "get AttrNamesScope from func node.")
             }
             node = anscope.get_funcattr_node(
                 from_storage_ref.id[2]
@@ -278,7 +279,7 @@ func get_func_info(
     if node != none and anscope == none and
             node.type_path != none and
             node.type_path.len > 0 {
-        anscope = scope_manage.
+        anscope = from_node_project_file.
             make_attr_names_scope_from_funcattr(
                 node, is_moose64=is_moose64,
                 def_project_file=from_node_project_file
@@ -316,6 +317,7 @@ func get_func_info(
     result.name = node.label
     result.is_func_attr = (node.type_path != none and
         node.type_path.len > 0)
+    result.func_scope = node.func_scope
     result.typeref_expr = from_type_expr
     result.shallow_node = node
     result.func_scope = node.func_scope
@@ -354,7 +356,7 @@ func get_func_info_with_true_node(
     var project = result.node_project_file.project
     var true_node = project.
         get_true_global_node_from_shallow_node(
-            shallow_node,
+            result.shallow_node,
             project_file=result.node_project_file,
             is_moose64=is_moose64
         ) later:

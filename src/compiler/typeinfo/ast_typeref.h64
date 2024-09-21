@@ -157,10 +157,10 @@ func TypeRefMod.as_str {
     return t
 }
 
-func TypeRefMod.as_str {
+func TypeRefMod.as_array_key {
     var t = self.name + ""
     for prop in self.props {
-        t += prop.as_str()
+        t += prop.as_array_key()
     }
     return t
 }
