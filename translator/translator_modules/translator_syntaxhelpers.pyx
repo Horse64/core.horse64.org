@@ -43,7 +43,7 @@ translator_py_script_dir = (
 )
 translator_py_script_path = os.path.abspath(__file__)
 
-def is_keyword(x):
+cdef is_keyword(x):
     if x in {"if", "func", "import", "else",
             "type", "do", "rescue", "finally",
             "from", "as", "extend", "base", "protect",
@@ -66,7 +66,7 @@ def flatten(l):
 def identifier_or_keyword(x):
     if x == "" or type(x) != str:
         return False
-    i = 0
+    cdef int i = 0
     while i < len(x):
         if (x[i] != "_" and
                 (ord(x[i]) < ord("a") or ord(x[i]) > ord("z")) and

@@ -38,12 +38,13 @@ import tempfile
 import textwrap
 import uuid
 
+from translator_syntaxhelpers import is_identifier
 from translator_syntaxhelpers import (
     firstnonblank, firstnonblankidx,
     nextnonblank, nextnonblankidx,
     prevnonblank, prevnonblankidx,
     tokenize, split_toplevel_statements,
-    is_identifier, is_whitespace_token,
+    is_whitespace_token,
     get_statement_block_ranges,
 )
 

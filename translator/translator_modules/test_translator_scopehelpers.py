@@ -42,7 +42,6 @@ from translator_syntaxhelpers import (
     get_leading_whitespace, separate_out_inline_funcs,
     is_number_token,
     expr_nonblank_equals, find_start_of_call_index_chain,
-    is_identifier,
     make_kwargs_in_call_tailing, get_indent,
 )
 

@@ -36,9 +36,10 @@ import tempfile
 import textwrap
 import traceback
 
+from translator_syntaxhelpers import is_identifier
 from translator_syntaxhelpers import (
     tokenize, untokenize, get_indent,
-    is_identifier, as_escaped_code_string,
+    as_escaped_code_string,
     mirror_brackets,
     is_whitespace_token, get_next_token,
     split_toplevel_statements, nextnonblank,

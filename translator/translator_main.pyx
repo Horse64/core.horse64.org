@@ -96,9 +96,10 @@ from translator_scopehelpers import (
     get_undefined_uses_in_func,
 )
 
+from translator_syntaxhelpers import is_identifier
 from translator_syntaxhelpers import (
     tokenize, untokenize, get_indent,
-    is_identifier, as_escaped_code_string,
+    as_escaped_code_string,
     is_whitespace_token, get_next_token,
     is_h64op_with_lefthand,
     split_toplevel_statements, nextnonblank,
@@ -687,13 +688,14 @@ def find_matching_remap_module(s, i, sc):
         remapped_elements = (
             remap_module_key.partition("@")[0].split(".")
         )
+        remapped_elements_len = len(remapped_elements)
         could_match = True
         k = 0
-        while k < len(remapped_elements):
+        while k < remapped_elements_len:
             if (k * 2 + i >= len(s) or
                     s[i + k * 2] !=
                     remapped_elements[k] or
-                    (k + 1 < len(remapped_elements) and
+                    (k + 1 < remapped_elements_len and
                     (k * 2 + 1 + i >= len(s) or
                     s[i + k * 2 + 1] != "."))):
                 could_match = False
@@ -2217,15 +2219,16 @@ def translate(s, sc):
                     "remapped uses...")
             import_module_elements = import_module.split(".")
             assert(len(import_module_elements) >= 1)
+            token_len = len(tokens)
             i = 0
-            while i < len(tokens):
+            while i < token_len:
                 if not is_identifier(tokens[i]):
                     i += 1
                     continue
                 if prevnonblank(tokens, i) in {"import", "from", "."}:
                     i += 1
                     continue
-                # See if this exact token matches an import, and it's ours:
+                # See if this exact token matches an import, and if it's ours:
                 (match_import_module, match_package,
                  match_item, match_tokens) = find_matching_remap_module(
                     s, i, sc
@@ -2270,6 +2273,10 @@ def translate(s, sc):
                 else:
                     found_remapped_use = True
                 i += 1
+            del(i)
+            if DEBUGV.ENABLE_REMAPPED_USES:
+                print("translator.py: debug: completed " +
+                    "scanning import.")
 
             # Add import:
             sc.processed_imports[import_module] = {
@@ -3322,6 +3329,9 @@ def translate_do_func(
             if not project_info.code_relpath.startswith("/"):
                 pkg_src_dir += "/"
             pkg_src_dir += project_info.code_relpath
+        if DEBUGV.ENABLE:
+            print("translator.py: debug: preprocessing and sanity-"
+                "checking file: " + target_file)
         contents = translator_preprocessor.\
             preprocess_file_in_translator(
                 contents, pkg_dir, pkg_src_dir,
@@ -3350,6 +3360,9 @@ def translate_do_func(
                     "FULL BROKEN FILE DUMP:\n" +
                     untokenize(contents) + "\nEND OF DUMP.")
         assert(type(contents) == str)
+        if DEBUGV.ENABLE:
+            print("translator.py: debug: tokenizing file: " +
+                target_file)
         contents = tokenize(contents)
         try:
             contents = (
@@ -3382,6 +3395,10 @@ def translate_do_func(
                 "encountered transform_later_ifs_to_closures() error: " +
                 str(e))
         assert(type(contents) == list)
+        if DEBUGV.ENABLE:
+            print("translator.py: debug: doing advanced transforms, "
+                "in horse64 shape, of file: " +
+                target_file)
         try:
             contents = transform_later_to_closures(
                 contents,
@@ -3445,6 +3462,9 @@ def translate_do_func(
         sc.project_info = project_info
         sc.translate_file_queue = translate_file_queue
         sc.paranoid = paranoid
+        if DEBUGV.ENABLE:
+            print("translator.py: debug: finished pre-transforms "
+                "for file: " + target_file)
         contents_result = translate(contents, sc)
         disk_target_folder = (
             project_info.get_package_subfolder(

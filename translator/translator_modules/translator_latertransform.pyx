@@ -39,6 +39,7 @@ import tempfile
 import textwrap
 import uuid
 
+from translator_syntaxhelpers import is_identifier
 from translator_syntaxhelpers import (
     firstnonblank, firstnonblankidx,
     nextnonblank, nextnonblankidx,
@@ -50,7 +51,7 @@ from translator_syntaxhelpers import (
     stmt_is_later_call,
     adjust_to_absolute_indent,
     cut_tokens_after_lineend,
-    is_identifier, get_statement_block_ranges,
+    get_statement_block_ranges,
     is_whitespace_token, get_indent, tokenize,
     untokenize, is_whitespace_statement,
     tree_transform_statements,

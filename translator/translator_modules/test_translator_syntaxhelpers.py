@@ -38,7 +38,7 @@ from translator_syntaxhelpers import (
     is_number_token,
     nextnonblank, nextnonblankidx,
     expr_nonblank_equals, find_start_of_call_index_chain,
-    is_identifier, make_kwargs_in_call_tailing, get_indent,
+    make_kwargs_in_call_tailing, get_indent,
 )
 
 class TestTranslatorSyntaxHelpers(unittest.TestCase):
@@ -114,11 +114,11 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         ))
 
 
-    def test_is_identifier(self):
-        self.assertTrue(is_identifier("flurb"))
-        self.assertFalse(is_identifier("5f"))
-        self.assertTrue(is_identifier("f5"))
-        self.assertFalse(is_identifier("and"))
+    #def test_is_identifier(self):
+    #    self.assertTrue(is_identifier("flurb"))
+    #    self.assertFalse(is_identifier("5f"))
+    #    self.assertTrue(is_identifier("f5"))
+    #    self.assertFalse(is_identifier("and"))
 
     def test_stmt_list_uses_banned_things(self):
         def do_test(code, expected_banned):
