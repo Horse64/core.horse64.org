@@ -96,7 +96,7 @@ func get_global_symbol_c_name(global_name, project_file=none) {
         mod_name.replace(".", "__") + "__" + global_name
 }
 
-func get_c_func_signature(
+func get_c_func_signature_or_body(
         from_node=none, from_node_project_file=none,
         from_type_expr=none, from_storage_ref=none,
         indent=0,
@@ -452,16 +452,17 @@ func get_rel_path_inside_output_dir(
 }
 
 type CExportTrackerHeaderAndTypesInfo {
-    var main_header_str
+    var main_header_str = ""
     var other_headers_map = {->}
-    var type_func_attrs_code
+    var type_func_attrs_code = ""
 }
 
 func CExportTracker.generate_c_types_and_header_info(
         project_file, c_output_dir_uri,
         base_header_uri=none,
+        build_options=none, msgs=none,
         name_as_temp_file=no) {
-    const is_moose64 = no
+    const is_moose64 = yes
 
     var header_result = new CExportTrackerHeaderAndTypesInfo()
 
@@ -474,7 +475,21 @@ func CExportTracker.generate_c_types_and_header_info(
     var include_project_files_set = {}
 
     var types_include_str = "\n"
+    var types_additional_header_str = "\n"
     var other_headers_map = {->}
+
+    func ast_to_c_header_callback(
+            project_file, header_line,
+            msgs=none, build_options=none) {
+        while header_line.starts("\n") {
+            header_line = header_line.sub(2)
+        }
+        while header_line.ends("\n") {
+            header_line = header_line.sub(
+                1, header_line.len - 1)
+        }
+        types_additional_header_str += "\n" + header_line
+    }
 
     func handle_gscope_entry(entry_name, entry) {
         if entry.kind == ast.N_STMT_C_IMPORT {
@@ -513,6 +528,7 @@ func CExportTracker.generate_c_types_and_header_info(
                 }
             }
         } elseif entry.kind == ast.N_STMT_STRUCT {
+            assert(is_moose64)
             var result = get_c_header_uri_and_info_for_type(
                 c_output_dir_uri, type_node=entry,
                 base_header_uri=base_header_uri,
@@ -601,6 +617,71 @@ func CExportTracker.generate_c_types_and_header_info(
                 textfmt.as_escaped_code_string(
                     include_path, for_c_code=yes
                 ) + "\n"
+
+            var anscope = project_file.
+                make_attr_names_scope_from_node(
+                    entry, msgs=msgs, is_moose64=is_moose64,
+                    def_project_file=project_file
+                )
+            var func_attr_queue = []
+            for attr_name in anscope.name_to_symbol_map {
+                var sym = anscope.name_to_symbol_map[attr_name]
+                assert(sym.kind != st_scope.SINFO_FUNC)
+                if sym.kind != st_scope.SINFO_FUNCATTR {
+                    continue
+                }
+                func_attr_queue.add([
+                    attr_name,
+                    new st_ref.StorageRef(st_ref.ST_GLOBALATTR,
+                        [anscope.storage_id, sym.storage_id])
+                ])
+            }
+            func handle_func_attr(attr_name, attr_st_ref) {
+                var sig_result = get_c_func_signature_or_body(
+                    from_storage_ref=attr_st_ref,
+                    indent=0,
+                    generate_code=yes,
+                    generate_code_ast_parents_if_closure=none,
+                    generate_code_add_to_header_callback=
+                        ast_to_c_header_callback,
+                    generate_code_build_options=build_options,
+                    project=project_file.project,
+                    msgs=msgs, is_moose64=is_moose64
+                ) later:
+
+                await result
+                header_result.type_func_attrs_code += sig_result
+                return later yes
+            }
+            func handle_func_attr_queue() {
+                if func_attr_queue.len == 0 {
+                    return later yes
+                }
+                var next_entry = func_attr_queue.pop()
+                var result = handle_func_attr(
+                    next_entry[1], next_entry[2]
+                ) later:
+
+                await result
+                if not result {
+                    return later no
+                }
+                if func_attr_queue.len == 0 {
+                    return later yes
+                }
+                next_entry = func_attr_queue.pop()
+                result = handle_func_attr(
+                    next_entry[1], next_entry[2]
+                ) later repeat
+            }
+            var success = handle_func_attr_queue()
+            later:
+
+            await success
+            if not success {
+                throw new RuntimeError("Unexpected problem "
+                    "processing func attrs of struct.")
+            }
         } elseif entry.kind == ast.N_STMT_TYPE {
             throw new RuntimeError("Type statements "
                 "aren't supported for Moose64.")
@@ -657,7 +738,8 @@ func CExportTracker.generate_c_types_and_header_info(
         "\n#undef __M64_DO_INCLUDE_C_TYPES\n"
         "#endif  // __M64_DO_INCLUDE_C_TYPES\n" +
         types_include_str + "\n" +
-        t_m64_include_str + t
+        t_m64_include_str + t + "\n" +
+        types_additional_header_str
     header_result.other_headers_map =
         other_headers_map
     return header_result
@@ -1338,7 +1420,7 @@ func node_to_c_string(project_file, node, parents,
         }
         return later t
     } elseif node.kind == ast.N_STMT_FUNC {
-        var t = get_c_func_signature(
+        var t = get_c_func_signature_or_body(
             from_node=node,
             from_node_project_file=project_file,
             indent=indent,
@@ -1831,6 +1913,8 @@ func export_moose_project_to_c(
                 pfile, c_output_dir_uri_concrete,
                 base_header_uri=
                     pfile_to_header_uri_map[pfile],
+                build_options=build_options,
+                msgs=msgs,
                 name_as_temp_file=name_as_temp_file
             ) later:
 
