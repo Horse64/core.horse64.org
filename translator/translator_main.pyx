@@ -96,7 +96,9 @@ from translator_scopehelpers import (
     get_undefined_uses_in_func,
 )
 
-from translator_syntaxhelpers import is_identifier
+from translator_modules.translator_syntaxhelpers cimport (
+    is_identifier, identifier_or_keyword
+)
 from translator_syntaxhelpers import (
     tokenize, untokenize, get_indent,
     as_escaped_code_string,
@@ -109,7 +111,7 @@ from translator_syntaxhelpers import (
     get_next_statement, prevnonblank, prevnonblankidx,
     sanity_check_h64_codestring,
     separate_out_inline_funcs,
-    identifier_or_keyword, is_h64op_with_righthand,
+    is_h64op_with_righthand,
     is_number_token,
     make_kwargs_in_call_tailing,
 )
@@ -654,9 +656,13 @@ def transform_for_file_output(
     return result
 
 
-def find_matching_remap_module(s, i, sc):
+def find_matching_remap_module(s, _i, sc):
+    cdef int k, k2, i
+    i = _i
+
     if i >= len(s) or not is_identifier(s[i]):
         return (None, None, None, None)
+
     debug_details = False
 
     # Output some start info:
@@ -841,9 +847,26 @@ def find_matching_remap_module(s, i, sc):
     else:
         return (None, None, None, None)
 
+cdef paired_roundbracket_close_has_else(s, z):
+    assert(s[z] == "(")
+    bdepth = 0
+    z += 1
+    while z < len(s) and (bdepth > 0 or s[z] != ")"):
+        if s[z] in {"(", "{", "["}:
+            bdepth += 1
+        elif s[z] in {")", "}", "]"}:
+            bdepth -= 1
+        z += 1
+    if (z > len(s) or s[z] != ")" or
+            nextnonblank(s, z) != "else"):
+        return False
+    return True
 
-def translate_expression_tokens(s, sc,
+cpdef translate_expression_tokens(s, sc,
         is_assign_stmt=False, assign_token_index=-1):
+    cdef int i, k, bracket_depth
+    cdef int bdepth, start_idx
+
     s = list(s)
     assert("_remapped_os" not in s)
     assert("_remapped_sys" not in s)
@@ -1039,20 +1062,6 @@ def translate_expression_tokens(s, sc,
         if s[i] != "if":
             i += 1
             continue
-        def paired_roundbracket_close_has_else(s, z):
-            assert(s[z] == "(")
-            bdepth = 0
-            z += 1
-            while z < len(s) and (bdepth > 0 or s[z] != ")"):
-                if s[z] in {"(", "{", "["}:
-                    bdepth += 1
-                elif s[z] in {")", "}", "]"}:
-                    bdepth -= 1
-                z += 1
-            if (z > len(s) or s[z] != ")" or
-                    nextnonblank(s, z) != "else"):
-                return False
-            return True
         prev_nonblank_token = None
         had_nonwhitespace_token = False
         z = i + 1
@@ -3489,6 +3498,9 @@ def translate_do_func(
     output_folder = tempfile.mkdtemp(prefix="h64-tools-translator-")
     assert(os.path.isabs(output_folder) and "h64-tools" in output_folder)
     try:
+        if DEBUGV.ENABLE and DEBUGV.ENABLE_QUEUE:
+            print("translator.py: debug: Will assemble "
+                "the actual code of translated files...")
         for translated_file in translated_files:
             associated_package_output_folder = os.path.join(
                 output_folder,

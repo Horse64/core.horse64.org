@@ -26,6 +26,8 @@
 
 #cython: language_level=3, boundscheck=True, infer_types=True, cdivision=True, overflowcheck=False
 
-##cdef is_keyword(x)
+cdef is_keyword(x)
 
-##cdef is_identifier(v)
+cdef identifier_or_keyword(x)
+
+cdef is_identifier(v)

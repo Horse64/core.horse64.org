@@ -36,7 +36,9 @@ import tempfile
 import textwrap
 import traceback
 
-from translator_syntaxhelpers import is_identifier
+from translator_syntaxhelpers cimport (
+    is_identifier, identifier_or_keyword
+)
 from translator_syntaxhelpers import (
     tokenize, untokenize, get_indent,
     as_escaped_code_string,
@@ -48,7 +50,7 @@ from translator_syntaxhelpers import (
     get_next_statement, prevnonblank, prevnonblankidx,
     sanity_check_h64_codestring,
     separate_out_inline_funcs,
-    identifier_or_keyword, is_h64op_with_righthand,
+    is_h64op_with_righthand,
     is_number_token, find_start_of_call_index_chain
 )
 

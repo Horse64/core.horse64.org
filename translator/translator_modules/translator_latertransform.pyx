@@ -39,7 +39,7 @@ import tempfile
 import textwrap
 import uuid
 
-from translator_syntaxhelpers import is_identifier
+from translator_syntaxhelpers cimport is_identifier
 from translator_syntaxhelpers import (
     firstnonblank, firstnonblankidx,
     nextnonblank, nextnonblankidx,

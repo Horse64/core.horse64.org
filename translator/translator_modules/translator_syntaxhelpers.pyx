@@ -63,7 +63,7 @@ def flatten(l):
             flat.append(item)
     return flat
 
-def identifier_or_keyword(x):
+cdef identifier_or_keyword(x):
     if x == "" or type(x) != str:
         return False
     cdef int i = 0
@@ -78,7 +78,7 @@ def identifier_or_keyword(x):
         i += 1
     return True
 
-def is_identifier(v):
+cdef is_identifier(v):
     return (identifier_or_keyword(v) and
         not v in {"yes", "no", "none"} and
         not is_keyword(v))
