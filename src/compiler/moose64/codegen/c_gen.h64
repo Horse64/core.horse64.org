@@ -507,9 +507,15 @@ func CExportTracker.generate_c_types_header_strs(
     process_queue() later:
 
     for array_key in self.known_array_types_map {
-        t += "struct __m64arraystruct__" + array_key + " {\n"
+        var arr_struct_name = "__m64arraystruct__" + array_key
+        var arr_struct_guard = "ARRAYDEFINED__" +
+            arr_struct_name.upper()
+        t += "#ifndef " + arr_struct_guard + "\n"
+        t += "#define " + arr_struct_guard + "\n"
+        t += "struct " + arr_struct_name + " {\n"
         t += "    uint64_t len;\n"
         t += "};\n"
+        t += "#endif  // " + arr_struct_guard + "\n"
     }
     return later [
         "\n#ifdef __M64_DO_INCLUDE_C_TYPES\n" +
