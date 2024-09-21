@@ -663,6 +663,8 @@ cdef find_matching_remap_module(s, _i, sc):
 
     if i >= len(s) or not is_identifier(s[i]):
         return (None, None, None, None)
+    if prevnonblank(s, i) == "." or nextnonblank(s, i) != ".":
+        return (None, None, None, None)
 
     debug_details = False
 
