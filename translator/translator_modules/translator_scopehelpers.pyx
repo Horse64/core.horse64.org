@@ -42,10 +42,10 @@ from translator_syntaxhelpers cimport (
     is_identifier,
     nextnonblank, nextnonblankidx,
     firstnonblank, firstnonblankidx,
+    prevnonblank, prevnonblankidx,
 )
 
 from translator_syntaxhelpers import (
-    prevnonblank, prevnonblankidx,
     tokenize, split_toplevel_statements,
     is_whitespace_token,
     get_statement_block_ranges,

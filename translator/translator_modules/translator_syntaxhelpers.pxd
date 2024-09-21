@@ -36,6 +36,10 @@ cdef nextnonblank(t, int idx, int no=*)
 
 cdef nextnonblankidx(t, int idx, int no=*)
 
+cdef prevnonblank(t, int idx, int no=*)
+
+cdef prevnonblankidx(t, int idx, int no=*)
+
 cdef firstnonblank(t)
 
 cdef firstnonblankidx(t)

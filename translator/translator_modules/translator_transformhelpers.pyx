@@ -40,6 +40,7 @@ from translator_syntaxhelpers cimport (
     is_identifier, identifier_or_keyword,
     nextnonblank, nextnonblankidx,
     firstnonblank, firstnonblankidx,
+    prevnonblank, prevnonblankidx,
 )
 from translator_syntaxhelpers import (
     tokenize, untokenize, get_indent,
@@ -47,7 +48,7 @@ from translator_syntaxhelpers import (
     mirror_brackets,
     is_whitespace_token, get_next_token,
     split_toplevel_statements, 
-    get_next_statement, prevnonblank, prevnonblankidx,
+    get_next_statement,
     sanity_check_h64_codestring,
     separate_out_inline_funcs,
     is_h64op_with_righthand,

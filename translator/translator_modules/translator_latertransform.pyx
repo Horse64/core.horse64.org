@@ -43,10 +43,10 @@ from translator_syntaxhelpers cimport (
     is_identifier,
     nextnonblank, nextnonblankidx,
     firstnonblank, firstnonblankidx,
+    prevnonblank, prevnonblankidx,
 )
 
 from translator_syntaxhelpers import (
-    prevnonblank, prevnonblankidx,
     token_outside_brackets_idx,
     split_toplevel_statements, flatten,
     increase_indent,

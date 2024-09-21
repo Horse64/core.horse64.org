@@ -748,44 +748,80 @@ def get_statement_block_ranges(t):
     return ranges
 
 cdef firstnonblankidx(t):
+    cdef int tlen, idx
+    tlen = len(t)
     idx = 0
-    while (idx < len(t) and
+    while (idx < tlen and
             t[idx].strip(" \r\n\t") == ""):
         idx += 1
-    if idx >= len(t):
+    if idx >= tlen:
         return -1
     return idx
 
 cdef firstnonblank(t):
+    cdef int tlen, idx
+    tlen = len(t)
     idx = 0
-    while (idx < len(t) and
+    while (idx < tlen and
             t[idx].strip(" \r\n\t") == ""):
         idx += 1
-    if idx >= len(t):
+    if idx >= tlen:
         return ""
     return t[idx]
 
 cdef nextnonblank(t, int idx, int no=1):
+    cdef int tlen
+    tlen = len(t)
     while no > 0:
         idx += 1
-        while (idx < len(t) and
+        while (idx < tlen and
                 t[idx].strip(" \r\n\t") == ""):
             idx += 1
         no -= 1
-    if idx >= len(t):
+    if idx >= tlen:
         return ""
     return t[idx]
 
 cdef nextnonblankidx(t, int idx, int no=1):
+    cdef int tlen
+    tlen = len(t)
     while no > 0:
         idx += 1
-        while (idx < len(t) and
+        while (idx < tlen and
                 t[idx].strip(" \r\n\t") == ""):
             idx += 1
         no -= 1
-    if idx >= len(t):
+    if idx >= tlen:
         return -1
     return idx
+
+cdef prevnonblank(t, int idx, int no=1):
+    while no > 0:
+        idx -= 1
+        while (idx >= 0 and
+                t[idx].strip(" \r\n\t") == ""):
+            idx -= 1
+        no -= 1
+    if idx < 0:
+        return ""
+    return t[idx]
+
+cdef prevnonblankidx(t, int idx, int no=1):
+    while no > 0:
+        idx -= 1
+        while (idx >= 0 and
+                t[idx].strip(" \r\n\t") == ""):
+            idx -= 1
+        no -= 1
+    if idx < 0:
+        return -1
+    return idx
+
+def firstnonblank_py(t):
+    return firstnonblank(t)
+
+def firstnonblankidx_py(t):
+    return firstnonblankidx(t)
 
 def nextnonblanksameline(t, idx, no=1):
     while no > 0:
@@ -797,17 +833,6 @@ def nextnonblanksameline(t, idx, no=1):
             idx += 1
         no -= 1
     if idx >= len(t):
-        return ""
-    return t[idx]
-
-def prevnonblank(t, idx, no=1):
-    while no > 0:
-        idx -= 1
-        while (idx >= 0 and
-                t[idx].strip(" \r\n\t") == ""):
-            idx -= 1
-        no -= 1
-    if idx < 0:
         return ""
     return t[idx]
 
@@ -992,17 +1017,6 @@ def is_number_token(v):
         if v.startswith("-") and is_digit(v[1:]):
             return True
         return is_digit(v)
-
-def prevnonblankidx(t, idx, no=1):
-    while no > 0:
-        idx -= 1
-        while (idx >= 0 and
-                t[idx].strip(" \r\n\t") == ""):
-            idx -= 1
-        no -= 1
-    if idx < 0:
-        return -1
-    return idx
 
 def get_statement_inline_funcs(t):
     assert(type(t) in {list, tuple})

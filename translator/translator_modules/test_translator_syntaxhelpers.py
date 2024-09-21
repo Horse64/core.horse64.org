@@ -33,10 +33,9 @@ from translator_syntaxhelpers import (
     stmt_list_uses_banned_things,
     increase_indent,
     get_statement_inline_funcs, tree_transform_statements,
-    firstnonblank, firstnonblankidx,
+    firstnonblank_py, firstnonblankidx_py,
     get_leading_whitespace, separate_out_inline_funcs,
     is_number_token,
-    nextnonblank, nextnonblankidx,
     expr_nonblank_equals, find_start_of_call_index_chain,
     make_kwargs_in_call_tailing, get_indent,
 )
@@ -112,13 +111,6 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
             ["abFG", " ", "abcd"], ["__ANYPAIR1__", "__ANYPAIR1__"],
             pair_match_prefix="__ANYPAIR"
         ))
-
-
-    #def test_is_identifier(self):
-    #    self.assertTrue(is_identifier("flurb"))
-    #    self.assertFalse(is_identifier("5f"))
-    #    self.assertTrue(is_identifier("f5"))
-    #    self.assertFalse(is_identifier("and"))
 
     def test_stmt_list_uses_banned_things(self):
         def do_test(code, expected_banned):
@@ -345,8 +337,8 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
                 (len(v) == 0 or type(v[0]) == list))
             new_v = []
             for st in v:
-                if firstnonblank(st) == "while":
-                    st[firstnonblankidx(st)] = "weird"
+                if firstnonblank_py(st) == "while":
+                    st[firstnonblankidx_py(st)] = "weird"
                 new_v.append(st)
             return new_v
         t = tree_transform_statements(
