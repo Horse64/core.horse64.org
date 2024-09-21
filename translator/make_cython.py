@@ -34,6 +34,9 @@ import sys
 
 MY_DIR = os.path.abspath(os.path.dirname(__file__))
 
+sys.path.insert(1, os.path.join(MY_DIR,
+    "translator_modules"))
+
 def filehash(path):
     contents = None
     with open(path, "rb") as f:
@@ -98,7 +101,9 @@ if __name__ == "__main__":
                         os.symlink(fullp_lib, fullp_lib_link)
                     continue
         subprocess.check_output([
-            "cython", "-o", fullp_c, fullp
+            "cython", "-o", fullp_c,
+            "-I", os.path.join(MY_DIR, "translator_modules"),
+            fullp
         ])
         py_include = None
         if (platform.system().lower() == "darwin" or

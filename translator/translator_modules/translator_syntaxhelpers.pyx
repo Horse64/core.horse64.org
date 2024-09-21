@@ -747,7 +747,7 @@ def get_statement_block_ranges(t):
         t, range_type="block")
     return ranges
 
-def firstnonblankidx(t):
+cdef firstnonblankidx(t):
     idx = 0
     while (idx < len(t) and
             t[idx].strip(" \r\n\t") == ""):
@@ -756,7 +756,7 @@ def firstnonblankidx(t):
         return -1
     return idx
 
-def firstnonblank(t):
+cdef firstnonblank(t):
     idx = 0
     while (idx < len(t) and
             t[idx].strip(" \r\n\t") == ""):
@@ -765,7 +765,7 @@ def firstnonblank(t):
         return ""
     return t[idx]
 
-def nextnonblank(t, idx, no=1):
+cdef nextnonblank(t, int idx, int no=1):
     while no > 0:
         idx += 1
         while (idx < len(t) and
@@ -775,6 +775,17 @@ def nextnonblank(t, idx, no=1):
     if idx >= len(t):
         return ""
     return t[idx]
+
+cdef nextnonblankidx(t, int idx, int no=1):
+    while no > 0:
+        idx += 1
+        while (idx < len(t) and
+                t[idx].strip(" \r\n\t") == ""):
+            idx += 1
+        no -= 1
+    if idx >= len(t):
+        return -1
+    return idx
 
 def nextnonblanksameline(t, idx, no=1):
     while no > 0:
@@ -788,17 +799,6 @@ def nextnonblanksameline(t, idx, no=1):
     if idx >= len(t):
         return ""
     return t[idx]
-
-def nextnonblankidx(t, idx, no=1):
-    while no > 0:
-        idx += 1
-        while (idx < len(t) and
-                t[idx].strip(" \r\n\t") == ""):
-            idx += 1
-        no -= 1
-    if idx >= len(t):
-        return -1
-    return idx
 
 def prevnonblank(t, idx, no=1):
     while no > 0:

@@ -37,16 +37,16 @@ import textwrap
 import traceback
 
 from translator_syntaxhelpers cimport (
-    is_identifier, identifier_or_keyword
+    is_identifier, identifier_or_keyword,
+    nextnonblank, nextnonblankidx,
+    firstnonblank, firstnonblankidx,
 )
 from translator_syntaxhelpers import (
     tokenize, untokenize, get_indent,
     as_escaped_code_string,
     mirror_brackets,
     is_whitespace_token, get_next_token,
-    split_toplevel_statements, nextnonblank,
-    nextnonblankidx,
-    firstnonblank, firstnonblankidx,
+    split_toplevel_statements, 
     get_next_statement, prevnonblank, prevnonblankidx,
     sanity_check_h64_codestring,
     separate_out_inline_funcs,

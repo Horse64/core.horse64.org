@@ -96,17 +96,17 @@ from translator_scopehelpers import (
     get_undefined_uses_in_func,
 )
 
-from translator_modules.translator_syntaxhelpers cimport (
-    is_identifier, identifier_or_keyword
+from translator_syntaxhelpers cimport (
+    is_identifier, identifier_or_keyword,
+    nextnonblank, nextnonblankidx,
+    firstnonblank, firstnonblankidx,
 )
 from translator_syntaxhelpers import (
     tokenize, untokenize, get_indent,
     as_escaped_code_string,
     is_whitespace_token, get_next_token,
     is_h64op_with_lefthand,
-    split_toplevel_statements, nextnonblank,
-    nextnonblankidx,
-    firstnonblank, firstnonblankidx,
+    split_toplevel_statements,
     stmt_list_uses_banned_things,
     get_next_statement, prevnonblank, prevnonblankidx,
     sanity_check_h64_codestring,
@@ -656,7 +656,7 @@ def transform_for_file_output(
     return result
 
 
-def find_matching_remap_module(s, _i, sc):
+cdef find_matching_remap_module(s, _i, sc):
     cdef int k, k2, i
     i = _i
 
@@ -847,17 +847,21 @@ def find_matching_remap_module(s, _i, sc):
     else:
         return (None, None, None, None)
 
-cdef paired_roundbracket_close_has_else(s, z):
+cdef paired_roundbracket_close_has_else(s, _z):
+    cdef int bdepth, z
+    cdef int slen
+    z = _z
     assert(s[z] == "(")
     bdepth = 0
+    slen = len(s)
     z += 1
-    while z < len(s) and (bdepth > 0 or s[z] != ")"):
+    while z < slen and (bdepth > 0 or s[z] != ")"):
         if s[z] in {"(", "{", "["}:
             bdepth += 1
         elif s[z] in {")", "}", "]"}:
             bdepth -= 1
         z += 1
-    if (z > len(s) or s[z] != ")" or
+    if (z > slen or s[z] != ")" or
             nextnonblank(s, z) != "else"):
         return False
     return True

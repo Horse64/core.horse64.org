@@ -29,6 +29,11 @@ import os
 import subprocess
 import sys
 
+MY_DIR = os.path.abspath(os.path.dirname(__file__))
+
+sys.path.insert(1, os.path.join(MY_DIR,
+    "translator_modules"))
+
 if __name__ == "__main__":
     subprocess.check_output([sys.executable,
         os.path.join(os.path.dirname(

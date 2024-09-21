@@ -38,10 +38,13 @@ import tempfile
 import textwrap
 import uuid
 
-from translator_syntaxhelpers cimport is_identifier
-from translator_syntaxhelpers import (
-    firstnonblank, firstnonblankidx,
+from translator_syntaxhelpers cimport (
+    is_identifier,
     nextnonblank, nextnonblankidx,
+    firstnonblank, firstnonblankidx,
+)
+
+from translator_syntaxhelpers import (
     prevnonblank, prevnonblankidx,
     tokenize, split_toplevel_statements,
     is_whitespace_token,

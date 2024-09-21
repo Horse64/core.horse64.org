@@ -31,3 +31,11 @@ cdef is_keyword(x)
 cdef identifier_or_keyword(x)
 
 cdef is_identifier(v)
+
+cdef nextnonblank(t, int idx, int no=*)
+
+cdef nextnonblankidx(t, int idx, int no=*)
+
+cdef firstnonblank(t)
+
+cdef firstnonblankidx(t)
