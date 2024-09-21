@@ -864,8 +864,8 @@ cdef paired_roundbracket_close_has_else(s, z):
 
 cpdef translate_expression_tokens(s, sc,
         is_assign_stmt=False, assign_token_index=-1):
-    cdef int i, k, bracket_depth
-    cdef int bdepth, start_idx
+    cdef int i, k, z, bracket_depth
+    cdef int bdepth, start_idx, slen
 
     s = list(s)
     assert("_remapped_os" not in s)
@@ -873,8 +873,9 @@ cpdef translate_expression_tokens(s, sc,
     assert(sublist_index(s, ["sys", ".", "argv"]) < 0)
 
     # Fix indent first:
+    slen = len(s)
     i = 0
-    while i < len(s):
+    while i < slen:
         t = s[i]
         if t.strip("\t\r\n ") == "" and (
                 t.startswith("\r\n") or
@@ -1057,8 +1058,9 @@ cpdef translate_expression_tokens(s, sc,
             previous_token = s[i]
         i += 1
     # Translate inline "if":
+    slen = len(s)
     i = 0
-    while i < len(s):
+    while i < slen:
         if s[i] != "if":
             i += 1
             continue
@@ -1072,11 +1074,12 @@ cpdef translate_expression_tokens(s, sc,
         value_2_start_idx = -1
         value_2_end_idx = -1
         bracket_depth = 0
-        while z < len(s):
+        while z < slen:
             if (had_nonwhitespace_token and s[z] in {
                         "else", "{", "("} and
                     bracket_depth == 0 and
-                    not is_h64op_with_righthand(prev_nonblank_token) and
+                    not is_h64op_with_righthand(
+                        prev_nonblank_token) and
                     (s[z] != "(" or
                      paired_roundbracket_close_has_else(s, z))
                     ):
@@ -1090,9 +1093,9 @@ cpdef translate_expression_tokens(s, sc,
                 prev_nonblank_token = s[z]
                 had_nonwhitespace_token = True
             z += 1
-        if z >= len(s) or s[z] != "(":
+        if z >= slen or s[z] != "(":
             # Not an inline if.
-            if z < len(s) and (s[z] == "{" or s[z] == "else"):
+            if z < slen and (s[z] == "{" or s[z] == "else"):
                 raise ValueError("Syntax error with 'if' in module " +
                     sc.module_name + ("" if sc.package_name is None else
                     " in " + sc.package_name))
@@ -1100,7 +1103,7 @@ cpdef translate_expression_tokens(s, sc,
             continue
         bracket_depth = 0
         value_1_start_idx = z + 1
-        while z < len(s):
+        while z < slen:
             if (z > value_1_start_idx and
                     bracket_depth == 1 and
                     s[z] == ")" and
@@ -1114,12 +1117,12 @@ cpdef translate_expression_tokens(s, sc,
             z += 1
         assert(s[z] == ")")
         z += 1  # Go past ')'.
-        while z < len(s) and s[z] != "else":
+        while z < slen and s[z] != "else":
             z += 1
         z += 1  # Go past 'else'.
-        while z < len(s) and s[z].strip(" \t\r\n") == "":
+        while z < slen and s[z].strip(" \t\r\n") == "":
             z += 1
-        if z >= len(s) or s[z] != "(":
+        if z >= slen or s[z] != "(":
             raise ValueError("Syntax error with 'if' in module " +
                 sc.module_name + ("" if sc.package_name is None else
                 " in " + sc.package_name))
@@ -1128,7 +1131,7 @@ cpdef translate_expression_tokens(s, sc,
         had_value2_nonblank = False
         value_2_start_idx = z + 1
         value_2_end_idx = None
-        while z < len(s):
+        while z < slen:
             if (z > value_2_start_idx and
                     had_value2_nonblank and
                     bracket_depth <= 1 and
@@ -1161,6 +1164,7 @@ cpdef translate_expression_tokens(s, sc,
             s[value_2_start_idx:value_2_end_idx + 1] + [")"]
         ) + [")"])
         s = s[:i] + transformed_tokens + s[full_end_idx + 1:]
+        slen = len(s)
         i = i + len(transformed_tokens) + 1
 
     # Translate XYZ.as_str()/XYZ.len to str(XYZ)/len(XYZ),
@@ -1170,8 +1174,9 @@ cpdef translate_expression_tokens(s, sc,
     s = transform_h64_misc_inline_to_python(s)
 
     # Translate remapped use to the proper remapped thing:
+    slen = len(s)
     i = 0
-    while i < len(s):
+    while i < slen:
         if (prevnonblank(s, i) in {
                 "import", "func", ".", "var",
                 "const"}):
@@ -1204,6 +1209,7 @@ cpdef translate_expression_tokens(s, sc,
                         insert_tokens = tokenize(remapped_uses
                             [remap_module_key][remapped_use])
                         s = s[:i] + insert_tokens + s[i + 1:]
+                        slen = len(s)
                         i += len(insert_tokens)
                         break
             i += 1
@@ -1230,6 +1236,7 @@ cpdef translate_expression_tokens(s, sc,
                     insert_tokens = tokenize(remapped_uses
                         [remap_module_key][remapped_use])
                     s = s[:i] + insert_tokens + s[i + match_tokens:]
+                    slen = len(s)
                     i += len(insert_tokens)
                     break
         i += 1
