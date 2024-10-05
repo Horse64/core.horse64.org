@@ -388,7 +388,6 @@ remapped_uses = {
     },
 }
 
-
 class RegisteredType:
     def __init__(self, type_name, module_path, package_name,
             extends_tokens=None):
@@ -401,9 +400,7 @@ class RegisteredType:
         self.funcs = {}
         self.seen_in_type_stmt = False
 
-
 known_types = {}
-
 
 ensure_type_order_no = 0
 
@@ -460,7 +457,6 @@ def ensure_type(
                 module_path + "." + type_name + package_name_part)
     return known_types[module_path + "." +
         type_name + package_name_part]
-
 
 def parse_type_import_ref(
         ref, i, sc=None, is_func=False,
@@ -591,7 +587,6 @@ class TranslatedProjectInfo:
             folder = folder + "src/"
         return folder
 
-
 def make_valid_identifier(idf, sc=None):
     if (not is_identifier(idf) or
             is_problematic_identifier_name(
@@ -616,7 +611,6 @@ def make_valid_identifier(idf, sc=None):
         return "_translator_renamed_" + idf
     return idf
 
-
 def sublist_index(full_list, sub_list):
     if len(sub_list) > len(full_list) or len(sub_list) == 0:
         return -1
@@ -633,7 +627,6 @@ def sublist_index(full_list, sub_list):
             return i
         i += 1
     return -1
-
 
 def transform_for_file_output(
         contents, with_linenos=False
@@ -656,9 +649,15 @@ def transform_for_file_output(
             padno(lineno) + "|" + content_line.rstrip())
     return result
 
+cdef _find_matching_remap_module__modcmp(e1, e2):
+    if e1[0] == e2[0]:
+        return (-1 if str(e1[1]) < str(e2[1]) else 1)
+    return (-1 if e2[0] < e2[0] else 1)
 
 cdef find_matching_remap_module(s, _i, sc):
-    cdef int k, k2, i
+    cdef int k, k2, i, debug_details
+    cdef int match_tokens, maybe_match_tokens, \
+        maybe_other_match, maybe_match, match
     i = _i
 
     if i >= len(s) or not is_identifier(s[i]):
@@ -755,14 +754,13 @@ cdef find_matching_remap_module(s, _i, sc):
                 ["module"],
             sc.processed_imports[known_import]
                 ["package"]))
-    def cmp(e1, e2):
-        if e1[0] == e2[0]:
-            return (-1 if str(e1[1]) < str(e2[1]) else 1)
-        return (-1 if e2[0] < e2[0] else 1)
-    processed_imports_pairs = sorted(list(
-        set(processed_imports_pairs).union(
+    processed_imports_pairs = sorted(
+        list(set(processed_imports_pairs).union(
             set([(a[0], a[1]) for a in sc.orig_h64_imports]))),
-        key=functools.cmp_to_key(cmp))
+        key=functools.cmp_to_key(
+            _find_matching_remap_module__modcmp
+        )
+    )
 
     for check_import in processed_imports_pairs:
         import_module_elements = (
