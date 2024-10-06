@@ -105,6 +105,7 @@ from translator_syntaxhelpers cimport (
     is_h64op_with_righthand,
     is_h64op_with_lefthand,
     is_whitespace_token,
+    sanity_check_h64_codestring,
     tokenize,
 )
 from translator_syntaxhelpers import (
@@ -113,7 +114,6 @@ from translator_syntaxhelpers import (
     split_toplevel_statements,
     stmt_list_uses_banned_things,
     get_next_statement,
-    sanity_check_h64_codestring,
     separate_out_inline_funcs,
     is_number_token,
     make_kwargs_in_call_tailing,

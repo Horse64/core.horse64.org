@@ -28,17 +28,17 @@
 
 cdef is_keyword(x)
 
-cdef identifier_or_keyword(x)
+cdef identifier_or_keyword(str x)
 
-cdef is_identifier(v)
+cdef is_identifier(str v)
 
-cdef nextnonblank(t, int idx, int no=*)
+cdef nextnonblank(list t, int idx, int no=*)
 
-cdef nextnonblankidx(t, int idx, int no=*)
+cdef nextnonblankidx(list t, int idx, int no=*)
 
-cdef prevnonblank(t, int idx, int no=*)
+cdef prevnonblank(list t, int idx, int no=*)
 
-cdef prevnonblankidx(t, int idx, int no=*)
+cdef prevnonblankidx(list t, int idx, int no=*)
 
 cdef firstnonblank(t)
 
@@ -55,3 +55,5 @@ cdef is_whitespace_token(str s)
 cpdef tokenize(str s)
 
 cpdef get_next_statement(list s, int pos)
+
+cpdef sanity_check_h64_codestring(s, filename=*, modname=*)

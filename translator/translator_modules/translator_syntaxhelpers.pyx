@@ -63,8 +63,8 @@ def flatten(l):
             flat.append(item)
     return flat
 
-cdef identifier_or_keyword(x):
-    if x == "" or type(x) != str:
+cdef identifier_or_keyword(str x):
+    if x == "":
         return False
     cdef int i = 0
     while i < len(x):
@@ -78,7 +78,7 @@ cdef identifier_or_keyword(x):
         i += 1
     return True
 
-cdef is_identifier(v):
+cdef is_identifier(str v):
     return (identifier_or_keyword(v) and
         not v in {"yes", "no", "none"} and
         not is_keyword(v))
@@ -770,7 +770,7 @@ cdef firstnonblank(t):
         return ""
     return t[idx]
 
-cdef nextnonblank(t, int idx, int no=1):
+cdef nextnonblank(list t, int idx, int no=1):
     cdef int tlen
     tlen = len(t)
     while no > 0:
@@ -783,7 +783,7 @@ cdef nextnonblank(t, int idx, int no=1):
         return ""
     return t[idx]
 
-cdef nextnonblankidx(t, int idx, int no=1):
+cdef nextnonblankidx(list t, int idx, int no=1):
     cdef int tlen
     tlen = len(t)
     while no > 0:
@@ -796,7 +796,7 @@ cdef nextnonblankidx(t, int idx, int no=1):
         return -1
     return idx
 
-cdef prevnonblank(t, int idx, int no=1):
+cdef prevnonblank(list t, int idx, int no=1):
     while no > 0:
         idx -= 1
         while (idx >= 0 and
@@ -807,7 +807,7 @@ cdef prevnonblank(t, int idx, int no=1):
         return ""
     return t[idx]
 
-cdef prevnonblankidx(t, int idx, int no=1):
+cdef prevnonblankidx(list t, int idx, int no=1):
     while no > 0:
         idx -= 1
         while (idx >= 0 and
@@ -1214,12 +1214,12 @@ cpdef get_next_statement(list s, int pos):
                  (last_nonwhitespace_token != "extend" or
                   (t not in {"func", "enum", "type"}))) or (
                 is_whitespace_token(t) and
-                nextnonblank(t, i) in
+                nextnonblank(s, i) in
                 must_stop_before_toks))):
             return s[pos:pos + token_count - 1]  # Stop EXCLUDING token.
         if ((last_nonwhitespace_token != "" and (
                 is_whitespace_token(t) and
-                nextnonblank(t, i) in
+                nextnonblank(s, i) in
                 must_continue_before_toks)) or
                 (t in must_continue_after_toks or
                     is_whitespace_token(t) and
@@ -1520,8 +1520,17 @@ def transform_h64_with_to_do_rescue(s):
         new_tokens = untokenize(new_tokens)
     return new_tokens
 
-def sanity_check_h64_codestring(s, filename="", modname=""):
-    tokens = None
+cpdef sanity_check_h64_codestring(s, filename="", modname=""):
+    cdef int col, line, i
+    cdef list tokens, bracket_nesting_orig_loc,\
+        bracket_nesting
+    cdef str reverse_bracket, token
+
+    cdef set opening_brackets_set = {"(", "{", "["}
+    cdef set closing_brackets_set = {")", "}", "]"}
+    cdef set string_quote_set = {"'", '"'}
+
+    tokens = []
     if type(s) == list:
         tokens = s
     else:
@@ -1533,7 +1542,8 @@ def sanity_check_h64_codestring(s, filename="", modname=""):
     bracket_nesting_orig_loc = []
     bracket_nesting = []
     i = -1
-    for token in tokens:
+    for _token in tokens:
+        token = _token
         i += 1
         assert(tokens[i] == token)
         if (token == "else" and
@@ -1542,10 +1552,10 @@ def sanity_check_h64_codestring(s, filename="", modname=""):
                 " in " + modname if modname != None else ""))
         if ((is_identifier(token) and
                 nextnonblanksameline(tokens, i)
-                    in {"'", '"'}) or (
+                    in string_quote_set) or (
                 bracket_nesting[-1:] == ["("] and
                 is_identifier(tokens[i]) and
-                nextnonblank(tokens, i) in {"'", '"'})):
+                nextnonblank(tokens, i) in string_quote_set)):
             raise ValueError(("" if (modname == "" or
                 modname == None) else ("in module " +
                 str(modname) + " ")) +
@@ -1556,10 +1566,10 @@ def sanity_check_h64_codestring(s, filename="", modname=""):
                 "identifier followed by spurious string literal, "
                 "did you forget a '+'?")
         if ((is_identifier(nextnonblanksameline(tokens, i)) and
-                tokens[i][:1] in {"'", '"'}) or (
+                tokens[i][:1] in string_quote_set) or (
                 bracket_nesting[-1:] == ["("] and (
                 is_identifier(nextnonblank(tokens, i)) and
-                tokens[i][:1] in {"'", '"'}))):
+                tokens[i][:1] in string_quote_set))):
             raise ValueError(("" if (modname == "" or
                 modname == None) else ("in module " +
                 str(modname) + " ")) +
@@ -1578,10 +1588,10 @@ def sanity_check_h64_codestring(s, filename="", modname=""):
                 str(filename) + " ")) +
                 "in line " + str(line) + ", col " + str(col) + ": " +
                 "invalid double use of ','")
-        if token in {"(", "{", "["}:
+        if token in opening_brackets_set:
             bracket_nesting_orig_loc.append((line, col))
             bracket_nesting.append(token)
-        elif token in {")", "}", "]"}:
+        elif token in closing_brackets_set:
             reverse_bracket = "("
             if token == "}":
                 reverse_bracket = "{"
