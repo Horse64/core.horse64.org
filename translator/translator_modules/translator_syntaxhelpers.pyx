@@ -111,7 +111,7 @@ def is_whitespace_token(s):
             return False
     return True
 
-def get_next_token(s):
+cdef get_next_token(str s):
     assert(type(s) == str)
     if s == "":
         return ""

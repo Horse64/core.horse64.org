@@ -43,3 +43,5 @@ cdef prevnonblankidx(t, int idx, int no=*)
 cdef firstnonblank(t)
 
 cdef firstnonblankidx(t)
+
+cdef get_next_token(str s)

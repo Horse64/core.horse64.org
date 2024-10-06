@@ -41,12 +41,13 @@ from translator_syntaxhelpers cimport (
     nextnonblank, nextnonblankidx,
     firstnonblank, firstnonblankidx,
     prevnonblank, prevnonblankidx,
+    get_next_token
 )
 from translator_syntaxhelpers import (
     tokenize, untokenize, get_indent,
     as_escaped_code_string,
     mirror_brackets,
-    is_whitespace_token, get_next_token,
+    is_whitespace_token,
     split_toplevel_statements, 
     get_next_statement,
     sanity_check_h64_codestring,

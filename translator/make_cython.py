@@ -52,6 +52,14 @@ if __name__ == "__main__":
             force_rebuild = True
         elif sys.argv[i] == "--":
             break
+        elif sys.argv[i] in ["--help", "-?", "-h"]:
+            print("make_cython tool to build Cython parts of translator")
+            print("Options:")
+            print("")
+            print("    --help")
+            print("    --force-rebuild")
+            print("    --version")
+            sys.exit(0)
         elif sys.argv[i] in ["--version", "-v", "-V"]:
             print("make_cython version: 2024-08-09")
             sys.exit(0)
