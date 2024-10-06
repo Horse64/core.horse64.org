@@ -126,24 +126,27 @@ def func_args_find_last_positional(st, i):
         i += 1
     return (last_nonkw_arg_end, had_any_positional_arg, i)
 
+_horse64_nope = {"base"}
 
-def is_problematic_identifier_name(s,
-        h64_problematic_only=False,
-        python_problematic_only=False):
+_python_nope_idf = {"super", "class",
+    "sorted", "reversed", "len", "def",
+    "yield", "async", "elif", "lambda",
+    "pass", "await", "global", "globals",
+    "locals", "copy", "del", "raise", "True", "False",
+    "nonlocal", "str", "dict", "set",
+    "object"}
+
+cdef is_problematic_identifier_name(str s,
+        int h64_problematic_only=False,
+        int python_problematic_only=False):
     """ Returns True if the identifier is either not valid
     in Horse64 to redeclare like "base", or valid in Horse64
     but going to break after translation in Python like "super"."""
-    horse64_nope = {"base"}
-    if not python_problematic_only and s in horse64_nope:
+    
+    if not python_problematic_only and s in _horse64_nope:
         return True
-    python_nope = {"super", "class",
-        "sorted", "reversed", "len", "def",
-        "yield", "async", "elif", "lambda",
-        "pass", "await", "global", "globals",
-        "locals", "copy", "del", "raise", "True", "False",
-        "nonlocal", "str", "dict", "set",
-        "object"}
-    if not h64_problematic_only and s in python_nope:
+    
+    if not h64_problematic_only and s in _python_nope_idf:
         return True
     return False
 

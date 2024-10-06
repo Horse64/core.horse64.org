@@ -73,6 +73,10 @@ from translator_horphelpers import (
 import translator_runtime_helpers_preprocessor as \
     translator_preprocessor
 
+from translator_transformhelpers cimport (
+    is_problematic_identifier_name,
+)
+
 from translator_transformhelpers import (
     transform_h64_misc_inline_to_python,
     get_declared_local_globals_simple,
@@ -80,7 +84,6 @@ from translator_transformhelpers import (
     set_expr_len_if_any,
     transform_h64_with_to_do_rescue,
     make_string_literal_python_friendly,
-    is_problematic_identifier_name,
     indent_sanity_check,
     is_isolated_pure_assign,
     vec_expr_len_if_any,
@@ -592,7 +595,8 @@ class TranslatedProjectInfo:
 def make_valid_identifier(idf, sc=None):
     if (not is_identifier(idf) or
             is_problematic_identifier_name(
-            idf, h64_problematic_only=True)):
+            idf, h64_problematic_only=True,
+                python_problematic_only=False)):
         raise ValueError("Syntax error or problem " +
             (("in " + sc.module_name + (" in " + sc.package_name
              if sc.package_name != None else "")) if
@@ -609,7 +613,8 @@ def make_valid_identifier(idf, sc=None):
             "can't due to implementation limitations: " +
             idf)
     if is_problematic_identifier_name(
-            idf, python_problematic_only=True):
+            idf, h64_problematic_only=False,
+            python_problematic_only=True):
         return "_translator_renamed_" + idf
     return idf
 
@@ -869,10 +874,12 @@ cdef paired_roundbracket_close_has_else(s, _z):
         return False
     return True
 
-cpdef translate_expression_tokens(s, sc,
+cpdef translate_expression_tokens(list s, sc,
         is_assign_stmt=False, assign_token_index=-1):
     cdef int i, k, z, bracket_depth
     cdef int bdepth, start_idx, slen
+
+    cdef list orig_s
 
     s = list(s)
     assert("_remapped_os" not in s)
@@ -938,7 +945,8 @@ cpdef translate_expression_tokens(s, sc,
     while i < len(s):
         if (is_identifier(s[i]) and
                 is_problematic_identifier_name(s[i],
-                python_problematic_only=True)) and (
+                    h64_problematic_only=False,
+                    python_problematic_only=True)) and (
                 (s[i] != "len" and s[i] != "del" and
                 s[i] != "copy") or
                 previous_token != "."):
@@ -1203,7 +1211,8 @@ cpdef translate_expression_tokens(s, sc,
             if (sc.module_name != None and sc.package_name != None and
                     (sc.module_name + "@" + sc.package_name) in
                     remapped_uses):
-                remap_module_key = sc.module_name + "@" + sc.package_name
+                remap_module_key = sc.module_name +\
+                    "@" + sc.package_name
                 for remapped_use in remapped_uses[remap_module_key]:
                     remap_original_use = sc.module_name + "." + s[i]
                     if remapped_use == remap_original_use:
@@ -1215,7 +1224,10 @@ cpdef translate_expression_tokens(s, sc,
                                 remap_module_key)
                         insert_tokens = tokenize(remapped_uses
                             [remap_module_key][remapped_use])
-                        s = s[:i] + insert_tokens + s[i + 1:]
+                        oldtail = s[i + 1:]
+                        s[:] = s[:i]
+                        s += insert_tokens
+                        s += oldtail
                         slen = len(s)
                         i += len(insert_tokens)
                         break
@@ -1242,7 +1254,10 @@ cpdef translate_expression_tokens(s, sc,
                             remap_module_key)
                     insert_tokens = tokenize(remapped_uses
                         [remap_module_key][remapped_use])
-                    s = s[:i] + insert_tokens + s[i + match_tokens:]
+                    oldtail = s[i + match_tokens:]
+                    s[:] = s[:i]
+                    s += insert_tokens
+                    s += oldtail
                     slen = len(s)
                     i += len(insert_tokens)
                     break
@@ -1250,8 +1265,9 @@ cpdef translate_expression_tokens(s, sc,
 
     # Add line continuation things:
     bdepth = 0
+    slen = len(s)
     i = 0
-    while i < len(s):
+    while i < slen:
         if s[i] in {"{", "(", "["}:
             bdepth += 1
         if s[i] in {"}", ")", "]"}:
@@ -1268,6 +1284,7 @@ cpdef translate_expression_tokens(s, sc,
                 s[i + 1].strip(" \t") != ""):
             s = (s[:i + 1] + ["\\"] + [s[i + 1].lstrip(" \t")] +
                 s[i + 2:])
+            slen = len(s)
         if ((s[i].endswith("\"") or s[i].endswith("'")) and
                 i + 2 < len(s) and
                 s[i + 1].strip(" \t\r\n") == "" and
@@ -1279,18 +1296,22 @@ cpdef translate_expression_tokens(s, sc,
                     s[z].endswith("\"") or s[z].endswith("'"))):
                 s = (s[:i + 1] + ["+", "\\"] +
                     [s[i + 1].lstrip(" \t")] + s[i + 2:])
+                slen = len(s)
         i += 1
  
     # Remove "new" and "protect" since Python doesn't have these:
+    slen = len(s)
     i = 0
     while i < len(s):
         if s[i] == "new" or s[i] == "protect":
             s = s[:i] + s[i + 1:]
+            slen -= 1
             continue
         i += 1
     # Translate {->} map constructor:
+    slen = len(s)
     i = 0
-    while i < len(s):
+    while i < slen:
         if s[i] != "{":
             i += 1
             continue
@@ -1300,6 +1321,7 @@ cpdef translate_expression_tokens(s, sc,
             s = (s[:i] +
                 ["(", "dict", "(", ")", ")"] +
                 s[nextnonblankidx(s, i, no=2) + 1:])
+            slen = len(s)
             i += 1
             continue
         # Okay we're maybe in a map now. We'll see by checking
@@ -1307,7 +1329,7 @@ cpdef translate_expression_tokens(s, sc,
         start_idx = i
         bdepth = 0
         i += 1
-        while i < len(s) and (s[i] != "}" or
+        while i < slen and (s[i] != "}" or
                 bdepth > 0):
             if s[i] in {"(", "{", "["}:
                 bdepth += 1
@@ -1318,8 +1340,9 @@ cpdef translate_expression_tokens(s, sc,
                 s[i] = ":"  # Translate to python syntax.
             i += 1
     # Translate some keywords:
+    slen = len(s)
     i = 0
-    while i < len(s):
+    while i < slen:
         if s[i] == "yes":
             s[i] = "True"
         elif s[i] == "no":
@@ -1328,7 +1351,6 @@ cpdef translate_expression_tokens(s, sc,
             s[i] = "None"
         i += 1
     return s
-
 
 def queue_module_neighbors(
         translate_file_queue,
