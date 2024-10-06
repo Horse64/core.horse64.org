@@ -29,3 +29,5 @@
 cdef is_problematic_identifier_name(str s,
     int h64_problematic_only=*,
     int python_problematic_only=*)
+
+cpdef transform_h64_misc_inline_to_python(_s)

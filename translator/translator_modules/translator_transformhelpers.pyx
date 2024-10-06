@@ -719,12 +719,17 @@ def make_string_literal_python_friendly(t):
         return result[0]
     return result
 
+cpdef transform_h64_misc_inline_to_python(_s):
+    cdef int i, k, bdepth
+    cdef int replaced_one, inserted_left_end
+    cdef list s
 
-def transform_h64_misc_inline_to_python(s):
     was_str = False
-    if type(s) == str:
+    if type(_s) == str:
         was_str = True
-        s = tokenize(s)
+        s = tokenize(_s)
+    else:
+        s = list(_s)
     # Translate XYZ.as_str()/XYZ.len to str(XYZ)/len(XYZ),
     # important (!!!) this needs to be BEFORE remapping functions.
     replaced_one = True
@@ -737,7 +742,7 @@ def transform_h64_misc_inline_to_python(s):
                     prevnonblank(s, i, no=2) == "base"):
                 base_idx = prevnonblankidx(s,i, no=2)
                 bracket_idx = nextnonblankidx(s, i)
-                s = s[:base_idx] + ["_translator_runtime_helpers",
+                s[:] = s[:base_idx] + ["_translator_runtime_helpers",
                     ".", "_container_copy_on_base", "(", "self",
                     ",", "__h64_cls_ref__"] +\
                     s[bracket_idx + 1:]
@@ -750,7 +755,7 @@ def transform_h64_misc_inline_to_python(s):
                     prevnonblank(s, i, no=4) == "super"):
                 base_idx = prevnonblankidx(s,i, no=4)
                 bracket_idx = nextnonblankidx(s, i)
-                s = s[:base_idx] + ["_translator_runtime_helpers",
+                s[:] = s[:base_idx] + ["_translator_runtime_helpers",
                     ".", "_container_copy_on_base", "(", "self",
                     ",", "__h64_cls_ref__"] +\
                     s[bracket_idx + 1:]
@@ -884,20 +889,11 @@ def transform_h64_misc_inline_to_python(s):
             elif cmd == "[":
                 insert_call = ["_translator_runtime_helpers",
                     ".", "_container_squarebracketaccess"]
-            def is_keyword_or_idf(s):
-                if len(s) == 0:
-                    return False
-                if (s[0] == "_" or(ord(s[0]) >= ord("A") and
-                        ord(s[0]) <= ord("Z")) or
-                        (ord(s[0]) >= ord("a") and
-                        ord(s[0]) <= ord("z"))):
-                    return True
-                return False
             replaced_one = True
             old_s = s
             if cmd in ("len", "glyph_len"):
                 # Add in a ")":
-                s = s[:i - 1] + [")"] + s[i + 1:]
+                s[:] = s[:i - 1] + [")"] + s[i + 1:]
                 i -= 1
                 assert(s[i] == ")")
             elif cmd in ("add", "sort", "join", "find", "sub",
@@ -906,12 +902,12 @@ def transform_h64_misc_inline_to_python(s):
                     "insert", "pop_at", "add_at",
                     "subfirst", "last", "first", "del"):
                 # Truncate "(", ... and turn it to ",", ...
-                s = s[:i - 1] + [","] + s[i + 2:]
+                s[:] = s[:i - 1] + [","] + s[i + 2:]
                 i -= 1
                 assert(s[i] == ",")
             elif cmd == "[":
                 # Change the "[" into a ",":
-                s = s[:i] + [","] + s[i + 1:]
+                s[:] = s[:i] + [","] + s[i + 1:]
                 # We also need to replace the closing ']' with a ')':
                 bracket_depth = 0
                 k = i + 2
@@ -939,14 +935,15 @@ def transform_h64_misc_inline_to_python(s):
             assert(i >= 0)
             istart = find_start_of_call_index_chain(s, i)
             if istart > i:
-                istart = find_start_of_call_index_chain(s, i, debug=True)
+                istart = find_start_of_call_index_chain(
+                    s, i, debug=True)
             assert(istart <= i), (
                 "expression start should be before where we began "
                 "searching at " + str(i) + " (token: '" +
                 str(s[i]) + "') but it's at " +
                 str(istart) + ", expression surroundings: " +
                 str(s[min(istart, i) - 10:max(istart, i) + 10]))
-            s = s[:istart] + insert_call + ["("] + s[istart:]
+            s[:] = s[:istart] + insert_call + ["("] + s[istart:]
             inserted_left_end = True
             assert(inserted_left_end), (
                 "FAILED TO FIND LEFT END OF EXPRESSION FOR: " + str(

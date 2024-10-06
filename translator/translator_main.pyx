@@ -75,10 +75,10 @@ import translator_runtime_helpers_preprocessor as \
 
 from translator_transformhelpers cimport (
     is_problematic_identifier_name,
+    transform_h64_misc_inline_to_python,
 )
 
 from translator_transformhelpers import (
-    transform_h64_misc_inline_to_python,
     get_declared_local_globals_simple,
     apply_make_set_call,
     set_expr_len_if_any,
@@ -1074,6 +1074,9 @@ cpdef translate_expression_tokens(list s, sc,
         i += 1
     # Translate inline "if":
     slen = len(s)
+    cdef set inline_if_expr_end_set = {"else", "{", "("}
+    cdef set open_bracket_set = {"(", "[", "{"}
+    cdef set close_bracket_set = {")", "]", "}"}
     i = 0
     while i < slen:
         if s[i] != "if":
@@ -1090,8 +1093,8 @@ cpdef translate_expression_tokens(list s, sc,
         value_2_end_idx = -1
         bracket_depth = 0
         while z < slen:
-            if (had_nonwhitespace_token and s[z] in {
-                        "else", "{", "("} and
+            if (had_nonwhitespace_token and
+                    s[z] in inline_if_expr_end_set and
                     bracket_depth == 0 and
                     not is_h64op_with_righthand(
                         prev_nonblank_token) and
@@ -1100,9 +1103,9 @@ cpdef translate_expression_tokens(list s, sc,
                     ):
                 condition_end_idx = z - 1
                 break
-            if s[z] in {"[", "(", "{"}:
+            if s[z] in open_bracket_set:
                 bracket_depth += 1
-            if s[z] in {"]", ")", "}"}:
+            if s[z] in close_bracket_set:
                 bracket_depth -= 1
             if s[z].strip(" \t\r\n") != "":
                 prev_nonblank_token = s[z]
@@ -1125,9 +1128,9 @@ cpdef translate_expression_tokens(list s, sc,
                     nextnonblank(s, z) == "else"):
                 value_1_end_idx = z - 1
                 break
-            if s[z] in {"[", "(", "{"}:
+            if s[z] in open_bracket_set:
                 bracket_depth += 1
-            if s[z] in {"]", ")", "}"}:
+            if s[z] in close_bracket_set:
                 bracket_depth -= 1
             z += 1
         assert(s[z] == ")")
@@ -1155,9 +1158,9 @@ cpdef translate_expression_tokens(list s, sc,
                 full_end_idx = z
                 bracket_depth = 0
                 break
-            if s[z] in {"[", "(", "{"}:
+            if s[z] in open_bracket_set:
                 bracket_depth += 1
-            if s[z] in {"]", ")", "}"}:
+            if s[z] in close_bracket_set:
                 bracket_depth -= 1
             if s[z].strip("\r\t\n ") != "":
                 had_value2_nonblank = True
