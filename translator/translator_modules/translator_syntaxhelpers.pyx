@@ -103,7 +103,7 @@ def as_escaped_code_string(s):
     insert_value += "\").decode(\"utf-8\", \"replace\")"
     return insert_value
 
-def is_whitespace_token(s):
+cdef is_whitespace_token(str s):
     if len(s) == 0:
         return False
     for char in s:
@@ -112,6 +112,8 @@ def is_whitespace_token(s):
     return True
 
 cdef get_next_token(str s):
+    cdef int i
+    cdef int len_s
     assert(type(s) == str)
     if s == "":
         return ""
@@ -1064,27 +1066,53 @@ def get_statement_inline_funcs(t):
             continue
     return result
 
-def tokenize(s):
+cdef _tokenize_do(str s):
+    cdef set one_char_toks
+    cdef str first_c
+    cdef list tokens
+    cdef int len_s, offset_s
+
     one_char_toks = {".", ",",
         "{",  "[", "(", ")", "]", "}"}
+    string_start_toks = {"'", "\""}
+    whitespace_toks = {" ", "\t", "\r", "\n"}
+    longer_token_start_toks = (
+        string_start_toks.union(whitespace_toks.union({"#"}))
+    )
     tokens = []
+    offset_s = 0
     len_s = len(s)
-    while len_s > 0:
-        if s[0] in one_char_toks:  # Perf tweak.
-            tokens.append(s[0])
-            s = s[1:]
-            len_s -= 1
+    while len_s > offset_s:
+        first_c = s[offset_s]
+        if s[offset_s] in one_char_toks:  # Perf tweak.
+            tokens.append(s[offset_s])
+            offset_s += 1
             continue
-        t = get_next_token(s)
-        len_t = len(t)
+        if (first_c in longer_token_start_toks or
+                (first_c == "b" and offset_s + 1 < len_s and
+                s[offset_s + 1] in string_start_toks)):
+            t = get_next_token(s[offset_s:])
+            len_t = len(t)
+        else:
+            lookahead = 10
+            while True:
+                t = get_next_token(
+                    s[offset_s:offset_s + lookahead]
+                )
+                len_t = len(t)
+                if len_t < lookahead:
+                    break
+                lookahead += 100
         if len_t == 0:
             return tokens
         tokens.append(t)
-        s = s[len_t:]
-        len_s -= len_t
+        offset_s += len_t
     return tokens
 
-def is_h64op_with_righthand(v):
+def tokenize(str s):
+    return _tokenize_do(s)
+
+cdef is_h64op_with_righthand(str v):
     if v in {"and", "or", "not", "+", "-", "*", "/",
             ">", "<", "->", "**",
             ".", "!=", "=", "=="}:
@@ -1093,7 +1121,7 @@ def is_h64op_with_righthand(v):
         return True
     return False
 
-def is_h64op_with_lefthand(v):
+cdef is_h64op_with_lefthand(str v):
     if v in {"and", "or", "+", "-", "*", "/",
             ">", "<", "->", ".", "!=", "=", "==",
             ":", "**"}:
@@ -1146,7 +1174,10 @@ must_stop_before_toks = {
     "for", "await",
 }
 
-def get_next_statement(s, pos):
+cpdef get_next_statement(list s, int pos):
+    cdef int s_len, bracket_nesting, token_count
+    cdef str t, last_nonwhitespace_token
+
     s_len = len(s)
     if s_len <= pos:
         return []

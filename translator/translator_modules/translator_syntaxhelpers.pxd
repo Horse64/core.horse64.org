@@ -45,3 +45,9 @@ cdef firstnonblank(t)
 cdef firstnonblankidx(t)
 
 cdef get_next_token(str s)
+
+cdef is_h64op_with_righthand(str v)
+
+cdef is_h64op_with_lefthand(str v)
+
+cdef is_whitespace_token(str s)

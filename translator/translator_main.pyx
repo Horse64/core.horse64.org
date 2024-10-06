@@ -101,19 +101,19 @@ from translator_syntaxhelpers cimport (
     nextnonblank, nextnonblankidx,
     firstnonblank, firstnonblankidx,
     prevnonblank, prevnonblankidx,
-    get_next_token
+    get_next_token,
+    is_h64op_with_righthand,
+    is_h64op_with_lefthand,
+    is_whitespace_token,
 )
 from translator_syntaxhelpers import (
     tokenize, untokenize, get_indent,
     as_escaped_code_string,
-    is_whitespace_token,
-    is_h64op_with_lefthand,
     split_toplevel_statements,
     stmt_list_uses_banned_things,
     get_next_statement,
     sanity_check_h64_codestring,
     separate_out_inline_funcs,
-    is_h64op_with_righthand,
     is_number_token,
     make_kwargs_in_call_tailing,
 )

@@ -43,11 +43,11 @@ from translator_syntaxhelpers cimport (
     nextnonblank, nextnonblankidx,
     firstnonblank, firstnonblankidx,
     prevnonblank, prevnonblankidx,
+    is_whitespace_token,
 )
 
 from translator_syntaxhelpers import (
     tokenize, split_toplevel_statements,
-    is_whitespace_token,
     get_statement_block_ranges,
 )
 

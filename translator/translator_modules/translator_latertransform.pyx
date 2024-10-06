@@ -44,18 +44,20 @@ from translator_syntaxhelpers cimport (
     nextnonblank, nextnonblankidx,
     firstnonblank, firstnonblankidx,
     prevnonblank, prevnonblankidx,
+    is_h64op_with_righthand,
+    is_h64op_with_lefthand,
+    is_whitespace_token,
 )
 
 from translator_syntaxhelpers import (
     token_outside_brackets_idx,
     split_toplevel_statements, flatten,
     increase_indent,
-    is_h64op_with_righthand,
     stmt_is_later_call,
     adjust_to_absolute_indent,
     cut_tokens_after_lineend,
     get_statement_block_ranges,
-    is_whitespace_token, get_indent, tokenize,
+    get_indent, tokenize,
     untokenize, is_whitespace_statement,
     tree_transform_statements,
 )
