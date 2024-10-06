@@ -44,10 +44,14 @@ cdef firstnonblank(t)
 
 cdef firstnonblankidx(t)
 
-cdef get_next_token(str s)
+cdef str get_next_token(str s)
 
-cdef is_h64op_with_righthand(str v)
+cdef int is_h64op_with_righthand(str v)
 
-cdef is_h64op_with_lefthand(str v)
+cdef int is_h64op_with_lefthand(str v)
 
 cdef is_whitespace_token(str s)
+
+cpdef tokenize(str s)
+
+cpdef get_next_statement(list s, int pos)

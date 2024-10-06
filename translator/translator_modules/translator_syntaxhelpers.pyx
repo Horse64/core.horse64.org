@@ -111,10 +111,9 @@ cdef is_whitespace_token(str s):
             return False
     return True
 
-cdef get_next_token(str s):
+cdef str get_next_token(str s):
     cdef int i
     cdef int len_s
-    assert(type(s) == str)
     if s == "":
         return ""
     len_s = len(s)
@@ -1066,7 +1065,7 @@ def get_statement_inline_funcs(t):
             continue
     return result
 
-cdef _tokenize_do(str s):
+cpdef tokenize(str s):
     cdef set one_char_toks
     cdef str first_c
     cdef list tokens
@@ -1109,10 +1108,7 @@ cdef _tokenize_do(str s):
         offset_s += len_t
     return tokens
 
-def tokenize(str s):
-    return _tokenize_do(s)
-
-cdef is_h64op_with_righthand(str v):
+cdef int is_h64op_with_righthand(str v):
     if v in {"and", "or", "not", "+", "-", "*", "/",
             ">", "<", "->", "**",
             ".", "!=", "=", "=="}:
@@ -1121,7 +1117,7 @@ cdef is_h64op_with_righthand(str v):
         return True
     return False
 
-cdef is_h64op_with_lefthand(str v):
+cdef int is_h64op_with_lefthand(str v):
     if v in {"and", "or", "+", "-", "*", "/",
             ">", "<", "->", ".", "!=", "=", "==",
             ":", "**"}:
@@ -1175,7 +1171,8 @@ must_stop_before_toks = {
 }
 
 cpdef get_next_statement(list s, int pos):
-    cdef int s_len, bracket_nesting, token_count
+    cdef int s_len, bracket_nesting, token_count, \
+        is_string_continuation, z
     cdef str t, last_nonwhitespace_token
 
     s_len = len(s)

@@ -105,9 +105,10 @@ from translator_syntaxhelpers cimport (
     is_h64op_with_righthand,
     is_h64op_with_lefthand,
     is_whitespace_token,
+    tokenize,
 )
 from translator_syntaxhelpers import (
-    tokenize, untokenize, get_indent,
+    untokenize, get_indent,
     as_escaped_code_string,
     split_toplevel_statements,
     stmt_list_uses_banned_things,
