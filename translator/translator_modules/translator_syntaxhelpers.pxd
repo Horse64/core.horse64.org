@@ -57,3 +57,13 @@ cpdef tokenize(str s)
 cpdef get_next_statement(list s, int pos)
 
 cpdef sanity_check_h64_codestring(s, filename=*, modname=*)
+
+cpdef untokenize(tokens)
+
+cpdef split_toplevel_statements(s, skip_whitespace=*)
+
+cpdef tokens_need_spacing(str v1, str v2)
+
+cpdef transform_h64_with_to_do_rescue(_s)
+
+cpdef is_bracket(str v)

@@ -31,3 +31,7 @@ cdef is_problematic_identifier_name(str s,
     int python_problematic_only=*)
 
 cpdef transform_h64_misc_inline_to_python(_s)
+
+cpdef indent_sanity_check(s, what_in=*)
+
+cpdef transform_h64_with_to_do_rescue(s)

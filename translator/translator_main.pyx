@@ -76,15 +76,15 @@ import translator_runtime_helpers_preprocessor as \
 from translator_transformhelpers cimport (
     is_problematic_identifier_name,
     transform_h64_misc_inline_to_python,
+    transform_h64_with_to_do_rescue,
+    indent_sanity_check,
 )
 
 from translator_transformhelpers import (
     get_declared_local_globals_simple,
     apply_make_set_call,
     set_expr_len_if_any,
-    transform_h64_with_to_do_rescue,
     make_string_literal_python_friendly,
-    indent_sanity_check,
     is_isolated_pure_assign,
     vec_expr_len_if_any,
     apply_make_vec_call,
@@ -109,12 +109,12 @@ from translator_syntaxhelpers cimport (
     is_h64op_with_lefthand,
     is_whitespace_token,
     sanity_check_h64_codestring,
-    tokenize,
+    tokenize, untokenize,
+    split_toplevel_statements,
 )
 from translator_syntaxhelpers import (
-    untokenize, get_indent,
+    get_indent,
     as_escaped_code_string,
-    split_toplevel_statements,
     stmt_list_uses_banned_things,
     get_next_statement,
     separate_out_inline_funcs,
@@ -876,7 +876,7 @@ cdef paired_roundbracket_close_has_else(s, _z):
 
 cpdef translate_expression_tokens(list s, sc,
         is_assign_stmt=False, assign_token_index=-1):
-    cdef int i, k, z, bracket_depth
+    cdef int i, k, z
     cdef int bdepth, start_idx, slen
 
     cdef list orig_s
@@ -907,15 +907,15 @@ cpdef translate_expression_tokens(list s, sc,
             prevnonblank(s, assign_token_index) == "]"):
         i = prevnonblankidx(s, assign_token_index)
         # Find opening '[':
-        bracket_depth = 0
+        bdepth = 0
         k = i - 1
         while (k >= 0 and (
-                bracket_depth > 0 or
+                bdepth > 0 or
                 s[k] != "[")):
             if s[k] in {")", "]", "}"}:
-                bracket_depth += 1
+                bdepth += 1
             elif s[k] in {"(", "[", "{"}:
-                bracket_depth -= 1
+                bdepth -= 1
             k -= 1
         assert(k >= 0 and s[k] == "[")
         start_whitespace_len = 0
@@ -1077,6 +1077,8 @@ cpdef translate_expression_tokens(list s, sc,
     cdef set inline_if_expr_end_set = {"else", "{", "("}
     cdef set open_bracket_set = {"(", "[", "{"}
     cdef set close_bracket_set = {")", "]", "}"}
+    cdef int value_1_start_idx, value_1_end_idx
+    cdef int value_2_start_idx, value_2_end_idx
     i = 0
     while i < slen:
         if s[i] != "if":
@@ -1091,11 +1093,11 @@ cpdef translate_expression_tokens(list s, sc,
         value_1_end_idx = -1
         value_2_start_idx = -1
         value_2_end_idx = -1
-        bracket_depth = 0
+        bdepth = 0
         while z < slen:
             if (had_nonwhitespace_token and
                     s[z] in inline_if_expr_end_set and
-                    bracket_depth == 0 and
+                    bdepth == 0 and
                     not is_h64op_with_righthand(
                         prev_nonblank_token) and
                     (s[z] != "(" or
@@ -1104,9 +1106,9 @@ cpdef translate_expression_tokens(list s, sc,
                 condition_end_idx = z - 1
                 break
             if s[z] in open_bracket_set:
-                bracket_depth += 1
+                bdepth += 1
             if s[z] in close_bracket_set:
-                bracket_depth -= 1
+                bdepth -= 1
             if s[z].strip(" \t\r\n") != "":
                 prev_nonblank_token = s[z]
                 had_nonwhitespace_token = True
@@ -1119,19 +1121,19 @@ cpdef translate_expression_tokens(list s, sc,
                     " in " + sc.package_name))
             i += 1
             continue
-        bracket_depth = 0
+        bdepth = 0
         value_1_start_idx = z + 1
         while z < slen:
             if (z > value_1_start_idx and
-                    bracket_depth == 1 and
+                    bdepth == 1 and
                     s[z] == ")" and
                     nextnonblank(s, z) == "else"):
                 value_1_end_idx = z - 1
                 break
             if s[z] in open_bracket_set:
-                bracket_depth += 1
+                bdepth += 1
             if s[z] in close_bracket_set:
-                bracket_depth -= 1
+                bdepth -= 1
             z += 1
         assert(s[z] == ")")
         z += 1  # Go past ')'.
@@ -1144,28 +1146,28 @@ cpdef translate_expression_tokens(list s, sc,
             raise ValueError("Syntax error with 'if' in module " +
                 sc.module_name + ("" if sc.package_name is None else
                 " in " + sc.package_name))
-        bracket_depth = 0
-        full_end_idx = None
+        bdepth = 0
+        full_end_idx = -1
         had_value2_nonblank = False
         value_2_start_idx = z + 1
-        value_2_end_idx = None
+        value_2_end_idx = -1
         while z < slen:
             if (z > value_2_start_idx and
                     had_value2_nonblank and
-                    bracket_depth <= 1 and
+                    bdepth <= 1 and
                     s[z] == ")"):
                 value_2_end_idx = z - 1
                 full_end_idx = z
-                bracket_depth = 0
+                bdepth = 0
                 break
             if s[z] in open_bracket_set:
-                bracket_depth += 1
+                bdepth += 1
             if s[z] in close_bracket_set:
-                bracket_depth -= 1
+                bdepth -= 1
             if s[z].strip("\r\t\n ") != "":
                 had_value2_nonblank = True
             z += 1
-        if value_2_end_idx is None:
+        if value_2_end_idx < 0:
             raise ValueError("Syntax error with 'if' in module " +
                 sc.module_name + ("" if sc.package_name is None else
                 " in " + sc.package_name))
@@ -1228,7 +1230,7 @@ cpdef translate_expression_tokens(list s, sc,
                         insert_tokens = tokenize(remapped_uses
                             [remap_module_key][remapped_use])
                         oldtail = s[i + 1:]
-                        s[:] = s[:i]
+                        del(s[i:])
                         s += insert_tokens
                         s += oldtail
                         slen = len(s)
@@ -1258,7 +1260,7 @@ cpdef translate_expression_tokens(list s, sc,
                     insert_tokens = tokenize(remapped_uses
                         [remap_module_key][remapped_use])
                     oldtail = s[i + match_tokens:]
-                    s[:] = s[:i]
+                    del(s[i:])
                     s += insert_tokens
                     s += oldtail
                     slen = len(s)
@@ -1266,7 +1268,7 @@ cpdef translate_expression_tokens(list s, sc,
                     break
         i += 1
 
-    # Add line continuation things:
+    # Handle a bunch of things in one go:
     bdepth = 0
     slen = len(s)
     i = 0
@@ -1275,44 +1277,51 @@ cpdef translate_expression_tokens(list s, sc,
             bdepth += 1
         if s[i] in {"}", ")", "]"}:
             bdepth -= 1
-        if bdepth > 0:
-            i += 1
-            continue
-        if (s[i] in {">", "=", "<", "!", "+", "-", "/", "*",
-                "%", "|", "^", "&", "~", ".", "in",
-                "and", "or", "not", ","} or
-                s[i].endswith("=") or s[i] == "->") and (
-                i + 1 < len(s) and
-                s[i + 1].strip(" \t\r\n") == "" and
-                s[i + 1].strip(" \t") != ""):
-            s = (s[:i + 1] + ["\\"] + [s[i + 1].lstrip(" \t")] +
-                s[i + 2:])
-            slen = len(s)
-        if ((s[i].endswith("\"") or s[i].endswith("'")) and
-                i + 2 < len(s) and
-                s[i + 1].strip(" \t\r\n") == "" and
-                s[i + 1].strip(" \t") != ""):
-            z = i + 2
-            while z < len(s) and s[z].strip(" \t") == "":
-                z += 1
-            if (z < len(s) and (
-                    s[z].endswith("\"") or s[z].endswith("'"))):
-                s = (s[:i + 1] + ["+", "\\"] +
-                    [s[i + 1].lstrip(" \t")] + s[i + 2:])
+        # Add line continuation things if not inside brackets:
+        if bdepth <= 0:
+            if (s[i] in {">", "=", "<", "!", "+", "-", "/", "*",
+                    "%", "|", "^", "&", "~", ".", "in",
+                    "and", "or", "not", ","} or
+                    s[i].endswith("=") or s[i] == "->") and (
+                    i + 1 < len(s) and
+                    s[i + 1].strip(" \t\r\n") == "" and
+                    s[i + 1].strip(" \t") != ""):
+                tail = ([s[i + 1].lstrip(" \t")] +
+                    s[i + 2:])
+                del(s[i + 1:])
+                s += ["\\"]
+                s += tail
                 slen = len(s)
-        i += 1
- 
-    # Remove "new" and "protect" since Python doesn't have these:
-    slen = len(s)
-    i = 0
-    while i < len(s):
+            if ((s[i].endswith("\"") or s[i].endswith("'")) and
+                    i + 2 < len(s) and
+                    s[i + 1].strip(" \t\r\n") == "" and
+                    s[i + 1].strip(" \t") != ""):
+                z = i + 2
+                while z < len(s) and s[z].strip(" \t") == "":
+                    z += 1
+                if (z < len(s) and (
+                        s[z].endswith("\"") or s[z].endswith("'"))):
+                    tail = ([s[i + 1].lstrip(" \t")] + s[i + 2:])
+                    del(s[i + 1:])
+                    s += ["+", "\\"]
+                    s += tail
+                    slen = len(s)
+        # Remove "new" and "protect" since Python doesn't have these,
+        # and translate some keywords:
         if s[i] == "new" or s[i] == "protect":
-            s = s[:i] + s[i + 1:]
+            tail = s[i + 1:]
+            del(s[i:])
+            s += tail
             slen -= 1
             continue
+        if s[i] == "yes":
+            s[i] = "True"
+        elif s[i] == "no":
+            s[i] = "False"
+        elif s[i] == "none":
+            s[i] = "None"
         i += 1
     # Translate {->} map constructor:
-    slen = len(s)
     i = 0
     while i < slen:
         if s[i] != "{":
@@ -1342,17 +1351,6 @@ cpdef translate_expression_tokens(list s, sc,
                 # We're in a map!
                 s[i] = ":"  # Translate to python syntax.
             i += 1
-    # Translate some keywords:
-    slen = len(s)
-    i = 0
-    while i < slen:
-        if s[i] == "yes":
-            s[i] = "True"
-        elif s[i] == "no":
-            s[i] = "False"
-        elif s[i] == "none":
-            s[i] = "None"
-        i += 1
     return s
 
 def queue_module_neighbors(

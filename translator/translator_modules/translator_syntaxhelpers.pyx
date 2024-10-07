@@ -1263,7 +1263,7 @@ def is_whitespace_statement(tokens):
                 return False
     return True
 
-def split_toplevel_statements(s, skip_whitespace=True):
+cpdef split_toplevel_statements(s, skip_whitespace=True):
     assert(type(s) in {list, tuple})
     if len(s) == 0:
         return []
@@ -1294,10 +1294,10 @@ def split_toplevel_statements(s, skip_whitespace=True):
 _brackets = {"(", "[", "{",
     "}", "]", ")"}
 
-def is_bracket(v):
+cpdef is_bracket(str v):
     return v in _brackets
 
-def tokens_need_spacing(v1, v2):
+cpdef tokens_need_spacing(str v1, str v2):
     if v1 == "" or v2 == "":
         return False
     if (is_whitespace_token(v1) or
@@ -1331,8 +1331,11 @@ def tokens_need_spacing(v1, v2):
         return False
     return True
 
-def untokenize(tokens):
+cpdef untokenize(tokens):
     assert(type(tokens) in {list, tuple})
+    cdef str prevtoken
+    cdef list result_l
+
     result_l = []
     prevtoken = ""
     for token in tokens:
@@ -1479,17 +1482,23 @@ def separate_out_inline_funcs(s):
     s = tree_transform_statements(s, do_separate_out)
     return s
 
-def transform_h64_with_to_do_rescue(s):
+cpdef transform_h64_with_to_do_rescue(_s):
+    cdef int i, slen, bdepth
+    cdef int has_later, was_string
+    cdef list s, new_tokens
+
+    s = []
     was_string = False
-    tokens = None
-    if type(s) == list:
-        tokens = s
+    if type(_s) == list:
+        s = _s
+    elif type(_s) == tuple:
+        s = list(_s)
     else:
         was_string = True
-        tokens = tokenize(
-            s.replace("\r\n", "\n").replace("\r", "\n")
+        s = tokenize(
+            _s.replace("\r\n", "\n").replace("\r", "\n")
         )
-    new_tokens = None
+    new_tokens = []
     i = 0
     slen = len(s)
     while i < slen:

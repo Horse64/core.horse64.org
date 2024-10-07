@@ -45,12 +45,13 @@ from translator_syntaxhelpers cimport (
     is_h64op_with_righthand,
     is_h64op_with_lefthand,
     is_whitespace_token,
+    tokenize, untokenize,
+    split_toplevel_statements,
 )
 from translator_syntaxhelpers import (
-    tokenize, untokenize, get_indent,
+    get_indent,
     as_escaped_code_string,
     mirror_brackets,
-    split_toplevel_statements, 
     get_next_statement,
     sanity_check_h64_codestring,
     separate_out_inline_funcs,
@@ -150,47 +151,58 @@ cdef is_problematic_identifier_name(str s,
         return True
     return False
 
-def transform_h64_with_to_do_rescue(s):
+cdef _transform_do_rescue__find_previous_block_opener(
+        list s, int pos
+        ):
+    cdef int bdepth, i
+
+    bdepth = 0
+    i = pos - 1
+    while i >= 0:
+        if s[i] in {"}", ")", "]"}:
+            bdepth += 1
+        elif s[i] in {"{", "(", "["}:
+            bdepth -= 1
+            if bdepth < 0 :
+                if s[i] != "{":
+                    return None
+                bdepth = 0
+                i2 = i - 1
+                while i2 >= 0 and (s[i2] not in {"func",
+                        "do", "if", "with", "type",
+                        "for", "enum", "else", "elseif",
+                        "finally", "rescue",
+                        "var", "const", "="} or
+                        bdepth > 0) and bdepth >= 0:
+                    if s[i2] in {"}", ")", "]"}:
+                        bdepth += 1
+                    elif s[i2] in {"{", "(", "["}:
+                        bdepth -= 1
+                    i2 -= 1
+                if (i2 >= 0 and bdepth >= 0 and
+                        s[i2] != "="):
+                    return i2
+                return None
+        i -= 1
+    return None
+
+cpdef transform_h64_with_to_do_rescue(_s):
+    cdef int i, slen, z, bdepth, adjust_indent
+    cdef int was_string, has_late, in_do_stmt
+    cdef str block_indent
+    cdef list s
+
     was_string = False
     tokens = None
-    if type(s) != list:
-        assert(type(s) == str)
+    if type(_s) != list:
+        assert(type(_s) == str)
         was_string = True
         s = tokenize(
-            s.replace("\r\n", "\n").replace("\r", "\n")
+            _s.replace("\r\n", "\n").replace("\r", "\n")
         )
     else:
-        s = list(s)  # We need a deep copy, we'll modify it.
-    def find_previous_block_opener(pos):
-        bdepth = 0
-        i = pos - 1
-        while i >= 0:
-            if s[i] in {"}", ")", "]"}:
-                bdepth += 1
-            elif s[i] in {"{", "(", "["}:
-                bdepth -= 1
-                if bdepth < 0 :
-                    if s[i] != "{":
-                        return None
-                    bdepth = 0
-                    i2 = i - 1
-                    while i2 >= 0 and (s[i2] not in {"func",
-                            "do", "if", "with", "type",
-                            "for", "enum", "else", "elseif",
-                            "finally", "rescue",
-                            "var", "const", "="} or
-                            bdepth > 0) and bdepth >= 0:
-                        if s[i2] in {"}", ")", "]"}:
-                            bdepth += 1
-                        elif s[i2] in {"{", "(", "["}:
-                            bdepth -= 1
-                        i2 -= 1
-                    if (i2 >= 0 and bdepth >= 0 and
-                            s[i2] != "="):
-                        return i2
-                    return None
-            i -= 1
-        return None
+        s = list(_s)  # We need a deep copy, we'll modify it.
+
     new_tokens = []
     current_indent = ""
     i = 0
@@ -204,15 +216,19 @@ def transform_h64_with_to_do_rescue(s):
             current_indent = s[i]
         if s[i] == "with":
             with_idx = i
-            in_block_idx = find_previous_block_opener(i)
+            in_block_idx = (
+                _transform_do_rescue__find_previous_block_opener(
+                    s, i))
 
             # Only supporting 'with' directly in 'func' or inside
             # outer 'do':
             if (in_block_idx == None or
                     s[in_block_idx] not in {"func", "do"} or
                     (s[in_block_idx] == "do" and (
-                    find_previous_block_opener(in_block_idx) == None or
-                    s[find_previous_block_opener(in_block_idx)] != "func"))):
+                    _transform_do_rescue__find_previous_block_opener(
+                        s, in_block_idx) == None or
+                    s[_transform_do_rescue__find_previous_block_opener(
+                        s, in_block_idx)] != "func"))):
                 raise NotImplementedError("Found a 'with' "
                     "not inside 'func', or 'func'+'do'. "
                     "This is unsupported.")
@@ -720,9 +736,10 @@ def make_string_literal_python_friendly(t):
     return result
 
 cpdef transform_h64_misc_inline_to_python(_s):
-    cdef int i, k, bdepth
+    cdef int i, istart, k, bdepth, slen
     cdef int replaced_one, inserted_left_end
-    cdef list s
+    cdef str cmd
+    cdef list s, old_s, tail
 
     was_str = False
     if type(_s) == str:
@@ -735,8 +752,9 @@ cpdef transform_h64_misc_inline_to_python(_s):
     replaced_one = True
     while replaced_one:
         replaced_one = False
+        slen = len(s)
         i = 0
-        while i < len(s):
+        while i < slen:
             if (s[i] == "copy" and nextnonblank(s, i) == "(" and
                     prevnonblank(s, i) == "." and
                     prevnonblank(s, i, no=2) == "base"):
@@ -746,6 +764,7 @@ cpdef transform_h64_misc_inline_to_python(_s):
                     ".", "_container_copy_on_base", "(", "self",
                     ",", "__h64_cls_ref__"] +\
                     s[bracket_idx + 1:]
+                slen = len(s)
                 i = bracket_idx + 4
                 continue
             elif (s[i] == "copy" and nextnonblank(s, i) == "(" and
@@ -759,9 +778,10 @@ cpdef transform_h64_misc_inline_to_python(_s):
                     ".", "_container_copy_on_base", "(", "self",
                     ",", "__h64_cls_ref__"] +\
                     s[bracket_idx + 1:]
+                slen = len(s)
                 i = base_idx + 4
                 continue
-            cmd = None
+            cmd = ""
             if (prevnonblank(s, i) == "." and (
                     s[i] in ("len", "glyph_len") or (
                     s[i] in ("as_str", "as_bytes", "to_num",
@@ -797,6 +817,7 @@ cpdef transform_h64_misc_inline_to_python(_s):
                     prevnonblank(s, i, no=2) == "base"):
                 i += 1
                 continue
+            assert(cmd != "")
             replaced_one = True
             insert_call = ["_translator_runtime_helpers",
                 ".", "_value_to_str"]
@@ -893,7 +914,11 @@ cpdef transform_h64_misc_inline_to_python(_s):
             old_s = s
             if cmd in ("len", "glyph_len"):
                 # Add in a ")":
-                s[:] = s[:i - 1] + [")"] + s[i + 1:]
+                tail = s[i + 1:]
+                del(s[i - 1:])
+                s += [")"]
+                s += tail
+                slen = len(s)
                 i -= 1
                 assert(s[i] == ")")
             elif cmd in ("add", "sort", "join", "find", "sub",
@@ -902,12 +927,20 @@ cpdef transform_h64_misc_inline_to_python(_s):
                     "insert", "pop_at", "add_at",
                     "subfirst", "last", "first", "del"):
                 # Truncate "(", ... and turn it to ",", ...
-                s[:] = s[:i - 1] + [","] + s[i + 2:]
+                tail = s[i + 2:]
+                del(s[i - 1:])
+                s += [","]
+                s += tail
+                slen = len(s)
                 i -= 1
                 assert(s[i] == ",")
             elif cmd == "[":
                 # Change the "[" into a ",":
-                s[:] = s[:i] + [","] + s[i + 1:]
+                tail = s[i + 1:]
+                del(s[i:])
+                s += [","]
+                s += tail
+                slen = len(s)
                 # We also need to replace the closing ']' with a ')':
                 bracket_depth = 0
                 k = i + 2
@@ -926,7 +959,10 @@ cpdef transform_h64_misc_inline_to_python(_s):
                 s[k] = ")"
             else:
                 # Truncate "(", ")" to leave a ")":
-                s = s[:i - 1] + s[i + 2:]
+                tail = s[i + 2:]
+                del(s[i - 1:])
+                s += tail
+                slen = len(s)
                 i -= 1
                 assert(s[i] == ")")
             inserted_left_end = False
@@ -943,7 +979,12 @@ cpdef transform_h64_misc_inline_to_python(_s):
                 str(s[i]) + "') but it's at " +
                 str(istart) + ", expression surroundings: " +
                 str(s[min(istart, i) - 10:max(istart, i) + 10]))
-            s[:] = s[:istart] + insert_call + ["("] + s[istart:]
+            tail = s[istart:]
+            del(s[istart:])
+            s += insert_call
+            s += ["("]
+            s += tail 
+            slen = len(s)
             inserted_left_end = True
             assert(inserted_left_end), (
                 "FAILED TO FIND LEFT END OF EXPRESSION FOR: " + str(
@@ -1074,59 +1115,65 @@ def apply_make_set_call(expr):
         expr[i + 1:set_len - 1] + ["]", ")"])
 
 
-def indent_sanity_check(s, what_in="unknown code"):
-    if type(s) == list:
-        s = untokenize(s)
-    assert(type(s) == str)
+cdef _indent_check_maybe_line_comment(str s):
+    return ("#" in s)
 
-    def maybe_line_comment(s):
-        return ("#" in s)
-
-    # Dumb helper function for at least obvious cases:
-    def starts_with_statement_for_sure(s, prev_s):
-        if maybe_line_comment(s) or maybe_line_comment(prev_s):
-            return False
-        s = s.replace("\t", " ")
-        s = s.replace("\n", " ")
-        s = s.replace("\t", " ")
-        prev_s = prev_s.replace("\t", " ")
-        prev_s = prev_s.replace("\n", " ")
-        prev_s = prev_s.replace("\t", " ")
-        if (s.startswith(")") or s.startswith("}") or
-                s.startswith("]")):
-            return False
-        if (s.startswith("var ") or
-                s.startswith("const ") or
-                s.startswith("do ") or
-                s.startswith("for ") or
-                s.startswith("return ") or
-                s.startswith("with ") or
-                s.startswith("await ") or
-                s.startswith("type ") or
-                s.startswith("import ")):
-            return True
-        if prev_s.endswith(":"):
-            return True
-        if prev_s.endswith(" repeat"):
-            return True
+# Dumb helper function for at least obvious cases:
+cdef _indent_check_starts_with_statement_for_sure(
+        str s, str prev_s):
+    if (_indent_check_maybe_line_comment(s) or
+            _indent_check_maybe_line_comment(prev_s)):
         return False
-    def expected_indent_direction_after(s):
-        if (s.startswith("do ") or
-                s.startswith("func ") or
-                s.startswith("with ") or
-                s.startswith("type ")):
-            return 1
-        if (s.startswith("var ") or
-                s.startswith("return ") or
-                s.startswith("const ") or
-                s.startswith("import ") or
-                s.endswith("repeat") or
-                s.startswith("await ")
-                ):
-            return 0
-        if s.strip() in {"}", "]", ")"}:
-            return -1
-        return None
+    s = s.replace("\t", " ")
+    s = s.replace("\n", " ")
+    s = s.replace("\t", " ")
+    prev_s = prev_s.replace("\t", " ")
+    prev_s = prev_s.replace("\n", " ")
+    prev_s = prev_s.replace("\t", " ")
+    if (s.startswith(")") or s.startswith("}") or
+            s.startswith("]")):
+        return False
+    if (s.startswith("var ") or
+            s.startswith("const ") or
+            s.startswith("do ") or
+            s.startswith("for ") or
+            s.startswith("return ") or
+            s.startswith("with ") or
+            s.startswith("await ") or
+            s.startswith("type ") or
+            s.startswith("import ")):
+        return True
+    if prev_s.endswith(":"):
+        return True
+    if prev_s.endswith(" repeat"):
+        return True
+    return False
+
+cdef _indent_check_expected_indent_direction_after(str s):
+    if (s.startswith("do ") or
+            s.startswith("func ") or
+            s.startswith("with ") or
+            s.startswith("type ")):
+        return 1
+    if (s.startswith("var ") or
+            s.startswith("return ") or
+            s.startswith("const ") or
+            s.startswith("import ") or
+            s.endswith("repeat") or
+            s.startswith("await ")
+            ):
+        return 0
+    if s.strip() in {"}", "]", ")"}:
+        return -1
+    return None
+
+cpdef indent_sanity_check(_s, what_in="unknown code"):
+    cdef str s
+    if type(_s) == list:
+        s = untokenize(_s)
+    else:
+        assert(type(_s) == str)
+        s = _s
 
     slines = s.splitlines()
     prev_line = ""
@@ -1155,7 +1202,8 @@ def indent_sanity_check(s, what_in="unknown code"):
                 s.startswith(")") or
                 s.startswith("]") or
                 s.startswith("}")) and
-                (starts_with_statement_for_sure(prev_s, prev_prev_s) or
+                (_indent_check_starts_with_statement_for_sure(
+                    prev_s, prev_prev_s) or
                 prev_s in (")", "]", "}")) and
                 not prev_s.endswith(mirror_brackets(s[:1]))):
             raise ValueError("in " + str(what_in) + ", " +
@@ -1178,9 +1226,11 @@ def indent_sanity_check(s, what_in="unknown code"):
                 "statements separated in multiple "
                 "lines. affected line: " + str(s)
             )
-        if not starts_with_statement_for_sure(s, prev_s):
+        if not _indent_check_starts_with_statement_for_sure(
+                s, prev_s):
             continue
-        shift_expect = expected_indent_direction_after(prev_s)
+        shift_expect = _indent_check_expected_indent_direction_after(
+            prev_s)
         if (shift_expect != None and
                 shift_expect == 0 and shift_actual != 0):
             raise ValueError("in " + str(what_in) + ", " +
@@ -1207,4 +1257,3 @@ def indent_sanity_check(s, what_in="unknown code"):
                 "but it increased by " + str(shift_actual) +
                 " character(s)"
             )
-
