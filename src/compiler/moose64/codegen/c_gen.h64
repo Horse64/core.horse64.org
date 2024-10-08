@@ -201,9 +201,17 @@ func get_c_func_signature_or_body(
     }
     t += ") {\n"
 
+    assert(generate_code_ast_parents_if_closure != none or
+        not func_node.func_scope.is_closure)
+    var parent_chain = [func_node]
+    if generate_code_ast_parents_if_closure and
+            func_node.func_scope.is_closure {
+        parent_chain =
+            generate_code_ast_parents_if_closure + parent_chain
+    }
     var contents = node_list_to_c_strings(
         func_info.node_project_file, func_node.subblocks[1],
-        generate_code_ast_parents_if_closure + [func_node],
+        parent_chain,
         indent=(indent + 4),
         add_to_header_callback=
             generate_code_add_to_header_callback,
