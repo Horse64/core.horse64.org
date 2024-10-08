@@ -200,7 +200,8 @@ func get_c_func_signature_or_body(
         var self_typeref_expr =
             func_typeref_expr.arg_typeref_exprs[1]
         if self_typeref_expr.storage_ref == none or
-                self_typeref_expr.storage_ref != st_ref.ST_GLOBAL {
+                self_typeref_expr.storage_ref.kind !=
+                    st_ref.ST_GLOBAL {
             print(program_name + ": error: Internal error, found "
                 "func with func_typeref_expr where the self expr "
                 "in the first slot is invalid: "
@@ -214,8 +215,7 @@ func get_c_func_signature_or_body(
                 "ST_GLOBAL storage ref set to resolve the type.")
         }
         var type_node_by_self_ref = st_scope.global_id_to_item(
-            project,
-            func_typeref_expr.arg_typeref_exprs[1].storage_ref.id
+            project, self_typeref_expr.storage_ref.id
         )
         if type_node_by_self_ref == none or
                 typename(type_node_by_self_ref) == "list" or
@@ -227,7 +227,7 @@ func get_c_func_signature_or_body(
                 "back to the correct type or struct.")
         }
 
-        t += func_typeref_expr.as_c_code(
+        t += self_typeref_expr.as_c_code(
             global_name_assign_callback=
                 get_global_symbol_c_name,
             global_register_m64_array_callback=
