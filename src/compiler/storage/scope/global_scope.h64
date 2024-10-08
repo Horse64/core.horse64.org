@@ -1079,6 +1079,8 @@ func project.Project.finalize_global_scope_attr_storage(
                     fattr_stand_in.symbol_info.storage_id ==
                         stmt.symbol_info.storage_id)
                 fattr_stand_in.symbol_info = stmt.symbol_info.copy()
+                assert(stmt.func_scope != none)
+                fattr_stand_in.func_scope = stmt.func_scope
                 if is_moose64 {
                     assert(stmt.symbol_info.type_storage_ref != none)
                     assert(stmt.symbol_info.typeref_expr != none)

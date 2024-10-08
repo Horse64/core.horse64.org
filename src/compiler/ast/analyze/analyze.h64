@@ -226,8 +226,8 @@ func get_func_info(
         project = from_node_project_file.project
     }
     if project == none {
-        throw new RuntimeError("Either from_node_project_file or "
-            "project option must be set.")
+        throw new RuntimeError("Either the from_node_project_file "
+            "or project option must be set.")
     }
     if node != none {
         assert(from_node_project_file != none)
@@ -248,20 +248,19 @@ func get_func_info(
             gscope.known_to_be_in_project_file
             assert(from_node_project_file != none)
         }
-    } elseif node == none and from_storage_ref == none and
+    } elseif node == none and from_storage_ref != none and
             from_storage_ref.kind == st_ref.ST_GLOBALATTR {
         assert(typename(from_storage_ref.id) == "list")
         var type_node = st_scope.global_id_to_item(
-            project_file.project, from_storage_ref.id[1])
+            project, from_storage_ref.id[1])
         if type_node != none and
                 typename(type_node) != "list" and
                 {ast.N_STMT_STRUCT,
                 ast.N_STMT_TYPE}.has(type_node.kind) {
-            assert(type_node.func_scope != none)
-            anscope = type_node.func_scope.owning_type_scope
+            anscope = type_node.attr_names_scope
             if anscope == none {
                 throw new RuntimeError("Unexpectedly failed to "
-                    "get AttrNamesScope from func node.")
+                    "get AttrNamesScope from type or struct node.")
             }
             node = anscope.get_funcattr_node(
                 from_storage_ref.id[2]
@@ -269,6 +268,7 @@ func get_func_info(
             if node == none {
                 anscope = none
             } else {
+                assert(node.func_scope != none)
                 global_scope = anscope.id_to_origin_gscope_map[
                     from_storage_ref.id[2]
                 ]

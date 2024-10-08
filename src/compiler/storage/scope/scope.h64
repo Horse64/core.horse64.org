@@ -354,6 +354,8 @@ func AttrNamesScope.get_funcattr_node(attr_id) {
     gnode = gscope.get_func_attr_node_by_anscope(
         self, attr_id
     )
+    assert(gnode.kind == ast.N_STMT_FUNC)
+    assert(gnode.func_scope != none)
     return gnode
 }
 
