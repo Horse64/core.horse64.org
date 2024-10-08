@@ -518,6 +518,9 @@ func create_typeref_from_func_node(
         self_type_expr.name = gscope.storage_id_to_entry[
             anscope.storage_id
         ].label
+        self_type_expr.storage_ref = new st_ref.StorageRef(
+            st_ref.ST_GLOBAL, anscope.storage_id
+        )
         if import_typepath.len > 0 {
             self_type_expr.type_path = import_typepath.copy()
         }

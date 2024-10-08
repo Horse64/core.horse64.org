@@ -29,6 +29,7 @@ import io from core.horse64.org
 import math from core.horse64.org
 import path from core.horse64.org
 import uri from core.horse64.org
+import random from core.horse64.org
 import textfmt from core.horse64.org
 
 import compiler.ast as ast
@@ -106,6 +107,14 @@ func get_c_func_signature_or_body(
         generate_code_build_options=none,
         project=none,
         msgs=none, is_moose64=no) {
+    var program_name =
+        if is_moose64 ("moosec") else ("horsec")
+    if project == none and from_node_project_file != none {
+        project = from_node_project_file.project
+    }
+    var c_export_tracker = project.c_export_tracker
+    assert(c_export_tracker != none)
+
     var func_info = ast_analyze.get_func_info_with_true_node(
         from_node=from_node,
         from_node_project_file=from_node_project_file,
@@ -172,10 +181,67 @@ func get_c_func_signature_or_body(
         func_c_name + "("
     var arg_exprs = func_scope.extended_final_arg_type_exprs()
     var arg_names = func_scope.extended_final_arg_names()
+    var self_attr_name = none
+    if func_scope.is_type_attr {
+        if c_export_tracker.func_scope_to_self_name_map.has(
+                func_scope) {
+            self_attr_name =
+                c_export_tracker.func_scope_to_self_name_map[
+                    func_scope
+                ]
+        } else {
+            self_attr_name = "__m64_self_" + random.gen_id()
+            c_export_tracker.func_scope_to_self_name_map[
+                func_scope
+            ] = self_attr_name
+        }
+        assert(func_typeref_expr != none)
+        assert(func_typeref_expr.arg_typeref_exprs.len > 0)
+        var self_typeref_expr =
+            func_typeref_expr.arg_typeref_exprs[1]
+        if self_typeref_expr.storage_ref == none or
+                self_typeref_expr.storage_ref != st_ref.ST_GLOBAL {
+            print(program_name + ": error: Internal error, found "
+                "func with func_typeref_expr where the self expr "
+                "in the first slot is invalid: "
+                "func_node=" + func_node.as_str() + " "
+                "self_typeref_expr=" +
+                    self_typeref_expr.as_str() + " "
+                "self_typeref_expr.storage_ref=" +
+                    self_typeref_expr.storage_ref.as_str())
+            throw new RuntimeError("Encountered func with "
+                "invalid self ref expr, it doesn't have an "
+                "ST_GLOBAL storage ref set to resolve the type.")
+        }
+        var type_node_by_self_ref = st_scope.global_id_to_item(
+            project,
+            func_typeref_expr.arg_typeref_exprs[1].storage_ref.id
+        )
+        if type_node_by_self_ref == none or
+                typename(type_node_by_self_ref) == "list" or
+                not {ast.N_STMT_TYPE, ast.N_STMT_STRUCT}.has(
+                    type_node_by_self_ref.kind
+                ) {
+            throw new RuntimeError("Encountered func with "
+                "invalid self ref expr, it doesn't point "
+                "back to the correct type or struct.")
+        }
+
+        t += func_typeref_expr.as_c_code(
+            global_name_assign_callback=
+                get_global_symbol_c_name,
+            global_register_m64_array_callback=
+                project.c_export_tracker.
+                    register_m64_array_type,
+            project=project,
+            project_file=func_info.node_project_file,
+            is_moose64=is_moose64) + " " +
+            self_attr_name
+    }
     var arg_idx = 0
     for arg_name in arg_names {
         arg_idx += 1
-        if arg_idx > 1 {
+        if arg_idx > 1 or func_scope.is_type_attr {
             t += ", "
         }
         t += arg_exprs[arg_idx].as_c_code(
@@ -272,10 +338,10 @@ func get_c_header_uri_and_info_for_type(
                 ]
             ) != "list" and
             project_file.global_scope.name_to_stmt_map[
-                    type_node.label
+                type_node.label
             ].kind == type_node.kind and
             project_file.global_scope.name_to_stmt_map[
-                    type_node.label
+                type_node.label
             ].label == type_node.label {
         var found_storage_id
         for check_storage_id in project_file.global_scope.
@@ -398,6 +464,7 @@ type CExportTracker {
     var project
 
     var known_array_types_map = {->}
+    var func_scope_to_self_name_map = {->}
 }
 
 extend type compiler.project.Project {
