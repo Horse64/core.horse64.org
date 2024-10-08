@@ -53,10 +53,23 @@ func BinopAutocastResult.as_str {
     return t
 }
 
-func get_num_filtered_mods(tinfo) {
+func get_mods_that_arent_regular_for_nums(tinfo,
+        filter_out_leading_implicit_ref=yes) {
+    var had_non_implicit_ref = no
     var result = []
-    for mod in tinfo.modifiers {
-        if {"readonly", "const"}.has(mod.name) {
+    var i = tinfo.modifiers.len + 1
+    while i > 1 {
+        i -= 1
+        mod = tinfo.modifiers[i]
+        if {"array", "c_array", "ref"}.has(mod.name) {
+            had_non_implicit_ref = yes
+        }
+        if not had_non_implicit_ref and
+                filter_out_leading_implicit_ref and
+                mod.name == "implicit ref" {
+            continue
+        }
+        if {"readonly", "const", "implicit ref"}.has(mod.name) {
             continue
         }
         result.add(mod.copy())
@@ -71,10 +84,12 @@ func check_if_allowed_implicit_cast_from_to(
     var left_hand_target_typeinfo = to_typeinfo
 
     var refs_left = left_hand_target_typeinfo.ref_count(
-        include_c_arrays=yes, include_arrays=yes
+        include_c_arrays=yes, include_arrays=yes,
+        include_implicit_refs=no,
     )
     var refs_right = right_hand_source_typeinfo.ref_count(
-        include_c_arrays=yes, include_arrays=yes
+        include_c_arrays=yes, include_arrays=yes,
+        include_implicit_refs=no,
     )
     var target_is_any = (
         left_hand_target_typeinfo.kind == typeinfo.TI_C_TYPE and
@@ -180,14 +195,16 @@ func get_math_binop_autocast(
     # Below is the section for ref types:
 
     var refs_left = left_hand_typeinfo.ref_count(
-        include_c_arrays=yes, include_arrays=no
+        include_c_arrays=yes, include_arrays=no,
+        include_implicit_refs=no,
     )
     var refs_right = right_hand_typeinfo.ref_count(
-        include_c_arrays=yes, include_arrays=no
+        include_c_arrays=yes, include_arrays=no,
+        include_implicit_refs=no,
     )
     if refs_left > 0 and refs_right == 0 and
             right_hand_typeinfo.kind == typeinfo.TI_C_TYPE and
-            get_num_filtered_mods(right_hand_typeinfo).len == 0 {
+            get_mods_that_arent_regular_for_nums(right_hand_typeinfo).len == 0 {
         if ast_typeref.builtin_moose64_unsigned_num_types.has(
                 right_hand_typeinfo.orig_type_name
                 ) {
@@ -207,7 +224,7 @@ func get_math_binop_autocast(
         return result
     } elseif refs_right > 0 and refs_left == 0 and
             left_hand_typeinfo.kind == typeinfo.TI_C_TYPE and
-            get_num_filtered_mods(refs_left).len == 0 {
+            get_mods_that_arent_regular_for_nums(refs_left).len == 0 {
         if left_hand_typeinfo.orig_type_name == "addr" {
             return cast_all_to("addr")
         } elseif left_hand_typeinfo.orig_type_name == "addr_diff" {

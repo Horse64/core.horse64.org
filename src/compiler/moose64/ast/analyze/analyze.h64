@@ -741,15 +741,41 @@ func _get_c_or_m64_type_of_node_do(
                 }
                 return later none
             }
-            if inner_result.kind == typeinfo.TI_USERTYPE and
-                    inner_result._orig_typeexpr != none {
-                inner_result._orig_typeexpr.modifiers.add(
-                    new ast_typeref.TypeRefMod("ref")
-                )
+
+            var stripped_implicit_ref = no
+            if inner_result.modifiers.len > 0 and
+                    inner_result.modifiers[
+                        inner_result.modifiers.len
+                    ].name == "implicit ref" {
+                stripped_implicit_ref = yes
+                inner_result.modifiers =
+                    inner_result.modifiers.sub(
+                        1,
+                        inner_result.modifiers.len - 1
+                    )
             }
             inner_result.modifiers.add(
                 new ast_typeref.TypeRefMod("ref")
             )
+                
+            if inner_result.kind == typeinfo.TI_USERTYPE and
+                    inner_result._orig_typeexpr != none {
+                if stripped_implicit_ref {
+                    assert(inner_result._orig_typeexpr.
+                        modifiers.len > 0)
+                    assert(inner_result._orig_typeexpr.
+                        modifiers[inner_result._orig_typeexpr.
+                            modifiers.len].name == "implicit ref")
+                    inner_result._orig_typeexpr.modifiers =
+                    inner_result._orig_typeexpr.modifiers.sub(
+                        1,
+                        inner_result.modifiers.len - 1
+                    )
+                }
+                inner_result._orig_typeexpr.modifiers.add(
+                    new ast_typeref.TypeRefMod("ref")
+                )
+            }
             if debug {
                 print(dbg_prefix + " Returning final ref type "
                     "typeinfo=" + inner_result.as_str())

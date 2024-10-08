@@ -172,7 +172,7 @@ func TypeRefMod.as_c_code(
     if self.name == "readonly" {
         return "const"
     }
-    if {"ref", "c_array"}.has(self.name) {
+    if {"ref", "c_array", "implicit ref"}.has(self.name) {
         return "*"
     }
     for prop in self.props {
@@ -521,9 +521,10 @@ func create_typeref_from_func_node(
         if import_typepath.len > 0 {
             self_type_expr.type_path = import_typepath.copy()
         }
-        self_type_expr.modifiers.add(new TypeRefMod("ref"))
+        self_type_expr.modifiers.add(new TypeRefMod("implicit ref"))
         if node.extended_final_is_readonly() {
-            self_type_expr.modifiers.add(new TypeRefMod("readonly"))
+            self_type_expr.modifiers.add_at(
+                1, new TypeRefMod("readonly"))
         }
         type_expr.arg_typeref_exprs.add(self_type_expr)
         type_expr.is_func_attr = yes
@@ -799,12 +800,17 @@ func TypeRefExpr.get_array_info(
 
 func TypeRefExpr.ref_count(
         include_c_arrays=yes,
-        include_arrays=no) {
+        include_arrays=no,
+        include_implicit_refs=no,
+        include_explicit_refs=yes,
+        ) {
     var t = typeinfo.TypeInfo(typeinfo.TI_USERTYPE)
     t.modifiers = self.modifiers.copy()
     return t.ref_count(
         include_c_arrays=include_c_arrays,
         include_arrays=include_arrays,
+        include_implicit_refs=include_implicit_refs,
+        include_explicit_refs=include_explicit_refs,
     )
 }
 
@@ -1574,9 +1580,20 @@ func _parse_typeref_notlater(
             typeref_token_len = start_token_len + (pos - startpos)
         }
 
+        func is_implicit_ref(tokens, pos, max_len) {
+            return (is_moose64 and
+                pos + 1 <= max_len and
+                (tokens[pos].kind == token.T_IDENT or
+                 tokens[pos].kind == token.T_KEYWORD) and
+                (tokens[pos + 1].kind == token.T_IDENT or
+                 tokens[pos + 1].kind == token.T_KEYWORD) and
+                tokens[pos].str == "implicit" and
+                tokens[pos + 1].str == "ref")
+        }
         if typeref_expr == none and pos <= max_len and
                 (tokens[pos].kind == token.T_IDENT or
                 tokens[pos].kind == token.T_KEYWORD) and
+                not is_implicit_ref(tokens, pos, max_len) and
                 ((is_moose64 and
                   builtin_moose64_types.has(tokens[pos].str)) or
                  (not is_moose64 and
@@ -1591,6 +1608,7 @@ func _parse_typeref_notlater(
         }
         if typeref_expr == none and pos <= max_len and
                 tokens[pos].kind == token.T_IDENT and
+                not is_implicit_ref(tokens, pos, max_len) and
                 ((is_moose64 and
                   not builtin_moose64_type_modifiers.has(
                       tokens[pos].str)) or
@@ -1620,7 +1638,8 @@ func _parse_typeref_notlater(
         while pos <= max_len and
                 (tokens[pos].kind == token.T_IDENT or
                 tokens[pos].kind == token.T_KEYWORD) and
-                ((is_moose64 and
+                (is_implicit_ref(tokens, pos, max_len) or
+                 (is_moose64 and
                   builtin_moose64_type_modifiers.has(
                       tokens[pos].str
                   )) or
@@ -1630,9 +1649,15 @@ func _parse_typeref_notlater(
                   ))) {
             had_mods = yes
             var modifier_name = tokens[pos].str
+            if modifier_name == "implicit" and
+                    is_implicit_ref(tokens, pos, max_len) {
+                modifier_name = "implicit ref"
+                pos += 2
+            } else {
+                pos += 1
+            }
             var modifier = new TypeRefMod(modifier_name)
             mods.add(modifier)
-            pos += 1
             typeref_token_len = start_token_len + (pos - startpos)
             if {"array", "c_array"}.has(modifier_name) and
                     is_moose64 {

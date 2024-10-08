@@ -649,7 +649,14 @@ func CExportTracker.generate_c_types_and_header_info(
                     msgs=msgs, is_moose64=is_moose64
                 ) later:
 
-                await result
+                await sig_result
+                if sig_result == none {
+                    print("moosec: error: Internal error: "
+                        "Unexpectedly failed to get C signature "
+                        "for function: " + attr_st_ref.as_str())
+                    throw new RuntimeError("Internal error, "
+                        "C code gen for func unexpectedly failed.")
+                }
                 header_result.type_func_attrs_code += sig_result
                 return later yes
             }

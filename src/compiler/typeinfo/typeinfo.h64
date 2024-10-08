@@ -141,10 +141,14 @@ func TypeInfo.is_array {
     return yes
 }
 
-func TypeInfo.ref_count(include_c_arrays=yes, include_arrays=no) {
+func TypeInfo.ref_count(include_c_arrays=yes, include_arrays=no,
+        include_implicit_refs=no,
+        include_explicit_refs=yes) {
     var count = 0
     for mod in self.modifiers {
-        if mod.name == "ref" {
+        if include_explicit_refs and mod.name == "ref" {
+            count += 1
+        } elseif include_implicit_refs and mod.name == "implicit ref" {
             count += 1
         } elseif include_c_arrays and mod.name == "c_array" {
             count += 1
@@ -180,15 +184,23 @@ func TypeInfo.has_equivalent_modifiers(
         other_tinfo, allow_autodrop_mods=no,
         allow_autoadd_mods=no
         ) {
-    var droppable_names = []
-    var addable_names = ["readonly"]
+    var droppable_names = ["implicit ref"]
+    var addable_names = ["readonly", "implicit ref"]
+    var did_implicit_ref_change = no
     if not allow_autodrop_mods and
             not allow_autoadd_mods and
             other_tinfo.modifiers.len != self.modifiers.len {
         return no
     }
     var claimed_indexes = {}
-    for mod in self.modifiers {
+    var had_non_implicit_ref = no
+    var idx = self.modifiers.len + 1
+    while idx > 1 {
+        idx -= 1
+        mod = self.modifiers[idx]
+        if {"array", "c_array", "ref"}.has(mod.name) {
+            had_non_implicit_ref = yes
+        }
         var found_equivalent = no
         var idx = 0
         for other_mod in other_tinfo.modifiers {
@@ -208,8 +220,13 @@ func TypeInfo.has_equivalent_modifiers(
         }
         if not found_equivalent {
             if not allow_autoadd_mods or
-                    not addable_names.has(mod.name) {
+                    not addable_names.has(mod.name) or
+                    (mod.name == "implicit ref" and
+                     (did_implicit_ref_change or
+                      had_non_implicit_ref)) {
                 return no
+            } elseif mod.name == "implicit ref" {
+                did_implicit_ref_change = yes
             }
         }
     }
@@ -217,12 +234,23 @@ func TypeInfo.has_equivalent_modifiers(
             not allow_autodrop_mods {
         return no
     }
-    var idx = 0
-    for other_mod in other_tinfo.modifiers {
-        idx += 1
-        if not claimed_indexes.has(idx) and
-                not droppable_names.has(other_mod.name) {
+    had_non_implicit_ref = 0
+    var idx = other_tinfo.modifiers.len + 1
+    while idx > 1 {
+        idx -= 1
+        other_mod = other_tinfo.modifiers[idx]
+        if {"array", "c_array", "ref"}.has(other_mod.name) {
+            had_non_implicit_ref = yes
+        }
+        if not claimed_indexes.has(idx) and (
+                not allow_autodrop_mods or
+                not droppable_names.has(other_mod.name) or
+                (other_mod.name == "implicit ref" and
+                 (did_implicit_ref_change or
+                  had_non_implicit_ref))) {
             return no
+        } elseif other_mod.name == "implicit ref" {
+            did_implicit_ref_change = yes
         }
     }
     return yes

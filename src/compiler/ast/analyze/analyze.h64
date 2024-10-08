@@ -1010,7 +1010,9 @@ func get_called_or_assigned_func_types(
                 arg_typeref_exprs.len >= 1)
         assert(func_typeinfo.func_typeexpr.
                 arg_typeref_exprs[1].ref_count(
-                include_c_arrays=no, include_arrays=no
+                include_c_arrays=no, include_arrays=no,
+                include_implicit_refs=yes,
+                include_explicit_refs=no,
             ) == 1)
         assert(func_typeinfo.func_typeexpr.
                 arg_typeref_exprs[1].is_user_type() and
