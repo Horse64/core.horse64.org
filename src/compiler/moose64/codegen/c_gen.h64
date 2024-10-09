@@ -1376,6 +1376,18 @@ func node_to_c_string(project_file, node, parents,
             }
             assert(effective_name != none)
             return effective_name
+        } elseif node.ref.kind == st_ref.ST_SELF {
+            var func_scope = node.scope.func_scope
+            var cetr = (
+                project_file.project.c_export_tracker
+            )
+            assert(cetr.func_scope_to_self_name_map.has(
+                func_scope))
+            var self_name =
+                cetr.func_scope_to_self_name_map[
+                    func_scope
+                ]
+            return self_name
         }
         assert(node.label != none)
         return node.label
