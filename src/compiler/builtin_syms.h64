@@ -27,8 +27,11 @@
 
 import compiler.moose64.builtins as m64_builtins
 import compiler.moose64.c_importer as c_importer
+import compiler.msg as msg
 import compiler.project as project
 import compiler.storage.ref as st_ref
+import compiler.token as token
+import compiler.typeinfo.ast_typeref as ast_typeref
 import textfmt
 
 enum BuiltinItemKind {
@@ -49,6 +52,7 @@ type BuiltinSymsStorageItem {
     var is_c_builtin_type = no
     var hidden = no
     var is_csymbol = no
+    var func_signature = none
 }
 
 func BuiltinSymsStorageItem.init(
@@ -61,6 +65,7 @@ func BuiltinSymsStorageItem.init(
     self.module_path = module_path.copy()
     self.package_name = package_name
     self.kind = item_kind
+    self.func_signature = func_signature
 }
 
 func BuiltinSymsStorageItem.as_str {
@@ -80,6 +85,44 @@ func BuiltinSymsStorageItem.as_str {
             self.symbol_storage_ref.as_str() + ""
         ) + "}"
     return t
+}
+
+func BuiltinSymsStorageItem.resolve_func_signature(
+        project=none, is_moose64=no
+        ) {
+    if typename(self.func_signature) != "str" {
+        return later
+    }
+    var result = token.tokenize_str(
+        self.func_signature, keep_whitespace=no,
+        is_moose64=is_moose64,
+    )
+    var tokens = result.tokens
+    var msgs = []
+    var project_file = none
+    if project != none {
+        project_file = project.get_any_file()
+    }
+    var result_typeref = ast_typeref.parse_typeref(
+        tokens, 1, msgs,
+        project_file=project_file, is_moose64=is_moose64,
+        debug=no
+    ) later:
+
+    await result_typeref
+    var had_error = no
+    for m in msgs {
+        if m.kind == msg.M_ERROR {
+            throw new RuntimeError(
+                "Got invalid func signature for built-in "
+                "item, parsing returned in an error."
+            )
+        }
+    }
+    assert(result_typeref != none)
+    self.func_signature = result_typeref
+
+    return later
 }
 
 type BuiltinSymsStorage {
@@ -228,7 +271,8 @@ func register_symbol(project, symbol_name, symbol_ref,
         item_kind,
         module_name, package_name=none,
         func_signature=none, is_hidden=no,
-        _return_internal_item_instead_of_ref=no) {
+        _return_internal_item_instead_of_ref=no,
+        is_moose64=no) {
     if project.builtin_syms_storage == none {
         throw new RuntimeError(
             "Internal error in compiler.builtin_syms: "
@@ -298,10 +342,16 @@ func register_symbol(project, symbol_name, symbol_ref,
         assert(not st.storage_id_to_item_map.has(symbol_ref.id))
         st.storage_id_to_item_map[symbol_ref.id] = st_item
     }
+    var return_result = st_item
     if not _return_internal_item_instead_of_ref {
-        return st_item.symbol_storage_ref.copy()
+        return_result = st_item.symbol_storage_ref.copy()
     }
-    return st_item
+
+    st_item.resolve_func_signature(
+        project=project, is_moose64=is_moose64
+    ) later:
+
+    return later return_result
 }
 
 func try_lookup_symbol(

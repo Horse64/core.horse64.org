@@ -604,6 +604,12 @@ func _get_c_or_m64_type_of_node_do(
                 project=project_file.project,
                 is_moose64=is_moose64,
             )
+            if debug {
+                print(dbg_prefix + " Got a node.ref set, "
+                    "called st_ref.ref_to_symbol_info(): " +
+                    "node.ref=" + node.ref.as_str() + " "
+                    "sym_info=" + sym_info.as_str())
+            }
         }
 
         if sym_info == none {

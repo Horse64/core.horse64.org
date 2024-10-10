@@ -871,6 +871,10 @@ func node_to_c_string(project_file, node, parents,
         indent=0, add_to_header_callback=none,
         msgs=none, build_options=none) {
     const is_moose64 = yes
+    var program_name = "moosec"
+    if build_options != none {
+        var program_name = build_options.build_program_name
+    }
     const project = project_file.project
     var indent_str = " ".rep(indent)
     if node.kind == ast.N_EXPR_LIT and
@@ -1364,6 +1368,10 @@ func node_to_c_string(project_file, node, parents,
 
         await var_tinfo
         if var_tinfo == none {
+            print(program_name + ": error: Internal error, "
+                "failed to get type info in moose64 C code gen "
+                "for this identifier: node=" + node.as_str() + " "
+                "node.ref=" + node.ref.as_str())
             throw new RuntimeError("Unexpectedly failed "
                 "to get usable var def type info.")
         }

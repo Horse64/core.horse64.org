@@ -261,7 +261,7 @@ func TypeRefFuncExpr.as_str(indent=0) {
     }
     t += ")->"
     if self.return_typeref_expr != none {
-        t += self.return_typeref_expr.as_str(indent=indent)
+        t += self.return_typeref_expr.as_str()
     }
     t += ")"
     for mod in self.modifiers {
@@ -361,11 +361,6 @@ func TypeRefFuncExpr.copy {
     self_copy.func_storage_ref =
         self_copy.func_storage_ref.copy()
     return self_copy
-}
-
-func TypeRefFuncExpr.as_str {
-    var t = "TypeRefFuncExpr<" + self.as_code() + ">"
-    return t
 }
 
 func TypeRefFuncExpr.try_resolve_param_types(
@@ -626,7 +621,11 @@ func TypeRefExpr.as_code(indent=0) {
     if self.type_path != none and self.type_path.len > 0 {
         t = self.type_path.join(".") + "." + t
     }
-    t += self.name
+    if self.name == none {
+        t += "(unnamed type)"
+    } else {
+        t += self.name
+    }
     for mod in self.modifiers {
         if not prefix_mod_names.has(mod.name) {
             t += " " + mod.as_str()
