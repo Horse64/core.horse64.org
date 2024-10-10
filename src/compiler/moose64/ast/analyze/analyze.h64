@@ -610,13 +610,14 @@ func _get_c_or_m64_type_of_node_do(
             if node.ref.kind == st_ref.ST_MCREF and
                     (node.ref.id == builtin_syms.get_item_by_name(
                         project_file.project, "size_of",
+                        in_package_name="m64.horse64.org",
                         in_module_name="std").symbol_storage_ref.id or
                     node.ref.id == builtin_syms.get_item_by_name(
                         project_file.project, "deref",
-                        in_module_name="std").symbol_storage_ref.id or
+                        ).symbol_storage_ref.id or
                     node.ref.id == builtin_syms.get_item_by_name(
                         project_file.project, "as_ref",
-                        in_module_name="std").symbol_storage_ref.id) {
+                        ).symbol_storage_ref.id) {
                 if msgs == none {
                     throw new ValueError("Unexpected reference "
                         "to a compiler "

@@ -180,6 +180,21 @@ func get_known_type_size(tinfo) {
     )
 }
 
+func TypeInfo.has_outer_implicit_ref {
+    var idx = self.modifiers.len + 1
+    while idx > 1 {
+        idx -= 1
+        mod = self.modifiers[idx]
+        if {"array", "c_array", "ref"}.has(mod.name) {
+            return no
+        }
+        if mod.name == "implicit ref" {
+            return yes
+        }
+    }
+    return no
+}
+
 func TypeInfo.has_equivalent_modifiers(
         other_tinfo, allow_autodrop_mods=no,
         allow_autoadd_mods=no

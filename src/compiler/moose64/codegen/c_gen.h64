@@ -1356,41 +1356,59 @@ func node_to_c_string(project_file, node, parents,
         result = handle_assigned_value(entry)
         later repeat
     } elseif node.kind == ast.N_EXPR_IDREF {
-        if node.ref == none {
+        var var_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
+            project_file, node, parents,
+            store_self_value_ref_for_funcs=no,
+            msgs=msgs
+        ) later:
+
+        await var_tinfo
+        if var_tinfo == none {
+            throw new RuntimeError("Unexpectedly failed "
+                "to get usable var def type info.")
+        }
+        func get_label {
+            if node.ref == none {
+                return node.label
+            }
+            if {st_ref.ST_GLOBAL, st_ref.ST_GLOBALATTR}.has(
+                    node.ref.kind) {
+                var sinfo = st_ref.ref_to_symbol_info(
+                    node.ref,
+                    project=project,
+                    is_moose64=is_moose64
+                )
+                assert(sinfo != none)
+                var effective_name = sinfo.name
+                if sinfo.def_file != none {
+                    effective_name =
+                        get_global_symbol_c_name(
+                            sinfo.name,
+                            project_file=sinfo.def_file)
+                }
+                assert(effective_name != none)
+                return effective_name
+            } elseif node.ref.kind == st_ref.ST_SELF {
+                var func_scope = node.scope.func_scope
+                var cetr = (
+                    project_file.project.c_export_tracker
+                )
+                assert(cetr.func_scope_to_self_name_map.has(
+                    func_scope))
+                var self_name =
+                    cetr.func_scope_to_self_name_map[
+                        func_scope
+                    ]
+                return self_name
+            }
+            assert(node.label != none)
             return node.label
         }
-        if {st_ref.ST_GLOBAL, st_ref.ST_GLOBALATTR}.has(
-                node.ref.kind) {
-            var sinfo = st_ref.ref_to_symbol_info(
-                node.ref,
-                project=project,
-                is_moose64=is_moose64
-            )
-            assert(sinfo != none)
-            var effective_name = sinfo.name
-            if sinfo.def_file != none {
-                effective_name =
-                    get_global_symbol_c_name(
-                        sinfo.name,
-                        project_file=sinfo.def_file)
-            }
-            assert(effective_name != none)
-            return effective_name
-        } elseif node.ref.kind == st_ref.ST_SELF {
-            var func_scope = node.scope.func_scope
-            var cetr = (
-                project_file.project.c_export_tracker
-            )
-            assert(cetr.func_scope_to_self_name_map.has(
-                func_scope))
-            var self_name =
-                cetr.func_scope_to_self_name_map[
-                    func_scope
-                ]
-            return self_name
+        var label = get_label()
+        if var_tinfo.has_outer_implicit_ref() {
+            return "(*(" + label + "))"
         }
-        assert(node.label != none)
-        return node.label
+        return label
     } elseif node.kind == ast.N_EXPR_LIT and
             typename(node.value) == "bool" {
         return if node.value ("1") else ("0")

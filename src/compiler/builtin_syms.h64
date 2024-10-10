@@ -160,7 +160,7 @@ func get_item_by_name(
     if in_module_name != none and in_module_name.has("$") {
         throw new RuntimeError("Invalid module name given.")
     }
-    if in_module_name != none and
+    if in_module_name != none and in_module_name != "$any" and
             in_package_name == none {
         in_package_name = "$unnamed_default"
     }
