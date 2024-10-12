@@ -1320,18 +1320,34 @@ func resolve_st_ref_to_type_ref_and_expr(
 func _parse_typeref_notlater(
         tokens, pos, msgs, extend_typeref_expr=none,
         project_file=none,
-        max_len=none, max_depth=64,
+        max_len=none, max_depth=64, is_nested_in_type=no,
         is_moose64=no, debug=no
         ) {
+    var program_name = if is_moose64 ("moosec") else ("horsec")
     var startpos = pos
     if max_len == none {
         max_len = tokens.len
     }
+    if debug {
+        print(program_name + ": debug: _parse_typeref_notlater(): " +
+            "Called on " + tokens.len.as_str() + " token(s) with "
+            "tokens.sub(1, 5)=" + tokens.sub(1, 5).as_str() + " "
+            "pos=" + pos.as_str() + " max_len=" +
+            max_len.as_str() + " "
+            "max_depth=" + max_depth.as_str() + " "
+            "is_moose64=" + is_moose64.as_str())
+    }
     if pos > max_len {
+        if debug {
+            print(program_name + ": debug: "
+                "_parse_typeref_notlater(): " +
+                "No tokens to parse, bailing early.")
+        }
         return none
     }
 
-    func check_if_func_type(tokens, pos) {
+    func check_if_func_type(tokens, pos, max_len=none,
+            is_nested_in_type=no, debug=no) {
         var startpos = pos
         if pos > max_len or
                 tokens[pos].kind != token.T_ENCLOSE or
@@ -1352,26 +1368,61 @@ func _parse_typeref_notlater(
                     {')', ']', '}'}.has(tokens[pos].str) {
                 bdepth -= 1
                 pos += 1
-                if bdepth == 0 and could_be_func {
-                    return (pos - startpos)
+                if bdepth == 0 and (could_be_func or
+                        (not is_nested_in_type and
+                        pos <= max_len and
+                        tokens[pos].kind == token.T_RIGHTPTR)) {
+                    if pos > max_len or
+                            tokens[pos].kind != token.T_RIGHTPTR {
+                        var nested = yes
+                        return [(pos - startpos), nested]
+                    }
+                    while pos < max_len and
+                            (tokens[pos + 1].kind !=
+                                token.T_ENCLOSE or
+                             not {")", "}", "]"}.has(
+                                 tokens[pos + 1].str
+                            )) {
+                        pos += 1
+                    }
+                    var nested = no
+                    return [(pos - startpos), nested]
                 }
                 continue
             }
             if bdepth == 1 and
                     tokens[pos].kind == token.T_RIGHTPTR {
+                if debug {
+                    print(program_name + ": debug: "
+                        "_parse_typeref_notlater(): " +
+                        "check_if_func_type(): We detected a "
+                        "likely func. Scanning ahead to find "
+                        "out if this fits our suspicion.")
+                }
                 could_be_func = yes
             }
             pos += 1
         }
         return none
     }
-    func parse_func_type(tokens, pos) {
+    func parse_func_type(tokens, pos, max_len=none,
+            nested_in_parens=no, debug=no) {
+        if debug {
+            print(program_name + ": debug: "
+                "_parse_typeref_notlater(): " +
+                "parse_func_type(): Now starting at "
+                "pos=" + pos.as_str() + " with "
+                "max_len=" + max_len.as_str() + "...")
+        }
+        if max_len == none {
+            max_len = tokens.len - pos
+        }
         func had_error(at_pos, description) {
             if not description.ends(" ") {
                 description += " "
             }
             msgs.add(new msg.FileMsg(
-                description + " func type "
+                description + "func type "
                 "in line " +
                 token.get_line(tokens, startpos).as_str() +
                 ", column " +
@@ -1388,15 +1439,24 @@ func _parse_typeref_notlater(
             return expr
         }
         var startpos = pos
-        if pos > max_len or
+        if pos > max_len or (nested_in_parens and (
                 tokens[pos].kind != token.T_ENCLOSE or
-                tokens[pos].str != "(" {
+                tokens[pos].str != "(")) {
+            if nested_in_parens {
+                return had_error(pos,
+                    "Invalid " + token.describe_token_at(
+                        tokens, pos) + " "
+                    ", expected '(' to begin ")
+            }
             return had_error(pos,
                 "Invalid " + token.describe_token_at(
                     tokens, pos) + " "
-                ", expected '(' to begin ")
+                ", expected start of ")
         }
-        pos += 1
+        if nested_in_parens {
+            assert(tokens[pos].kind == token.T_ENCLOSE)
+            pos += 1
+        }
         if pos > max_len or
                 tokens[pos].kind != token.T_ENCLOSE or
                 tokens[pos].str != "(" {
@@ -1412,21 +1472,22 @@ func _parse_typeref_notlater(
         while pos <= max_len and
                 (tokens[pos].kind != token.T_ENCLOSE or
                 tokens[pos].str != ")") {
-            if tokens[pos].kind != token.T_IDENT {
+            if tokens[pos].kind != token.T_IDENT and
+                    tokens[pos].kind != token.T_LEFTPTR {
                 return had_error(pos,
                     "Invalid " + token.describe_token_at(
                         tokens, pos) + " "
                     ", expected identifier (T_IDENT) to "
-                    "start next argument, or ')' to end "
+                    "start next argument, or '<-' (T_LEFTPTR) "
+                    "for an anonymous argument, or ')' to end "
                     "arguments for ")
             }
-            if tokens[pos].kind == token.T_COMMA {
-                pos += 1
-                continue
-            }
-            assert(tokens[pos].kind == token.T_IDENT)
-            pos += 1
             if tokens[pos].kind != token.T_LEFTPTR {
+                assert(tokens[pos].kind == token.T_IDENT)
+                pos += 1
+            }
+            if pos > max_len or
+                    tokens[pos].kind != token.T_LEFTPTR {
                 return had_error(pos,
                     "Invalid " + token.describe_token_at(
                         tokens, pos) + " "
@@ -1434,12 +1495,34 @@ func _parse_typeref_notlater(
                     "continue argument for ")
             }
             pos += 1
+            if pos > max_len or (
+                    tokens[pos].kind == token.T_ENCLOSE and
+                    {")", "]", "}"}.has(tokens[pos].str)) {
+                return had_error(pos,
+                    "Invalid " + token.describe_token_at(
+                        tokens, pos) + " "
+                    ", expected type following '<-' (T_LEFTPTR) "
+                    "to describe argument type for ")
+            }
             var inner_expr = _parse_typeref_notlater(
                 tokens, pos, msgs, project_file=project_file,
-                max_len=max_len, is_moose64=is_moose64,
+                max_len=max_len, is_nested_in_type=yes,
+                max_depth=(max_depth - 1),
+                is_moose64=is_moose64,
                 debug=debug
             )
             if inner_expr == none {
+                var had_error = no
+                for m in msgs {
+                    if m.kind == msg.M_ERROR {
+                        had_error = yes
+                    }
+                }
+                if not had_error {
+                    throw new RuntimeError("Internal error, "
+                        "nested AST typeref parsing returned "
+                        "no result but without any error.")
+                }
                 var skiplen = token.get_naive_stmt_or_expr_len(
                     tokens, startpos, max_len=max_len,
                     for_expr=yes, is_moose64=is_moose64
@@ -1448,7 +1531,17 @@ func _parse_typeref_notlater(
                 return expr
             }
             arg_types.add(inner_expr)
-            pos += inner_expr.len
+            pos += inner_expr.token_len
+            if debug {
+                print(program_name + ": debug: "
+                    "_parse_typeref_notlater(): " +
+                    "parse_func_type(): Parsed arg with type "
+                    "inner_expr=" + inner_expr.as_str() + " "
+                    "and we're now at pos=" + pos.as_str() + " "
+                    "at this token: " + (
+                        if pos <= max_len (tokens[pos].as_str())
+                            else ("<end of tokens>")))
+            }
             if pos > max_len or
                     (tokens[pos].kind != token.T_COMMA and
                      (tokens[pos].kind != token.T_ENCLOSE or
@@ -1461,46 +1554,98 @@ func _parse_typeref_notlater(
             }
             if tokens[pos].kind == token.T_COMMA {
                 pos += 1
+            } else {
+                assert(tokens[pos].kind == token.T_ENCLOSE)
             }
             continue
         }
+        if pos <= max_len {
+            assert(tokens[pos].kind == token.T_ENCLOSE and
+                tokens[pos].str == ')')
+            pos += 1
+        }
+        if debug {
+            print(program_name + ": debug: "
+                "_parse_typeref_notlater(): " +
+                "parse_func_type(): Completed parsing args, "
+                "we're now at pos=" + pos.as_str() + " "
+                "at this token: " + (
+                    if pos <= max_len (tokens[pos].as_str())
+                        else ("<end of tokens>")))
+        }
         if pos > max_len or
                 tokens[pos].kind != token.T_RIGHTPTR {
-            if tokens[pos].kind != token.T_LEFTPTR {
-                return had_error(pos,
-                    "Invalid " + token.describe_token_at(
-                        tokens, pos) + " "
-                    ", expected '->' (T_LEFTPTR) to "
-                    "specif return type for ")
-            }
-        }
-        var return_type = _parse_typeref_notlater(
-            tokens, pos, msgs, project_file=project_file,
-            max_len=max_len, is_moose64=is_moose64,
-            debug=debug
-        )
-        if return_type == none {
-            var skiplen = token.get_naive_stmt_or_expr_len(
-                tokens, startpos, max_len=max_len,
-                for_expr=yes, is_moose64=is_moose64
-            )
-            var expr = new ast_expr.InvalidExpr(skiplen)
-            return expr
-        }
-        pos += return_type.token_len
-        if pos > max_len or tokens[pos].kind != token.T_ENCLOSE or
-                tokens[pos].str != ')' {
             return had_error(pos,
                 "Invalid " + token.describe_token_at(
                     tokens, pos) + " "
-                ", expected ')' (T_ENCLOSE) to "
-                "end ")
+                ", expected '->' (T_RIGHTPTR) to "
+                "specify return type for ")
         }
         pos += 1
+        var return_type = none
+        if pos > max_len or
+                ({token.T_KEYWORD,
+                token.T_IDENT}.has(tokens[pos].kind) and
+                tokens[pos].str == "empty") {
+            # We got no return value.
+            if pos < max_len {
+                pos += 1
+            }
+        } else {
+            return_type = _parse_typeref_notlater(
+                tokens, pos, msgs, project_file=project_file,
+                max_len=max_len, is_nested_in_type=yes,
+                max_depth=(max_depth - 1),
+                is_moose64=is_moose64,
+                debug=debug
+            )
+            if return_type == none {
+                var had_error = no
+                for m in msgs {
+                    if m.kind == msg.M_ERROR {
+                        had_error = yes
+                    }
+                }
+                if not had_error {
+                    throw new RuntimeError("Internal error, "
+                        "nested AST typeref parsing returned "
+                        "no result but without any error.")
+                }
+                var skiplen = token.get_naive_stmt_or_expr_len(
+                    tokens, startpos, max_len=max_len,
+                    for_expr=yes, is_moose64=is_moose64
+                )
+                var expr = new ast_expr.InvalidExpr(skiplen)
+                return expr
+            }
+            pos += return_type.token_len
+        }
+        if nested_in_parens {
+            if pos > max_len or
+                    tokens[pos].kind != token.T_ENCLOSE or
+                    tokens[pos].str != ')' {
+                return had_error(pos,
+                    "Invalid " + token.describe_token_at(
+                        tokens, pos) + " "
+                    ", expected ')' (T_ENCLOSE) to "
+                    "end ")
+            }
+            pos += 1
+        }
         var func_ref = new TypeRefFuncExpr()
         func_ref.arg_typeref_exprs = arg_types
         func_ref.return_typeref_expr = return_type
         func_ref.token_len = pos - startpos
+        if debug {
+            print(program_name + ": debug: "
+                "_parse_typeref_notlater(): " +
+                "parse_func_type(): Finished assembling "
+                "func typeref expr. Result is: "
+                "func_ref=" + func_ref.as_str() + " "
+                "func_ref.token_len=" +
+                    func_ref.token_len.as_str() + " "
+                "pos=" + pos.as_str())
+        }
         return func_ref
     }
 
@@ -1516,6 +1661,12 @@ func _parse_typeref_notlater(
         if pos <= max_len and
                 tokens[pos].kind == token.T_ENCLOSE and
                 tokens[pos].str == "(" {
+            if debug {
+                print(program_name + ": debug: "
+                    "_parse_typeref_notlater(): " +
+                    "Encountered a '(' that could "
+                    "either be an inner nesting or a func.")
+            }
             var bracket_open_pos = pos
             if max_depth <= 0 {
                 msgs.add(new msg.FileMsg(
@@ -1535,11 +1686,57 @@ func _parse_typeref_notlater(
                 var expr_len = start_token_len + (pos - startpos)
                 return new ast_expr.InvalidExpr(expr_len)
             }
-            var is_func_type = check_if_func_type(tokens, pos)
-            if typeref_expr == none and is_func_type {
-                typeref_expr = parse_func_type(tokens, pos)
+            var func_type_token_len = 0
+            var func_type_nested = no
+            var func_type_check_result = check_if_func_type(
+                tokens, pos, max_len=max_len,
+                is_nested_in_type=is_nested_in_type,
+                debug=debug,
+            )
+            if func_type_check_result != none {
+                func_type_token_len =
+                    func_type_check_result[1]
+                func_type_nested =
+                    func_type_check_result[2]
+            }
+            if debug {
+                print(program_name + ": debug: "
+                    "_parse_typeref_notlater(): " +
+                    "(func_type_check_result != none)=" +
+                        (func_type_check_result !=
+                        none).as_str() + " " +
+                    "func_type_token_len=" +
+                        func_type_token_len.as_str() + " "
+                    "func_type_nested=" +
+                        func_type_nested.as_str())
+            }
+            if typeref_expr == none and
+                    func_type_token_len != none {
+                typeref_expr = parse_func_type(
+                    tokens, pos, max_len=func_type_token_len,
+                    nested_in_parens=func_type_nested,
+                    debug=debug,
+                )
+                if debug {
+                    print(program_name + ": debug: "
+                        "_parse_typeref_notlater(): " +
+                        "Got inner func, typeref_expr=" +
+                            typeref_expr.as_str())
+                }
                 assert(typeref_expr.token_len > 0)
+                if typeref_expr.kind == ast.N_EXPR_INVALID {
+                    var have_error = no
+                    for m in msgs {
+                        if m.kind == msg.M_ERROR {
+                            have_error = yes
+                            break
+                        }
+                    }
+                    assert(have_error)
+                }
                 pos += typeref_expr.token_len
+                typeref_token_len =
+                    start_token_len + (pos - startpos)
                 continue
             }
             pos += 1  # Go past '('.
@@ -1547,6 +1744,7 @@ func _parse_typeref_notlater(
                 tokens, pos, msgs,
                 extend_typeref_expr=typeref_expr,
                 project_file=project_file,
+                is_nested_in_type=yes,
                 max_len=max_len, max_depth=(max_depth - 1),
                 is_moose64=is_moose64, debug=debug
             )

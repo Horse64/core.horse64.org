@@ -1308,6 +1308,9 @@ func describe_token_str(s) {
     if s.glyph_len <= 1 {
         return describe_char_at(s, 1, maybe_cutoff_glyph=no)
     }
+    if {"<-", "->"}.has(s) {
+        return "'" + s.as_str() + "'"
+    }
     if s.startswith("'") or s.startswith('"') or
             s.startswith("b'") or s.startswith('b"') {
         var result = ""
@@ -1426,21 +1429,69 @@ func as_escaped_code_string(
 ## than" operator followed by a math negative sign.
 ## @returns bool @{yes} if this is possibly T_LEFTPTR, @{no} if not.
 func is_leftptr_at_token_str_pos(
-        token_str, token_pos, past_tokens, is_moose64=no
+        token_str, token_pos, past_tokens,
+        is_isolated_type=no, is_moose64=no,
+        debug=no
         ) {
+    var program_name = if is_moose64 ("moosec") else ("horsec")
+    if debug {
+        print(program_name + ": debug: " +
+            "is_leftptr_at_token_str_pos(): "
+            "Called to check potential <- at "
+            "token_pos=" + token_pos.as_str() + " "
+            "with is_isolated_type=" +
+                is_isolated_type.as_str() + " "
+            "past_tokens.len=" + past_tokens.len.as_str())
+    }
     if token_pos <= 1 or {"-", ">", "<",
-            "(", ")", "]", "[", "="}.has(
+            ")", "}", "]", "{", "[", "="}.has(
                 token_str[token_pos - 1]
             ) {
         return no
     }
     var k = past_tokens.len
     while k >= 1 {
+        if debug {
+            print(program_name + ": debug: " +
+                "is_leftptr_at_token_str_pos(): "
+                "Looking at past_tokens[" +
+                    k.as_str() + "]=" +
+                past_tokens[k].as_str())
+        }
         var kind = past_tokens[k].kind
         if {T_MATH, T_UNARYMATH, T_BOOL, T_NUM,
                 T_ASSIGN, T_MATHASSIGN
                 }.has(kind) {
             return no
+        }
+        if kind == T_ENCLOSE and
+                {")", "]", "}"}.has(past_tokens[k].str) {
+            # Skip over inner bracket nestings.
+            var bracket_depth = 1
+            var z = k - 1
+            while z >= 1 {
+                if past_tokens[z].kind == T_ENCLOSE and
+                        {"(", "[", "{"}.has(past_tokens[z].str) {
+                    bracket_depth -= 1
+                    if bracket_depth <= 0 {
+                        break
+                    }
+                } elseif past_tokens[z].kind == T_ENCLOSE and
+                        {")", "]", "}"}.has(past_tokens[z].str) {
+                    bracket_depth += 1
+                }
+                z -= 1
+            }
+            k = z - 1
+            continue
+        }
+        if kind == T_ENCLOSE and
+                is_isolated_type and past_tokens[k].str == "(" {
+            if k <= 1 or past_tokens[k - 1].kind == T_RIGHTPTR or
+                    past_tokens[k - 1].kind == T_LEFTPTR {
+                # This is part of a (... <- test) -> ... func type.
+                return yes
+            }
         }
         if kind == T_IDENT and k > 1 and
                 past_tokens[k - 1].kind == T_KEYWORD and
@@ -1524,12 +1575,21 @@ func is_leftptr_at_token_str_pos(
 ##     (when set to @{yes})
 ##     or whether to discard them (set to @{no}, the default).
 ## @param keep_comments bool Whether to keep comment tokens
-##     (when set to @{yes})
-##     or whether to discard them (set to @{no}, the default).
+##     which happens when this option is set to @{yes},
+##     or whether to discard them which happens with this
+##     option set to @{no}. The default value is @{no}.
 ## @param internal_labels bool If set to @{yes}, identifiers may
 ##     start with a `$` which is invalid syntax except for
 ##     intermediate code transforms used internally. Defaults to
-##     no, don't change this unless you're certain.
+##     @{no}, don't change this unless you're certain.
+## @param is_isolated_type bool If set to @{yes}, the parsed
+##     tokens are assumed to be an isolated type rather than
+##     a regular complete program or code line. This is needed
+##     such that isolated func types are properly parsed,
+##     since the tokenizer usually identifies those with the
+##     help of the context of an entire code line. Therefore,
+##     if you're parsing a singled-out type, set this to @{yes}.
+##     Otherwise, leave it at the default value that is @{no}.
 ## @param _assume_previous_token (Token, none) For internal use
 ##     by @{token_list_from_str_list}. Can be set to a single
 ##     @{token|Token} to be assumed to be *before* the parsed
@@ -1540,9 +1600,13 @@ func tokenize_str(
         keep_comments=no,
         auto_recovery=yes,
         internal_labels=no,
-        is_moose64=no,
+        is_isolated_type=no,
         _assume_previous_token=none,
+        is_moose64=no,
+        debug=no,
         ) {
+    var program_name = if is_moose64 ("moosec") else ("horsec")
+
     var result = new TokensResult()
     result.project_file = project_file
     var strlen = str.len
@@ -1577,12 +1641,16 @@ func tokenize_str(
             last_nonspace_token = result.tokens.last()
         }
 
-        #print("LOOKING AT #" + i.as_str() +
-        #    ": " + describe_char_at(
-        #    c, 1, maybe_cutoff_glyph=yes) +
-        #    " || " + [bracket_nesting,
-        #    guessed_expr_bracket_nesting,
-        #    result.msgs].as_str())
+        if debug {
+            print(program_name + ": debug: tokenize_str(): "
+                "Looking at token #" + i.as_str() +
+                ": " + describe_char_at(
+                c, 1, maybe_cutoff_glyph=yes) +
+                " || extra_info=" + [bracket_nesting,
+                guessed_expr_bracket_nesting,
+                is_isolated_type,
+                result.msgs].as_str())
+        }
 
         if i + 1 < strlen and c == "-" and
                 str[i + 1] == ">" {
@@ -1597,7 +1665,9 @@ func tokenize_str(
                 c == "<" and str[i + 1] == "-" and
                 is_leftptr_at_token_str_pos(
                     str, i, result.tokens,
-                    is_moose64=is_moose64
+                    is_isolated_type=is_isolated_type,
+                    is_moose64=is_moose64,
+                    debug=debug
                 ) {
             # <- type assign operator.
             result.tokens.add(new Token(

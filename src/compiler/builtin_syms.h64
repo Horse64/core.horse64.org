@@ -88,15 +88,29 @@ func BuiltinSymsStorageItem.as_str {
 }
 
 func BuiltinSymsStorageItem.resolve_func_signature(
-        project=none, is_moose64=no
+        project=none, is_moose64=no, debug=no
         ) {
+    var program_name = if is_moose64 ("moosec") else ("horsec")
     if typename(self.func_signature) != "str" {
         return later
     }
+    if debug {
+        print(program_name + ": debug: " +
+            "BuiltinSymsStorageItem.resolve_func_signature: "
+            "Resolving func signature: " +
+                self.func_signature)
+    }
     var result = token.tokenize_str(
         self.func_signature, keep_whitespace=no,
+        is_isolated_type=yes,
         is_moose64=is_moose64,
     )
+    
+    if debug {
+        print(program_name + ": debug: " +
+            "BuiltinSymsStorageItem.resolve_func_signature: "
+            "Tokenized func signature: " + result.tokens.as_str())
+    }
     var tokens = result.tokens
     var msgs = []
     var project_file = none
@@ -106,16 +120,18 @@ func BuiltinSymsStorageItem.resolve_func_signature(
     var result_typeref = ast_typeref.parse_typeref(
         tokens, 1, msgs,
         project_file=project_file, is_moose64=is_moose64,
-        debug=no
     ) later:
 
     await result_typeref
     var had_error = no
     for m in msgs {
         if m.kind == msg.M_ERROR {
+            print(program_name + ": error: Internal error, "
+                "got an invalid parse error for "
+                "built-in func signature: " + m.as_str())
             throw new RuntimeError(
                 "Got invalid func signature for built-in "
-                "item, parsing returned in an error."
+                "item, parsing returned an error."
             )
         }
     }
