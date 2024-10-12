@@ -1363,7 +1363,7 @@ func node_to_c_string(project_file, node, parents,
         var var_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
             project_file, node, parents,
             store_self_value_ref_for_funcs=no,
-            msgs=msgs,
+            msgs=msgs
         ) later:
 
         await var_tinfo
@@ -1413,8 +1413,22 @@ func node_to_c_string(project_file, node, parents,
             return node.label
         }
         var label = get_label()
-        if var_tinfo.has_outer_implicit_ref() {
-            return "(*(" + label + "))"
+        func is_type_cast_call(node) {
+            # FIXME: implement this.
+            return no
+        }
+        if var_tinfo.is_array() and (parents.len == 0 or
+                (not {ast.N_EXPR_BINOP,
+                ast.N_EXPR_UNOP,
+                }.has(parents[parents.len].kind)) and
+                (parents[parents.len].kind !=
+                    ast.N_EXPR_CALLARGS or
+                parents.len < 2 or
+                not is_type_cast_call(parents[parents.len - 1])
+                )) {
+            return "(&" + label + ")"
+        } elseif var_tinfo.has_outer_implicit_ref() {
+            return "(*" + label + ")"
         }
         return label
     } elseif node.kind == ast.N_EXPR_LIT and

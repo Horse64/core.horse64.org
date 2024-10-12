@@ -163,10 +163,11 @@ func get_known_type_size(tinfo) {
     var is_array = tinfo.is_array()
     var mods_without_refs_and_junk = []
     for mod in tinfo.modifiers {
-        if {"ref", "c_array", "array", "readonly"}.has(mod.name) {
+        if {"ref", "c_array", "implicit ref",
+                "array", "readonly"}.has(mod.name) {
             continue
         }
-        mods_without_refs.add(mod.copy())
+        mods_without_refs_and_junk.add(mod.copy())
     }
     if is_array or mods_without_refs_and_junk.len > 0 {
         return none
@@ -447,6 +448,15 @@ func TypeInfo.describe_to_user(
         return t
     }
     return t
+}
+
+func TypeInfo.add_implicit_ref_modifier {
+    var mod = new ast_typeref.TypeRefMod("implicit ref")
+    self.modifiers.add(mod)
+    if self._orig_typeexpr != none {
+        self._orig_typeexpr = self._orig_typeexpr.copy()
+        self._orig_typeexpr.modifiers.add(mod)
+    }
 }
 
 func TypeInfo.add_ref_modifier {

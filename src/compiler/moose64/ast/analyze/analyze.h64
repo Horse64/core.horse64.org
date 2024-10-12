@@ -524,6 +524,8 @@ func _get_c_or_m64_type_of_node_do(
     } elseif node.kind == ast.N_EXPR_IDREF {
         if parent.kind == ast.N_EXPR_BINOP and
                 parent.optoken.str == "." and
+                parent.subexprs.len >= 2 and
+                parent.subexprs[2] == node and
                 not disable_binop_parent_fallback {
             if debug {
                 print(dbg_prefix + " The parent is an "
@@ -542,7 +544,8 @@ func _get_c_or_m64_type_of_node_do(
             await inner_result
             if debug {
                 print(dbg_prefix + " Will return "
-                    "parent result now.")
+                    "parent result now: " +
+                    inner_result.as_str())
             }
             if inner_result != none and
                     not _known_typeinfo_map.has(node) {
@@ -553,6 +556,7 @@ func _get_c_or_m64_type_of_node_do(
         }
 
         var return_type_with_ref_modifier = no
+        var return_type_with_implicit_ref_modifier = no
         var sym_info = none
         if node.ref != none and node.ref.kind == st_ref.ST_SELF {
             var func_node = none
@@ -597,7 +601,7 @@ func _get_c_or_m64_type_of_node_do(
                 type_st_ref, project=project_file.project,
                 is_moose64=is_moose64,
             )
-            return_type_with_ref_modifier = yes
+            return_type_with_implicit_ref_modifier = yes
         } elseif node.ref != none {
             sym_info = st_ref.ref_to_symbol_info(
                 node.ref, node=node,
@@ -701,6 +705,9 @@ func _get_c_or_m64_type_of_node_do(
         if result != none and
                 return_type_with_ref_modifier {
             result.add_ref_modifier()
+        } elseif result != none and
+                return_type_with_implicit_ref_modifier {
+            result.add_implicit_ref_modifier()
         }
         if result != none and
                 not _known_typeinfo_map.has(node) {

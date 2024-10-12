@@ -358,6 +358,8 @@ func transform_defer(
             } elseif node.kind != ast.N_STMT_RETURN {
                 return later node
             }
+            assert(node.kind == ast.N_STMT_RETURN)
+
             var return_var_node = none
             if not node.is_empty and
                     (node.subexprs[1].kind != ast.N_EXPR_LIT or
@@ -404,6 +406,10 @@ func transform_defer(
                     idexpr.scope = node.scope
                     idexpr.line = node.line
                     idexpr.col = node.col
+                    idexpr.ref = node.scope.lookup(
+                        return_var_node.var_labels[1],
+                        is_write_access=no
+                    )[1]
                     node.subexprs = [idexpr]
                 }
             }
