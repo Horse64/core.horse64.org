@@ -1363,7 +1363,7 @@ func node_to_c_string(project_file, node, parents,
         var var_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
             project_file, node, parents,
             store_self_value_ref_for_funcs=no,
-            msgs=msgs
+            msgs=msgs,
         ) later:
 
         await var_tinfo

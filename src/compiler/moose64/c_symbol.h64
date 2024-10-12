@@ -30,7 +30,9 @@ import text from core.horse64.org
 import compiler.moose64.c_importer as m64_c_importer
 
 type CFuncSymbol {
-    var c_func_signature protect
+    var c_func_signature_str protect
+    var func_signature_str protect
+    var func_signature_expr protect
 
     var storage_id protect
 
@@ -70,7 +72,14 @@ func get_ident_ending_at(s, idx) {
 }
 
 func CFuncSymbol.init(c_signature, _override_func_signature=none) {
-    self.c_func_signature = c_signature
+    self.c_func_signature_str = c_signature
+    if _override_func_signature != none {
+        if typename(_override_func_signature) == "str" {
+            self.func_signature_str = _override_func_signature
+        } else {
+            self.func_signature_expr = _override_func_signature
+        }
+    }
 
     var symbol_name = none
     var had_bracket = no

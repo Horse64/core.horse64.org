@@ -613,7 +613,8 @@ func _get_c_or_m64_type_of_node_do(
         }
 
         if sym_info == none {
-            if node.ref.kind == st_ref.ST_MCREF and
+            if node.ref != none and
+                    node.ref.kind == st_ref.ST_MCREF and
                     (node.ref.id == builtin_syms.get_item_by_name(
                         project_file.project, "size_of",
                         in_package_name="m64.horse64.org",
@@ -641,10 +642,39 @@ func _get_c_or_m64_type_of_node_do(
                     ))
                 }
                 return later none
-            } elseif node.ref.kind == st_ref.ST_MCREF {
+            } elseif node.ref != none and
+                    node.ref.kind == st_ref.ST_MCREF {
                 # FIXME: Obtain C func signature. For now,
                 # we don't support this.
-                return later none
+                var builtin_item = builtin_syms.get_item_by_storage_ref(
+                    project_file.project, node.ref
+                )
+                if debug {
+                    print(dbg_prefix + " Obtained built-in symbol item "
+                        "for this node.ref: builtin_item=" +
+                        builtin_item.as_str())
+                }
+                if builtin_item == none or
+                        builtin_item.func_signature_expr == none {
+                    return later none
+                }
+                var func_result = new typeinfo.TypeInfo(
+                    typeinfo.TI_FUNCREF
+                )
+                func_result.orig_type_name = builtin_item.symbol_name
+                if builtin_item.is_csymbol {
+                    func_result.user_type_ref =
+                        new st_ref.StorageRef(st_ref.ST_MCREF,
+                            builtin_item.storage_id)
+                } else {
+                    func_result.user_type_ref =
+                        builtin_item.symbol_storage_ref.copy()
+                }
+                func_result.func_typeexpr =
+                    builtin_item.func_signature_expr.copy()
+                func_result._orig_typeexpr =
+                    func_result.func_typeexpr
+                return func_result
             }
 
             if debug {

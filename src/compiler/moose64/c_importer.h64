@@ -27,6 +27,7 @@
 
 import path from core.horse64.org
 
+import compiler.builtin_syms as builtin_syms
 import compiler.moose64.c_symbol as c_symbol
 import compiler.project as project
 
@@ -53,6 +54,7 @@ func get_mcref_id(project) {
 }
 
 func CImportInfo._process_c_include(project, ipath) {
+    const is_moose64 = yes
     ipath = ipath.replace("/", path.sep)
     var new_items = {->}
     if ipath == "stdlib.h" {
@@ -69,13 +71,13 @@ func CImportInfo._process_c_include(project, ipath) {
             "void *memcpy(void *dest, const void *src, size_t n);",
             _override_func_signature=
                 "(<-any ref, <-readonly any ref, "
-                "size)->any ref"
+                "<-size)->any ref"
         )
         new_items["memmove"] = new c_symbol.CFuncSymbol(
             "void *memmove(void *dest, const void *src, size_t n);",
             _override_func_signature=
                 "(<-any ref, <-readonly any ref, "
-                "size)->any ref"
+                "<-size)->any ref"
         )
         new_items["strlen"] = new c_symbol.CFuncSymbol(
             "size_t strlen(const char *);",
@@ -85,16 +87,38 @@ func CImportInfo._process_c_include(project, ipath) {
     } elseif ipath == "stdio.h" {
         new_items["printf"] = new c_symbol.CFuncSymbol(
             "int printf(const char *fmt, ...);",
+            _override_func_signature=
+                "(<-readonly byte ref, <-readonly byte ref)->empty"
+            # FIXME: The Moose64 signature is incorrect here.
         )
     }
+    var queue = []
     for entry in new_items {
         if not self.known_items.has(entry) {
             self.known_items[entry] = new_items[entry]
             self.known_items[entry].auto_assign_id(project)
             assert(self.known_items[entry].storage_id != none)
+            queue.add(new_items[entry])
         }
     }
-    return later
+
+    # Now make sure the func signature is properly parsed:
+    if queue.len == 0 {
+        return later
+    }
+    var next_item = queue.pop()
+    var result = builtin_syms.resolve_func_signature_of_item(
+        next_item, project=project, is_moose64=is_moose64,
+    ) later:
+
+    await result
+    if queue.len == 0 {
+        return later
+    }
+    next_item = queue.pop()
+    result = builtin_syms.resolve_func_signature_of_item(
+        next_item, project=project, is_moose64=is_moose64,
+    ) later repeat
 }
 
 func CImportInfo.add_import_path(project, ipath) {

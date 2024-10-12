@@ -52,7 +52,8 @@ type BuiltinSymsStorageItem {
     var is_c_builtin_type = no
     var hidden = no
     var is_csymbol = no
-    var func_signature = none
+    var func_signature_expr = none
+    var func_signature_str = none
 }
 
 func BuiltinSymsStorageItem.init(
@@ -65,7 +66,12 @@ func BuiltinSymsStorageItem.init(
     self.module_path = module_path.copy()
     self.package_name = package_name
     self.kind = item_kind
-    self.func_signature = func_signature
+    if func_signature != none and
+            typename(func_signature) == "str" {
+        self.func_signature_str = func_signature + ""
+    } else {
+        self.func_signature_expr = func_signature
+    }
 }
 
 func BuiltinSymsStorageItem.as_str {
@@ -83,32 +89,38 @@ func BuiltinSymsStorageItem.as_str {
         mod_path_str +
         "symbol_storage_ref=" +
             self.symbol_storage_ref.as_str() + ""
-        ) + "}"
+        )
+    if self.func_signature_expr != none {
+        t += ", func_signature_expr=" +
+            self.func_signature_expr.as_str()
+    }
+    t += "}"
     return t
 }
 
-func BuiltinSymsStorageItem.resolve_func_signature(
-        project=none, is_moose64=no, debug=no
+func resolve_func_signature_of_item(
+        item, project=none, is_moose64=no, debug=no
         ) {
     var program_name = if is_moose64 ("moosec") else ("horsec")
-    if typename(self.func_signature) != "str" {
+    if item.func_signature_expr != none or
+            item.func_signature_str == none {
         return later
     }
     if debug {
         print(program_name + ": debug: " +
-            "BuiltinSymsStorageItem.resolve_func_signature: "
+            "builtin_syms.resolve_func_signature_of_item: "
             "Resolving func signature: " +
-                self.func_signature)
+                item.func_signature_str)
     }
     var result = token.tokenize_str(
-        self.func_signature, keep_whitespace=no,
+        item.func_signature_str, keep_whitespace=no,
         is_isolated_type=yes,
         is_moose64=is_moose64,
     )
     
     if debug {
         print(program_name + ": debug: " +
-            "BuiltinSymsStorageItem.resolve_func_signature: "
+            "builtin_syms.resolve_func_signature_of_item: "
             "Tokenized func signature: " + result.tokens.as_str())
     }
     var tokens = result.tokens
@@ -136,7 +148,15 @@ func BuiltinSymsStorageItem.resolve_func_signature(
         }
     }
     assert(result_typeref != none)
-    self.func_signature = result_typeref
+    if item.is_csymbol {
+        result_typeref.func_storage_ref =
+            new st_ref.StorageRef(st_ref.ST_MCREF,
+                item.storage_id)
+    } else {
+        result_typeref.func_storage_ref =
+            item.symbol_storage_ref.copy()
+    }
+    item.func_signature_expr = result_typeref
 
     return later
 }
@@ -363,8 +383,8 @@ func register_symbol(project, symbol_name, symbol_ref,
         return_result = st_item.symbol_storage_ref.copy()
     }
 
-    st_item.resolve_func_signature(
-        project=project, is_moose64=is_moose64
+    resolve_func_signature_of_item(
+        st_item, project=project, is_moose64=is_moose64
     ) later:
 
     return later return_result
