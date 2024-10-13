@@ -676,7 +676,7 @@ func TypeRefExpr.as_c_code(
         if t != "" {
             t += " "
         }
-        t += "struct __m64arraystruct__" + ainfo[1]
+        t += "struct __m64arraystruct__" + ainfo[1] + "*"
         for mod in ainfo[3] {
             if not prefix_mod_names.has(mod.name) {
                 if t != "" {

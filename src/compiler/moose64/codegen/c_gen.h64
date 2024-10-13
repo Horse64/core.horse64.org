@@ -1413,35 +1413,75 @@ func node_to_c_string(project_file, node, parents,
             return node.label
         }
         var label = get_label()
-        func is_type_cast_call(node) {
-            # FIXME: implement this.
-            return no
-        }
-        if var_tinfo.is_array() and (parents.len == 0 or
-                (not {ast.N_EXPR_BINOP,
-                ast.N_EXPR_UNOP,
-                }.has(parents[parents.len].kind)) and
-                (parents[parents.len].kind !=
-                    ast.N_EXPR_CALLARGS or
-                parents.len < 2 or
-                not is_type_cast_call(parents[parents.len - 1])
-                )) {
-            return "(&" + label + ")"
+        if var_tinfo.is_array() {
+            if parents.len == 0 or
+                    not {ast.N_EXPR_BINOP,
+                    ast.N_EXPR_UNOP,
+                    }.has(parents[parents.len].kind) {
+                return "(" + label + ")"
+            } else {
+                return "(*" + label + ")"
+            }
         } elseif var_tinfo.has_outer_implicit_ref() {
             return "(*" + label + ")"
         }
         return label
+    } elseif node.kind == ast.N_EXPR_TYPECAST {
+        var var_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
+            project_file, node.subexprs[1], parents,
+            store_self_value_ref_for_funcs=no,
+            msgs=msgs
+        ) later:
+
+        await var_tinfo
+        if var_tinfo == none {
+            print(program_name + ": error: Internal error, "
+                "failed to get type info in moose64 C code gen "
+                "for this expression: "
+                "node.subexprs[1]=" + node.subexprs[1].as_str())
+            throw new RuntimeError("Unexpectedly failed "
+                "to get usable var def type info.")
+        }
+        var t = "((" +
+            node.typeref_expr.as_c_code(
+                global_name_assign_callback=
+                    get_global_symbol_c_name,
+                global_register_m64_array_callback=
+                    project_file.project.c_export_tracker.
+                        register_m64_array_type,
+                project=project, project_file=project_file,
+                is_moose64=is_moose64) + ") "
+        var inner_code = node_to_c_string(
+            project_file, node.subexprs[1], parents + [node],
+            indent=indent,
+            msgs=msgs, build_options=build_options)
+        later:
+
+        await inner_code
+        if inner_code == none or
+                inner_code.trim() == "" {
+            print(program_name + ": error: Internal error, "
+                "C code gen failed to spit out "
+                "code for assigned value: "
+                "node.subexprs[1]=" + node.subexprs[1].as_str())
+            throw new RuntimeError(
+                "Internal error, C code gen didn't "
+                "successfully spit out code for "
+                "assigned value.")
+        }
+        t += inner_code + ")"
+        return later t
     } elseif node.kind == ast.N_EXPR_LIT and
             typename(node.value) == "bool" {
         return if node.value ("1") else ("0")
     } elseif node.kind == ast.N_EXPR_LIT and
             node.value == none {
-        return "((void*) 0)"
+        return later "((void*) 0)"
     } elseif node.kind == ast.N_EXPR_LIT and
             (typename(node.value) == "num" or
              (typename(node.value) == "str" and
               node.is_big_num)) {
-        return node.value.as_str()
+        return later node.value.as_str()
     } elseif node.kind == ast.N_STMT_VAR {
         var c_var_type = "void"
         var var_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
@@ -1508,7 +1548,14 @@ func node_to_c_string(project_file, node, parents,
                 await expr_result
                 if expr_result == none or
                         expr_result.trim() == "" {
-                    return later
+                    print(program_name + ": error: Internal error, "
+                        "C code gen failed to spit out "
+                        "code for assigned value: "
+                        "entry[2]=" + entry[2].as_str())
+                    throw new RuntimeError(
+                        "Internal error, C code gen didn't "
+                        "successfully spit out code for "
+                        "assigned value.")
                 }
                 t += indent_str
                 if is_global {
