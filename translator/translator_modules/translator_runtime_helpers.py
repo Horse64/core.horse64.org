@@ -2208,6 +2208,12 @@ class _NetServeHTTPRequestCtx:
         self.reply_payload = reply
         if content_type != None:
             self.content_type = content_type
+        elif (type(reply) == str and
+                self.content_type == None):
+            chunk = reply[:100]
+            if (chunk.find("<") >= 0 and
+                    chunk.find(">") > chunk.find("<")):
+                self.content_type = "text/html"
 
     def reply_request(self, reply):
         self.reply_type = _NET_SERVE_HREPLY_REQUEST
@@ -2717,7 +2723,7 @@ class _NetServeHTTPServer:
                             self.respond_with_h64_request(
                                 "HTTP/1.1 200 OK\n\n",
                                 strip_body,
-                                append_from_path=requests[4][1],
+                                append_from_path=request[4][1],
                                 is_internal_error=False)
                         except OSError:
                             if not os.path.exists(request[4][1]):
@@ -2730,7 +2736,7 @@ class _NetServeHTTPServer:
                     elif request[4][0] == _NET_SERVE_HREPLY_CONTENT:
                         content_type = "application/octet-stream"
                         if request[4][2] != None:
-                            content_type = str(requests[4][2])
+                            content_type = str(request[4][2])
                         header_part = (b"HTTP/1.1 200 OK\n" +\
                             b"Content-Type: " +\
                                 str(content_type).encode(
