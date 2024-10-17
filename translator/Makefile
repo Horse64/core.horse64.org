@@ -29,18 +29,18 @@
 
 intro-message:
 	@echo -e "\033[95;40mWelcome to core.horse64.org bootstrap.\033[0m"
-	@echo "To bootstrap horsec, type:"
+	@echo "To bootstrap horsec and moosec, type:"
 	@echo ""
 	@echo "    make get-deps"
 	@echo "    make bootstrap"
 	@echo ""
 	@echo "But make sure you got all the dependencies first."
-	@echo "Check translator/translator-manual.md for dependencies,"
+	@echo "Check translator/README-translator.md for dependencies,"
 	@echo "as well as HVM's documentation. (The Horse64 VM.)"
 bootstrap: ensure-hvm ensure-horp
 	$(MAKE) ensure-cython-built ensure-hvm-built
 	cd .. && translator/horsec.py compile src/compiler/main.h64
-get-deps: ensure-hvm ensure-horp ensure-cython-built
+get-deps: ensure-moose64 ensure-hvm ensure-horp ensure-cython-built
 ensure-cython-built:
 	@cd .. && python3 ./translator/make_cython.py
 rebuild-hvm:
@@ -51,6 +51,9 @@ reset-deps:
 	cd .. && rm -rf ./horse_modules/
 	cd .. && git submodule foreach --recursive git reset --hard && git submodule foreach --recursive git clean -xfd && git submodule update --init
 	$(MAKE) ensure-hvm ensure-horp
+ensure-moose64:
+	@if [ ! -e ../horse_modules ]; then mkdir ../horse_modules; fi
+	@if [ ! -e ../horse_modules/m64.horse64.org ]; then git clone https://codeberg.org/Horse64/m64.horse64.org ../horse_modules/m64.horse64.org; fi
 ensure-hvm:
 	@if [ ! -e ../horse_modules ]; then mkdir ../horse_modules; fi
 	@if [ ! -e ../horse_modules/hvm.horse64.org ]; then git clone https://codeberg.org/Horse64/hvm.horse64.org ../horse_modules/hvm.horse64.org; fi

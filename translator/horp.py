@@ -80,12 +80,14 @@ def run_horp(args):
             continue
         break
     if not check_if_pkg_local_linked("horp.horse64.org") or \
-            not check_if_pkg_local_linked("hvm.horse64.org"):
+            not check_if_pkg_local_linked("hvm.horse64.org") or \
+            not check_if_pkg_local_linked("m64.horse64.org"):
         if not symlink_existing:
             print("horp.py: warning: Found neighboring horp install "
                 "at ../horp.horse64.org/ and/or neighboring hvm install "
-                "at ../hvm.horse64.org, but they're not both "
-                "present in horse_modules folder. Use --force-link "
+                "at ../hvm.horse64.org, and/or neighboring moose64 stdlib "
+                "at ../m64.horse64.org but they're not linked into "
+                "the horse_modules folder. Use --force-link "
                 "to change ./horse_modules/ to "
                 "link to these local installs.", file=sys.stderr,
                 flush=True)
@@ -96,6 +98,9 @@ def run_horp(args):
             if os.path.exists(os.path.join(my_dir, "..", "..",
                     "hvm.horse64.org")):
                 link_local_pkg("hvm.horse64.org")
+            if os.path.exists(os.path.join(my_dir, "..", "..",
+                    "m64.horse64.org")):
+                link_local_pkg("m64.horse64.org")
     translator_opt_str = ""
     if keep_files:
         translator_opt_str += " --keep-files"
