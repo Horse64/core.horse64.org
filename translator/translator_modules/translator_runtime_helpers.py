@@ -2590,8 +2590,8 @@ class _NetServeHTTPServer:
                             new_headers.append(old_header)
                         if not found:
                             new_headers.append([
-                                left_part + b"",
-                                right_part + b""])
+                                leftpart + b"",
+                                rightpart + b""])
                         headers = new_headers
                     while True:
                         end_header_line = findlb(request)
