@@ -2737,7 +2737,7 @@ class _NetServeHTTPServer:
                                     "utf-8", "replace"
                                 ) +\
                             b"\n\n")
-                        if type(reques[4][1]) == bytes:
+                        if type(request[4][1]) == bytes:
                             header_part += request[4][1]
                         elif type(request[4][1]) == str:
                             header_part += request[4][1].encode(
