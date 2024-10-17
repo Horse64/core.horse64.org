@@ -2606,11 +2606,11 @@ class _NetServeHTTPServer:
                             continue
                         leftpart = header_line[:colonpos].strip()
                         rightpart = header_line[colonpos + 1:]
-                        if (rightpart.startswith(" ") or
-                                rightpart.startswith("\t")):
+                        if (rightpart.startswith(b" ") or
+                                rightpart.startswith(b"\t")):
                             rightpart = rightpart[1:]
-                        while (rightpart.endswith("\n") or
-                                rightpart.endswith("\r")):
+                        while (rightpart.endswith(b"\n") or
+                                rightpart.endswith(b"\r")):
                             rightpart = rightpart[:-1]
                         set_header(leftpart, rightpart)
                     set_header(b"Content-Length",
