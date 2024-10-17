@@ -2601,6 +2601,7 @@ class _NetServeHTTPServer:
                             break
                         header_line = request[:end_header_line]
                         request = request[end_header_line:]
+                        request = striplb(request)
                         colonpos = header_line.find(b":")
                         if colonpos <= 0:
                             continue
