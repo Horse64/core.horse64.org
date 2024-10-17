@@ -2348,8 +2348,15 @@ class _NetServeHTTPServer:
         finally:
             self._handle_mutex.release()
 
-    def add_endpoint(self, callback, map_to="/", methods=None):
+    def add_endpoint(self, callback, map_to="/", add_methods=None,
+            methods=None):
         allowed_mappings = ["get", "head"]
+        if add_methods != None:
+            if methods != None:
+                raise ValueError("Can't specify add_methods "
+                    "and methods options at the same time.")
+            methods = ["get", "head"] + list(add_methods)
+            add_methods = None
         if methods != None:
             for m in methods:
                 m = m.lower()
