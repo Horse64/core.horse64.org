@@ -2200,18 +2200,24 @@ class _NetServeHTTPRequestCtx:
     def __init__(self):
         self.reply_type = _NET_SERVE_HREPLY_NONE
         self.reply_payload = None
+        self.method = None
+        self.content_type = None
 
-    def reply_content(self, reply):
+    def reply_content(self, reply, content_type=None):
         self.reply_type = _NET_SERVE_HREPLY_CONTENT
         self.reply_payload = reply
+        if content_type != None:
+            self.content_type = content_type
 
     def reply_request(self, reply):
         self.reply_type = _NET_SERVE_HREPLY_REQUEST
         self.reply_payload = reply
 
-    def reply_file(self, reply):
+    def reply_file(self, reply, content_type=None):
         self.reply_type = _NET_SERVE_HREPLY_FILE
         self.reply_payload = reply
+        if content_type != None:
+            self.content_type = content_type
 
 def _is_later_func(f):
     import inspect
@@ -2248,7 +2254,7 @@ class _NetServeHTTPServer:
                 os.path.abspath(
                 directory))
             self.endpoint_mapping = [(
-                "disk", map_to, directory
+                "disk", map_to, directory, ["get", "head"]
             )] + self.endpoint_mapping
         finally:
             self._handle_mutex.release()
@@ -2336,12 +2342,18 @@ class _NetServeHTTPServer:
         finally:
             self._handle_mutex.release()
 
-    def add_endpoint(self, callback, map_to="/"):
+    def add_endpoint(self, callback, map_to="/", methods=None):
+        allowed_mappings = ["get", "head"]
+        if methods != None:
+            for m in methods:
+                m = m.lower()
+                if not m in allowed_mappings:
+                    allowed_mappings.add(m)
         self._handle_mutex.acquire()
         try:
             map_to = self._clean_map_to(map_to)
             self.endpoint_mapping = [(
-                "func", map_to, callback
+                "func", map_to, callback, allowed_mappings
             )] + self.endpoint_mapping
         finally:
             self._handle_mutex.release()
@@ -2368,13 +2380,14 @@ class _NetServeHTTPServer:
             if ctx.reply_type == None:
                 self._handle_mutex.acquire()
                 try:
-                    req[4] = (0, None)
+                    req[4] = (0, None, None)
                 finally:
                     self._handle_mutex.release()
                 return
             self._handle_mutex.acquire()
             try:
-                req[4] = (ctx.reply_type, ctx.reply_payload)
+                req[4] = (ctx.reply_type, ctx.reply_payload,
+                    ctx.content_type)
             finally:
                 self._handle_mutex.release()
         def do_run(error, rval):
@@ -2463,10 +2476,64 @@ class _NetServeHTTPServer:
                     return (None, None, (), options)
 
                 def do_HEAD(self):
-                    self.send_h64_response(True)
+                    self.send_h64_response("head", True)
+
+                def do_POST(self):
+                    conlen = None
+                    conbytes = None
+                    for key in self.headers:
+                        if key.lower() != "content-length":
+                            continue
+                        try:
+                            conlen = int(self.headers['Content-Length'])
+                        except (TypeError, ValueError):
+                            conlen = None
+                            break
+                        if conlen < 0 or conlen > 1024 * 1024 * 10:
+                            conlen = None
+                            break
+                        if conlen == 0:
+                            conbytes = b""
+                            break
+                        try:
+                            conbytes = self.rfile.read(conlen)
+                        except OSError:
+                            conlen = None
+                            break
+                        break
+                    if (conlen == None or conbytes == None or
+                            len(conbytes) != conlen):
+                        self.send_error(400, "Invalid form data.")
+                        return
+                    itemlist = []
+                    offset = 0
+                    while True:
+                        next_sep = conbytes.find(b"&", offset)
+                        if next_sep < 0:
+                            itemlist.append(conbytes[offset:])
+                            break
+                        if len(itemlist) >= 99:
+                            self.send_error(400, "Invalid form data.")
+                            return
+                        itemlist.append(conbytes[offset:next_sep])
+                        offset = next_sep + 1
+                    form_options = dict()
+                    for item in itemlist:
+                        if not b"=" in item:
+                            continue
+                        key = urllib.parse.unquote(
+                            item.partition(b"=")[0])
+                        value = urllib.parse.unquote(
+                            item.partition(b"=")[2])
+                        if (key == None or key.strip() == b"" or
+                                value == None):
+                            continue
+                        form_options[key] = value
+                    self.send_h64_response("post", False,
+                        form_options=form_options)
 
                 def do_GET(self):
-                    self.send_h64_response(False)
+                    self.send_h64_response("get", False)
 
                 def respond_with_h64_request(self, request,
                         strip_body, append_from_path=None,
@@ -2538,7 +2605,7 @@ class _NetServeHTTPServer:
                         if colonpos <= 0:
                             continue
                         leftpart = header_line[:colonpos]
-                        rightpart = header_ilne[colonpos:]
+                        rightpart = header_line[colonpos:]
                         set_header(left_part, right_part)
                     set_header(b"Content-Length",
                         str(len(request) + append_len).encode(
@@ -2575,7 +2642,8 @@ class _NetServeHTTPServer:
                     if text is None:
                         text = title
                     self.respond_with_h64_request(
-                        "HTTP/1.1 404 Not Found\n\n"
+                        "HTTP/1.1 404 Not Found\n"
+                        "Content-Type: text/html\n\n"
                         "<!DOCTYPE HTML>" +
                         "<html><head><title>" +
                         html.escape(text) + "</title><style>" +
@@ -2591,23 +2659,34 @@ class _NetServeHTTPServer:
                         "</html>", False,
                         is_internal_error=(code == 500))
 
-                def send_h64_response(self, strip_body):
+                def send_h64_response(self, request_type, strip_body,
+                        form_options=None):
                     (fpath, mapping, args, options) =\
                         self.translate_path_ext(
                             self.path, only_return_disk=False)
                     if mapping != None and mapping[0] == "disk":
-                        if strip_body:
+                        if strip_body and request_type.lower() == "head":
                             super().do_HEAD()
                             return
-                        super().do_GET()
+                        if request_type.lower() == "get":
+                            super().do_GET()
+                        else:
+                            self.send_error(405, "Method not allowed.")
                         return
                     if mapping == None:
-                        self.send_error(404, "File not found")
+                        self.send_error(404, "File not found.")
+                        return
+                    if request_type.lower() not in mapping[3]:
+                        self.send_error(405, "method not allowed.")
                         return
                     assert(mapping[0] == "func")
                     ctx = _NetServeHTTPRequestCtx()
                     ctx.path = fpath
-                    ctx.options = options
+                    ctx.path_options = options
+                    ctx.form_options = None
+                    if request_type.lower() == "post":
+                        ctx.form_options = dict(form_options)
+                    ctx.method = request_type.lower()
                     request = ["func", mapping[2], ctx, args, None]
                     self._handle_mutex.acquire()
                     try:
@@ -2641,9 +2720,24 @@ class _NetServeHTTPServer:
                                 "dynamic file.")
                             return
                     elif request[4][0] == _NET_SERVE_HREPLY_CONTENT:
+                        content_type = "application/octet-stream"
+                        if request[4][2] != None:
+                            content_type = str(requests[4][2])
+                        header_part = (b"HTTP/1.1 200 OK\n" +\
+                            b"Content-Type: " +\
+                                str(content_type).encode(
+                                    "utf-8", "replace"
+                                ) +\
+                            b"\n\n")
+                        if type(reques[4][1]) == bytes:
+                            header_part += request[4][1]
+                        elif type(request[4][1]) == str:
+                            header_part += request[4][1].encode(
+                                "utf-8", "replace")
+                        else:
+                            raise RuntimeError("Unknown content type")
                         self.respond_with_h64_request(
-                            "HTTP/1.1 200 OK\n\n" +
-                            request[4][1], strip_body)
+                            header_part, strip_body)
                     elif request[4][0] == _NET_SERVE_HREPLY_REQUEST:
                         self.respond_with_h64_request(
                             request[4][1], strip_body)
