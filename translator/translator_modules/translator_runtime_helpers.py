@@ -2586,7 +2586,7 @@ class _NetServeHTTPServer:
                                     leftpart + b"",
                                     rightpart + b""])
                                 found = True
-                                break
+                                continue
                             new_headers.append(old_header)
                         if not found:
                             new_headers.append([
@@ -2604,9 +2604,15 @@ class _NetServeHTTPServer:
                         colonpos = header_line.find(b":")
                         if colonpos <= 0:
                             continue
-                        leftpart = header_line[:colonpos]
-                        rightpart = header_line[colonpos:]
-                        set_header(left_part, right_part)
+                        leftpart = header_line[:colonpos].strip()
+                        rightpart = header_line[colonpos + 1:]
+                        if (rightpart.startswith(" ") or
+                                rightpart.startswith("\t")):
+                            rightpart = rightpart[1:]
+                        while (rightpart.endswith("\n") or
+                                rightpart.endswith("\r")):
+                            rightpart = rightpart[:-1]
+                        set_header(leftpart, rightpart)
                     set_header(b"Content-Length",
                         str(len(request) + append_len).encode(
                             "utf-8", "replace"))
@@ -2614,8 +2620,9 @@ class _NetServeHTTPServer:
                     for header in headers:
                         headers_str += (header[0] + b": " +
                             header[1] + b"\r\n")
-                    self.wfile.write(response_line + b"\r\n" +
+                    head_part = (response_line + b"\r\n" +
                         headers_str + b"\r\n")
+                    self.wfile.write(head_part)
                     if not strip_body:
                         try:
                             self.wfile.write(request)
