@@ -2535,9 +2535,9 @@ class _NetServeHTTPServer:
                     for item in itemlist:
                         if not b"=" in item:
                             continue
-                        key = urllib.parse.unquote(
+                        key = urllib.parse.unquote_plus(
                             item.partition(b"=")[0])
-                        value = urllib.parse.unquote(
+                        value = urllib.parse.unquote_plus(
                             item.partition(b"=")[2])
                         if (key == None or key.strip() == b"" or
                                 value == None):
