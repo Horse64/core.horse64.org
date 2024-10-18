@@ -2358,10 +2358,11 @@ class _NetServeHTTPServer:
             methods = ["get", "head"] + list(add_methods)
             add_methods = None
         if methods != None:
+            allowed_mappings = []
             for m in methods:
                 m = m.lower()
                 if not m in allowed_mappings:
-                    allowed_mappings.add(m)
+                    allowed_mappings.append(m)
         self._handle_mutex.acquire()
         try:
             map_to = self._clean_map_to(map_to)
