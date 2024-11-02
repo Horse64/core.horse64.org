@@ -677,6 +677,16 @@ func CExportTracker.generate_c_types_and_header_info(
                 "__" + type_mod_path.join("__") + "__" +
                 entry.label)
             t_struct += "struct " + struct_lbl + " {\n"
+
+            func handle_struct_attribute(name_path) {
+                return later
+            }
+            func handle_struct_attributes {
+                return later
+            }
+            handle_struct_attributes()
+            later:
+
             t_struct += "};\n"
             t_struct += "typedef struct " + struct_lbl +
                 " " + struct_lbl + ";\n"
