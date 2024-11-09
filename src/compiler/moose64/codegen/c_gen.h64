@@ -691,7 +691,7 @@ func CExportTracker.generate_c_types_and_header_info(
                     var nested_item_parent = none
                     if st_id in anscope.unnested_ids_set {
                         while inside_nested_item != none {
-                            t_struct += "    }\n"
+                            t_struct += "    };\n"
                             inside_nested_item =
                                 inside_nested_item.parent
                             continue
@@ -728,6 +728,9 @@ func CExportTracker.generate_c_types_and_header_info(
                                 if container_nested_item == none {
                                     for s in anscope.
                                             nested_structs_unions_list {
+                                        if s == searched_nested_item {
+                                            return s
+                                        }
                                         if s.has_nested_struct_or_union(
                                                 searched_nested_item) {
                                             return s
@@ -737,6 +740,9 @@ func CExportTracker.generate_c_types_and_header_info(
                                 }
                                 for s in container_nested_item.
                                         nested_structs_unions_list {
+                                    if s == searched_nested_item {
+                                        return s
+                                    }
                                     if s.has_nested_struct_or_union(
                                             searched_nested_item) {
                                         return s
@@ -777,10 +783,31 @@ func CExportTracker.generate_c_types_and_header_info(
                             sym.kind == st_scope.SINFO_FUNCATTR {
                         continue
                     }
-                    #print("OOPS ATTR: " + name + " " +
-                    #    "nested_item_parent=" +
-                    #        nested_item_parent.as_str() + " "
-                    #    "sym=" + sym.as_str())
+                    if sym.typeref_expr == none {
+                        throw new RuntimeError(
+                            "Internal error: "
+                            "Encountered struct vardef attr "
+                            "with no type, which shouldn't "
+                            "be possible in Moose64 code gen."
+                        )
+                    }
+                    t_struct += "    " +
+                        sym.typeref_expr.as_c_code(
+                            global_name_assign_callback=
+                                get_global_symbol_c_name,
+                            global_register_m64_array_callback=
+                                project_file.project.c_export_tracker.
+                                    register_m64_array_type,
+                            project=project_file.project,
+                            project_file=project_file,
+                            is_moose64=is_moose64
+                        ) + " " + name + ";\n"
+                }
+                while inside_nested_item != none {
+                    t_struct += "    };\n"
+                    inside_nested_item =
+                        inside_nested_item.parent
+                    continue
                 }
                 return later
             }
