@@ -379,6 +379,8 @@ type TypeNamesScope base AttrNamesScope {
     var name_to_symbol_map = {->}
     var id_to_symbol_map = {->}
     var id_to_origin_gscope_map = {->}
+    var nested_structs_unions_list = []
+    var unnested_ids_set = {}
 
     var base_global_id = none
     var base_cext_id = none
@@ -391,6 +393,34 @@ func TypeNamesScope.init {
     self.is_enum = no
     self.is_struct = no
     self.is_type = yes
+}
+
+func find_nested_structs_unions_parent(
+        anscope, storage_id
+        ) {
+    if anscope.unnested_ids_set.has(storage_id) {
+        return none
+    }
+    func check_for_item_in(nest_info) {
+        if nest_info.id_to_symbol_map.has(
+                storage_id) {
+            return nest_info
+        }
+        for child in nest_info.nested_structs_unions_list {
+            var inner_nest_info = check_for_item_in(child)
+            if inner_nest_info != none {
+                return inner_nest_info
+            }
+        }
+        return none
+    }
+    for child in anscope.nested_structs_unions_list {
+        var inner_nest_info = check_for_item_in(child)
+        if inner_nest_info != none {
+            return inner_nest_info
+        }
+    }
+    return none
 }
 
 func TypeNamesScope.get_item_if_present(
@@ -425,6 +455,32 @@ func TypeNamesScope.get_item_if_present(
     return none
 }
 
+type NestedStructOrUnionInfo {
+    var is_union = no
+    var is_anonymous = no
+    var label = none
+    var parent = none
+
+    var name_to_symbol_map = {->}
+    var id_to_symbol_map = {->}
+    var nested_structs_unions_list = []
+}
+
+func NestedStructOrUnionInfo.get_name_path {
+    var npath = ""
+    var look_at = self
+    while look_at != none {
+        if not look_at.is_anonymous {
+            if npath != "" {
+                npath = "." + npath
+            }
+            npath = look_at.label + npath
+        }
+        look_at = look_at.parent
+    }
+    return npath
+}
+
 type StructNamesScope base AttrNamesScope {
     var is_error = no
     var display_name = none
@@ -432,6 +488,10 @@ type StructNamesScope base AttrNamesScope {
     var name_to_symbol_map = {->}
     var id_to_symbol_map = {->}
     var id_to_origin_gscope_map = {->}
+    var nested_structs_unions_list = []
+    var unnested_ids_set = {}
+
+    var struct_inner_ids_in_order = []
 
     var storage_id = none
 

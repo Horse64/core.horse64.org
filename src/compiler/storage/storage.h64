@@ -649,7 +649,8 @@ func project.Project.compute_all_scopes(
                             }
                         }
                         func register_var_at_root(
-                                vardef_stmt, var_labels
+                                vardef_stmt, var_labels,
+                                register_as_unnested=yes
                                 ) {
                             assert(vardef_stmt.symbol_info == none or
                                 vardef_stmt.symbol_info.len == 0)
@@ -689,6 +690,18 @@ func project.Project.compute_all_scopes(
                                     }
                                     node.symbol_info.add(symbol_info)
                                     new_symbol_info.add(symbol_info)
+                                    if register_as_unnested {
+                                        anscope.unnested_ids_set.add(
+                                            symbol_info.storage_id
+                                        )
+                                    }
+                                    if not symbol_info.storage_id in
+                                            anscope.
+                                            struct_inner_ids_in_order {
+                                        anscope.
+                                            struct_inner_ids_in_order.add(
+                                                symbol_info.storage_id)
+                                    }
                                     continue
                                 }
                                 # If we arrive here, this name is taken.
@@ -730,29 +743,59 @@ func project.Project.compute_all_scopes(
                             assert(stmt.symbol_info == none)
                             stmt.symbol_info =
                                 register_var_at_root(
-                                    stmt, stmt.var_labels)
+                                    stmt, stmt.var_labels,
+                                    register_as_unnested=yes)
                             continue
                         } elseif stmt.kind == ast.N_STMT_UNION or
                                 stmt.kind == ast.N_STMT_STRUCT {
                             func handle_nested_struct_or_union(
-                                    stmt, name_path=[]
+                                    stmt, name_path=[],
+                                    parent_struct_or_union=none,
                                     ) {
                                 var name_path = name_path.copy()
                                 if stmt.kind == ast.N_STMT_STRUCT and
                                         stmt.label != none {
                                     name_path.add(stmt.label)
                                 }
+
+                                var struct_or_union_nest_info =
+                                    new st_scope.NestedStructOrUnionInfo()
+                                struct_or_union_nest_info.is_anonymous =
+                                    (stmt.kind == ast.N_STMT_UNION or
+                                     stmt.label == none)
+                                if not struct_or_union_nest_info.
+                                        is_anonymous {
+                                    struct_or_union_nest_info.label =
+                                        stmt.label
+                                }
+                                struct_or_union_nest_info.is_union =
+                                    (stmt.kind == ast.N_STMT_UNION)
+                                if parent_struct_or_union != none {
+                                    parent_struct_or_union.
+                                        nested_structs_unions_list.add(
+                                            struct_or_union_nest_info)
+                                    struct_or_union_nest_info.parent =
+                                        parent_struct_or_union
+                                } else {
+                                    anscope.
+                                        nested_structs_unions_list.add(
+                                            struct_or_union_nest_info)
+                                }
+
                                 for st in stmt.subblocks[1] {
                                     if st.kind == ast.N_STMT_UNION or
                                             st.kind == ast.N_STMT_STRUCT {
                                         handle_nested_struct_or_union(
-                                            st, name_path=name_path
+                                            st, name_path=name_path,
+                                            parent_struct_or_union=
+                                                struct_or_union_nest_info,
                                         )
                                         continue
                                     } elseif st.kind != ast.N_STMT_VAR {
                                         emit_invalid_child_error(st, stmt)
                                         continue
                                     }
+
                                     assert(st.kind == ast.N_STMT_VAR)
                                     var var_paths = []
                                     for lbl in st.var_labels {
@@ -764,10 +807,26 @@ func project.Project.compute_all_scopes(
                                     }
                                     assert(st.symbol_info == none)
                                     var root_sinfo =
-                                        register_var_at_root(st, add_names)
+                                        register_var_at_root(
+                                            st, add_names,
+                                            register_as_unnested=no)
                                     st.symbol_info = []
                                     assert(typename(root_sinfo) == "list")
                                     st.symbol_info = root_sinfo
+                                    var idx = 0
+                                    for lbl in st.var_labels {
+                                        idx += 1
+                                        assert(idx >= 1 and
+                                            idx <= root_sinfo.len)
+                                        struct_or_union_nest_info.
+                                            name_to_symbol_map[
+                                                lbl
+                                            ] = root_sinfo[idx]
+                                        struct_or_union_nest_info.
+                                            id_to_symbol_map[
+                                                root_sinfo[idx].storage_id
+                                            ] = root_sinfo[idx]
+                                    }
                                 }
                             }
                             handle_nested_struct_or_union(stmt)

@@ -679,9 +679,47 @@ func CExportTracker.generate_c_types_and_header_info(
             t_struct += "struct " + struct_lbl + " {\n"
 
             func handle_struct_attribute(name_path) {
+                
+                    
                 return later
             }
             func handle_struct_attributes {
+                var anscope = entry.attr_names_scope
+                assert(anscope != none)
+                assert(anscope.is_struct)
+
+                for st_id in anscope.struct_inner_ids_in_order {
+                    var sym = none
+                    var name = none
+                    var nested_item_parent = none
+                    if st_id in anscope.unnested_ids_set {
+                        var sym = anscope.id_to_symbol_map[st_id]
+                        name = sym.name
+                    } else {
+                        var nested_item_parent = st_scope.
+                            find_nested_structs_unions_parent(
+                                anscope, st_id)
+                        if nested_item_parent == none {
+                            throw new RuntimeError(
+                                "Internal error: "
+                                "Failed to find nested struct or union "
+                                "parent for attribute that was "
+                                "supposedly nested inside one."
+                            )
+                        }
+                        var sym = nested_item_parent.
+                            id_to_symbol_map[st_id]
+                        name = sym.name
+                    }
+                    if sym.kind == st_scope.SINFO_FUNCATTR or
+                            sym.kind == st_scope.SINFO_FUNCATTR {
+                        continue
+                    }
+                    #print("OOPS ATTR: " + name + " " +
+                    #    "nested_item_parent=" +
+                    #        nested_item_parent.as_str() + " "
+                    #    "sym=" + sym.as_str())
+                }
                 return later
             }
             handle_struct_attributes()
