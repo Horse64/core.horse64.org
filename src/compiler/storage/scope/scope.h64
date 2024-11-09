@@ -481,6 +481,19 @@ func NestedStructOrUnionInfo.get_name_path {
     return npath
 }
 
+func NestedStructOrUnionInfo.has_nested_struct_or_union(
+        nested_info) {
+    if self.nested_structs_unions_list.has(nested_info) {
+        return yes
+    }
+    for child in self.nested_structs_unions_list {
+        if child.has_nested_struct_or_union(nested_info) {
+            return yes
+        }
+    }
+    return no
+}
+
 type StructNamesScope base AttrNamesScope {
     var is_error = no
     var display_name = none

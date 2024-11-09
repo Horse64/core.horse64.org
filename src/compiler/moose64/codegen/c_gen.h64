@@ -678,21 +678,24 @@ func CExportTracker.generate_c_types_and_header_info(
                 entry.label)
             t_struct += "struct " + struct_lbl + " {\n"
 
-            func handle_struct_attribute(name_path) {
-                
-                    
-                return later
-            }
             func handle_struct_attributes {
                 var anscope = entry.attr_names_scope
                 assert(anscope != none)
                 assert(anscope.is_struct)
 
-                for st_id in anscope.struct_inner_ids_in_order {
+                var inside_nested_item = none
+                for st_id in anscope.
+                        struct_inner_ids_in_order {
                     var sym = none
                     var name = none
                     var nested_item_parent = none
                     if st_id in anscope.unnested_ids_set {
+                        while inside_nested_item != none {
+                            t_struct += "    }\n"
+                            inside_nested_item =
+                                inside_nested_item.parent
+                            continue
+                        }
                         var sym = anscope.id_to_symbol_map[st_id]
                         name = sym.name
                     } else {
@@ -702,10 +705,69 @@ func CExportTracker.generate_c_types_and_header_info(
                         if nested_item_parent == none {
                             throw new RuntimeError(
                                 "Internal error: "
-                                "Failed to find nested struct or union "
-                                "parent for attribute that was "
-                                "supposedly nested inside one."
+                                "Failed to find nested struct or "
+                                "union parent for attribute that "
+                                "was supposedly nested inside one."
                             )
+                        }
+                        if inside_nested_item == none or
+                                inside_nested_item !=
+                                nested_item_parent {
+                            while inside_nested_item != none and
+                                    not inside_nested_item.
+                                        has_nested_struct_or_union(
+                                            nested_item_parent) {
+                                t_struct += "    };\n"
+                                inside_nested_item =
+                                    inside_nested_item.parent
+                                continue
+                            }
+                            func find_nested_item_direct_parent(
+                                    container_nested_item,
+                                    searched_nested_item) {
+                                if container_nested_item == none {
+                                    for s in anscope.
+                                            nested_structs_unions_list {
+                                        if s.has_nested_struct_or_union(
+                                                searched_nested_item) {
+                                            return s
+                                        }
+                                    }
+                                    return none
+                                }
+                                for s in container_nested_item.
+                                        nested_structs_unions_list {
+                                    if s.has_nested_struct_or_union(
+                                            searched_nested_item) {
+                                        return s
+                                    }
+                                }
+                                return none
+                            }
+                            while inside_nested_item !=
+                                    nested_item_parent {
+                                var c = find_nested_item_direct_parent(
+                                    inside_nested_item,
+                                    nested_item_parent
+                                )
+                                if c == none {
+                                    throw RuntimeError(
+                                        "Internal error: "
+                                        "Failed to find what nested "
+                                        "struct or union to descend "
+                                        "into.")
+                                }
+                                if c.is_union {
+                                    t_struct += "    union "
+                                } else {
+                                    t_struct += "    struct "
+                                }
+                                if not c.is_anonymous {
+                                    t_struct += c.label + " "
+                                }
+                                t_struct += "{\n"
+                                inside_nested_item = c
+                            }
                         }
                         var sym = nested_item_parent.
                             id_to_symbol_map[st_id]
