@@ -465,6 +465,7 @@ type CExportTracker {
 
     var known_array_types_map = {->}
     var func_scope_to_self_name_map = {->}
+    var func_attr_to_func_sig_map = {->}
 }
 
 extend type compiler.project.Project {
@@ -817,6 +818,14 @@ func CExportTracker.generate_c_types_and_header_info(
             t_struct += "};\n"
             t_struct += "typedef struct " + struct_lbl +
                 " " + struct_lbl + ";\n"
+            for map_key in self.func_attr_to_func_sig_map {
+                var left_half_str = map_key.sub(1, map_key.find("_") - 1)
+                var left_half_num = left_half_str.to_num()
+                if left_half_num != entry.symbol_info.storage_id {
+                    continue
+                }
+                t_struct += self.func_attr_to_func_sig_map[map_key] + "\n"
+            }
             t_struct += "#endif  // " + header_guard_name + "\n"
             other_headers_map[c_header_uri] = t_struct
 
@@ -1760,7 +1769,6 @@ func node_to_c_string(project_file, node, parents,
                 )
             }
         } else {
-            print("FUNC ATTR SIG: " + t_signature.as_str())
             var anscope = project_file.
                 make_attr_names_scope_from_funcattr(
                 node, msgs=msgs, is_moose64=is_moose64,
@@ -1772,10 +1780,12 @@ func node_to_c_string(project_file, node, parents,
                     "basic type for func attr."
                 )
             }
-            # FIXME: emit func attr signatures into type skeleton file
-            #print("FUNC ATTR SIG: " + t_signature.as_str())
-            #print("TYPE STORAGE ID: " +
-                anscope.storage_id.as_str())
+            assert(node.symbol_info.kind == st_scope.SINFO_FUNCATTR)
+            project_file.project.c_export_tracker.
+                func_attr_to_func_sig_map[
+                    anscope.storage_id.as_str() + "_" +
+                    node.symbol_info.storage_id.as_str()
+                ] = t_signature
         }
 
         var t = get_c_func_signature_or_body(
