@@ -819,12 +819,15 @@ func CExportTracker.generate_c_types_and_header_info(
             t_struct += "typedef struct " + struct_lbl +
                 " " + struct_lbl + ";\n"
             for map_key in self.func_attr_to_func_sig_map {
-                var left_half_str = map_key.sub(1, map_key.find("_") - 1)
+                var left_half_str = map_key.sub(
+                    1, map_key.find("_") - 1
+                )
                 var left_half_num = left_half_str.to_num()
                 if left_half_num != entry.symbol_info.storage_id {
                     continue
                 }
-                t_struct += self.func_attr_to_func_sig_map[map_key] + "\n"
+                t_struct += self.func_attr_to_func_sig_map[
+                    map_key] + ";\n"
             }
             t_struct += "#endif  // " + header_guard_name + "\n"
             other_headers_map[c_header_uri] = t_struct
