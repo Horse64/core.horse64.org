@@ -1537,11 +1537,33 @@ func node_to_c_string(project_file, node, parents,
                 )
                 assert(sinfo != none)
                 var effective_name = sinfo.name
-                if sinfo.def_file != none {
-                    effective_name =
-                        get_global_symbol_c_name(
-                            sinfo.name,
-                            project_file=sinfo.def_file)
+                if node.ref.kind == st_ref.ST_GLOBALATTR {
+                    assert(node.ref.id.len >= 2)
+                    var ref_id = node.ref.id
+                    var typesinfo = st_ref.ref_to_symbol_info(
+                        new st_ref.StorageRef(
+                            st_ref.ST_GLOBAL, ref_id[1]
+                        ),
+                        project=project,
+                        is_moose64=is_moose64
+                    )
+                    assert(typesinfo)
+                    effective_name = (
+                        typesinfo.name + "__" + effective_name
+                    )
+                    if typesinfo.def_file != none {
+                        effective_name =
+                            get_global_symbol_c_name(
+                                effective_name,
+                                project_file=sinfo.def_file)
+                    }
+                } else {
+                    if sinfo.def_file != none {
+                        effective_name =
+                            get_global_symbol_c_name(
+                                effective_name,
+                                project_file=sinfo.def_file)
+                    }
                 }
                 assert(effective_name != none)
                 return effective_name
