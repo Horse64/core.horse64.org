@@ -1665,16 +1665,26 @@ func node_to_c_string(project_file, node, parents,
         if node.scope == none {
             is_global = yes
             # This must be a global variable.
-            for lbl in node.var_labels {
-                t += indent_str + c_var_type + " " +
-                    get_global_symbol_c_name(
-                        lbl, project_file=project_file) + ";\n"
+        }
+        for lbl in node.var_labels {
+            var c_name = if not is_global (lbl)
+                else (get_global_symbol_c_name(
+                    lbl, project_file=project_file))
+            var c_var_type = texpr.as_c_code(
+                global_name_assign_callback=
+                    get_global_symbol_c_name,
+                global_register_m64_array_callback=
+                    project_file.project.c_export_tracker.
+                        register_m64_array_type,
+                c_name_to_insert_if_func_ptr=c_name,
+                project=project, project_file=project_file,
+                is_moose64=is_moose64)
+            
+            t += indent_str + c_var_type
+            if not texpr.is_func_ref {
+                t += " " + c_name
             }
-        } else {
-            for lbl in node.var_labels {
-                t += indent_str + c_var_type + " " +
-                    lbl + ";\n"
-            }
+            t += ";\n"
         }
         func handle_assigned_values_if_needed {
             if node.is_empty {

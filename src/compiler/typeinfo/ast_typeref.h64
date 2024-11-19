@@ -279,6 +279,7 @@ func TypeRefFuncExpr.as_str(indent=0) {
 func TypeRefFuncExpr.as_c_code(
         indent=0, global_name_assign_callback=none,
         global_register_m64_array_callback=none,
+        c_name_to_insert_if_func_ptr=none,
         project=none, project_file=none,
         is_moose64=no
         ) {
@@ -314,8 +315,14 @@ func TypeRefFuncExpr.as_c_code(
     } else {
         t += "void"
     }
-    # FIXME: Handle global name adjustment here.
-    t += " (*" + if self.name != none (self.name) else ("") + ")"
+    t += " (*"
+    if c_name_to_insert_if_func_ptr != none {
+        t += c_name_to_insert_if_func_ptr
+    } elseif self.name != none {
+        # FIXME: Handle global name adjustment here.
+        t += self.name
+    }
+    t += ")"
 
     if t != "" {
         t += " "
@@ -641,6 +648,7 @@ func TypeRefExpr.as_code(indent=0) {
 func TypeRefExpr.as_c_code(
         indent=0, global_name_assign_callback=none,
         global_register_m64_array_callback=none,
+        c_name_to_insert_if_func_ptr=none,
         project=none, project_file=none,
         is_moose64=no
         ) {
