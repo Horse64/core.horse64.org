@@ -2493,8 +2493,8 @@ class _NetServeHTTPServer:
                     self.send_h64_response("head", True)
 
                 def do_POST(self):
-                    conlen = None
-                    conbytes = None
+                    conlen = 0
+                    conbytes = b""
                     for key in self.headers:
                         if key.lower() != "content-length":
                             continue
@@ -2509,6 +2509,7 @@ class _NetServeHTTPServer:
                         if conlen == 0:
                             conbytes = b""
                             break
+                        conbytes = None
                         try:
                             conbytes = self.rfile.read(conlen)
                         except OSError:
@@ -2535,10 +2536,12 @@ class _NetServeHTTPServer:
                     for item in itemlist:
                         if not b"=" in item:
                             continue
-                        key = urllib.parse.unquote_plus(
-                            item.partition(b"=")[0])
-                        value = urllib.parse.unquote_plus(
-                            item.partition(b"=")[2])
+                        key = urllib.parse.unquote(
+                            item.partition(b"=")[0].replace(b"+", b" ")
+                        )
+                        value = urllib.parse.unquote(
+                            item.partition(b"=")[2].replace(b"+", b" ")
+                        )
                         if (key == None or key.strip() == b"" or
                                 value == None):
                             continue
