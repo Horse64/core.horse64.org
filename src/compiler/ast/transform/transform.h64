@@ -41,7 +41,7 @@ import compiler.moose64.ast.transform as m64_ast_transform
 import compiler.msg as msg
 import compiler.project as project
 import compiler.storage.ref as st_ref
-import compiler.storage.scope as scope
+import compiler.storage.scope as st_scope
 import compiler.token as token
 import compiler.typeinfo.ast_typeref as ast_typeref
 
@@ -219,7 +219,7 @@ func reparent_stmts_into_closure(
                 assert(node.scope.func_scope == closure_func_scope)
                 return later node
             }
-            var new_inner_scope = new scope.LocalScope()
+            var new_inner_scope = new st_scope.LocalScope()
             if node.scope.parent != none {
                 if node.scope.parent == outer_inner_scope {
                     new_inner_scope.parent = outer_inner_scope
@@ -227,7 +227,7 @@ func reparent_stmts_into_closure(
                     if not replaced_inner_scopes_map.
                             has(node.scope.parent) {
                         replaced_inner_scopes_map[node.scope.parent] =
-                            new scope.LocalScope()
+                            new st_scope.LocalScope()
                         replaced_inner_scopes_map[node.scope.parent].
                             func_scope = closure_func_scope
                     }
@@ -754,6 +754,11 @@ func transform_func_overrides_and_check_func_arg_sig_match(
 
         var func_is_external = no
         var func_type_expr = none
+        var detected_called_func_ref = none
+        var detected_called_func_name = none
+        var detected_called_func_type_name = none
+        var detected_called_func_module_import_name = none
+        var could_be_override = no
         func resolve_func_type_expr_if_needed {
             if not is_moose64 {
                 # for now, don't even try for Horse64.
@@ -778,28 +783,101 @@ func transform_func_overrides_and_check_func_arg_sig_match(
 
             await func_type_expr_result
             func_is_external =
-                func_type_expr_result[1] != none and
+                func_type_expr_result.storage_ref != none and
                 {st_ref.ST_MCREF, st_ref.ST_CEXT}.has(
-                    func_type_expr_result[1].kind
+                    func_type_expr_result.storage_ref.kind
                 )
+            func_type_expr = func_type_expr_result.type_expr
+            if func_type_expr_result.storage_ref != none {
+                detected_called_func_name =
+                    st_ref.ref_to_item_name(
+                        project_file,
+                        func_type_expr_result.storage_ref
+                    )
+                if func_type_expr_result.storage_ref.kind ==
+                        st_ref.ST_GLOBALATTR {
+                    var entry = st_scope.global_id_to_item(
+                        project_file.project,
+                        func_type_expr_result.storage_ref.id[1]
+                        )
+                    assert(entry != none)
+                    var anscope = entry.attr_names_scope
+                    detected_called_func_type_name =
+                        anscope.label
+                }
+                var import_stmt = none
+                if func_type_expr_result.storage_ref.kind !=
+                        st_ref.ST_MCREF {
+                    import_stmt = st_ref.
+                        ref_to_corresponding_import_stmt_node(
+                            project_file,
+                            func_type_expr_result.storage_ref
+                        )
+                }
+                if import_stmt != none {
+                    if import_stmt.renamed_as != none {
+                        detected_called_func_module_import_name =
+                            import_stmt.renamed_as
+                    } elseif import_stmt.kind == ast.N_STMT_IMPORT {
+                        detected_called_func_module_import_name =
+                            import_stmt.module_path.join(".")
+                    }
+                }
+            }
+            if func_type_expr_result.resolved_func_is_override {
+                if detected_called_func_type_name != none and
+                        func_type_expr_result.has_self_expr {
+                    # This is a func attr, called on a self expr.
+                    assert({st_ref.ST_GLOBALATTR}.has(
+                            func_type_expr_result.storage_ref.kind
+                    ))
+                    assert(node.subexprs[1].kind == ast.N_EXPR_BINOP)
+                    var name_access = node.subexprs[1].subexprs[2]
+                    assert(name_access.kind == ast.N_EXPR_IDREF and
+                        name_access.label == called_lbl_name)
+                    name_access.ref =
+                        func_type_expr_result.storage_ref.copy()
+                    name_access.label = detected_called_func_name
+                } else {
+                    var new_idref = new ast_expr.IdRefExpr()
+                    node.subexprs[1] = new_idref
+                    new_idref.scope = node.scope
+                    new_idref.line = node.line
+                    new_idref.col = node.col
+                    new_idref.ref = func_type_expr_result.storage_ref.copy()
+                    new_idref.label = detected_called_func_name
+                    if detected_called_func_module_import_name != none and
+                            detected_called_func_module_import_name != "" {
+                        new_idref.type_path =
+                            detected_called_func_module_import_name.split(".")
+                    }
+                    if detected_called_func_type_name != none {
+                        if new_idref.type_path == none {
+                            new_idref.type_path = []
+                        }
+                        new_idref.type_path.add(
+                            detected_called_func_type_name
+                        )
+                    }
+                }
+            }
+
             if debug {
                 print(dbg_prefix + " " +
                     "resolve_func_type_expr_if_needed(): "
                     "Result: func_is_external=" +
                         func_is_external.as_str() + " "
                     "func_type_expr_result=" +
-                    func_type_expr_result.as_str())
-            }
-            func_type_expr = func_type_expr_result[2]
-            if func_type_expr_result[1] != none {
-                # Since this may have been an override,
-                # the label may have been changed:
-                if node.subexprs[1].kind == ast.N_EXPR_IDREF {
-                    called_lbl_name = node.subexprs[1].label
-                } else {
-                    called_lbl_name = node.subexprs[1].
-                        subexprs[2].label
-                }
+                        func_type_expr_result.as_str() + " "
+                    "called_node=" + called_node.as_str() + " "
+                    "called_ref=" + called_ref.as_str() + " "
+                    "detected_called_func_module_import_name=" +
+                        detected_called_func_module_import_name.as_str() + " "
+                    "detected_called_func_type_name=" +
+                        detected_called_func_type_name.as_str() + " "
+                    "detected_called_func_name=" +
+                        detected_called_func_name.as_str()
+                )
             }
         }
         resolve_func_type_expr_if_needed()

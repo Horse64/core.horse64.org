@@ -961,9 +961,19 @@ func TypeRefExpr.as_str {
     return t
 }
 
-## Based on a node which can be any inline expression,
+type TypeRefAndExprResult {
+    var storage_ref
+    var type_expr
+    var resolved_func_is_override = no
+    var has_self_expr = no
+}
+
+## Based on a node that is some identifier ref AST node,
 ## and a maybe already known reference for its origin,
-## this function
+## this returns the AST typeref expression and the
+## storage reference for the type of the referenced value.
+## For a referenced function as part of a call, it can
+## also figure out if it should be redirected to an override.
 func resolve_st_ref_to_type_ref_and_expr(
         project_file, value_ref,
         node=none, node_parents=none,
@@ -1064,23 +1074,15 @@ func resolve_st_ref_to_type_ref_and_expr(
         # our info from what we obtained above:
         var result_ref = result.func_ref
         var result_type_expr = result.func_var_type_expr
-        override_resolution_result =
-            [result_ref, result_type_expr]
+        override_resolution_result = new TypeRefAndExprResult()
+        override_resolution_result.storage_ref = result_ref
+        override_resolution_result.type_expr = result_type_expr
         if result.func_was_overridden {
-            # If confirmed an actual override, rewrite call:
-            if node.kind == ast.N_EXPR_IDREF {
-                if node.label ==
-                        result.func_var_preoverridden_name {
-                    node.label =
-                        result.func_var_name
-                }
-            } else {
-                assert(node.subexprs[2].kind == ast.N_EXPR_IDREF)
-                if node.subexprs[2].label ==
-                        result.func_var_preoverridden_name {
-                    node.subexprs[2].label = result.func_var_name
-                }
-            }
+            override_resolution_result.
+                resolved_func_is_override = yes
+        }
+        if result.self_var_type_expr != none {
+            override_resolution_result.has_self_expr = yes
         }
     }
     try_resolve_override_if_needed() later:
@@ -1103,7 +1105,9 @@ func resolve_st_ref_to_type_ref_and_expr(
                 "resolve_st_ref_to_type_ref_and_expr() "
                 "result: Nothing, since value_ref is none.")
         }
-        return later [none, none]
+
+        var result = new TypeRefAndExprResult()
+        return later result
     }
     var lookup_label = none
     if node != none and has_attr(node, "label") {
@@ -1127,7 +1131,8 @@ func resolve_st_ref_to_type_ref_and_expr(
                     "result: Nothing, since local var "
                     "def node wasn't found.")
             }
-            return later [none, none]
+            var result = new TypeRefAndExprResult()
+            return later result
         }
         assert(typename(var_node) != "bool")
         if var_node.has_type_expr {
@@ -1178,7 +1183,8 @@ func resolve_st_ref_to_type_ref_and_expr(
                     "result: Nothing, since self parent func "
                     "lookup failed.")
             }
-            return later [none, none]
+            var result = new TypeRefAndExprResult()
+            return later result
         }
         var anscope = project_file.
             make_attr_names_scope_from_funcattr(
@@ -1280,9 +1286,9 @@ func resolve_st_ref_to_type_ref_and_expr(
             project_file, result_ref, node=var_node,
             is_moose64=is_moose64, debug=debug,
         )
-        if result[1] != none {
-            result_ref = result[1]
-            result_expr = result[2]
+        if result.storage_ref != none {
+            result_ref = result.storage_ref
+            result_expr = result.type_expr
         }
     }
     resolve_self_ref_if_needed()
@@ -1322,7 +1328,10 @@ func resolve_st_ref_to_type_ref_and_expr(
             "resolve_st_ref_to_type_ref_and_expr() "
             "result: " + [result_ref, result_expr].as_str())
     }
-    return [result_ref, result_expr]
+    var result = new TypeRefAndExprResult()
+    result.storage_ref = result_ref
+    result.type_expr = result_expr
+    return result
 }
 
 func _parse_typeref_notlater(

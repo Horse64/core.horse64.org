@@ -55,7 +55,7 @@ func get_mcref_id(project) {
 
 func CImportInfo._process_c_include(project, ipath) {
     const is_moose64 = yes
-    ipath = ipath.replace("/", path.sep)
+    ipath = path.normalize(ipath)
     var new_items = {->}
     if ipath == "stdlib.h" {
         new_items["malloc"] = new c_symbol.CFuncSymbol(
@@ -96,6 +96,8 @@ func CImportInfo._process_c_include(project, ipath) {
     for entry in new_items {
         if not self.known_items.has(entry) {
             self.known_items[entry] = new_items[entry]
+            self.known_items[entry].parent_c_import_info = self
+            self.known_items[entry].c_import_path = ipath
             self.known_items[entry].auto_assign_id(project)
             assert(self.known_items[entry].storage_id != none)
             queue.add(new_items[entry])
@@ -122,6 +124,7 @@ func CImportInfo._process_c_include(project, ipath) {
 }
 
 func CImportInfo.add_import_path(project, ipath) {
+    ipath = path.normalize(ipath)
     self.import_paths.add(ipath)
 
     self._process_c_include(project, ipath) later:

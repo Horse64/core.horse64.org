@@ -115,13 +115,14 @@ func get_c_func_signature_or_body(
     var c_export_tracker = project.c_export_tracker
     assert(c_export_tracker != none)
 
-    var func_info = ast_analyze.get_func_info_with_true_node(
-        from_node=from_node,
-        from_node_project_file=from_node_project_file,
-        from_type_expr=from_type_expr,
-        from_storage_ref=from_storage_ref,
-        project=project, is_moose64=is_moose64
-    ) later:
+    var func_info = ast_analyze.
+        get_func_info_and_get_true_func_node(
+            from_node=from_node,
+            from_node_project_file=from_node_project_file,
+            from_type_expr=from_type_expr,
+            from_storage_ref=from_storage_ref,
+            project=project, is_moose64=is_moose64
+        ) later:
 
     await func_info
     if func_info == none {

@@ -245,7 +245,7 @@ func get_func_info(
                 from_storage_ref.id
             ]
             from_node_project_file =
-            gscope.known_to_be_in_project_file
+                gscope.known_to_be_in_project_file
             assert(from_node_project_file != none)
         }
     } elseif node == none and from_storage_ref != none and
@@ -339,7 +339,7 @@ func get_func_info(
     return result
 }
 
-func get_func_info_with_true_node(
+func get_func_info_and_get_true_func_node(
         from_node=none, from_node_project_file=none,
         from_type_expr=none, from_storage_ref=none,
         project=none, is_moose64=no) {
@@ -797,7 +797,7 @@ func get_called_or_assigned_func_types(
         ) later:
 
         await result
-        self_type_expr = result[2]
+        self_type_expr = result.type_expr
         if self_type_expr == none {
             if msgs == none {
                 throw new RuntimeError(

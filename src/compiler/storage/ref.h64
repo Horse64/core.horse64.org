@@ -136,6 +136,34 @@ func ref_to_item_name(project_file, fref) {
                 "in AttrNamesScope symbol map. This shouldn't "
                 "happen.")
         }
+    } elseif fref != none and fref.kind == ST_MCREF {
+        if not project_file.project.storage_id_to_csymbol_map.has(
+                fref.id) {
+            if not project_file.project.builtin_syms_storage.
+                    storage_id_to_item_map.has(
+                    fref.id) {
+                return none
+            }
+            var st_item = project_file.project.builtin_syms_storage.
+                storage_id_to_item_map[fref.id]
+            return st_item.symbol_name
+        }
+        var csymbol = project_file.project.storage_id_to_csymbol_map[
+            fref.id]
+        return csymbol.symbol_name
+    } elseif fref != none and fref.kind == ST_CEXT {
+        var storage_id = fref.id
+        if not project.storage_id_to_citem_map.has(storage_id) {
+            if project.cext_builtins_storage_id_to_name_map.has(
+                    storage_id) {
+                return project.cext_builtins_storage_id_to_name_map[
+                    storage_id
+                ]
+            }
+            return none
+        }
+        var citem = project.storage_id_to_citem_map[storage_id]
+        return citem.name
     }
     return none
 }
@@ -169,6 +197,115 @@ func ref_is_global_func_def(project_file, storage_ref) {
         return no
     }
     return no
+}
+
+func ref_to_corresponding_import_stmt_node(
+        project_file, storage_ref, node=none) {
+    var target_project_file = none
+    var target_cext_modname = none
+    var target_cext_pkgname = none
+    var target_c_import_path = none
+    if node == none and {ST_SELF, ST_EXTENDED,
+            ST_BASE}.has(storage_ref.kind) {
+        throw ValueError("Can't find import statement "
+            "for this ref without the corresponding node "
+            "in the AST that has this reference.")
+    }
+    if storage_ref.kind == ST_GLOBAL or
+            storage_ref.kind == ST_GLOBALATTR {
+        var global_id_target = none
+        if storage_ref.kind == ST_GLOBAL {
+            global_id_target = storage_ref.id
+        } else {
+            global_id_target = storage_ref.id[1]
+        }
+        var target_global_scope =
+            project_file.project.storage_id_to_global_scope_map[
+                global_id_target
+            ]
+        target_project_file = target_global_scope.
+            known_to_be_in_project_file
+        assert(target_project_file != none)
+    } elseif {ST_ARG, ST_LOCAL, ST_CCAPTURE, ST_NUMLITERAL,
+            }.has(
+            storage_ref.kind
+            ) {
+        # This kind of target never needs importing.
+        return none
+    } elseif storage_ref.kind == ST_MCREF {
+        if not project_file.project.storage_id_to_csymbol_map.has(
+                storage_ref.id) {
+            if project_file.project.builtin_syms_storage.
+                    storage_id_to_item_map.has(
+                    storage_ref.id) {
+                # Builtins never need any import.
+                return none
+            }
+            throw new ValueError("M64 C ref doesn't reference "
+                "any known item.")
+        }
+        var csymbol = project_file.project.storage_id_to_csymbol_map[
+            storage_ref.id]
+        var c_import_path = csymbol.c_import_path
+        if c_import_path == none {
+            throw new RuntimeError("Encountered invalid C symbol "
+                "with no C import path set.")
+        }
+        target_c_import_path = c_import_path
+    } elseif storage_ref.kind == ST_CEXT {
+        var project = project_file.project
+        var storage_id = storage_ref.id
+        if not project.storage_id_to_citem_map.has(storage_id) {
+            if not project.cext_builtins_storage_id_to_name_map.has(
+                    storage_id) {
+                throw new ValueError("Cext storage id doesn't "
+                    "reference any known item.")
+            }
+            # If we arrive here, then this is builtin outside of
+            # any modules, so it doesn't need to be imported.
+            return none
+        }
+        var citem = project.storage_id_to_citem_map[storage_id]
+        target_cext_modname = citem.module_name
+        target_cext_pkgname = citem.package_name
+    } else {
+        throw RuntimeError("Not implemented for "
+            "this storage ref variant.")
+    }
+    for name in project_file.global_scope.
+            name_to_stmt_map {
+        var entry = project_file.global_scope.
+            name_to_stmt_map[name]
+        if typename(entry) != "list" or
+                entry.len == 0 or
+                not {ast.N_STMT_C_IMPORT, ast.N_STMT_IMPORT}.has(
+                    entry[1].kind
+                ) {
+            continue
+        }
+        for imp_stmt in entry {
+            if target_project_file != none and
+                    imp_stmt.kind == ast.N_STMT_IMPORT and
+                    imp_stmt.project_file == target_project_file {
+                return imp_stmt
+            }
+            if target_cext_modname != none and
+                    imp_stmt.kind == ast.N_STMT_IMPORT and
+                    imp_stmt.cext_modname == target_cext_modname and
+                    imp_stmt.cext_pkgname == target_cext_modname {
+                return imp_stmt
+            }
+            if target_c_import_path != none and
+                    import_stmt.kind == ast.N_STMT_CIMPORT {
+                for ipath in import_stmt.file_paths {
+                    if path.normalize(ipath) == target_c_import_path {
+                        return import_stmt
+                    }
+                }
+            }
+        }
+    }
+    return none
 }
 
 func ref_to_symbol_info(

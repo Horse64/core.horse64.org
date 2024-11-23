@@ -38,6 +38,10 @@ type CFuncSymbol {
 
     var symbol_name
 
+    var parent_c_import_info
+
+    var c_import_path
+
     var is_csymbol = yes
 }
 

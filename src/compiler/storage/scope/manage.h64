@@ -1541,11 +1541,11 @@ func visit_to_resolve_known_attrs(
             ) later:
 
         await result
-        if result[1] != none {
-            left_type_global_ref = result[1]
+        if result.storage_ref != none {
+            left_type_global_ref = result.storage_ref
         }
-        if result[2] != none {
-            left_type_expr = result[2]
+        if result.type_expr != none {
+            left_type_expr = result.type_expr
         }
 
         var is_attr_error = no
@@ -1748,7 +1748,7 @@ func visit_to_resolve_known_attrs(
                 ) later:
 
             await result
-            our_type_expr = result[2]
+            our_type_expr = result.type_expr
         }
         resolve_our_type_expr_if_needed()
         later:

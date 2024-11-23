@@ -891,6 +891,9 @@ func global_id_to_item(project, gid) {
     if gid == none or project == none {
         return none
     }
+    if typename(gid) != "num" {
+        throw TypeError("The gid parameter must be a number.")
+    }
     if not project.storage_id_to_global_scope_map.has(gid) {
         return none
     }
