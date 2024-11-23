@@ -2493,7 +2493,6 @@ class _NetServeHTTPServer:
                     self.send_h64_response("head", True)
 
                 def do_POST(self):
-                    print("got DO_POST")
                     conlen = 0
                     conbytes = b""
                     for key in self.headers:
@@ -2547,13 +2546,10 @@ class _NetServeHTTPServer:
                                 value == None):
                             continue
                         form_options[key] = value
-                    print("Request with form_options=" +
-                        str(form_options))
                     self.send_h64_response("post", False,
                         form_options=form_options)
 
                 def do_GET(self):
-                    print("DO GETTTT")
                     self.send_h64_response("get", False)
 
                 def respond_with_h64_request(self, request,
@@ -2718,7 +2714,6 @@ class _NetServeHTTPServer:
                         assert(ctx.form_options != None)
                     ctx.method = request_type.lower()
                     request = ["func", mapping[2], ctx, args, None]
-                    print("will process req: " + str(request))
                     self._handle_mutex.acquire()
                     try:
                         serv_self._request_list.append(request)
