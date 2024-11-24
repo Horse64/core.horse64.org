@@ -183,6 +183,21 @@ func get_c_func_signature_or_body(
     var arg_exprs = func_scope.extended_final_arg_type_exprs()
     var arg_names = func_scope.extended_final_arg_names()
     var self_attr_name = none
+    var failable_attr_name = none
+    if func_scope.has_failable {
+        if c_export_tracker.func_scope_to_failable_name_map.has(
+                func_scope) {
+            failable_attr_name =
+                c_export_tracker.func_scope_to_failable_name_map[
+                    func_scope
+                ]
+        } else {
+            failable_attr_name = "__m64_failable_" + random.gen_id()
+            c_export_tracker.func_scope_to_failable_name_map[
+                func_scope
+            ] = failable_attr_name
+        }
+    }
     if func_scope.is_type_attr {
         if c_export_tracker.func_scope_to_self_name_map.has(
                 func_scope) {
@@ -256,6 +271,12 @@ func get_c_func_signature_or_body(
             is_moose64=is_moose64)
         t += " "
         t += arg_names[arg_idx]
+    }
+    if func_scope.has_failable {
+        if arg_names.len > 0 or func_scope.is_type_attr {
+            t += ", "
+        }
+        t += "moose64_failed_result_t *" + failable_attr_name
     }
 
     if not generate_code {
@@ -466,6 +487,7 @@ type CExportTracker {
 
     var known_array_types_map = {->}
     var func_scope_to_self_name_map = {->}
+    var func_scope_to_failable_name_map = {->}
     var func_attr_to_func_sig_map = {->}
 }
 
@@ -674,6 +696,7 @@ func CExportTracker.generate_c_types_and_header_info(
             t_struct += "#ifndef " + header_guard_name + "\n"
             t_struct += "#define " + header_guard_name + "\n"
 
+            t_struct += "typedef uint32_t moose64_failed_result_t;\n"
             var struct_lbl = m64_identifier_to_c_identifier(
                 "m64__" + type_pkg_name.replace(".", "_") +
                 "__" + type_mod_path.join("__") + "__" +
@@ -1933,6 +1956,7 @@ func ast_to_c(project_file, msgs=none, build_options=none,
         "\n#ifndef " + include_guard_name + "\n" +
         "#define " + include_guard_name + "\n" +
         "// FIXME: moosec will insert type info here later.\n" +
+        "typedef uint32_t moose64_failed_result_t;\n" +
         header_contents +
         "\n#endif  // " + include_guard_name + "\n"
     return later [t, header_contents]
