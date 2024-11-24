@@ -580,6 +580,7 @@ func get_called_or_assigned_func_types(
         _internal_override_called_func_typerefexpr=none,
         msgs=none, is_moose64=no, debug=no
         ) {
+    var prog_name = if is_moose64 ("moosec") else ("horsec")
     var dbg_prefix = if is_moose64 ("moosec: debug:")
         else ("horsec: debug:")
     if debug {
@@ -841,6 +842,39 @@ func get_called_or_assigned_func_types(
     assert(expected_args >= 0)
     var called_args_exprs = call_args_expr.subexprs.copy()
     var called_args = call_args_expr.subexprs.len
+    if func_typeinfo.func_typeexpr.is_failable {
+        var arg_typeref_exprs =
+             func_typeinfo.func_typeexpr.arg_typeref_exprs
+        if arg_typeref_exprs.len < 0 or
+                arg_typeref_exprs[arg_typeref_exprs.len].is_func_ref or
+                arg_typeref_exprs[arg_typeref_exprs.len].
+                    name != "moose64_failed_result_t" {
+            var last_param_is_func_ref =
+                arg_typeref_exprs[arg_typeref_exprs.len].is_func_ref
+            var last_param_name =
+                arg_typeref_exprs[arg_typeref_exprs.len].name
+            print(prog_name + ": error: Internal error, "
+                "got invalid func signature, "
+                "it's marked failable but has no failable parameter "
+                "at the end. Info: "
+                "arg_typeref_exprs=" +
+                    arg_typeref_exprs.as_str() + " "
+                "expected_args=" + expected_args.as_str() + " "
+                "is_func_attr=" +
+                    func_typeinfo.func_typeexpr.
+                        is_func_attr.as_str() + " "
+                "is_failable=" +
+                    func_typeinfo.func_typeexpr.
+                        is_failable.as_str() + " "
+                "last_param_is_func_ref=" +
+                    last_param_is_func_ref.as_str() + " "
+                "last_param_name=" +
+                    last_param_name.as_str())
+            throw new RuntimeError("Got invalid func signature, "
+                "it's marked failable but has no failable parameter "
+                "at the end.")
+        }
+    }
 
     var is_self_call =
         is_func_call_node_for_sure_a_self_call(
@@ -850,7 +884,7 @@ func get_called_or_assigned_func_types(
         )
     var effective_called_args =
         called_args + if is_self_call (1) else (0)
-    var last_param_m64_type = none
+    var last_param_m64_typeinfo = none
     func determine_last_param_type_if_needed {
         if called_args_exprs.len <= 0 {
             return later
@@ -886,7 +920,7 @@ func get_called_or_assigned_func_types(
             return later
         }
         # Determine the parameter type:
-        last_param_m64_type =
+        last_param_m64_typeinfo =
             m64_ast_analyze.get_c_or_m64_type_of_node(
                 project_file, called_args_exprs[
                     called_args_exprs.len
@@ -895,14 +929,14 @@ func get_called_or_assigned_func_types(
                 msgs=msgs, debug=no
             ) later:
 
-        await last_param_m64_type
-        if last_param_m64_type == none {
+        await last_param_m64_typeinfo
+        if last_param_m64_typeinfo == none {
             if msgs != none {
                 for m in msgs {
                     if m.kind == msg.M_ERROR {
                         # In this case, this is
                         # probably a follow-up error.
-                        last_param_m64_type = "type-error"
+                        last_param_m64_typeinfo = "type-error"
                         return later
                     }
                 }
@@ -923,7 +957,7 @@ func get_called_or_assigned_func_types(
         }
     }
     determine_last_param_type_if_needed() later:
-    if last_param_m64_type == "type-error" {
+    if last_param_m64_typeinfo == "type-error" {
         assert(msgs != none)
         return later none
     }
@@ -933,12 +967,12 @@ func get_called_or_assigned_func_types(
             arg_typeref_exprs.copy()
     var called_actual_arg_types = []
     var is_failable_call =
-        last_param_m64_type != none and
-        last_param_m64_type.kind == typeinfo.TI_C_TYPE and
-        last_param_m64_type.orig_type_name ==
+        last_param_m64_typeinfo != none and
+        last_param_m64_typeinfo.kind == typeinfo.TI_C_TYPE and
+        last_param_m64_typeinfo.orig_type_name ==
             "moose64_failed_result_t" and
-        last_param_m64_type.modifiers.len == 1 and
-        last_param_m64_type.modifiers[1].name == "ref"
+        last_param_m64_typeinfo.modifiers.len == 1 and
+        last_param_m64_typeinfo.modifiers[1].name == "ref"
     var expected_failable_call =
         func_typeinfo.func_typeexpr.is_failable
     if expected_failable_call {
