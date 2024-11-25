@@ -113,6 +113,11 @@ func get_global_symbol_c_name(
         mod_name.replace(".", "__") + "__" + global_name
 }
 
+type CFuncSigAndBodyResult {
+    var c_code_str
+    var func_typeinfo
+}
+
 func get_c_func_signature_or_body(
         from_node=none, from_node_project_file=none,
         from_type_expr=none, from_storage_ref=none,
@@ -144,6 +149,7 @@ func get_c_func_signature_or_body(
     if func_info == none {
         return later none
     }
+    var result = new CFuncSigAndBodyResult()
     var func_c_name = none
     var func_name = func_info.name
     var func_typeref_expr = func_info.typeref_expr
@@ -180,6 +186,7 @@ func get_c_func_signature_or_body(
         throw new RuntimeError("Unexpectedly failed "
             "to get usable function type info.")
     }
+    result.func_typeinfo = func_tinfo
     if func_tinfo.func_typeexpr.return_typeref_expr != none {
         var rexpr = func_tinfo.func_typeexpr.
             return_typeref_expr
@@ -297,7 +304,8 @@ func get_c_func_signature_or_body(
 
     if not generate_code {
         t += ")"
-        return later t
+        result.c_code_str = t
+        return later result
     }
     if not is_moose64 {
         throw new RuntimeError("Can't generate C code "
@@ -329,7 +337,8 @@ func get_c_func_signature_or_body(
     }
     t += indent_str + "}"
 
-    return later t
+    result.c_code_str = t
+    return later result
 }
 
 type CHeaderUriInfo {
@@ -501,6 +510,8 @@ func get_c_header_uri_and_info_for_type(
 type CExportTracker {
     var project
     var main_file_rel_path = none
+
+    var entrypoint_main_typeinfo
 
     var known_array_types_map = {->}
     var func_scope_to_self_name_map = {->}
@@ -1084,7 +1095,9 @@ func node_to_c_string(project_file, node, parents,
         var program_name = build_options.build_program_name
     }
     const project = project_file.project
+    const c_export_tracker = project.c_export_tracker
     var indent_str = " ".rep(indent)
+
     if node.kind == ast.N_EXPR_LIT and
             typename(node.value) == "str" and
             not node.is_big_num {
@@ -1841,7 +1854,7 @@ func node_to_c_string(project_file, node, parents,
         }
         return later t
     } elseif node.kind == ast.N_STMT_FUNC {
-        var t_signature = get_c_func_signature_or_body(
+        var func_sig_result = get_c_func_signature_or_body(
             from_node=node,
             from_node_project_file=project_file,
             indent=indent,
@@ -1854,13 +1867,21 @@ func node_to_c_string(project_file, node, parents,
             msgs=msgs, is_moose64=is_moose64
         ) later:
 
-        await t_signature
+        await func_sig_result
+        var t_signature = func_sig_result.c_code_str
         if node.type_path == none or node.type_path.len == 0 {
             if add_to_header_callback != none {
                 add_to_header_callback(
                     project_file, t_signature + ";\n",
                     msgs=msgs, build_options=build_options
                 )
+            }
+            if project_file.is_entrypoint and
+                    (node.type_path == none or
+                    node.type_path.len == 0) and
+                    node.label == "main" {
+                c_export_tracker.entrypoint_main_typeinfo =
+                    func_sig_result.func_typeinfo
             }
         } else {
             var anscope = project_file.
@@ -1882,7 +1903,7 @@ func node_to_c_string(project_file, node, parents,
                 ] = t_signature
         }
 
-        var t = get_c_func_signature_or_body(
+        var func_code_result = get_c_func_signature_or_body(
             from_node=node,
             from_node_project_file=project_file,
             indent=indent,
@@ -1895,17 +1916,19 @@ func node_to_c_string(project_file, node, parents,
             msgs=msgs, is_moose64=is_moose64
         ) later:
 
-        await t
-        if t == none {
+        await func_code_result
+        if func_code_result == none or
+                func_code_result.c_code_str == none {
             return ""
         }
-        return later t
+        return later func_code_result.c_code_str
     }
     return later ""
 }
 
 func ast_to_c(project_file, msgs=none, build_options=none,
         target_write_dir_uri=none, target_write_uri=none) {
+    var is_moose64 = yes
     var is_main_file = project_file.is_entrypoint
     func init_export_tracker {
         if project_file.project.c_export_tracker != none {
@@ -1920,6 +1943,7 @@ func ast_to_c(project_file, msgs=none, build_options=none,
     }
     init_export_tracker() later:
 
+    var c_export_tracker = project_file.project.c_export_tracker
     var max_nesting = math.round((climit.max_statement_nesting +
         climit.max_expression_nesting) * 1.5)
 
@@ -1996,6 +2020,32 @@ func ast_to_c(project_file, msgs=none, build_options=none,
         ) + "\n"
     for stmt_s in stmt_strs {
         t += stmt_s + "\n"
+    }
+    if project_file.is_entrypoint and
+            c_export_tracker.entrypoint_main_typeinfo != none {
+        var main_typeinfo = c_export_tracker.
+            entrypoint_main_typeinfo
+        var main_typeexpr = main_typeinfo.convert_to_typeref_expr(
+            project=project_file.project,
+            in_project_file=project_file,
+            is_moose64=is_moose64
+        )
+        var user_main_name = get_global_symbol_c_name(
+            "main", project_file=project_file
+        )
+        t += "\n"
+        t += "int main(int argc, const char **argv) {\n"
+        if main_typeexpr.return_typeref_expr == none or
+                (not main_typeexpr.return_typeref_expr.
+                    is_user_type() and
+                main_typeexpr.return_typeref_expr.name == "empty") {
+            t += "    int return_code;\n"
+            t += "    " + user_main_name + "();\n"
+        } else {
+            t += "    int return_code = " + user_main_name + "();\n"
+        }
+        t += "    return return_code;\n"
+        t += "}\n"
     }
     var include_guard_name = "__M64_HEADER_"
     include_guard_name += get_global_symbol_c_name(
