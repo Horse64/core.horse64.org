@@ -40,6 +40,42 @@ func preprocess_file(project, project_file, contents,
         program_name = override_compiler_name
     }
 
+    var base_dir_uri = project.base_dir_uri
+    if base_dir_uri == none {
+        base_dir_uri = project_file.source_uri
+    }
+
+    var modinfo = none
+    func ensure_modinfo {
+        if project.base_dir_uri == none {
+            # We don't have any module info in this case.
+            return later
+        }
+        # This also ensures that the source prefix is detected,
+        # if we have any:
+        modinfo = project.get_modinfo_for_file(
+            project_file.source_uri)
+        later:
+
+        await modinfo
+    }
+    ensure_modinfo() later:
+
+    var source_code_dir = none
+    if base_dir_uri != none {
+        if project.source_dir_prefix != none {
+            source_dir_uri = path.join(base_dir_uri,
+                project.source_dir_prefix)
+        } else {
+            source_dir_uri = base_dir_uri
+        }
+    }
+    var modules_dir = none
+    if base_dir_uri != none {
+        modules_dir = path.join(base_dir_uri,
+            "horse_modules")
+    }
+
     prep{ if system.program_compiler_name.has("horse64-translator") }
     # This is the code path for using the python translator runtime.
     # When doing this, there's no HVM and none of the proper
@@ -49,7 +85,8 @@ func preprocess_file(project, project_file, contents,
     if project_file.source_uri == none {
         return later contents
     }
-    if uri.get_protocol(project.base_dir_uri) != "file" {
+    if base_dir_uri != none and
+            uri.get_protocol(base_dir_uri) != "file" {
         if contents.has("prep{") {
             throw new RuntimeError(
                 "Unsupported code path for running in Python "
@@ -59,25 +96,15 @@ func preprocess_file(project, project_file, contents,
         }
         return later contents
     }
-    var disk_base_dir = uri.to_file_or_vfs_path(
-        project.base_dir_uri
-    )
-
-    # Ensure that the source prefix is detected if we have any:
-    var modinfo = project.get_modinfo_for_file(
-        project_file.source_uri)
-    later:
-
-    await modinfo
 
     # Do the actual preprocessing:
     var result = translator_internals.preprocess_file_in_translator(
-        contents, disk_base_dir, path.join(
-            disk_base_dir, project.source_dir_prefix
-        ),
-        path.join(disk_base_dir, "horse_modules"),
-        project_file.source_uri, modinfo.module_name,
-        modinfo.package_name, program_name
+        contents, base_dir_uri, source_code_dir,
+        modules_dir,
+        project_file.source_uri,
+        if modinfo != none (modinfo.module_name) else (none),
+        if modinfo != none (modinfo.package_name) else (none),
+        program_name
     )
     contents = result
     prep{ else }

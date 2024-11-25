@@ -195,6 +195,53 @@ func ModuleInfo.as_terminal_str(project=none, project_file=none) {
     return t
 }
 
+func Project.get_entrypoint_project_file {
+    for pfile_uri in self.module_uri_to_file_map {
+        var pfile = self.module_uri_to_file_map[pfile_uri]
+        if pfile.is_entrypoint {
+            return pfile
+        }
+    }
+    for pfile in no_uri_files {
+        if pfile.is_entrypoint {
+            return pfile
+        }
+    }
+    throw new RuntimeError("Internal error, "
+        "failed to obtain entry point file from project.")
+}
+
+func Project.compute_main_module_rel_path {
+    var rel_path = "unnamed_code_file.h64"
+    if self.is_moose64 or (self.build_options != none and
+            self.build_options.is_moose64) {
+        rel_path = "unnamed_code_file.m64"
+    }
+    var pfile = self.get_entrypoint_project_file()
+
+    func ensure_modinfo {
+        if self.base_dir_uri == none {
+            return later
+        }
+        var modinfo = self.get_modinfo_for_file(
+            pfile.source_uri)
+        later:
+
+        await modinfo
+    }
+    ensure_modinfo() later:
+
+    if pfile.modinfo != none {
+        return later path.normalize(pfile.modinfo.rel_path)
+    }
+    if self.source_dir_prefix != none and
+            self.source_dir_prefix.len > 0 {
+        rel_path = path.join(self.source_dir_prefix,
+            rel_path)
+    }
+    return later rel_path
+}
+
 func check_is_project_dir_check_files(dir_uri) {
     var test_files = [
         ".git", "horp.conf",

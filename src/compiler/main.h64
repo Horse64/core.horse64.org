@@ -522,10 +522,16 @@ func action_compile_do(
                 var furi = pfile.source_uri
                 var rel_path
                 if furi == none {
+                    var ext = if is_moose64 (".m64") else (".h64")
                     furi = uri.add_part(
-                        boptions.output_dir, "(inline).h64"
+                        boptions.output_dir, "(inline)." + ext
                     )
-                    rel_path = "(inline).h64"
+                    rel_path = "(inline)." + ext
+                } elseif pfile.modinfo == none {
+                    furi = uri.add_part(
+                        boptions.output_dir, uri.basename(furi)
+                    )
+                    rel_path = uri.basename(furi)
                 } else {
                     assert(pfile.modinfo != none)
                     rel_path = pfile.modinfo.rel_path

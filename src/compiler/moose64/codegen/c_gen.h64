@@ -484,11 +484,21 @@ func get_c_header_uri_and_info_for_type(
 
 type CExportTracker {
     var project
+    var main_file_rel_path = none
 
     var known_array_types_map = {->}
     var func_scope_to_self_name_map = {->}
     var func_scope_to_failable_name_map = {->}
     var func_attr_to_func_sig_map = {->}
+}
+
+func CExportTracker.finish_init {
+    var rel_path =
+        self.project.compute_main_module_rel_path()
+        later:
+
+    await rel_path
+    self.main_file_rel_path = rel_path
 }
 
 extend type compiler.project.Project {
@@ -654,6 +664,15 @@ func CExportTracker.generate_c_types_and_header_info(
                 } else {
                     type_mod_path = type_mod_path.copy()
                 }
+            } elseif type_def_file != none and
+                    type_def_file.is_entrypoint {
+                var modpath = self.main_file_rel_path
+                if modpath.ends(".m64") {
+                    modpath = modpath.sub(
+                        1, modpath.len - ".m64".len
+                    )
+                }
+                type_mod_path = modpath.replace(path.sep, ".")
             }
             if type_def_file != none and
                     type_def_file.modinfo != none and
@@ -1871,10 +1890,19 @@ func node_to_c_string(project_file, node, parents,
 
 func ast_to_c(project_file, msgs=none, build_options=none,
         target_write_dir_uri=none, target_write_uri=none) {
-    if project_file.project.c_export_tracker == none {
+    var is_main_file = project_file.is_entrypoint
+    func init_export_tracker {
+        if project_file.project.c_export_tracker != none {
+            return later
+        }
         project_file.project.c_export_tracker =
             new CExportTracker()
+        project_file.project.c_export_tracker.project =
+            project_file.project
+        project_file.project.c_export_tracker.finish_init()
+            later:
     }
+    init_export_tracker() later:
 
     var max_nesting = math.round((climit.max_statement_nesting +
         climit.max_expression_nesting) * 1.5)
@@ -1907,6 +1935,10 @@ func ast_to_c(project_file, msgs=none, build_options=none,
             target_rel_path_without_src += ".m64"
         }
         target_rel_path_without_src += ".c"
+    } elseif project_file.is_entrypoint {
+        target_rel_path_without_src =
+            project_file.project.c_export_tracker.
+                main_file_rel_path + ".c"
     }
         
     assert(target_rel_path_without_src != none)
@@ -2036,7 +2068,14 @@ func get_c_output_uri_from_project_file(
             file_relpath = file_relpath.sub(2)
         }
     } else {
-        file_relpath = "unnamed_code_file.m64"
+        if project_file.source_uri != none {
+            file_relpath = uri.to_file_or_vfs_path(
+                "file://" +
+                uri.basename(project_file.source_uri)
+            )
+        } else {
+            file_relpath = "unnamed_code_file.m64"
+        }
         if project_file.project.source_dir_prefix != none and
                 project_file.project.
                     source_dir_prefix.len > 0 and
