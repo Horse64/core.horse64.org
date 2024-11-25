@@ -1781,24 +1781,32 @@ func node_to_c_string(project_file, node, parents,
             t += ";\n"
         }
         func handle_assigned_values_if_needed {
-            if node.is_empty {
-                return later
-            }
-            var assigned_exprs = node.subexprs
-            if node.has_type_expr and assigned_exprs.len > 0 {
-                assigned_exprs = assigned_exprs.sub(
-                    1, assigned_exprs.len - 1
-                )
+            var assigned_exprs = none
+            if not node.is_empty {
+                assigned_exprs = node.subexprs
+                if node.has_type_expr and assigned_exprs.len > 0 {
+                    assigned_exprs = assigned_exprs.sub(
+                        1, assigned_exprs.len - 1
+                    )
+                }
             }
 
             func handle_assigned_value(entry) {
-                var expr_result = node_to_c_string(
-                    project_file, entry[2], parents + [node],
-                    indent=indent,
-                    msgs=msgs, build_options=build_options)
-                later:
+                var expr_result = "{0}"
+                func gen_c_code {
+                    if entry[2] == none {
+                        return later
+                    }
+                    expr_result = node_to_c_string(
+                        project_file, entry[2], parents + [node],
+                        indent=indent,
+                        msgs=msgs, build_options=build_options)
+                    later:
 
-                await expr_result
+                    await expr_result
+                }
+                gen_c_code() later:
+
                 if expr_result == none or
                         expr_result.trim() == "" {
                     print(program_name + ": error: Internal error, "
@@ -1824,7 +1832,10 @@ func node_to_c_string(project_file, node, parents,
             var idx = 0
             for lbl in node.var_labels {
                 idx += 1
-                if idx < 1 or idx > assigned_exprs.len {
+                if node.is_empty or idx > assigned_exprs.len {
+                    queue.add([
+                        lbl, none
+                    ])
                     continue
                 }
                 queue.add([
