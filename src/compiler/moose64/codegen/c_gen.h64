@@ -78,10 +78,16 @@ func truncate_path_src_dir_if_present(
     return fpath
 }
 
-func get_global_symbol_c_name(global_name, project_file=none) {
+func get_global_symbol_c_name(
+        global_name, project_file=none
+        ) {
     if project_file == none {
         throw new ValueError("The project_file option must be "
             "specified.")
+    }
+    var c_export_tracker = none
+    if project_file.project != none {
+        c_export_tracker = project_file.project.c_export_tracker
     }
     var pkg_name = "unknown_moose64_package"
     var mod_name = "unknown_moose64_module"
@@ -92,6 +98,16 @@ func get_global_symbol_c_name(global_name, project_file=none) {
         if project_file.modinfo.package_name != none {
             pkg_name = project_file.modinfo.package_name
         }
+    } elseif project_file.is_entrypoint and
+            c_export_tracker != none {
+        var modpath = c_export_tracker.main_file_rel_path
+        if modpath.ends(".m64") {
+            modpath = modpath.sub(
+                1, modpath.len - ".m64".len
+            )
+        }
+        modpath = path.normalize(modpath)
+        mod_name = modpath.replace(path.sep, ".")
     }
     return "m64__" + pkg_name.replace(".", "_") + "__" +
         mod_name.replace(".", "__") + "__" + global_name

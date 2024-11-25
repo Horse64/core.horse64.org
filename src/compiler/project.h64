@@ -234,6 +234,14 @@ func Project.compute_main_module_rel_path {
     if pfile.modinfo != none {
         return later path.normalize(pfile.modinfo.rel_path)
     }
+    if pfile.source_uri != none {
+        rel_path = path.basename(
+            uri.to_file_or_vfs_path(
+                "file://" +
+                uri.basename(pfile.source_uri)
+            )
+        )
+    }
     if self.source_dir_prefix != none and
             self.source_dir_prefix.len > 0 {
         rel_path = path.join(self.source_dir_prefix,
