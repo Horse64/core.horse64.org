@@ -558,11 +558,12 @@ def preprocess_file_in_translator(
         file_path, module_name, package_name, translator_version
         ):
     import os
-    have_deps = []
+    have_deps = ["core.horse64.org"]
     if (horse_modules_dir != None and
-            "/horse_modules" in
+            os.path.sep + "horse_modules" in
                 horse_modules_dir.replace("/", os.path.sep)):
         if os.path.exists(horse_modules_dir):
+            have_deps = []
             for f in os.listdir(horse_modules_dir):
                 fpath = os.path.join(horse_modules_dir, f)
                 if not os.path.isdir(fpath):
