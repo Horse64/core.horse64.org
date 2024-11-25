@@ -1498,6 +1498,28 @@ func node_to_c_string(project_file, node, parents,
 
         await left_hand
         return node.optoken.str + left_hand
+    } elseif node.kind == ast.N_EXPR_BINOP and
+            node.optoken.str == "[" {
+        var container_str = node_to_c_string(
+            project_file, node.subexprs[1],
+            parents + [node],
+            indent=indent,
+            add_to_header_callback=add_to_header_callback,
+            msgs=msgs, build_options=build_options)
+        later:
+
+        await container_str
+        var index_str = node_to_c_string(
+            project_file, node.subexprs[2],
+            parents + [node],
+            indent=indent,
+            add_to_header_callback=add_to_header_callback,
+            msgs=msgs, build_options=build_options)
+        later:
+
+        await container_str
+        return "(" + container_str + ") [" +
+            " (" + index_str + ") - 1]"
     } elseif node.kind == ast.N_EXPR_BINOP {
         var left_hand = node_to_c_string(
             project_file, node.subexprs[1],
@@ -1517,12 +1539,8 @@ func node_to_c_string(project_file, node, parents,
         later:
 
         await right_hand
-        var trail = ""
-        if optoken_to_c_token(node.optoken) == '[' {
-            trail = "]"
-        }
         return "(" + left_hand + ") " + optoken_to_c_token(
-            node.optoken) + " (" + right_hand + ")" + trail
+            node.optoken) + " (" + right_hand + ")"
     } elseif node.kind == ast.N_STMT_ASSIGN {
         var assign_count = math.floor(node.subexprs.len / 2)
         if assign_count < 1 {
@@ -2050,7 +2068,7 @@ func ast_to_c(project_file, msgs=none, build_options=none,
                 (not main_typeexpr.return_typeref_expr.
                     is_user_type() and
                 main_typeexpr.return_typeref_expr.name == "empty") {
-            t += "    int return_code;\n"
+            t += "    int return_code = 0;\n"
             t += "    " + user_main_name + "();\n"
         } else {
             t += "    int return_code = " + user_main_name + "();\n"
