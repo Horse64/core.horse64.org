@@ -323,6 +323,11 @@ func _get_c_or_m64_type_of_node_do(
         }
         if node.kind != ast.N_EXPR_BINOP or
                 node.optoken.str != "." {
+            if debug {
+                print(dbg_prefix +
+                    " In evaluate_lefthand_sides_if_needed(): "
+                    "Got no left-hand to evaluate.")
+            }
             return later yes
         }
         if has_attr(node.subexprs[1], "ref") and
@@ -444,6 +449,76 @@ func _get_c_or_m64_type_of_node_do(
         var result = typeinfo.
             create_from_simple_m64_type("f64")
         return result
+    } elseif node.kind == ast.N_EXPR_BINOP and
+            node.subexprs.len >= 2 and
+            node.optoken.str == '[' {
+        if debug {
+            print(dbg_prefix + " Found indexing op '" +
+                node.optoken.str + "', evaluating type of "
+                "container...")
+        }
+        var left_side_type = _get_c_or_m64_type_of_node_do(
+            project_file, node.subexprs[1], parents + [node],
+            _known_typeinfo_map=_known_typeinfo_map,
+            store_self_value_ref_for_funcs=no,
+            msgs=msgs, debug=debug
+        ) later:
+
+        await left_side_type
+        var c_array_or_expl_ref_count = left_side_type.ref_count(
+            include_c_arrays=yes, include_arrays=no,
+            include_implicit_refs=no,
+            include_explicit_refs=yes,
+        )
+        var normal_array_ref_count = left_side_type.ref_count(
+            include_c_arrays=no, include_arrays=yes,
+            include_implicit_refs=no,
+            include_explicit_refs=no,
+        )
+        assert(c_array_or_expl_ref_count == 0 or
+            normal_array_ref_count == 0)
+        if c_array_or_expl_ref_count > 0 or
+                normal_array_ref_count > 0 {
+            var drop_names = none
+            if c_array_or_expl_ref_count {
+                drop_names = {"ref", "c_array"}
+            } else {
+                drop_names = {"array"}
+            }
+            var new_type = left_side_type.copy()
+            var mod_idx = new_type.modifiers.len
+            var drop_successful = no
+            while mod_idx >= 1 {
+                var mod = new_type.modifiers[mod_idx]
+                if drop_names.has(mod.name) {
+                    new_type.modifiers = new_type.modifiers.sub(
+                        1, mod_idx - 1
+                    ) + new_type.modifiers.sub(mod_idx + 1)
+                    drop_successful = yes
+                    break
+                }
+                mod_idx -= 1
+            }
+            if not drop_successful {
+                return none
+            }
+            return new_type
+        } else {
+            msgs.add(new msg.FileMsg(
+                "Unexpected '[' indexing "
+                "operator applied to "
+                "incompatible container " +
+                left_side_type.describe_to_user(
+                    project=project_file.project,
+                    add_quotes_where_useful=yes,
+                    is_moose64=yes
+                ) + ", which cannot be indexed.",
+                source_file=project_file,
+                line=node.line, col=node.col,
+            ))
+            node.damaged = yes
+            return later none
+        }
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.subexprs.len >= 2 and
             token.math_ops.has(node.optoken.str) {
