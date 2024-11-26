@@ -37,7 +37,7 @@ cd $SCRIPT_DIRECTORY
 echo "Changed working directory to: $SCRIPT_DIRECTORY"
 
 cd ..
-gcc -o ./gen-c/src/main.o -I ./gen-c/src ./gen-c/src/main.m64.c || { echo "main.o build failed."; exit 1; }
-gcc -o ./gen-c/src/std/std.o -I ./gen-c/src ./gen-c/src/std/std.m64.c || { echo "std/std.o build failed"; exit 1; }
+gcc -o ./gen-c/src/main.o -c -I ./gen-c/src ./gen-c/src/main.m64.c || { echo "main.o build failed."; exit 1; }
+gcc -o ./gen-c/src/std/std.o -c -I ./gen-c/src ./gen-c/src/std/std.m64.c || { echo "std/std.o build failed"; exit 1; }
 gcc -o ./prog ./gen-c/src/main.o ./gen-c/src/std/std.o || { echo "final build failed"; exit 1; }
 
