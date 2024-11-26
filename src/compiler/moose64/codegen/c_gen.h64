@@ -1654,7 +1654,19 @@ func node_to_c_string(project_file, node, parents,
                 print(program_name + ": error: Internal error, "
                     "unexpectedly failed to determine type "
                     "info for this left-hand expression as "
-                    "part of an assignment: " + entry[1].as_str())
+                    "part of an assignment: " +
+                    entry[1].as_str())
+                print(program_name + ": error: Replaying the "
+                    "type analysis for the log...")
+                var _unused =
+                    m64_ast_analyze.get_c_or_m64_type_of_node(
+                        project_file, entry[1],
+                        parents + [node],
+                        store_self_value_ref_for_funcs=yes,
+                        msgs=msgs, debug=yes
+                    ) later:
+
+                await _unused
                 throw new RuntimeError("Internal error, "
                     "unexpectedly failed to determine "
                     "type info for assigned expression.")
