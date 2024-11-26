@@ -25,6 +25,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import math from core.horse64.org
 import textfmt from core.horse64.org
 
 import compiler.ast as ast
@@ -141,11 +142,45 @@ func TypeInfo.is_array {
     return yes
 }
 
+func TypeInfo.get_c_zeroing_code {
+    if self.ref_count(include_c_arrays=yes, include_arrays=no,
+            include_implicit_refs=yes,
+            include_explicit_refs=yes) {
+        return "((void*)0)"
+    } elseif self.kind == TI_USERTYPE {
+        return "{0}"
+    } elseif self.kind == TI_FUNCREF {
+        return "((void*)0)"
+    } else {
+        return "(0)"
+    }
+}
+
 func TypeInfo.ref_count(include_c_arrays=yes, include_arrays=no,
         include_implicit_refs=no,
         include_explicit_refs=yes) {
+    const mod_len = self.modifiers.len
     var count = 0
-    for mod in self.modifiers {
+
+    # If we don't count arrays or explicit refs, skip behind them:
+    var skip_idx = 0
+    var mod_idx = 1
+    while mod_idx <= mod_len {
+        var mod = self.modifiers[mod_idx]
+        if not include_explicit_refs and mod.name == "ref" {
+            skip_idx = mod_idx
+        } elseif not include_c_arrays and mod.name == "c_array" {
+            skip_idx = mod_idx
+        } elseif not include_arrays and mod.name == "array" {
+            skip_idx = mod_idx
+        }
+        mod_idx += 1
+    }
+
+    # Now count what we actually want to count:
+    mod_idx = math.max(1, skip_idx + 1)
+    while mod_idx <= mod_len {
+        var mod = self.modifiers[mod_idx]
         if include_explicit_refs and mod.name == "ref" {
             count += 1
         } elseif include_implicit_refs and mod.name == "implicit ref" {
@@ -155,6 +190,7 @@ func TypeInfo.ref_count(include_c_arrays=yes, include_arrays=no,
         } elseif include_arrays and mod.name == "array" {
             count += 1
         }
+        mod_idx += 1
     }
     return count
 }

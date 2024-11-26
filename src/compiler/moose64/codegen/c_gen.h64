@@ -951,7 +951,8 @@ func CExportTracker.generate_c_types_and_header_info(
                     throw new RuntimeError("Internal error, "
                         "C code gen for func unexpectedly failed.")
                 }
-                header_result.type_func_attrs_code += sig_result
+                header_result.type_func_attrs_code +=
+                    sig_result.c_code_str
                 return later yes
             }
             func handle_func_attr_queue() {
@@ -1086,9 +1087,42 @@ func node_list_to_c_strings(project_file, node_list, parents,
         later repeat
 }
 
+func node_generate_c_type_conversion_code(
+        project_file, target_typeinfo,
+        source_value_node,
+        source_value_parents,
+        indent=0, add_to_header_callback=none,
+        msgs=none, build_options=none) {
+    const is_moose64 = yes
+    var program_name = "moosec"
+    if build_options != none {
+        var program_name = build_options.build_program_name
+    }
+    const project = project_file.project
+    const c_export_tracker = project.c_export_tracker
+    var indent_str = " ".rep(indent)
+
+    var t = ""
+
+    var inner_expr_str = node_to_c_string(
+        project_file, source_value_node,
+        source_value_parents, indent=indent,
+        msgs=msgs, build_options=build_options)
+    later:
+
+    await inner_expr_str
+    t += inner_expr_str
+    if target_typeinfo.has_outer_implicit_ref() {
+        t = "&(" + t + ")"
+    }
+
+    return later t
+}
+
 func node_to_c_string(project_file, node, parents,
         indent=0, add_to_header_callback=none,
         msgs=none, build_options=none) {
+    const debug = no
     const is_moose64 = yes
     var program_name = "moosec"
     if build_options != none {
@@ -1320,6 +1354,8 @@ func node_to_c_string(project_file, node, parents,
         var left_hand_str = none
         var right_closing_str = ""
         var self_call_arg_str = none
+        var is_regular_call = no
+        var func_typeinfo = none
 
         func try_get_left_hand_self_call {
             if left_hand_str != none {
@@ -1436,6 +1472,7 @@ func node_to_c_string(project_file, node, parents,
             if left_hand_str != none {
                 return later
             }
+            is_regular_call = yes
             left_hand_str = node_to_c_string(
                 project_file, node.subexprs[1],
                 parents + [node],
@@ -1444,6 +1481,16 @@ func node_to_c_string(project_file, node, parents,
             later:
 
             await left_hand_str
+
+            func_typeinfo =
+                m64_ast_analyze.get_c_or_m64_type_of_node(
+                    project_file, node.subexprs[1],
+                    parents + [node],
+                    store_self_value_ref_for_funcs=yes,
+                    msgs=msgs
+                ) later:  # Get type info from our call node.
+
+            await func_typeinfo
         }
         try_get_left_hand_regular() later:
 
@@ -1454,21 +1501,58 @@ func node_to_c_string(project_file, node, parents,
             t += self_call_arg_str
         }
 
+        var arg_idx = 0
         func handle_arg_value(arg_expr) {
-            var arg_expr_str = node_to_c_string(
-                project_file, arg_expr,
-                parents + [node, node.subexprs[2]],
-                indent=indent,
-                msgs=msgs, build_options=build_options)
-            later:
+            arg_idx += 1
+            if not is_regular_call {
+                # Don't apply any of the conversion code.
+                # The built-ins do different things anyway,
+                # so instead we just enter the arg unaltered
+                # and leave it be.
+                var arg_expr_str = node_to_c_string(
+                    project_file, arg_expr,
+                    parents + [node, node.subexprs[2]],
+                    indent=indent,
+                    msgs=msgs, build_options=build_options)
+                later:
 
-            await arg_expr_str
+                await arg_expr_str
+                if is_first_arg {
+                    is_first_arg = no
+                } else {
+                    t += ", "
+                }
+                t += arg_expr_str
+                return later
+            }
+            var all_typeexprs =
+                func_typeinfo.func_typeexpr.arg_typeref_exprs
+            if arg_idx < 1 or arg_idx > all_typeexprs.len {
+                throw new RuntimeError("Internal error, "
+                    "C code gen failed to extract arg typeref expr "
+                    "for call. This shouldn't ever happen.")
+            }
+            var arg_typeexpr = all_typeexprs[arg_idx]
+            var arg_typeinfo = typeinfo.create_typeinfo_from_typeexpr(
+                arg_typeexpr, is_moose64=is_moose64
+            )
+            var converted_c_str =
+                node_generate_c_type_conversion_code(
+                    project_file, arg_typeinfo,
+                    arg_expr, parents + [node, node.subexprs[2]],
+                    indent=indent,
+                    add_to_header_callback=add_to_header_callback,
+                    msgs=msgs, build_options=build_options
+                ) later:
+
+            await converted_c_str
             if is_first_arg {
                 is_first_arg = no
             } else {
                 t += ", "
             }
-            t += arg_expr_str
+            t += converted_c_str
+            return later
         }
 
         assert(node.subexprs[2].kind == ast.N_EXPR_CALLARGS)
@@ -1557,6 +1641,25 @@ func node_to_c_string(project_file, node, parents,
         }
         var t = ""
         func handle_assigned_value(entry) {
+            var left_hand_typeinfo =
+                m64_ast_analyze.get_c_or_m64_type_of_node(
+                    project_file, entry[1],
+                    parents + [node],
+                    store_self_value_ref_for_funcs=yes,
+                    msgs=msgs
+                ) later:  # Get type info from our call node.
+
+            await left_hand_typeinfo
+            if left_hand_typeinfo == none {
+                print(program_name + ": error: Internal error, "
+                    "unexpectedly failed to determine type "
+                    "info for this left-hand expression as "
+                    "part of an assignment: " + entry[1].as_str())
+                throw new RuntimeError("Internal error, "
+                    "unexpectedly failed to determine "
+                    "type info for assigned expression.")
+            }
+            
             var left_hand_str = node_to_c_string(
                 project_file, entry[1],
                 parents + [node], indent=indent,
@@ -1566,13 +1669,22 @@ func node_to_c_string(project_file, node, parents,
             later:
 
             await left_hand_str
-            var right_hand_str = node_to_c_string(
-                project_file, entry[2],
-                parents + [node], indent=indent,
-                add_to_header_callback=
-                    add_to_header_callback,
-                msgs=msgs, build_options=build_options)
-            later:
+            var right_hand_str =
+                node_generate_c_type_conversion_code(
+                    project_file, left_hand_typeinfo,
+                    entry[2], parents + [node],
+                    indent=indent,
+                    add_to_header_callback=
+                        add_to_header_callback,
+                    msgs=msgs, build_options=build_options
+                ) later:
+            #var right_hand_str = node_to_c_string(
+            #    project_file, entry[2],
+            #    parents + [node], indent=indent,
+            #    add_to_header_callback=
+            #        add_to_header_callback,
+            #    msgs=msgs, build_options=build_options)
+            #later:
 
             await right_hand_str
             t += indent_str + left_hand_str + " " +
@@ -1774,11 +1886,23 @@ func node_to_c_string(project_file, node, parents,
 
         var t = ""
         var is_global = no
+        var assigned_exprs = none
+        if not node.is_empty {
+            assigned_exprs = node.subexprs
+            if node.has_type_expr and assigned_exprs.len > 0 {
+                assigned_exprs = assigned_exprs.sub(
+                    1, assigned_exprs.len - 1
+                )
+            }
+        }
+
         if node.scope == none {
             is_global = yes
             # This must be a global variable.
         }
+        var idx = 0
         for lbl in node.var_labels {
+            idx += 1
             var c_name = if not is_global (lbl)
                 else (get_global_symbol_c_name(
                     lbl, project_file=project_file))
@@ -1796,45 +1920,45 @@ func node_to_c_string(project_file, node, parents,
             if not texpr.is_func_ref {
                 t += " " + c_name
             }
+            if node.is_empty or idx > assigned_exprs.len {
+                t += " = " + var_tinfo.get_c_zeroing_code()
+            }
             t += ";\n"
         }
         func handle_assigned_values_if_needed {
-            var assigned_exprs = none
-            if not node.is_empty {
-                assigned_exprs = node.subexprs
-                if node.has_type_expr and assigned_exprs.len > 0 {
-                    assigned_exprs = assigned_exprs.sub(
-                        1, assigned_exprs.len - 1
-                    )
-                }
-            }
-
             func handle_assigned_value(entry) {
-                var expr_result = "{0}"
+                var expr_result = none
                 func gen_c_code {
                     if entry[2] == none {
                         return later
                     }
-                    expr_result = node_to_c_string(
-                        project_file, entry[2], parents + [node],
-                        indent=indent,
-                        msgs=msgs, build_options=build_options)
-                    later:
+                    expr_result =
+                        node_generate_c_type_conversion_code(
+                            project_file, var_tinfo,
+                            entry[2], parents + [node],
+                            indent=indent,
+                            add_to_header_callback=
+                                add_to_header_callback,
+                            msgs=msgs, build_options=build_options
+                        ) later:
 
                     await expr_result
+                    if expr_result == none or
+                            expr_result.trim() == "" {
+                        print(program_name + ": error: Internal error, "
+                            "C code gen failed to spit out "
+                            "code for assigned value: "
+                            "entry[2]=" + entry[2].as_str())
+                        throw new RuntimeError(
+                            "Internal error, C code gen didn't "
+                            "successfully spit out code for "
+                            "assigned value.")
+                    }
                 }
                 gen_c_code() later:
 
-                if expr_result == none or
-                        expr_result.trim() == "" {
-                    print(program_name + ": error: Internal error, "
-                        "C code gen failed to spit out "
-                        "code for assigned value: "
-                        "entry[2]=" + entry[2].as_str())
-                    throw new RuntimeError(
-                        "Internal error, C code gen didn't "
-                        "successfully spit out code for "
-                        "assigned value.")
+                if expr_result == none {
+                    return later
                 }
                 t += indent_str
                 if is_global {

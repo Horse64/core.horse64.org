@@ -159,50 +159,11 @@ func transform_defer(
         if self_typeref_expr != none {
             var self_typeref_ref_expr = self_typeref_expr.copy()
             self_typeref_ref_expr.modifiers.add(
-                new ast_typeref.TypeRefMod("ref")
+                new ast_typeref.TypeRefMod("implicit ref")
             )
             assert(expr_copy.kind == ast.N_EXPR_BINOP)
             assert(expr_copy.optoken.str == '.')
-            var assigned_self_ref_inner = expr_copy.subexprs[1].copy()
-            var assigned_self_ref_called = new ast_expr.IdRefExpr()
-            assigned_self_ref_called.scope = node.scope
-            assigned_self_ref_called.line = node.line
-            assigned_self_ref_called.col = node.col
-            assigned_self_ref_called.label = "as_ref"
-            assigned_self_ref_called.type_path = ["std"]
-            if project_file.modinfo != none and
-                    project_file.modinfo.
-                        package_name == "m64.horse64.org" and
-                    project_file.modinfo.
-                        module_name == "std" {
-                assigned_self_ref_called.type_path = none
-            }
-            assigned_self_ref_called.ref =
-                builtin_syms.try_lookup_symbol(
-                    project_file.project, "as_ref", "std",
-                    in_package_name="m64.horse64.org"
-                )
-            var assigned_self_ref_callargs =
-                new ast_expr.CallArgsExpr()
-            assigned_self_ref_callargs.scope = node.scope
-            assigned_self_ref_callargs.line = node.line
-            assigned_self_ref_callargs.col = node.col
-            assigned_self_ref_callargs.subexprs = [
-                assigned_self_ref_inner
-            ]
-            var optoken = new token.Token('(', token.T_ENCLOSE,
-                node.line, node.col)
-            assert(node.scope != none)
-            var assigned_self_ref = new ast_expr.BinopExpr(
-                optoken
-            )
-            assigned_self_ref.scope = node.scope
-            assigned_self_ref.line = node.line
-            assigned_self_ref.col = node.col
-            assigned_self_ref.subexprs = [
-                assigned_self_ref_called,
-                assigned_self_ref_callargs
-            ]
+            var assigned_self_ref = expr_copy.subexprs[1].copy()
             self_var_node = builder.make_var_node(
                 node.scope, "defer_called_func_self_",
                 typeref_expr=self_typeref_ref_expr,
