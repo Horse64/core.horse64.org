@@ -488,6 +488,13 @@ func transform_defer(
             ) later:
 
             await arg_typeinfo
+            if msgs != none and msg.msgs_contain_error(msgs) {
+                return later none
+            } elseif arg_typeinfo == none {
+                throw new RuntimeError(
+                    "Got a return expression with a type error."
+                )
+            }
             assert(arg_typeinfo != none)
             var arg_type_expr = arg_typeinfo.convert_to_typeref_expr()
             var return_preeval_node = builder.make_var_node(

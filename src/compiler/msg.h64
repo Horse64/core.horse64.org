@@ -129,3 +129,12 @@ func FileMsg.as_terminal_str(prefix="", wrap_width=none) {
     return t
 }
 
+func msgs_contain_error(msgs) {
+    for m in msgs {
+        if m.kind == M_ERROR {
+            return yes
+        }
+    }
+    return no
+}
+

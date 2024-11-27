@@ -308,7 +308,7 @@ func _get_c_or_m64_type_of_node_do(
         msgs.add(new msg.FileMsg(
             "The attribute " + textfmt.as_escaped_code_string(
                 aname
-            ) + " cannot be found on this type.",
+            ) + " cannot be found on this item.",
             source_file=project_file,
             line=node.line, col=node.col,
         ))
@@ -576,22 +576,24 @@ func _get_c_or_m64_type_of_node_do(
                 throw new ValueError("Found binary operator "
                     "applied on incompatible operators.")
             }
-            msgs.add(new msg.FileMsg(
-                "Unexpected '" + node.optoken.str.as_str() +
-                "' operator applied to incompatible types " +
-                left_side_type.describe_to_user(
-                    project=project_file.project,
-                    add_quotes_where_useful=yes,
-                    is_moose64=yes
-                ) + " "
-                "and " + right_side_type.describe_to_user(
-                    project=project_file.project,
-                    add_quotes_where_useful=yes,
-                    is_moose64=yes
-                ) + ".",
-                source_file=project_file,
-                line=node.line, col=node.col,
-            ))
+            if not node.damaged {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected '" + node.optoken.str.as_str() +
+                    "' operator applied to incompatible types " +
+                    left_side_type.describe_to_user(
+                        project=project_file.project,
+                        add_quotes_where_useful=yes,
+                        is_moose64=yes
+                    ) + " "
+                    "and " + right_side_type.describe_to_user(
+                        project=project_file.project,
+                        add_quotes_where_useful=yes,
+                        is_moose64=yes
+                    ) + ".",
+                    source_file=project_file,
+                    line=node.line, col=node.col,
+                ))
+            }
             node.damaged = yes
             return later none
         }
@@ -1276,6 +1278,55 @@ func _get_c_or_m64_type_of_node_do(
 
         if debug {
             print(dbg_prefix + " Got rhand.ref=" + rhand.ref.as_str())
+        }
+        if (node.subexprs[1].kind == ast.N_EXPR_IDREF and
+                node.subexprs[1].ref != none) or
+                (node.subexprs[1].kind == ast.N_EXPR_BINOP and
+                node.subexprs[1].optoken.str == "." and
+                node.subexprs[1].subexprs.len >= 2 and
+                node.subexprs[1].subexprs[2].
+                    kind == ast.N_EXPR_IDREF and
+                node.subexprs[1].subexprs[2].ref != none) {
+            var lhand_idref = node.subexprs[1]
+            if lhand_idref.kind == ast.N_EXPR_BINOP {
+                lhand_idref = lhand_idref.subexprs[2]
+            }
+            if lhand_idref.ref.kind == st_ref.ST_GLOBAL {
+                var item = st_scope.global_id_to_item(
+                    project_file.project, lhand_idref.ref.id)
+                if item != none and
+                        typename(item) != "list" and
+                        {ast.N_STMT_TYPE, ast.N_STMT_STRUCT}.has(
+                        item.kind) {
+                    var rhand_desc = "specified here"
+                    var rhand_name_check = rhand
+                    if rhand_name_check.kind == ast.N_EXPR_BINOP and
+                            rhand_name_check.subexprs.len >= 2 and
+                            rhand_name_check.optoken.str == "." {
+                        rhand_name_check = rhand_name_check.subexprs[1]
+                    }
+                    if rhand_name_check.kind == ast.N_EXPR_IDREF {
+                        rhand_desc = "'" + rhand_name_check.label + "'"
+                        if rhand_name_check.type_path != none and
+                                rhand_name_check.type_path.len > 0 {
+                            rhand_desc = "'" +
+                                rhand_name_check.type_path[1] + "'"
+                        }
+                    }
+                    if not node.damaged {
+                        msgs.add(new msg.FileMsg(
+                            "The attribute " +
+                            rhand_desc + " "
+                            "cannot be found on this item.",
+                            kind=msg.M_ERROR, source_file=project_file,
+                            line=node.subexprs[1].line,
+                            col=node.subexprs[1].col,
+                        ))
+                    }
+                    node.damaged = yes
+                    return later none
+                }
+            }
         }
         if rhand.ref == none {
             if rhand.kind == ast.N_EXPR_IDREF and

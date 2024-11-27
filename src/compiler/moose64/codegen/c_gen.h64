@@ -183,8 +183,15 @@ func get_c_func_signature_or_body(
     if func_tinfo == none or
             func_tinfo.kind != typeinfo.TI_FUNCREF or
             func_tinfo.func_typeexpr == none {
-        throw new RuntimeError("Unexpectedly failed "
-            "to get usable function type info.")
+        if msgs == none {
+            throw new RuntimeError(
+                "Got expression with invalid type."
+            )
+        } elseif not msg.msgs_contain_error(msgs) {
+            throw new RuntimeError("Unexpectedly failed "
+                "to get usable function type info.")
+        }
+        return ""
     }
     result.func_typeinfo = func_tinfo
     if func_tinfo.func_typeexpr.return_typeref_expr != none {
@@ -1408,12 +1415,19 @@ func node_to_c_string(project_file, node, parents,
 
         await righthand_typeinfo
         if righthand_typeinfo == none {
-            print(program_name + ": error: Internal error, "
-                "failed to get type info in moose64 C code gen "
-                "for this identifier: node=" +
-                node.subexprs[2].as_str())
-            throw new RuntimeError("Unexpectedly failed "
-                "to get usable var def type info.")
+            if msgs == none {
+                throw new RuntimeError(
+                    "Got expression with invalid type."
+                )
+            } elseif not msg.msgs_contain_error(msgs) {
+                print(program_name + ": error: Internal error, "
+                    "failed to get type info in moose64 C code gen "
+                    "for this identifier: node=" +
+                    node.subexprs[2].as_str())
+                throw new RuntimeError("Unexpectedly failed "
+                    "to get usable var def type info.")
+            }
+            return later ""
         }
         
         var right_hand_str = node_to_c_string(
@@ -1483,6 +1497,20 @@ func node_to_c_string(project_file, node, parents,
                 ) later:
 
             await self_arg_tinfo
+            if self_arg_tinfo == none {
+                if msgs == none {
+                    throw new RuntimeError(
+                        "Got expression with invalid type."
+                    )
+                } elseif not msg.msgs_contain_error(msgs) {
+                    throw new RuntimeError(
+                        "Internal error, unexpectedly failed to "
+                        "get self arg type."
+                    )
+                }
+                left_hand_str = ""
+                return later
+            }
             var add_extra_ref = (
                 self_arg_tinfo.ref_count(
                     include_c_arrays=no,
@@ -1577,6 +1605,19 @@ func node_to_c_string(project_file, node, parents,
         }
         try_get_left_hand_regular() later:
 
+        if is_regular_call and func_typeinfo == none {
+            if msgs == none {
+                throw new RuntimeError(
+                    "Got expression with invalid type."
+                )
+            } elseif not msg.msgs_contain_error(msgs) {
+                throw new RuntimeError(
+                    "Internal error, unexpectedly failed "
+                    "to get func type."
+                )
+            }
+            return later ""
+        }
         var t = left_hand_str + "("
         var is_first_arg = yes
         if self_call_arg_str != none {
@@ -1734,25 +1775,32 @@ func node_to_c_string(project_file, node, parents,
 
             await left_hand_typeinfo
             if left_hand_typeinfo == none {
-                print(program_name + ": error: Internal error, "
-                    "unexpectedly failed to determine type "
-                    "info for this left-hand expression as "
-                    "part of an assignment: " +
-                    entry[1].as_str())
-                print(program_name + ": error: Replaying the "
-                    "type analysis for the log...")
-                var _unused =
-                    m64_ast_analyze.get_c_or_m64_type_of_node(
-                        project_file, entry[1],
-                        parents + [node],
-                        store_self_value_ref_for_funcs=yes,
-                        msgs=msgs, debug=yes
-                    ) later:
+                if msgs == none {
+                    throw new RuntimeError(
+                        "Got expression with invalid type."
+                    )
+                } elseif not msg.msgs_contain_error(msgs) {
+                    print(program_name + ": error: Internal error, "
+                        "unexpectedly failed to determine type "
+                        "info for this left-hand expression as "
+                        "part of an assignment: " +
+                        entry[1].as_str())
+                    print(program_name + ": error: Replaying the "
+                        "type analysis for the log...")
+                    var _unused =
+                        m64_ast_analyze.get_c_or_m64_type_of_node(
+                            project_file, entry[1],
+                            parents + [node],
+                            store_self_value_ref_for_funcs=yes,
+                            msgs=msgs, debug=yes
+                        ) later:
 
-                await _unused
-                throw new RuntimeError("Internal error, "
-                    "unexpectedly failed to determine "
-                    "type info for assigned expression.")
+                    await _unused
+                    throw new RuntimeError("Internal error, "
+                        "unexpectedly failed to determine "
+                        "type info for assigned expression.")
+                }
+                return later
             }
             
             var left_hand_str = node_to_c_string(
@@ -1814,12 +1862,19 @@ func node_to_c_string(project_file, node, parents,
 
         await var_tinfo
         if var_tinfo == none {
-            print(program_name + ": error: Internal error, "
-                "failed to get type info in moose64 C code gen "
-                "for this identifier: node=" + node.as_str() + " "
-                "node.ref=" + node.ref.as_str())
-            throw new RuntimeError("Unexpectedly failed "
-                "to get usable var def type info.")
+            if msgs == none {
+                throw new RuntimeError(
+                    "Got expression with invalid type."
+                )
+            } elseif not msg.msgs_contain_error(msgs) {
+                print(program_name + ": error: Internal error, "
+                    "failed to get type info in moose64 C code gen "
+                    "for this identifier: node=" + node.as_str() + " "
+                    "node.ref=" + node.ref.as_str())
+                throw new RuntimeError("Unexpectedly failed "
+                    "to get usable var def type info.")
+            }
+            return later ""
         }
 
         func get_label {
@@ -1905,12 +1960,19 @@ func node_to_c_string(project_file, node, parents,
 
         await var_tinfo
         if var_tinfo == none {
-            print(program_name + ": error: Internal error, "
-                "failed to get type info in moose64 C code gen "
-                "for this expression: "
-                "node.subexprs[1]=" + node.subexprs[1].as_str())
-            throw new RuntimeError("Unexpectedly failed "
-                "to get usable var def type info.")
+            if msgs == none {
+                throw new RuntimeError(
+                    "Got expression with invalid type."
+                )
+            } elseif not msg.msgs_contain_error(msgs) {
+                print(program_name + ": error: Internal error, "
+                    "failed to get type info in moose64 C code gen "
+                    "for this expression: "
+                    "node.subexprs[1]=" + node.subexprs[1].as_str())
+                throw new RuntimeError("Unexpectedly failed "
+                    "to get usable var def type info.")
+            }
+            return later ""
         }
         var t = "((" +
             node.typeref_expr.as_c_code(
@@ -1930,14 +1992,17 @@ func node_to_c_string(project_file, node, parents,
         await inner_code
         if inner_code == none or
                 inner_code.trim() == "" {
-            print(program_name + ": error: Internal error, "
-                "C code gen failed to spit out "
-                "code for assigned value: "
-                "node.subexprs[1]=" + node.subexprs[1].as_str())
-            throw new RuntimeError(
-                "Internal error, C code gen didn't "
-                "successfully spit out code for "
-                "assigned value.")
+            if msgs == none or not msg.msgs_contain_error(msgs) {
+                print(program_name + ": error: Internal error, "
+                    "C code gen failed to spit out "
+                    "code for assigned value: "
+                    "node.subexprs[1]=" + node.subexprs[1].as_str())
+                throw new RuntimeError(
+                    "Internal error, C code gen didn't "
+                    "successfully spit out code for "
+                    "assigned value.")
+            }
+            return later ""
         }
         t += inner_code + ")"
         return later t
@@ -1962,8 +2027,15 @@ func node_to_c_string(project_file, node, parents,
 
         await var_tinfo
         if var_tinfo == none {
-            throw new RuntimeError("Unexpectedly failed "
-                "to get usable var def type info.")
+            if msgs == none {
+                throw new RuntimeError(
+                    "Got expression with invalid type."
+                )
+            } elseif not msg.msgs_contain_error(msgs) {
+                throw new RuntimeError("Unexpectedly failed "
+                    "to get usable var def type info.")
+            }
+            return later ""
         }
         var texpr = var_tinfo.convert_to_typeref_expr(
             project=project_file.project,
@@ -2042,14 +2114,18 @@ func node_to_c_string(project_file, node, parents,
                     await expr_result
                     if expr_result == none or
                             expr_result.trim() == "" {
-                        print(program_name + ": error: Internal error, "
-                            "C code gen failed to spit out "
-                            "code for assigned value: "
-                            "entry[2]=" + entry[2].as_str())
-                        throw new RuntimeError(
-                            "Internal error, C code gen didn't "
-                            "successfully spit out code for "
-                            "assigned value.")
+                        if msgs == none or
+                                not msg.msgs_contain_error(msgs) {
+                            print(program_name + ": error: Internal error, "
+                                "C code gen failed to spit out "
+                                "code for assigned value: "
+                                "entry[2]=" + entry[2].as_str())
+                            throw new RuntimeError(
+                                "Internal error, C code gen didn't "
+                                "successfully spit out code for "
+                                "assigned value.")
+                        }
+                        expr_result = ""
                     }
                 }
                 gen_c_code() later:

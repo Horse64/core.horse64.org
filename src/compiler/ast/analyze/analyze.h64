@@ -931,15 +931,9 @@ func get_called_or_assigned_func_types(
 
         await last_param_m64_typeinfo
         if last_param_m64_typeinfo == none {
-            if msgs != none {
-                for m in msgs {
-                    if m.kind == msg.M_ERROR {
-                        # In this case, this is
-                        # probably a follow-up error.
-                        last_param_m64_typeinfo = "type-error"
-                        return later
-                    }
-                }
+            if msgs != none and msg.msgs_contain_error(msgs) {
+                last_param_m64_typeinfo = "type-error"
+                return later
             }
             print(if is_moose64 ("hoosec")
                 else ("moosec") + ": "
@@ -1119,14 +1113,8 @@ func get_called_or_assigned_func_types(
 
                 await arg_type
                 if arg_type == none {
-                    if msgs != none {
-                        for m in msgs {
-                            if m.kind == msg.M_ERROR {
-                                # In this case, this is
-                                # probably a follow-up error.
-                                return later no
-                            }
-                        }
+                    if msgs != none and msg.msgs_contain_error(msgs) {
+                        return later no
                     }
                     print(if is_moose64 ("hoosec")
                             else ("moosec") + ": "
