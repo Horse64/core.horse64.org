@@ -504,15 +504,50 @@ func TypeInfo.add_ref_modifier {
     }
 }
 
+func TypeInfo.convert_array_type_to_data_type {
+    var datatypeinfo = self.copy()
+    var arraymodidx = none
+    var idx = datatypeinfo.modifiers.len
+    while idx >= 1 {
+        if datatypeinfo.modifiers[idx].name == "array" {
+            arraymodidx = idx
+            break
+        } elseif {"c_array", "ref"}.has(
+                datatypeinfo.modifiers[idx].name) {
+            break
+        }
+        idx -= 1
+    }
+    if arraymodidx == none {
+        throw new TypeError(
+            "This tyepinfo doesn't refer to an array type."
+        )
+    }
+    datatypeinfo.modifiers = datatypeinfo.modifiers.sub(
+        1, arraymodidx - 1
+    ) + datatypeinfo.modifiers.sub(arraymodidx + 1)
+    return datatypeinfo
+}
+
 func TypeInfo.convert_to_typeref_expr(
         project=none, in_local_scope=none,
         in_project_file=none,
         is_moose64=no
         ) {
     if self.func_typeexpr != none {
-        return self.func_typeexpr.copy()
+        var result = self.func_typeexpr.copy()
+        result.modifiers = []
+        for mod in self.modifiers {
+            result.modifiers.add(mod.copy())
+        }
+        return result
     } elseif self._orig_typeexpr != none {
-        return self._orig_typeexpr.copy()
+        var result = self._orig_typeexpr.copy()
+        result.modifiers = []
+        for mod in self.modifiers {
+            result.modifiers.add(mod.copy())
+        }
+        return result
     } elseif is_moose64 and
             self.orig_type_name != none and
             ast_typeref.builtin_moose64_types.has(

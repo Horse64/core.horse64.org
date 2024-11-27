@@ -1031,6 +1031,11 @@ func CExportTracker.generate_c_types_and_header_info(
     process_queue() later:
 
     for array_key in self.known_array_types_map {
+        var datatypeinfo = self.known_array_types_map[array_key]
+        var datatype_expr = datatypeinfo.convert_to_typeref_expr(
+            project=project_file.project,
+            is_moose64=is_moose64
+        )
         var arr_struct_name = "__m64arraystruct__" + array_key
         var arr_struct_guard = "ARRAYDEFINED__" +
             arr_struct_name.upper()
@@ -1038,10 +1043,26 @@ func CExportTracker.generate_c_types_and_header_info(
         t += "#define " + arr_struct_guard + "\n"
         t += "struct " + arr_struct_name + " {\n"
         t += "    uint64_t len;\n"
+        t += "    " + datatype_expr.as_c_code(
+            indent=0, global_name_assign_callback=
+                get_global_symbol_c_name,
+            global_register_m64_array_callback=
+                project_file.project.c_export_tracker.
+                    register_m64_array_type,
+            project=project_file.project,
+            project_file=project_file,
+            is_moose64=is_moose64
+        ) + " data;\n"
         t += "};\n"
         t += "#endif  // " + arr_struct_guard + "\n"
     }
-    header_result.main_header_str =
+    header_result.main_header_str = "\n"
+    for array_key in self.known_array_types_map {
+        var arr_struct_name = "__m64arraystruct__" + array_key
+        header_result.main_header_str +=
+            "struct " + arr_struct_name + ";\n"
+    }
+    header_result.main_header_str +=
         "\n#ifdef __M64_DO_INCLUDE_C_TYPES\n" +
         t_c_include_str +
         "\n#undef __M64_DO_INCLUDE_C_TYPES\n"
