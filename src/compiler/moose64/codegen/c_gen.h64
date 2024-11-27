@@ -1054,6 +1054,64 @@ func optoken_to_c_token(token) {
     return token.str
 }
 
+func wrap_c_expr_as_needed_by_typeinfo(
+        var_typeinfo, expr_str,
+        node, parents,
+        is_moose64=no
+        ) {
+    if not is_moose64 {
+        return expr_str
+    }
+    var is_assignment_lefthand = no
+    var is_assignment_righthand = no
+    if (parents.len > 0 and
+            parents[parents.len].kind == ast.N_STMT_ASSIGN) or
+            (parents.len > 1 and
+            parents[parents.len].kind == ast.N_EXPR_BINOP and
+            parents[parents.len].subexprs.len >= 2 and
+            parents[parents.len].subexprs[2] == node and
+            parents[parents.len - 1].kind == ast.N_STMT_ASSIGN) {
+        var assign_stmt = parents[parents.len]
+        var child_node = node
+        if parents[parents.len].kind == ast.N_EXPR_BINOP {
+            assert(parents.len > 1)
+            assign_stmt = parents[parents.len - 1]
+            child_node = parents[parents.len]
+        }
+        assert(assign_stmt.kind == ast.N_STMT_ASSIGN)
+        var pairs_count = assign_stmt.subexprs.len / 2
+        var i = 1
+        while i <= pairs_count {
+            if assign_stmt.subexprs[i] == child_node {
+                is_assignment_lefthand = yes
+                break
+            } elseif assign_stmt.subexprs[
+                    pairs_count + i
+                    ] == child_node {
+                is_assignment_righthand = yes
+                break
+            }
+            i += 1
+        }
+    }
+    if not is_assignment_lefthand and not is_assignment_righthand {
+        if var_typeinfo.is_array() {
+            if parents.len == 0 or
+                    not {ast.N_EXPR_BINOP,
+                    ast.N_EXPR_UNOP,
+                    }.has(parents[parents.len].kind) {
+                expr_str = "(" + expr_str + ")"
+            } else {
+                expr_str = "(*" + expr_str + ")"
+            }
+        }
+        if var_typeinfo.has_outer_implicit_ref() {
+            expr_str = "(*" + expr_str + ")"
+        }
+    }
+    return expr_str
+}
+
 func node_list_to_c_strings(project_file, node_list, parents,
         indent=0, add_to_header_callback=none,
         msgs=none, build_options=none) {
@@ -1121,6 +1179,7 @@ func node_generate_c_type_conversion_code(
 
 func node_to_c_string(project_file, node, parents,
         indent=0, add_to_header_callback=none,
+        is_attr_kind_of_expr=no,
         msgs=none, build_options=none) {
     const debug = no
     const is_moose64 = yes
@@ -1339,16 +1398,40 @@ func node_to_c_string(project_file, node, parents,
         later:
 
         await left_hand_str
+        var righthand_typeinfo =
+            m64_ast_analyze.get_c_or_m64_type_of_node(
+                project_file, node.subexprs[2],
+                parents + [node],
+                store_self_value_ref_for_funcs=no,
+                msgs=msgs
+            ) later:
+
+        await righthand_typeinfo
+        if righthand_typeinfo == none {
+            print(program_name + ": error: Internal error, "
+                "failed to get type info in moose64 C code gen "
+                "for this identifier: node=" +
+                node.subexprs[2].as_str())
+            throw new RuntimeError("Unexpectedly failed "
+                "to get usable var def type info.")
+        }
+        
         var right_hand_str = node_to_c_string(
             project_file, node.subexprs[2],
             parents + [node],
             indent=indent,
+            is_attr_kind_of_expr=yes,
             add_to_header_callback=add_to_header_callback,
             msgs=msgs, build_options=build_options)
         later:
 
         await right_hand_str
-        return later left_hand_str + "." + right_hand_str
+        return later wrap_c_expr_as_needed_by_typeinfo(
+            righthand_typeinfo,
+            left_hand_str + "." + right_hand_str,
+            node.subexprs[2], parents + [node],
+            is_moose64=yes
+        )
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "(" {
         var left_hand_str = none
@@ -1738,12 +1821,19 @@ func node_to_c_string(project_file, node, parents,
             throw new RuntimeError("Unexpectedly failed "
                 "to get usable var def type info.")
         }
+
         func get_label {
             if node.ref == none {
                 return node.label
             }
             if {st_ref.ST_GLOBAL, st_ref.ST_GLOBALATTR}.has(
-                    node.ref.kind) {
+                    node.ref.kind) and
+                    (parents.len < 1 or
+                    not is_attr_kind_of_expr or
+                    parents[parents.len].kind != ast.N_EXPR_BINOP or
+                    parents[parents.len].optoken.str != "." or
+                    parents[parents.len].subexprs.len < 2 or
+                    parents[parents.len].subexprs[2] != node) {
                 var sinfo = st_ref.ref_to_symbol_info(
                     node.ref,
                     project=project,
@@ -1797,20 +1887,15 @@ func node_to_c_string(project_file, node, parents,
             assert(node.label != none)
             return node.label
         }
-        var label = get_label()
-        if var_tinfo.is_array() {
-            if parents.len == 0 or
-                    not {ast.N_EXPR_BINOP,
-                    ast.N_EXPR_UNOP,
-                    }.has(parents[parents.len].kind) {
-                return "(" + label + ")"
-            } else {
-                return "(*" + label + ")"
-            }
-        } elseif var_tinfo.has_outer_implicit_ref() {
-            return "(*" + label + ")"
+        var label_str = get_label()
+        if not is_attr_kind_of_expr {
+            label_str = wrap_c_expr_as_needed_by_typeinfo(
+                var_tinfo, label_str,
+                node, parents,
+                is_moose64=yes
+            )
         }
-        return label
+        return label_str
     } elseif node.kind == ast.N_EXPR_TYPECAST {
         var var_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
             project_file, node.subexprs[1], parents,
