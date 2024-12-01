@@ -37,7 +37,7 @@ from translator_syntaxhelpers import (
     get_leading_whitespace, separate_out_inline_funcs,
     is_number_token,
     expr_nonblank_equals, find_start_of_call_index_chain,
-    make_kwargs_in_call_tailing, get_indent,
+    make_kwargs_in_call_tailing, get_indent, nextnonblank_py,
 )
 
 class TestTranslatorSyntaxHelpers(unittest.TestCase):
@@ -283,7 +283,7 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
         self.assertEqual(len(ranges), 3)
         self.assertEqual(ranges[0][0], 4)
         self.assertEqual(ranges[0][1], 14)
-        self.assertEqual(nextnonblank(t, ranges[0][1] - 1), "}")
+        self.assertEqual(nextnonblank_py(t, ranges[0][1] - 1), "}")
 
     def test_increase_indent(self):
         self.assertEqual(increase_indent(

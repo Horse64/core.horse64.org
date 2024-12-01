@@ -818,6 +818,9 @@ cdef prevnonblankidx(list t, int idx, int no=1):
         return -1
     return idx
 
+def nextnonblank_py(t, idx):
+    return nextnonblank(t, int(idx))
+
 def firstnonblank_py(t):
     return firstnonblank(t)
 

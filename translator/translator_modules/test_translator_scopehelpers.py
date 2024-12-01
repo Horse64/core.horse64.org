@@ -38,7 +38,7 @@ from translator_syntaxhelpers import (
     tokenize, untokenize, split_toplevel_statements,
     get_statement_expr_ranges, get_statement_block_ranges,
     get_statement_inline_funcs, tree_transform_statements,
-    firstnonblank, firstnonblankidx,
+    firstnonblank_py, firstnonblankidx_py,
     get_leading_whitespace, separate_out_inline_funcs,
     is_number_token,
     expr_nonblank_equals, find_start_of_call_index_chain,
