@@ -26,10 +26,456 @@
 # license, see accompanied LICENSE.md.
 
 type Ordering {
-    var nodes = []
+    var _nodes = []
+}
+
+type OrderAttribute {
+    var name = ""
+    var userdata = none
+}
+
+type OrderNodeRelation {
+    var source_node
+    var target_node
+    var attrs = []
+}
+
+func OrderNodeRelation.init(from_node, to_node) {
+    self.source_node = from_node
+    self.target_node = to_node
+}
+
+func OrderNodeRelation.add_attr(
+        attr_name, userdata=none,
+        require_unique_name=yes
+        ) {
+    if typename(attr_name) != "str" or
+            attr_name == "" {
+        throw new ValueError(
+            "The attr_name parameter must be "
+            "a non-empty str."
+        )
+    }
+    if require_unique_name {
+        for attr in self.attrs {
+            if attr.name == attr_name {
+                throw new ValueError(
+                    "The require_unique_name parameter "
+                    "is set to yes, and an attribute with "
+                    "this name is already present."
+                )
+            }
+        }
+    }
+    var new_attr = new OrderAttribute()
+    new_attr.name = attr_name
+    new_attr.userdata = userdata
+    self.attrs.add(new_attr)
+}
+
+func OrderNodeRelation.attr_by_name(
+        name, return_multiple=no
+        ) {
+    var result = []
+    for attr in self.attrs {
+        if name != none and attr.name == name {
+            result.add(attr)
+        }
+    }
+    if return_multiple {
+        return result
+    }
+    if result.len > 1 {
+        throw new ValueError(
+            "The return_multiple option is set to no, but "
+            "multiple attributes match this name."
+        )
+    }
+    if result.len == 0 {
+        return none
+    }
+    return result[1]
 }
 
 type OrderNode {
-    var 
+    var name = ""
+    var userdata = none
+    var outgoing_rels = []
+    var incoming_rels = []
+    var attrs = []
+    var parent_ordering
+}
+
+func OrderNode.add_attr(
+        attr_name, userdata=none,
+        require_unique_name=yes
+        ) {
+    if typename(attr_name) != "str" or
+            attr_name == "" {
+        throw new ValueError(
+            "The attr_name parameter must be "
+            "a non-empty str."
+        )
+    }
+    if require_unique_name {
+        for attr in self.attrs {
+            if attr.name == attr_name {
+                throw new ValueError(
+                    "The require_unique_name parameter "
+                    "is set to yes, and an attribute with "
+                    "this name is already present."
+                )
+            }
+        }
+    }
+    var new_attr = new OrderAttribute()
+    new_attr.name = attr_name
+    new_attr.userdata = userdata
+    self.attrs.add(new_attr)
+}
+
+func OrderNode.attr_by_name(
+        name, return_multiple=no
+        ) {
+    var result = []
+    for attr in self.attrs {
+        if name != none and attr.name == name {
+            result.add(attr)
+        }
+    }
+    if return_multiple {
+        return result
+    }
+    if result.len > 1 {
+        throw new ValueError(
+            "The return_multiple option is set to no, but "
+            "multiple attributes match this name."
+        )
+    }
+    if result.len == 0 {
+        return none
+    }
+    return result[1]
+}
+
+func OrderNode.add_outgoing_rel_to(other_node) {
+    if not self.parent_ordering._nodes.has(other_node) {
+        throw new ValueError(
+            "The other node to be pointed at isn't "
+            "part of this ordering."
+        )
+    }
+    self.outgoing_rels.add(new OrderNodeRelation(
+        self, other_node
+    ))
+}
+
+func OrderNode.is_pointing_at(
+        other_node, allow_indirect=no
+        ) {
+    for rel in self.outgoing_rels {
+        if rel.target_node == other_node {
+            return yes
+        }
+    }
+    if allow_indirect {
+        var get_sub_graph = self.parent_ordering.order_by_depth(
+            backward=no, filter_by_root_node=[self],
+            flatten_into_single_list=yes,
+        )
+        if get_sub_graph.has(other_node) {
+            return yes
+        }
+    }
+    return no
+}
+
+func OrderNode.is_pointed_at(other_node, allow_indirect=no) {
+    for rel in self.incoming_rels {
+        if rel.source_node == other_node {
+            return yes
+        }
+    }
+    if allow_indirect {
+        var get_sub_graph = self.parent_ordering.order_by_depth(
+            backward=yes, filter_by_root_node=[self],
+            flatten_into_single_list=yes
+        )
+        if get_sub_graph.has(other_node) {
+            return yes
+        }
+    }
+    return no
+}
+
+func Ordering.node_by_name(name, return_multiple=no) {
+    var result = []
+    for node in self._nodes {
+        if name != none and node.name == name {
+            result.add(node)
+        }
+    }
+    if return_multiple {
+        return result
+    }
+    if result.len > 1 {
+        throw new ValueError(
+            "The return_multiple option is set to no, but "
+            "multiple nodes match this name."
+        )
+    }
+    if result.len == 0 {
+        return none
+    }
+    return result[1]
+}
+
+func Ordering.add_node(name, pointed_at_by_nodes=[],
+        pointing_to_nodes=[], require_unique_name=yes) {
+    var new_node = new OrderNode()
+    if typename(name) != "str" and name != none {
+        throw new TypeError(
+            "Node name must be an str or set to none."
+        )
+    }
+    if require_unique_name {
+        for node in self._nodes {
+            if name != none and node.name == name {
+                throw new ValueError(
+                    "The require_unique_name option is enabled, "
+                    "yet another node already uses the same name."
+                )
+            }
+        }
+    }
+    new_node.name = name
+    for pointed_at_by in pointed_at_by_nodes {
+        if not self._nodes.has(pointed_at_by) {
+            throw new ValueError(
+                "One or more nodes in pointed_at_by_nodes list "
+                "aren't part of the graph."
+            )
+        }
+    }
+    for pointing_to in pointing_to_nodes {
+        if not self._nodes.has(pointing_to) {
+            throw new ValueError(
+                "One or more nodes in pointing_to_nodes list "
+                "aren't part of the graph."
+            )
+        }
+    }
+    new_node.parent_ordering = self
+    self._nodes.add(new_node)
+    for old_node in pointed_at_by_nodes {
+        var rel = new OrderNodeRelation(old_node, new_node)
+        old_node.outgoing_rels.add(rel)
+        new_node.incoming_rels.add(rel)
+    }
+    for old_node in pointing_to_nodes {
+        var rel = new OrderNodeRelation(new_node, old_node)
+        old_node.incoming_rels.add(rel)
+        new_node.outgoing_rels.add(rel)
+    }
+    return new_node
+}
+
+func Ordering.order_by_depth(
+        backward=no, filter_by_root_node=none,
+        flatten_into_single_list=no,
+        ) {
+    var result = []
+    var nodes_seen = {}
+
+    var root_nodes = filter_by_root_node
+    if root_nodes != none and
+            typename(root_nodes) != "list" {
+        root_nodes = [root_nodes]
+    }
+    if root_nodes != none and root_nodes.len == 0 {
+        root_nodes = none
+    }
+    if root_nodes != none {
+        for root_node in root_nodes {
+            if not self._nodes.has(root_node) {
+                throw new ValueError(
+                    "The option filter_by_root_node "
+                    "mustn't specify any nodes that "
+                    "aren't part of the ordering."
+                )
+            }
+        }
+    }
+    if typename(flatten_into_single_list) != "bool" {
+        throw new TypeError(
+            "The flatten_into_single_list parameter "
+            "must be a bool."
+        )
+    }
+    if typename(backward) != "bool" {
+        throw new TypeError(
+            "The backward parameter "
+            "must be a bool."
+        )
+    }
+
+    func do_step {
+        var next_candidates = []
+        var first_round = (nodes_seen.len == 0)
+        var scan_nodes = self._nodes
+        if first_round and root_nodes != none {
+            scan_nodes = root_nodes
+        }
+        for node in scan_nodes {
+            if first_round and (
+                    (not backward and
+                     node.incoming_rels.len == 0) or
+                    (backward and
+                     node.outgoing_rels.len == 0)) and
+                    (root_nodes == none or
+                     root_nodes.has(node)) {
+                next_candidates.add(node)
+            } elseif not nodes_seen.has(node) {
+                for prev_node in nodes_seen {
+                    if (not backward and
+                            prev_node.is_pointing_at(node)) or
+                            (backward and
+                            prev_node.is_pointed_at(node)) {
+                        next_candidates.add(node)
+                    }
+                }
+            }
+        }
+        if next_candidates.len == 0 and
+                nodes_seen.len < self._nodes.len {
+            # The remaining nodes must be part of cycles.
+            # Get any node that remains and isn't pointed at
+            # by anything.
+            var scan_nodes = self._nodes
+            if root_nodes != none {
+                scan_nodes = root_nodes
+            }
+            for node in scan_nodes {
+                if nodes_seen.has(node) {
+                    continue
+                }
+                var skip = no
+                for prev_node in nodes_seen {
+                    if prev_node.is_pointing_at(node) {
+                        skip = yes
+                    }
+                }
+                if skip {
+                    continue
+                }
+                next_candidates.add(node)
+            }
+            if next_candidates.len == 0 and root_nodes == none {
+                throw new RuntimeError(
+                    "Can't find more node candidates even "
+                    "though we haven't visited all of them, "
+                    "graph must be damaged."
+                )
+            }
+        }
+        result.add(next_candidates)
+        for new_node in next_candidates {
+            nodes_seen.add(new_node)
+        }
+        return (nodes_seen.len >= self._nodes.len)
+    }
+    while not do_step() {
+        # Repeat until we have a full ordering.
+        continue
+    }
+    if backward {
+        var result_reverse = []
+        var idx = result.len
+        while idx >= 1 {
+            result_reverse.add(result[idx])
+            idx -= 1
+        }
+        result = result_reverse
+    }
+    if flatten_into_single_list {
+        var result_flattened = []
+        for sub_list in result {
+            assert(typename(sub_list) == "list")
+            for entry in sub_list {
+                result_flattened.add(entry)
+            }
+        }
+        result = result_flattened
+    }
+    return result
+}
+
+func Ordering.find_cycles {
+    var cycles = []
+    for node_candidate in self._nodes {
+        if node_candidate.incoming_rels.len == 0 or
+                node_candidate.outgoing_rels.len == 0 {
+            continue
+        }
+        var potential_cycle = {}
+        var get_sub_graph = self.parent_ordering.order_by_depth(
+            backward=no, filter_by_root_node=[node_candidate],
+            flatten_into_single_list=yes
+        )
+        for sub_node in get_sub_graph {
+            if potential_cycle.has(sub_node) {
+                continue
+            }
+            if sub_node.incoming_rels.len > 0 and
+                    sub_node.outgoing_rels.len > 0 and
+                    sub_node.is_pointing_at(
+                        node_candidate,
+                        allow_indirect=yes
+                    ) {
+                potential_cycle.add(sub_node)
+            }
+        }
+        if not potential_cycle.has(node_candidate) {
+            potential_cycle.add(node_candidate)
+        }
+        if potential_cycle.len <= 1 {
+            continue
+        }
+        var skip_adding = no
+        var remove_old_cycle_refs = []
+        for old_cycle in cycles {
+            var old_is_subset = yes
+            var old_is_superset = yes
+            assert(old_cycle.len > 0)
+            for old_cycle_entry in old_cycle {
+                if not potential_cycle.has(old_cycle_entry) {
+                    old_is_subset = no
+                }
+            }
+            for new_cycle_entry in potential_cycle {
+                if not old_cycle.has(new_cycle_entry) {
+                    old_is_superset = no
+                }
+            }
+            if old_is_superset {
+                skip_adding = yes
+                break
+            }
+            if old_is_subset {
+                remove_old_cycle_refs.add(old_cycle)
+            }
+        }
+        if skip_adding {
+            continue
+        }
+        cycles.add(potential_cycle)
+        if remove_old_cycle_refs.len == 0 {
+            continue
+        }
+        for remove_old_cycle in remove_old_cycle_refs {
+            cycles.del(remove_old_cycle)
+        }
+    }
+    return cycles
 }
 
