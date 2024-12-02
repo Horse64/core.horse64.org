@@ -172,7 +172,8 @@ func project.Project.finalize_func_typerefs_all_files(
                     ast_typeref.create_typeref_from_func_node(
                         pfile, value
                     )
-                assert(si.typeref_expr.is_func_ref)
+                assert(si.typeref_expr == none or
+                    si.typeref_expr.is_func_ref)
                 if is_moose64 and si.typeref_expr == none {
                     print("moosec: error: Internal error, unexpectedly "
                         "failed to compute typeref expr for func node: " +
