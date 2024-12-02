@@ -25,6 +25,9 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import debugger from core.horse64.org
+import textfmt from core.horse64.org
+
 type Ordering {
     var _nodes = []
 }
@@ -126,6 +129,19 @@ type OrderNode {
     var parent_ordering
 }
 
+func OrderNode.as_str {
+    return (
+        "OrderNode{name=" +
+        if self.name == none ("none") else (
+            textfmt.as_escaped_code_string(
+                self.name
+            )
+        ) + ",attr=" +
+        debugger.get_addr(self).as_str() +
+        "}"
+    )
+}
+
 func OrderNode.add_attr(
         attr_name, userdata=none,
         require_unique_name=yes
@@ -178,16 +194,35 @@ func OrderNode.attr_by_name(
     return result[1]
 }
 
-func OrderNode.add_outgoing_rel_to(other_node) {
+func OrderNode.add_rel_to(
+        other_node, attr_name=none
+        ) {
+    var attr_names = attr_name
+    if attr_names != none and typename(attr_names) != "list" {
+        attr_names = [attr_names]
+    }
+    if not self.parent_ordering._nodes.has(self) {
+        throw new RuntimeError(
+            "The ordering graph is broken and doesn't "
+            "contain the self ref of the node."
+        )
+    }
     if not self.parent_ordering._nodes.has(other_node) {
         throw new ValueError(
             "The other node to be pointed at isn't "
             "part of this ordering."
         )
     }
-    self.outgoing_rels.add(new OrderNodeRelation(
+    var rel = new OrderNodeRelation(
         self, other_node
-    ))
+    )
+    if attr_names != none {
+        for attr_name in attr_names {
+            rel.add_attr(attr_name)
+        }
+    }
+    self.outgoing_rels.add(rel)
+    other_node.incoming_rels.add(rel)
 }
 
 func OrderNode.is_pointing_at(
@@ -218,7 +253,7 @@ func OrderNode.is_pointing_at(
         if rel.target_node == other_node and
                 (rel_attr_names == none or
                  (rel.matches_any_of_attr_names(
-                     rel.attr_names))) {
+                     rel_attr_names))) {
             return yes
         }
     }
@@ -258,7 +293,7 @@ func OrderNode.is_pointed_at(other_node,
     for rel in self.incoming_rels and
             (rel_attr_names == none or
                 (rel.matches_any_of_attr_names(
-                    rel.attr_names))) {
+                    rel_attr_names))) {
         if rel.source_node == other_node {
             return yes
         }
@@ -297,7 +332,7 @@ func Ordering.node_by_name(name, return_multiple=no) {
     return result[1]
 }
 
-func Ordering.add_node(name, pointed_at_by_nodes=[],
+func Ordering.add_node(name=none, pointed_at_by_nodes=[],
         pointing_to_nodes=[], require_unique_name=yes) {
     var new_node = new OrderNode()
     if typename(name) != "str" and name != none {
@@ -468,11 +503,15 @@ func Ordering.order_by_depth(
                 )
             }
         }
+        if next_candidates.len == 0 {
+            return yes
+        }
         result.add(next_candidates)
         for new_node in next_candidates {
             nodes_seen.add(new_node)
         }
-        return (nodes_seen.len >= self._nodes.len)
+        var done = (nodes_seen.len >= self._nodes.len)
+        return done
     }
     while not do_step() {
         # Repeat until we have a full ordering.

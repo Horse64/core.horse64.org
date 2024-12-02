@@ -28,5 +28,26 @@ import ordering from core.horse64.org
 
 func test_ordering_main {
     var graph = new ordering.Ordering()
+
+    var root = graph.add_node(name="root")
+
+    var node1 = graph.add_node(name="node1")
+    root.add_rel_to(node1, attr_name="depends")
+
+    var node2 = graph.add_node(name="node2")
+    root.add_rel_to(node2, attr_name="recommends")
+
+    var dependencies = graph.order_by_depth(
+        filter_by_root_node=root,
+        filter_by_rel_attr_name="depends",
+        flatten_into_single_list=yes,
+    )
+    var recommendations = graph.order_by_depth(
+        filter_by_root_node=root,
+        filter_by_rel_attr_name="recommends",
+        flatten_into_single_list=yes,
+    )
+    assert(dependencies.len == 2)
+    assert(recommendations.len == 2)
 }
 
