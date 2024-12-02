@@ -97,6 +97,26 @@ func OrderNodeRelation.attr_by_name(
     return result[1]
 }
 
+func OrderNodeRelation.matches_any_of_attr_names(
+        attr_names
+        ) {
+    if typename(attr_names) != "list" {
+        throw new TypeError(
+            "The attr_names parameter must be a list "
+            "of strs."
+        )
+    }
+    for attr in self.attrs {
+        if attr.name == none {
+            continue
+        }
+        if attr_names.has(attr.name) {
+            return yes
+        }
+    }
+    return no
+}
+
 type OrderNode {
     var name = ""
     var userdata = none
@@ -171,10 +191,34 @@ func OrderNode.add_outgoing_rel_to(other_node) {
 }
 
 func OrderNode.is_pointing_at(
-        other_node, allow_indirect=no
+        other_node,
+        filter_by_rel_attr_name=none,
+        allow_indirect=no
         ) {
+    var rel_attr_names = filter_by_rel_attr_name
+    if rel_attr_names != none and
+            typename(rel_attr_names) != "list" {
+        rel_attr_names = [rel_attr_names]
+    }
+    if rel_attr_names != none and rel_attr_names.len == 0 {
+        rel_attr_names = none
+    }
+    if rel_attr_names != none {
+        for attr_name in rel_attr_names {
+            if typename(attr_name) != "str" {
+                throw new TypeError(
+                    "The filter_by_rel_attr_name must be "
+                    "of type str, or a list with strs."
+                )
+            }
+        }
+    }
+
     for rel in self.outgoing_rels {
-        if rel.target_node == other_node {
+        if rel.target_node == other_node and
+                (rel_attr_names == none or
+                 (rel.matches_any_of_attr_names(
+                     rel.attr_names))) {
             return yes
         }
     }
@@ -190,8 +234,31 @@ func OrderNode.is_pointing_at(
     return no
 }
 
-func OrderNode.is_pointed_at(other_node, allow_indirect=no) {
-    for rel in self.incoming_rels {
+func OrderNode.is_pointed_at(other_node,
+        filter_by_rel_attr_name=none, allow_indirect=no) {
+    var rel_attr_names = filter_by_rel_attr_name
+    if rel_attr_names != none and
+            typename(rel_attr_names) != "list" {
+        rel_attr_names = [rel_attr_names]
+    }
+    if rel_attr_names != none and rel_attr_names.len == 0 {
+        rel_attr_names = none
+    }
+    if rel_attr_names != none {
+        for attr_name in rel_attr_names {
+            if typename(attr_name) != "str" {
+                throw new TypeError(
+                    "The filter_by_rel_attr_name must be "
+                    "of type str, or a list with strs."
+                )
+            }
+        }
+    }
+
+    for rel in self.incoming_rels and
+            (rel_attr_names == none or
+                (rel.matches_any_of_attr_names(
+                    rel.attr_names))) {
         if rel.source_node == other_node {
             return yes
         }
@@ -282,6 +349,7 @@ func Ordering.add_node(name, pointed_at_by_nodes=[],
 
 func Ordering.order_by_depth(
         backward=no, filter_by_root_node=none,
+        filter_by_rel_attr_name=none,
         flatten_into_single_list=no,
         ) {
     var result = []
@@ -302,6 +370,24 @@ func Ordering.order_by_depth(
                     "The option filter_by_root_node "
                     "mustn't specify any nodes that "
                     "aren't part of the ordering."
+                )
+            }
+        }
+    }
+    var rel_attr_names = filter_by_rel_attr_name
+    if rel_attr_names != none and
+            typename(rel_attr_names) != "list" {
+        rel_attr_names = [rel_attr_names]
+    }
+    if rel_attr_names != none and rel_attr_names.len == 0 {
+        rel_attr_names = none
+    }
+    if rel_attr_names != none {
+        for attr_name in rel_attr_names {
+            if typename(attr_name) != "str" {
+                throw new TypeError(
+                    "The filter_by_rel_attr_name must be "
+                    "of type str, or a list with strs."
                 )
             }
         }
@@ -338,9 +424,13 @@ func Ordering.order_by_depth(
             } elseif not nodes_seen.has(node) {
                 for prev_node in nodes_seen {
                     if (not backward and
-                            prev_node.is_pointing_at(node)) or
+                            prev_node.is_pointing_at(node,
+                                filter_by_rel_attr_name=
+                                    rel_attr_names)) or
                             (backward and
-                            prev_node.is_pointed_at(node)) {
+                            prev_node.is_pointed_at(node,
+                                filter_by_rel_attr_name=
+                                    rel_attr_names)) {
                         next_candidates.add(node)
                     }
                 }
