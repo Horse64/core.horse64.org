@@ -1058,7 +1058,7 @@ func do_all_post_nameres_transformations(
 
     success = compiler.globals_order.
         register_globals_for_project(
-            project, msgs=msgs
+            project, msgs=msgs, is_moose64=is_moose64
         ) later:
 
     await success

@@ -31,7 +31,7 @@ import compiler.ast as ast
 import compiler.project
 
 type GlobalsInitTracker {
-    var globals_with_init_storage_ref_list = []
+    var st_id_to_globals_with_init_map = {->}
     var globals_init_ordering = none
     var project = none
 }
@@ -49,15 +49,40 @@ func register_global(project_file, stmt, msgs=none) {
     if stmt.kind != ast.N_STMT_VAR {
         return yes
     }
+    var ginittracker = project_file.
+        project.globals_init_tracker
+    var idx = 0
+    for lbl in stmt.var_labels {
+        idx += 1
+        var sym = stmt.symbol_info[idx]
+        if stmt.is_empty or
+                stmt.subexprs[idx] == none or
+                (stmt.subexprs[idx].kind ==
+                     ast.N_EXPR_LIT and
+                 stmt.subexprs[idx].value == none) {
+            continue
+        } else {
+            assert(idx >= 1 and
+                idx <= stmt.var_labels.len and
+                idx <= stmt.subexprs.len)
+            ginittracker.st_id_to_globals_with_init_map[
+                sym.storage_id
+            ] = [stmt, stmt.subexprs[idx]]
+        }
+    }
     return yes
 }
 
-func register_globals_for_project(project, msgs=none) {
+func register_globals_for_project(
+        project, msgs=none, is_moose64=no) {
+    var program_name =
+        if is_moose64 ("moosec") else ("horsec")
     if project.globals_init_tracker == none {
         project.globals_init_tracker =
             new GlobalsInitTracker()
         project.globals_init_tracker.project = project
     }
+    var ginittracker = project.globals_init_tracker
     var had_error = no
     func process_file(project_file) {
         project_file.ensure_ast() later:
@@ -75,5 +100,7 @@ func register_globals_for_project(project, msgs=none) {
     ) later:
 
     await result
+    #print(program_name + "debug: " +
+    #    ginittracker.st_id_to_globals_with_init_map.as_str())
     return later not had_error
 }
