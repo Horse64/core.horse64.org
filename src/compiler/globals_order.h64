@@ -25,3 +25,56 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import ordering from core.horse64.org
+
+import compiler.ast as ast
+import compiler.project
+
+type GlobalsInitTracker {
+    var globals_with_init_storage_ref_list = []
+    var globals_init_ordering = none
+    var project = none
+}
+
+func GlobalsInitTracker.init {
+    self.globals_init_ordering =
+        new ordering.Ordering()
+}
+
+extend type compiler.project.Project {
+    var globals_init_tracker = none
+}
+
+func register_global(project_file, stmt, msgs=none) {
+    if stmt.kind != ast.N_STMT_VAR {
+        return yes
+    }
+    print("OOPSIE REGISTER GLOBAL: " + stmt.as_str())
+    return yes
+}
+
+func register_globals_for_project(project, msgs=none) {
+    if project.globals_init_tracker == none {
+        project.globals_init_tracker =
+            new GlobalsInitTracker()
+        project.globals_init_tracker.project = project
+    }
+    var had_error = no
+    func process_file(project_file) {
+        project_file.ensure_ast() later:
+
+        for stmt in project_file.ast.stmts {
+            if not register_global(
+                    project_file, stmt, msgs=msgs) {
+                had_error = yes
+            }
+        }
+        return later yes
+    }
+    var result = project.do_for_all_files(
+        process_file
+    ) later:
+
+    await result
+    return later not had_error
+}
