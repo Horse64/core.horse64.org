@@ -49,7 +49,6 @@ func register_global(project_file, stmt, msgs=none) {
     if stmt.kind != ast.N_STMT_VAR {
         return yes
     }
-    print("OOPSIE REGISTER GLOBAL: " + stmt.as_str())
     return yes
 }
 

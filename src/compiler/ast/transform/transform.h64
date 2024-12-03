@@ -37,6 +37,7 @@ import compiler.ast.expr as ast_expr
 import compiler.ast.if_stmt as if_stmt
 import compiler.ast.transform.later_transform as later_transform
 import compiler.ast.var_stmt as var_stmt
+import compiler.globals_order
 import compiler.moose64.ast.transform as m64_ast_transform
 import compiler.msg as msg
 import compiler.project as project
@@ -1055,6 +1056,15 @@ func do_all_post_nameres_transformations(
         return later no
     }
 
+    success = compiler.globals_order.
+        register_globals_for_project(
+            project, msgs=msgs
+        ) later:
+
+    await success
+    if not success {
+        return later no
+    }
     if build_options != none and build_options.print_stages {
         print(build_options.build_program_name +
             ": info: stage transformed-code: "
