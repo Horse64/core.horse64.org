@@ -33,6 +33,7 @@ import compiler.storage.ref as st_ref
 
 type GlobalsInitTracker {
     var st_id_to_globals_with_init_map = {->}
+    var st_id_to_ordering_node_map = {->}
     var globals_init_ordering = none
     var project = none
 }
@@ -71,6 +72,7 @@ func register_global(project_file, stmt, msgs=none) {
     }
     var ginittracker = project_file.
         project.globals_init_tracker
+    var ordering = ginittracker.globals_init_ordering
     var idx = 0
     for lbl in stmt.var_labels {
         idx += 1
@@ -91,6 +93,12 @@ func register_global(project_file, stmt, msgs=none) {
                 stmt, stmt.subexprs[idx],
                 get_global_refs(stmt.subexprs[idx])
             ]
+            var order_node = ordering.add_node(
+                name="G" + sym.storage_id.as_str(),
+            )
+            ginittracker.st_id_to_ordering_node_map[
+                sym.storage_id
+            ] = order_node
         }
     }
     return yes
@@ -123,6 +131,19 @@ func register_globals_for_project(
     ) later:
 
     await result
+    var ginit_map = ginittracker.st_id_to_globals_with_init_map
+    var order_node_map = ginittracker.st_id_to_ordering_node_map
+    for storage_id in ginit_map {
+        var order_node = order_node_map[
+            storage_id
+        ]
+        for target_id in ginit_map[storage_id][3] {
+            var target_node = order_node_map[
+                target_id
+            ]
+            order_node.add_rel_to(target_node)
+        }
+    }
     #print(program_name + "debug: " +
     #    ginittracker.st_id_to_globals_with_init_map.as_str())
     return later not had_error
