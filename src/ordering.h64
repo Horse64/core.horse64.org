@@ -290,11 +290,11 @@ func OrderNode.is_pointed_at(other_node,
         }
     }
 
-    for rel in self.incoming_rels and
-            (rel_attr_names == none or
-                (rel.matches_any_of_attr_names(
-                    rel_attr_names))) {
-        if rel.source_node == other_node {
+    for rel in self.incoming_rels {
+        if rel.source_node == other_node and
+                (rel_attr_names == none or
+                    (rel.matches_any_of_attr_names(
+                        rel_attr_names))) {
             return yes
         }
     }

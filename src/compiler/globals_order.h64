@@ -256,8 +256,9 @@ func register_globals_for_project(
                 }
                 var first_node = current_depth_list[1]
                 assert(first_node.name != none and
-                    first_node.starts("G"))
-                var first_st_id = first_node.sub(2).to_num()
+                    first_node.name.starts("G"))
+                var first_st_id =
+                    first_node.name.sub(2).to_num()
                 if not allow_calls and
                         ginit_map[first_st_id].contains_call {
                     idx2 += 1
@@ -277,8 +278,10 @@ func register_globals_for_project(
                 var idx3 = 2
                 while idx3 <= current_depth_list.len {
                     var other_node = current_depth_list[idx3]
+                    assert(other_node.name != none and
+                        other_node.name.starts("G"))
                     var other_st_id =
-                        other_node.sub(2).to_num()
+                        other_node.name.sub(2).to_num()
                     var other_project_file =
                         project.storage_id_to_global_scope_map[
                             first_st_id
