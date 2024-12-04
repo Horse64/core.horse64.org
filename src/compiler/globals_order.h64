@@ -41,6 +41,7 @@ type GlobalsInitTracker {
 }
 
 type GlobalsInitInfo {
+    var st_id = none
     var depends_on_st_ids = []
     var contains_call = no
     var project_file = none
@@ -51,11 +52,23 @@ func GlobalsInitTracker.init {
         new ordering.Ordering()
 }
 
+func GlobalsInitInfo.as_str {
+    return "GlobalsInitInfo{" +
+        "st_id=" + self.st_id.as_str() + ","
+        "depends_on_st_ids=" +
+            self.depends_on_st_ids.as_str() + ","
+        "contains_call=" + self.contains_call.as_str() +
+        "}"
+}
+
 extend type compiler.project.Project {
     var globals_init_tracker = none
 }
 
-func register_global(project_file, stmt, msgs=none) {
+func register_global(project_file, stmt,
+        msgs=none, is_moose64=no, debug=no) {
+    var program_name =
+        if is_moose64 ("moosec") else ("horsec")
     if stmt.kind != ast.N_STMT_VAR {
         return yes
     }
@@ -115,6 +128,7 @@ func register_global(project_file, stmt, msgs=none) {
             ginittracker.st_id_to_globals_init_info_map[
                 sym.storage_id
             ] = ginit_info
+            ginit_info.st_id = sym.storage_id
             ginit_info.depends_on_st_ids =
                 get_global_refs(stmt.subexprs[idx])
             ginit_info.contains_call =
@@ -126,13 +140,21 @@ func register_global(project_file, stmt, msgs=none) {
             ginittracker.st_id_to_ordering_node_map[
                 sym.storage_id
             ] = order_node
+            if debug {
+                print(program_name + ": debug: "
+                    "globals_order.h64: " +
+                    "added global init with st_id=" +
+                        sym.storage_id.as_str() + " "
+                    "expr=" + stmt.subexprs[idx].as_str())
+            }
         }
     }
     return yes
 }
 
 func register_globals_for_project(
-        project, msgs=none, is_moose64=no) {
+        project, msgs=none, is_moose64=no,
+        debug=no) {
     var program_name =
         if is_moose64 ("moosec") else ("horsec")
     if project.globals_init_tracker == none {
@@ -147,7 +169,9 @@ func register_globals_for_project(
 
         for stmt in project_file.ast.stmts {
             if not register_global(
-                    project_file, stmt, msgs=msgs) {
+                    project_file, stmt, msgs=msgs,
+                    is_moose64=is_moose64,
+                    debug=debug) {
                 had_error = yes
             }
         }
@@ -249,16 +273,15 @@ func register_globals_for_project(
             var current_depth_list = sorted_node_lists[idx]
             var idx2 = 1
             while idx2 <= current_depth_list.len {
-                if final_st_ids_set.has(
-                        current_depth_list[idx2]) {
-                    idx2 += 1
-                    continue
-                }
-                var first_node = current_depth_list[1]
+                var first_node = current_depth_list[idx2]
                 assert(first_node.name != none and
                     first_node.name.starts("G"))
                 var first_st_id =
                     first_node.name.sub(2).to_num()
+                if final_st_ids_set.has(first_st_id) {
+                    idx2 += 1
+                    continue
+                }
                 if not allow_calls and
                         ginit_map[first_st_id].contains_call {
                     idx2 += 1
@@ -272,16 +295,21 @@ func register_globals_for_project(
                 add_basic_inits_from_project_file(
                     curr_project_file
                 )
+                assert(not final_st_ids_list.has(first_st_id))
                 final_st_ids_list.add(first_st_id)
                 final_st_ids_set.add(first_st_id)
 
-                var idx3 = 2
+                var idx3 = idx2 + 1
                 while idx3 <= current_depth_list.len {
                     var other_node = current_depth_list[idx3]
                     assert(other_node.name != none and
                         other_node.name.starts("G"))
                     var other_st_id =
                         other_node.name.sub(2).to_num()
+                    if final_st_ids_set.has(other_st_id) {
+                        idx3 += 1
+                        continue
+                    }
                     var other_project_file =
                         project.storage_id_to_global_scope_map[
                             first_st_id
@@ -315,6 +343,7 @@ func register_globals_for_project(
                             continue
                         }
                     }
+                    assert(not final_st_ids_set.has(other_st_id))
                     final_st_ids_list.add(other_st_id)
                     final_st_ids_set.add(other_st_id)
                     idx3 += 1
@@ -328,8 +357,12 @@ func register_globals_for_project(
     ginittracker.list_of_final_ordered_st_ids =
         final_st_ids_list
 
-    #print(program_name + ": debug: " +
-    #    ginittracker.st_id_to_globals_with_init_map.as_str())
-    #print(program_name + ": debug: " + final_st_ids_list.as_str())
+    if debug {
+        print(program_name + ": debug: globals_order.h64: " +
+            "st_id_to_globals_init_info_map=" +
+            ginit_map.as_str())
+        print(program_name + ": debug: globals_order.h64: " +
+            "final_st_ids_list=" + final_st_ids_list.as_str())
+    }
     return later not had_error
 }
