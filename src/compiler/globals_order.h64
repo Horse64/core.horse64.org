@@ -30,12 +30,19 @@ import ordering from core.horse64.org
 import compiler.ast as ast
 import compiler.project
 import compiler.storage.ref as st_ref
+import compiler.token as token
 
 type GlobalsInitTracker {
-    var st_id_to_globals_with_init_map = {->}
+    var st_id_to_globals_init_info_map = {->}
     var st_id_to_ordering_node_map = {->}
     var globals_init_ordering = none
+    var list_of_final_ordered_st_ids = []
     var project = none
+}
+
+type GlobalsInitInfo {
+    var depends_on_st_ids = []
+    var contains_call = no
 }
 
 func GlobalsInitTracker.init {
@@ -50,6 +57,22 @@ extend type compiler.project.Project {
 func register_global(project_file, stmt, msgs=none) {
     if stmt.kind != ast.N_STMT_VAR {
         return yes
+    }
+    func get_contains_call(expr) {
+        var result = []
+        if expr.kind == ast.N_EXPR_BINOP and
+                expr.optoken.str == "(" {
+            return yes
+        } elseif expr.kind == ast.N_EXPR_UNOP and
+                expr.optoken.kind == token.T_NEWOP {
+            return yes
+        }
+        for inner_expr in expr.subexprs {
+            if get_contains_call(inner_expr) {
+                return yes
+            }
+        }
+        return no
     }
     func get_global_refs(expr) {
         var result = []
@@ -87,12 +110,14 @@ func register_global(project_file, stmt, msgs=none) {
             assert(idx >= 1 and
                 idx <= stmt.var_labels.len and
                 idx <= stmt.subexprs.len)
-            ginittracker.st_id_to_globals_with_init_map[
+            var ginit_info = new GlobalsInitInfo()
+            ginittracker.st_id_to_globals_init_info_map[
                 sym.storage_id
-            ] = [
-                stmt, stmt.subexprs[idx],
+            ] = ginit_info
+            ginit_info.depends_on_st_ids =
                 get_global_refs(stmt.subexprs[idx])
-            ]
+            ginit_info.contains_call =
+                get_contains_call(stmt.subexprs[idx])
             var order_node = ordering.add_node(
                 name="G" + sym.storage_id.as_str(),
             )
@@ -131,20 +156,117 @@ func register_globals_for_project(
     ) later:
 
     await result
-    var ginit_map = ginittracker.st_id_to_globals_with_init_map
+
+    # First, register all globals with init exprs in a graph:
+    var ginit_map = ginittracker.st_id_to_globals_init_info_map
     var order_node_map = ginittracker.st_id_to_ordering_node_map
     for storage_id in ginit_map {
         var order_node = order_node_map[
             storage_id
         ]
-        for target_id in ginit_map[storage_id][3] {
+        for target_id in ginit_map[storage_id].depends_on_st_ids {
             var target_node = order_node_map[
                 target_id
             ]
             order_node.add_rel_to(target_node)
         }
     }
-    #print(program_name + "debug: " +
+    ginittracker.list_of_final_ordered_st_ids = []
+    var final_st_ids_list = []
+    var final_st_ids_set = {}
+
+    # Now sort the graph by dependencies, and iterate the result:
+    var ordering = ginittracker.globals_init_ordering
+    var sorted_node_lists = ordering.order_by_depth(
+        backward=yes,
+    )
+    var sort_stage = 1
+    while sort_stage <= 2 {
+        var allow_calls = (sort_stage == 2)
+
+        var idx = 1
+        while idx <= sorted_node_lists.len {
+            # Look at one level of depth in the dependencies.
+            # We want to extract as much from a single file as
+            # possible, per file, until everything in the depth
+            # is ordered.
+            # (The idea is that the C code gen wants to group
+            # as much as possible into one function, which can
+            # only be done with statements from the same depth
+            # in the same file.)
+            var current_depth_list = sorted_node_lists[idx]
+            var idx2 = 1
+            while idx2 <= current_depth_list.len {
+                if final_st_ids_set.has(
+                        current_depth_list[idx2]) {
+                    idx2 += 1
+                    continue
+                }
+                var first_node = current_depth_list[1]
+                assert(first_node.name != none and
+                    first_node.starts("G"))
+                var first_st_id = first_node.sub(2).to_num()
+                if not allow_calls and
+                        ginit_map[first_st_id].contains_call {
+                    idx2 += 1
+                    continue
+                }
+                final_st_ids_list.add(first_st_id)
+                final_st_ids_set.add(first_st_id)
+                var curr_project_file =
+                    project.storage_id_to_global_scope_map[
+                        first_st_id
+                    ].known_to_be_in_project_file
+                assert(curr_project_file != none)
+
+                var idx3 = 2
+                while idx3 <= current_depth_list.len {
+                    var other_node = current_depth_list[idx3]
+                    var other_st_id =
+                        other_node.sub(2).to_num()
+                    var other_project_file =
+                        project.storage_id_to_global_scope_map[
+                            first_st_id
+                        ].known_to_be_in_project_file
+                    if other_project_file != curr_project_file or
+                            (not allow_calls and
+                             ginit_map[other_st_id].
+                                 contains_call) {
+                        idx3 += 1
+                        continue
+                    }
+                    if not allow_calls {
+                        # We must ensure all of the deps had no
+                        # calls either, which means they must be
+                        # in our result set already.
+                        var have_skipped_dep = no
+                        for dep_id in ginit_map[other_st_id].
+                                depends_on_st_ids {
+                            if not final_st_ids_set.has(dep_id) {
+                                have_skipped_dep = yes
+                                break
+                            }
+                        }
+                        if have_skipped_dep {
+                            idx3 += 1
+                            continue
+                        }
+                    }
+                    final_st_ids_list.add(other_st_id)
+                    final_st_ids_set.add(other_st_id)
+                    idx3 += 1
+                }
+                idx2 += 1
+            }
+            idx += 1
+        }
+        sort_stage += 1
+    }
+    ginittracker.list_of_final_ordered_st_ids =
+        final_st_ids_list
+
+    #print(program_name + ": debug: " +
     #    ginittracker.st_id_to_globals_with_init_map.as_str())
+    #print(program_name + ": debug: " + final_st_ids_list.as_str())
     return later not had_error
 }
