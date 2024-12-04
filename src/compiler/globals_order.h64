@@ -43,6 +43,7 @@ type GlobalsInitTracker {
 type GlobalsInitInfo {
     var depends_on_st_ids = []
     var contains_call = no
+    var project_file = none
 }
 
 func GlobalsInitTracker.init {
@@ -118,6 +119,7 @@ func register_global(project_file, stmt, msgs=none) {
                 get_global_refs(stmt.subexprs[idx])
             ginit_info.contains_call =
                 get_contains_call(stmt.subexprs[idx])
+            ginit_info.project_file = project_file
             var order_node = ordering.add_node(
                 name="G" + sym.storage_id.as_str(),
             )
@@ -180,20 +182,70 @@ func register_globals_for_project(
     var sorted_node_lists = ordering.order_by_depth(
         backward=yes,
     )
+    var pfiles_with_basic_inits_done = {}
+    var all_basic_inits_done = no
     var sort_stage = 1
     while sort_stage <= 2 {
         var allow_calls = (sort_stage == 2)
 
+        func add_basic_inits_from_project_file(pfile) {
+            if pfiles_with_basic_inits_done.has(
+                    pfile
+                    ) {
+                return
+            }
+            pfiles_with_basic_inits_done.add(
+                pfile
+            )
+            for st_id in curr_project_file.
+                    global_scope.
+                    storage_id_to_entry {
+                var entry = curr_project_file.
+                    global_scope.
+                    storage_id_to_entry[st_id]
+                if typename(entry) == "list" or
+                        entry.kind != ast.N_STMT_VAR {
+                    continue
+                }
+                if not ginit_map.has(st_id) {
+                    final_st_ids_list.add(st_id)
+                    final_st_ids_set.add(st_id)
+                }
+            }
+        }
+
+        if allow_calls and not all_basic_inits_done {
+            # We must ensure all files had their basic
+            # inits processed here first, or the inits
+            # with calls may fail to make use of them.
+            all_basic_inits_done = yes
+            var pfile_queue = []
+            for pfile in project.module_uri_to_file_map.values() {
+                if not pfiles_with_basic_inits_done.has(pfile) {
+                    pfile_queue.add(pfile)
+                }
+            }
+            for pfile in project.no_uri_files {
+                if not pfiles_with_basic_inits_done.has(pfile) {
+                    pfile_queue.add(pfile)
+                }
+            }
+            for pfile in pfile_queue {
+                add_basic_inits_from_project_file(pfile)
+            }
+        }
+
+        # Now walk through all depths to place inits in order:
         var idx = 1
         while idx <= sorted_node_lists.len {
-            # Look at one level of depth in the dependencies.
-            # We want to extract as much from a single file as
-            # possible, per file, until everything in the depth
-            # is ordered.
+            # At each level of depth in the dependencies,
+            # we want to extract as much from a single file as
+            # possible, per file, until everything at this
+            # depth is ordered.
             # (The idea is that the C code gen wants to group
-            # as much as possible into one function, which can
-            # only be done with statements from the same depth
-            # in the same file.)
+            # as much as possible into one function. Grouping
+            # can only be done with statements from the same
+            # depth in the same file.)
             var current_depth_list = sorted_node_lists[idx]
             var idx2 = 1
             while idx2 <= current_depth_list.len {
@@ -211,13 +263,16 @@ func register_globals_for_project(
                     idx2 += 1
                     continue
                 }
-                final_st_ids_list.add(first_st_id)
-                final_st_ids_set.add(first_st_id)
                 var curr_project_file =
                     project.storage_id_to_global_scope_map[
                         first_st_id
                     ].known_to_be_in_project_file
                 assert(curr_project_file != none)
+                add_basic_inits_from_project_file(
+                    curr_project_file
+                )
+                final_st_ids_list.add(first_st_id)
+                final_st_ids_set.add(first_st_id)
 
                 var idx3 = 2
                 while idx3 <= current_depth_list.len {
@@ -235,19 +290,24 @@ func register_globals_for_project(
                         idx3 += 1
                         continue
                     }
-                    if not allow_calls {
-                        # We must ensure all of the deps had no
-                        # calls either, which means they must be
-                        # in our result set already.
-                        var have_skipped_dep = no
+                    if not allow_calls or not all_basic_inits_done {
+                        # Only in this branch, it's possible
+                        # some global we depend on isn't available
+                        # yet. Check this:
+                        var have_unavailable_dep = no
                         for dep_id in ginit_map[other_st_id].
                                 depends_on_st_ids {
+                            add_basic_inits_from_project_file(
+                                dep_id
+                            )
                             if not final_st_ids_set.has(dep_id) {
-                                have_skipped_dep = yes
+                                # In this case, it likely contains
+                                # a call and was skipped so far.
+                                have_unavailable_dep = yes
                                 break
                             }
                         }
-                        if have_skipped_dep {
+                        if have_unavailable_dep {
                             idx3 += 1
                             continue
                         }
