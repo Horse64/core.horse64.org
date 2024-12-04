@@ -29,6 +29,7 @@ import ordering from core.horse64.org
 
 import compiler.ast as ast
 import compiler.project
+import compiler.storage.ref as st_ref
 
 type GlobalsInitTracker {
     var st_id_to_globals_with_init_map = {->}
@@ -49,6 +50,25 @@ func register_global(project_file, stmt, msgs=none) {
     if stmt.kind != ast.N_STMT_VAR {
         return yes
     }
+    func get_global_refs(expr) {
+        var result = []
+        if expr.kind == ast.N_EXPR_IDREF and
+                expr.ref != none and
+                {st_ref.ST_GLOBAL,
+                    st_ref.ST_GLOBALATTR}.has(
+                        expr.ref.kind
+                    ) {
+            if expr.ref.kind == st_ref.ST_GLOBALATTR {
+                result.add(expr.ref.id[1])
+            } else {
+                result.add(expr.ref.id)
+            }
+        }
+        for inner_expr in expr.subexprs {
+            result += get_global_refs(inner_expr)
+        }
+        return result
+    }
     var ginittracker = project_file.
         project.globals_init_tracker
     var idx = 0
@@ -67,7 +87,10 @@ func register_global(project_file, stmt, msgs=none) {
                 idx <= stmt.subexprs.len)
             ginittracker.st_id_to_globals_with_init_map[
                 sym.storage_id
-            ] = [stmt, stmt.subexprs[idx]]
+            ] = [
+                stmt, stmt.subexprs[idx],
+                get_global_refs(stmt.subexprs[idx])
+            ]
         }
     }
     return yes
