@@ -1189,6 +1189,7 @@ func generate_var_assigned_values_code(
         msgs=none) {
     const program_name =
         if is_moose64 ("moosec") else ("horsec")
+    var indent_str = " ".rep(indent)
     var t = ""
     if typename(vstmt) == "list" {
         func handle_single(stmt) {
@@ -1213,20 +1214,38 @@ func generate_var_assigned_values_code(
         if queue.len == 0 {
             return later t
         }
-        var stmt = vstmt.pop()
+        var stmt = queue.pop()
         var result = handle_single(
             stmt) later:
         await result
         if queue.len == 0 {
             return later t
         }
-        stmt = vstmt.pop()
+        stmt = queue.pop()
         result = handle_single(
             stmt) later repeat
     }
     var is_global = (vstmt.scope == none) 
     if is_global and skip_globals {
         return later t
+    }
+    if vstmt.is_empty {
+        return later t
+    }
+
+    var var_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
+        project_file, vstmt, parents,
+        store_self_value_ref_for_funcs=no,
+        msgs=msgs
+    ) later:
+
+    await var_tinfo
+
+    var assigned_exprs = vstmt.subexprs
+    if vstmt.has_type_expr {
+        assigned_exprs = assigned_exprs.sub(
+            1, assigned_exprs.len - 1
+        )
     }
     func handle_assigned_value(entry) {
         var expr_result = none
@@ -2489,14 +2508,14 @@ func ast_to_c(project_file, msgs=none, build_options=none,
                 "() {\n"
             t += "}\n"
             var init_t = generate_var_assigned_values_code(
-                gvar_stmt_strs, parents,
+                global_init_stmts, [],
                 skip_globals=no,
                 project_file=project_file,
                 indent=4,
                 limit_to_global_storage_ids=
                     init_func.storage_ids_for_init,
                 add_to_header_callback=
-                    add_to_header_callback,
+                    ast_to_c_header_callback,
                 build_options=
                     build_options,
                 is_moose64=is_moose64,
