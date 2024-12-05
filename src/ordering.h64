@@ -32,6 +32,23 @@ type Ordering {
     var _nodes = []
 }
 
+func Ordering.as_str {
+    var t = "Ordering{"
+    var count = 0
+    for node in self._nodes {
+        count += 1
+        if count > 10 {
+            t += ",..."
+            break
+        } elseif count > 1 {
+            t += ","
+        }
+        t += node.as_str()
+    }
+    t += "}"
+    return t
+}
+
 type OrderAttribute {
     var name = ""
     var userdata = none
@@ -136,7 +153,7 @@ func OrderNode.as_str {
             textfmt.as_escaped_code_string(
                 self.name
             )
-        ) + ",attr=" +
+        ) + ",address=" +
         debugger.get_addr(self).as_str() +
         "}"
     )
@@ -516,15 +533,6 @@ func Ordering.order_by_depth(
     while not do_step() {
         # Repeat until we have a full ordering.
         continue
-    }
-    if backward {
-        var result_reverse = []
-        var idx = result.len
-        while idx >= 1 {
-            result_reverse.add(result[idx])
-            idx -= 1
-        }
-        result = result_reverse
     }
     if flatten_into_single_list {
         var result_flattened = []
