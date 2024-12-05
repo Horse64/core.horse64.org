@@ -35,6 +35,7 @@ import textfmt from core.horse64.org
 import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
 import compiler.compiler_log as clog
+import compiler.globals_order as globals_order
 import compiler.limit as climit
 import compiler.moose64.ast.analyze as m64_ast_analyze
 import compiler.moose64.builtins as m64_builtins
@@ -2345,6 +2346,13 @@ func ast_to_c(project_file, msgs=none, build_options=none,
         }
         header_contents += "\n" + header_line
     }
+
+    var init_func_info = globals_order.
+        generate_init_funcs_for_file(
+            project_file
+        ) later:
+
+    await init_func_info
 
     var stmt_strs = node_list_to_c_strings(
         project_file, project_file.ast.stmts, [],

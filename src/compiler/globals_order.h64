@@ -26,6 +26,8 @@
 # license, see accompanied LICENSE.md.
 
 import ordering from core.horse64.org
+import random from core.horse64.org
+import textfmt from core.horse64.org
 
 import compiler.ast as ast
 import compiler.project
@@ -38,9 +40,10 @@ type GlobalsInitTracker {
     var globals_init_ordering = none
     var list_of_final_ordered_st_ids = []
     var project = none
+    var computed_init_func_info_map = {->}
 }
 
-type GlobalsInitInfo {
+type GlobalInitInfo {
     var st_id = none
     var depends_on_st_ids = []
     var contains_call = no
@@ -52,8 +55,8 @@ func GlobalsInitTracker.init {
         new ordering.Ordering()
 }
 
-func GlobalsInitInfo.as_str {
-    return "GlobalsInitInfo{" +
+func GlobalInitInfo.as_str {
+    return "GlobalInitInfo{" +
         "st_id=" + self.st_id.as_str() + ","
         "depends_on_st_ids=" +
             self.depends_on_st_ids.as_str() + ","
@@ -124,7 +127,7 @@ func register_global(project_file, stmt,
             assert(idx >= 1 and
                 idx <= stmt.var_labels.len and
                 idx <= stmt.subexprs.len)
-            var ginit_info = new GlobalsInitInfo()
+            var ginit_info = new GlobalInitInfo()
             ginittracker.st_id_to_globals_init_info_map[
                 sym.storage_id
             ] = ginit_info
@@ -376,3 +379,102 @@ func register_globals_for_project(
     }
     return later not had_error
 }
+
+type InitFuncInfo {
+    var suggested_name
+    var storage_ids_for_init = []
+    var project_file
+}
+
+func InitFuncInfo.as_str {
+    var t = "InitFuncInfo{" +
+        "suggested_name=" + textfmt.as_escaped_code_string(
+            self.suggested_name
+        ) + " storage_ids_for_init=" +
+        storage_ids_for_init.as_str() + " "
+        "project_file=" + self.project_file.as_str() +
+        "}"
+    return t
+}
+
+func generate_init_funcs_for_file(project_file) {
+    var project = project_file.project
+    if project.globals_init_tracker == none {
+        throw new RuntimeError(
+            "Cannot find global init tracker, "
+            "has the global init info been computed yet?"
+        )
+    }
+    var gtracker = project.globals_init_tracker
+    if gtracker.computed_init_func_info_map != none and
+            gtracker.computed_init_func_info_map.len > 0 {
+        if gtracker.computed_init_func_info_map.has(
+                project_file) {
+            return later gtracker.
+                computed_init_func_info_map[
+                    project_file
+                ]
+        }
+        return later []
+    }
+    var init_func_info_map = {->}
+    init_func_info_map[project_file] = []
+
+    func process_file(project_file) {
+        var file_list = []
+        var current_func_info = none
+        var ids_list = gtracker.list_of_final_ordered_st_ids
+        var idx = 1
+        while idx <= ids_list.len {
+            var st_id = ids_list[idx]
+            var assigned_project_file =
+                project.storage_id_to_global_scope_map[
+                    st_id
+                ].known_to_be_in_project_file
+            if assigned_project_file != project_file {
+                if current_func_info != none {
+                    file_list.add(current_func_info)
+                    current_func_info = none
+                }
+                idx += 1
+                continue
+            }
+            if current_func_info == none {
+                current_func_info = new InitFuncInfo()
+                current_func_info.project_file =
+                    project_file
+                current_func_info.suggested_name =
+                    "init_globals_" + random.gen_id().as_str()
+            }
+            current_func_info.storage_ids_for_init.add(
+                st_id
+            )
+            idx += 1
+        }
+        if current_func_info != none {
+            file_list.add(current_func_info)
+            current_func_info = none
+        }
+        init_func_info_map[project_file] = file_list
+        return later yes
+    }
+    var result = project.do_for_all_files(
+        process_file
+    ) later:
+
+    await result
+    if not result {
+        throw new RuntimeError(
+            "Failed to compute init func info for "
+            "files."
+        )
+    }
+
+    gtracker.computed_init_func_info_map = init_func_info_map
+
+    return later gtracker.
+        computed_init_func_info_map[
+            project_file
+        ]
+}
+
