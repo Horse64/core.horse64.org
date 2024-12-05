@@ -382,7 +382,7 @@ func register_globals_for_project(
 
 type InitFuncInfo {
     var suggested_name
-    var storage_ids_for_init = []
+    var storage_ids_for_init = {}
     var project_file
 }
 

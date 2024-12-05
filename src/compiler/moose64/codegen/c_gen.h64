@@ -1142,7 +1142,9 @@ func wrap_c_expr_as_needed_by_typeinfo(
 }
 
 func node_list_to_c_strings(project_file, node_list, parents,
-        indent=0, add_to_header_callback=none,
+        indent=0, skip_global_vars=no,
+        only_global_vars=no,
+        add_to_header_callback=none,
         msgs=none, build_options=none) {
     var queue = node_list.copy()
     var result = []
@@ -1152,6 +1154,7 @@ func node_list_to_c_strings(project_file, node_list, parents,
     var node = queue.pop_at(1)
     var next_result = node_to_c_string(
         project_file, node, parents, indent=indent,
+        skip_global_vars=skip_global_vars,
         add_to_header_callback=add_to_header_callback,
         msgs=msgs, build_options=build_options)
         later:
@@ -1169,9 +1172,145 @@ func node_list_to_c_strings(project_file, node_list, parents,
     node = queue.pop_at(1)
     next_result = node_to_c_string(
         project_file, node, parents, indent=indent,
+        skip_global_vars=skip_global_vars,
         add_to_header_callback=add_to_header_callback,
         msgs=msgs, build_options=build_options)
         later repeat
+}
+
+func generate_var_assigned_values_code(
+        vstmt, parents,
+        skip_globals=no, project_file=none,
+        indent=none,
+        limit_to_global_storage_ids=none,
+        add_to_header_callback=none,
+        build_options=none,
+        is_moose64=no,
+        msgs=none) {
+    const program_name =
+        if is_moose64 ("moosec") else ("horsec")
+    var t = ""
+    if typename(vstmt) == "list" {
+        func handle_single(stmt) {
+            var inner_t = generate_var_assigned_values_code(
+                stmt, parents,
+                skip_globals=skip_globals,
+                project_file=project_file,
+                indent=indent,
+                limit_to_global_storage_ids=
+                    limit_to_global_storage_ids,
+                add_to_header_callback=
+                    add_to_header_callback,
+                build_options=
+                    build_options,
+                is_moose64=is_moose64,
+                msgs=msgs) later:
+            
+            await inner_t
+            t += "\n" + inner_t
+        }
+        var queue = vstmt.copy()
+        if queue.len == 0 {
+            return later t
+        }
+        var stmt = vstmt.pop()
+        var result = handle_single(
+            stmt) later:
+        await result
+        if queue.len == 0 {
+            return later t
+        }
+        stmt = vstmt.pop()
+        result = handle_single(
+            stmt) later repeat
+    }
+    var is_global = (vstmt.scope == none) 
+    if is_global and skip_globals {
+        return later t
+    }
+    func handle_assigned_value(entry) {
+        var expr_result = none
+        func gen_c_code {
+            if entry[2] == none {
+                return later
+            }
+            if limit_to_global_storage_ids != none and
+                    not limit_to_global_storage_ids.has(
+                        entry[3].storage_id
+                    ) {
+                return later
+            }
+            expr_result =
+                node_generate_c_type_conversion_code(
+                    project_file, var_tinfo,
+                    entry[2], parents + [vstmt],
+                    indent=indent,
+                    add_to_header_callback=
+                        add_to_header_callback,
+                    msgs=msgs, build_options=build_options
+                ) later:
+
+            await expr_result
+            if expr_result == none or
+                    expr_result.trim() == "" {
+                if msgs == none or
+                        not msg.msgs_contain_error(msgs) {
+                    print(program_name + ": error: Internal error, "
+                        "C code gen failed to spit out "
+                        "code for assigned value: "
+                        "entry[2]=" + entry[2].as_str())
+                    throw new RuntimeError(
+                        "Internal error, C code gen didn't "
+                        "successfully spit out code for "
+                        "assigned value.")
+                }
+                expr_result = ""
+            }
+        }
+        gen_c_code() later:
+
+        if expr_result == none {
+            return later
+        }
+        t += indent_str
+        if is_global {
+            t += get_global_symbol_c_name(
+                entry[1], project_file=project_file)
+        } else {
+            t += entry[1]
+        }
+        t += " = " + expr_result + ";\n"
+    }
+
+    var queue = []
+    var idx = 0
+    for lbl in vstmt.var_labels {
+        idx += 1
+        if vstmt.is_empty or idx > assigned_exprs.len {
+            queue.add([
+                lbl, none, none
+            ])
+            continue
+        }
+        queue.add([
+            lbl, assigned_exprs[idx],
+            vstmt.symbol_info[idx]
+        ])
+    }
+    if queue.len == 0 {
+        return later t
+    }
+    var entry = queue.pop_at(1)
+    var result = handle_assigned_value(entry)
+    later:
+
+    await result
+    if queue.len == 0 {
+        return later t
+    }
+    entry = queue.pop()
+    result = handle_assigned_value(entry)
+    later repeat
 }
 
 func node_generate_c_type_conversion_code(
@@ -1207,7 +1346,9 @@ func node_generate_c_type_conversion_code(
 }
 
 func node_to_c_string(project_file, node, parents,
-        indent=0, add_to_header_callback=none,
+        indent=0, skip_global_vars=no,
+        only_global_vars=no,
+        add_to_header_callback=none,
         is_attr_kind_of_expr=no,
         msgs=none, build_options=none) {
     const debug = no
@@ -1220,6 +1361,11 @@ func node_to_c_string(project_file, node, parents,
     const c_export_tracker = project.c_export_tracker
     var indent_str = " ".rep(indent)
 
+    if only_global_vars and (
+            node.kind != ast.N_STMT_VAR or
+            node.scope != none) {
+        return later ""
+    }
     if node.kind == ast.N_EXPR_LIT and
             typename(node.value) == "str" and
             not node.is_big_num {
@@ -2040,6 +2186,9 @@ func node_to_c_string(project_file, node, parents,
               node.is_big_num)) {
         return later node.value.as_str()
     } elseif node.kind == ast.N_STMT_VAR {
+        if skip_global_vars and node.scope == none {
+            return later ""
+        }
         var c_var_type = "void"
         var var_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
             project_file, node, parents,
@@ -2111,91 +2260,29 @@ func node_to_c_string(project_file, node, parents,
             if not texpr.is_func_ref {
                 t += " " + c_name
             }
-            if node.is_empty or idx > assigned_exprs.len {
+            if node.is_empty or idx > assigned_exprs.len or
+                    is_global {
                 t += " = " + var_tinfo.get_c_zeroing_code()
             }
             t += ";\n"
         }
-        func handle_assigned_values_if_needed {
-            func handle_assigned_value(entry) {
-                var expr_result = none
-                func gen_c_code {
-                    if entry[2] == none {
-                        return later
-                    }
-                    expr_result =
-                        node_generate_c_type_conversion_code(
-                            project_file, var_tinfo,
-                            entry[2], parents + [node],
-                            indent=indent,
-                            add_to_header_callback=
-                                add_to_header_callback,
-                            msgs=msgs, build_options=build_options
-                        ) later:
-
-                    await expr_result
-                    if expr_result == none or
-                            expr_result.trim() == "" {
-                        if msgs == none or
-                                not msg.msgs_contain_error(msgs) {
-                            print(program_name + ": error: Internal error, "
-                                "C code gen failed to spit out "
-                                "code for assigned value: "
-                                "entry[2]=" + entry[2].as_str())
-                            throw new RuntimeError(
-                                "Internal error, C code gen didn't "
-                                "successfully spit out code for "
-                                "assigned value.")
-                        }
-                        expr_result = ""
-                    }
-                }
-                gen_c_code() later:
-
-                if expr_result == none {
-                    return later
-                }
-                t += indent_str
-                if is_global {
-                    t += get_global_symbol_c_name(
-                        entry[1], project_file=project_file)
-                } else {
-                    t += entry[1]
-                }
-                t += " = " + expr_result + ";\n"
-            }
-
-            var queue = []
-            var idx = 0
-            for lbl in node.var_labels {
-                idx += 1
-                if node.is_empty or idx > assigned_exprs.len {
-                    queue.add([
-                        lbl, none
-                    ])
-                    continue
-                }
-                queue.add([
-                    lbl, assigned_exprs[idx]
-                ])
-            }
-            if queue.len == 0 {
-                return later
-            }
-            var entry = queue.pop_at(1)
-            var result = handle_assigned_value(entry)
-            later:
-
-            await result
-            if queue.len == 0 {
-                return later
-            }
-            entry = queue.pop()
-            result = handle_assigned_value(entry)
-            later repeat
-        }
-        handle_assigned_values_if_needed()
+        
+        var init_t = generate_var_assigned_values_code(
+            node, parents,
+            skip_globals=yes,
+            project_file=project_file,
+            indent=indent,
+            limit_to_global_storage_ids=none,
+            add_to_header_callback=
+                add_to_header_callback,
+            build_options=
+                build_options,
+            is_moose64=is_moose64,
+            msgs=msgs)
         later:
+
+        await init_t
+        t += init_t
 
         if t.ends("\n") {
             t = t.sub(1, t.len - 1)
@@ -2347,17 +2434,101 @@ func ast_to_c(project_file, msgs=none, build_options=none,
         header_contents += "\n" + header_line
     }
 
+    var t = "#include <stdio.h>\n"
+        "#include <stdlib.h>\n"
+        "#include <stdint.h>\n"
+    t += "\n#include " +
+        textfmt.as_escaped_code_string(
+            header_name, for_c_code=yes
+        ) + "\n"
     var init_func_info = globals_order.
         generate_init_funcs_for_file(
             project_file
         ) later:
 
     await init_func_info
+    project_file.ensure_ast() later:
+
+    var pf_ast = project_file.ast
+    var global_init_stmts = []
+    var idx = 1
+    while idx < pf_ast.stmts.len {
+        var stmt = pf_ast.stmts[idx]
+        if stmt.kind != ast.N_STMT_VAR or
+                stmt.is_empty {
+            idx += 1
+            continue
+        }
+        if stmt.is_empty {
+            idx += 1
+            continue
+        }
+        global_init_stmts.add(stmt)
+        idx += 1
+    }
+    var gvar_stmt_strs = node_list_to_c_strings(
+        project_file, project_file.ast.stmts, [],
+        add_to_header_callback=
+            ast_to_c_header_callback,
+        only_global_vars=yes,
+        msgs=msgs, build_options=build_options)
+    later:
+
+    await gvar_stmt_strs
+    if gvar_stmt_strs == none {
+        # There was an error.
+        return later none
+    }
+    for stmt_s in gvar_stmt_strs {
+        t += stmt_s + "\n"
+    }
+
+    func handle_init_funcs {
+        func handle_init_func(init_func) {
+            t += "int __m64_" + init_func.suggested_name +
+                "() {\n"
+            t += "}\n"
+            var init_t = generate_var_assigned_values_code(
+                gvar_stmt_strs, parents,
+                skip_globals=no,
+                project_file=project_file,
+                indent=4,
+                limit_to_global_storage_ids=
+                    init_func.storage_ids_for_init,
+                add_to_header_callback=
+                    add_to_header_callback,
+                build_options=
+                    build_options,
+                is_moose64=is_moose64,
+                msgs=msgs)
+            later:
+
+            await init_t
+            t += init_t
+        }
+        var queue = init_func_info.copy()
+        if queue.len == 0 {
+            return later
+        }
+        var entry = queue.pop()
+        var result = handle_init_func(
+            entry) later:
+
+        await result
+        if queue.len == 0 {
+            return later
+        }
+        entry = queue.pop()
+        result = handle_init_func(
+            entry) later repeat
+    }
+    handle_init_funcs() later:
 
     var stmt_strs = node_list_to_c_strings(
         project_file, project_file.ast.stmts, [],
         add_to_header_callback=
             ast_to_c_header_callback,
+        skip_global_vars=yes,
         msgs=msgs, build_options=build_options)
     later:
 
@@ -2366,13 +2537,6 @@ func ast_to_c(project_file, msgs=none, build_options=none,
         # There was an error.
         return later none
     }
-    var t = "#include <stdio.h>\n"
-        "#include <stdlib.h>\n"
-        "#include <stdint.h>\n"
-    t += "\n#include " +
-        textfmt.as_escaped_code_string(
-            header_name, for_c_code=yes
-        ) + "\n"
     for stmt_s in stmt_strs {
         t += stmt_s + "\n"
     }
