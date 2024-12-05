@@ -143,9 +143,10 @@ func register_global(project_file, stmt,
             if debug {
                 print(program_name + ": debug: "
                     "globals_order.h64: " +
-                    "added global init with st_id=" +
+                    "Added global init with st_id=" +
                         sym.storage_id.as_str() + " "
-                    "expr=" + stmt.subexprs[idx].as_str())
+                    "expr=" + stmt.subexprs[idx].as_str() + " "
+                    "node=" + order_node.as_str())
             }
         }
     }
@@ -195,6 +196,11 @@ func register_globals_for_project(
                 target_id
             ]
             order_node.add_rel_to(target_node)
+            if debug {
+                print(program_name + ": debug: globals_order.h64: " +
+                    "Added relation from " + order_node.as_str() + " "
+                    "to " + target_node.as_str())
+            }
         }
     }
     ginittracker.list_of_final_ordered_st_ids = []
@@ -361,6 +367,10 @@ func register_globals_for_project(
         print(program_name + ": debug: globals_order.h64: " +
             "st_id_to_globals_init_info_map=" +
             ginit_map.as_str())
+        print(program_name + ": debug: globals_order.h64: " +
+            "globals_init_ordering=" + ordering.as_str())
+        print(program_name + ": debug: globals_order.h64: " +
+            "sorted_node_lists=" + sorted_node_lists.as_str())
         print(program_name + ": debug: globals_order.h64: " +
             "final_st_ids_list=" + final_st_ids_list.as_str())
     }
