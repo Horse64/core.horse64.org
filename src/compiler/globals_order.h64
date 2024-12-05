@@ -391,7 +391,7 @@ func InitFuncInfo.as_str {
         "suggested_name=" + textfmt.as_escaped_code_string(
             self.suggested_name
         ) + " storage_ids_for_init=" +
-        storage_ids_for_init.as_str() + " "
+        self.storage_ids_for_init.as_str() + " "
         "project_file=" + self.project_file.as_str() +
         "}"
     return t

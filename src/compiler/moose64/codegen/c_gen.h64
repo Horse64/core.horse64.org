@@ -1155,6 +1155,7 @@ func node_list_to_c_strings(project_file, node_list, parents,
     var next_result = node_to_c_string(
         project_file, node, parents, indent=indent,
         skip_global_vars=skip_global_vars,
+        only_global_vars=only_global_vars,
         add_to_header_callback=add_to_header_callback,
         msgs=msgs, build_options=build_options)
         later:
@@ -1173,6 +1174,7 @@ func node_list_to_c_strings(project_file, node_list, parents,
     next_result = node_to_c_string(
         project_file, node, parents, indent=indent,
         skip_global_vars=skip_global_vars,
+        only_global_vars=only_global_vars,
         add_to_header_callback=add_to_header_callback,
         msgs=msgs, build_options=build_options)
         later repeat
@@ -2506,7 +2508,6 @@ func ast_to_c(project_file, msgs=none, build_options=none,
         func handle_init_func(init_func) {
             t += "int __m64_" + init_func.suggested_name +
                 "() {\n"
-            t += "}\n"
             var init_t = generate_var_assigned_values_code(
                 global_init_stmts, [],
                 skip_globals=no,
@@ -2524,6 +2525,7 @@ func ast_to_c(project_file, msgs=none, build_options=none,
 
             await init_t
             t += init_t
+            t += "}\n"
         }
         var queue = init_func_info.copy()
         if queue.len == 0 {
