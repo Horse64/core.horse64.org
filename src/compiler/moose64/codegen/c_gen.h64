@@ -637,13 +637,23 @@ func CExportTracker.generate_c_types_and_header_info(
 
     func handle_gscope_entry(entry_name, entry) {
         if entry.kind == ast.N_STMT_C_IMPORT {
+            print("OMG WHAT: " + entry.as_str())
             for fpath in entry.file_paths {
+                print("OOPSIE 1 " + fpath)
                 c_file_include_paths.add(fpath + "")
+                var escaped_str = textfmt.as_escaped_code_string(
+                    fpath, for_c_code=yes
+                )
+                if not escaped_str.has("\\") {
+                    assert(escaped_str.starts("\""))
+                    escaped_str = "<" + escaped_str.sub(
+                        2, escaped_str.len - 1
+                    ) + ">"
+                }
                 t_c_include_str += "\n#include " +
-                    textfmt.as_escaped_code_string(
-                        fpath, for_c_code=yes
-                    )
+                    escaped_str
             }
+            print("OOPSIE: " + t_c_include_str.as_str())
         } elseif entry.kind == ast.N_STMT_IMPORT {
             if entry.project_file != none {
                 var found = no
@@ -665,10 +675,13 @@ func CExportTracker.generate_c_types_and_header_info(
                     target_path = truncate_path_src_dir_if_present(
                         target_path, project=project_file.project
                     )
-                    t_m64_include_str += "\n#include " +
+                    t_m64_include_str +=
+                        "\n#define __M64_DO_INCLUDE_C_TYPES"
+                        "\n#include " +
                         textfmt.as_escaped_code_string(
                             target_path, for_c_code=yes
-                        )
+                        ) +
+                        "\n#undef __M64_DO_INCLUDE_C_TYPES"
                 }
             }
         } elseif entry.kind == ast.N_STMT_STRUCT {
@@ -915,10 +928,13 @@ func CExportTracker.generate_c_types_and_header_info(
                 include_path, project=project_file.project
             )
             
-            types_include_str += "#include " +
+            types_include_str +=
+                "\n#define __M64_DO_INCLUDE_C_TYPES"
+                "\n#include " +
                 textfmt.as_escaped_code_string(
                     include_path, for_c_code=yes
-                ) + "\n"
+                ) +
+                "\n#undef __M64_DO_INCLUDE_C_TYPES"
 
             var anscope = project_file.
                 make_attr_names_scope_from_node(
@@ -2479,10 +2495,13 @@ func ast_to_c(project_file, msgs=none, build_options=none,
     var t = "#include <stdio.h>\n"
         "#include <stdlib.h>\n"
         "#include <stdint.h>\n"
-    t += "\n#include " +
+    t += "\n#define __M64_DO_INCLUDE_C_TYPES"
+        "\n#include " +
         textfmt.as_escaped_code_string(
             header_name, for_c_code=yes
-        ) + "\n"
+        ) +
+        "\n#undef __M64_DO_INCLUDE_C_TYPES"
+        "\n"
     var init_func_info = globals_order.
         generate_init_funcs_for_file(
             project_file
