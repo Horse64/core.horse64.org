@@ -1053,7 +1053,7 @@ func CExportTracker.generate_c_types_and_header_info(
             project=project_file.project,
             project_file=project_file,
             is_moose64=is_moose64
-        ) + " data;\n"
+        ) + "* data;\n"
         t += "};\n"
         t += "#endif  // " + arr_struct_guard + "\n"
     }
@@ -1079,6 +1079,15 @@ func CExportTracker.generate_c_types_and_header_info(
 func optoken_to_c_token(token) {
     if token.str == "^^" {
         return "^"
+    }
+    if token.str == "not" {
+        return "!"
+    }
+    if token.str == "or" {
+        return "||"
+    }
+    if token.str == "and" {
+        return "&&"
     }
     return token.str
 }
@@ -1141,9 +1150,14 @@ func wrap_c_expr_as_needed_by_typeinfo(
     return expr_str
 }
 
+type NodeToCOptions {
+    var only_global_vars = no
+    var skip_global_vars = no
+    var add_external_to_global_vars = no
+}
+
 func node_list_to_c_strings(project_file, node_list, parents,
-        indent=0, skip_global_vars=no,
-        only_global_vars=no,
+        indent=0, node_to_c_options=none,
         add_to_header_callback=none,
         msgs=none, build_options=none) {
     var queue = node_list.copy()
@@ -1154,8 +1168,7 @@ func node_list_to_c_strings(project_file, node_list, parents,
     var node = queue.pop_at(1)
     var next_result = node_to_c_string(
         project_file, node, parents, indent=indent,
-        skip_global_vars=skip_global_vars,
-        only_global_vars=only_global_vars,
+        node_to_c_options=node_to_c_options,
         add_to_header_callback=add_to_header_callback,
         msgs=msgs, build_options=build_options)
         later:
@@ -1173,8 +1186,7 @@ func node_list_to_c_strings(project_file, node_list, parents,
     node = queue.pop_at(1)
     next_result = node_to_c_string(
         project_file, node, parents, indent=indent,
-        skip_global_vars=skip_global_vars,
-        only_global_vars=only_global_vars,
+        node_to_c_options=node_to_c_options,
         add_to_header_callback=add_to_header_callback,
         msgs=msgs, build_options=build_options)
         later repeat
@@ -1367,8 +1379,7 @@ func node_generate_c_type_conversion_code(
 }
 
 func node_to_c_string(project_file, node, parents,
-        indent=0, skip_global_vars=no,
-        only_global_vars=no,
+        indent=0, node_to_c_options=none,
         add_to_header_callback=none,
         is_attr_kind_of_expr=no,
         msgs=none, build_options=none) {
@@ -1378,11 +1389,14 @@ func node_to_c_string(project_file, node, parents,
     if build_options != none {
         var program_name = build_options.build_program_name
     }
+    if node_to_c_options == none {
+        node_to_c_options = new NodeToCOptions()
+    }
     const project = project_file.project
     const c_export_tracker = project.c_export_tracker
     var indent_str = " ".rep(indent)
 
-    if only_global_vars and (
+    if node_to_c_options.only_global_vars and (
             node.kind != ast.N_STMT_VAR or
             node.scope != none) {
         return later ""
@@ -2207,7 +2221,8 @@ func node_to_c_string(project_file, node, parents,
               node.is_big_num)) {
         return later node.value.as_str()
     } elseif node.kind == ast.N_STMT_VAR {
-        if skip_global_vars and node.scope == none {
+        if node_to_c_options.skip_global_vars and
+                node.scope == none {
             return later ""
         }
         var c_var_type = "void"
@@ -2246,6 +2261,9 @@ func node_to_c_string(project_file, node, parents,
         assert(not c_var_type.has("."))
 
         var t = ""
+        if node_to_c_options.add_external_to_global_vars {
+            t = "extern "
+        }
         var is_global = no
         var assigned_exprs = none
         if not node.is_empty {
@@ -2283,7 +2301,10 @@ func node_to_c_string(project_file, node, parents,
             }
             if node.is_empty or idx > assigned_exprs.len or
                     is_global {
-                t += " = " + var_tinfo.get_c_zeroing_code()
+                if not node_to_c_options.
+                        add_external_to_global_vars {
+                    t += " = " + var_tinfo.get_c_zeroing_code()
+                }
             }
             t += ";\n"
         }
@@ -2487,11 +2508,13 @@ func ast_to_c(project_file, msgs=none, build_options=none,
         global_init_stmts.add(stmt)
         idx += 1
     }
+    var node_to_c_options = new NodeToCOptions()
+    node_to_c_options.only_global_vars = yes
     var gvar_stmt_strs = node_list_to_c_strings(
         project_file, project_file.ast.stmts, [],
         add_to_header_callback=
             ast_to_c_header_callback,
-        only_global_vars=yes,
+        node_to_c_options=node_to_c_options,
         msgs=msgs, build_options=build_options)
     later:
 
@@ -2502,6 +2525,23 @@ func ast_to_c(project_file, msgs=none, build_options=none,
     }
     for stmt_s in gvar_stmt_strs {
         t += stmt_s + "\n"
+    }
+    node_to_c_options.add_external_to_global_vars = yes
+    var gvar_header_strs = node_list_to_c_strings(
+        project_file, project_file.ast.stmts, [],
+        add_to_header_callback=
+            ast_to_c_header_callback,
+        node_to_c_options=node_to_c_options,
+        msgs=msgs, build_options=build_options)
+    later:
+
+    await gvar_header_strs
+    if gvar_header_strs == none {
+        # There was an error.
+        return later none
+    }
+    for header_stmt_s in gvar_header_strs {
+        header_contents += header_stmt_s + "\n"
     }
 
     func handle_init_funcs {
@@ -2545,11 +2585,13 @@ func ast_to_c(project_file, msgs=none, build_options=none,
     }
     handle_init_funcs() later:
 
+    node_to_c_options = new NodeToCOptions()
+    node_to_c_options.skip_global_vars = yes
     var stmt_strs = node_list_to_c_strings(
         project_file, project_file.ast.stmts, [],
         add_to_header_callback=
             ast_to_c_header_callback,
-        skip_global_vars=yes,
+        node_to_c_options=node_to_c_options,
         msgs=msgs, build_options=build_options)
     later:
 
