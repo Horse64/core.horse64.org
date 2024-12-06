@@ -25,12 +25,12 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-realpath -s . 2>&1 > /dev/null
+realpath . 2>&1 > /dev/null
 if [ "x$?" != x0 ]; then
     echo "The realpath tool isn't working right."
     exit 1
 fi
-FULL_PATH_TO_SCRIPT="$(realpath -s "${BASH_SOURCE[-1]}")"
+FULL_PATH_TO_SCRIPT="$(realpath "${BASH_SOURCE[-1]}")"
 echo "Full path to script: ${FULL_PATH_TO_SCRIPT}"
 SCRIPT_DIRECTORY="$(dirname "$FULL_PATH_TO_SCRIPT")"
 cd $SCRIPT_DIRECTORY
