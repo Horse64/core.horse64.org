@@ -637,9 +637,7 @@ func CExportTracker.generate_c_types_and_header_info(
 
     func handle_gscope_entry(entry_name, entry) {
         if entry.kind == ast.N_STMT_C_IMPORT {
-            print("OMG WHAT: " + entry.as_str())
             for fpath in entry.file_paths {
-                print("OOPSIE 1 " + fpath)
                 c_file_include_paths.add(fpath + "")
                 var escaped_str = textfmt.as_escaped_code_string(
                     fpath, for_c_code=yes
@@ -653,7 +651,6 @@ func CExportTracker.generate_c_types_and_header_info(
                 t_c_include_str += "\n#include " +
                     escaped_str
             }
-            print("OOPSIE: " + t_c_include_str.as_str())
         } elseif entry.kind == ast.N_STMT_IMPORT {
             if entry.project_file != none {
                 var found = no
@@ -1924,7 +1921,8 @@ func node_to_c_string(project_file, node, parents,
         later:
 
         await left_hand
-        return node.optoken.str + left_hand
+        return optoken_to_c_token(node.optoken) +
+            "(" + left_hand + ")"
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "[" {
         var container_str = node_to_c_string(
