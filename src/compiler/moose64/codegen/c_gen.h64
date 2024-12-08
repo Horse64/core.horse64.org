@@ -519,7 +519,6 @@ func get_c_header_uri_and_info_for_type(
 }
 
 type CExportTrackerProjectFileInfo {
-    var array_conversion_funcs_name_map = {->}
     var null_size_structs_name_map = {->}
 }
 
@@ -544,29 +543,6 @@ func CExportTracker.finish_init {
 
     await rel_path
     self.main_file_rel_path = rel_path
-}
-
-func CExportTracker.get_array_conversion_name(
-        project_file,
-        array_typeinfo_from, array_typeinfo_to) {
-    if not self.project_file_info_map.has(project_file) {
-        self.project_file_info_map[project_file] =
-            new CExportTrackerProjectFileInfo()
-    }
-    var pfile_info = self.project_file_info_map[project_file]
-
-    for array_pair in pfile_info.array_conversion_funcs_name_map {
-        if not array_pair[1].is_equivalent_to(
-                arary_typeinfo_from) or
-                not array_pair[2].is_equivalent_to(
-                    array_typeinfo_to) {
-            continue
-        }
-        return pfile_info.array_conversion_funcs_name_map[
-            array_pair
-        ]
-    }
-    return none
 }
 
 func CExportTracker.get_null_size_struct_name(
@@ -689,7 +665,7 @@ func CExportTracker.generate_c_types_and_header_info(
     }
     func ast_to_file_top_callback(
             project_file, top_line,
-            msg=none, build_options=none) {
+            msgs=none, build_options=none) {
         while top_line.starts("\n") {
             top_line = top_line.sub(2)
         }
@@ -1344,7 +1320,7 @@ func generate_var_assigned_values_code(
 
     await var_tinfo
 
-    var assigned_exprs = vstmt.subexprs
+    var assigned_exprs = vstmt.subexprs.copy()
     if vstmt.has_type_expr {
         assigned_exprs = assigned_exprs.sub(
             1, assigned_exprs.len - 1
@@ -1443,7 +1419,8 @@ func node_generate_c_type_conversion_code(
         source_value_parents,
         indent=0, add_to_header_callback=none,
         add_to_top_callback=none,
-        msgs=none, build_options=none) {
+        msgs=none, build_options=none,
+        debug=no) {
     const is_moose64 = yes
     var program_name = "moosec"
     if build_options != none {
@@ -1454,15 +1431,90 @@ func node_generate_c_type_conversion_code(
     var indent_str = " ".rep(indent)
 
     var t = ""
+    if debug {
+        print(program_name + ": debug: " +
+            "node_generate_c_type_conversion_code(): "
+            "Called on source_value_node=" +
+                source_value_node.as_str())
+    }
+    var inner_typeinfo =
+        m64_ast_analyze.get_c_or_m64_type_of_node(
+            project_file, source_value_node,
+            source_value_parents,
+            store_self_value_ref_for_funcs=no,
+            msgs=msgs
+        ) later:
 
+    await inner_typeinfo
+    if debug {
+        print(program_name + ": debug: " +
+            "node_generate_c_type_conversion_code(): "
+            "Got inner_typeinfo=" +
+                inner_typeinfo.as_str())
+    }
+    if inner_typeinfo == none {
+        if msgs == none {
+            throw new RuntimeError(
+                "Found expression with invalid type."
+            )
+        } elseif not msg.msgs_contain_error(msgs) {
+            print(program_name + ": error: Internal error, "
+                "failed to determine type of inner "
+                "expression node for some reason: " +
+                source_value_node.as_str())
+            inner_typeinfo =
+                m64_ast_analyze.get_c_or_m64_type_of_node(
+                    project_file, source_value_node,
+                    source_value_parents,
+                    store_self_value_ref_for_funcs=no,
+                    msgs=msgs, debug=yes,
+                ) later:
+
+            await inner_typeinfo
+            throw new RuntimeError(
+                "Internal error, failed to determine "
+                "type of inner expression node."
+            )
+        }
+        source_value_node.damaged = yes
+        return later ""
+    }
     var inner_expr_str = node_to_c_string(
         project_file, source_value_node,
         source_value_parents, indent=indent,
-        msgs=msgs, build_options=build_options)
+        msgs=msgs, build_options=build_options,
+        debug=debug,
+    )
     later:
 
     await inner_expr_str
+    if debug {
+        print(program_name + ": debug: " +
+            "node_generate_c_type_conversion_code(): "
+            "Got inner_expr_str=" +
+                textfmt.as_escaped_code_string(
+                    inner_expr_str
+                ))
+    }
     t += inner_expr_str
+    if inner_typeinfo.is_array() and
+            target_typeinfo.is_array() and
+            not inner_typeinfo.is_equivalent(
+                target_typeinfo
+            ) {
+        var outer_typeref_expr =
+            target_typeinfo.convert_to_typeref_expr(
+                project=project, is_moose64=is_moose64
+            )
+        t = "(" + outer_typeref_expr.as_c_code(
+            global_name_assign_callback=
+                get_global_symbol_c_name,
+            global_register_m64_array_callback=
+                project_file.project.c_export_tracker.
+                    register_m64_array_type,
+            project=project, project_file=project_file,
+            is_moose64=is_moose64) + ") " + t
+    }
     if target_typeinfo.has_outer_implicit_ref() {
         t = "&(" + t + ")"
     }
@@ -1475,8 +1527,8 @@ func node_to_c_string(project_file, node, parents,
         add_to_header_callback=none,
         add_to_top_callback=none,
         is_attr_kind_of_expr=no,
-        msgs=none, build_options=none) {
-    const debug = no
+        msgs=none, build_options=none,
+        debug=no) {
     const is_moose64 = yes
     var program_name = "moosec"
     if build_options != none {
@@ -1489,6 +1541,10 @@ func node_to_c_string(project_file, node, parents,
     const c_export_tracker = project.c_export_tracker
     var indent_str = " ".rep(indent)
 
+    if debug {
+        print(program_name + ": debug: node_to_c_string on: "
+            "node=" + node.as_str())
+    }
     if node_to_c_options.only_global_vars and (
             node.kind != ast.N_STMT_VAR or
             node.scope != none) {
@@ -1764,6 +1820,11 @@ func node_to_c_string(project_file, node, parents,
         var self_call_arg_str = none
         var is_regular_call = no
         var func_typeinfo = none
+        if debug {
+            print(program_name + ": debug: " +
+                "node_to_c_string: Entering "
+                "call expression branch...")
+        }
 
         func try_get_left_hand_self_call {
             if left_hand_str != none {
@@ -1804,6 +1865,7 @@ func node_to_c_string(project_file, node, parents,
                     st_ref.ST_ARG}.has(self_st_ref.kind) {
                 return later
             }
+
             var self_arg_tinfo = m64_ast_analyze.
                 get_c_or_m64_type_of_node(
                     project_file, self_expr,
@@ -1813,6 +1875,10 @@ func node_to_c_string(project_file, node, parents,
                 ) later:
 
             await self_arg_tinfo
+            
+            if debug {
+                print("2: " + node.as_str())
+            }
             if self_arg_tinfo == none {
                 if msgs == none {
                     throw new RuntimeError(
@@ -2022,7 +2088,7 @@ func node_to_c_string(project_file, node, parents,
         }
 
         assert(node.subexprs[2].kind == ast.N_EXPR_CALLARGS)
-        var queue = node.subexprs[2].subexprs
+        var queue = node.subexprs[2].subexprs.copy()
         if queue.len == 0 {
             t += ")" + right_closing_str
             return later t
@@ -2199,7 +2265,7 @@ func node_to_c_string(project_file, node, parents,
                         add_to_header_callback,
                     add_to_top_callback=
                         add_to_top_callback,
-                    msgs=msgs, build_options=build_options
+                    msgs=msgs, build_options=build_options,
                 ) later:
 
             await right_hand_str
@@ -2437,7 +2503,7 @@ func node_to_c_string(project_file, node, parents,
         var is_global = no
         var assigned_exprs = none
         if not node.is_empty {
-            assigned_exprs = node.subexprs
+            assigned_exprs = node.subexprs.copy()
             if node.has_type_expr and assigned_exprs.len > 0 {
                 assigned_exprs = assigned_exprs.sub(
                     1, assigned_exprs.len - 1
@@ -2654,7 +2720,7 @@ func ast_to_c(project_file, msgs=none, build_options=none,
     var t_toppart = ""
     func ast_to_file_top_callback(
             project_file, top_line,
-            msg=none, build_options=none) {
+            msgs=none, build_options=none) {
         while top_line.starts("\n") {
             top_line = top_line.sub(2)
         }

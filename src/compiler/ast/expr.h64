@@ -1809,6 +1809,9 @@ func CallArgsExpr.init {
 func CallArgsExpr.as_json_obj {
     var output = base.as_json_obj()
     output["has_types"] = self.has_types
+    if not output.has("subexprs") {
+        output["subexprs"] = []
+    }
     return output
 }
 

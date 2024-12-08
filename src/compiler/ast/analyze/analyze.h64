@@ -844,7 +844,8 @@ func get_called_or_assigned_func_types(
     var called_args = call_args_expr.subexprs.len
     if func_typeinfo.func_typeexpr.is_failable {
         var arg_typeref_exprs =
-             func_typeinfo.func_typeexpr.arg_typeref_exprs
+             func_typeinfo.func_typeexpr.
+                arg_typeref_exprs.copy()
         if arg_typeref_exprs.len < 0 or
                 arg_typeref_exprs[arg_typeref_exprs.len].is_func_ref or
                 arg_typeref_exprs[arg_typeref_exprs.len].
@@ -935,7 +936,7 @@ func get_called_or_assigned_func_types(
                 last_param_m64_typeinfo = "type-error"
                 return later
             }
-            print(if is_moose64 ("hoosec")
+            print(if is_moose64 ("horsec")
                 else ("moosec") + ": "
                 "error: Internal error, failed to determine "
                 "type of this node: "
@@ -1116,7 +1117,7 @@ func get_called_or_assigned_func_types(
                     if msgs != none and msg.msgs_contain_error(msgs) {
                         return later no
                     }
-                    print(if is_moose64 ("hoosec")
+                    print(if is_moose64 ("horsec")
                             else ("moosec") + ": "
                         "error: Internal error, "
                         "failed to determine type of this node: "
@@ -1185,7 +1186,7 @@ func get_called_or_assigned_func_types(
                         }
                     }
                 }
-                print(if is_moose64 ("hoosec")
+                print(if is_moose64 ("horsec")
                         else ("moosec") + ": "
                     "error: Internal error, "
                     "failed to determine type of this "
@@ -1350,10 +1351,14 @@ func get_called_or_assigned_func_types(
 
         if not ignore_arg_mismatch {
             if msgs == none {
-                print(if is_moose64 ("hoosec")
+                print(if is_moose64 ("horsec")
                         else ("moosec") + ": "
                     "error: Internal error, "
                     "args mismatch in unexpected context, "
+                    "called_node=" +
+                        called_node.as_str() + " "
+                    "called_node_parent=" +
+                        called_node_parent.as_str() + " "
                     "effective_called_args=" +
                         effective_called_args.as_str() + " "
                     "expected_args=" +

@@ -48,6 +48,16 @@ func TypeCastExpr.as_code(indent=0) {
     return t
 }
 
+func TypeCastExpr.as_json_obj {
+    var output = base.as_json_obj()
+    output["typeref_expr"] = none
+    if self.typeref_expr != none {
+        output["typeref_expr"] =
+            self.typeref_expr.as_json_obj()
+    }
+    return output
+}
+
 func parse_type_cast_expr(
         tokens, pos, nesting_depth, msgs, project_file=none,
         max_len=none, is_moose64=no, debug=no

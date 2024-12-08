@@ -281,7 +281,7 @@ func get_math_binop_autocast(
             return result
         }
         if not left_hand_typeinfo.has_equivalent_modifiers(
-                right_hand_typeinfo.modifiers) {
+                right_hand_typeinfo) {
             result.incompatible = yes
             return result
         }

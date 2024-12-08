@@ -411,10 +411,25 @@ func _get_c_or_m64_type_of_node_do(
                 result.as_str())
         }
         return later result
+    } elseif node.kind == ast.N_EXPR_TYPECAST {
+        var typeref_expr = node.typeref_expr
+        var result = typeinfo.
+            create_typeinfo_from_typeexpr(
+                typeref_expr, is_moose64=is_moose64,
+            )
+        return result
     } elseif node.kind == ast.N_EXPR_LIT and
             typename(node.value) == "bool" {
         var result = typeinfo.
             create_from_simple_m64_type("bool")
+        return result
+    } elseif node.kind == ast.N_EXPR_LIT and
+            node.value == none {
+        var result = typeinfo.
+            create_from_simple_m64_type("any")
+        result.modifiers.add(new ast_typeref.TypeRefMod(
+            "ref"
+        ))
         return result
     } elseif node.kind == ast.N_EXPR_LIT and
             typename(node.value) == "str" and
@@ -449,6 +464,36 @@ func _get_c_or_m64_type_of_node_do(
         var result = typeinfo.
             create_from_simple_m64_type("f64")
         return result
+    } elseif node.kind == ast.N_EXPR_UNOP and
+            node.subexprs.len >= 1 and
+            node.optoken.str == '-' {
+        var right_side_type = _get_c_or_m64_type_of_node_do(
+            project_file, node.subexprs[1], parents + [node],
+            _known_typeinfo_map=_known_typeinfo_map,
+            store_self_value_ref_for_funcs=no,
+            msgs=msgs, debug=debug
+        ) later:
+
+        await right_side_type
+        if right_side_type == none {
+            return later none
+        }
+        if right_side_type.kind == typeinfo.TI_USERTYPE {
+            if right_side_type.ref_count(
+                    include_c_arrays=yes, include_arrays=no,
+                    include_implicit_refs=no,
+                    include_explicit_refs=yes) > 0 {
+                var result_type =
+                    typeinfo.create_from_simple_m64_type(
+                        "addr_diff"
+                    )
+                return result_type
+            }
+            return none
+        } elseif right_side_type.kind == typeinfo.TI_C_TYPE {
+            return right_side_type
+        }
+        return none
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.subexprs.len >= 2 and
             node.optoken.str == '[' {
@@ -465,6 +510,9 @@ func _get_c_or_m64_type_of_node_do(
         ) later:
 
         await left_side_type
+        if left_side_type == none {
+            return later none
+        }
         var c_array_or_expl_ref_count = left_side_type.ref_count(
             include_c_arrays=yes, include_arrays=no,
             include_implicit_refs=no,
@@ -725,8 +773,6 @@ func _get_c_or_m64_type_of_node_do(
                 return later none
             } elseif node.ref != none and
                     node.ref.kind == st_ref.ST_MCREF {
-                # FIXME: Obtain C func signature. For now,
-                # we don't support this.
                 var builtin_item = builtin_syms.get_item_by_storage_ref(
                     project_file.project, node.ref
                 )
@@ -811,7 +857,7 @@ func _get_c_or_m64_type_of_node_do(
             assert(node.subexprs[2].kind == ast.N_EXPR_CALLARGS)
             if node.subexprs[2].subexprs.len != 1 {
                 if msgs == none {
-                    print(if is_moose64 ("hoosec")
+                    print(if is_moose64 ("horsec")
                         else ("moosec") + ": "
                             "error: Internal error, "
                             "as_ref call with not exactly 1 arg "
@@ -915,7 +961,7 @@ func _get_c_or_m64_type_of_node_do(
             assert(node.subexprs[2].kind == ast.N_EXPR_CALLARGS)
             if node.subexprs[2].subexprs.len != 1 {
                 if msgs == none {
-                    print(if is_moose64 ("hoosec")
+                    print(if is_moose64 ("horsec")
                         else ("moosec") + ": "
                             "error: Internal error, "
                             "deref call with not exactly 1 arg "
@@ -979,7 +1025,7 @@ func _get_c_or_m64_type_of_node_do(
             }
             if old_deref_counter <= 0 {
                 if msgs == none {
-                    print(if is_moose64 ("hoosec")
+                    print(if is_moose64 ("horsec")
                         else ("moosec") + ": "
                             "error: Internal error, "
                             "deref called on item that isn't "
@@ -1035,7 +1081,7 @@ func _get_c_or_m64_type_of_node_do(
             assert(node.subexprs[2].kind == ast.N_EXPR_CALLARGS)
             if node.subexprs[2].subexprs.len != 1 {
                 if msgs == none {
-                    print(if is_moose64 ("hoosec")
+                    print(if is_moose64 ("horsec")
                         else ("moosec") + ": "
                             "error: Internal error, "
                             "as_ref call with not exactly 1 arg "
@@ -1123,13 +1169,64 @@ func _get_c_or_m64_type_of_node_do(
             allow_matching_func_override=yes,
             allow_noncall_ref=no,
             ignore_arg_mismatch=no,
-            msgs=none, is_moose64=no, debug=no
+            msgs=msgs, is_moose64=is_moose64,
         ) later:
 
         await result
+        if result == none and called_node.damaged {
+            return none
+        }
         var func_type_expr =
             if result != none (result.func_var_type_expr) else (none)
         if func_type_expr == none {
+            if called_node.ref != none and
+                    called_node.ref.kind == st_ref.ST_MCREF {
+                if debug {
+                    print(dbg_prefix + " No result from "
+                        "get_called_or_assigned_func_types(), "
+                        "but left-hand seems an MCREF which "
+                        "we'll now try to resolve directly.")
+                }
+                var func_typeinfo = _get_c_or_m64_type_of_node_do(
+                    project_file, called_node,
+                    called_node_parents,
+                    _known_typeinfo_map=_known_typeinfo_map,
+                    store_self_value_ref_for_funcs=
+                        store_self_value_ref_for_funcs,
+                    msgs=msgs, debug=debug
+                ) later:
+
+                await func_typeinfo
+                if debug {
+                    print(dbg_prefix + " Got "
+                        "called_node=" + called_node.as_str() + " "
+                        "func_typeinfo=" + func_typeinfo.as_str())
+                }
+                if func_typeinfo == none {
+                    return none
+                }
+                var typeref_expr =
+                    func_typeinfo.convert_to_typeref_expr(
+                        project=project_file.project,
+                        is_moose64=is_moose64,
+                    )
+                assert(typeref_expr != none)
+                var result_typeref = typeref_expr.
+                    return_typeref_expr
+                if result_typeref == none {
+                    return none
+                }
+                var result =
+                    typeinfo.create_typeinfo_from_typeexpr(
+                        result_typeref, 
+                        is_moose64=is_moose64,
+                    )
+                if debug {
+                    print(dbg_prefix + " Got "
+                        "result=" + result.as_str())
+                }
+                return result
+            }
             if debug {
                 print(dbg_prefix + " No result from "
                     "get_called_or_assigned_func_types(), "
@@ -1144,7 +1241,9 @@ func _get_c_or_m64_type_of_node_do(
                 func_type_expr.as_str())
         }
         if func_type_expr.return_typeref_expr == none or
-                (not return_typeref_expr.is_user_type and
+                (not func_type_expr.
+                return_typeref_expr.is_user_type and
+                func_type_expr.
                 return_typeref_expr.name == "empty") {
             var tinfo = new typeinfo.TypeInfo(typeinfo.TI_C_TYPE)
             tinfo.c_type_name = "void"

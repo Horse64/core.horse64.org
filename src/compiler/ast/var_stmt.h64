@@ -105,7 +105,7 @@ func VarStmt.as_code(indent=0) {
         t += label
     }
 
-    var assigned_exprs = self.subexprs
+    var assigned_exprs = self.subexprs.copy()
     var type_expr = none
     if self.has_type_expr and assigned_exprs.len > 0 {
         type_expr = assigned_exprs[assigned_exprs.len]

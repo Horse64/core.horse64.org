@@ -240,8 +240,10 @@ func TypeInfo.is_equivalent(other_typeinfo) {
         return no
     }
     if self.kind == TI_C_TYPE and
-            self.c_type_name != other_typeinfo.c_type_name {
-        return no
+            self.c_type_name != none {
+        if self.c_type_name != other_typeinfo.c_type_name {
+            return no
+        }
     } elseif self.kind == TI_USERTYPE {
         if self.user_type_ref != none and
                 orig_typeinfo.user_type_ref != none {
@@ -254,13 +256,26 @@ func TypeInfo.is_equivalent(other_typeinfo) {
                 self.func_typeexpr.is_func_ref)
             assert(other_typeinfo.func_typeexpr != none and
                 other_typeinfo.func_typeexpr.is_func_ref)
-            if not self.func_typeexpr.is_equivalent_to(
+            if not self.func_typeexpr.is_equivalent(
                     other_typeinfo.func_typeexpr) {
                 return no
             }
         }
+    } elseif self.kind == TI_FUNCREF and
+            self.func_typeexpr != none and
+            other_typeinfo.func_typeexpr != none {
+        if not self.func_typeexpr.is_equivalent(
+                other_typeinfo.func_typeexpr) {
+            return no
+        }
     } else {
-        assert(self.user_type_ref != none)
+        if self.user_type_ref == none {
+            print("horsec: error: Internal error, "
+                "got broken typeinfo: " +
+                self.as_str())
+            throw new RuntimeError("Internal error, "
+                "got broken typeinfo.")
+        }
         assert(other_typeinfo.user_type_ref != none)
         if not self.user_type_ref.alike(
                 other_typeinfo.user_type_ref) {
@@ -1099,7 +1114,20 @@ func create_typeinfo_from_global_ref(
                 base_typeref_expr_if_known.copy()
         } elseif not base_typeref_expr_if_known.is_func_ref and
                 not base_typeref_expr_if_known.is_user_type() {
-            tinfo.kind = TI_C_TYPE
+            if base_typeref_expr_if_known.name != none and
+                    ast_typeref.get_c_builtin_for_m64_base_type(
+                        base_typeref_expr_if_known.name
+                    ) != none {
+                tinfo.kind = TI_C_TYPE
+                tinfo.c_type_name =
+                    ast_typeref.get_c_builtin_for_m64_base_type(
+                        base_typeref_expr_if_known.name
+                    )
+            } else {
+                base_typeref_expr_if_known = none
+                tinfo = none
+                return none
+            }
         }
     }
     tinfo.user_type_ref = target_ref.copy()

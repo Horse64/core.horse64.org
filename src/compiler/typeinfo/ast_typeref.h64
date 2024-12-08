@@ -232,7 +232,7 @@ func TypeRefFuncExpr.init {
     self.type_path = none
 }
 
-func TypeRefFuncExpr.is_equivalent_to(other_func_expr) {
+func TypeRefFuncExpr.is_equivalent(other_func_expr) {
     if not other_func_expr.is_func_ref {
         return no
     }
@@ -248,7 +248,7 @@ func TypeRefFuncExpr.is_equivalent_to(other_func_expr) {
             return no
         }
     } else {
-        if not self.return_typeref_expr.is_equivalent_to(
+        if not self.return_typeref_expr.is_equivalent(
                 other_func_expr.return_typeref_expr) {
             return no
         }
@@ -258,7 +258,7 @@ func TypeRefFuncExpr.is_equivalent_to(other_func_expr) {
     }
     var modidx = 1
     while modidx <= self.modifiers.len {
-        if not self.modifiers[modidx].is_equivalent_mod_to(
+        if not self.modifiers[modidx].is_equivalent_mod(
                 other_func_expr.modifiers[modidx]) {
             return no
         }
@@ -266,7 +266,7 @@ func TypeRefFuncExpr.is_equivalent_to(other_func_expr) {
     }
     var argidx = 1
     while argidx <= self.arg_typeref_exprs.len {
-        if not self.arg_typeref_exprs[argidx].is_equivalent_to(
+        if not self.arg_typeref_exprs[argidx].is_equivalent(
                 other_func_expr.arg_typeref_exprs[argidx]) {
             return no
         }
@@ -651,7 +651,7 @@ func TypeRefExpr.init {
     self.kind = ast.N_EXPR_TYPEREF
 }
 
-func TypeRefFuncExpr.is_equivalent_to(other_expr) {
+func TypeRefFuncExpr.is_equivalent(other_expr) {
     if other_expr.is_func_ref {
         return no
     }
@@ -1469,12 +1469,28 @@ func _parse_typeref_notlater(
         if pos > max_len or
                 tokens[pos].kind != token.T_ENCLOSE or
                 tokens[pos].str != "(" {
+            if debug {
+                print(program_name + ": debug: "
+                    "_parse_typeref_notlater(): " +
+                    "In check_if_func_type(): "
+                    "Early bail since no '(' at "
+                    "the start.")
+            }
             return none
         }
         var could_be_func = no
         pos += 1
         var bdepth = 1
-        while pos < max_len and
+        if debug {
+            print(program_name + ": debug: "
+                "_parse_typeref_notlater(): " +
+                "In check_if_func_type(): "
+                "pos=" + pos.as_str() + " "
+                "max_len=" + max_len.as_str() + " "
+                "is_nested_in_type=" +
+                    is_nested_in_type.as_str())
+        }
+        while pos <= max_len and
                 bdepth >= 1 {
             if tokens[pos].kind == token.T_ENCLOSE and
                     {'(', '[', '{'}.has(tokens[pos].str) {
@@ -1494,11 +1510,11 @@ func _parse_typeref_notlater(
                         var nested = yes
                         return [(pos - startpos), nested]
                     }
-                    while pos < max_len and
-                            (tokens[pos + 1].kind !=
+                    while pos <= max_len and
+                            (tokens[pos].kind !=
                                 token.T_ENCLOSE or
                              not {")", "}", "]"}.has(
-                                 tokens[pos + 1].str
+                                 tokens[pos].str
                             )) {
                         pos += 1
                     }
@@ -1824,6 +1840,9 @@ func _parse_typeref_notlater(
                         none).as_str() + " " +
                     "func_type_token_len=" +
                         func_type_token_len.as_str() + " "
+                    "tokens[pos + func_type_token_len]=" +
+                        tokens[pos + func_type_token_len -
+                            1].as_str() + " "
                     "func_type_nested=" +
                         func_type_nested.as_str())
             }

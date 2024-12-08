@@ -81,11 +81,11 @@ func BuiltinSymsStorageItem.as_str {
         mod_path_str = ("module_path=" +
             self.module_path.join(".") + ", ")
     }
-    var t = "BuiltinSymsStorageItem{" +
+    var t = ("BuiltinSymsStorageItem{" +
         "kind='" + BuiltinItemKind.num_label(
             self.kind) + "', "
         "symbol_name=" + textfmt.as_escaped_code_string(
-            self.symbol_name + ", " +
+            self.symbol_name) + ", " +
         mod_path_str +
         "symbol_storage_ref=" +
             self.symbol_storage_ref.as_str() + ""
@@ -109,8 +109,10 @@ func resolve_func_signature_of_item(
     if debug {
         print(program_name + ": debug: " +
             "builtin_syms.resolve_func_signature_of_item: "
-            "Resolving func signature: " +
-                item.func_signature_str)
+            "For item " + textfmt.as_escaped_code_string(
+                item.symbol_name
+            ) + ", we're resolving func signature: " +
+            item.func_signature_str)
     }
     var result = token.tokenize_str(
         item.func_signature_str, keep_whitespace=no,
@@ -132,9 +134,16 @@ func resolve_func_signature_of_item(
     var result_typeref = ast_typeref.parse_typeref(
         tokens, 1, msgs,
         project_file=project_file, is_moose64=is_moose64,
+        debug=no,
     ) later:
 
     await result_typeref
+    if debug {
+        print(program_name + ": debug: " +
+            "builtin_syms.resolve_func_signature_of_item: "
+            "Parsed func typeref_expr: " +
+            result_typeref.as_str())
+    }
     var had_error = no
     for m in msgs {
         if m.kind == msg.M_ERROR {
