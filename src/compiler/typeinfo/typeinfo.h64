@@ -950,6 +950,10 @@ func create_typeinfo_from_global_ref(
                     sinfo.typeref_expr != none {
                 base_typeref_expr_if_known =
                     sinfo.typeref_expr
+                assert(not {st_scope.SINFO_FUNCATTR,
+                    st_scope.SINFO_FUNC}.has(
+                        sinfo.kind) or
+                    sinfo.typeref_expr.is_func_ref)
             }
         }
     }
@@ -1009,10 +1013,19 @@ func create_typeinfo_from_global_ref(
                 self_node_if_known.kind == ast.N_EXPR_IDREF {
             self_ref_if_known = self_node_if_known.ref
         }
-        if self_ref_if_known and self_node_if_known != none and
-                self_node_if_known.kind == ast.N_EXPR_IDREF and
-                self_node_if_known.ref != none {
-            self_ref_if_known = self_node_if_known.ref
+        if self_ref_if_known and self_node_if_known != none {
+            if self_node_if_known.kind == ast.N_EXPR_IDREF and
+                    self_node_if_known.ref != none {
+                self_ref_if_known = self_node_if_known.ref
+            } elseif self_node_if_known.kind == ast.N_EXPR_BINOP and
+                    self_node_if_known.optoken.str == "." and
+                    self_node_if_known.subexprs.len >= 2 and
+                    self_node_if_known.subexprs[2].kind ==
+                        ast.N_EXPR_IDREF and
+                    self_node_if_known.subexprs[2].ref != none {
+                self_ref_if_known =
+                    self_node_if_known.subexprs[2].ref
+            }
         }
         if store_self_value_ref_for_funcs and
                 ((base_typeref_expr_if_known != none and

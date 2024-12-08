@@ -1685,6 +1685,11 @@ func node_to_c_string(project_file, node, parents,
                 return later
             }
 
+            is_regular_call = yes
+            var func_node = node.subexprs[1].subexprs[2]
+            var func_node_parents =
+                parents + [node, node.subexprs[1]]
+            var func_ref = node.subexprs[1].subexprs[2].ref
             var self_expr = node.subexprs[1].subexprs[1]
             var self_st_ref = none
             if self_expr.kind == ast.N_EXPR_IDREF {
@@ -1720,8 +1725,8 @@ func node_to_c_string(project_file, node, parents,
                     )
                 } elseif not msg.msgs_contain_error(msgs) {
                     throw new RuntimeError(
-                        "Internal error, unexpectedly failed to "
-                        "get self arg type."
+                        "Internal error, unexpectedly failed "
+                        "to get self arg type."
                     )
                 }
                 left_hand_str = ""
@@ -1757,6 +1762,15 @@ func node_to_c_string(project_file, node, parents,
                 self_call_arg_str = "&(" +
                     self_call_arg_str + ")"
             }
+            func_typeinfo =
+                m64_ast_analyze.get_c_or_m64_type_of_node(
+                    project_file, func_node,
+                    func_node_parents,
+                    store_self_value_ref_for_funcs=yes,
+                    msgs=msgs
+                ) later:  # Get type info from our call node.
+
+            await func_typeinfo
         }
         try_get_left_hand_self_call() later:
 
@@ -1783,6 +1797,7 @@ func node_to_c_string(project_file, node, parents,
                     not is_size_of {
                 return later
             }
+            is_regular_call = no
             if is_as_ref {
                 left_hand_str = "(&"
                 right_closing_str = ")"
@@ -1842,6 +1857,9 @@ func node_to_c_string(project_file, node, parents,
         }
 
         var arg_idx = 0
+        if self_call_arg_str {
+            arg_idx += 1
+        }
         func handle_arg_value(arg_expr) {
             arg_idx += 1
             if not is_regular_call {
@@ -1873,9 +1891,10 @@ func node_to_c_string(project_file, node, parents,
                     "for call. This shouldn't ever happen.")
             }
             var arg_typeexpr = all_typeexprs[arg_idx]
-            var arg_typeinfo = typeinfo.create_typeinfo_from_typeexpr(
-                arg_typeexpr, is_moose64=is_moose64
-            )
+            var arg_typeinfo = typeinfo.
+                create_typeinfo_from_typeexpr(
+                    arg_typeexpr, is_moose64=is_moose64
+                )
             var converted_c_str =
                 node_generate_c_type_conversion_code(
                     project_file, arg_typeinfo,
@@ -1898,6 +1917,7 @@ func node_to_c_string(project_file, node, parents,
         assert(node.subexprs[2].kind == ast.N_EXPR_CALLARGS)
         var queue = node.subexprs[2].subexprs
         if queue.len == 0 {
+            t += ")" + right_closing_str
             return later t
         }
         var entry = queue.pop_at(1)
@@ -1906,9 +1926,10 @@ func node_to_c_string(project_file, node, parents,
 
         await result
         if queue.len == 0 {
-            return later t + ")" + right_closing_str
+            t += ")" + right_closing_str
+            return later t
         }
-        entry = queue.pop()
+        entry = queue.pop_at(1)
         result = handle_arg_value(entry)
         later repeat
     } elseif node.kind == ast.N_EXPR_UNOP {
