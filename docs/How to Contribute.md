@@ -133,7 +133,7 @@ suggestions, like ChatGPT etc.** ⚠️
 Contribute funding
 ------------------
 
-There's **no way to donate to the project itself.**
+This project **doesn't accept funding nor donations.**
 
 - But [here is info on the key people
   ](https://horse64.org/who), if you wanted to cheer them
