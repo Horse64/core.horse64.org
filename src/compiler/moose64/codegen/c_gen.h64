@@ -1953,6 +1953,31 @@ func node_to_c_string(project_file, node, parents,
             "(" + left_hand + ")"
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "[" {
+        var container_typeinfo =
+            m64_ast_analyze.get_c_or_m64_type_of_node(
+                project_file, node.subexprs[1],
+                parents + [node],
+                store_self_value_ref_for_funcs=yes,
+                msgs=msgs
+            ) later:  # Get type info from our call node.
+
+        await container_typeinfo
+        if container_typeinfo == none {
+            if msgs == none {
+                throw new RuntimeError(
+                    "Got left-hand with invalid type."
+                )
+            } elseif not msg.msgs_contain_error(msgs) {
+                throw new RuntimeError(
+                    "Internal error, unexpectedly failed "
+                    "to get container type."
+                )
+            }
+        }
+        var container_suffix = ""
+        if container_typeinfo.is_array() {
+            container_suffix = ".data"
+        }
         var container_str = node_to_c_string(
             project_file, node.subexprs[1],
             parents + [node],
@@ -1962,6 +1987,7 @@ func node_to_c_string(project_file, node, parents,
         later:
 
         await container_str
+        container_str += container_suffix
         var index_str = node_to_c_string(
             project_file, node.subexprs[2],
             parents + [node],
