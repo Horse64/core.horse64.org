@@ -1793,8 +1793,13 @@ func node_to_c_string(project_file, node, parents,
                     project_file, node.subexprs[1],
                     is_moose64=is_moose64
                 )
+            var is_assert = m64_builtins.
+                is_ast_node_referring_to_m64_std_assert(
+                    project_file, node.subexprs[1],
+                    is_moose64=is_moose64
+                )
             if not is_as_ref and not is_deref and
-                    not is_size_of {
+                    not is_size_of and not is_assert {
                 return later
             }
             is_regular_call = no
@@ -1804,6 +1809,8 @@ func node_to_c_string(project_file, node, parents,
             } elseif is_deref {
                 left_hand_str = "(*"
                 right_closing_str = ")"
+            } elseif is_assert {
+                left_hand_str = "assert"
             } else {
                 left_hand_str = "sizeof"
             }
@@ -2513,6 +2520,7 @@ func ast_to_c(project_file, msgs=none, build_options=none,
 
     var t = "#include <stdio.h>\n"
         "#include <stdlib.h>\n"
+        "#include <assert.h>\n"
         "#include <stdint.h>\n"
     t += "\n#define __M64_DO_INCLUDE_C_TYPES"
         "\n#include " +

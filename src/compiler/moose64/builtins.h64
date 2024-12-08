@@ -82,6 +82,15 @@ func is_ast_node_referring_to_m64_std_as_ref(
         is_moose64=is_moose64)
 }
 
+func is_ast_node_referring_to_m64_std_assert(
+        project_file, node, is_moose64=no) {
+    return is_ast_node_referring_to_m64_builtin_by_name(
+        project_file, node,
+        "assert", in_module_name="std",
+        in_package_name="m64.horse64.org",
+        is_moose64=is_moose64)
+}
+
 func is_ast_node_referring_to_m64_std_deref(
         project_file, node, is_moose64=no) {
     return is_ast_node_referring_to_m64_builtin_by_name(
@@ -90,6 +99,7 @@ func is_ast_node_referring_to_m64_std_deref(
         in_package_name=none,
         is_moose64=is_moose64)
 }
+
 func is_ast_node_referring_to_m64_builtin_by_name(
         project_file, node,
         builtin_name, in_module_name=none,
