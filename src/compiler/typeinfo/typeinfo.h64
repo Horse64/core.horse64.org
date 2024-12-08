@@ -232,6 +232,50 @@ func TypeInfo.has_outer_implicit_ref {
     return no
 }
 
+func TypeInfo.is_equivalent(other_typeinfo) {
+    if self.modifiers.len != other_typeinfo.modifiers.len {
+        return no
+    }
+    if self.kind != other_typeinfo.kind {
+        return no
+    }
+    if self.kind == TI_C_TYPE and
+            self.c_type_name != other_typeinfo.c_type_name {
+        return no
+    } elseif self.kind == TI_USERTYPE {
+        if self.user_type_ref != none and
+                orig_typeinfo.user_type_ref != none {
+            if not self.user_type_ref.alike(
+                    other_typeinfo.user_type_ref) {
+                return no
+            }
+        } else {
+            assert(self.func_typeexpr != none and
+                self.func_typeexpr.is_func_ref)
+            assert(other_typeinfo.func_typeexpr != none and
+                other_typeinfo.func_typeexpr.is_func_ref)
+            if not self.func_typeexpr.is_equivalent_to(
+                    other_typeinfo.func_typeexpr) {
+                return no
+            }
+        }
+    } else {
+        assert(self.user_type_ref != none)
+        assert(other_typeinfo.user_type_ref != none)
+        if not self.user_type_ref.alike(
+                other_typeinfo.user_type_ref) {
+            return no
+        }
+    }
+    if not self.has_equivalent_modifiers(
+            other_typeinfo, allow_autodrop_mods=no,
+            allow_autoadd_mods=no
+            ) {
+        return no
+    }
+    return yes
+}
+
 func TypeInfo.has_equivalent_modifiers(
         other_tinfo, allow_autodrop_mods=no,
         allow_autoadd_mods=no

@@ -126,6 +126,7 @@ func get_c_func_signature_or_body(
         generate_code=no,
         generate_code_ast_parents_if_closure=none,
         generate_code_add_to_header_callback=none,
+        generate_code_add_to_top_callback=none,
         generate_code_build_options=none,
         project=none,
         msgs=none, is_moose64=no) {
@@ -335,6 +336,8 @@ func get_c_func_signature_or_body(
         indent=(indent + 4),
         add_to_header_callback=
             generate_code_add_to_header_callback,
+        add_to_top_callback=
+            generate_code_add_to_top_callback,
         msgs=msgs, build_options=generate_code_build_options
     )
     later:
@@ -515,6 +518,11 @@ func get_c_header_uri_and_info_for_type(
     return result
 }
 
+type CExportTrackerProjectFileInfo {
+    var array_conversion_funcs_name_map = {->}
+    var null_size_structs_name_map = {->}
+}
+
 type CExportTracker {
     var project
     var main_file_rel_path = none
@@ -525,6 +533,8 @@ type CExportTracker {
     var func_scope_to_self_name_map = {->}
     var func_scope_to_failable_name_map = {->}
     var func_attr_to_func_sig_map = {->}
+
+    var project_file_info_map = {->}
 }
 
 func CExportTracker.finish_init {
@@ -534,6 +544,49 @@ func CExportTracker.finish_init {
 
     await rel_path
     self.main_file_rel_path = rel_path
+}
+
+func CExportTracker.get_array_conversion_name(
+        project_file,
+        array_typeinfo_from, array_typeinfo_to) {
+    if not self.project_file_info_map.has(project_file) {
+        self.project_file_info_map[project_file] =
+            new CExportTrackerProjectFileInfo()
+    }
+    var pfile_info = self.project_file_info_map[project_file]
+
+    for array_pair in pfile_info.array_conversion_funcs_name_map {
+        if not array_pair[1].is_equivalent_to(
+                arary_typeinfo_from) or
+                not array_pair[2].is_equivalent_to(
+                    array_typeinfo_to) {
+            continue
+        }
+        return pfile_info.array_conversion_funcs_name_map[
+            array_pair
+        ]
+    }
+    return none
+}
+
+func CExportTracker.get_null_size_struct_name(
+        project_file, struct_typeinfo) {
+    if not self.project_file_info_map.has(project_file) {
+        self.project_file_info_map[project_file] =
+            new CExportTrackerProjectFileInfo()
+    }
+    var pfile_info = self.project_file_info_map[project_file]
+
+    for old_struct_typeinfo in pfile_info.null_size_structs_name_map {
+        if not struct_typeinfo.is_equivalent_to(
+                old_struct_typeinfo) {
+            continue
+        }
+        return pfile_info.null_size_structs_name_map[
+            old_struct_typeinfo
+        ]
+    }
+    return none
 }
 
 extend type compiler.project.Project {
@@ -633,6 +686,21 @@ func CExportTracker.generate_c_types_and_header_info(
                 1, header_line.len - 1)
         }
         types_additional_header_str += "\n" + header_line
+    }
+    func ast_to_file_top_callback(
+            project_file, top_line,
+            msg=none, build_options=none) {
+        while top_line.starts("\n") {
+            top_line = top_line.sub(2)
+        }
+        while top_line.ends("\n") {
+            top_line = top_line.sub(
+                1, top_line.len - 1
+            )
+        }
+        header_result.type_func_attrs_code =
+            top_line.rtrim() + "\n" +
+            header_result.type_func_attrs_code
     }
 
     func handle_gscope_entry(entry_name, entry) {
@@ -959,6 +1027,8 @@ func CExportTracker.generate_c_types_and_header_info(
                     generate_code_ast_parents_if_closure=none,
                     generate_code_add_to_header_callback=
                         ast_to_c_header_callback,
+                    generate_code_add_to_top_callback=
+                        ast_to_file_top_callback,
                     generate_code_build_options=build_options,
                     project=project_file.project,
                     msgs=msgs, is_moose64=is_moose64
@@ -1172,6 +1242,7 @@ type NodeToCOptions {
 func node_list_to_c_strings(project_file, node_list, parents,
         indent=0, node_to_c_options=none,
         add_to_header_callback=none,
+        add_to_top_callback=none,
         msgs=none, build_options=none) {
     var queue = node_list.copy()
     var result = []
@@ -1183,6 +1254,7 @@ func node_list_to_c_strings(project_file, node_list, parents,
         project_file, node, parents, indent=indent,
         node_to_c_options=node_to_c_options,
         add_to_header_callback=add_to_header_callback,
+        add_to_top_callback=add_to_top_callback,
         msgs=msgs, build_options=build_options)
         later:
 
@@ -1201,6 +1273,7 @@ func node_list_to_c_strings(project_file, node_list, parents,
         project_file, node, parents, indent=indent,
         node_to_c_options=node_to_c_options,
         add_to_header_callback=add_to_header_callback,
+        add_to_top_callback=add_to_top_callback,
         msgs=msgs, build_options=build_options)
         later repeat
 }
@@ -1211,6 +1284,7 @@ func generate_var_assigned_values_code(
         indent=none,
         limit_to_global_storage_ids=none,
         add_to_header_callback=none,
+        add_to_top_callback=none,
         build_options=none,
         is_moose64=no,
         msgs=none) {
@@ -1229,6 +1303,8 @@ func generate_var_assigned_values_code(
                     limit_to_global_storage_ids,
                 add_to_header_callback=
                     add_to_header_callback,
+                add_to_top_callback=
+                    add_to_top_callback,
                 build_options=
                     build_options,
                 is_moose64=is_moose64,
@@ -1293,6 +1369,8 @@ func generate_var_assigned_values_code(
                     indent=indent,
                     add_to_header_callback=
                         add_to_header_callback,
+                    add_to_top_callback=
+                        add_to_top_callback,
                     msgs=msgs, build_options=build_options
                 ) later:
 
@@ -1364,6 +1442,7 @@ func node_generate_c_type_conversion_code(
         source_value_node,
         source_value_parents,
         indent=0, add_to_header_callback=none,
+        add_to_top_callback=none,
         msgs=none, build_options=none) {
     const is_moose64 = yes
     var program_name = "moosec"
@@ -1394,6 +1473,7 @@ func node_generate_c_type_conversion_code(
 func node_to_c_string(project_file, node, parents,
         indent=0, node_to_c_options=none,
         add_to_header_callback=none,
+        add_to_top_callback=none,
         is_attr_kind_of_expr=no,
         msgs=none, build_options=none) {
     const debug = no
@@ -1426,6 +1506,7 @@ func node_to_c_string(project_file, node, parents,
             project_file, call_expr, parents + [node],
             indent=indent,
             add_to_header_callback=add_to_header_callback,
+            add_to_top_callback=add_to_top_callback,
             msgs=msgs, build_options=build_options)
         later:
 
@@ -1443,6 +1524,8 @@ func node_to_c_string(project_file, node, parents,
                         indent=(indent + 4),
                         add_to_header_callback=
                             add_to_header_callback,
+                        add_to_top_callback=
+                            add_to_top_callback,
                         msgs=msgs, build_options=build_options)
                     later:
 
@@ -1460,6 +1543,8 @@ func node_to_c_string(project_file, node, parents,
                     indent=indent,
                     add_to_header_callback=
                         add_to_header_callback,
+                    add_to_top_callback=
+                        add_to_top_callback,
                     msgs=msgs, build_options=build_options)
                 later:
 
@@ -1470,6 +1555,8 @@ func node_to_c_string(project_file, node, parents,
                     indent=(indent + 4),
                     add_to_header_callback=
                         add_to_header_callback,
+                    add_to_top_callback=
+                        add_to_top_callback,
                     msgs=msgs, build_options=build_options)
                 later:
 
@@ -1528,6 +1615,7 @@ func node_to_c_string(project_file, node, parents,
             parents + [node],
             indent=indent,
             add_to_header_callback=add_to_header_callback,
+            add_to_top_callback=add_to_top_callback,
             msgs=msgs, build_options=build_options)
         later:
 
@@ -1536,6 +1624,7 @@ func node_to_c_string(project_file, node, parents,
             project_file, node.subblocks[1],
             parents + [node], indent=(indent + 4),
             add_to_header_callback=add_to_header_callback,
+            add_to_top_callback=add_to_top_callback,
             msgs=msgs, build_options=build_options
         )
         later:
@@ -1559,6 +1648,8 @@ func node_to_c_string(project_file, node, parents,
                 indent=indent,
                 add_to_header_callback=
                     add_to_header_callback,
+                add_to_top_callback=
+                    add_to_top_callback,
                 msgs=msgs, build_options=build_options)
             later:
 
@@ -1597,6 +1688,8 @@ func node_to_c_string(project_file, node, parents,
                     indent=indent,
                     add_to_header_callback=
                         add_to_header_callback,
+                    add_to_top_callback=
+                        add_to_top_callback,
                     msgs=msgs, build_options=build_options)
                 later:
 
@@ -1617,6 +1710,7 @@ func node_to_c_string(project_file, node, parents,
             parents + [node],
             indent=indent,
             add_to_header_callback=add_to_header_callback,
+            add_to_top_callback=add_to_top_callback,
             msgs=msgs, build_options=build_options)
         later:
 
@@ -1652,6 +1746,7 @@ func node_to_c_string(project_file, node, parents,
             indent=indent,
             is_attr_kind_of_expr=yes,
             add_to_header_callback=add_to_header_callback,
+            add_to_top_callback=add_to_top_callback,
             msgs=msgs, build_options=build_options)
         later:
 
@@ -1744,6 +1839,8 @@ func node_to_c_string(project_file, node, parents,
                 indent=indent,
                 add_to_header_callback=
                     add_to_header_callback,
+                add_to_top_callback=
+                    add_to_top_callback,
                 msgs=msgs, build_options=build_options)
             later:
 
@@ -1754,6 +1851,8 @@ func node_to_c_string(project_file, node, parents,
                 indent=indent,
                 add_to_header_callback=
                     add_to_header_callback,
+                add_to_top_callback=
+                    add_to_top_callback,
                 msgs=msgs, build_options=build_options)
             later:
 
@@ -1908,6 +2007,7 @@ func node_to_c_string(project_file, node, parents,
                     arg_expr, parents + [node, node.subexprs[2]],
                     indent=indent,
                     add_to_header_callback=add_to_header_callback,
+                    add_to_top_callback=add_to_top_callback,
                     msgs=msgs, build_options=build_options
                 ) later:
 
@@ -1945,6 +2045,7 @@ func node_to_c_string(project_file, node, parents,
             parents + [node],
             indent=indent,
             add_to_header_callback=add_to_header_callback,
+            add_to_top_callback=add_to_top_callback,
             msgs=msgs, build_options=build_options)
         later:
 
@@ -1983,6 +2084,7 @@ func node_to_c_string(project_file, node, parents,
             parents + [node],
             indent=indent,
             add_to_header_callback=add_to_header_callback,
+            add_to_top_callback=add_to_top_callback,
             msgs=msgs, build_options=build_options)
         later:
 
@@ -1993,6 +2095,7 @@ func node_to_c_string(project_file, node, parents,
             parents + [node],
             indent=indent,
             add_to_header_callback=add_to_header_callback,
+            add_to_top_callback=add_to_top_callback,
             msgs=msgs, build_options=build_options)
         later:
 
@@ -2005,6 +2108,7 @@ func node_to_c_string(project_file, node, parents,
             parents + [node],
             indent=indent,
             add_to_header_callback=add_to_header_callback,
+            add_to_top_callback=add_to_top_callback,
             msgs=msgs, build_options=build_options)
         later:
 
@@ -2014,6 +2118,7 @@ func node_to_c_string(project_file, node, parents,
             parents + [node],
             indent=indent,
             add_to_header_callback=add_to_header_callback,
+            add_to_top_callback=add_to_top_callback,
             msgs=msgs, build_options=build_options)
         later:
 
@@ -2079,6 +2184,8 @@ func node_to_c_string(project_file, node, parents,
                 parents + [node], indent=indent,
                 add_to_header_callback=
                     add_to_header_callback,
+                add_to_top_callback=
+                    add_to_top_callback,
                 msgs=msgs, build_options=build_options)
             later:
 
@@ -2090,15 +2197,10 @@ func node_to_c_string(project_file, node, parents,
                     indent=indent,
                     add_to_header_callback=
                         add_to_header_callback,
+                    add_to_top_callback=
+                        add_to_top_callback,
                     msgs=msgs, build_options=build_options
                 ) later:
-            #var right_hand_str = node_to_c_string(
-            #    project_file, entry[2],
-            #    parents + [node], indent=indent,
-            #    add_to_header_callback=
-            #        add_to_header_callback,
-            #    msgs=msgs, build_options=build_options)
-            #later:
 
             await right_hand_str
             t += indent_str + left_hand_str + " " +
@@ -2385,6 +2487,8 @@ func node_to_c_string(project_file, node, parents,
             limit_to_global_storage_ids=none,
             add_to_header_callback=
                 add_to_header_callback,
+            add_to_top_callback=
+                add_to_top_callback,
             build_options=
                 build_options,
             is_moose64=is_moose64,
@@ -2407,6 +2511,8 @@ func node_to_c_string(project_file, node, parents,
             generate_code_ast_parents_if_closure=parents,
             generate_code_add_to_header_callback=
                 add_to_header_callback,
+            generate_code_add_to_top_callback=
+                add_to_top_callback,
             generate_code_build_options=build_options,
             project=project_file.project,
             msgs=msgs, is_moose64=is_moose64
@@ -2456,6 +2562,8 @@ func node_to_c_string(project_file, node, parents,
             generate_code_ast_parents_if_closure=parents,
             generate_code_add_to_header_callback=
                 add_to_header_callback,
+            generate_code_add_to_top_callback=
+                add_to_top_callback,
             generate_code_build_options=build_options,
             project=project_file.project,
             msgs=msgs, is_moose64=is_moose64
@@ -2543,12 +2651,26 @@ func ast_to_c(project_file, msgs=none, build_options=none,
         }
         header_contents += "\n" + header_line
     }
+    var t_toppart = ""
+    func ast_to_file_top_callback(
+            project_file, top_line,
+            msg=none, build_options=none) {
+        while top_line.starts("\n") {
+            top_line = top_line.sub(2)
+        }
+        while top_line.ends("\n") {
+            top_line = top_line.sub(
+                1, top_line.len - 1)
+        }
+        t_toppart = top_line + "\n" + t_toppart
+    }
 
-    var t = "#include <stdio.h>\n"
+    var t = ""
+    var t_includes = "#include <stdio.h>\n"
         "#include <stdlib.h>\n"
         "#include <assert.h>\n"
         "#include <stdint.h>\n"
-    t += "\n#define __M64_DO_INCLUDE_C_TYPES"
+    t_includes += "\n#define __M64_DO_INCLUDE_C_TYPES"
         "\n#include " +
         textfmt.as_escaped_code_string(
             header_name, for_c_code=yes
@@ -2586,6 +2708,8 @@ func ast_to_c(project_file, msgs=none, build_options=none,
         project_file, project_file.ast.stmts, [],
         add_to_header_callback=
             ast_to_c_header_callback,
+        add_to_top_callback=
+            ast_to_file_top_callback,
         node_to_c_options=node_to_c_options,
         msgs=msgs, build_options=build_options)
     later:
@@ -2603,6 +2727,8 @@ func ast_to_c(project_file, msgs=none, build_options=none,
         project_file, project_file.ast.stmts, [],
         add_to_header_callback=
             ast_to_c_header_callback,
+        add_to_top_callback=
+            ast_to_file_top_callback,
         node_to_c_options=node_to_c_options,
         msgs=msgs, build_options=build_options)
     later:
@@ -2629,6 +2755,8 @@ func ast_to_c(project_file, msgs=none, build_options=none,
                     init_func.storage_ids_for_init,
                 add_to_header_callback=
                     ast_to_c_header_callback,
+                add_to_top_callback=
+                    ast_to_file_top_callback,
                 build_options=
                     build_options,
                 is_moose64=is_moose64,
@@ -2663,6 +2791,8 @@ func ast_to_c(project_file, msgs=none, build_options=none,
         project_file, project_file.ast.stmts, [],
         add_to_header_callback=
             ast_to_c_header_callback,
+        add_to_top_callback=
+            ast_to_file_top_callback,
         node_to_c_options=node_to_c_options,
         msgs=msgs, build_options=build_options)
     later:
@@ -2711,6 +2841,8 @@ func ast_to_c(project_file, msgs=none, build_options=none,
         "typedef uint32_t moose64_failed_result_t;\n" +
         header_contents +
         "\n#endif  // " + include_guard_name + "\n"
+
+    t = t_includes + "\n" + t_toppart + "\n" + t
     return later [t, header_contents]
 }
 

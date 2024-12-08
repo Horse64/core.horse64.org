@@ -232,6 +232,49 @@ func TypeRefFuncExpr.init {
     self.type_path = none
 }
 
+func TypeRefFuncExpr.is_equivalent_to(other_func_expr) {
+    if not other_func_expr.is_func_ref {
+        return no
+    }
+    if other_func_expr.arg_typeref_exprs.len !=
+            self.arg_typeref_exprs.len {
+        return no
+    }
+    if self.return_typeref_expr == none or
+            self.return_typeref_expr.name == "empty" {
+        if other_func_expr.return_typeref_expr != none and
+                other_func_expr.return_typeref_expr.name !=
+                "empty" {
+            return no
+        }
+    } else {
+        if not self.return_typeref_expr.is_equivalent_to(
+                other_func_expr.return_typeref_expr) {
+            return no
+        }
+    }
+    if self.modifiers.len != other_func_expr.modifiers.len {
+        return no
+    }
+    var modidx = 1
+    while modidx <= self.modifiers.len {
+        if not self.modifiers[modidx].is_equivalent_mod_to(
+                other_func_expr.modifiers[modidx]) {
+            return no
+        }
+        modidx += 1
+    }
+    var argidx = 1
+    while argidx <= self.arg_typeref_exprs.len {
+        if not self.arg_typeref_exprs[argidx].is_equivalent_to(
+                other_func_expr.arg_typeref_exprs[argidx]) {
+            return no
+        }
+        argidx += 1
+    }
+    return yes
+}
+
 func TypeRefFuncExpr.as_str(indent=0) {
     if self.damaged {
         return "(damaged type ref func expr.)"
@@ -606,6 +649,63 @@ type TypeRefExpr base ast.TreeNode {
 func TypeRefExpr.init {
     base.init()
     self.kind = ast.N_EXPR_TYPEREF
+}
+
+func TypeRefFuncExpr.is_equivalent_to(other_expr) {
+    if other_expr.is_func_ref {
+        return no
+    }
+    if other_expr.name != self.name {
+        return no
+    }
+    if self.is_special_madeup_builtin !=
+            other_expr.is_special_madeup_builtin {
+        return no
+    }
+    if self.special_madeup_builtin_base_expr !=
+            other_expr.special_madeup_builtin_base_expr {
+        return no
+    }
+    if self.storage_ref != none {
+        if other_expr.storage_ref == none {
+            return no
+        }
+        if not other_expr.storage_ref.alike(self.storage_ref) {
+            return no
+        }
+    } elseif other_expr.storage_ref != none {
+        return no
+    }
+    if self.type_path == none or self.type_path.len == 0 {
+        if other_expr.type_path != none and
+                other_expr.type_path.len != 0 {
+            return no
+        }
+    } else {
+        if self.type_path.len != other_expr.type_path.len {
+            return no
+        }
+        var type_path_idx = 1
+        while type_path_idx <= type_path.len {
+            if self.type_path[type_path_idx] !=
+                    other_expr.type_path[type_path_idx] {
+                return no
+            }
+            type_path_idx += 1
+        }
+    }
+    if self.modifiers.len != other_func_expr.modifiers.len {
+        return no
+    }
+    var modidx = 1
+    while modidx <= self.modifiers.len {
+        if not self.modifiers[modidx].is_equivalent_mod_to(
+                other_func_expr.modifiers[modidx]) {
+            return no
+        }
+        modidx += 1
+    }
+    return yes
 }
 
 func TypeRefExpr.as_code(indent=0) {
