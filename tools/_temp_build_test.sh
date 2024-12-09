@@ -25,6 +25,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+# Go to repository root:
 realpath . 2>&1 > /dev/null
 if [ "x$?" != x0 ]; then
     echo "The realpath tool isn't working right."
@@ -35,9 +36,21 @@ echo "Full path to script: ${FULL_PATH_TO_SCRIPT}"
 SCRIPT_DIRECTORY="$(dirname "$FULL_PATH_TO_SCRIPT")"
 cd $SCRIPT_DIRECTORY
 echo "Changed working directory to: $SCRIPT_DIRECTORY"
-
 cd ..
-gcc -o ./gen-c/src/main.o -c -I ./gen-c/src ./gen-c/src/main.m64.c || { echo "main.o build failed."; exit 1; }
-gcc -o ./gen-c/src/std/std.o -c -I ./gen-c/src ./gen-c/src/std/std.m64.c || { echo "std/std.o build failed"; exit 1; }
-gcc -o ./prog ./gen-c/src/main.o ./gen-c/src/std/std.o || { echo "final build failed"; exit 1; }
+# We should now be in the repository root.
+
+# Run build of our test program:
+function RUN_BUILD_CMD {
+    echo "RUNNING: $BUILD_CMD"
+    $BUILD_RUN_CMD || { echo "Build command failed: $BUILD_CMD"; exit 1; }
+}
+BUILD_CMD="gcc -o ./gen-c/src/main.o -c -I ./gen-c/src ./gen-c/src/main.m64.c"
+RUN_BUILD_CMD
+BUILD_CMD="gcc -o ./gen-c/src/std/std.o -c -I ./gen-c/src ./gen-c/src/std/std.m64.c"
+RUN_BUILD_CMD
+BUILD_CMD="gcc -o ./gen-c/src/std/limit.o -c -I ./gen-c/src ./gen-c/src/std/limit.m64.c"
+RUN_BUILD_CMD
+BUILD_CMD="gcc -o ./prog ./gen-c/src/main.o ./gen-c/src/std/limit.o ./gen-c/src/std/std.o"
+RUN_BUILD_CMD
+echo "Output written to: $SCRIPT_DIRECTORY/prog"
 
