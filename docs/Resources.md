@@ -57,8 +57,8 @@ License
 
 The core projects are **dual-licensed under either a
 BSD-style license or the Apache 2 license,** with the minor
-exception to that being the official artwork. **Read the
-respective license files** for details, the licenses
+exception to that being the official artwork images. **Read
+the respective license files** for details, the licenses
 of the core projects are almost the same.
 
 - Here's [the **core.horse64.org license** as an example](
