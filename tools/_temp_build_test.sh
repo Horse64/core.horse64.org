@@ -40,17 +40,18 @@ cd ..
 # We should now be in the repository root.
 
 # Run build of our test program:
+CFLAGS="-g -I ./gen-c/src/"
 function RUN_BUILD_CMD {
     echo "RUNNING: $BUILD_CMD"
     $BUILD_CMD || { echo "Build command failed: $BUILD_CMD"; exit 1; }
 }
-BUILD_CMD="gcc -o ./gen-c/src/main.o -c -I ./gen-c/src ./gen-c/src/main.m64.c"
+BUILD_CMD="gcc $CFLAGS -o ./gen-c/src/main.o -c ./gen-c/src/main.m64.c"
 RUN_BUILD_CMD
-BUILD_CMD="gcc -o ./gen-c/src/std/std.o -c -I ./gen-c/src ./gen-c/src/std/std.m64.c"
+BUILD_CMD="gcc $CFLAGS -o ./gen-c/src/std/std.o -c ./gen-c/src/std/std.m64.c"
 RUN_BUILD_CMD
-BUILD_CMD="gcc -o ./gen-c/src/std/limit.o -c -I ./gen-c/src ./gen-c/src/std/limit.m64.c"
+BUILD_CMD="gcc $CFLAGS -o ./gen-c/src/std/limit.o -c ./gen-c/src/std/limit.m64.c"
 RUN_BUILD_CMD
-BUILD_CMD="gcc -o ./prog ./gen-c/src/main.o ./gen-c/src/std/limit.o ./gen-c/src/std/std.o"
+BUILD_CMD="gcc $CFLAGS -o ./prog ./gen-c/src/main.o ./gen-c/src/std/limit.o ./gen-c/src/std/std.o"
 RUN_BUILD_CMD
 echo "Output written to: `pwd`/prog"
 
