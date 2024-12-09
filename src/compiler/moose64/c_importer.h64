@@ -79,6 +79,11 @@ func CImportInfo._process_c_include(project, ipath) {
                 "(<-any ref, <-readonly any ref, "
                 "<-size)->any ref"
         )
+        new_items["memset"] = new c_symbol.CFuncSymbol(
+            "void *memset(void *dest, int32_t c, size_t n);",
+            _override_func_signature=
+                "(<-any ref, <-i32, <-size)->any ref"
+        )
         new_items["strlen"] = new c_symbol.CFuncSymbol(
             "size_t strlen(const char *);",
             _override_func_signature=

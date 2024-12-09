@@ -384,6 +384,7 @@ type InitFuncInfo {
     var suggested_name
     var storage_ids_for_init = {}
     var project_file
+    var final_ordered_st_ids_offset
 }
 
 func InitFuncInfo.as_str {
@@ -395,6 +396,50 @@ func InitFuncInfo.as_str {
         "project_file=" + self.project_file.as_str() +
         "}"
     return t
+}
+
+func generate_init_funcs_globally(project) {
+    var gtracker = project.globals_init_tracker
+
+    func process_files_if_needed {
+        if gtracker.computed_init_func_info_map != none {
+            return later
+        }
+        var _unused =
+            generate_init_funcs_for_file(
+                project.get_any_file()) later:
+
+        await _unused
+    }
+    process_files_if_needed() later:
+
+    var all_init_funcs = []
+    for pfile in gtracker.computed_init_func_info_map {
+        var per_file_funcs = gtracker.
+            computed_init_func_info_map[
+                pfile
+            ]
+        for init_func in per_file_funcs {
+            var inserted = no
+            var idx = 1
+            while idx <= all_init_funcs.len {
+                var old_init_func = all_init_funcs[idx]
+                if old_init_func.final_ordered_st_ids_offset >
+                        init_func.final_ordered_st_ids_offset {
+                    all_init_funcs.add_at(
+                        idx, init_func
+                    )
+                    inserted = yes
+                    break
+                }
+                idx += 1
+            }
+            if not inserted {
+                all_init_funcs.add(init_func)
+            }
+        }
+    }
+    return later all_init_funcs
 }
 
 func generate_init_funcs_for_file(project_file) {
@@ -446,6 +491,7 @@ func generate_init_funcs_for_file(project_file) {
                 current_func_info.suggested_name =
                     "init_globals_" + random.gen_id().as_str()
             }
+            current_func_info.final_ordered_st_ids_offset = idx
             current_func_info.storage_ids_for_init.add(
                 st_id
             )

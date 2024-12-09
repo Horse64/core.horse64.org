@@ -85,20 +85,37 @@ func check_if_allowed_implicit_cast_from_to(
 
     var refs_left = left_hand_target_typeinfo.ref_count(
         include_c_arrays=yes, include_arrays=yes,
-        include_implicit_refs=no,
+        include_implicit_refs=no, include_explicit_refs=yes
     )
     var refs_right = right_hand_source_typeinfo.ref_count(
         include_c_arrays=yes, include_arrays=yes,
-        include_implicit_refs=no,
+        include_implicit_refs=no, include_explicit_refs=yes,
     )
     var target_is_any = (
         left_hand_target_typeinfo.kind == typeinfo.TI_C_TYPE and
         left_hand_target_typeinfo.orig_type_name == "any"
     )
+    var target_is_ptr = left_hand_target_typeinfo.ref_count(
+        include_c_arrays=yes, include_arrays=no,
+        include_implicit_refs=no, include_explicit_refs=yes
+    ) > 0
+    var target_is_array = left_hand_target_typeinfo.is_array()
+    var source_is_any = (
+        right_hand_source_typeinfo.kind == typeinfo.TI_C_TYPE and
+        right_hand_source_typeinfo.orig_type_name == "any"
+    )
+    var source_is_ptr = left_hand_target_typeinfo.ref_count(
+        include_c_arrays=yes, include_arrays=no,
+        include_implicit_refs=no, include_explicit_refs=yes
+    ) > 0
+    var source_is_array = right_hand_source_typeinfo.is_array()
     if refs_left > 0 and refs_left == refs_right and
             (right_hand_source_typeinfo.kind ==
                 left_hand_target_typeinfo.kind or
-             target_is_any) {
+             target_is_any or
+             (target_is_array and source_is_array and source_is_any) or
+             (target_is_ptr and source_is_ptr and source_is_any)
+            ) {
         if not left_hand_target_typeinfo.has_equivalent_modifiers(
                 right_hand_source_typeinfo,
                 allow_autodrop_mods=yes,

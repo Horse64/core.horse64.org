@@ -3044,7 +3044,13 @@ func ast_to_c(project_file, msgs=none, build_options=none,
 
             await init_t
             t += init_t
+            t += "    return 1;\n"
             t += "}\n"
+            ast_to_c_header_callback(
+                project_file, "int __m64_" +
+                    init_func.suggested_name + "();\n",
+                msgs=msgs, build_options=build_options
+            )
         }
         var queue = init_func_info.copy()
         if queue.len == 0 {
@@ -3084,8 +3090,11 @@ func ast_to_c(project_file, msgs=none, build_options=none,
     for stmt_s in stmt_strs {
         t += stmt_s + "\n"
     }
-    if project_file.is_entrypoint and
-            c_export_tracker.entrypoint_main_typeinfo != none {
+    func insert_entrypoint {
+        if not project_file.is_entrypoint or
+                c_export_tracker.entrypoint_main_typeinfo == none {
+            return none
+        }
         var main_typeinfo = c_export_tracker.
             entrypoint_main_typeinfo
         var main_typeexpr = main_typeinfo.convert_to_typeref_expr(
@@ -3097,7 +3106,29 @@ func ast_to_c(project_file, msgs=none, build_options=none,
             "main", project_file=project_file
         )
         t += "\n"
+        var global_init_func_info = globals_order.
+            generate_init_funcs_globally(
+                project_file.project
+            ) later:
+
+        await global_init_func_info
+        var init_func_idx = 1
+        for init_func in global_init_func_info {
+            t += "int __m64_" +
+                init_func.suggested_name + "();\n"
+        }
         t += "int main(int argc, const char **argv) {\n"
+        init_func_idx = 1
+        for init_func in global_init_func_info {
+            t += "    int result_init_" +
+                init_func_idx.as_str() + " = __m64_" +
+                init_func.suggested_name + "();\n"
+            t += "    if (result_init_" +
+                    init_func_idx.as_str() + " != 1) {\n"
+            t += "        return 1;\n"
+            t += "    }\n"
+            init_func_idx += 1
+        }
         if main_typeexpr.return_typeref_expr == none or
                 (not main_typeexpr.return_typeref_expr.
                     is_user_type() and
@@ -3110,6 +3141,8 @@ func ast_to_c(project_file, msgs=none, build_options=none,
         t += "    return return_code;\n"
         t += "}\n"
     }
+    insert_entrypoint() later:
+
     var include_guard_name = "__M64_HEADER_"
     include_guard_name += get_global_symbol_c_name(
         "GUARD", project_file=project_file)
