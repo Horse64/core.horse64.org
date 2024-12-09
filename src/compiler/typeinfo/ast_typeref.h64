@@ -35,6 +35,8 @@ import compiler.storage.scope as st_scope
 import compiler.token
 import compiler.typeinfo as typeinfo
 
+const moose64_forced_autoprop_names = {"len"}
+const horse64_forced_autoprop_names = {"len"}
 const builtin_horse64_types = {}
 const builtin_horse64_type_modifiers = {}
 const builtin_moose64_types = {
@@ -223,6 +225,7 @@ type TypeRefFuncExpr base TypeRefExpr {
     var func_storage_ref
     var is_failable = no
     var is_func_attr
+    var is_autoprop_func = no
 }
 
 func TypeRefFuncExpr.init {
@@ -230,6 +233,10 @@ func TypeRefFuncExpr.init {
     self.is_func_ref = yes
     self.name = none
     self.type_path = none
+}
+
+func TypeRefFuncExpr.is_user_type {
+    return yes
 }
 
 func TypeRefFuncExpr.is_equivalent(other_func_expr) {
@@ -576,6 +583,14 @@ func create_typeref_from_func_node(
         }
         type_expr.arg_typeref_exprs.add(self_type_expr)
         type_expr.is_func_attr = yes
+        if (is_moose64 and
+                moose64_forced_autoprop_names.has(
+                    node.label)) or
+                (not is_moose64 and
+                 horse64_forced_autoprop_names.has(
+                     node.label)) {
+            type_expr.is_autoprop_func = yes
+        }
     }
     if node.extended_final_has_arg_types() {
         var arg_count = node.extended_final_arg_count()
@@ -622,6 +637,8 @@ func create_typeref_from_func_node(
             "Got result: "
             "node.label='" + node.label + "' "
             "node.type_path=" + node.type_path.as_str() + " "
+            "type_expr.is_autoprop_func=" +
+                type_expr.is_autoprop_func.as_str() + " "
             "type_expr.is_func_attr=" +
                 type_expr.is_func_attr.as_str() + " "
             "node.extended_final_has_arg_types()=" +
@@ -644,6 +661,9 @@ type TypeRefExpr base ast.TreeNode {
 
     var is_special_madeup_builtin = no  # Like .len, etc.
     var special_madeup_builtin_base_expr = none
+
+    var is_autoprop_func_result = no  # Like user-defined .len, etc.
+    var autoprop_func_base_expr = none
 }
 
 func TypeRefExpr.init {

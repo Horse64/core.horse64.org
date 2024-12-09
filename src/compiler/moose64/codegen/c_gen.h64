@@ -250,8 +250,10 @@ func get_c_func_signature_or_body(
         if self_typeref_expr.storage_ref == none or
                 self_typeref_expr.storage_ref.kind !=
                     st_ref.ST_GLOBAL {
-            print(program_name + ": error: Internal error, found "
-                "func with func_typeref_expr where the self expr "
+            print(program_name + ": error: "
+                "Internal error, found "
+                "func with func_typeref_expr where "
+                "the self expr "
                 "in the first slot is invalid: "
                 "func_node=" + func_node.as_str() + " "
                 "self_typeref_expr=" +
@@ -545,8 +547,23 @@ func CExportTracker.finish_init {
     self.main_file_rel_path = rel_path
 }
 
-func CExportTracker.get_null_size_struct_name(
-        project_file, struct_typeinfo) {
+func CExportTracker.create_null_size_struct_name(
+        struct_typeinfo,
+        add_to_top_callback=none,
+        project_file=none,
+        global_name_assign_callback=none,
+        build_options=none,
+        msgs=none, is_moose64=no) {
+    if project_file == none {
+        throw new RuntimeError(
+            "The project_file option must be set."
+        )
+    }
+    if build_options == none {
+        throw new RuntimeError(
+            "The build_options option must be set."
+        )
+    }
     if not self.project_file_info_map.has(project_file) {
         self.project_file_info_map[project_file] =
             new CExportTrackerProjectFileInfo()
@@ -562,7 +579,32 @@ func CExportTracker.get_null_size_struct_name(
             old_struct_typeinfo
         ]
     }
-    return none
+    var new_name = "m64__generated_null_size_struct__" +
+        random.gen_id()
+    var typeref_expr =
+        struct_typeinfo.convert_to_typeref_expr(
+            project=project_file.project,
+            is_moose64=is_moose64,
+        )
+    var struct_c_name = typeref_expr.as_c_code(
+        global_name_assign_callback=
+            global_name_assign_callback,
+        global_register_m64_array_callback=
+            project_file.project.c_export_tracker.
+                register_m64_array_type,
+        project=project_file.project,
+        project_file=project_file,
+        is_moose64=is_moose64,
+    )
+    add_to_top_callback(
+        project_file, "static " + struct_c_name + " " +
+            new_name + " = {0};\n",
+        msgs=msgs, build_options=build_options,
+    )
+    pfile_info.null_size_structs_name_map[
+        old_struct_typeinfo
+    ] = new_name
+    return new_name
 }
 
 extend type compiler.project.Project {
@@ -1263,7 +1305,8 @@ func generate_var_assigned_values_code(
         add_to_top_callback=none,
         build_options=none,
         is_moose64=no,
-        msgs=none) {
+        msgs=none, debug=no
+        ) {
     const program_name =
         if is_moose64 ("moosec") else ("horsec")
     var indent_str = " ".rep(indent)
@@ -1284,7 +1327,8 @@ func generate_var_assigned_values_code(
                 build_options=
                     build_options,
                 is_moose64=is_moose64,
-                msgs=msgs) later:
+                msgs=msgs,
+                debug=debug) later:
             
             await inner_t
             t += "\n" + inner_t
@@ -1311,6 +1355,11 @@ func generate_var_assigned_values_code(
     if vstmt.is_empty {
         return later t
     }
+    if debug {
+        print(program_name + ": debug: "
+            "generate_var_assigned_values_code(): "
+            "Handling vstmt=" + vstmt.as_str())
+    }
 
     var var_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
         project_file, vstmt, parents,
@@ -1319,12 +1368,23 @@ func generate_var_assigned_values_code(
     ) later:
 
     await var_tinfo
+    if debug {
+        print(program_name + ": debug: "
+            "generate_var_assigned_values_code(): "
+            "Got var_tinfo=" + var_tinfo.as_str())
+    }
 
     var assigned_exprs = vstmt.subexprs.copy()
     if vstmt.has_type_expr {
         assigned_exprs = assigned_exprs.sub(
             1, assigned_exprs.len - 1
         )
+    }
+    if debug {
+        print(program_name + ": debug: "
+            "generate_var_assigned_values_code(): "
+            "Got assigned_exprs=" +
+            assigned_exprs.as_str())
     }
     func handle_assigned_value(entry) {
         var expr_result = none
@@ -1347,10 +1407,20 @@ func generate_var_assigned_values_code(
                         add_to_header_callback,
                     add_to_top_callback=
                         add_to_top_callback,
-                    msgs=msgs, build_options=build_options
+                    msgs=msgs,
+                    build_options=build_options,
                 ) later:
 
             await expr_result
+            if debug {
+                print(program_name + ": debug: "
+                    "generate_var_assigned_values_code(): "
+                    "Got expr_result=" +
+                    textfmt.as_escaped_code_string(
+                        expr_result
+                    ) + " for entry[2]=" + entry[2].as_str())
+            }
+
             if expr_result == none or
                     expr_result.trim() == "" {
                 if msgs == none or
@@ -1442,7 +1512,7 @@ func node_generate_c_type_conversion_code(
             project_file, source_value_node,
             source_value_parents,
             store_self_value_ref_for_funcs=no,
-            msgs=msgs
+            msgs=msgs,
         ) later:
 
     await inner_typeinfo
@@ -1542,7 +1612,8 @@ func node_to_c_string(project_file, node, parents,
     var indent_str = " ".rep(indent)
 
     if debug {
-        print(program_name + ": debug: node_to_c_string on: "
+        print(program_name + ": debug: "
+            "node_to_c_string(): Called on: "
             "node=" + node.as_str())
     }
     if node_to_c_options.only_global_vars and (
@@ -1716,11 +1787,87 @@ func node_to_c_string(project_file, node, parents,
         var t = indent_str + "return"
         if expr_str != none and expr_str.len > 0 {
             t += " " + expr_str
+        } else {
+            var func_node = none
+            var func_scope = none
+            var i = parents.len
+            while i >= 1 and not {ast.N_STMT_FUNC,
+                    ast.N_STMT_FUNCEXTEND}.has(
+                        parents[i].kind
+                    ) {
+                i -= 1
+            }
+            if i >= 1 {
+                func_node = parents[i]
+                func_scope =
+                    st_scope.get_base_func_scope_from_func_node(
+                        project_file, func_node, msgs=msgs,
+                        is_moose64=is_moose64,
+                    )
+                assert(func_scope != none)
+            }
+            if func_scope != none and
+                    func_scope.has_return_type {
+                var return_type_expr = func_scope.return_type_expr
+                assert(return_type_expr != none)
+                var return_tinfo =
+                    typeinfo.create_typeinfo_from_typeexpr(
+                        return_type_expr,
+                        is_moose64=is_moose64,
+                    )
+                assert(return_tinfo != none)
+                if return_tinfo.ref_count(
+                        include_c_arrays=yes,
+                        include_arrays=yes,
+                        include_implicit_refs=yes,
+                        include_explicit_refs=yes) > 0 {
+                    t += " NULL"
+                } elseif return_tinfo.kind == typeinfo.TI_USERTYPE {
+                    t += " " + create_null_size_struct_name(
+                        return_tinfo,
+                        add_to_top_callback=
+                            add_to_top_callback,
+                        project_file=project_file,
+                        global_name_assign_callback=
+                            get_global_symbol_c_name,
+                        build_options=build_options,
+                        msgs=msgs, is_moose64=is_moose64)
+                } elseif return_tinfo.is_plain_num_type() or
+                        return_tinfo.is_regular_bool_type() {
+                    t += " 0"
+                }
+            }
         }
         t += ";"
         return later t
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "." {
+        if debug {
+            print(program_name + ": debug: "
+                "node_to_c_string(): Entering "
+                "binop expression branch for '.' member "
+                "access...")
+        }
+        var overall_typeinfo =
+            m64_ast_analyze.get_c_or_m64_type_of_node(
+                project_file, node, parents,
+                store_self_value_ref_for_funcs=yes,
+                msgs=msgs
+            ) later:
+
+        await overall_typeinfo
+        var is_autoprop_value = no
+        if overall_typeinfo.autoprop_func_typeexpr != none {
+            is_autoprop_value = yes
+        }
+        if debug {
+            print(program_name + ": debug: "
+                "node_to_c_string(): Got "
+                "overall_typeinfo=" +
+                    overall_typeinfo.as_str() + " "
+                "is_autoprop_value=" +
+                    is_autoprop_value.as_str())
+        }
         if node.subexprs[2].kind == ast.N_EXPR_IDREF and
                 node.subexprs[2].ref != none and
                 node.subexprs[2].ref.kind ==
@@ -1730,14 +1877,14 @@ func node_to_c_string(project_file, node, parents,
                 project=project,
                 is_moose64=is_moose64
             )
-            if sinfo != none and
+            if sinfo != none and not is_autoprop_value and
                     sinfo.kind == st_scope.SINFO_FUNCATTR {
                 # XXX: This is a func attr on an object.
                 # We don't care about the self value here,
                 # since N_EXPR_BINOP '(' for calls doesn't
                 # ever call this N_EXPR_BINOP '.' directly.
                 # This means we're outside of the context of
-                # a call.
+                # a call, if this isn't an autoprop.
                 var result_str = node_to_c_string(
                     project_file, node.subexprs[2],
                     parents + [node],
@@ -1759,6 +1906,35 @@ func node_to_c_string(project_file, node, parents,
                     return later "&(" + result_str + ")"
                 }
                 return later result_str
+            } elseif sinfo != none and is_autoprop_value and
+                    sinfo.kind == st_scope.SINFO_FUNCATTR {
+                var self_str = node_to_c_string(
+                    project_file, node.subexprs[1],
+                    parents + [node],
+                    indent=indent,
+                    add_to_header_callback=
+                        add_to_header_callback,
+                    add_to_top_callback=
+                        add_to_top_callback,
+                    msgs=msgs, build_options=build_options)
+                later:
+
+                await self_str
+                self_str = "&(" + self_str + ")"
+                var func_str = node_to_c_string(
+                    project_file, node.subexprs[2],
+                    parents + [node],
+                    indent=indent,
+                    add_to_header_callback=
+                        add_to_header_callback,
+                    add_to_top_callback=
+                        add_to_top_callback,
+                    msgs=msgs, build_options=build_options)
+                later:
+
+                await result_str
+                return later func_str +
+                    "(" + self_str + ")"
             }
         }
         var left_hand_str = node_to_c_string(
@@ -1822,7 +1998,7 @@ func node_to_c_string(project_file, node, parents,
         var func_typeinfo = none
         if debug {
             print(program_name + ": debug: " +
-                "node_to_c_string: Entering "
+                "node_to_c_string(): Entering "
                 "call expression branch...")
         }
 
@@ -1875,10 +2051,7 @@ func node_to_c_string(project_file, node, parents,
                 ) later:
 
             await self_arg_tinfo
-            
-            if debug {
-                print("2: " + node.as_str())
-            }
+
             if self_arg_tinfo == none {
                 if msgs == none {
                     throw new RuntimeError(
@@ -2192,6 +2365,12 @@ func node_to_c_string(project_file, node, parents,
         return "(" + left_hand + ") " + optoken_to_c_token(
             node.optoken) + " (" + right_hand + ")"
     } elseif node.kind == ast.N_STMT_ASSIGN {
+        if debug {
+            print(program_name + ": debug: " +
+                "node_to_c_string(): Entering "
+                "assign statement branch... "
+                "node=" + node.as_str())
+        }
         var assign_count = math.floor(node.subexprs.len / 2)
         if assign_count < 1 {
             return ""
@@ -2216,6 +2395,12 @@ func node_to_c_string(project_file, node, parents,
                 ) later:  # Get type info from our call node.
 
             await left_hand_typeinfo
+            if debug {
+                print(program_name + ": debug: " +
+                    "node_to_c_string(): Got "
+                    "left_hand_typeinfo=" +
+                    left_hand_typeinfo.as_str())
+            }
             if left_hand_typeinfo == none {
                 if msgs == none {
                     throw new RuntimeError(
@@ -2269,6 +2454,14 @@ func node_to_c_string(project_file, node, parents,
                 ) later:
 
             await right_hand_str
+            if debug {
+                print(program_name + ": debug: " +
+                    "node_to_c_string(): Got "
+                    "right_hand_str=" +
+                    textfmt.as_escaped_code_string(
+                        right_hand_str
+                    ) + " entry[2]=" + entry[2].as_str())
+            }
             t += indent_str + left_hand_str + " " +
                 optoken_to_c_token(
                     node.assign_token) + " " +
@@ -2461,6 +2654,12 @@ func node_to_c_string(project_file, node, parents,
                 node.scope == none {
             return later ""
         }
+        if debug {
+            print(program_name + ": debug: " +
+                "node_to_c_string(): Entering "
+                "var statement branch... "
+                "node=" + node.as_str())
+        }
         var c_var_type = "void"
         var var_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
             project_file, node, parents,
@@ -2495,6 +2694,14 @@ func node_to_c_string(project_file, node, parents,
             project=project, project_file=project_file,
             is_moose64=is_moose64)
         assert(not c_var_type.has("."))
+        if debug {
+            print(program_name + ": debug: " +
+                "node_to_c_string(): Got " 
+                "c_var_type=" +
+                textfmt.as_escaped_code_string(
+                    c_var_type
+                ) + " texpr=" + texpr.as_str())
+        }
 
         var t = ""
         if node_to_c_options.add_external_to_global_vars {
@@ -2544,7 +2751,12 @@ func node_to_c_string(project_file, node, parents,
             }
             t += ";\n"
         }
-        
+
+        if debug {
+            print(program_name + ": debug: " +
+                "node_to_c_string(): Generating "
+                "init code...")
+        }
         var init_t = generate_var_assigned_values_code(
             node, parents,
             skip_globals=yes,
@@ -2558,7 +2770,8 @@ func node_to_c_string(project_file, node, parents,
             build_options=
                 build_options,
             is_moose64=is_moose64,
-            msgs=msgs)
+            msgs=msgs,
+            debug=debug)
         later:
 
         await init_t

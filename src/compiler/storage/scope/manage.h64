@@ -1553,7 +1553,9 @@ func visit_to_resolve_known_attrs(
             "this value doesn't have this attribute"
         var our_type_ref = none
         var our_type_expr = none
-        func resolve_usertype_attr_from_global_storage(storage_id) {
+        func resolve_usertype_attr_from_global_storage(
+                storage_id
+                ) {
             assert(typename(storage_id) == "num")
             var anscope =
                 pfile.project.storage_id_to_anscope_map[
@@ -1563,11 +1565,19 @@ func visit_to_resolve_known_attrs(
                 if anscope.name_to_symbol_map.has(
                         node.label
                         ) {
+                    var is_autoprop_func = no
+                    var sym = anscope.name_to_symbol_map[
+                        node.label]
+                    if sym.kind == st_scope.SINFO_FUNCATTR {
+                        var func_typeref_expr =
+                            sym.typeref_expr
+                        assert(func_typeref_expr != none)
+                        is_autoprop_func =
+                            func_typeref_expr.is_autoprop_func
+                    }
                     our_type_ref = new st_ref.StorageRef(
                         st_ref.ST_GLOBALATTR,
-                        [storage_id,
-                            anscope.name_to_symbol_map[node.label].
-                                storage_id])
+                        [storage_id, sym.storage_id])
                 } else {
                     is_attr_error = yes
                     var stmt_name = if anscope.is_struct

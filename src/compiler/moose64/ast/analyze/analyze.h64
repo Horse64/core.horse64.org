@@ -1348,6 +1348,11 @@ func _get_c_or_m64_type_of_node_do(
 
         func resolve_rhand_via_lhand_if_needed {
             if rhand.ref != none {
+                if debug {
+                    print(dbg_prefix + " (The rhand.ref "
+                        "value was already set before "
+                        "we got to evaluate anything.)")
+                }
                 return later rhand.ref
             }
             var lhand = node.subexprs[1]
@@ -1482,6 +1487,70 @@ func _get_c_or_m64_type_of_node_do(
         if sym_info == none {
             trigger_no_symbol_info_on(node)
             return later none
+        }
+        var is_autoprop_func = no
+        var func_texpr = none
+        if sym_info.kind == st_scope.SINFO_FUNCATTR {
+            func_texpr = sym_info.typeref_expr
+            assert(func_texpr != none)
+            is_autoprop_func = func_texpr.is_autoprop_func
+        }
+        if is_autoprop_func {
+            var return_texpr = none
+            if func_texpr.return_typeref_expr != none and
+                    (func_texpr.is_user_type() or
+                    return_typeref_expr.name != "empty") {
+                return_texpr = func_texpr.
+                    return_typeref_expr.copy()
+            }
+            if return_texpr == none {
+                if node.damaged {
+                    return
+                }
+                if msgs == none {
+                    throw new ValueError(
+                        "This property has no return type."
+                    )
+                }
+                node.damaged = yes
+                msgs.add(new msg.FileMsg(
+                    "Unexpected use of call expression "
+                    "with no return type.",
+                    source_file=project_file,
+                    line=node.line, col=node.col,
+                ))
+                return later none
+            }
+            return_texpr.is_autoprop_func_result = yes
+            var self_syminfo = none
+            var self_texpr = none
+            var self_st_ref = none
+            if lhand_idref != none and
+                    lhand_idref.ref != none {
+                self_st_ref = lhand_idref.ref
+                self_syminfo = st_ref.ref_to_symbol_info(
+                    lhand_idref.ref
+                )
+                if self_syminfo != none and
+                        self_syminfo.typeref_expr != none {
+                    self_texpr = self_syminfo.
+                        typeref_expr
+                }
+            }
+            if self_texpr != none {
+                return_texpr.autoprop_func_base_expr =
+                    self_texpr.copy()
+            }
+            var return_typeinfo =
+                typeinfo.create_typeinfo_from_typeexpr(
+                    return_texpr,
+                    is_moose64=is_moose64,
+                )
+            return_typeinfo.autoprop_func_typeexpr =
+                func_texpr.copy()
+            return_typeinfo.autoprop_self_ref =
+                self_st_ref.copy()
+            return later return_typeinfo
         }
         var result = get_c_or_m64_type_of_sym_info(
             project_file, sym_info, node_with_reference=rhand,

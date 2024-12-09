@@ -32,6 +32,7 @@ import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
 import compiler.ast.expr as ast_expr
 import compiler.ast.transform as ast_transform
+import compiler.moose64.autocast as m64_autocast
 import compiler.moose64.builtins as m64_builtins
 import compiler.msg as msg
 import compiler.storage.ref as st_ref
@@ -103,6 +104,17 @@ type TypeInfo {
     ## it'll be set to @{none}.
     var known_literal_value_token = none
 
+    ## If this underlying type is being produced by an autoprop
+    ## func, then this points to the
+    ## @{compiler.typeinfo.ast_typeref.TypeRefFuncExpr} of that
+    ## autoprop func.
+    var autoprop_func_typeexpr
+
+    ## If this underlying type is being produced by an autoprop
+    ## func, then this points to the storage ref of the self value
+    ## in case it's a func attr called on some instance value.
+    var autoprop_self_ref
+
     var _orig_typeexpr protect
 }
 
@@ -117,6 +129,24 @@ func TypeInfo.is_readonly {
         }
     }
     return no
+}
+
+func TypeInfo.is_regular_bool_type {
+    if typeinfo.kind != typeinfo.TI_C_TYPE {
+        return no
+    }
+    if typeinfo.orig_type_name != "bool" {
+        return no
+    }
+    if m64_autocast.get_mods_that_arent_regular_for_nums(
+            self).len != 0 {
+        return no
+    }
+    return yes
+}
+
+func TypeInfo.is_plain_num_type {
+    return m64_autocast.is_plain_num_type(self)
 }
 
 func TypeInfo.is_array {
@@ -232,12 +262,52 @@ func TypeInfo.has_outer_implicit_ref {
     return no
 }
 
-func TypeInfo.is_equivalent(other_typeinfo) {
+func TypeInfo.is_equivalent(
+        other_typeinfo, ignore_autoprop=no,
+        ignore_self_ref=yes) {
     if self.modifiers.len != other_typeinfo.modifiers.len {
         return no
     }
     if self.kind != other_typeinfo.kind {
         return no
+    }
+    if self.autoprop_func_typeexpr != none or
+            other_typeinfo.autoprop_func_typeexpr != none {
+        if self.autoprop_func_typeexpr == none or
+                other_typeinfo.autoprop_func_typeexpr == none {
+            return no
+        }
+        if not self.autoprop_func_typeexpr.is_equivalent(
+                other_typeinfo.autoprop_func_typeexpr) {
+            return no
+        }
+        if not ignore_self_ref {
+            if self.autoprop_func_self_ref != none or
+                    other_typeinfo.autoprop_func_self_ref != none {
+                if self.autoprop_func_self_ref == none or
+                        other_typeinfo.autoprop_func_self_ref == none {
+                    return no
+                }
+                if not self.autoprop_func_self_ref.alike(
+                        other_typeinfo.autoprop_func_self_ref) {
+                    return no
+                }
+            }
+        }
+    } elseif not ignore_self_ref and
+            {TI_FUNCREF, TI_H64BUILTIN_TYPE,
+            TI_M64BUILTIN_TYPE}.has(self.kind) {
+        if self.func_self_ref != none or
+                other_typeinfo.func_self_ref != none {
+            if self.func_self_ref == none or
+                    other_typeinfo.func_self_ref == none {
+                return no
+            }
+            if self.func_self_ref.alike(
+                    other_typeinfo.func_self_ref) {
+                return no
+            }
+        }
     }
     if self.kind == TI_C_TYPE and
             self.c_type_name != none {
@@ -494,6 +564,10 @@ func TypeInfo.as_str {
         t += "c_type_name=" + if self.c_type_name != none
             (textfmt.as_escaped_code_string(self.c_type_name))
             else ("none") + " "
+    }
+    if self.autoprop_func_typeexpr != none {
+        t += "autoprop_func_typeexpr=" +
+            self.autoprop_func_typeexpr.as_str() + " "
     }
     if self.kind == TI_C_TYPE or
             (self.kind == TI_USERTYPE and
