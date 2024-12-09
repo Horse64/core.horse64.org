@@ -42,7 +42,7 @@ cd ..
 # Run build of our test program:
 function RUN_BUILD_CMD {
     echo "RUNNING: $BUILD_CMD"
-    $BUILD_RUN_CMD || { echo "Build command failed: $BUILD_CMD"; exit 1; }
+    $BUILD_CMD || { echo "Build command failed: $BUILD_CMD"; exit 1; }
 }
 BUILD_CMD="gcc -o ./gen-c/src/main.o -c -I ./gen-c/src ./gen-c/src/main.m64.c"
 RUN_BUILD_CMD
@@ -52,5 +52,5 @@ BUILD_CMD="gcc -o ./gen-c/src/std/limit.o -c -I ./gen-c/src ./gen-c/src/std/limi
 RUN_BUILD_CMD
 BUILD_CMD="gcc -o ./prog ./gen-c/src/main.o ./gen-c/src/std/limit.o ./gen-c/src/std/std.o"
 RUN_BUILD_CMD
-echo "Output written to: $SCRIPT_DIRECTORY/prog"
+echo "Output written to: `pwd`/prog"
 
