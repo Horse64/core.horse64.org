@@ -464,6 +464,13 @@ func _get_c_or_m64_type_of_node_do(
         var result = typeinfo.
             create_from_simple_m64_type("f64")
         return result
+    
+    } elseif node.kind == ast.N_EXPR_UNOP and
+            node.subexprs.len >= 1 and
+            node.optoken.str == 'not' {
+        var result = typeinfo.
+            create_from_simple_m64_type("bool")
+        return result
     } elseif node.kind == ast.N_EXPR_UNOP and
             node.subexprs.len >= 1 and
             node.optoken.str == '-' {

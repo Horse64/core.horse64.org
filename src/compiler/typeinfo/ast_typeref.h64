@@ -732,9 +732,21 @@ func TypeRefExpr.as_code(indent=0) {
     if self.damaged {
         return "(damaged type ref expr.)"
     }
-    var prefix_mod_names = {"readonly"}
-    var t = ""
+    var prefix_mod_names = {}
+    var has_array = no
     for mod in self.modifiers {
+        if mod.name == "array" {
+            has_array = yes
+        }
+    }
+    if not has_array {
+        prefix_mod_names.add("readonly")
+    }
+
+    var printed_mods = self.modifiers.copy()
+    
+    var t = ""
+    for mod in printed_mods {
         if prefix_mod_names.has(mod.name) {
             if t != "" {
                 t += " "
@@ -753,7 +765,7 @@ func TypeRefExpr.as_code(indent=0) {
     } else {
         t += self.name
     }
-    for mod in self.modifiers {
+    for mod in printed_mods {
         if not prefix_mod_names.has(mod.name) {
             t += " " + mod.as_str()
         }
@@ -779,6 +791,26 @@ func TypeRefExpr.as_c_code(
     if project_file != none and project == none {
         project = project_file.project
     }
+    var prefix_mod_names = {"readonly"}
+    func filter_mods(mod_list) {
+        var skip_array_mod_names = {"readonly"}
+        var saw_array = no
+        var result = []
+        var idx = mod_list.len
+        while idx >= 1 {
+            if mod_list[idx].name == "array" {
+                saw_array = yes
+            } elseif saw_array and
+                    skip_array_mod_names.has(
+                        mod_list[idx].name) {
+                idx -= 1
+                continue
+            }
+            result.add(mod_list[idx])
+            idx -= 1
+        }
+        return result
+    }
     if self.is_array() {
         var ainfo = self.get_array_info(
             global_register_m64_array_callback=
@@ -788,8 +820,12 @@ func TypeRefExpr.as_c_code(
             is_moose64=is_moose64)
         assert(ainfo != none)
         var inner_tinfo = ainfo[2]
+        var mods = filter_mods(ainfo[3])
         var t = ""
-        for mod in ainfo[3] {
+        for mod in mods {
+            if skip_array_mod_names.has(mod.name) {
+                continue
+            }
             if prefix_mod_names.has(mod.name) {
                 if t != "" {
                     t += " "
@@ -805,7 +841,10 @@ func TypeRefExpr.as_c_code(
             t += " "
         }
         t += "struct __m64arraystruct__" + ainfo[1] + "*"
-        for mod in ainfo[3] {
+        for mod in mods {
+            if skip_array_mod_names.has(mod.name) {
+                continue
+            }
             if not prefix_mod_names.has(mod.name) {
                 if t != "" {
                     t += " "
@@ -820,9 +859,9 @@ func TypeRefExpr.as_c_code(
         return t
     }
 
-    var prefix_mod_names = {"readonly"}
+    var mods = filter_mods(self.modifiers)
     var t = ""
-    for mod in self.modifiers {
+    for mod in mods {
         if prefix_mod_names.has(mod.name) {
             if t != "" {
                 t += " "
@@ -860,7 +899,7 @@ func TypeRefExpr.as_c_code(
     } else {
         t += _m64_to_c_name_map[self.name]
     }
-    for mod in self.modifiers {
+    for mod in mods {
         if not prefix_mod_names.has(mod.name) {
             t += " " + mod.as_c_code(indent=indent,
                 global_name_assign_callback=

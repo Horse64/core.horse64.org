@@ -1196,57 +1196,141 @@ func optoken_to_c_token(token) {
 func wrap_c_expr_as_needed_by_typeinfo(
         var_typeinfo, expr_str,
         node, parents,
-        is_moose64=no
+        is_moose64=no,
+        debug=no
         ) {
     if not is_moose64 {
         return expr_str
     }
-    var is_assignment_lefthand = no
-    var is_assignment_righthand = no
-    if (parents.len > 0 and
-            parents[parents.len].kind == ast.N_STMT_ASSIGN) or
-            (parents.len > 1 and
-            parents[parents.len].kind == ast.N_EXPR_BINOP and
-            parents[parents.len].subexprs.len >= 2 and
-            parents[parents.len].subexprs[2] == node and
-            parents[parents.len - 1].kind == ast.N_STMT_ASSIGN) {
-        var assign_stmt = parents[parents.len]
-        var child_node = node
-        if parents[parents.len].kind == ast.N_EXPR_BINOP {
-            assert(parents.len > 1)
-            assign_stmt = parents[parents.len - 1]
-            child_node = parents[parents.len]
-        }
-        assert(assign_stmt.kind == ast.N_STMT_ASSIGN)
-        var pairs_count = assign_stmt.subexprs.len / 2
-        var i = 1
-        while i <= pairs_count {
-            if assign_stmt.subexprs[i] == child_node {
-                is_assignment_lefthand = yes
-                break
-            } elseif assign_stmt.subexprs[
-                    pairs_count + i
-                    ] == child_node {
-                is_assignment_righthand = yes
-                break
-            }
-            i += 1
+    const program_name =
+        if is_moose64 ("moosec") else ("horsec")
+    if debug {
+        print(program_name + ": debug: "
+            "wrap_c_expr_as_needed_by_typeinfo(): "
+            "Lauched on node=" + node.as_str() + " "
+            "with var_typeinfo=" +
+                var_typeinfo.as_str())
+    }
+    var is_eq_operand = no
+    var is_assign_lefthand = no
+    var is_assign_righthand = no
+    func is_assign_or_equality_operator(node) {
+        return node != none and
+            (node.kind == ast.N_STMT_ASSIGN or
+             (node.kind == ast.N_EXPR_BINOP and
+              {"==", "!="}.has(node.optoken.str)))
+    }
+    var relevant_parent = none
+    if parents.len > 0 {
+        relevant_parent = parents[parents.len]
+        if relevant_parent.kind == ast.N_EXPR_BINOP and
+                parents.len > 1 and
+                relevant_parent.optoken.str == "." and
+                relevant_parent.subexprs.len >= 2 and
+                relevant_parent.subexprs[2] == node {
+            relevant_parent = parents[parents.len - 1]
         }
     }
-    if not is_assignment_lefthand and not is_assignment_righthand {
-        if var_typeinfo.is_array() {
-            if parents.len == 0 or
-                    not {ast.N_EXPR_BINOP,
-                    ast.N_EXPR_UNOP,
-                    }.has(parents[parents.len].kind) {
-                expr_str = "(" + expr_str + ")"
-            } else {
-                expr_str = "(*" + expr_str + ")"
+    if parents.len > 0 and
+            is_assign_or_equality_operator(
+                relevant_parent) {
+        var assign_or_eq_stmt = parents[parents.len]
+        var child_node = node
+        if relevant_parent != assign_or_eq_stmt {
+            assert(parents.len > 1)
+            assign_or_eq_stmt = parents[parents.len - 1]
+            child_node = parents[parents.len]
+        }
+        if assign_or_eq_stmt.kind == ast.N_EXPR_BINOP {
+            is_eq_operand = yes
+        } else {
+            assert(assign_or_eq_stmt.kind == ast.N_STMT_ASSIGN)
+            var pairs_count =
+                assign_or_eq_stmt.subexprs.len / 2
+            var i = 1
+            while i <= pairs_count {
+                if assign_or_eq_stmt.subexprs[i] == child_node {
+                    is_assign_lefthand = yes
+                    break
+                } elseif assign_or_eq_stmt.subexprs[
+                        pairs_count + i
+                        ] == child_node {
+                    is_assign_righthand = yes
+                    break
+                }
+                i += 1
             }
         }
-        if var_typeinfo.has_outer_implicit_ref() {
+    }
+    if debug {
+        print(program_name + ": debug: "
+            "wrap_c_expr_as_needed_by_typeinfo(): "
+            "Computed this info: " +
+            "var_typeinfo.is_array()=" +
+                var_typeinfo.is_array().as_str() + " "
+            "is_assign_lefthand=" +
+                is_assign_lefthand.as_str() + " "
+            "is_assign_righthand=" +
+                is_assign_righthand.as_str() + " "
+            "is_eq_operand=" +
+                is_eq_operand.as_str() + " "
+            "relevant_parent=" +
+                if parents.len > 0
+                (ast.NodeKind.num_label(
+                    relevant_parent.kind
+                )) else ("none"))
+    }
+    if var_typeinfo.is_array() {
+        if is_assign_lefthand or
+                is_assign_righthand or
+                is_eq_operand or
+                parents.len == 0 or
+                (not {ast.N_EXPR_BINOP,
+                ast.N_EXPR_UNOP,
+                ast.N_EXPR_TYPECAST,
+                }.has(relevant_parent.kind) or
+                (relevant_parent.kind == ast.N_EXPR_BINOP and
+                 relevant_parent.optoken.str == ")") or
+                relevant_parent.kind == ast.N_STMT_ASSIGN) {
+            # XXX Note: calls will also fall into this branch,
+            # as will assignments!
+            # We do nothing here, the array is passed or
+            # assigned by ref, interchangable with explicit refs.
+            expr_str = "(" + expr_str + ")"
+        } else {
+            # In this case, we make the array passed by value,
+            # when used in arithmetic or member access ops.
             expr_str = "(*" + expr_str + ")"
         }
+    }
+    if not is_assign_lefthand and
+            var_typeinfo.has_outer_implicit_ref() {
+        # XXX: The explanation why we make implicit refs by
+        # value but not if they're assignment left-hands:
+        #
+        # In short, if we assign TO(!) implicit refs as
+        # left hand it should be by reference, but if we
+        # assign FROM(!) implicit refs as right hand it
+        # should be by value.
+        #
+        # Hence if it's a right hand we add '*' to make it
+        # by value, if it's left hand we omit it to keep it
+        # by reference.
+        #
+        # (In the latter case, N_STMT_ASSIGN will use
+        # node_generate_c_type_conversion_code() to add
+        # '&(...)' to the right-hand side so it's assignable
+        # by reference. As a result, it all works out.)
+        expr_str = "(*" + expr_str + ")"
+    }
+    if debug {
+        print(program_name + ": debug: "
+            "wrap_c_expr_as_needed_by_typeinfo(): "
+            "Got this result: " +
+            "expr_str=" +
+                textfmt.as_escaped_code_string(
+                    expr_str
+                ))
     }
     return expr_str
 }
@@ -1569,6 +1653,13 @@ func node_generate_c_type_conversion_code(
     t += inner_expr_str
     if inner_typeinfo.is_array() and
             target_typeinfo.is_array() and
+            # XXX: This should already be verified, but
+            # for the sake of defensive coding, double-check:
+            inner_typeinfo.has_equivalent_modifiers(
+                target_typeinfo,
+                allow_autodrop_mods=yes,
+                allow_autoadd_mods=yes,
+            ) and
             not inner_typeinfo.is_equivalent(
                 target_typeinfo
             ) {
@@ -2112,26 +2203,30 @@ func node_to_c_string(project_file, node, parents,
         }
         try_get_left_hand_self_call() later:
 
+        var is_as_ref = no
+        var is_deref = no
+        var is_size_of = no
+        var is_assert = no
         func try_get_left_hand_builtins {
             if left_hand_str != none {
                 return later
             }
-            var is_as_ref = m64_builtins.
+            is_as_ref = m64_builtins.
                 is_ast_node_referring_to_m64_std_as_ref(
                     project_file, node.subexprs[1],
                     is_moose64=is_moose64
                 )
-            var is_deref = m64_builtins.
+            is_deref = m64_builtins.
                 is_ast_node_referring_to_m64_std_deref(
                     project_file, node.subexprs[1],
                     is_moose64=is_moose64
                 )
-            var is_size_of = m64_builtins.
+            is_size_of = m64_builtins.
                 is_ast_node_referring_to_m64_std_size_of(
                     project_file, node.subexprs[1],
                     is_moose64=is_moose64
                 )
-            var is_assert = m64_builtins.
+            is_assert = m64_builtins.
                 is_ast_node_referring_to_m64_std_assert(
                     project_file, node.subexprs[1],
                     is_moose64=is_moose64
@@ -2149,8 +2244,12 @@ func node_to_c_string(project_file, node, parents,
                 right_closing_str = ")"
             } elseif is_assert {
                 left_hand_str = "assert"
-            } else {
+            } elseif is_size_of {
                 left_hand_str = "sizeof"
+            } else {
+                throw new RuntimeError(
+                    "Unexpected type of builtin."
+                )
             }
         }
         try_get_left_hand_builtins() later:
@@ -2210,16 +2309,57 @@ func node_to_c_string(project_file, node, parents,
             if not is_regular_call {
                 # Don't apply any of the conversion code.
                 # The built-ins do different things anyway,
-                # so instead we just enter the arg unaltered
-                # and leave it be.
+                # so we don't do the usual
+                # node_generate_c_type_conversion_code()
+                # in here.
+                var arg_typeinfo =
+                    m64_ast_analyze.get_c_or_m64_type_of_node(
+                        project_file, arg_expr,
+                        parents + [node, node.subexprs[2]],
+                        store_self_value_ref_for_funcs=yes,
+                        msgs=msgs
+                    ) later:
+
+                await arg_typeinfo
                 var arg_expr_str = node_to_c_string(
                     project_file, arg_expr,
                     parents + [node, node.subexprs[2]],
                     indent=indent,
-                    msgs=msgs, build_options=build_options)
+                    msgs=msgs, build_options=build_options,
+                )
                 later:
 
                 await arg_expr_str
+                if debug {
+                    print(program_name + ": debug: " +
+                        "node_to_c_string(): "
+                        "handle_arg_value(): "
+                        "We got not-regular call item "
+                        "arg_expr=" + arg_expr.as_str() + " "
+                        "node=" + node.as_str() + " "
+                        "func_typeinfo=" +
+                            func_typeinfo.as_str() + " "
+                        "left_hand_str=" +
+                            textfmt.as_escaped_code_string(
+                                left_hand_str
+                            ) + " "
+                        "arg_expr_str=" +
+                            textfmt.as_escaped_code_string(
+                                arg_expr_str
+                            ))
+                }
+                if is_size_of and arg_typeinfo.is_array() {
+                    # XXX: For size_of(array), we don't just want
+                    # the size of the pointer we pass it around
+                    # with, but the actual underlying array.
+                    #
+                    # Arrays will usually be inserted by
+                    # node_to_c_string() into C code with '*' to
+                    # be by value already, but with the exception
+                    # of when they're a call parameter, like here.
+                    # So we need to do this here manually.
+                    arg_expr_str = "(*" + arg_expr_str + ")"
+                }
                 if is_first_arg {
                     is_first_arg = no
                 } else {
@@ -2579,7 +2719,7 @@ func node_to_c_string(project_file, node, parents,
             label_str = wrap_c_expr_as_needed_by_typeinfo(
                 var_tinfo, label_str,
                 node, parents,
-                is_moose64=yes
+                is_moose64=is_moose64,
             )
         }
         return label_str
@@ -2614,7 +2754,8 @@ func node_to_c_string(project_file, node, parents,
                     project_file.project.c_export_tracker.
                         register_m64_array_type,
                 project=project, project_file=project_file,
-                is_moose64=is_moose64) + ") "
+                is_moose64=is_moose64)
+        t += ") "
         var inner_code = node_to_c_string(
             project_file, node.subexprs[1], parents + [node],
             indent=indent,
@@ -2637,6 +2778,16 @@ func node_to_c_string(project_file, node, parents,
             return later ""
         }
         t += inner_code + ")"
+        var outer_tinfo =
+            typeinfo.create_typeinfo_from_typeexpr(
+                node.typeref_expr,
+                is_moose64=is_moose64,
+            )
+        t = wrap_c_expr_as_needed_by_typeinfo(
+            outer_tinfo, t,
+            node, parents,
+            is_moose64=is_moose64,
+        )
         return later t
     } elseif node.kind == ast.N_EXPR_LIT and
             typename(node.value) == "bool" {
