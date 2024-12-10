@@ -45,6 +45,7 @@ import compiler.storage.scope as st_scope
 import compiler.storage.scope.manage as scope_manage
 import compiler.storage.ref as st_ref
 import compiler.typeinfo as typeinfo
+import compiler.typeinfo.ast_typeref as ast_typeref
 
 type CExportResult {
     var project
@@ -966,7 +967,7 @@ func CExportTracker.generate_c_types_and_header_info(
                             "be possible in Moose64 code gen."
                         )
                     }
-                    t_struct += "    " +
+                    var struct_attr_type_s =
                         sym.typeref_expr.as_c_code(
                             global_name_assign_callback=
                                 get_global_symbol_c_name,
@@ -976,7 +977,20 @@ func CExportTracker.generate_c_types_and_header_info(
                             project=project_file.project,
                             project_file=project_file,
                             is_moose64=is_moose64
-                        ) + " " + name + ";\n"
+                        )
+                    var _suffix_result = ast_typeref.
+                        get_array_suffix_from_c_type(
+                            struct_attr_type_s
+                        )
+                    var array_suffix = _suffix_result[2]
+                    struct_attr_type_s = _suffix_result[1]
+                    t_struct += "    " + struct_attr_type_s + " " +
+                        name
+                    if array_suffix != none {
+                        t_struct += array_suffix
+                    }
+                    t_struct += ";\n"
+                        
                 }
                 while inside_nested_item != none {
                     t_struct += "    };\n"
@@ -1305,7 +1319,7 @@ func wrap_c_expr_as_needed_by_typeinfo(
     }
     if not is_assign_lefthand and
             var_typeinfo.has_outer_implicit_ref() {
-        # XXX: The explanation why we make implicit refs by
+        # XXX: The expflanation why we make implicit refs by
         # value but not if they're assignment left-hands:
         #
         # In short, if we assign TO(!) implicit refs as
@@ -2888,10 +2902,17 @@ func node_to_c_string(project_file, node, parents,
                 c_name_to_insert_if_func_ptr=c_name,
                 project=project, project_file=project_file,
                 is_moose64=is_moose64)
+            var _suffix_result = ast_typeref.
+                get_array_suffix_from_c_type(c_var_type)
+            var array_suffix = _suffix_result[2]
+            c_var_type = _suffix_result[1]
             
             t += indent_str + c_var_type
             if not texpr.is_func_ref {
                 t += " " + c_name
+            }
+            if array_suffix != none {
+                t += array_suffix
             }
             if node.is_empty or idx > assigned_exprs.len or
                     is_global {

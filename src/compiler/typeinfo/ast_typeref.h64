@@ -809,6 +809,23 @@ func TypeRefExpr.as_code(indent=0) {
     return t
 }
 
+func get_array_suffix_from_c_type(c_type_str) {
+    if c_type_str.ends("]") {
+        var idx = c_type_str.len - 1
+        while idx >= 1 {
+            if c_type_str[idx] == "[" {
+                break
+            }
+            idx -= 1
+        }
+        if idx >= 1 {
+            return [c_type_str.sub(
+                1, idx - 1), c_type_str.sub(idx)]
+        }
+    }
+    return [c_type_str, none]
+}
+
 func TypeRefExpr.as_c_code(
         indent=0, global_name_assign_callback=none,
         global_register_m64_array_callback=none,
