@@ -980,7 +980,13 @@ func CExportTracker.generate_c_types_and_header_info(
                         )
                     var _suffix_result = ast_typeref.
                         get_array_suffix_from_c_type(
-                            struct_attr_type_s
+                            struct_attr_type_s,
+                            error_if_non_numeric=yes,
+                            error_damaged_node=entry,
+                            at_line=sym.def_line,
+                            at_col=sym.def_col,
+                            project_file=sym.def_file,
+                            msgs=msgs, is_moose64=is_moose64,
                         )
                     var array_suffix = _suffix_result[2]
                     struct_attr_type_s = _suffix_result[1]
@@ -2903,7 +2909,13 @@ func node_to_c_string(project_file, node, parents,
                 project=project, project_file=project_file,
                 is_moose64=is_moose64)
             var _suffix_result = ast_typeref.
-                get_array_suffix_from_c_type(c_var_type)
+                get_array_suffix_from_c_type(c_var_type,
+                    error_if_non_numeric=yes,
+                    error_damaged_node=node,
+                    at_line=node.line, at_col=node.col,
+                    project_file=project_file,
+                    msgs=msgs, is_moose64=is_moose64,
+                )
             var array_suffix = _suffix_result[2]
             c_var_type = _suffix_result[1]
             
