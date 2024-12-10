@@ -857,22 +857,23 @@ func get_array_suffix_from_c_type(
             idx += 1
         }
         if potential_num_str.len == 0 or nondigit_found {
-            if not msgs {
-                throw new ValueError(
-                    "Found array value with "
-                    "unexpected non-digits."
-                )
-            }
             if error_damaged_node == none or
                     not error_damaged_node.damaged {
-                msgs.add(new msg.FileMsg(
-                    "Unexpected array range value that "
-                    "couldn't be resolved. Please insert "
-                    "a plain number, or an expression that "
-                    "can be resolved at compile time.",
-                    source_file=project_file,
-                    line=at_line, col=at_col,
-                ))
+                if msgs == none {
+                    throw new ValueError(
+                        "Found array value with "
+                        "unexpected non-digits."
+                    )
+                } else {
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected array range value that "
+                        "couldn't be resolved. Please insert "
+                        "a plain number, or an expression "
+                        "that can be resolved at compile time.",
+                        source_file=project_file,
+                        line=at_line, col=at_col,
+                    ))
+                }
             }
             if error_damaged_node != none {
                 error_damaged_node.damaged = yes
