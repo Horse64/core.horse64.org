@@ -338,6 +338,9 @@ remapped_uses = {
             "_container_sub(a, b, c))",
         "text.code":
             "(lambda x: int(ord(x)))",
+        "text.is_digits":
+            "(lambda x: _translator_runtime_helpers."
+                "_h64_is_digits(x))",
     },
     "textfmt@core.horse64.org": {
         "textfmt.outdent":

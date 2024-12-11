@@ -973,7 +973,7 @@ def _math_min(v1, v2):
 def _math_round(v1):
     return int(round(v1))
 
-def _is_digits(v):
+def _h64_is_digits(v):
     if len(v) == 0:
         return False
     for c in v:
@@ -1000,7 +1000,7 @@ def _looks_like_uri(v):
         possible_port = v.partition(":")[2]
         possible_resource = possible_port.partition("/")[2]
         possible_port = possible_port.partition("/")[0]
-        if not _is_digits(possible_port) or ":" in possible_resource:
+        if not _h64_is_digits(possible_port) or ":" in possible_resource:
             return False
         if "." not in possible_host or possible_host.startswith("."):
             return False
