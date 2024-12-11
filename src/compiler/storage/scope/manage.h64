@@ -41,6 +41,65 @@ import compiler.storage.ref as st_ref
 import compiler.storage.scope as st_scope
 import compiler.typeinfo.ast_typeref as ast_typeref
 
+func try_lookup_vardef_type_props(
+        vardef_stmt,
+        project_file=none,
+        msgs=none,
+        is_moose64=no
+        ) {
+    func try_evaluate_label_ref(label) {
+        func get_var_stmt_val(stmt) {
+            assert(stmt.initial_values_known != none and
+                stmt.initial_values_known.len ==
+                stmt.var_labels.len)
+            var pos = 1
+            while pos <= stmt.var_labels.len {
+                if stmt.var_labels[pos] == label {
+                    if stmt.initial_values_known[pos] {
+                        return [yes,
+                            stmt.initial_values[pos]]
+                    }
+                    return [no, none]
+                }
+                pos += 1
+            }
+            return [no, none]
+        }
+        var gscope = project_file.global_scope
+        var entry = gscope.find_global_entry_in_full_project(
+            label
+        )
+        if entry != none {
+            var result = get_var_stmt_val(entry)
+            return result
+        }
+        return [no, none]
+    }
+
+    if not vardef_stmt.has_type_expr {
+        return
+    }
+    var type_expr = vardef_stmt.subexprs[
+        vardef_stmt.subexprs.len
+    ]
+    for mod in type_expr.modifiers {
+        for prop in mod.props {
+            if prop.prop_name == "range" {
+                if prop.range_value_label != none {
+                    var result = try_evaluate_label_ref(
+                        prop.range_value_label
+                    )
+                    if result[1] and
+                            typename(result[2]) == "num" {
+                        prop.range_value_num = result[2]
+                        prop.range_value_label = none
+                    }
+                }
+            }
+        }
+    }
+}
+
 func project.ProjectFile.type_path_to_full_module_path_and_pfile(
         tpath, msgs=none) {
     var pfile =

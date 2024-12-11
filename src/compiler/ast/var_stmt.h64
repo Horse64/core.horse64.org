@@ -47,10 +47,8 @@ type VarStmt base ast.StmtNode {
     var has_protect = no
     var has_type_expr = no
 
-    var initial_value_known = no
-    var initial_value
-    var initial_type_known = no
-    var initial_type
+    var initial_values_known = []
+    var initial_values = []
 }
 
 func VarStmt.init {
@@ -144,6 +142,36 @@ func VarStmt.as_code(indent=0) {
         }
     }
     return t
+}
+
+func VarStmt.set_obvious_initial_values {
+    if self.initial_values_known != none and
+            self.initial_values_known.len > 0 {
+        return
+    }
+
+    self.initial_values_known = []
+    self.initial_values = []
+    var idx = 1
+    while idx <= self.var_labels.len {
+        var val_expr = none
+        if not self.is_empty {
+            val_expr = self.subexprs[idx]
+        }
+        if val_expr != none and
+                val_expr.kind == ast.N_EXPR_LIT and
+                not val_expr.is_big_num {
+            self.initial_values_known.add(yes)
+            self.initial_values.add(val_expr.value)
+        } else {
+            self.initial_values_known.add(no)
+            self.initial_values.add(none)
+        }
+        idx += 1
+    }
+    assert(self.initial_values_known != none and
+        self.initial_values_known.len ==
+        self.var_labels.len)
 }
 
 func parse(tokens, pos, msgs, project_file=none,
@@ -442,6 +470,7 @@ func parse(tokens, pos, msgs, project_file=none,
             stmt.is_empty = yes
         }
         stmt.token_len = (pos - startpos)
+        stmt.set_obvious_initial_values()
         return stmt
     }
     pos += 1  # Past '='
@@ -492,6 +521,7 @@ func parse(tokens, pos, msgs, project_file=none,
             remaining_count -= 1
         }
         stmt.damaged = yes
+        stmt.set_obvious_initial_values()
         return stmt
     }
     if debug {
@@ -548,6 +578,7 @@ func parse(tokens, pos, msgs, project_file=none,
         }
         pos = newpos
         stmt.token_len = (pos - startpos)
+        stmt.set_obvious_initial_values()
         return stmt
     }
     if pos > tokens_len or
@@ -582,6 +613,7 @@ func parse(tokens, pos, msgs, project_file=none,
             }
             remaining_count -= 1
         }
+        stmt.set_obvious_initial_values()
         return stmt
     }
     pos += 1  # Go past ','.

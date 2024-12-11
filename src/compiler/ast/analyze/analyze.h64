@@ -1587,11 +1587,26 @@ func get_global_storage_neighbor_closure(project) {
             return [ast_eval.AR_UNKNOWN]
         }
         var entry = st_id_map[st_id]
-        if entry.kind != ast.N_STMT_VAR or
-                not entry.initial_value_known {
+        if entry.kind != ast.N_STMT_VAR {
             return [ast_eval.AR_UNKNOWN]
         }
-        return [ast_eval.AR_VALUE, entry.initial_value]
+        var entry_idx = none
+        var idx = 0
+        for sym in entry.symbol_info {
+            idx += 1
+            if sym.storage_id == st_id {
+                entry_idx = idx
+                break
+            }
+        }
+        if entry_idx == none or
+                entry_idx < 1 or
+                entry_idx > entry.initial_values_known or
+                not entry.initial_values_known[entry_idx] {
+            return [ast_eval.AR_UNKNOWN]
+        }
+        return [ast_eval.AR_VALUE,
+            entry.initial_values[entry_idx]]
     }
     return try_get_neighbor_node_value
 }
@@ -1610,37 +1625,46 @@ func advanced_phase2_evaluate_global_scope(
         if typename(stmt) == "list" or
                 (has_attr(stmt, "is_enum_entry") and
                  stmt.is_enum_entry) or
-                stmt.kind != ast.N_STMT_VAR or
-                stmt.initial_value_known {
+                stmt.kind != ast.N_STMT_VAR {
             continue
         }
-        var v = ast_eval.try_eval_ast_node_value(
-            stmt.subexprs[1], is_moose64=is_moose64,
-            eval_by_storage_ref_callback=globals_value_cb)
-        if v[1] == ast_eval.AR_VALUE {
-            had_change = yes
-            stmt.initial_value_known = yes
-            stmt.initial_value = v[2]
-            if stmt.subexprs[1].kind != ast.N_EXPR_LIT {
-                var value_expr = new ast_expr.LiteralExpr()
-                value_expr.line = stmt.subexprs[1].line
-                value_expr.col = stmt.subexprs[1].col
-                value_expr.value = v[2]
-                stmt.subexprs[1] = value_expr
+        assert(stmt.var_labels.len ==
+            stmt.initial_values_known.len)
+        var idx = 1
+        while idx <= stmt.var_labels.len {
+            if stmt.initial_values_known[idx] {
+                idx += 1
+                continue
             }
-        } elseif v[1] == ast_eval.AR_TYPEERROR {
-            if msgs != none {
-                msgs.add(new msg.FileMsg(
-                    "Invalid assigned expression containing a "
-                    "type mismatch for operands. "
-                    "If intended, protect it with "
-                    "a rescue block that catches TypeError.",
-                    source_file=project_file,
-                    line=stmt.subexprs[1].line,
-                    col=stmt.subexprs[1].col
-                ))
+            var v = ast_eval.try_eval_ast_node_value(
+                stmt.subexprs[1], is_moose64=is_moose64,
+                eval_by_storage_ref_callback=globals_value_cb)
+            if v[1] == ast_eval.AR_VALUE {
+                had_change = yes
+                stmt.initial_values_known[idx] = yes
+                stmt.initial_values[idx] = v[2]
+                if stmt.subexprs[1].kind != ast.N_EXPR_LIT {
+                    var value_expr = new ast_expr.LiteralExpr()
+                    value_expr.line = stmt.subexprs[1].line
+                    value_expr.col = stmt.subexprs[1].col
+                    value_expr.value = v[2]
+                    stmt.subexprs[1] = value_expr
+                }
+            } elseif v[1] == ast_eval.AR_TYPEERROR {
+                if msgs != none {
+                    msgs.add(new msg.FileMsg(
+                        "Invalid assigned expression containing "
+                        "a type mismatch for operands. "
+                        "If intended, protect it with "
+                        "a rescue block that catches TypeError.",
+                        source_file=project_file,
+                        line=stmt.subexprs[1].line,
+                        col=stmt.subexprs[1].col
+                    ))
+                }
+                had_error = yes
             }
-            had_error = yes
+            idx += 1
         }
     }
     if had_change {

@@ -1,4 +1,4 @@
- ## @module compiler.typeref
+ ## @module compiler.ast_typeref
 # Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import text from core.horse64.org
+import textfmt from core.horse64.org
 
 import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
@@ -839,24 +840,9 @@ func get_array_suffix_from_c_type(
     if error_if_non_numeric and
             result[2] != none {
         var potential_num_str = result[2].sub(
-            1, result[1].len - 1
-        )
-        var digit_zero 
-        var nondigit_found = no
-        var code_0 = text.code('0')
-        var code_9 = text.code('9')
-
-        var idx = 1
-        while idx <= potential_num_str.len {
-            var char_code = text.code(
-                potential_num_str[idx])
-            if char_code < code_0 or char_code > code_9 {
-                nondigit_found = yes
-                break
-            }
-            idx += 1
-        }
-        if potential_num_str.len == 0 or nondigit_found {
+            2, result[2].len - 1
+        ).trim()
+        if not text.is_digits(potential_num_str) {
             if error_damaged_node == none or
                     not error_damaged_node.damaged {
                 if msgs == none {
@@ -867,7 +853,10 @@ func get_array_suffix_from_c_type(
                 } else {
                     msgs.add(new msg.FileMsg(
                         "Unexpected array range value that "
-                        "couldn't be resolved. Please insert "
+                        "couldn't be resolved on type " +
+                        textfmt.as_escaped_code_string(
+                            c_type_str
+                        ) + ". Please insert "
                         "a plain number, or an expression "
                         "that can be resolved at compile time.",
                         source_file=project_file,

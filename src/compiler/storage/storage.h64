@@ -655,6 +655,12 @@ func project.Project.compute_all_scopes(
                             assert(vardef_stmt.symbol_info == none or
                                 vardef_stmt.symbol_info.len == 0)
                             vardef_stmt.symbol_info = []
+                            scope_manage.try_lookup_vardef_type_props(
+                                vardef_stmt,
+                                project_file=pfile,
+                                msgs=msgs,
+                                is_moose64=is_moose64
+                            )
                             var new_symbol_info = []
                             var idx = 0
                             for label in var_labels {
@@ -665,8 +671,10 @@ func project.Project.compute_all_scopes(
                                         new st_scope.SymbolInfo(label)
                                     symbol_info.kind =
                                         st_scope.SINFO_VARATTR
-                                    symbol_info.def_line = stmt.line
-                                    symbol_info.def_col = stmt.col
+                                    symbol_info.def_line =
+                                        vardef_stmt.line
+                                    symbol_info.def_col =
+                                        vardef_stmt.col
                                     symbol_info.def_file = pfile
                                     symbol_info.storage_id =
                                         anscope.name_to_symbol_map.len + 1
@@ -986,38 +994,13 @@ func project.Project.compute_all_scopes(
                         assert(gnode.func_scope == none)
                         gnode.func_scope = node.func_scope
                     } elseif is_toplevel and node.type_path != none {
-                        var tpath = node.type_path.copy()
-                        tpath += [node.label]
                         var action = if is_extend ("extended")
                             else ("declared")
-                        var type_gnode = none
-                        if node.type_path.len == 1 and
-                                gscope.name_to_stmt_map.has(
-                                    node.type_path[1]
-                                ) {
-                            type_gnode =
-                                gscope.name_to_stmt_map[
-                                    node.type_path[1]
-                                ]
-                        } else {
-                            var type_path_without_type =
-                                node.type_path.sub(
-                                    1, node.type_path.len - 1
+                        var type_gnode =
+                            pfile.global_scope.
+                                find_global_entry_in_full_project(
+                                    node.type_path
                                 )
-                            var type_name =
-                                node.type_path[node.type_path.len]
-                            var target_pfile = pfile.global_scope.
-                                type_path_to_project_file(
-                                    type_path_without_type
-                                )
-                            if target_pfile != none and
-                                    target_pfile.global_scope.
-                                    name_to_stmt_map.has(type_name) {
-                                type_gnode =
-                                    target_pfile.global_scope.
-                                    name_to_stmt_map[type_name]
-                            }
-                        }
                         if type_gnode == none {
                             if msgs != none {
                                 if not node.damaged {
@@ -1348,8 +1331,29 @@ func project.Project.compute_all_scopes(
                 }
             }
             if node.kind == ast.N_STMT_VAR and
+                    node.scope == none and
+                    (parent == none or
+                     not {ast.N_STMT_STRUCT,
+                         ast.N_STMT_TYPE,
+                         ast.N_STMT_STRUCTEXTEND,
+                         ast.N_STMT_TYPEEXTEND,
+                         ast.N_STMT_UNION}.has(
+                             parent.kind)) {
+                # Global variable.
+                scope_manage.try_lookup_vardef_type_props(
+                    node,
+                    project_file=pfile, msgs=msgs,
+                    is_moose64=is_moose64
+                )
+            }
+            if node.kind == ast.N_STMT_VAR and
                     node.scope != none {
                 # Inside a function.
+                scope_manage.try_lookup_vardef_type_props(
+                    node,
+                    project_file=pfile, msgs=msgs,
+                    is_moose64=is_moose64
+                )
                 for label in node.var_labels {
                     try_register_symbol(node.scope,
                         label, msgs,

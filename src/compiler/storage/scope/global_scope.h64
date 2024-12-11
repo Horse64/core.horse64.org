@@ -628,6 +628,44 @@ func GlobalScope.finalize_gscope_with_ast_tree_info(
     }
 }
 
+func GlobalScope.find_global_entry_in_full_project(
+        tpath, debug=no
+        ) {
+    if typename(tpath) == "str" {
+        tpath = tpath.split(".")
+    }
+    var gscope = self
+    var entry_gnode = none
+    if tpath.len == 1 and
+            gscope.name_to_stmt_map.has(
+                tpath[1]
+            ) {
+        entry_gnode =
+            gscope.name_to_stmt_map[
+                tpath[1]
+            ]
+        return entry_gnode
+    } else {
+        var type_path_without_type =
+            tpath.sub(
+                1, tpath.len - 1
+            )
+        var entry_name = tpath[tpath.len]
+        var target_pfile = pfile.global_scope.
+            type_path_to_project_file(
+                type_path_without_type
+            )
+        if target_pfile != none and
+                target_pfile.global_scope.
+                name_to_stmt_map.has(entry_name) {
+            entry_gnode =
+                target_pfile.global_scope.
+                name_to_stmt_map[entry_name]
+        }
+        return entry_gnode
+    }
+}
+
 func GlobalScope.type_path_to_entry(tpath, debug=no) {
     if typename(tpath) == "str" {
         tpath = tpath.split(".")
@@ -951,6 +989,12 @@ func process_toplevel_stmt(
                 stand_in_node.subexprs.add(
                     statement.subexprs[idx]
                 )
+                stand_in_node.initial_values_known = [
+                    statement.initial_values_known[idx]
+                ]
+                stand_in_node.initial_values = [
+                    statement.initial_values[idx]
+                ]
             } else {
                 stand_in_node = new ast.StmtNode()
             }
