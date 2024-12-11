@@ -812,6 +812,34 @@ func TypeRefExpr.as_code(indent=0) {
     return t
 }
 
+func TypeRefExpr.is_array_with_readonly_data {
+    var found_array = no
+    var idx = self.modifiers.len
+    while idx >= 1 {
+        var mod = self.modifiers[idx]
+        if {"array"}.has(mod.name) {
+            found_array = yes
+        } elseif mod.name == "readonly" and
+                found_array {
+            return yes
+        }
+        idx -= 1
+    }
+    return no
+}
+
+func TypeRefExpr.is_readonly {
+    var has_outer_readonly = no
+    for mod in self.modifiers {
+        if {"array"}.has(mod.name) {
+            has_outer_readonly = no
+        } elseif mod.name == "readonly" {
+            has_outer_readonly = yes
+        }
+    }
+    return has_outer_readonly
+}
+
 func get_array_suffix_from_c_type(
         c_type_str,
         error_if_non_numeric=no,

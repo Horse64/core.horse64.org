@@ -89,6 +89,28 @@ func check_if_allowed_implicit_cast_from_to(
     var right_hand_source_typeinfo = from_typeinfo
     var left_hand_target_typeinfo = to_typeinfo
 
+    if from_typeinfo.is_readonly() and
+            not to_typeinfo.is_readonly() {
+        if debug {
+            print("moosec: debug: "
+                "check_if_allowed_implicit_cast_from_to(): "
+                "We're trying to pass a readonly as a "
+                "non-readonly, this isn't allowed.")
+        }
+        return no
+    }
+    if from_typeinfo.is_array_with_readonly_data() and
+            not to_typeinfo.is_array_with_readonly_data() {
+        if debug {
+            print("moosec: debug: "
+                "check_if_allowed_implicit_cast_from_to(): "
+                "We're trying to pass an array with readonly "
+                "data to an array with non-readonly data, "
+                "this isn't allowed.")
+        }
+        return no
+    }
+
     var refs_left = left_hand_target_typeinfo.ref_count(
         include_c_arrays=yes, include_arrays=yes,
         include_implicit_refs=no, include_explicit_refs=yes

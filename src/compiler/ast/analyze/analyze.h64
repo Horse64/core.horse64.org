@@ -1202,8 +1202,18 @@ func get_called_or_assigned_func_types(
             assert(is_moose64)
             var allowed = m64_autocast.
                 check_if_allowed_implicit_cast_from_to(
-                    arg_actual_type, signature_typeinfo
+                    arg_actual_type, signature_typeinfo,
                 )
+            if debug {
+                print(dbg_prefix +
+                    " get_called_or_assigned_func_types(): "
+                    "Testing arg #" + idx.as_str() + " which " +
+                    if allowed ("fits") else ("doesn't fit") + ". "
+                    "arg_actual_type=" +
+                        arg_actual_type.as_str() + " "
+                    "signature_typeinfo=" +
+                        signature_typeinfo.as_str())
+            }
             if not allowed {
                 signature_arg_mismatch_info = [
                     idx, signature_typeinfo, arg_actual_type

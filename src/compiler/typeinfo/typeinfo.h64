@@ -172,6 +172,34 @@ func TypeInfo.is_array {
     return yes
 }
 
+func TypeInfo.is_array_with_readonly_data {
+    var found_array = no
+    var idx = self.modifiers.len
+    while idx >= 1 {
+        var mod = self.modifiers[idx]
+        if {"array"}.has(mod.name) {
+            found_array = yes
+        } elseif mod.name == "readonly" and
+                found_array {
+            return yes
+        }
+        idx -= 1
+    }
+    return no
+}
+
+func TypeInfo.is_readonly {
+    var has_outer_readonly = no
+    for mod in self.modifiers {
+        if {"array"}.has(mod.name) {
+            has_outer_readonly = no
+        } elseif mod.name == "readonly" {
+            has_outer_readonly = yes
+        }
+    }
+    return has_outer_readonly
+}
+
 func TypeInfo.get_c_zeroing_code {
     if self.ref_count(include_c_arrays=yes, include_arrays=no,
             include_implicit_refs=yes,
