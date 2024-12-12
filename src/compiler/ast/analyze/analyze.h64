@@ -639,6 +639,10 @@ func get_called_or_assigned_func_types(
     }
 
     var call_args_expr = called_node_parent.subexprs[2]
+    if debug {
+        print(dbg_prefix + " get_called_or_assigned_func_types(): "
+            "Found call_args_expr=" + call_args_expr.as_str())
+    }
     var func_typeinfo = none
     func obtain_func_info_if_possible {
         if is_external {
@@ -1049,12 +1053,18 @@ func get_called_or_assigned_func_types(
             func_typeinfo.func_typeexpr.
                 arg_typeref_exprs[1].storage_ref != none)
 
+        var func_self_ref = 
+            func_typeinfo.func_typeexpr.
+            arg_typeref_exprs[1].storage_ref
         if potential_self_ref.alike(
-                func_typeinfo.func_typeexpr.
-                arg_typeref_exprs[1].storage_ref
-                ) {
+                func_self_ref) {
             is_called_with_adhoc_self = yes
-
+            if debug {
+                print(dbg_prefix + " "
+                    "get_called_or_assigned_func_types(): "
+                    "determine_adhoc_self_call(): "
+                    "Self refs are the same.")
+            }
             assert(self_value_ref == none)
             sself_value_ref = potential_self_ref.copy()
             assert(self_type_typeinfo == none)
@@ -1066,6 +1076,21 @@ func get_called_or_assigned_func_types(
             is_self_call = yes
             called_args_exprs = called_args_exprs.sub(2)
             called_args -= 1
+        } else {
+            if debug {
+                print(dbg_prefix + " "
+                    "get_called_or_assigned_func_types(): "
+                    "determine_adhoc_self_call(): "
+                    "Self refs differ: "
+                    "potential_self_ref=" +
+                        potential_self_ref.as_str() + " "
+                    "func_self_ref=" +
+                        func_self_ref.as_str() + " "
+                    "called_node.line=" +
+                        called_node.line.as_str() + " "
+                    "called_node.col=" +
+                        called_node.col.as_str())
+            }
         }
     }
     determine_adhoc_self_call()
@@ -1214,7 +1239,11 @@ func get_called_or_assigned_func_types(
                     "arg_actual_type=" +
                         arg_actual_type.as_str() + " "
                     "signature_typeinfo=" +
-                        signature_typeinfo.as_str())
+                        signature_typeinfo.as_str() + " "
+                    "called_node.line=" +
+                        called_node.line.as_str() + " "
+                    "called_node.col=" +
+                        called_node.col.as_str())
             }
             if not allowed {
                 signature_arg_mismatch_info = [

@@ -59,6 +59,14 @@ extend type ast_expr.IdRefExpr {
     var value_typeref_expr
 }
 
+func ast.TreeNode.clear_precomputed_typeref {
+    return
+}
+
+func ast_expr.IdRefExpr.clear_precomputed_typeref {
+    self.value_typeref_expr = none
+}
+
 enum TypeInfoKind {
     TI_H64BUILTIN_TYPE,
     TI_M64BUILTIN_TYPE,

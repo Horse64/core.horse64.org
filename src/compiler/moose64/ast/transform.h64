@@ -236,7 +236,9 @@ func transform_defer(
                         ast.N_EXPR_IDREF or
                     node.subexprs[1].subexprs[1].label !=
                         defer_info.defer_func_var_name {
-                return node.copy()
+                var copied_node = node.copy()
+                copied_node.clear_precomputed_typeref()
+                return copied_node
             }
             var result = node.copy()
             assert(result.subexprs[1].subexprs[2].subexprs.len == 0)
@@ -250,6 +252,7 @@ func transform_defer(
                 idref.scope = node.scope
                 result.subexprs[1].subexprs[2].subexprs.add(idref)
             }
+            result.clear_precomputed_typeref()
             return result
         }
 
@@ -361,6 +364,7 @@ func transform_defer(
                         line=node.line, col=node.col,
                         add_unique_suffix=yes
                     )
+                    node.clear_precomputed_typeref()
                     node.is_empty = no
                     var idexpr = new ast_expr.IdRefExpr()
                     idexpr.label = return_var_node.var_labels[1]
