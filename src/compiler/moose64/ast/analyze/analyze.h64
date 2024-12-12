@@ -274,8 +274,8 @@ func _get_c_or_m64_type_of_node_do(
              node.subexprs[2].kind == ast.N_EXPR_IDREF and
              node.subexprs[2].value_typeref_expr != none) {
         var texpr = if node.kind == ast.N_EXPR_IDREF
-            (node.value_typeref_expr) else
-            (node.subexprs[2].value_typeref_expr)
+            (node.value_typeref_expr.copy()) else
+            (node.subexprs[2].value_typeref_expr.copy())
         if debug {
             print(dbg_prefix +
                 " We already got node.value_typeref_expr "
