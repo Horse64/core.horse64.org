@@ -1680,19 +1680,32 @@ func visit_to_resolve_known_attrs(
             } elseif not is_attr_error and
                     is_array and
                     node.label == "data" {
-                our_type_expr = new ast_typeref.TypeRefExpr()
-                our_type_expr.is_special_madeup_builtin = yes
-                our_type_expr.name = "byte"
+                var array_info, array_typeinfo
+                var our_type_expr_old = new ast_typeref.TypeRefExpr()
+                our_type_expr_old.is_special_madeup_builtin = yes
+                our_type_expr_old.name = "byte"
                 if left_type_expr.is_readonly() {
-                    our_type_expr.
+                    our_type_expr_old.
                         modifiers.add(
                             new ast_typeref.TypeRefMod("readonly")
                         )
                 }
-                our_type_expr.
+                our_type_expr_old.
                     modifiers.add(
                         new ast_typeref.TypeRefMod("c_array")
                     )
+                array_info =
+                    left_type_expr.get_array_info(
+                        project=pfile.project,
+                        project_file=pfile,
+                        is_moose64=is_moose64)
+                array_typeinfo = array_info[2]
+                our_type_expr =
+                    array_typeinfo.convert_to_typeref_expr(
+                        project=project, is_moose64=is_moose64,
+                    )
+                our_type_expr.modifiers.add(
+                    new ast_typeref.TypeRefMod("c_array"))
                 var self_type = left_type_expr.copy()
                 our_type_expr.special_madeup_builtin_base_expr =
                     self_type

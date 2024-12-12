@@ -856,8 +856,8 @@ func get_called_or_assigned_func_types(
                 arg_typeref_exprs[arg_typeref_exprs.len].name
             print(prog_name + ": error: Internal error, "
                 "got invalid func signature, "
-                "it's marked failable but has no failable parameter "
-                "at the end. Info: "
+                "it's marked failable but has no failable "
+                "parameter at the end. Info: "
                 "arg_typeref_exprs=" +
                     arg_typeref_exprs.as_str() + " "
                 "expected_args=" + expected_args.as_str() + " "
@@ -871,9 +871,9 @@ func get_called_or_assigned_func_types(
                     last_param_is_func_ref.as_str() + " "
                 "last_param_name=" +
                     last_param_name.as_str())
-            throw new RuntimeError("Got invalid func signature, "
-                "it's marked failable but has no failable parameter "
-                "at the end.")
+            throw new RuntimeError("Got invalid func "
+                "signature, it's marked failable but has "
+                "no failable parameter at the end.")
         }
     }
 
@@ -943,7 +943,8 @@ func get_called_or_assigned_func_types(
                 "arg_expr=" +
                 called_args_exprs[
                     called_args_exprs.len
-                ].as_str() + " (got msgs=" + msgs.as_str() + ")")
+                ].as_str() + " (got msgs=" +
+                msgs.as_str() + ")")
             throw new RuntimeError(
                 "Internal error: Failed to determine "
                 "type of last call parameter. Please "
@@ -1114,7 +1115,8 @@ func get_called_or_assigned_func_types(
 
                 await arg_type
                 if arg_type == none {
-                    if msgs != none and msg.msgs_contain_error(msgs) {
+                    if msgs != none and
+                            msg.msgs_contain_error(msgs) {
                         return later no
                     }
                     print(if is_moose64 ("horsec")

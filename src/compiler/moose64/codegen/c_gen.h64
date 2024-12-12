@@ -37,6 +37,7 @@ import compiler.ast.analyze as ast_analyze
 import compiler.compiler_log as clog
 import compiler.globals_order as globals_order
 import compiler.limit as climit
+import compiler.moose64.autocast as m64_autocast
 import compiler.moose64.ast.analyze as m64_ast_analyze
 import compiler.moose64.builtins as m64_builtins
 import compiler.msg as msg
@@ -2601,6 +2602,65 @@ func node_to_c_string(project_file, node, parents,
             later:
 
             await left_hand_str
+            var right_hand_typeinfo = m64_ast_analyze.
+                get_c_or_m64_type_of_node(
+                    project_file, entry[2],
+                    parents + [node],
+                    store_self_value_ref_for_funcs=no,
+                    msgs=msgs
+                ) later:
+
+            await right_hand_typeinfo
+            if right_hand_typeinfo == none {
+                if msgs == none {
+                    throw new RuntimeError(
+                        "Got right-hand "
+                        "expression with invalid type."
+                    )
+                } elseif not msg.msgs_contain_error(msgs) {
+                    print(program_name + ": error: Internal error, "
+                        "failed to get type info in moose64 C code "
+                        "gen for this right-hand expression: "
+                        "expr=" + node.subexprs[1].as_str())
+                    throw new RuntimeError("Unexpectedly failed "
+                        "to get usable right hand type info.")
+                }
+                return later ""
+            }
+            var allowed = m64_autocast.
+                check_if_allowed_implicit_cast_from_to(
+                    right_hand_typeinfo,
+                    left_hand_typeinfo,
+                )
+            if not allowed {
+                if msg == none {
+                    throw new RuntimeError(
+                        "Found a right-hand expression for "
+                        "an assignment that cannot be converted "
+                        "to left-hand type.")
+                } else {
+                    if not node.damaged {
+                        node.damaged = yes
+                        msgs.add(new msg.FileMsg(
+                            "Unexpected right-hand side of "
+                            "type " +
+                            right_hand_typeinfo.describe_to_user(
+                                project=project_file.project,
+                                is_moose64=is_moose64,
+                            ) + ", "
+                            "cannot assign to this to item "
+                            "of type " +
+                            left_hand_typeinfo.describe_to_user(
+                                project=project_file.project,
+                                is_moose64=is_moose64,
+                            ) + ".",
+                            source_file=project_file,
+                            line=entry[2].line,
+                            col=entry[2].col,
+                        ))
+                    }
+                }
+            }
             var right_hand_str =
                 node_generate_c_type_conversion_code(
                     project_file, left_hand_typeinfo,

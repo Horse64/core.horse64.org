@@ -541,8 +541,7 @@ func create_typeinfo_from_typeexpr(
         }
         tinfo._orig_typeexpr = type_expr.copy()
         return tinfo
-    } elseif type_expr.is_func_ref and
-            self.func_typeexpr != none {
+    } elseif type_expr.is_func_ref {
         var tinfo = new TypeInfo(TI_FUNCREF)
         tinfo.func_typeexpr = type_expr.copy()
         if type_expr.func_storage_ref != none {
@@ -1298,8 +1297,10 @@ func get_array_type_info(type_info,
     var array_type_mods = []
     var found_array_mod = no
     var nested_arrays = no
-    var found_readonly_mod = no
+    var found_outer_readonly_mod = no
+    var found_array_data_readonly_mod = no
     var last_array_idx = none
+    var first_array_idx = none
 
     var idx = 0
     for mod in type_info.modifiers {
@@ -1308,12 +1309,25 @@ func get_array_type_info(type_info,
             if found_array_mod {
                 nested_arrays = yes
             }
+            if found_outer_readonly_mod {
+                found_outer_readonly_mod = no
+                found_array_data_readonly_mod = yes
+            } elseif found_array_data_readonly_mod {
+                found_array_data_readonly_mod = no
+            }
             found_array_mod = yes
             last_array_idx = idx
+            if first_array_idx == none {
+                first_array_idx = idx
+            }
             continue
         }
         if mod.name == "readonly" {
-            found_readonly_mod = yes
+            if found_array_mod {
+                found_outer_readonly_mod = yes
+            } else {
+                found_array_data_readonly_mod = yes
+            }
         }
     }
     if not found_array_mod {
@@ -1323,16 +1337,14 @@ func get_array_type_info(type_info,
     idx = 0
     for mod in type_info.modifiers {
         idx += 1
-        if {"ref", "c_array"}.has(mod.name) {
+        if {"ref", "c_array", "readonly",
+                "implicit ref"
+                }.has(mod.name) {
             if idx < last_array_idx {
                 array_type_mods.add(mod.copy())
             } else {
                 mods_without_array_parts.add(mod.copy())
             }
-            continue
-        }
-        if mod.name == "readonly" {
-            array_type_mods.add(mod.copy())
             continue
         }
         if mod.name == "array" {
@@ -1341,7 +1353,16 @@ func get_array_type_info(type_info,
             }
             continue
         }
-        mods_without_array_parts.add(mod.copy())
+        # XXX / FIXME: Reconsider what mods apply to
+        # the type as a whole and not just the array.
+        # This would be handled here.
+
+        # Afterward, standard handling resume:
+        if idx < last_array_idx {
+            array_type_mods.add(mod.copy())
+        } else {
+            mods_without_array_parts.add(mod.copy())
+        }
     }
 
     var inner_type = type_info.copy()
@@ -1358,7 +1379,7 @@ func get_array_type_info(type_info,
         )
         assert(array_name_result != none)
         array_key = "__m64_array__" +
-        array_name_result[1]
+            array_name_result[1]
     } else {
         var inner_type_key_str = none
         var inner_type_expr =
