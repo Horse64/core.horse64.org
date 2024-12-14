@@ -265,7 +265,7 @@ func _get_c_or_m64_type_of_node_do(
             node.as_str() + " with store_self_value_ref_for_funcs=" +
             store_self_value_ref_for_funcs.as_str())
     }
-    func get_stored_typeref_expr_if_any {
+    func get_type_from_stored_typeref_expr_if_any {
         if (node.kind == ast.N_EXPR_IDREF and
                 node.value_typeref_expr != none) or
                 (node.kind == ast.N_EXPR_BINOP and
@@ -278,7 +278,7 @@ func _get_c_or_m64_type_of_node_do(
                 (node.subexprs[2].value_typeref_expr.copy())
             if debug {
                 print(dbg_prefix + " "
-                    "get_stored_typeref_expr_if_any(): "
+                    "get_type_from_stored_typeref_expr_if_any(): "
                     "We got node.value_typeref_expr "
                     "set, returning it. "
                     "texpr=" + texpr.as_str() + " "
@@ -1506,6 +1506,11 @@ func _get_c_or_m64_type_of_node_do(
                         "was resolved to: tinfo=" + tinfo.as_str())
                 }
                 return tinfo
+            }
+            var try_stored_typeref_retrieval =
+                get_type_from_stored_typeref_expr_if_any()
+            if try_stored_typeref_retrieval != none {
+                return later try_stored_typeref_retrieval
             }
             trigger_no_symbol_info_on(node)
             return later none

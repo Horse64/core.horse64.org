@@ -78,7 +78,8 @@ func get_mods_that_arent_regular_for_nums(tinfo,
 }
 
 func check_if_allowed_implicit_cast_from_to(
-        from_typeinfo, to_typeinfo, debug=no
+        from_typeinfo, to_typeinfo,
+        debug=no
         ) {
     if debug {
         print("moosec: debug: "
@@ -132,11 +133,27 @@ func check_if_allowed_implicit_cast_from_to(
         right_hand_source_typeinfo.kind == typeinfo.TI_C_TYPE and
         right_hand_source_typeinfo.orig_type_name == "any"
     )
-    var source_is_ptr = left_hand_target_typeinfo.ref_count(
+    var source_is_ptr = right_hand_source_typeinfo.ref_count(
         include_c_arrays=yes, include_arrays=no,
         include_implicit_refs=no, include_explicit_refs=yes
     ) > 0
     var source_is_array = right_hand_source_typeinfo.is_array()
+
+    
+    if not left_hand_target_typeinfo.has_equivalent_modifiers(
+            right_hand_source_typeinfo,
+            allow_autodrop_mods=yes,
+            allow_autoadd_mods=yes,
+            ) and not (source_is_any and source_is_ptr and
+                right_hand_source_typeinfo.modifiers.len == 1) {
+        if debug {
+            print("moosec: debug: "
+                "check_if_allowed_implicit_cast_from_to(): "
+                "Modifiers are too incompatible. "
+                "Final cast result: no.")
+        }
+        return no
+    }
     if refs_left > 0 and refs_left == refs_right and
             (right_hand_source_typeinfo.kind ==
                 left_hand_target_typeinfo.kind or
@@ -155,33 +172,32 @@ func check_if_allowed_implicit_cast_from_to(
                 "matches, or matches enough when respecting "
                 "'any' behavior.")
         }
-        if not left_hand_target_typeinfo.has_equivalent_modifiers(
-                right_hand_source_typeinfo,
-                allow_autodrop_mods=yes,
-                allow_autoadd_mods=yes,
-                ) {
-            if debug {
-                print("moosec: debug: "
-                    "check_if_allowed_implicit_cast_from_to(): "
-                    "Modifiers are too incompatible. "
-                    "Final cast result: no.")
-            }
-            return no
-        }
         if (left_hand_target_typeinfo.kind ==
                     typeinfo.TI_C_TYPE and
                 right_hand_source_typeinfo.kind ==
-                    typeinfo.TI_C_TYPE) or target_is_any {
+                    typeinfo.TI_C_TYPE and
+                left_hand_target_typeinfo.orig_type_name != none and
+                left_hand_target_typeinfo.orig_type_name ==
+                    right_hand_source_typeinfo.orig_type_name) {
             if debug {
                 print("moosec: debug: "
                     "check_if_allowed_implicit_cast_from_to(): "
                     "Taking C type refs branch.")
             }
-            var result = (
-                left_hand_target_typeinfo.orig_type_name != none and
-                (left_hand_target_typeinfo.orig_type_name ==
-                    right_hand_source_typeinfo.orig_type_name or
-                target_is_any))
+            return yes
+        }
+        if target_is_any or source_is_any {
+            if debug {
+                print("moosec: debug: "
+                    "check_if_allowed_implicit_cast_from_to(): "
+                    "Taking some side is any branch.")
+            }
+            var result =
+                target_is_any or
+                (source_is_any and target_is_array and
+                 source_is_array) or
+                (source_is_any and target_is_ptr and
+                 source_is_ptr)
             if debug {
                 print("moosec: debug: "
                     "check_if_allowed_implicit_cast_from_to(): "
@@ -273,6 +289,13 @@ func check_if_allowed_implicit_cast_from_to(
                 ) {
             return no
         }
+        return yes
+    }
+    if refs_left == 0 and refs_right == 0 and
+            left_hand_target_typeinfo.kind == typeinfo.TI_C_TYPE and
+            right_hand_source_typeinfo.kind == typeinfo.TI_C_TYPE and
+            left_hand_target_typeinfo.orig_type_name ==
+                right_hand_source_typeinfo.orig_type_name {
         return yes
     }
     return no

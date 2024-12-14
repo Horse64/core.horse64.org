@@ -2648,7 +2648,7 @@ func node_to_c_string(project_file, node, parents,
                                 project=project_file.project,
                                 is_moose64=is_moose64,
                             ) + ", "
-                            "cannot assign to this to item "
+                            "cannot assign this to item "
                             "of type " +
                             left_hand_typeinfo.describe_to_user(
                                 project=project_file.project,
