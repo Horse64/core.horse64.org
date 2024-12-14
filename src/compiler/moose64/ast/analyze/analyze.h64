@@ -292,10 +292,6 @@ func _get_c_or_m64_type_of_node_do(
         }
         return none
     }
-    var test = get_stored_typeref_expr_if_any()
-    if test != none {
-        return test
-    }
     func trigger_no_symbol_info_on(node) {
         if node.damaged {
             return
