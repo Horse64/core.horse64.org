@@ -1838,8 +1838,6 @@ func visit_to_resolve_known_attrs(
                     "visit_to_resolve_known_attrs(): "
                     "Got an attribute error.")
             }
-            print("NODE=" + node.as_str())
-            print("LEFT OF US=" + left_of_us.as_str())
             if is_moose64 {
                 if msgs == none {
                     failure = yes

@@ -1386,9 +1386,6 @@ func _get_c_or_m64_type_of_node_do(
         }
 
         func resolve_rhand_via_lhand_if_needed {
-            if debug {  # FIXME REMOVE.
-                rhand.value_typeref_expr = none
-            }
             if rhand.ref != none and
                     rhand.value_typeref_expr != none {
                 if debug {
