@@ -2216,15 +2216,26 @@ func node_to_c_string(project_file, node, parents,
                 self_call_arg_str = "&(" +
                     self_call_arg_str + ")"
             }
+            if debug {
+                print(program_name + ": debug: " +
+                    "node_to_c_string(): Will now "
+                    "obtain func type info...")
+            }
             func_typeinfo =
                 m64_ast_analyze.get_c_or_m64_type_of_node(
                     project_file, func_node,
                     func_node_parents,
                     store_self_value_ref_for_funcs=yes,
-                    msgs=msgs
+                    msgs=msgs,
                 ) later:  # Get type info from our call node.
 
             await func_typeinfo
+            if debug {
+                print(program_name + ": debug: " +
+                    "node_to_c_string(): Got "
+                    "func_typeinfo=" +
+                        func_typeinfo.as_str())
+            }
         }
         try_get_left_hand_self_call() later:
 
@@ -2293,15 +2304,29 @@ func node_to_c_string(project_file, node, parents,
 
             await left_hand_str
 
+            if func_typeinfo != none {
+                return later
+            }
+            if debug {
+                print(program_name + ": debug: " +
+                    "node_to_c_string(): Will now "
+                    "get func typeinfo...")
+            }
             func_typeinfo =
                 m64_ast_analyze.get_c_or_m64_type_of_node(
                     project_file, node.subexprs[1],
                     parents + [node],
                     store_self_value_ref_for_funcs=yes,
-                    msgs=msgs
+                    msgs=msgs,
                 ) later:  # Get type info from our call node.
 
             await func_typeinfo
+            if debug {
+                print(program_name + ": debug: " +
+                    "node_to_c_string(): Got "
+                    "func_typeinfo=" +
+                        func_typeinfo.as_str())
+            }
         }
         try_get_left_hand_regular() later:
 
@@ -2396,6 +2421,26 @@ func node_to_c_string(project_file, node, parents,
             var all_typeexprs =
                 func_typeinfo.func_typeexpr.arg_typeref_exprs
             if arg_idx < 1 or arg_idx > all_typeexprs.len {
+                print(program_name + ": error: "
+                    "Internal error, index out of bounds when "
+                    "looking at node=" +
+                        node.as_str() + " "
+                    "func_typeinfo.func_typeexpr=" +
+                        func_typeinfo.func_typeexpr.as_str() + " "
+                    "self_call_arg_str=" +
+                        textfmt.as_escaped_code_string(
+                            self_call_arg_str
+                        ) + " "
+                    "all_typeexprs=" +
+                        all_typeexprs.as_str() + " "
+                    "all_typeexprs.len=" +
+                        all_typeexprs.len.as_str() + " "
+                    "arg_idx=" +
+                        arg_idx.as_str() + " "
+                    "call_args_expr=" +
+                        node.subexprs[2].as_str() + " "
+                    "call_args_expr.subexprs.len=" +
+                        node.subexprs[2].subexprs.len.as_str())
                 throw new RuntimeError("Internal error, "
                     "C code gen failed to extract arg typeref expr "
                     "for call. This shouldn't ever happen.")
