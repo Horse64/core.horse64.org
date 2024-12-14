@@ -826,6 +826,7 @@ func transform_func_overrides_and_check_func_arg_sig_match(
                 }
             }
             if func_type_expr_result.resolved_func_is_override {
+                node.clear_precomputed_typeref()
                 if detected_called_func_type_name != none and
                         func_type_expr_result.has_self_expr {
                     # This is a func attr, called on a self expr.
