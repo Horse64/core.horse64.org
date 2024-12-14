@@ -303,7 +303,9 @@ func TypeInfo.has_outer_implicit_ref {
 
 func TypeInfo.is_equivalent(
         other_typeinfo, ignore_autoprop=no,
-        ignore_self_ref=yes) {
+        ignore_self_ref=yes,
+        is_moose64=no,
+        ) {
     if self.modifiers.len != other_typeinfo.modifiers.len {
         return no
     }
@@ -355,7 +357,7 @@ func TypeInfo.is_equivalent(
         }
     } elseif self.kind == TI_USERTYPE {
         if self.user_type_ref != none and
-                orig_typeinfo.user_type_ref != none {
+                other_typeinfo.user_type_ref != none {
             if not self.user_type_ref.alike(
                     other_typeinfo.user_type_ref) {
                 return no
@@ -393,7 +395,8 @@ func TypeInfo.is_equivalent(
     }
     if not self.has_equivalent_modifiers(
             other_typeinfo, allow_autodrop_mods=no,
-            allow_autoadd_mods=no
+            allow_autoadd_mods=no,
+            is_moose64=is_moose64,
             ) {
         return no
     }
@@ -402,7 +405,7 @@ func TypeInfo.is_equivalent(
 
 func TypeInfo.has_equivalent_modifiers(
         other_tinfo, allow_autodrop_mods=no,
-        allow_autoadd_mods=no,
+        allow_autoadd_mods=no, is_moose64=no
         ) {
     var droppable_names = ["implicit ref"]
     var addable_names = ["readonly", "implicit ref"]
@@ -428,7 +431,8 @@ func TypeInfo.has_equivalent_modifiers(
             if claimed_indexes.has(idx2) {
                 continue
             }
-            if other_mod.is_equivalent_mod_to(mod) or
+            if other_mod.is_equivalent_mod(
+                    mod, is_moose64=is_moose64) or
                     (other_mod.name == "array" and
                      self.kind == TI_C_TYPE and
                      self.orig_type_name == "any" and
@@ -664,16 +668,19 @@ func TypeInfo.describe_to_user(
         return "<unknown type description for typeinfo=" +
             self.as_str() + ">"
     }
-    var t = texpr.as_code()
-    if add_quotes_where_useful {
-        if texpr.is_func_ref {
-            return "'" + t + "' (func)"
-        } elseif texpr.is_user_type() {
-            return "'" + t + "'"
+    if texpr.is_func_ref {
+        var func_sig_with_mods = texpr.as_str()
+        return "'" + func_sig_with_mods + "' (func)"
+    } else {
+        var t = texpr.as_code()
+        if add_quotes_where_useful {
+            if texpr.is_user_type() {
+                return "'" + t + "'"
+            }
+            return t
         }
         return t
     }
-    return t
 }
 
 func TypeInfo.add_implicit_ref_modifier {
@@ -1109,6 +1116,27 @@ func ensure_all_type_info(project, msgs, is_moose64=no) {
         result, msgs
     )
     return later result
+}
+
+func TypeInfo.cmp_signature(
+        other_type_info, is_moose64=no
+        ) {
+    if self.kind != TI_FUNCREF {
+        throw new TypeError(
+            "This func can only be called on "
+            "TypeInfo instances with a TI_FUNCREF "
+            "kind."
+        )
+    }
+    if other_type_info.kind != TI_FUNCREF {
+        return no
+    }
+    assert(self.func_typeexpr != none)
+    assert(other_type_info.func_typeexpr != none)
+    return self.func_typeexpr.cmp_signature(
+        other_type_info.func_typeexpr,
+        is_moose64=is_moose64,
+    )
 }
 
 func create_typeinfo_from_global_ref(

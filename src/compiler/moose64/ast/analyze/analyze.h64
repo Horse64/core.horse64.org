@@ -647,7 +647,8 @@ func _get_c_or_m64_type_of_node_do(
                 "optoken.str='" + node.optoken.str.as_str() + "'")
         }
         var result = autocast.get_math_binop_autocast(
-            left_side_type, right_side_type, is_cmp_op=no
+            left_side_type, right_side_type, is_cmp_op=no,
+            is_moose64=is_moose64,
         )
         if debug {
             print(dbg_prefix + " Obtained autocast info for "

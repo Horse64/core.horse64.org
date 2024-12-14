@@ -573,8 +573,10 @@ func CExportTracker.create_null_size_struct_name(
     var pfile_info = self.project_file_info_map[project_file]
 
     for old_struct_typeinfo in pfile_info.null_size_structs_name_map {
-        if not struct_typeinfo.is_equivalent_to(
-                old_struct_typeinfo) {
+        if not struct_typeinfo.is_equivalent(
+                old_struct_typeinfo,
+                is_moose64=is_moose64,
+                ) {
             continue
         }
         return pfile_info.null_size_structs_name_map[
@@ -1680,9 +1682,11 @@ func node_generate_c_type_conversion_code(
                 target_typeinfo,
                 allow_autodrop_mods=yes,
                 allow_autoadd_mods=yes,
+                is_moose64=is_moose64,
             ) and
             not inner_typeinfo.is_equivalent(
-                target_typeinfo
+                target_typeinfo,
+                is_moose64=is_moose64,
             ) {
         var outer_typeref_expr =
             target_typeinfo.convert_to_typeref_expr(
@@ -2552,7 +2556,7 @@ func node_to_c_string(project_file, node, parents,
                     project_file, entry[1],
                     parents + [node],
                     store_self_value_ref_for_funcs=yes,
-                    msgs=msgs
+                    msgs=msgs,
                 ) later:  # Get type info from our call node.
 
             await left_hand_typeinfo
@@ -2607,7 +2611,7 @@ func node_to_c_string(project_file, node, parents,
                     project_file, entry[2],
                     parents + [node],
                     store_self_value_ref_for_funcs=no,
-                    msgs=msgs
+                    msgs=msgs,
                 ) later:
 
             await right_hand_typeinfo
@@ -2631,6 +2635,7 @@ func node_to_c_string(project_file, node, parents,
                 check_if_allowed_implicit_cast_from_to(
                     right_hand_typeinfo,
                     left_hand_typeinfo,
+                    is_moose64=is_moose64,
                 )
             if not allowed {
                 if msg == none {
@@ -2677,6 +2682,8 @@ func node_to_c_string(project_file, node, parents,
             if debug {
                 print(program_name + ": debug: " +
                     "node_to_c_string(): Got "
+                    "right_hand_typeinfo=" +
+                        right_hand_typeinfo.as_str() + " "
                     "right_hand_str=" +
                     textfmt.as_escaped_code_string(
                         right_hand_str
@@ -2953,9 +2960,9 @@ func node_to_c_string(project_file, node, parents,
             is_global = yes
             # This must be a global variable.
         }
-        var idx = 0
-        for lbl in node.var_labels {
-            idx += 1
+        func handle_var(idx) {
+            lbl = node.var_labels[idx]
+
             var c_name = if not is_global (lbl)
                 else (get_global_symbol_c_name(
                     lbl, project_file=project_file))
@@ -2968,6 +2975,84 @@ func node_to_c_string(project_file, node, parents,
                 c_name_to_insert_if_func_ptr=c_name,
                 project=project, project_file=project_file,
                 is_moose64=is_moose64)
+            var var_typeinfo = var_tinfo
+            var assigned_expr = none
+            if assigned_exprs != none and
+                    idx >= 1 and idx <= assigned_exprs.len {
+                assigned_expr = assigned_exprs[idx]
+            }
+            var assigned_typeinfo = none
+            func get_assigned_expr_if_needed {
+                if assigned_expr == none {
+                    return later
+                }
+                assigned_typeinfo = m64_ast_analyze.
+                    get_c_or_m64_type_of_node(
+                        project_file, assigned_expr,
+                        parents + [node],
+                        store_self_value_ref_for_funcs=no,
+                        msgs=msgs,
+                    ) later:
+
+                await assigned_typeinfo
+            }
+            get_assigned_expr_if_needed() later:
+            if assigned_expr != none and
+                    assigned_typeinfo == none {
+                if msgs == none {
+                    throw new RuntimeError(
+                        "Got right-hand "
+                        "expression with invalid type."
+                    )
+                } elseif not msg.msgs_contain_error(msgs) {
+                    print(program_name + ": error: Internal error, "
+                        "failed to get type info in moose64 C code "
+                        "gen for this var init expression: "
+                        "expr=" + assigned_expr.as_str())
+                    throw new RuntimeError("Unexpectedly failed "
+                        "to get usable var init type info.")
+                }
+                return later ""
+            }
+            
+            var allowed = yes
+            if assigned_expr != none {
+                allowed = m64_autocast.
+                    check_if_allowed_implicit_cast_from_to(
+                        assigned_typeinfo,
+                        var_typeinfo,
+                        is_moose64=is_moose64,
+                    )
+            }
+            if not allowed {
+                if msg == none {
+                    throw new RuntimeError(
+                        "Found a value init expression for "
+                        "a var statement that cannot be "
+                        "converted to the var type.")
+                } else {
+                    if not node.damaged {
+                        node.damaged = yes
+                        msgs.add(new msg.FileMsg(
+                            "Unexpected initial value of "
+                            "type " +
+                            assigned_typeinfo.describe_to_user(
+                                project=project_file.project,
+                                is_moose64=is_moose64,
+                            ) + ", "
+                            "cannot assign this to var "
+                            "of type " +
+                            var_typeinfo.describe_to_user(
+                                project=project_file.project,
+                                is_moose64=is_moose64,
+                            ) + ".",
+                            source_file=project_file,
+                            line=assigned_expr.line,
+                            col=assigned_expr.col,
+                        ))
+                    }
+                }
+            }
             var _suffix_result = ast_typeref.
                 get_array_suffix_from_c_type(c_var_type,
                     error_if_non_numeric=yes,
@@ -2994,7 +3079,30 @@ func node_to_c_string(project_file, node, parents,
                 }
             }
             t += ";\n"
+            return later
         }
+        func handle_all_vars {
+            var queue = []
+            var idx = 0
+            for lbl in node.var_labels {
+                idx += 1
+                queue.add(idx)
+            }
+            if queue.len == 0 {
+                return later
+            }
+            var item = queue.pop()
+            var result = handle_var(item)
+            later:
+
+            await result
+            if queue.len == 0 {
+                return later
+            }
+            item = queue.pop()
+            result = handle_var(item)
+        }
+        handle_all_vars() later:
 
         if debug {
             print(program_name + ": debug: " +

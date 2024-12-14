@@ -59,6 +59,12 @@ const builtin_moose64_signed_num_types = {
     "i8", "i16", "i32", "i64", "f32",
     "f64", "addr_diff"
 }
+const builtin_moose64_integer_num_types = {
+    "i8", "i16", "i32", "i64", "addr_diff",
+    "addr", "size", "byte", "u8", "u16",
+    "u32", "u64",
+}
+
 const builtin_moose64_num_types =
     builtin_moose64_unsigned_num_types +
     builtin_moose64_signed_num_types
@@ -122,7 +128,9 @@ func TypeRefModProp_Range.as_str {
     return t
 }
 
-func TypeRefModProp_Range.is_equivalent_prop_to(other_mod) {
+func TypeRefModProp_Range.is_equivalent_prop_to(
+        other_mod, is_moose64=no
+        ) {
     if other_mod.prop_name != self.prop_name {
         return no
     }
@@ -201,7 +209,9 @@ func TypeRefMod.as_c_code(
     return self.name
 }
 
-func TypeRefMod.is_equivalent_mod_to(other_mod) {
+func TypeRefMod.is_equivalent_mod(
+        other_mod, is_moose64=no
+        ) {
     if self.name != other_mod.name and
             (not {"ref", "c_array"}.has(self.name) or
             not {"ref", "c_array"}.has(other_mod.name)) {
@@ -217,7 +227,9 @@ func TypeRefMod.is_equivalent_mod_to(other_mod) {
             if claimed_indexes.has(idx) {
                 continue
             }
-            if other_prop.is_equivalent_prop_to(prop) {
+            if other_prop.is_equivalent_prop_to(
+                    prop, is_moose64=is_moose64
+                    ) {
                 claimed_indexes.add(idx)
                 found_equivalent = yes
                 break
@@ -269,11 +281,31 @@ func TypeRefFuncExpr.init {
     self.type_path = none
 }
 
+func TypeRefExpr.is_equivalent(
+        other_type_expr, is_moose64=no
+        ) {
+    assert(not self.is_func_ref)
+    if other_type_expr.is_func_ref {
+        return no
+    }
+    var tinfo_self = typeinfo.create_typeinfo_from_typeexpr(
+        self, is_moose64=is_moose64,
+    )
+    var tinfo_other = typeinfo.create_typeinfo_from_typeexpr(
+        other_type_expr, is_moose64=is_moose64,
+    )
+    return tinfo_self.is_equivalent(
+        tinfo_other, is_moose64=is_moose64,
+    )
+}
+
 func TypeRefFuncExpr.is_user_type {
     return yes
 }
 
-func TypeRefFuncExpr.is_equivalent(other_func_expr) {
+func TypeRefFuncExpr.is_equivalent(
+        other_func_expr, is_moose64=no
+        ) {
     if not other_func_expr.is_func_ref {
         return no
     }
@@ -290,7 +322,9 @@ func TypeRefFuncExpr.is_equivalent(other_func_expr) {
         }
     } else {
         if not self.return_typeref_expr.is_equivalent(
-                other_func_expr.return_typeref_expr) {
+                other_func_expr.return_typeref_expr,
+                is_moose64=is_moose64,
+                ) {
             return no
         }
     }
@@ -300,7 +334,9 @@ func TypeRefFuncExpr.is_equivalent(other_func_expr) {
     var modidx = 1
     while modidx <= self.modifiers.len {
         if not self.modifiers[modidx].is_equivalent_mod(
-                other_func_expr.modifiers[modidx]) {
+                other_func_expr.modifiers[modidx],
+                is_moose64=is_moose64,
+                ) {
             return no
         }
         modidx += 1
@@ -308,10 +344,48 @@ func TypeRefFuncExpr.is_equivalent(other_func_expr) {
     var argidx = 1
     while argidx <= self.arg_typeref_exprs.len {
         if not self.arg_typeref_exprs[argidx].is_equivalent(
-                other_func_expr.arg_typeref_exprs[argidx]) {
+                other_func_expr.arg_typeref_exprs[argidx],
+                is_moose64=is_moose64,
+                ) {
             return no
         }
         argidx += 1
+    }
+    return yes
+}
+
+func TypeRefFuncExpr.cmp_signature(
+        other_type_expr, is_moose64=no
+        ) {
+    if not other_type_expr.is_func_ref {
+        return no
+    }
+    if self.arg_typeref_exprs.len !=
+            other_type_expr.arg_typeref_exprs.len {
+        return no
+    }
+    if self.return_typeref_expr != none {
+        if other_type_expr.return_typeref_expr == none or
+                not self.return_typeref_expr.is_equivalent(
+                    other_type_expr.return_typeref_expr,
+                    is_moose64=is_moose64,
+                ) {
+            return no
+        }
+    } else {
+        if other_type_expr.return_typeref_expr != none {
+            return no
+        }
+    }
+    var idx = 1
+    while idx <= self.arg_typeref_exprs.len {
+        if not self.arg_typeref_exprs[idx].is_equivalent(
+                other_type_expr.arg_typeref_exprs[idx],
+                is_moose64=is_moose64,
+                ) {
+            return no
+        }
+        idx += 1
     }
     return yes
 }
@@ -706,7 +780,9 @@ func TypeRefExpr.init {
     self.kind = ast.N_EXPR_TYPEREF
 }
 
-func TypeRefFuncExpr.is_equivalent(other_expr) {
+func TypeRefFuncExpr.is_equivalent(
+        other_expr, is_moose64=no
+        ) {
     if other_expr.is_func_ref {
         return no
     }
@@ -754,8 +830,10 @@ func TypeRefFuncExpr.is_equivalent(other_expr) {
     }
     var modidx = 1
     while modidx <= self.modifiers.len {
-        if not self.modifiers[modidx].is_equivalent_mod_to(
-                other_func_expr.modifiers[modidx]) {
+        if not self.modifiers[modidx].is_equivalent_mod(
+                other_func_expr.modifiers[modidx],
+                is_moose64=is_moose64,
+                ) {
             return no
         }
         modidx += 1
