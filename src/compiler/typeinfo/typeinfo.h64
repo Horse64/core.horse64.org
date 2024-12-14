@@ -60,10 +60,13 @@ extend type ast_expr.IdRefExpr {
 }
 
 func ast.TreeNode.clear_precomputed_typeref {
-    return
+    for expr in self.subexprs {
+        expr.clear_precomputed_typeref()
+    }
 }
 
 func ast_expr.IdRefExpr.clear_precomputed_typeref {
+    base.clear_precomputed_typeref()
     self.value_typeref_expr = none
 }
 
