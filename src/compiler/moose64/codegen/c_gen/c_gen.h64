@@ -1,4 +1,4 @@
-## @module compiler.moose64.codegen.c
+## @module compiler.moose64.codegen.c_gen
 # Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
@@ -40,6 +40,7 @@ import compiler.limit as climit
 import compiler.moose64.autocast as m64_autocast
 import compiler.moose64.ast.analyze as m64_ast_analyze
 import compiler.moose64.builtins as m64_builtins
+import compiler.moose64.codegen.c_gen.c_export_result as c_export_result
 import compiler.msg as msg
 import compiler.project
 import compiler.storage.scope as st_scope
@@ -47,13 +48,6 @@ import compiler.storage.scope.manage as scope_manage
 import compiler.storage.ref as st_ref
 import compiler.typeinfo as typeinfo
 import compiler.typeinfo.ast_typeref as ast_typeref
-
-type CExportResult {
-    var project
-    var build_base_dir_uri = none
-    var build_c_source_uris = []
-    var build_c_include_uris = []
-}
 
 func truncate_path_src_dir_if_present(
         fpath, project=none) {
@@ -3693,7 +3687,7 @@ func export_moose_project_to_c(
             "build_options to be passed in.")
     }
     var program_name = boptions.build_program_name
-    var export_result = new CExportResult()
+    var export_result = new c_export_result.CExportResult()
     export_result.project = project
 
     var output_as_string = no
