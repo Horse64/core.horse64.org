@@ -1273,10 +1273,10 @@ func try_ensure_attr_ref(
         ) {
     assert(typename(parent_chain) == "list")
     assert(node_righthand.kind == ast.N_EXPR_IDREF)
-    if node_righthand.ref != none {
+    if node_righthand.ref != none and
+            node_righthand.value_typeref_expr != none {
         return later
     }
-
     visit_to_resolve_known_attrs(
         project_file, msgs,
         start_at_root=node_righthand,
@@ -1470,17 +1470,30 @@ func visit_to_resolve_known_attrs(
 
     var resolved_something = no
     var failure = no
+    if debug {
+        print(dbg_header +
+            "visit_to_resolve_known_attrs(): "
+            "Called with: start_at_root=" +
+                start_at_root.as_str())
+    }
     func try_resolve_item(node, parents) {
         if node.kind != ast.N_EXPR_IDREF {
             return later node
         }
         if node.ref != none and
+                node.value_typeref_expr != none and
                 node.ref.kind != st_ref._ST_RESOLVELATER {
             return later node
         }
-        if parents.len == 0 or
+        if debug {
+            print(dbg_header +
+                "visit_to_resolve_known_attrs(): "
+                "Evaluating this idref node: " +
+                    node.as_str())
+        }
+        if node.ref == none and (parents.len == 0 or
                 parents[parents.len].kind != ast.N_EXPR_BINOP or
-                parents[parents.len].optoken.str != '.' {
+                parents[parents.len].optoken.str != '.') {
             # We can't actually ever resolve this node in a useful
             # way. Bail out, and emit error if this is Moose64.
             if is_moose64 {
@@ -1506,7 +1519,9 @@ func visit_to_resolve_known_attrs(
             var parent = if parents.len > 0
                 (parents[parents.len])
                 else (none)
-            if parent.subexprs[2] != node {
+            if parent.kind != ast.N_EXPR_BINOP or
+                    parent.subexprs.len < 2 or
+                    parent.subexprs[2] != node {
                 return later yes
             }
             if parent.subexprs[1].kind == ast.N_EXPR_BINOP and
@@ -1555,6 +1570,12 @@ func visit_to_resolve_known_attrs(
         ) later:
 
         await result
+        
+        if debug {
+            print(dbg_header +
+                "visit_to_resolve_known_attrs(): "
+                "Left-hand should be resolved now.")
+        }
         if result == no {
             failure = yes
             return later node
@@ -1565,7 +1586,10 @@ func visit_to_resolve_known_attrs(
             else (none)
         var left_of_us = none
         if parent != none and
-                parent.kind == ast.N_EXPR_BINOP {
+                parent.kind == ast.N_EXPR_BINOP and
+                parent.optoken.str == "." and
+                parent.subexprs.len >= 2 and
+                parent.subexprs[1] != node {
             var left_of_us = parent.subexprs[1]
             if left_of_us.kind == ast.N_EXPR_BINOP and
                     left_of_us.optoken.str == "." {
@@ -1574,7 +1598,19 @@ func visit_to_resolve_known_attrs(
                 left_of_us = left_of_us.subexprs[2]
             }
             assert(left_of_us.kind == ast.N_EXPR_IDREF)
+            assert(left_of_us != node)
         }
+        if debug {
+            print(dbg_header +
+                "visit_to_resolve_known_attrs(): "
+                "Got left_of_us=" + left_of_us.as_str())
+        }
+        if left_of_us == none {
+            # This isn't an attribute, so we can't
+            # go any deeper with our analysis here.
+            return later node
+        }
+
         var left_type_expr = none
         var left_type_global_ref = none
         var left_type_vnode = none
@@ -1588,23 +1624,31 @@ func visit_to_resolve_known_attrs(
             assert(var_node != none)
             left_type_vnode = var_node
         }
-        var result =
-            ast_typeref.resolve_st_ref_to_type_ref_and_expr(
+        var left_ref_result = ast_typeref.
+            resolve_st_ref_to_type_ref_and_expr(
                 project_file, left_of_us.ref,
                 node=left_of_us,
                 node_parents=parents,
                 ignore_if_ref_none=yes,
                 is_moose64=is_moose64,
                 msgs=msgs,
-                debug=debug
+                debug=no
             ) later:
 
-        await result
-        if result.storage_ref != none {
-            left_type_global_ref = result.storage_ref
+        await left_ref_result
+        if left_ref_result.storage_ref != none {
+            left_type_global_ref = left_ref_result.storage_ref
         }
-        if result.type_expr != none {
-            left_type_expr = result.type_expr
+        if left_ref_result.type_expr != none {
+            left_type_expr = left_ref_result.type_expr
+        }
+        if debug {
+            print(dbg_header +
+                "visit_to_resolve_known_attrs(): "
+                "Got left_type_global_ref=" +
+                    left_type_global_ref.as_str() + " "
+                "left_type_expr=" +
+                    left_type_expr.as_str())
         }
 
         var is_attr_error = no
@@ -1613,9 +1657,26 @@ func visit_to_resolve_known_attrs(
         var our_type_ref = none
         var our_type_expr = none
         func resolve_usertype_attr_from_global_storage(
-                storage_id
+                storage_id, associated_type_expr_if_known=none,
                 ) {
             assert(typename(storage_id) == "num")
+            if associated_type_expr_if_known != none {
+                if associated_type_expr_if_known.is_array() {
+                    return no
+                } elseif associated_type_expr_if_known.ref_count(
+                        include_c_arrays=yes,
+                        include_arrays=no,
+                        include_implicit_refs=no,
+                        include_explicit_refs=yes,
+                        ) > 0 {
+                    return no
+                }
+            }
+            if not pfile.project.storage_id_to_anscope_map.has(
+                    storage_id) {
+                # This storage id refers to a global that isn't a type.
+                return no
+            }
             var anscope =
                 pfile.project.storage_id_to_anscope_map[
                     storage_id
@@ -1645,16 +1706,36 @@ func visit_to_resolve_known_attrs(
                         "have this attribute"
                 }
             }
+            return yes
         }
+        var indexing_makes_it_readonly = no
+        var indexing_worked = no
         if left_type_global_ref != none and
                 left_type_global_ref.kind == st_ref.ST_GLOBAL and
                 (left_type_expr == none or
                  left_type_expr.is_user_type()) {
             # Indexing a global user type, let's resolve this:
-            resolve_usertype_attr_from_global_storage(
-                left_type_global_ref.id
-            )
-        } elseif is_moose64 {
+            indexing_worked =
+                resolve_usertype_attr_from_global_storage(
+                    left_type_global_ref.id,
+                    associated_type_expr_if_known=left_type_expr,
+                )
+            if indexing_worked and left_type_expr != none and
+                    left_type_expr.is_readonly() {
+                indexing_makes_it_readonly = yes
+            }
+        }
+        if debug {
+            print(dbg_header +
+                "visit_to_resolve_known_attrs(): "
+                "Got indexing_worked=" +
+                    indexing_worked.as_str() + " "
+                "our_type_ref=" +
+                    our_type_ref.as_str() + " "
+                "indexing_makes_it_readonly=" +
+                    indexing_makes_it_readonly.as_str())
+        }
+        if not indexing_worked and is_moose64 {
             if left_type_expr != none and
                     (not left_type_expr.is_user_type() or
                      left_type_global_ref != none) {
@@ -1667,7 +1748,8 @@ func visit_to_resolve_known_attrs(
             } else {
                 is_attr_error = yes
             }
-            var is_array = left_type_expr.is_array()
+            var is_array = left_type_expr != none and
+                left_type_expr.is_array()
             if not is_attr_error and
                     not left_type_expr.is_user_type() and
                     node.label == "len" {
@@ -1710,10 +1792,12 @@ func visit_to_resolve_known_attrs(
                 our_type_expr.special_madeup_builtin_base_expr =
                     self_type
             } elseif not is_attr_error and
+                    left_type_expr != none and
                     left_type_expr.is_user_type() {
                 assert(left_type_global_ref != none)
                 resolve_usertype_attr_from_global_storage(
-                    left_type_global_ref.id
+                    left_type_global_ref.id,
+                    associated_type_expr_if_known=left_type_expr,
                 )
             }
         } elseif not is_moose64 and
@@ -1749,6 +1833,13 @@ func visit_to_resolve_known_attrs(
             }
         }
         if is_attr_error {
+            if debug {
+                print(dbg_header +
+                    "visit_to_resolve_known_attrs(): "
+                    "Got an attribute error.")
+            }
+            print("NODE=" + node.as_str())
+            print("LEFT OF US=" + left_of_us.as_str())
             if is_moose64 {
                 if msgs == none {
                     failure = yes
@@ -1766,9 +1857,9 @@ func visit_to_resolve_known_attrs(
                         line=node.line,
                         col=node.col,
                     ))
+                    resolved_something = yes
                 }
                 node.damaged = yes
-                resolved_something = yes
             } else {
                 var error_is_valid = ast_analyze.
                     ast_node_is_allowed_to_cause_type_error(
@@ -1792,9 +1883,9 @@ func visit_to_resolve_known_attrs(
                             line=node.line,
                             col=node.col,
                         ))
+                        resolved_something = yes
                     }
                     node.damaged = yes
-                    resolved_something = yes
                 } else {
                     is_attr_error = no
                 }
@@ -1831,13 +1922,38 @@ func visit_to_resolve_known_attrs(
 
             await result
             our_type_expr = result.type_expr
+            if indexing_makes_it_readonly and
+                    not our_type_expr.is_readonly() and
+                    not our_type_expr.is_func_ref and
+                    our_type_expr.ref_count(
+                        include_c_arrays=yes,
+                        include_arrays=no,
+                        include_implicit_refs=yes,
+                        include_explicit_refs=yes,
+                    ) > 0 {
+                our_type_expr.modifiers.add(
+                    new ast_typeref.TypeRefMod("readonly")
+                )
+            }
         }
         resolve_our_type_expr_if_needed()
         later:
 
+        if debug {
+            print(dbg_header +
+                "visit_to_resolve_known_attrs(): "
+                "Got our_type_expr=" +
+                    our_type_expr.as_str())
+        }
         if our_type_expr != none and
                 node.value_typeref_expr == none {
             node.value_typeref_expr = our_type_expr.copy()
+            if debug {
+                print(dbg_header +
+                    "visit_to_resolve_known_attrs(): "
+                    "Setting node.value_typeref_expr to: " +
+                    node.value_typeref_expr.as_str())
+            }
             resolved_something = yes
         }
         if our_type_ref != none and

@@ -1599,14 +1599,14 @@ func get_called_or_assigned_func_types(
     result.is_external = is_external
     result.called_func_is_attr =
         func_typeinfo.func_typeexpr.is_func_attr
-    result.func_var_type_expr = func_var_typeref
+    result.func_var_type_expr = func_var_typeref.copy()
     result.func_var_typeinfo = func_var_typeinfo
     result.func_var_name = func_actual_name
     result.func_ref = m64_type_ref
     result.func_was_overridden = func_changed_to_override
     result.arg_var_type_exprs = arg_var_type_exprs
     result.arg_var_typeinfos = arg_var_types
-    result.self_var_type_expr = self_type_expr
+    result.self_var_type_expr = self_type_expr.copy()
     result.self_var_typeinfo = self_type_typeinfo
     result.have_args_mismatch = have_args_mismatch
     return result

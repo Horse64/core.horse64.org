@@ -830,7 +830,7 @@ func transform_func_overrides_and_check_func_arg_sig_match(
                         func_type_expr_result.has_self_expr {
                     # This is a func attr, called on a self expr.
                     assert({st_ref.ST_GLOBALATTR}.has(
-                            func_type_expr_result.storage_ref.kind
+                        func_type_expr_result.storage_ref.kind
                     ))
                     assert(node.subexprs[1].kind == ast.N_EXPR_BINOP)
                     var name_access = node.subexprs[1].subexprs[2]

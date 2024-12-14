@@ -2992,6 +2992,7 @@ func node_to_c_string(project_file, node, parents,
                         parents + [node],
                         store_self_value_ref_for_funcs=no,
                         msgs=msgs,
+                        debug=debug,
                     ) later:
 
                 await assigned_typeinfo
@@ -3013,6 +3014,20 @@ func node_to_c_string(project_file, node, parents,
                         "to get usable var init type info.")
                 }
                 return later ""
+            }
+            if debug {
+                print(program_name + ": debug: " +
+                    "node_to_c_string(): Got "
+                    "var_labels[" + idx.as_str() +
+                        "]=" + textfmt.as_escaped_code_string(
+                        lbl
+                    ) + " "
+                    "assigned_expr=" +
+                        assigned_expr.as_str() + " "
+                    "assigned_typeinfo=" +
+                        assigned_typeinfo.as_str() + " "
+                    "var_typeinfo=" +
+                        var_typeinfo.as_str())
             }
             
             var allowed = yes

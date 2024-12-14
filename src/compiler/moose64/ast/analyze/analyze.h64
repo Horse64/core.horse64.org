@@ -248,9 +248,11 @@ func _get_c_or_m64_type_of_node_do(
     if _known_typeinfo_map.has(node) and
             not store_self_value_ref_for_funcs {
         var result = _known_typeinfo_map[node].copy()
-        print("moosec: debug: "
-            "_get_c_or_m64_type_of_node_do() FAST PATH: " +
-            "Returning cached result=" + result.as_str())
+        if debug {
+            print("moosec: debug: "
+                "_get_c_or_m64_type_of_node_do() FAST PATH: " +
+                "Returning cached result=" + result.as_str())
+        }
         return later result
     }
     var parent = if parents.len > 0 (parents[parents.len]) else (none)
@@ -1375,6 +1377,8 @@ func _get_c_or_m64_type_of_node_do(
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "." {
         var rhand = node.subexprs[2]
+        var lhand = node.subexprs[1]
+        var lhand_typeinfo = none
         assert(rhand.kind == ast.N_EXPR_IDREF)
         if debug {
             print(dbg_prefix + " Now evaluating binop with "
@@ -1382,15 +1386,22 @@ func _get_c_or_m64_type_of_node_do(
         }
 
         func resolve_rhand_via_lhand_if_needed {
-            if rhand.ref != none {
+            if debug {  # FIXME REMOVE.
+                rhand.value_typeref_expr = none
+            }
+            if rhand.ref != none and
+                    rhand.value_typeref_expr != none {
                 if debug {
                     print(dbg_prefix + " (The rhand.ref "
-                        "value was already set before "
-                        "we got to evaluate anything.)")
+                        "value and rhand.value_typeref_expr "
+                        "were already set before "
+                        "we got to evaluate anything, with "
+                        "rhand.value_typeref_expr=" +
+                            rhand.value_typeref_expr.as_str() +
+                        ".)")
                 }
                 return later rhand.ref
             }
-            var lhand = node.subexprs[1]
             if not has_attr(lhand, "ref") and
                     (lhand.kind != ast.N_EXPR_BINOP or
                     lhand.optoken.str != "." or
@@ -1398,11 +1409,21 @@ func _get_c_or_m64_type_of_node_do(
                     lhand.subexprs[2].kind != ast.N_EXPR_IDREF) {
                 return later none
             }
+            lhand_typeinfo = _get_c_or_m64_type_of_node_do(
+                project_file, lhand, parents + [node],
+                _known_typeinfo_map=_known_typeinfo_map,
+                disable_binop_parent_fallback=yes,
+                store_self_value_ref_for_funcs=no,
+                msgs=msgs,
+            ) later:
 
+            await lhand_typeinfo
             if debug {
                 print(dbg_prefix + " Calling "
                     "try_ensure_attr_ref on "
-                    "lhand=" + lhand.as_str() + ", "
+                    "lhand=" + lhand.as_str() + " now. "
+                    "lhand_typeinfo=" + 
+                        lhand_typeinfo.as_str() + " "
                     "rhand=" + rhand.as_str())
             }
             scope_manage.try_ensure_attr_ref(
@@ -1457,7 +1478,8 @@ func _get_c_or_m64_type_of_node_do(
                             "The attribute " +
                             rhand_desc + " "
                             "cannot be found on this item.",
-                            kind=msg.M_ERROR, source_file=project_file,
+                            kind=msg.M_ERROR,
+                            source_file=project_file,
                             line=node.subexprs[1].line,
                             col=node.subexprs[1].col,
                         ))
@@ -1592,35 +1614,59 @@ func _get_c_or_m64_type_of_node_do(
                 self_st_ref.copy()
             return later return_typeinfo
         }
-        var result = get_c_or_m64_type_of_sym_info(
-            project_file, sym_info, node_with_reference=rhand,
-            node_with_reference_parents=parents + [node],
-            msgs=msgs, debug=debug
-        ) later:
+        var result_tinfo = none
+        if rhand.value_typeref_expr != none {
+            result_tinfo =
+                typeinfo.create_typeinfo_from_typeexpr(
+                    rhand.value_typeref_expr,
+                    is_moose64=is_moose64,
+                )
+            if debug {
+                print(dbg_prefix + " "
+                    "Taking rhand.value_typeref_expr to "
+                    "compute end result: " +
+                    result_tinfo.as_str())
+            }
+        }
+        func get_result_tinfo_from_symbol_if_needed {
+            if result_tinfo != none {
+                return later
+            }
+            result_tinfo = get_c_or_m64_type_of_sym_info(
+                project_file, sym_info, node_with_reference=rhand,
+                node_with_reference_parents=parents + [node],
+                msgs=msgs, debug=debug
+            ) later:
 
-        await result
-        if result != none and
+            await result_tinfo
+        }
+        get_result_tinfo_from_symbol_if_needed() later:
+
+        if result_tinfo != none and
                 not _known_typeinfo_map.has(node) {
-            _known_typeinfo_map[node] = result.copy()
+            _known_typeinfo_map[node] = result_tinfo.copy()
             _known_typeinfo_map[node].func_self_ref = none
         }
         if store_self_value_ref_for_funcs and
                 left_hand_instance_ref != none {
             if debug {
-                print(dbg_prefix + " Setting result.func_self_ref=" +
+                print(dbg_prefix + " "
+                    "Setting result_tinfo.func_self_ref=" +
                     left_hand_instance_ref.as_str())
             }
-            result.func_self_ref = left_hand_instance_ref
+            result_tinfo.func_self_ref = left_hand_instance_ref
         } else {
             if debug {
-                print(dbg_prefix + " Unsetting result.func_self_ref.")
+                print(dbg_prefix + " "
+                    "Unsetting result_tinfo.func_self_ref.")
             }
         }
         if debug {
-            print(dbg_prefix + " Got N_EXPR_BINOP '.' result=" +
-                result.as_str())
+            print(dbg_prefix + " Got N_EXPR_BINOP '.' "
+                "result_tinfo=" +
+                result_tinfo.as_str())
         }
-        return later result
+        return later result_tinfo
     }
     return later none
 }

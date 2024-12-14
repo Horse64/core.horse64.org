@@ -1491,8 +1491,10 @@ func resolve_st_ref_to_type_ref_and_expr(
         var result_ref = result.func_ref
         var result_type_expr = result.func_var_type_expr
         override_resolution_result = new TypeRefAndExprResult()
-        override_resolution_result.storage_ref = result_ref
-        override_resolution_result.type_expr = result_type_expr
+        override_resolution_result.storage_ref =
+            result_ref.copy()
+        override_resolution_result.type_expr =
+            result_type_expr.copy()
         if result.func_was_overridden {
             override_resolution_result.
                 resolved_func_is_override = yes
@@ -1703,7 +1705,7 @@ func resolve_st_ref_to_type_ref_and_expr(
             is_moose64=is_moose64, debug=debug,
         )
         if result.storage_ref != none {
-            result_ref = result.storage_ref
+            result_ref = result.storage_ref.copy()
             result_expr = result.type_expr
         }
     }
@@ -1745,8 +1747,8 @@ func resolve_st_ref_to_type_ref_and_expr(
             "result: " + [result_ref, result_expr].as_str())
     }
     var result = new TypeRefAndExprResult()
-    result.storage_ref = result_ref
-    result.type_expr = result_expr
+    result.storage_ref = result_ref  # XXX: Copied above.
+    result.type_expr = result_expr.copy()
     return result
 }
 
