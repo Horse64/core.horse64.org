@@ -27,6 +27,7 @@
 
 import io from core.horse64.org
 import path from core.horse64.org
+import process from core.horse64.org
 import uri from core.horse64.org
 
 import compiler.compiler_log as clog
@@ -45,13 +46,33 @@ func build_project(c_export, build_options, msgs=none) {
             build_options.output_file
         )
     }
+    var cwd_dir = io.working_dir()
+    later:
 
-    func fix_output_dir_if_needed {
-        if output_file_dir_uri != none and
-                {"file"}.has(uri.get_protocol(
-                    output_file_dir_uri)) {
-            return
+    await cwd_dir
+    cwd_dir = path.make_abs(cwd_dir)
+
+    func check_uri_is_supported_with_error(furi) {
+        if {"file"}.has(uri.get_protocol(furi)) {
+            return yes
         }
+        if msgs == none {
+            throw new RuntimeError("This type of URI "
+                "is currently not handled by the "
+                "compiler.moose64.build.c_build.build_project "
+                "function.")
+        }
+        clog.log_or_print(new msg.FileMsg(
+            "Unexpected " + uri.get_protocol(furi) + ":// "
+            "URI, this protocol is currently not supported by "
+            "the build backend.",
+        ), msgs=msgs, program_name=program_name)
+        return no
+    }
+
+    if output_file_dir_uri == none or
+            not {"file"}.has(uri.get_protocol(
+                output_file_dir_uri)) {
         if output_file_dir_uri != none {
             clog.log_or_print(new msg.FileMsg(
                 "The given output dir protocol " +
@@ -59,16 +80,10 @@ func build_project(c_export, build_options, msgs=none) {
                 "isn't supported. Reverting to current dir.",
                 kind=msg.M_WARNING,
             ), msgs=msgs, program_name=program_name)
+            check_uri_is_supported_with_error(furi)
         }
-        var cwd_dir = io.working_dir()
-        later:
-
-        await cwd_dir
-        cwd_dir = path.make_abs(cwd_dir)
         output_file_dir_uri = uri.from_disk_path(cwd_dir)
     }
-    fix_output_dir_if_needed()
-    later:
 
     var horp_available = no
     func use_horp_detection_if_available {
@@ -115,6 +130,7 @@ func build_project(c_export, build_options, msgs=none) {
     var dir_path = uri.to_file_or_vfs_path(
         output_file_dir_uri
     )
+
     var o_opt_path = path.join(dir_path, output_file_name)
     if o_opt_path.starts("-") {
         o_opt_path = "." + path.sep + o_opt_path
@@ -125,24 +141,25 @@ func build_project(c_export, build_options, msgs=none) {
 
     func schedule_file(c_export_file) {
         var furi = c_export_file.file_uri
+        var cwd_dir_uri = c_export_file.cwd_dir_uri
         if furi == none or not {
                 c_export_result.CEF_C_SOURCE}.has(
                 c_export_file.kind) {
             return later yes
         }
-        if not {"file"}.has(uri.get_protocol(furi)) {
-            if msgs == none {
-                throw new RuntimeError("This type of URI "
-                    "is currently not handled by the "
-                    "compiler.moose64.build.c_build.build_project "
-                    "function.")
-            }
-            clog.log_or_print(new msg.FileMsg(
-                "Unexpected " + uri.get_protocol(furi) + ":// "
-                "URI, this protocol is currently not supported by "
-                "the build backend.",
-            ), msgs=msgs, program_name=program_name)
+        if not check_uri_is_supported_with_error(furi) {
             return later no
+        }
+        if cwd_dir_uri != none and
+                not check_uri_is_supported_with_error(
+                    cwd_dir_uri) {
+            return later no  
+        }
+        var cwd_disk_path = cwd_dir
+        if cwd_dir_uri != none {
+            cwd_disk_path = uri.to_file_or_vfs_path(
+                cwd_dir_uri
+            )
         }
         var disk_path = uri.to_file_or_vfs_path(furi)
         if disk_path.starts("-") {
@@ -153,15 +170,16 @@ func build_project(c_export, build_options, msgs=none) {
         await exists_result
         if not exists_result {
             clog.log_or_print(new msg.FileMsg(
-                "Internal error, we were handed a file from the "
-                "code gen backend but it doesn't exist: " +
+                "Internal error, we were handed a file from "
+                "the code gen backend but it doesn't exist: " +
                 disk_path,
             ), msgs=msgs, program_name=program_name)
             return later no
         }
         var object_file_path = disk_path + ".o"
-        cmd_list.add([cc, "-c", "-o",
-            object_file_path, "--", disk_path])
+        cmd_list.add([cc, ["-c"] +
+            c_export_file.extra_compile_options + ["-o",
+            object_file_path, disk_path], cwd_disk_path])
         object_file_paths.add(object_file_path)
         return later yes
     }
@@ -195,14 +213,49 @@ func build_project(c_export, build_options, msgs=none) {
         return later no
     }
 
-    cmd_list.add([cc, "-o", o_opt_path, "--"] +
-        object_file_paths)
-    if build_options.verbose_mode {
-        clog.log_or_print(new msg.FileMsg(
-            "Running build command: " + cmd_list.as_str(),
-            kind=msg.M_INFO,
-        ), msgs=msgs, program_name=program_name)
+    cmd_list.add([cc, ["-o", o_opt_path] +
+        object_file_paths])
+    func handle_build_command(cmd) {
+        if build_options.verbose_mode {
+            clog.log_or_print(new msg.FileMsg(
+                "Running build commands: " + cmd.as_str(),
+                kind=msg.M_INFO,
+            ), msgs=msgs, program_name=program_name)
+        }
+        var cwd_path = dir_path
+        if cmd.len > 2 and cmd[3] != none {
+            cwd_path = cmd[3]
+        }
+        var output = process.run(
+            cmd[1], args=cmd[2],
+            run_in_dir=cwd_path,
+            error_on_nonzero_exit_code=yes)
+        later:
+
+        await output
+        return later yes
     }
-    return later no
+    func handle_build_commands {
+        var queue = cmd_list.copy()
+        if queue.len == 0 {
+            return later yes
+        }
+        var cmd = queue.pop_at(1)
+        var result = handle_build_command(cmd) later:
+
+        await result
+        if not result {
+            return later no
+        }
+        if queue.len == 0 {
+            return later yes
+        }
+        cmd = queue.pop_at(1)
+        result = handle_build_command(cmd) later repeat
+    }
+    result = handle_build_commands() later:
+
+    await result
+    return later result
 }
 

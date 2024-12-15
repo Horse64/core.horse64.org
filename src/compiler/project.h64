@@ -797,6 +797,9 @@ func Project.find_package_dir_uri_fallback(
         error_on_failure=yes
         ) {
     var cwd = io.working_dir()
+    later:
+
+    await cwd
     func try_find_modules_in_dir(
             testdir, try_parents=no
             ) {
@@ -1002,7 +1005,10 @@ func guess_horse_modules_for_single_file(file_uri) {
     }
 
     # Otherwise, try working directory:
-    var test_path = path.join(io.working_dir(), "horse_modules")
+    var cwd = io.working_dir() later:
+
+    await cwd
+    var test_path = path.join(cwd, "horse_modules")
     var result = io.exists(test_path, allow_vfs=no) later:
 
     await result

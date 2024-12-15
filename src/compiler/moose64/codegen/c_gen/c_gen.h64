@@ -361,7 +361,6 @@ func get_c_header_uri_and_info_for_type(
         c_output_dir_uri,
         type_node=none, type_storage_ref=none,
         base_header_uri=none,
-        name_as_temp_file=no,
         project_file=none, project=none,
         ) {
     var result = new CHeaderUriInfo()
@@ -476,7 +475,6 @@ func get_c_header_uri_and_info_for_type(
     if pfile_c_uri == none {
         pfile_c_uri = get_c_output_uri_from_project_file(
             def_pfile, c_output_dir_uri,
-            name_as_temp_file=name_as_temp_file
         )
     } elseif pfile_c_uri.ends(".h") {
         pfile_c_uri = pfile_c_uri.sub(
@@ -491,17 +489,10 @@ func get_c_header_uri_and_info_for_type(
             c_output_dir_uri, pfile_c_uri,
             project=project
         ))
-    if name_as_temp_file {
-        assert(header_skeleton_uri.ends(".m64.tmp.c"))
-        header_skeleton_uri = header_skeleton_uri.sub(
-            1, header_skeleton_uri.len - ".m64.tmp.c".len
-        ) + ".type-skeleton." + def_node.label + ".m64.tmp.h"
-    } else {
-        assert(header_skeleton_uri.ends(".m64.c"))
-        header_skeleton_uri = header_skeleton_uri.sub(
-            1, header_skeleton_uri.len - ".m64.c".len
-        ) + ".type-skeleton." + def_node.label + ".m64.h"
-    }
+    assert(header_skeleton_uri.ends(".m64.c"))
+    header_skeleton_uri = header_skeleton_uri.sub(
+        1, header_skeleton_uri.len - ".m64.c".len
+    ) + ".type-skeleton." + def_node.label + ".m64.h"
     assert(header_skeleton_uri.ends(".h"))
 
     var c_header_rel_path = get_rel_path_inside_output_dir(
@@ -674,7 +665,7 @@ func CExportTracker.generate_c_types_and_header_info(
         project_file, c_output_dir_uri,
         base_header_uri=none,
         build_options=none, msgs=none,
-        name_as_temp_file=no) {
+        ) {
     const is_moose64 = yes
 
     var header_result = new CExportTrackerHeaderAndTypesInfo()
@@ -770,7 +761,6 @@ func CExportTracker.generate_c_types_and_header_info(
             var result = get_c_header_uri_and_info_for_type(
                 c_output_dir_uri, type_node=entry,
                 base_header_uri=base_header_uri,
-                name_as_temp_file=name_as_temp_file,
                 project_file=project_file,
             )
             if result == none {
@@ -3625,7 +3615,6 @@ func guess_build_dir_from_build_options(build_options, project) {
 
 func get_c_output_uri_from_project_file(
         project_file, c_output_dir_uri,
-        name_as_temp_file=no
         ) {
     var output_file_uri = c_output_dir_uri
     var file_relpath = none
@@ -3660,15 +3649,6 @@ func get_c_output_uri_from_project_file(
         }
     }
     file_relpath = path.normalize(file_relpath + ".c")
-    if name_as_temp_file {
-        var fname = path.basename(file_relpath)
-        fname = ".moosec." + fname
-        assert(fname.ends(".c"))
-        fname = fname.sub(1, fname.len - 2) + ".tmp.c"
-        file_relpath = path.join(
-            path.dirname(file_relpath), fname
-        )
-    }
 
     output_file_uri = uri.add_part(
         output_file_uri, file_relpath.replace(path.sep, "/")
@@ -3677,7 +3657,7 @@ func get_c_output_uri_from_project_file(
 }
 
 func export_moose_project_to_c(
-        project, name_as_temp_file=no,
+        project, write_to_temp_files=no,
         limit_to_entrypoint_file=no,
         msgs=none, build_options=none,
         ) {
@@ -3693,7 +3673,7 @@ func export_moose_project_to_c(
     var output_as_string = no
     if boptions.output_file == none and
             boptions.output_dir == none and
-            not name_as_temp_file {
+            not write_to_temp_files {
         output_as_string = yes
         if not limit_to_entrypoint_file {
             throw new ValueError("C export not as temp file "
@@ -3704,24 +3684,25 @@ func export_moose_project_to_c(
     }
     var c_output_file_uri = boptions.output_file
     var c_output_dir_uri = boptions.output_dir
-    if name_as_temp_file {
+    var main_include_path = "." + path.sep
+    if write_to_temp_files {
         # The output file or dir refers to something else,
         # like a final binary, not a C file.
         c_output_file_uri = none
-        c_output_dir_uri = uri.normalize(
+        c_output_dir_uri = uri.add_part(uri.normalize(
             project.base_dir_uri
-        )
+        ), ".moosec-build-" + random.gen_id())
         export_result.build_base_dir_uri = uri.normalize(
             project.base_dir_uri
         )
-        if project.source_dir_prefix != none and
-                project.source_dir_prefix.len > 0 {
-            c_output_dir_uri = uri.add_part(
-                c_output_dir_uri,
-                project.source_dir_prefix
-            )
-        }
     }
+    if project.source_dir_prefix != none and
+            project.source_dir_prefix.len > 0 {
+        main_include_path += (
+            project.source_dir_prefix
+        ) + path.sep
+    }
+
     # Figure out the build dir if needed:
     func find_build_dir {
         if export_result.build_base_dir_uri != none {
@@ -3806,7 +3787,6 @@ func export_moose_project_to_c(
             output_file_uri =
                 get_c_output_uri_from_project_file(
                     pfile, c_output_dir_uri_concrete,
-                    name_as_temp_file=name_as_temp_file
                 )
         }
         if output_file_dir_uri == none {
@@ -3875,7 +3855,11 @@ func export_moose_project_to_c(
             export_result.build_files.add(
                 new c_export_result.CExportFile(
                     c_export_result.CEF_C_SOURCE,
-                    file_uri=output_file_uri
+                    file_uri=output_file_uri,
+                    cwd_dir_uri=c_output_dir_uri,
+                    extra_compile_options=[
+                        "-I" + main_include_path
+                    ],
                 )
             )
 
@@ -3960,7 +3944,6 @@ func export_moose_project_to_c(
                     pfile_to_header_uri_map[pfile],
                 build_options=build_options,
                 msgs=msgs,
-                name_as_temp_file=name_as_temp_file
             ) later:
 
         await header_types_result

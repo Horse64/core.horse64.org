@@ -35,11 +35,18 @@ enum CExportFileKind {
 type CExportFile {
     var file_uri
     var kind
+    var cwd_dir_uri
+    var extra_compile_options = []
 }
 
-func CExportFile.init(kind, file_uri=none) {
+func CExportFile.init(kind, file_uri=none,
+        cwd_dir_uri=none, extra_compile_options=none) {
     self.file_uri = file_uri
     self.kind = kind
+    if extra_compile_options != none {
+        self.extra_compile_options = extra_compile_options.copy()
+    }
+    self.cwd_dir_uri = cwd_dir_uri
 }
 
 func CExportFile.as_str {
