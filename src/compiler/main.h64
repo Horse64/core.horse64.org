@@ -244,7 +244,8 @@ func show_intermediate_compile_result_to_terminal_or_file(
         if ast_result == none {
             return later
         }
-        if is_code_file {
+        if is_code_file and has_attr(
+                ast_result, "dump_as_code") {
             var result = ast_result.dump_as_code()
             actual_result_contents = result
             return later
@@ -276,7 +277,9 @@ func show_intermediate_compile_result_to_terminal_or_file(
             "error"-> none,
             "msgs"-> [],
         }
-        if not omit_result {
+        if not omit_result and (
+                actual_result_contents != none or
+                not had_error) {
             output["result"] = actual_result_contents
         }
         for m in msgs {
@@ -674,7 +677,13 @@ func action_compile_do(
             if boptions.output_file == none and
                     boptions.output_dir == none {
                 assert(export_result == none or
+                    stage != "c" or
                     typename(export_result) == "str")
+                var literal_result = export_result
+                if typename(literal_result) != "str" or
+                        had_c_gen_error {
+                    literal_result = none
+                }
                 var finalresult =
                     show_intermediate_compile_result_to_terminal_or_file(
                         aresult.msgs,
