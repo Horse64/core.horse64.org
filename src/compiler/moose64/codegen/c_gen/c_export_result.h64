@@ -25,6 +25,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import io from core.horse64.org
+import path from core.horse64.org
 import textfmt from core.horse64.org
 import uri from core.horse64.org
 
@@ -98,7 +100,7 @@ func CExportResult.delete_temp_dirs {
             )
             assert(path.is_abs(fpath))
 
-            io.remove_dir(fpath):
+            io.remove_dir(fpath)
             later:
 
             return later
