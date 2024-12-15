@@ -25,10 +25,58 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import textfmt from core.horse64.org
+
+enum CExportFileKind {
+    CEF_C_SOURCE,
+    CEF_C_SOURCE_HEADER,
+}
+
+type CExportFile {
+    var file_uri
+    var kind
+}
+
+func CExportFile.init(kind, file_uri=none) {
+    self.file_uri = file_uri
+    self.kind = kind
+}
+
+func CExportFile.as_str {
+    return "CExportFile{" +
+        "file_uri=" + if self.file_uri != none
+            (textfmt.as_escaped_code_string(
+                self.file_uri
+            )) else ("none") + ","
+        "kind=" + CExportFileKind.num_label(self.kind) +
+    "}"
+}
+
 type CExportResult {
     var project
     var build_base_dir_uri = none
+    var build_files = []
     var build_c_source_uris = []
     var build_c_include_uris = []
 }
 
+func CExportResult.as_str {
+    var t = "CExportResult{"
+    t += "build_base_dir_uri=" +
+        if self.build_base_dir_uri != none
+            (textfmt.as_escaped_code_string(
+                self.build_base_dir_uri
+            )) else ("none") + ","
+    t += "project=" +
+        self.project.as_str() + ","
+    t += "build_files=["
+    for build_file in self.build_files {
+        if not t.ends("[") {
+            t += ","
+        }
+        t += build_file.as_str()
+    }
+    t += "]"
+    t += "}"
+    return t
+}

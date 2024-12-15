@@ -3872,8 +3872,12 @@ func export_moose_project_to_c(
                     source_file=pfile,
                 ), msgs=msgs, program_name=program_name)
             }
-            export_result.build_c_source_uris.add(
-                output_file_uri)
+            export_result.build_files.add(
+                new c_export_result.CExportFile(
+                    c_export_result.CEF_C_SOURCE,
+                    file_uri=output_file_uri
+                )
+            )
 
             var disk_path = uri.to_file_or_vfs_path(
                 output_file_uri)
@@ -3895,8 +3899,12 @@ func export_moose_project_to_c(
                     source_file=pfile,
                 ), msgs=msgs, program_name=program_name)
             }
-            export_result.build_c_include_uris.add(
-                output_header_file_uri)
+            export_result.build_files.add(
+                new c_export_result.CExportFile(
+                    c_export_result.CEF_C_SOURCE_HEADER,
+                    file_uri=output_header_file_uri
+                )
+            )
 
             var disk_path = uri.to_file_or_vfs_path(
                 output_header_file_uri)
@@ -3960,7 +3968,6 @@ func export_moose_project_to_c(
         var ancillary_headers_map =
             header_types_result.other_headers_map
 
-
         var output_header_file_uri =
             pfile_to_header_uri_map[pfile]
 
@@ -3980,6 +3987,13 @@ func export_moose_project_to_c(
                 ))
                 return later no
             }
+
+            export_result.build_files.add(
+                new c_export_result.CExportFile(
+                    c_export_result.CEF_C_SOURCE_HEADER,
+                    file_uri=header_uri
+                )
+            )
             if boptions.verbose_mode {
                 clog.log_or_print(new msg.FileMsg(
                     "export_moose_project_to_c(): "

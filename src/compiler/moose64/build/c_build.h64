@@ -30,6 +30,7 @@ import path from core.horse64.org
 import uri from core.horse64.org
 
 import compiler.compiler_log as clog
+import compiler.moose64.codegen.c_gen.c_export_result as c_export_result
 import compiler.msg as msg
 
 func build_project(c_export, build_options, msgs=none) {
@@ -118,8 +119,17 @@ func build_project(c_export, build_options, msgs=none) {
     if o_opt_path.starts("-") {
         o_opt_path = "." + path.sep + o_opt_path
     }
-    var cmd = [cc, "-o", o_opt_path]
-    for furi in c_export.build_c_source_uris {
+
+    var object_file_paths = []
+    var cmd_list = []
+
+    func schedule_file(c_export_file) {
+        var furi = c_export_file.file_uri
+        if furi == none or not {
+                c_export_result.CEF_C_SOURCE}.has(
+                c_export_file.kind) {
+            return later yes
+        }
         if not {"file"}.has(uri.get_protocol(furi)) {
             if msgs == none {
                 throw new RuntimeError("This type of URI "
@@ -138,11 +148,58 @@ func build_project(c_export, build_options, msgs=none) {
         if disk_path.starts("-") {
             disk_path = "." + path.sep + disk_path
         }
-        cmd += [disk_path]
+        var exists_result = io.exists(disk_path) later:
+
+        await exists_result
+        if not exists_result {
+            clog.log_or_print(new msg.FileMsg(
+                "Internal error, we were handed a file from the "
+                "code gen backend but it doesn't exist: " +
+                disk_path,
+            ), msgs=msgs, program_name=program_name)
+            return later no
+        }
+        var object_file_path = disk_path + ".o"
+        cmd_list.add([cc, "-c", "-o",
+            object_file_path, "--", disk_path])
+        object_file_paths.add(object_file_path)
+        return later yes
     }
+    func schedule_all_files {
+        var queue = []
+        for c_export_file in c_export.build_files {
+            queue.add(c_export_file)
+        }
+        if queue.len == 0 {
+            return later yes
+        }
+        var item = queue.pop()
+        var result = schedule_file(item)
+        later:
+
+        await result
+        if not result {
+            return later no
+        }
+        if queue.len == 0 {
+            return later yes
+        }
+        item = queue.pop()
+        result = schedule_file(item)
+        later repeat
+    }
+    var result = schedule_all_files() later:
+
+    await result
+    if not result {
+        return later no
+    }
+
+    cmd_list.add([cc, "-o", o_opt_path, "--"] +
+        object_file_paths)
     if build_options.verbose_mode {
         clog.log_or_print(new msg.FileMsg(
-            "Running build command: " + cmd.as_str(),
+            "Running build command: " + cmd_list.as_str(),
             kind=msg.M_INFO,
         ), msgs=msgs, program_name=program_name)
     }
