@@ -40,7 +40,7 @@ func build_project(c_export, build_options, msgs=none) {
     var is_moose64 = build_options.is_moose64
     var program_name = if is_moose64 ("moosec") else ("horsec")
     var output_file_name = "program"
-    var output_file_dir_uri = c_export.project.base_dir_uri
+    var output_file_dir_uri = c_export.c_binary_folder_uri
     if build_options.output_file != none {
         output_file_dir_uri = uri.dirname(
             build_options.output_file

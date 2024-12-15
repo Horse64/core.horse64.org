@@ -63,8 +63,7 @@ type CExportResult {
     var project
     var build_base_dir_uri = none
     var build_files = []
-    var build_c_source_uris = []
-    var build_c_include_uris = []
+    var c_binary_folder_uri = none
 }
 
 func CExportResult.as_str {

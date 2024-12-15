@@ -3669,6 +3669,11 @@ func export_moose_project_to_c(
     var program_name = boptions.build_program_name
     var export_result = new c_export_result.CExportResult()
     export_result.project = project
+    var cwd_dir = io.working_dir()
+    later:
+
+    await cwd_dir
+    var cwd_dir_uri = uri.from_disk_path(cwd_dir)
 
     var output_as_string = no
     if boptions.output_file == none and
@@ -3684,10 +3689,19 @@ func export_moose_project_to_c(
     }
     var c_output_file_uri = boptions.output_file
     var c_output_dir_uri = boptions.output_dir
+    var c_binary_folder_uri = none
     var main_include_path = "." + path.sep
     if write_to_temp_files {
         # The output file or dir refers to something else,
         # like a final binary, not a C file.
+        c_binary_folder_uri = boptions.output_dir
+        if boptions.output_file != none {
+            c_binary_folder_uri = uri.dirname(
+                boptions.output_file)
+        }
+        if c_binary_folder_uri == none {
+            c_binary_folder_uri = cwd_dir_uri
+        }
         c_output_file_uri = none
         c_output_dir_uri = uri.add_part(uri.normalize(
             project.base_dir_uri
@@ -3695,6 +3709,8 @@ func export_moose_project_to_c(
         export_result.build_base_dir_uri = uri.normalize(
             project.base_dir_uri
         )
+        export_result.c_binary_folder_uri =
+            c_binary_folder_uri
     }
     if project.source_dir_prefix != none and
             project.source_dir_prefix.len > 0 {
