@@ -361,6 +361,35 @@ def _terminal_get_line(callback):
     _async_ops.append(op)
     _async_ops_lock.release()
 
+def _get_cwd_async(callback):
+    def run_do(op):
+        global _async_ops_lock
+        cwd = None
+        err = None
+        op.userdata2 = [None, None]
+        try:
+            cwd = os.getcwd()
+        except Exception as e:
+            err = e
+        _async_ops_lock.acquire()
+        op.userdata2 = [err, cwd]
+        op.done = True
+        _async_ops_lock.release()
+    def done_cb(op):
+        result = op.userdata2
+        assert(result != None)
+        f = op.userdata["callback"]
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        op.callback_func = None
+        return f(result[0], result[1])
+    op = _AsyncOperation({
+        "callback": callback,}, run_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
+
 def _process_run_async(cmd, callback,
         args=[], run_in_dir=None,
         print_output=False,
