@@ -270,7 +270,8 @@ func show_intermediate_compile_result_to_terminal_or_file(
     obtain_result_contents()
     later:
 
-    if for_script or build_options.output_file != none {
+    if for_script or (build_options.output_file != none and
+            not omit_result) {
         var output = {
             "error"-> none,
             "msgs"-> [],
@@ -288,7 +289,8 @@ func show_intermediate_compile_result_to_terminal_or_file(
             return later 1
         }
         output["success"] = yes
-        if build_options.output_file == none {
+        if build_options.output_file == none or
+                omit_result {
             print(json.dump(output))
             return later 0
         }
@@ -496,6 +498,29 @@ func action_compile_do(
         boptions.output_file != none or
         boptions.output_dir != none
     )
+    func get_ast_result(pfile) {
+        var inner_ast_result = none
+        if pfile == none {
+            inner_ast_result = aresult
+        } else {
+            inner_ast_result = pfile.ast
+        }
+        if is_code_file {
+            var result = inner_ast_result.dump_as_code()
+            later:
+
+            await result
+            return later result
+        }
+        if is_global_scope {
+            if for_script {
+                return later inner_ast_result.as_json_obj()
+            } else {
+                return later inner_ast_result.as_str()
+            }
+        }
+        return later
+    }
     if not had_error and (stage == "transformed-code" or
             stage == "transformed-ast") and
             (boptions.output_file != none or
@@ -506,11 +531,14 @@ func action_compile_do(
         func output_code {
             if boptions.output_file != none {
                 assert(boptions.output_dir == none)
+                var result = get_ast_result() later:
+
+                await result
                 var f = io.open(boptions.output_file, "w") later:
 
                 await f
                 do {
-                    f.write(aresult.dump_as_code()) later:
+                    f.write(result) later:
                 } finally {
                     f.close()
                 }
@@ -589,10 +617,13 @@ func action_compile_do(
     }
     if had_error or stage == "transformed-code" or
             stage == "transformed-ast" {
+        var result = get_ast_result() later:
+
+        await result
         var finalresult =
             show_intermediate_compile_result_to_terminal_or_file(
                 aresult.msgs,
-                ast_result=aresult,
+                literal_value_result=result,
                 build_options=boptions,
                 for_script=opt_for_script,
                 is_global_scope=no,
@@ -687,6 +718,7 @@ func action_compile_do(
         ) later:
 
         await build_result
+        assert(typename(build_result) == "bool")
         var had_build_error = no
         for m in aresult.msgs {
             if m.kind == msg.M_ERROR {
@@ -712,7 +744,8 @@ func action_compile_do(
                 is_global_scope=no,
                 is_code_file=no,
                 omit_result=yes,
-                fail_reason="Creation of the output binary has failed.",
+                fail_reason="Creation of the output "
+                "binary has failed.",
             ) later:
 
         await finalresult

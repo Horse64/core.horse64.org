@@ -35,6 +35,35 @@ import compiler.moose64.codegen.c_gen.c_export_result as c_export_result
 import compiler.msg as msg
 
 func build_project(c_export, build_options, msgs=none) {
+    func do_with_caught_errors {
+        var result_inner
+        do {
+            result_inner = build_project_unprotected(
+                c_export, build_options, msgs=msgs
+            ) later:
+
+            await result_inner
+            return later result_inner
+        } rescue any as e {
+            print("moosec: error: "
+                "Internal error, had unexpected error: " +
+                e.as_str())
+            return later no
+        }
+    }
+    var result = do_with_caught_errors()
+    later:
+
+    await result
+    c_export.delete_temp_dirs()
+    later:
+
+    return result
+}
+
+func build_project_unprotected(
+        c_export, build_options, msgs=none
+        ) {
     var cc = "gcc"
     var exec_ext = ".bin"
     var is_moose64 = build_options.is_moose64

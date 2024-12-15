@@ -3706,6 +3706,8 @@ func export_moose_project_to_c(
         c_output_dir_uri = uri.add_part(uri.normalize(
             project.base_dir_uri
         ), ".moosec-build-" + random.gen_id())
+        export_result.rm_after_build_folder_uri =
+            c_output_dir_uri
         export_result.build_base_dir_uri = uri.normalize(
             project.base_dir_uri
         )
@@ -3734,252 +3736,121 @@ func export_moose_project_to_c(
     }
     find_build_dir() later:
 
-    # Now process each file to translate it to C:
-    var output_string_result = none
-    var pfile_to_header_uri_map = {->}
-    func process_file(pfile) {
-        var c_result
-        var header_result
-        var combined_result = ast_to_c(
-            pfile, msgs=msgs, build_options=boptions,
-            target_write_dir_uri=c_output_dir_uri,
-            target_write_uri=c_output_file_uri,
-        ) later:
+    func do_unprotected {
+        # Now process each file to translate it to C:
+        var output_string_result = none
+        var pfile_to_header_uri_map = {->}
 
-        await combined_result
-        if combined_result == none {
-            var goterror = no
-            if msgs != none {
-                for m in msgs {
-                    if m.kind == msg.M_ERROR {
-                        goterror = yes
-                        break
-                    }
-                }
-            }
-            if not goterror {
-                if msgs == none {
-                    throw new RuntimeError("Internal error, "
-                        "unexpectedly failed to generate C code "
-                        "but no error was returned.")
-                }
-                msgs.add(new msg.FileMsg(
-                    "Internal error, unexpectedly failed to "
-                    "generate C code with no error for this file: " +
-                    if pfile.source_uri != none (pfile.source_uri)
-                        else ("<unknown anonymous file>"),
-                    source_file=pfile,
-                    line=none,
-                    col=none,
-                ))
-            }
-            return later no
-        }
-        c_result = combined_result[1]
-        header_result = combined_result[2]
-
-        if limit_to_entrypoint_file and
-                not pfile.is_entrypoint {
-            return later yes
-        } elseif limit_to_entrypoint_file and
-                pfile.is_entrypoint and output_as_string {
-            output_string_result = c_result
-            return later yes
-        }
-
-        var output_file_uri
-        var output_header_file_uri
-        var output_file_dir_uri
-        var c_output_dir_uri_concrete = c_output_dir_uri
-        if c_output_dir_uri_concrete == none {
-            assert(c_output_file_uri != none)
-            c_output_dir_uri_concrete = path.dirname(
-                c_output_file_uri
-            )
-            output_file_uri = c_output_file_uri
-        }
-        if output_file_uri == none {
-            output_file_uri = c_output_dir_uri_concrete
-            output_file_uri =
-                get_c_output_uri_from_project_file(
-                    pfile, c_output_dir_uri_concrete,
-                )
-        }
-        if output_file_dir_uri == none {
-            output_file_dir_uri = uri.traverse_up(
-                output_file_uri
-            )
-        }
-        if output_header_file_uri == none {
-            var header_name = uri.basename(
-                output_file_uri
-            )
-            if header_name.lower().ends(".c") {
-                header_name = header_name.sub(
-                    1, header_name.len - 2
-                )
-            }
-            header_name += ".h"
-            output_header_file_uri = uri.add_part(
-                uri.traverse_up(output_file_uri), header_name
-            )
-            pfile_to_header_uri_map[pfile] =
-                output_header_file_uri
-        }
-
-        if not {"file"}.has(uri.get_protocol(output_file_uri)) {
-            if msgs == none {
-                throw new RuntimeError("This type of URI "
-                "is currently not handled by the "
-                "compiler.moose64.codegen.c_gen."
-                "export_moose_project_to_c function.")
-            }
-            msgs.add(new msg.FileMsg(
-                "Unexpected " + uri.get_protocol(output_file_uri) +
-                ":// URI, this protocol is currently not "
-                "supported by the C code generator.",
-                source_file=pfile,
-            ))
-            return later no
-        }
-
-        if boptions.verbose_mode {
-            clog.log_or_print(new msg.FileMsg(
-                "export_moose_project_to_c(): "
-                "Ensuring folder exists: " +
-                    output_file_dir_uri,
-                kind=msg.M_INFO,
-                source_file=pfile,
-            ), msgs=msgs, program_name=program_name)
-        }
-        io.make_dir(
-            uri.to_file_or_vfs_path(
-                output_file_dir_uri
-            ), allow_vfs=no,
-            allow_nested=yes, ignore_exists=yes
-        ) later:
-
-        func write_main_file() {
-            if boptions.verbose_mode {
-                clog.log_or_print(new msg.FileMsg(
-                    "export_moose_project_to_c(): "
-                    "Writing to: " + output_file_uri,
-                    kind=msg.M_INFO,
-                    source_file=pfile,
-                ), msgs=msgs, program_name=program_name)
-            }
-            export_result.build_files.add(
-                new c_export_result.CExportFile(
-                    c_export_result.CEF_C_SOURCE,
-                    file_uri=output_file_uri,
-                    cwd_dir_uri=c_output_dir_uri,
-                    extra_compile_options=[
-                        "-I" + main_include_path
-                    ],
-                )
-            )
-
-            var disk_path = uri.to_file_or_vfs_path(
-                output_file_uri)
-            with io.open(disk_path, "w") later as f {
-                f.write(c_result)
-                later:
-
-                return later
-            }
-        }
-        write_main_file() later:
-
-        func write_header_file() {
-            if boptions.verbose_mode {
-                clog.log_or_print(new msg.FileMsg(
-                    "export_moose_project_to_c(): "
-                    "Writing to: " + output_header_file_uri,
-                    kind=msg.M_INFO,
-                    source_file=pfile,
-                ), msgs=msgs, program_name=program_name)
-            }
-            export_result.build_files.add(
-                new c_export_result.CExportFile(
-                    c_export_result.CEF_C_SOURCE_HEADER,
-                    file_uri=output_header_file_uri
-                )
-            )
-
-            var disk_path = uri.to_file_or_vfs_path(
-                output_header_file_uri)
-            with io.open(disk_path, "w") later as f {
-                f.write(header_result)
-                later:
-
-                return later
-            }
-        }
-        var write_success = write_header_file()
-        later:
-
-        await write_success
-        return later yes
-    }
-    var result = project.do_for_all_files(process_file)
-    later:
-
-    await result
-    assert(result == yes or result == no)
-
-    if output_as_string {
-        if result and output_string_result != none {
-            return later output_string_result
-        }
-        return later none
-    }
-    if not result {
-        return none
-    }
-
-    func process_header_types_for_file(pfile) {
-        if not pfile_to_header_uri_map.has(pfile) {
-            # Somehow, we're not generating headers for this file.
-            # Could be the case if output is limited to a single
-            # file in the project.
-            return later yes
-        }
-
-        var c_output_dir_uri_concrete = c_output_dir_uri
-        if c_output_dir_uri_concrete == none {
-            assert(c_output_file_uri != none)
-            c_output_dir_uri_concrete = path.dirname(
-                c_output_file_uri
-            )
-            output_file_uri = c_output_file_uri
-        }
-        var header_types_result = pfile.project.
-            c_export_tracker.generate_c_types_and_header_info(
-                pfile, c_output_dir_uri_concrete,
-                base_header_uri=
-                    pfile_to_header_uri_map[pfile],
-                build_options=build_options,
-                msgs=msgs,
+        func process_file(pfile) {
+            var c_result
+            var header_result
+            var combined_result = ast_to_c(
+                pfile, msgs=msgs,
+                build_options=boptions,
+                target_write_dir_uri=c_output_dir_uri,
+                target_write_uri=c_output_file_uri,
             ) later:
 
-        await header_types_result
-        var header_types_str = header_types_result.main_header_str
-        var ancillary_headers_map =
-            header_types_result.other_headers_map
+            await combined_result
+            if combined_result == none {
+                var goterror = no
+                if msgs != none {
+                    for m in msgs {
+                        if m.kind == msg.M_ERROR {
+                            goterror = yes
+                            break
+                        }
+                    }
+                }
+                if not goterror {
+                    if msgs == none {
+                        throw new RuntimeError(
+                            "Internal error, "
+                            "unexpectedly failed to "
+                            "generate C code "
+                            "but no error was returned.")
+                    }
+                    msgs.add(new msg.FileMsg(
+                        "Internal error, unexpectedly "
+                        "failed to generate C code "
+                        "with no error for this file: " +
+                        if pfile.source_uri != none
+                            (pfile.source_uri)
+                            else ("<unknown anonymous file>"),
+                        source_file=pfile,
+                        line=none,
+                        col=none,
+                    ))
+                }
+                return later no
+            }
+            c_result = combined_result[1]
+            header_result = combined_result[2]
 
-        var output_header_file_uri =
-            pfile_to_header_uri_map[pfile]
+            if limit_to_entrypoint_file and
+                    not pfile.is_entrypoint {
+                return later yes
+            } elseif limit_to_entrypoint_file and
+                    pfile.is_entrypoint and
+                    output_as_string {
+                output_string_result = c_result
+                return later yes
+            }
 
-        func output_ancillary_header(header_uri, content) {
-            if not {"file"}.has(uri.get_protocol(header_uri)) {
+            var output_file_uri
+            var output_header_file_uri
+            var output_file_dir_uri
+            var c_output_dir_uri_concrete = c_output_dir_uri
+            if c_output_dir_uri_concrete == none {
+                assert(c_output_file_uri != none)
+                c_output_dir_uri_concrete = path.dirname(
+                    c_output_file_uri
+                )
+                output_file_uri = c_output_file_uri
+            }
+            if output_file_uri == none {
+                output_file_uri =
+                    c_output_dir_uri_concrete
+                output_file_uri =
+                    get_c_output_uri_from_project_file(
+                        pfile, c_output_dir_uri_concrete,
+                    )
+            }
+            if output_file_dir_uri == none {
+                output_file_dir_uri = uri.traverse_up(
+                    output_file_uri
+                )
+            }
+            if output_header_file_uri == none {
+                var header_name = uri.basename(
+                    output_file_uri
+                )
+                if header_name.lower().ends(".c") {
+                    header_name = header_name.sub(
+                        1, header_name.len - 2
+                    )
+                }
+                header_name += ".h"
+                output_header_file_uri = uri.add_part(
+                    uri.traverse_up(output_file_uri),
+                    header_name
+                )
+                pfile_to_header_uri_map[pfile] =
+                    output_header_file_uri
+            }
+
+            if not {"file"}.has(uri.get_protocol(
+                    output_file_uri
+                    )) {
                 if msgs == none {
                     throw new RuntimeError("This type of URI "
-                    "is currently not handled by the "
-                    "compiler.moose64.codegen.c_gen."
-                    "export_moose_project_to_c function.")
+                        "is currently not handled by the "
+                        "compiler.moose64.codegen.c_gen."
+                        "export_moose_project_to_c function.")
                 }
                 msgs.add(new msg.FileMsg(
-                    "Unexpected " + uri.get_protocol(header_uri) +
+                    "Unexpected " + uri.get_protocol(
+                        output_file_uri) +
                     ":// URI, this protocol is currently not "
                     "supported by the C code generator.",
                     source_file=pfile,
@@ -3987,112 +3858,296 @@ func export_moose_project_to_c(
                 return later no
             }
 
-            export_result.build_files.add(
-                new c_export_result.CExportFile(
-                    c_export_result.CEF_C_SOURCE_HEADER,
-                    file_uri=header_uri
-                )
-            )
             if boptions.verbose_mode {
                 clog.log_or_print(new msg.FileMsg(
                     "export_moose_project_to_c(): "
-                    "Writing to: " + header_uri,
+                    "Ensuring folder exists: " +
+                        output_file_dir_uri,
+                    kind=msg.M_INFO,
+                    source_file=pfile,
+                ), msgs=msgs,
+                program_name=program_name)
+            }
+            io.make_dir(
+                uri.to_file_or_vfs_path(
+                    output_file_dir_uri
+                ), allow_vfs=no,
+                allow_nested=yes, ignore_exists=yes
+            ) later:
+
+            func write_main_file() {
+                if boptions.verbose_mode {
+                    clog.log_or_print(new msg.FileMsg(
+                        "export_moose_project_to_c(): "
+                        "Writing to: " + output_file_uri,
+                        kind=msg.M_INFO,
+                        source_file=pfile,
+                    ), msgs=msgs,
+                    program_name=program_name)
+                }
+                export_result.build_files.add(
+                    new c_export_result.CExportFile(
+                        c_export_result.CEF_C_SOURCE,
+                        file_uri=output_file_uri,
+                        cwd_dir_uri=c_output_dir_uri,
+                        extra_compile_options=[
+                            "-I" + main_include_path
+                        ],
+                    )
+                )
+
+                var disk_path = uri.to_file_or_vfs_path(
+                    output_file_uri)
+                with io.open(disk_path, "w") later as f {
+                    f.write(c_result)
+                    later:
+
+                    return later
+                }
+            }
+            write_main_file() later:
+
+            func write_header_file() {
+                if boptions.verbose_mode {
+                    clog.log_or_print(new msg.FileMsg(
+                        "export_moose_project_to_c(): "
+                        "Writing to: " +
+                        output_header_file_uri,
+                        kind=msg.M_INFO,
+                        source_file=pfile,
+                    ), msgs=msgs, program_name=program_name)
+                }
+                export_result.build_files.add(
+                    new c_export_result.CExportFile(
+                        c_export_result.CEF_C_SOURCE_HEADER,
+                        file_uri=output_header_file_uri
+                    )
+                )
+
+                var disk_path = uri.to_file_or_vfs_path(
+                    output_header_file_uri)
+                with io.open(disk_path, "w") later as f {
+                    f.write(header_result)
+                    later:
+
+                    return later
+                }
+            }
+            var write_success = write_header_file()
+            later:
+
+            await write_success
+            return later yes
+        }
+        var result = project.do_for_all_files(
+            process_file
+        ) later:
+
+        await result
+        assert(result == yes or result == no)
+
+        if output_as_string {
+            if result and output_string_result != none {
+                return later output_string_result
+            }
+            return later none
+        }
+        if not result {
+            return none
+        }
+
+        func process_header_types_for_file(pfile) {
+            if not pfile_to_header_uri_map.has(pfile) {
+                # Somehow, we're not generating headers for
+                # this file. Could be the case if output
+                # is limited to a single file in the project.
+                return later yes
+            }
+
+            var c_output_dir_uri_concrete = c_output_dir_uri
+            if c_output_dir_uri_concrete == none {
+                assert(c_output_file_uri != none)
+                c_output_dir_uri_concrete = path.dirname(
+                    c_output_file_uri
+                )
+                output_file_uri = c_output_file_uri
+            }
+            var header_types_result =
+                pfile.project.c_export_tracker.
+                    generate_c_types_and_header_info(
+                        pfile, c_output_dir_uri_concrete,
+                        base_header_uri=
+                            pfile_to_header_uri_map[pfile],
+                        build_options=build_options,
+                        msgs=msgs,
+                    ) later:
+
+            await header_types_result
+            var header_types_str =
+                header_types_result.main_header_str
+            var ancillary_headers_map =
+                header_types_result.other_headers_map
+
+            var output_header_file_uri =
+                pfile_to_header_uri_map[pfile]
+
+            func output_ancillary_header(
+                    header_uri, content
+                    ) {
+                if not {"file"}.has(uri.get_protocol(
+                        header_uri
+                        )) {
+                    if msgs == none {
+                        throw new RuntimeError("This type of URI "
+                            "is currently not handled by the "
+                            "compiler.moose64.codegen.c_gen."
+                            "export_moose_project_to_c function.")
+                    }
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected " + uri.get_protocol(
+                            header_uri) +
+                        ":// URI, this protocol is currently not "
+                        "supported by the C code generator.",
+                        source_file=pfile,
+                    ))
+                    return later no
+                }
+
+                export_result.build_files.add(
+                    new c_export_result.CExportFile(
+                        c_export_result.CEF_C_SOURCE_HEADER,
+                        file_uri=header_uri
+                    )
+                )
+                if boptions.verbose_mode {
+                    clog.log_or_print(new msg.FileMsg(
+                        "export_moose_project_to_c(): "
+                        "Writing to: " + header_uri,
+                        kind=msg.M_INFO,
+                        source_file=pfile,
+                    ), msgs=msgs, program_name=program_name)
+                }
+                var disk_path = uri.to_file_or_vfs_path(
+                    header_uri)
+                with io.open(disk_path, "w") later as f {
+                    f.write(content)
+                    later:
+
+                    return later yes
+                }
+                return later yes
+            }
+            func output_ancillary_headers() {
+                var queue = []
+                for key in ancillary_headers_map {
+                    queue.add([key,
+                        ancillary_headers_map[key]])
+                }
+                if queue.len == 0 {
+                    return later
+                }
+                var item = queue.pop()
+                var result = output_ancillary_header(
+                    item[1], item[2]
+                ) later:
+
+                await result
+                if not result {
+                    return later
+                }
+                if queue.len == 0 {
+                    return later
+                }
+                item = queue.pop()
+                result = output_ancillary_header(
+                    item[1], item[2]
+                ) later repeat
+            }
+            output_ancillary_headers() later:
+
+            if boptions.verbose_mode {
+                clog.log_or_print(new msg.FileMsg(
+                    "export_moose_project_to_c(): "
+                    "Inserting full type info for: " +
+                    output_header_file_uri,
                     kind=msg.M_INFO,
                     source_file=pfile,
                 ), msgs=msgs, program_name=program_name)
             }
-            var disk_path = uri.to_file_or_vfs_path(header_uri)
-            with io.open(disk_path, "w") later as f {
-                f.write(content)
-                later:
+            var header_str = none
+            func read_header_file() {
+                var disk_path = uri.to_file_or_vfs_path(
+                    output_header_file_uri)
+                with io.open(disk_path, "r") later as f {
+                    header_str = f.read()
+                    later:
 
+                    await header_str
+                    return later yes
+                }
+            }
+            var read_success = read_header_file()
+            later:
+
+            await read_success
+            var placeholder =
+                "// FIXME: moosec will insert type info "
+                "here later."
+            var pos = header_str.find(placeholder)
+            if pos == none {
                 return later yes
             }
+            header_str = header_str.sub(1, pos - 1) +
+                header_types_str + header_str.sub(
+                    pos + placeholder.len)
+
+            func write_header_file() {
+                var disk_path = uri.to_file_or_vfs_path(
+                    output_header_file_uri)
+                with io.open(disk_path, "w") later as f {
+                    f.write(header_str)
+                    later:
+
+                    return later yes
+                }
+            }
+            var write_success = write_header_file()
+            later:
+
+            await write_success
             return later yes
         }
-        func output_ancillary_headers() {
-            var queue = []
-            for key in ancillary_headers_map {
-                queue.add([key, ancillary_headers_map[key]])
-            }
-            if queue.len == 0 {
-                return later
-            }
-            var item = queue.pop()
-            var result = output_ancillary_header(
-                item[1], item[2]
-            ) later:
-
-            await result
-            if not result {
-                return later
-            }
-            if queue.len == 0 {
-                return later
-            }
-            item = queue.pop()
-            result = output_ancillary_header(
-                item[1], item[2]
-            ) later repeat
-        }
-        output_ancillary_headers() later:
-
-        if boptions.verbose_mode {
-            clog.log_or_print(new msg.FileMsg(
-                "export_moose_project_to_c(): "
-                "Inserting full type info for: " +
-                output_header_file_uri,
-                kind=msg.M_INFO,
-                source_file=pfile,
-            ), msgs=msgs, program_name=program_name)
-        }
-        var header_str = none
-        func read_header_file() {
-            var disk_path = uri.to_file_or_vfs_path(
-                output_header_file_uri)
-            with io.open(disk_path, "r") later as f {
-                header_str = f.read()
-                later:
-
-                await header_str
-                return later yes
-            }
-        }
-        var read_success = read_header_file()
+        result = project.do_for_all_files(
+            process_header_types_for_file)
         later:
 
-        await read_success
-        var placeholder =
-            "// FIXME: moosec will insert type info here later."
-        var pos = header_str.find(placeholder)
-        if pos == none {
-            return later yes
-        }
-        header_str = header_str.sub(1, pos - 1) +
-            header_types_str + header_str.sub(pos + placeholder.len)
-
-        func write_header_file() {
-            var disk_path = uri.to_file_or_vfs_path(
-                output_header_file_uri)
-            with io.open(disk_path, "w") later as f {
-                f.write(header_str)
-                later:
-
-                return later yes
-            }
-        }
-        var write_success = write_header_file()
-        later:
-
-        await write_success
-        return later yes
+        await result
+        assert(result == yes or result == no)
+        return later export_result
     }
-    result = project.do_for_all_files(
-        process_header_types_for_file)
+    func do_with_caught_errors {
+        var result_inner
+        do {
+            result_inner = do_unprotected()
+            later:
+
+            await result_inner
+            return later result_inner
+        } rescue any as e {
+            print("moosec: error: FATAL INTERNAL ERROR: " +
+                e.as_str())
+            return later none
+        }
+    }
+    var result_final = do_with_caught_errors()
     later:
 
-    await result
-    assert(result == yes or result == no)
-    return later export_result
-}
+    await result_final
+    if result_final != none {
+        return later result_final
+    }
+    export_result.delete_temp_dirs()
+    later:
 
+    return later result_final
+}
