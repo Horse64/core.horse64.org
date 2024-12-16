@@ -1,0 +1,173 @@
+## @module compiler.ast.do_c_stmt
+# Copyright (c) 2023-2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+type DoCStmt base ast.StmtNode {
+    var c_content
+}
+
+func DoCStmt.init {
+    base.init()
+    self.kind = ast.N_STMT_DO_C
+}
+
+func DoCStmt.as_json_obj {
+    var output = base.as_json_obj()
+    output["c_content"] = self.c_content
+    return output
+}
+
+func DoCStmt.as_code(indent=0) {
+    if self.damaged {
+        return " ".rep(indent) + "(damaged do C statement)"
+    }
+    var t = " ".rep(indent) + "do \"C\" {\n"
+    t += self.c_content
+    if not self.c_content.ends("\n") {
+        t += "\n"
+    }
+    t += "}\n"
+    return t
+}
+
+func parse(tokens, pos, msgs, project_file=none,
+           is_moose64=no, debug=no) {
+    var tokens_len = tokens.len
+    var startpos = pos
+
+    if pos > tokens_len or not is_moose64 or
+            tokens[pos].kind != token.T_KEYWORD or
+            tokens[pos].str != "do" or
+            pos + 1 > tokens_len or
+            tokens[pos + 1].kind != token.T_STR or
+            tokens[pos + 1].str.lower() != "c" {
+        return later none
+    }
+    var stmt = new DoCStmt()
+    stmt.line = tokens[pos].line
+    stmt.col = tokens[pos].col
+
+    if debug {
+        print("compiler.ast.do_c_stmt: parse() on " +
+            tokens.sub(pos, math.min(pos + 10, tokens_len)).as_str() +
+            "... with pos=" + pos.as_str() + ", "
+            "tokens.len=" + tokens.len.as_str())
+    }
+    pos += 1  # Past 'do' keyword
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_STR or
+            tokens[pos].str != "C" {
+        msgs.add(new msg.FileMsg(
+            "Unexpected " + token.describe_token_at(tokens,
+                pos) +
+            ", expected \"C\" language block declaration "
+            "or '{' to open regular code block.",
+            source_file=project_file,
+            line=token.get_line(tokens, pos),
+            col=token.get_col(tokens, pos),
+        ))
+        stmt.damaged = yes
+    }
+    pos += 1  # Past "C" declaration
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_ENCLOSE or
+            tokens[pos].str != "{" {
+        if not stmt.damaged {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(tokens,
+                    pos) +
+                ", expected a string literal \"C\" to "
+                "declare a language block "
+                "or '{' to open regular code block.",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+        }
+        stmt.damaged = yes
+        var advance = token.skip_in_broken_stmt_to_code_block(
+            tokens, startpos, bracket_depth=0,
+            max_len=none,
+            is_moose64=is_moose64
+        )
+        pos += advance
+        if pos > tokens_len {
+            stmt.token_len = pos - startpos
+            return later stmt
+        }
+    }
+    pos += 1  # Past '{' code block opener
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_INLINECODE {
+        if not stmt.damaged {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(tokens,
+                    pos) +
+                ", expected inline code block.",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+        }
+        stmt.damaged = yes
+        var advance = token.skip_code_block_if_any(
+            tokens, startpos, max_len=none,
+            is_moose64=is_moose64
+        )
+        pos += advance
+        if pos > tokens_len {
+            stmt.token_len = pos - startpos
+            return later stmt
+        }
+    }
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_ENCLOSE or
+            tokens[pos].str != "}" {
+        if not stmt.damaged {
+            msgs.add(new msg.FileMsg(
+                "Unexpected " + token.describe_token_at(tokens,
+                    pos) +
+                ", expected inline code block.",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+        }
+        stmt.damaged = yes
+        var advance = token.skip_code_block_if_any(
+            tokens, startpos, max_len=none,
+            is_moose64=is_moose64
+        )
+        pos += advance
+        if pos > tokens_len {
+            stmt.token_len = pos - startpos
+            return later stmt
+        }
+    }
+    stmt.token_len = pos - startpos
+    return later stmt
+}
+

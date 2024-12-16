@@ -394,9 +394,12 @@ func parse(tokens, pos, msgs, project_file=none,
     var tokens_len = tokens.len
     var startpos = pos
 
-    if pos > tokens_len or
+    if is_moose64 or pos > tokens_len or
             tokens[pos].kind != token.T_KEYWORD or
-            tokens[pos].str != "do" {
+            tokens[pos].str != "do" or
+            (pos + 1 <= tokens_len and
+             tokens[pos + 1].kind == token.T_STR and
+             tokens[pos + 1].str.lower() == "c") {
         return later none
     }
 

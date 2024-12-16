@@ -269,7 +269,7 @@ func parse_token_value(tok) {
             text.code(c) <= text.code("f"))
     }
     if tok.kind == T_NUM {
-        if tok.str.startswith("0x") {
+        if tok.str.starts("0x") {
             return math.parse_hex(tok.str)
         }
         return tok.str.to_num()
@@ -1168,6 +1168,7 @@ enum TokenKind {
     T_WSPACE,
     T_ENCLOSE,
     T_STR,
+    T_INLINECODE,
     T_BYTES,
     T_NUM,
     T_BIGNUM,
@@ -1923,6 +1924,73 @@ func tokenize_str(
             result.tokens.add(new Token(
                 c, T_ENCLOSE, line, col
             ))
+            if result.tokens.len >= 3 and
+                    result.tokens[result.tokens.len - 1].kind ==
+                        T_STR and
+                    result.tokens[result.tokens.len - 1].str.
+                        lower() == "c" and
+                    result.tokens[result.tokens.len - 2].kind ==
+                        T_KEYWORD and
+                    result.tokens[result.tokens.len - 2].str == "do" {
+                # This means that an inline C block follows.
+                # We need to find out where it ends.
+                var bracket_depth = 0
+                var inside_quotes = none
+                var startcol = col + 1
+                var startline = line
+                var starti = i + 1
+                while i + 1 <= strlen {
+                    i += 1
+                    col += 1
+                    if str[i] == "\r" {
+                        col = 0
+                        line += 1
+                        if i + 1 <= strlen and
+                                str[i + 1] == "\n" {
+                            i += 1
+                            continue
+                        }
+                        continue
+                    } elseif str[i] == "\n" {
+                        col = 0
+                        line += 1
+                        continue
+                    }
+                    if inside_quotes == none and
+                            (str[i] == "'" or
+                            str[i] == '"') {
+                        inside_quotes = str[i]
+                        continue
+                    } elseif inside_quotes == str[i] {
+                        inside_quotes = none
+                        continue
+                    } elseif inside_quotes == none and
+                            {"{", "[", "("}.has(str[i]) {
+                        bracket_depth += 1
+                        continue
+                    } elseif inside_quotes == none and
+                            {"}", "]", ")"}.has(str[i]) {
+                        bracket_depth -= 1
+                        if bracket_depth < 0 {
+                            break
+                        }
+                        continue
+                    } elseif inside_quotes == none and
+                            str[i] == "\\" {
+                        i += 1
+                        col += 1
+                        continue
+                    }
+                }
+                if line > startline or col > startcol {
+                    result.tokens.add(new Token(
+                        str.sub(
+                            starti, i
+                        ), T_INLINECODE, startline, startcol
+                    ))
+                }
+                continue
+            }
             continue
         } elseif c == ")" or c == "]" or c == "}" {
             # Closing brackets:
