@@ -79,28 +79,29 @@ def run_horp(args):
             args = args[1:]
             continue
         break
-    if not check_if_pkg_local_linked("horp.horse64.org") or \
-            not check_if_pkg_local_linked("hvm.horse64.org") or \
-            not check_if_pkg_local_linked("m64.horse64.org"):
-        if not symlink_existing:
-            print("horp.py: warning: Found neighboring horp install "
-                "at ../horp.horse64.org/ and/or neighboring hvm install "
-                "at ../hvm.horse64.org, and/or neighboring moose64 stdlib "
-                "at ../m64.horse64.org but they're not linked into "
-                "the horse_modules folder. Use --force-link "
-                "to change ./horse_modules/ to "
-                "link to these local installs.", file=sys.stderr,
-                flush=True)
-        else:
-            if os.path.exists(os.path.join(my_dir, "..", "..",
-                    "horp.horse64.org")):
-                link_local_pkg("horp.horse64.org")
-            if os.path.exists(os.path.join(my_dir, "..", "..",
-                    "hvm.horse64.org")):
-                link_local_pkg("hvm.horse64.org")
-            if os.path.exists(os.path.join(my_dir, "..", "..",
-                    "m64.horse64.org")):
-                link_local_pkg("m64.horse64.org")
+    offer_link_pkgs = [
+        "horp.horse64.org",
+        "hvm.horse64.org",
+        "m64.horse64.org",
+        "spew3d.horse64.org",
+    ]
+    for link_pkg in offer_link_pkgs:
+        if not check_if_pkg_local_linked(link_pkg):
+            if not symlink_existing:
+                print("horp.py: warning: Found neighboring install "
+                    "of '" + link_pkg + "' at " +
+                    os.path.abspath(os.path.join(my_dir, "..",
+                        "..", "..", link_pkg)) + " but it's "
+                    "not linked into "
+                    "the horse_modules folder. Use --force-link "
+                    "to change " + os.path.abspath(os.path.join(
+                        my_dir, "horse_modules", link_pkg)) + " to "
+                    "link to this local install.",
+                    file=sys.stderr, flush=True)
+            else:
+                if os.path.exists(os.path.join(my_dir, "..", "..",
+                        link_pkg)):
+                    link_local_pkg(link_pkg)
     translator_opt_str = ""
     if keep_files:
         translator_opt_str += " --keep-files"
