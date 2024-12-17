@@ -1004,7 +1004,15 @@ func guess_horse_modules_for_single_file(file_uri) {
         return modules_dir
     }
 
-    # Otherwise, try working directory:
+    # Otherwise, try fallback directory:
+    var fallback = find_fallback_horse_modules_dir_if_any()
+    later:
+
+    await fallback
+    return fallback
+}
+
+func find_fallback_horse_modules_dir_if_any() {
     var cwd = io.working_dir() later:
 
     await cwd

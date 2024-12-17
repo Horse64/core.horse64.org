@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import uri from core.horse64.org
+import textfmt from core.horse64.org
 
 import compiler.ast as ast
 import compiler.comment.scan as comment_scan
@@ -547,6 +548,7 @@ func scan_package_for_cexts(
         allow_project_independent_packages_fallback=no,
         allow_disk=yes, allow_vfs=yes,
         debug_storage=no, debug=no) {
+    var is_moose64 = no
     var cext_info = new CExtInfo(
         debug_storage=debug_storage
     )
@@ -560,8 +562,19 @@ func scan_package_for_cexts(
 
     await dir_uri
     if dir_uri == none {
+        var t = if is_moose64 ("moosec") else ("horsec") +
+            ": error: Unknown missing module, failed to find "
+            "required package " + textfmt.as_escaped_code_string(
+                package_name)
+        if base_project.packages_dir_uri != none {
+            t += " in this horse_modules dir: "+
+                base_project.packages_dir_uri.as_str()
+        } else {
+            t += " in available horse_modules dir."
+        }
+        print(t)
         throw new ValueError("Package directory not "
-            "found for: " + package_name)
+            "found for required package.")
     }
     if not {"file", "vfs"}.has(uri.get_protocol(dir_uri)) {
         throw new NotImplementedError("Scanning for cexts "
