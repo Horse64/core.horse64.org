@@ -25,6 +25,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import compiler.ast as ast
+
 type DoCStmt base ast.StmtNode {
     var c_content
 }

@@ -36,6 +36,7 @@ import compiler.ast.c_import_stmt as c_import_stmt
 import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
 import compiler.ast.continue_stmt as continue_stmt
 import compiler.ast.defer_stmt as defer_stmt
+import compiler.ast.do_c_stmt as do_c_stmt
 import compiler.ast.do_stmt as do_stmt
 import compiler.ast.enum_stmt as enum_stmt
 import compiler.ast.for_stmt as for_stmt
