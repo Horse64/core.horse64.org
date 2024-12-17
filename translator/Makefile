@@ -40,7 +40,7 @@ intro-message:
 bootstrap: ensure-hvm ensure-horp
 	$(MAKE) ensure-cython-built ensure-hvm-built
 	cd .. && translator/horsec.py compile src/compiler/main.h64
-get-deps: ensure-moose64 ensure-hvm ensure-horp ensure-cython-built
+get-deps: ensure-moose64 ensure-hvm ensure-horp ensure-spew3d ensure-cython-built
 ensure-cython-built:
 	@cd .. && python3 ./translator/make_cython.py
 rebuild-hvm:
@@ -51,6 +51,9 @@ reset-deps:
 	cd .. && rm -rf ./horse_modules/
 	cd .. && git submodule foreach --recursive git reset --hard && git submodule foreach --recursive git clean -xfd && git submodule update --init
 	$(MAKE) ensure-hvm ensure-horp
+ensure-spew3d:
+	@if [ ! -e ../horse_modules ]; then mkdir ../horse_modules; fi
+	@if [ ! -e ../horse_modules/spew3d.horse64.org ]; then git clone https://codeberg.org/Spew3D/Spew3D ../horse_modules/spew3d.horse64.org; bash -c 'cd ../horse_modules/spew3d.horse64.org; make amalgamate'; fi
 ensure-moose64:
 	@if [ ! -e ../horse_modules ]; then mkdir ../horse_modules; fi
 	@if [ ! -e ../horse_modules/m64.horse64.org ]; then git clone https://codeberg.org/Horse64/m64.horse64.org ../horse_modules/m64.horse64.org; fi
