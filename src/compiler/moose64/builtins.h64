@@ -68,7 +68,7 @@ func is_ast_node_referring_to_m64_std_size_of(
         project_file, node, is_moose64=no) {
     return is_ast_node_referring_to_m64_builtin_by_name(
         project_file, node,
-        "size_of", in_module_name="std",
+        "size_of", in_module_name="mem",
         in_package_name="m64.horse64.org",
         is_moose64=is_moose64)
 }
@@ -86,8 +86,8 @@ func is_ast_node_referring_to_m64_std_assert(
         project_file, node, is_moose64=no) {
     return is_ast_node_referring_to_m64_builtin_by_name(
         project_file, node,
-        "assert", in_module_name="std",
-        in_package_name="m64.horse64.org",
+        "assert", in_module_name=none,
+        in_package_name=none,
         is_moose64=is_moose64)
 }
 
@@ -145,7 +145,7 @@ func register_builtins_with_project(project) {
     id = m64_c_importer.get_mcref_id(project)
     builtin_syms.register_symbol(project, "size_of",
         new st_ref.StorageRef(st_ref.ST_MCREF, id),
-        builtin_syms.BI_FUNC, ["std"],
+        builtin_syms.BI_FUNC, ["mem"],
         func_signature="(<-any)->size",
         package_name="m64.horse64.org",
         is_moose64=yes) later:
@@ -153,7 +153,7 @@ func register_builtins_with_project(project) {
     id = m64_c_importer.get_mcref_id(project)
     builtin_syms.register_symbol(project, "assert",
         new st_ref.StorageRef(st_ref.ST_MCREF, id),
-        builtin_syms.BI_FUNC, ["std"],
+        builtin_syms.BI_FUNC, "$any",
         func_signature="(<-any ref)->empty",
         package_name="m64.horse64.org",
         is_moose64=yes) later:
