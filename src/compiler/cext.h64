@@ -416,7 +416,8 @@ func CExtInfo.init(debug_storage=no) {
 }
 
 func CExtInfo.import_to_modname(importst, project=none) {
-    assert(self.package_name != none)
+    assert(self.package_name != none or
+        self.name_to_cmodule_map.len == 0)
     if importst.package_name != self.package_name and
             (importst.package_name != none or
              project == none or

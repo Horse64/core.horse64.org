@@ -155,7 +155,6 @@ func register_builtins_with_project(project) {
         new st_ref.StorageRef(st_ref.ST_MCREF, id),
         builtin_syms.BI_FUNC, "$any",
         func_signature="(<-any ref)->empty",
-        package_name="m64.horse64.org",
         is_moose64=yes) later:
 
     id = m64_c_importer.get_mcref_id(project)

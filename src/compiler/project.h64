@@ -1345,6 +1345,7 @@ func Project.ensure_builtin_cexts(
     await cext_info
     cext_info.package_name = "core.horse64.org"
     self.builtin_cexts = cext_info
+    assert(self.builtin_cexts.package_name != none)
     self.package_name_to_cext[cext_info.package_name] = cext_info
 }
 
@@ -1840,6 +1841,9 @@ func ProjectFile.process_first_working_module_file(
 
 func ProjectFile.resolve_all_imports(msgs=none,
         ignore_missing=no, debug=no) {
+    const is_moose64 = self.is_moose64 or
+        (self.build_options != none and
+         self.build_options.is_moose64)
     if self.project == none {
         throw new RuntimeError("Must call "
             "ensure_project() first.")
@@ -1955,7 +1959,9 @@ func ProjectFile.resolve_all_imports(msgs=none,
         # FIXME: Add support for C extensions outside of built-ins.
         var is_builtin = no
         var cext_modname = none
-        if project_file == none {
+        if project_file == none and not is_moose64 {
+            assert(self.project.
+                builtin_cexts.package_name != none)
             cext_modname =
                 self.project.builtin_cexts.import_to_modname(
                 importst, project=self.project)
