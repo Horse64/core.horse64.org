@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import compiler.ast as ast
+import compiler.token as token
 
 type DoCStmt base ast.StmtNode {
     var c_content
