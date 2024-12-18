@@ -732,9 +732,9 @@ func CExportTracker.generate_c_types_and_header_info(
                 for existing_entry in include_project_files_set {
                     if existing_entry == entry or
                             (existing_entry.source_uri != none and
-                             entry.source_uri != none and
+                             entry.project_file.source_uri != none and
                              existing_entry.source_uri ==
-                                entry.source_uri) {
+                                entry.project_file.source_uri) {
                          found = yes
                      }
                 }
