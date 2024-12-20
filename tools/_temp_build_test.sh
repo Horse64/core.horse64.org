@@ -45,13 +45,23 @@ function RUN_BUILD_CMD {
     echo "RUNNING: $BUILD_CMD"
     $BUILD_CMD || { echo "Build command failed: $BUILD_CMD"; exit 1; }
 }
+BUILD_CMD="gcc $CFLAGS -o ./gen-c/src/debug.o -c ./gen-c/src/debug.m64.c"
+RUN_BUILD_CMD
+BUILD_CMD="gcc $CFLAGS -o ./gen-c/src/io.o -c ./gen-c/src/io.m64.c"
+RUN_BUILD_CMD
+BUILD_CMD="gcc $CFLAGS -o ./gen-c/src/limit.o -c ./gen-c/src/limit.m64.c"
+RUN_BUILD_CMD
 BUILD_CMD="gcc $CFLAGS -o ./gen-c/src/main.o -c ./gen-c/src/main.m64.c"
 RUN_BUILD_CMD
-BUILD_CMD="gcc $CFLAGS -o ./gen-c/src/std/std.o -c ./gen-c/src/std/std.m64.c"
+BUILD_CMD="gcc $CFLAGS -o ./gen-c/src/memory.o -c ./gen-c/src/memory.m64.c"
 RUN_BUILD_CMD
-BUILD_CMD="gcc $CFLAGS -o ./gen-c/src/std/limit.o -c ./gen-c/src/std/limit.m64.c"
+BUILD_CMD="gcc $CFLAGS -o ./gen-c/src/path.o -c ./gen-c/src/path.m64.c"
 RUN_BUILD_CMD
-BUILD_CMD="gcc $CFLAGS -o ./prog ./gen-c/src/main.o ./gen-c/src/std/limit.o ./gen-c/src/std/std.o"
+BUILD_CMD="gcc $CFLAGS -o ./gen-c/src/str.o -c ./gen-c/src/str.m64.c"
+RUN_BUILD_CMD
+BUILD_CMD="gcc $CFLAGS -o ./gen-c/src/system.o -c ./gen-c/src/system.m64.c"
+RUN_BUILD_CMD
+BUILD_CMD="gcc $CFLAGS -o ./prog ./gen-c/src/debug.o ./gen-c/src/io.o ./gen-c/src/limit.o ./gen-c/src/main.o ./gen-c/src/memory.o ./gen-c/src/path.o ./gen-c/src/str.o ./gen-c/src/system.o"
 RUN_BUILD_CMD
 echo "Output written to: `pwd`/prog"
 
