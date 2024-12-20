@@ -82,10 +82,39 @@ func is_ast_node_referring_to_m64_memory_as_ref(
         is_moose64=is_moose64)
 }
 
-func is_ast_node_referring_to_m64_debug_assert(
+func get_m64_debug_assert_func_storage_ref(
+        func_name, project=none, is_moose64=no) {
+    if project == none or not is_moose64 {
+        return none
+    }
+    for pfile_uri in project.module_uri_to_file_map {
+        var pfile = project.module_uri_to_file_map[
+            pfile_uri
+        ]
+        if pfile.modinfo == none or
+                pfile.modinfo.module_name != "debug" or
+                pfile.modinfo.package_name != "m64.horse64.org" {
+            continue
+        }
+        for st_id in pfile.global_scope.storage_id_to_entry {
+            var entry =
+                pfile.global_scope.storage_id_to_entry[st_id]
+            if entry.kind != ast.N_STMT_FUNC or
+                    entry.label != func_name {
+                continue
+            }
+            return new st_ref.StorageRef(
+                st_ref.ST_GLOBAL, st_id
+            )
+        }
+    }
+    return none
+}
+
+func get_m64_debug_assert_func_name_of_ast_node(
         project_file, node, is_moose64=no) {
     if not is_moose64 {
-        return no
+        return none
     }
     if (node.kind != ast.N_EXPR_IDREF or
             not node.label.starts("assert")) and
@@ -94,14 +123,14 @@ func is_ast_node_referring_to_m64_debug_assert(
             node.subexprs.len < 2 or
             node.subexprs[2].kind != ast.N_EXPR_IDREF or
             not node.subexprs[2].label.starts("assert")) {
-        return no
+        return none
     }
     if node == ast.N_EXPR_BINOP {
         node = node.subexprs[2]
     }
     if node.ref == none or
             node.ref.kind != st_ref.ST_GLOBAL {
-        return no
+        return none
     }
     
     for pfile_uri in project_file.project.module_uri_to_file_map {
@@ -122,11 +151,11 @@ func is_ast_node_referring_to_m64_debug_assert(
                 continue
             }
             if node.ref.id == st_id {
-                return yes
+                return entry.label
             }
         }
     }
-    return no
+    return none
 }
 
 func is_ast_node_referring_to_m64_memory_deref(

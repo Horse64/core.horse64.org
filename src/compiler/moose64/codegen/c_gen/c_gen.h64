@@ -34,6 +34,7 @@ import textfmt from core.horse64.org
 
 import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
+import compiler.ast.expr as ast_expr
 import compiler.compiler_log as clog
 import compiler.globals_order as globals_order
 import compiler.limit as climit
@@ -2109,6 +2110,25 @@ func node_to_c_string(project_file, node, parents,
                 "call expression branch...")
         }
 
+        func get_nth_arg_type(num) {
+            assert(node.subexprs[2].kind ==
+                ast.N_EXPR_CALLARGS)
+            if node.subexprs[2].subexprs.len < num {
+                return later none
+            }
+            var arg_typeinfo =
+                m64_ast_analyze.get_c_or_m64_type_of_node(
+                    project_file,
+                    node.subexprs[2].subexprs[num],
+                    parents + [node],
+                    store_self_value_ref_for_funcs=yes,
+                    msgs=msgs,
+                ) later:  # Get type info from our call node.
+
+            await arg_typeinfo
+            return later arg_typeinfo
+        }
+
         func try_get_left_hand_self_call {
             if left_hand_str != none {
                 return later
@@ -2234,6 +2254,93 @@ func node_to_c_string(project_file, node, parents,
         var is_deref = no
         var is_size_of = no
         var is_assert = no
+        var assert_func_name = none
+        func try_add_assert_extra_info_if_needed {
+            if not is_assert or
+                    assert_func_name.starts("assert_ex") {
+                return later no
+            }
+            var args_look_like_assert_ex = no
+            func check_2nd_arg_type {
+                var the_2nd_arg_type =
+                    get_nth_arg_type(2)
+                later:
+
+                await the_2nd_arg
+                if the_2nd_arg_type != none and
+                        the_2nd_arg_type.is_plain_num_type() {
+                    args_look_like_assert_ex = yes
+                }
+            }
+            if args_look_like_assert_ex {
+                return later
+            }
+            var line_param_node = new ast_expr.LiteralExpr()
+            line_param_node.scope = node.scope
+            line_param_node.line = node.line
+            line_param_node.col = node.col
+            line_param_node.value = node.line
+            var col_param_node = new ast_expr.LiteralExpr()
+            col_param_node.scope = node.scope
+            col_param_node.line = node.line
+            col_param_node.col = node.col
+            col_param_node.value = node.col
+            var uri_param_node = new ast_expr.LiteralExpr()
+            uri_param_node.scope = node.scope
+            uri_param_node.line = node.line
+            uri_param_node.col = node.col
+            uri_param_node.value = "<unknown file>"
+            if project_file.source_uri != none {
+                uri_param_node.value = project_file.source_uri
+            }
+            var uri_param_len_node = new ast_expr.LiteralExpr()
+            uri_param_len_node.scope = node.scope
+            uri_param_len_node.line = node.line
+            uri_param_len_node.col = node.col
+            uri_param_len_node.value =
+                uri_param_node.value.len
+            var expr_str_node = new ast_expr.LiteralExpr()
+            expr_str_node.scope = node.scope
+            expr_str_node.line = node.line
+            expr_str_node.col = node.col
+            expr_str_node.value =
+                node.subexprs[2].subexprs[1].as_code()
+            var expr_str_len_node = new ast_expr.LiteralExpr()
+            expr_str_len_node.scope = node.scope
+            expr_str_len_node.line = node.line
+            expr_str_len_node.col = node.col
+            expr_str_len_node.value =
+                expr_str_node.value.len
+            node.subexprs[2].subexprs = [
+                node.subexprs[2].subexprs[1],
+                line_param_node,
+                col_param_node,
+                uri_param_node,
+                uri_param_len_node,
+                expr_str_node,
+                expr_str_len_node,
+            ] + node.subexprs[2].subexprs.sub(2)
+            assert(assert_func_name.starts("assert"))
+            var new_name = assert_func_name.sub(
+                1 + "assert".len)
+            new_name = "assert_ex" + new_name
+            var idnode = node.subexprs[1]
+            if node.subexprs[1].kind == ast.N_EXPR_IDREF {
+                node.subexprs[1].label = new_name
+            } else {
+                assert(node.subexprs[1].kind == ast.N_EXPR_BINOP and
+                    node.subexprs[1].subexprs.len >= 2 and
+                    node.subexprs[1].subexprs[2].kind ==
+                        ast.N_EXPR_IDREF)
+                idnode = node.subexprs[2].subexprs[2]
+                node.subexprs[2].subexprs[2].label = new_name
+            }
+            idnode.ref = m64_builtins.
+                get_m64_debug_assert_func_storage_ref(
+                    new_name, project=project_file.project,
+                    is_moose64=is_moose64
+                )
+        }
         func try_get_left_hand_builtins {
             if left_hand_str != none {
                 return later
@@ -2253,11 +2360,12 @@ func node_to_c_string(project_file, node, parents,
                     project_file, node.subexprs[1],
                     is_moose64=is_moose64
                 )
-            is_assert = m64_builtins.
-                is_ast_node_referring_to_m64_debug_assert(
+            assert_func_name = m64_builtins.
+                get_m64_debug_assert_func_name_of_ast_node(
                     project_file, node.subexprs[1],
                     is_moose64=is_moose64
                 )
+            is_assert = (assert_func_name != none)
             if not is_as_ref and not is_deref and
                     not is_size_of and not is_assert {
                 return later
@@ -2282,6 +2390,8 @@ func node_to_c_string(project_file, node, parents,
                     "Unexpected type of builtin."
                 )
             }
+            try_add_assert_extra_info_if_needed()
+            later:
         }
         try_get_left_hand_builtins() later:
 
@@ -2384,6 +2494,7 @@ func node_to_c_string(project_file, node, parents,
                 later:
 
                 await arg_expr_str
+                assert(arg_expr_str != none)
                 if debug {
                     print(program_name + ": debug: " +
                         "node_to_c_string(): "
@@ -2432,9 +2543,10 @@ func node_to_c_string(project_file, node, parents,
                     "func_typeinfo.func_typeexpr=" +
                         func_typeinfo.func_typeexpr.as_str() + " "
                     "self_call_arg_str=" +
-                        textfmt.as_escaped_code_string(
-                            self_call_arg_str
-                        ) + " "
+                        if self_call_arg_str != none
+                            (textfmt.as_escaped_code_string(
+                                self_call_arg_str
+                            )) else ("none") + " "
                     "all_typeexprs=" +
                         all_typeexprs.as_str() + " "
                     "all_typeexprs.len=" +
