@@ -66,6 +66,11 @@ func CImportInfo._process_c_include(project, ipath) {
             "void free(void *ptr);",
             _override_func_signature="(<-size)->empty"
         )
+        new_items["exit"] = new c_symbol.CFuncSymbol(
+            "void exit(int value);",
+            _override_func_signature=
+                "(<-i32)->empty"
+        )
     } elseif ipath == "string.h" {
         new_items["memcpy"] = new c_symbol.CFuncSymbol(
             "void *memcpy(void *dest, const void *src, size_t n);",

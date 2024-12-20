@@ -784,7 +784,8 @@ func _get_c_or_m64_type_of_node_do(
                     (node.ref.id == builtin_syms.get_item_by_name(
                         project_file.project, "size_of",
                         in_package_name="m64.horse64.org",
-                        in_module_name="mem").symbol_storage_ref.id or
+                        in_module_name="memory").
+                        symbol_storage_ref.id or
                     node.ref.id == builtin_syms.get_item_by_name(
                         project_file.project, "deref",
                         ).symbol_storage_ref.id or
@@ -881,7 +882,7 @@ func _get_c_or_m64_type_of_node_do(
         return later result
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "(" {
-        if m64_builtins.is_ast_node_referring_to_m64_std_as_ref(
+        if m64_builtins.is_ast_node_referring_to_m64_memory_as_ref(
                 project_file, node.subexprs[1], is_moose64=yes) {
             if debug {
                 print(dbg_prefix + " Got call binop on " +
@@ -985,8 +986,10 @@ func _get_c_or_m64_type_of_node_do(
                     "typeinfo=" + inner_result.as_str())
             }
             return later inner_result
-        } elseif m64_builtins.is_ast_node_referring_to_m64_std_deref(
-                project_file, node.subexprs[1], is_moose64=yes) {
+        } elseif m64_builtins.
+                is_ast_node_referring_to_m64_memory_deref(
+                    project_file, node.subexprs[1],
+                    is_moose64=yes) {
             if debug {
                 print(dbg_prefix + " Got call binop on " +
                 "built-in 'deref'.")
@@ -1105,8 +1108,10 @@ func _get_c_or_m64_type_of_node_do(
                 }
             }
             return later type_result
-        } elseif m64_builtins.is_ast_node_referring_to_m64_std_size_of(
-                project_file, node.subexprs[1], is_moose64=yes) {
+        } elseif m64_builtins.
+                is_ast_node_referring_to_m64_memory_size_of(
+                    project_file, node.subexprs[1],
+                    is_moose64=yes) {
             if debug {
                 print(dbg_prefix + " Got call binop on " +
                     "built-in 'size_of'.")

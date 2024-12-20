@@ -67,9 +67,9 @@ func FileMsg.as_str {
 
 func FileMsg.as_json_obj {
     var output = {
-        "msg"-> self.content,
+        "message"-> self.content,
         "line"-> none,
-        "col"-> none,
+        "column"-> none,
         "file_uri"-> none,
         "kind"-> MsgKind.num_label(self.kind),
     }

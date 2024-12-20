@@ -275,7 +275,7 @@ func show_intermediate_compile_result_to_terminal_or_file(
             not omit_result) {
         var output = {
             "error"-> none,
-            "msgs"-> [],
+            "messages"-> [],
         }
         if not omit_result and (
                 actual_result_contents != none or
@@ -283,7 +283,7 @@ func show_intermediate_compile_result_to_terminal_or_file(
             output["result"] = actual_result_contents
         }
         for m in msgs {
-            output["msgs"].add(m.as_json_obj())
+            output["messages"].add(m.as_json_obj())
         }
         if had_error {
             output["error"] = fail_reason
@@ -501,8 +501,16 @@ func action_compile_do(
         boptions.output_file != none or
         boptions.output_dir != none
     )
-    func get_ast_result(pfile) {
+    func get_ast_result(pfile, is_code_file=no) {
         var inner_ast_result = none
+        func ensure_ast_if_needed {
+            if pfile == none {
+                return later
+            }
+            pfile.ensure_ast() later:
+        }
+        ensure_ast_if_needed() later:
+
         if pfile == none {
             inner_ast_result = aresult
         } else {
@@ -510,12 +518,8 @@ func action_compile_do(
         }
         if is_code_file {
             var result = inner_ast_result.dump_as_code()
-            later:
-
-            await result
             return later result
-        }
-        if is_global_scope {
+        } else {
             if for_script {
                 return later inner_ast_result.as_json_obj()
             } else {
@@ -528,13 +532,15 @@ func action_compile_do(
             stage == "transformed-ast") and
             (boptions.output_file != none or
                 boptions.output_dir != none) {
-        print_stage_info("transformed-code",
+        print_stage_info(stage,
             "Preparing to output result to files...")
         omit_result_in_output = yes
         func output_code {
-            if boptions.output_file != none {
+            if bopdtions.output_file != none {
                 assert(boptions.output_dir == none)
-                var result = get_ast_result() later:
+                var result = get_ast_result(
+                    none, is_code_file=(stage == "transformed-code")
+                ) later:
 
                 await result
                 var f = io.open(boptions.output_file, "w") later:
@@ -620,13 +626,13 @@ func action_compile_do(
     }
     if had_error or stage == "transformed-code" or
             stage == "transformed-ast" {
-        var result = get_ast_result() later:
-
-        await result
+        # Either we had an error, or we don't want to write
+        # to a disk file. In both cases, we want to output
+        # directly to stdout instead of the files.
         var finalresult =
             show_intermediate_compile_result_to_terminal_or_file(
                 aresult.msgs,
-                literal_value_result=result,
+                ast_result=aresult,
                 build_options=boptions,
                 for_script=opt_for_script,
                 is_global_scope=no,

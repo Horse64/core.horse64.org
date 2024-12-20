@@ -1738,6 +1738,13 @@ func node_to_c_string(project_file, node, parents,
         later:
 
         await inner_result
+        if inner_result.trim() == "(0)" {
+            # This can happen if the expression evaluator
+            # decided to remove the call. To avoid warnings
+            # in clang about this "(0);" being unused, drop
+            # the entire expression.
+            return indent_str + ";"
+        }
         return indent_str + inner_result + ";"
     } elseif node.kind == ast.N_STMT_IF {
         var is_first = yes
@@ -2232,22 +2239,22 @@ func node_to_c_string(project_file, node, parents,
                 return later
             }
             is_as_ref = m64_builtins.
-                is_ast_node_referring_to_m64_std_as_ref(
+                is_ast_node_referring_to_m64_memory_as_ref(
                     project_file, node.subexprs[1],
                     is_moose64=is_moose64
                 )
             is_deref = m64_builtins.
-                is_ast_node_referring_to_m64_std_deref(
+                is_ast_node_referring_to_m64_memory_deref(
                     project_file, node.subexprs[1],
                     is_moose64=is_moose64
                 )
             is_size_of = m64_builtins.
-                is_ast_node_referring_to_m64_std_size_of(
+                is_ast_node_referring_to_m64_memory_size_of(
                     project_file, node.subexprs[1],
                     is_moose64=is_moose64
                 )
             is_assert = m64_builtins.
-                is_ast_node_referring_to_m64_std_assert(
+                is_ast_node_referring_to_m64_debug_assert(
                     project_file, node.subexprs[1],
                     is_moose64=is_moose64
                 )
@@ -2263,7 +2270,11 @@ func node_to_c_string(project_file, node, parents,
                 left_hand_str = "(*"
                 right_closing_str = ")"
             } elseif is_assert {
-                left_hand_str = "assert"
+                # We will get the actual function info below
+                # in try_get_left_hand_regular() anyway, since
+                # debug.assert() is a real function with
+                # overrides.
+                left_hand_str = ""
             } elseif is_size_of {
                 left_hand_str = "sizeof"
             } else {
@@ -2274,8 +2285,17 @@ func node_to_c_string(project_file, node, parents,
         }
         try_get_left_hand_builtins() later:
 
+        if is_assert and not build_options.add_asserts() {
+            # In this case, just omit the entire call.
+            # We don't return an empty string, since
+            # some callers will interpret that as
+            # 'this entire expression failed to compute'.
+            # A call of "(0);" in C won't do anything
+            # problematic based on our tests.
+            return "(0)"
+        }
         func try_get_left_hand_regular {
-            if left_hand_str != none {
+            if left_hand_str != none and not is_assert {
                 return later
             }
             is_regular_call = yes

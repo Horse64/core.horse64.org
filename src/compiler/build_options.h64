@@ -32,8 +32,16 @@ enum OptimizationSetting {
     OPTIMIZE_ALL=3,
 }
 
+enum DebuggerSetting {
+    DEBUGGER_UNSPECIFIED=0,
+    DEBUGGER_DISABLED=1,
+    DEBUGGER_BACKTRACE_SYMBOLS_ONLY=2,
+    DEBUGGER_FULL_STEPPING_HOOKS=3,
+}
+
 type BuildOptions {
     var optimize_level = OPTIMIZE_ALL_BUT_ASSERTS
+    var debugger_level = DEBUGGER_BACKTRACE_SYMBOLS_ONLY
     var print_stages = no
     var verbose_mode = no
     var build_program_name = "horsec"
@@ -42,5 +50,9 @@ type BuildOptions {
     var output_file
     var output_dir
     var moose64_build_dir
+}
+
+func BuildOptions.add_asserts {
+    return self.optimize_level != OPTIMIZE_ALL
 }
 

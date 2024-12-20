@@ -368,17 +368,7 @@ func ASTResult.as_json_obj {
         "stmts"-> [],
     }
     for m in self.msgs {
-        var mjson = {
-            "message"-> m.message,
-            "kind"-> msg.MsgKind.num_label(m.kind),
-            "line"-> m.line,
-            "col"-> m.col,
-            "file"-> none,
-        }
-        if m.source_file != none {
-            mjson["file"] = m.source_file.source_uri
-        }
-        output["messages"].add(mjson)
+        output["messages"].add(mjson.as_json_obj())
     }
     for node in self.stmts {
         output["stmts"].append(node.as_json_obj())
