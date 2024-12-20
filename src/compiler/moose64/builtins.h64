@@ -87,17 +87,25 @@ func is_ast_node_referring_to_m64_debug_assert(
     if not is_moose64 {
         return no
     }
-    if node.kind != ast.N_EXPR_BINOP or
+    if (node.kind != ast.N_EXPR_IDREF or
+            not node.label.starts("assert")) and
+            (node.kind != ast.N_EXPR_BINOP or
             node.optoken.str != "." or
             node.subexprs.len < 2 or
             node.subexprs[2].kind != ast.N_EXPR_IDREF or
-            not node.subexprs[2].label.starts("assert") or
-            node.subexprs[2].ref == none or
-            node.subexprs[2].ref.kind != st_ref.ST_GLOBAL {
+            not node.subexprs[2].label.starts("assert")) {
         return no
     }
-    for pfile_uri in project_file.module_uri_to_file_map {
-        var pfile = project_file.module_uri_to_file_map[
+    if node == ast.N_EXPR_BINOP {
+        node = node.subexprs[2]
+    }
+    if node.ref == none or
+            node.ref.kind != st_ref.ST_GLOBAL {
+        return no
+    }
+    
+    for pfile_uri in project_file.project.module_uri_to_file_map {
+        var pfile = project_file.project.module_uri_to_file_map[
             pfile_uri
         ]
         if pfile.modinfo == none or
@@ -113,8 +121,7 @@ func is_ast_node_referring_to_m64_debug_assert(
                      not entry.label.startswith("assert_")) {
                 continue
             }
-            if node.subexprs[2].ref.id ==
-                    st_id {
+            if node.ref.id == st_id {
                 return yes
             }
         }
@@ -179,13 +186,6 @@ func register_builtins_with_project(project) {
         builtin_syms.BI_FUNC, ["memory"],
         func_signature="(<-any)->size",
         package_name="m64.horse64.org",
-        is_moose64=yes) later:
-
-    id = m64_c_importer.get_mcref_id(project)
-    builtin_syms.register_symbol(project, "assert",
-        new st_ref.StorageRef(st_ref.ST_MCREF, id),
-        builtin_syms.BI_FUNC, "$any",
-        func_signature="(<-any ref)->empty",
         is_moose64=yes) later:
 
     id = m64_c_importer.get_mcref_id(project)
