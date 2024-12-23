@@ -1770,7 +1770,9 @@ func _parse_typeref_notlater(
             "pos=" + pos.as_str() + " max_len=" +
             max_len.as_str() + " "
             "max_depth=" + max_depth.as_str() + " "
-            "is_moose64=" + is_moose64.as_str())
+            "is_moose64=" + is_moose64.as_str() + " "
+            "extend_typeref_expr=" +
+                extend_typeref_expr.as_str())
     }
     if pos > max_len {
         if debug {

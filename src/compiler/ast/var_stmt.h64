@@ -277,9 +277,13 @@ func parse(tokens, pos, msgs, project_file=none,
                 ) - 1)
             v = new expr.InvalidExpr(skiplen)
             stmt.damaged = yes
-        } elseif v.damaged {
-            stmt.damaged = yes
+        } else {
+            if v.damaged {
+                stmt.damaged = yes
+            }
+            assert(v.token_len != none)
         }
+        assert(v != none)
         stmt.has_type_expr = yes
         assert(stmt.subexprs.len == 0)
         stmt.subexprs.add(v)
