@@ -144,6 +144,7 @@ type InvalidExpr base ast.TreeNode {
 func InvalidExpr.init(tlen) {
     base.init()
     self.kind = ast.N_EXPR_INVALID
+    assert(tlen != none)
     self.token_len = tlen
     self.damaged = yes
 }

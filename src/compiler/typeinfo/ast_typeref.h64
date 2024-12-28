@@ -1983,6 +1983,7 @@ func _parse_typeref_notlater(
                 var expr = new ast_expr.InvalidExpr(skiplen)
                 return expr
             }
+            assert(inner_expr.token_len != none)
             arg_types.add(inner_expr)
             pos += inner_expr.token_len
             if debug {
@@ -2071,6 +2072,7 @@ func _parse_typeref_notlater(
                 var expr = new ast_expr.InvalidExpr(skiplen)
                 return expr
             }
+            assert(return_type.token_len != none)
             pos += return_type.token_len
         }
         if nested_in_parens {
@@ -2328,7 +2330,7 @@ func _parse_typeref_notlater(
                             tokens[pos + 1].str
                         modifier.props.add(prop)
                     } elseif {token.T_NUM, token.T_BIGNUM}.has(
-                            tokens[pos + 1].kind == token.T_NUM
+                            tokens[pos + 1].kind
                             ) {
                         var prop = new TypeRefModProp_Range()
                         prop.range_value_num =
@@ -2338,7 +2340,7 @@ func _parse_typeref_notlater(
                         msgs.add(new msg.FileMsg(
                             "Unexpected '[' followed by " +
                                 token.describe_token_at(
-                                    tokens, pos) + " "
+                                    tokens, pos + 1) + " "
                             ", expected valid range expression "
                             "for array modifier.",
                             source_file=project_file,
@@ -2346,6 +2348,8 @@ func _parse_typeref_notlater(
                             col=token.get_col(tokens, pos),
                         ))
                         typeref_damaged = yes
+                        typeref_expr.token_len = typeref_token_len
+                        assert(typeref_expr.token_len != none)
                         return typeref_expr
                     }
                     pos += 3
@@ -2367,6 +2371,7 @@ func _parse_typeref_notlater(
         typeref_expr.modifiers = mods
         typeref_expr.token_len = typeref_token_len
     }
+    assert(typeref_expr.token_len != none)
     return typeref_expr
 }
 
