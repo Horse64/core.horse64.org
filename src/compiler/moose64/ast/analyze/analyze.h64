@@ -32,7 +32,7 @@ import textfmt from core.horse64.org
 import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
 import compiler.builtin_syms as builtin_syms
-import compiler.moose64.autocast as autocast
+import compiler.moose64.autocast as m64_autocast
 import compiler.moose64.builtins as m64_builtins
 import compiler.msg as msg
 import compiler.storage.ref as st_ref
@@ -86,6 +86,209 @@ func get_c_or_m64_type_of_typeref(
         is_moose64=yes,
     )
     return later tinfo
+}
+
+type ComputeBinopTypesResult {
+    var left_hand_type
+    var left_hand_cast_to_type
+    var right_hand_type
+    var right_hand_cast_to_type
+    var result_type
+}
+
+func compute_and_verify_regular_m64_binop_types(
+        binop_node, binop_node_parents,
+        _known_typeinfo_map=none,
+        project_file=none,
+        msgs=msgs, debug=no) {
+    const is_moose64 = yes
+    const program_name =
+        if is_moose64 ("moosec") else ("horsec")
+    const node = binop_node
+    const parents = binop_node_parents
+    if binop_node == none or
+            binop_node.kind != ast.N_EXPR_BINOP {
+        throw new ValueError(
+            "This isn't a binary operator."
+        )
+    }
+    if {"[", "(", "."}.has(binop_node.optoken.str) {
+        throw new ValueError(
+            "This isn't a regular type binary operator."
+        )
+    }
+    var is_comparison = token.compare_ops.has(node.optoken.str)
+    var is_bool_cmp = token.bool_compare_ops.has(node.optoken.str)
+    if debug {
+        print(program_name + ": debug: "
+            "compute_and_verify_regular_m64_binop_types(): "
+            "Found " +
+            if is_comparison ("comparison") else
+                ("math") + " binary op '" +
+            node.optoken.str + "', evaluating types of "
+            "operands...")
+    }
+
+    var left_side_type = _get_c_or_m64_type_of_node_do(
+        project_file, node.subexprs[1], parents + [node],
+        _known_typeinfo_map=_known_typeinfo_map,
+        store_self_value_ref_for_funcs=no,
+        msgs=msgs, debug=debug
+    ) later:
+
+    await left_side_type
+    var right_side_type = _get_c_or_m64_type_of_node_do(
+        project_file, node.subexprs[2], parents + [node],
+        _known_typeinfo_map=_known_typeinfo_map,
+        store_self_value_ref_for_funcs=no,
+        msgs=msgs, debug=debug
+    ) later:
+
+    await right_side_type
+    if left_side_type == none or right_side_type == none {
+        if debug {
+            print(program_name + "debug: "
+                "compute_and_verify_regular_m64_binop_types(): "
+                "Failed to get one side of "
+                "the binary op, aborting: left_side_type=" +
+                left_side_type.as_str() + " "
+                "right_side_type=" +
+                right_side_type.as_str() + " "
+                "left_hand_node=" +
+                    node.subexprs[1].as_str() + " "
+                "right_hand_node=" +
+                    node.subexprs[2].as_str() + " "
+                "node.optoken=" +
+                    node.optoken.as_str())
+        }
+        return later none
+    }
+    if debug {
+        print(program_name + ": debug: "
+            "compute_and_verify_regular_m64_binop_types(): "
+            "Obtained operand types: "
+            "left_side_type=" + left_side_type.as_str() + " "
+            "right_side_type=" + right_side_type.as_str() + " "
+            "optoken.str='" + node.optoken.str.as_str() + "'")
+    }
+    if is_bool_cmp {
+        if left_side_type.kind != typeinfo.TI_C_TYPE or
+                left_side_type.orig_type_name != "bool" or
+                left_side_type.ref_count() > 0 {
+            if msgs == none {
+                throw new ValueError("Found binary operator "
+                    "applied on incompatible operators.")
+            }
+            if not node.damaged {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected '" + node.optoken.str.as_str() +
+                    "' operator applied to incompatible " 
+                    "left operand of type " +
+                    left_side_type.describe_to_user(
+                        project=project_file.project,
+                        add_quotes_where_useful=yes,
+                        is_moose64=yes
+                    ) + " which isn't a bool.",
+                    source_file=project_file,
+                    line=node.line, col=node.col,
+                ))
+            }
+            node.damaged = yes
+            return later none
+        }
+        if right_side_type.kind != typeinfo.TI_C_TYPE or
+                right_side_type.orig_type_name != "bool" or
+                right_side_type.ref_count() > 0 {
+            if msgs == none {
+                throw new ValueError("Found binary operator "
+                    "applied on incompatible operators.")
+            }
+            if not node.damaged {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected '" + node.optoken.str.as_str() +
+                    "' operator applied to incompatible " 
+                    "right operand of type " +
+                    right_side_type.describe_to_user(
+                        project=project_file.project,
+                        add_quotes_where_useful=yes,
+                        is_moose64=yes
+                    ) + " which isn't a bool.",
+                    source_file=project_file,
+                    line=node.line, col=node.col,
+                ))
+            }
+            node.damaged = yes
+            return later none
+        }
+        var result = new ComputeBinopTypesResult()
+        result.left_hand_type = left_side_type.copy()
+        result.left_hand_cast_to_type =
+            left_side_type.copy()
+        result.right_hand_type = right_side_type.copy()
+        result.right_hand_cast_to_type =
+            right_side_type.copy()
+        result.result_type =
+            typeinfo.create_from_simple_m64_type(
+                "bool"
+            )
+        return result
+    }
+    var math_cast_result = m64_autocast.
+        get_math_binop_autocast(
+            left_side_type, right_side_type,
+            is_cmp_op=is_comparison,
+            is_moose64=is_moose64,
+        )
+    if debug {
+        print(program_name + "debug: "
+            "compute_and_verify_regular_m64_binop_types(): "
+            "Obtained autocast info for "
+            "binop: math_cast_result=" +
+                math_cast_result.as_str())
+    }
+    if math_cast_result.incompatible {
+        if msgs == none {
+            throw new ValueError("Found binary operator "
+                "applied on incompatible operators.")
+        }
+        if not node.damaged {
+            msgs.add(new msg.FileMsg(
+                "Unexpected '" + node.optoken.str.as_str() +
+                "' operator applied to incompatible types " +
+                left_side_type.describe_to_user(
+                    project=project_file.project,
+                    add_quotes_where_useful=yes,
+                    is_moose64=yes
+                ) + " "
+                "and " + right_side_type.describe_to_user(
+                    project=project_file.project,
+                    add_quotes_where_useful=yes,
+                    is_moose64=yes
+                ) + ".",
+                source_file=project_file,
+                line=node.line, col=node.col,
+            ))
+        }
+        node.damaged = yes
+        return later none
+    }
+
+    var result = new ComputeBinopTypesResult()
+    result.left_hand_type = left_side_type.copy()
+    result.left_hand_cast_to_type =
+        math_cast_result.cast_lefthand_to.copy()
+    result.right_hand_type = right_side_type.copy()
+    result.right_hand_cast_to_type =
+        math_cast_result.cast_righthand_to.copy()
+    if is_comparison {
+        result.result_type =
+            typeinfo.create_from_simple_m64_type(
+                "bool"
+            )
+        return later result
+    }
+    result.result_type = math_cast_result.result_type.copy()
+    return later result
 }
 
 func get_c_or_m64_type_of_sym_info(
@@ -497,6 +700,53 @@ func _get_c_or_m64_type_of_node_do(
     } elseif node.kind == ast.N_EXPR_UNOP and
             node.subexprs.len >= 1 and
             node.optoken.str == 'not' {
+        var inner_type = _get_c_or_m64_type_of_node_do(
+            project_file, node.subexprs[1], parents + [node],
+            _known_typeinfo_map=_known_typeinfo_map,
+            store_self_value_ref_for_funcs=no,
+            msgs=msgs, debug=debug
+        ) later:
+
+        await inner_type
+        if inner_type == none {
+            if debug {
+                print(dbg_prefix + " Failed to get operand of "
+                    "the unary op, aborting: inner_type=" +
+                        inner_type.as_str() + " "
+                    "node.subexprs[1]=" +
+                        node.subexprs[1].as_str())
+            }
+            return later none
+        }
+        if debug {
+            print(dbg_prefix + " Obtained operand type: "
+                "inner_type=" + left_side_type.as_str() + " "
+                "optoken.str='" + node.optoken.str.as_str() + "'")
+        }
+        if inner_type.kind != typeinfo.TI_C_TYPE or
+                inner_type.orig_type_name != "bool" or
+                inner_type.ref_count() > 0 {
+            if msgs == none {
+                throw new ValueError("Found binary operator "
+                    "applied on incompatible operators.")
+            }
+            if not node.damaged {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected '" + node.optoken.str.as_str() +
+                    "' operator applied to incompatible " 
+                    "operand of type " +
+                    inner_type.describe_to_user(
+                        project=project_file.project,
+                        add_quotes_where_useful=yes,
+                        is_moose64=yes
+                    ) + " which isn't a bool.",
+                    source_file=project_file,
+                    line=node.line, col=node.col,
+                ))
+            }
+            node.damaged = yes
+            return later none
+        }
         var result = typeinfo.
             create_from_simple_m64_type("bool")
         return result
@@ -607,92 +857,20 @@ func _get_c_or_m64_type_of_node_do(
             node.subexprs.len >= 2 and
             (token.compare_ops.has(node.optoken.str) or
             token.math_ops.has(node.optoken.str)) {
-        var is_comparison = token.compare_ops.has(node.optoken.str)
-        if debug {
-            print(dbg_prefix + " Found " +
-                if is_comparison ("comparison") else
-                    ("math") + " binary op '" +
-                node.optoken.str + "', evaluating types of "
-                "operands...")
-        }
+        var binop_type_result =
+            compute_and_verify_regular_m64_binop_types(
+                node, parents,
+                _known_typeinfo_map=_known_typeinfo_map,
+                project_file=project_file,
+                msgs=msgs, debug=debug)
+        later:
 
-        var left_side_type = _get_c_or_m64_type_of_node_do(
-            project_file, node.subexprs[1], parents + [node],
-            _known_typeinfo_map=_known_typeinfo_map,
-            store_self_value_ref_for_funcs=no,
-            msgs=msgs, debug=debug
-        ) later:
-
-        await left_side_type
-        var right_side_type = _get_c_or_m64_type_of_node_do(
-            project_file, node.subexprs[2], parents + [node],
-            _known_typeinfo_map=_known_typeinfo_map,
-            store_self_value_ref_for_funcs=no,
-            msgs=msgs, debug=debug
-        ) later:
-
-        await right_side_type
-        if left_side_type == none or right_side_type == none {
-            if debug {
-                print(dbg_prefix + " Failed to get one side of "
-                    "the binary op, aborting: left_side_type=" +
-                    left_side_type.as_str() + " "
-                    "right_side_type=" +
-                    right_side_type.as_str() + " "
-                    "left_hand_node=" +
-                        node.subexprs[1].as_str() + " "
-                    "right_hand_node=" +
-                        node.subexprs[2].as_str())
-            }
+        await binop_type_result
+        if binop_type_result == none {
+            assert(node.damaged)
             return later none
         }
-        if debug {
-            print(dbg_prefix + " Obtained operand types: "
-                "left_side_type=" + left_side_type.as_str() + " "
-                "right_side_type=" + right_side_type.as_str() + " "
-                "optoken.str='" + node.optoken.str.as_str() + "'")
-        }
-        var result = autocast.get_math_binop_autocast(
-            left_side_type, right_side_type,
-            is_cmp_op=is_comparison,
-            is_moose64=is_moose64,
-        )
-        if debug {
-            print(dbg_prefix + " Obtained autocast info for "
-                "binop: result=" + result.as_str())
-        }
-        if result.incompatible {
-            if msgs == none {
-                throw new ValueError("Found binary operator "
-                    "applied on incompatible operators.")
-            }
-            if not node.damaged {
-                msgs.add(new msg.FileMsg(
-                    "Unexpected '" + node.optoken.str.as_str() +
-                    "' operator applied to incompatible types " +
-                    left_side_type.describe_to_user(
-                        project=project_file.project,
-                        add_quotes_where_useful=yes,
-                        is_moose64=yes
-                    ) + " "
-                    "and " + right_side_type.describe_to_user(
-                        project=project_file.project,
-                        add_quotes_where_useful=yes,
-                        is_moose64=yes
-                    ) + ".",
-                    source_file=project_file,
-                    line=node.line, col=node.col,
-                ))
-            }
-            node.damaged = yes
-            return later none
-        }
-        if is_comparison {
-            return typeinfo.create_from_simple_m64_type(
-                "bool"
-            )
-        }
-        return later result.result_type
+        return later binop_type_result.result_type
     } elseif node.kind == ast.N_EXPR_IDREF {
         if parent.kind == ast.N_EXPR_BINOP and
                 parent.optoken.str == "." and

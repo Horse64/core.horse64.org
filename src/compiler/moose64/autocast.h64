@@ -341,8 +341,9 @@ func is_plain_num_type(typeinfo) {
 
 func get_math_binop_autocast(
         left_hand_typeinfo, right_hand_typeinfo, is_cmp_op=no,
-        is_moose64=no,
+        is_moose64=no, debug=no,
         ) {
+    const program_name = if is_moose64 ("moosec") else ("horsec")
     var result = new BinopAutocastResult()
     func cast_all_to(name, override_result=none) {
         result.cast_lefthand_to =
@@ -361,6 +362,17 @@ func get_math_binop_autocast(
         return result
     }
 
+    if debug {
+        print(program_name + ": debug: "
+            "get_math_binop_autocast(): "
+            "Called on left_hand_typeinfo=" +
+                left_hand_typeinfo.as_str() + " "
+            "right_hand_typeinfo=" +
+                right_hand_typeinfo.as_str() + " "
+            "is_cmp_op=" + is_cmp_op.as_str() + " "
+            "is_moose64=" + is_moose64.as_str())
+    }
+
     # Below is the section for ref types:
 
     var refs_left = left_hand_typeinfo.ref_count(
@@ -371,6 +383,14 @@ func get_math_binop_autocast(
         include_c_arrays=yes, include_arrays=no,
         include_implicit_refs=no,
     )
+    var left_is_any = (
+        left_hand_typeinfo.kind == typeinfo.TI_C_TYPE and
+        left_hand_typeinfo.orig_type_name == "any"
+    )
+    var right_is_any = (
+        right_hand_typeinfo.kind == typeinfo.TI_C_TYPE and
+        right_hand_typeinfo.orig_type_name == "any"
+    )
     if refs_left > 0 and refs_right == 0 and
             right_hand_typeinfo.kind == typeinfo.TI_C_TYPE and
             get_mods_that_arent_regular_for_nums(right_hand_typeinfo).len == 0 {
@@ -380,6 +400,11 @@ func get_math_binop_autocast(
             result = cast_all_to("addr")
             result.result_type =
                 left_hand_typeinfo.copy()
+            if debug {
+                print(program_name + ": debug: "
+                    "get_math_binop_autocast(): "
+                    "Done, result=" + result.as_str())
+            }
             return result
         } elseif ast_typeref.builtin_moose64_signed_num_types.has(
                 right_hand_typeinfo.orig_type_name
@@ -393,7 +418,9 @@ func get_math_binop_autocast(
         return result
     } elseif refs_right > 0 and refs_left == 0 and
             left_hand_typeinfo.kind == typeinfo.TI_C_TYPE and
-            get_mods_that_arent_regular_for_nums(refs_left).len == 0 {
+            get_mods_that_arent_regular_for_nums(
+                left_hand_typeinfo
+            ).len == 0 {
         if left_hand_typeinfo.orig_type_name == "addr" {
             return cast_all_to("addr")
         } elseif left_hand_typeinfo.orig_type_name == "addr_diff" {
@@ -412,7 +439,30 @@ func get_math_binop_autocast(
         result.incompatible = yes
         return result
     } elseif is_cmp_op and refs_right > 0 and refs_left > 0 {
-        return cast_all_to("addr_diff")
+        if debug {
+            print(program_name + ": debug: "
+                "get_math_binop_autocast(): "
+                "Got comparison of two ref types, "
+                "just cast it to an address type and "
+                "be done with it.")
+        }
+        return cast_all_to("addr")
+    } elseif is_cmp_op and (
+            ((
+                refs_right == 0 and right_hand_typeinfo.is_array()
+            ) and
+            refs_left > 0 and left_is_any) or
+            ((
+                refs_left == 0 and left_hand_typeinfo.is_array()
+            ) and
+            refs_right > 0 and right_is_any)) {
+        if debug {
+            print(program_name + ": debug: "
+                "get_math_binop_autocast(): "
+                "Comparing any ref to array, cast it "
+                "to address type.")
+        }
+        return cast_all_to("addr")
     }
 
     # Below is the section for non-ref-types:
@@ -467,6 +517,8 @@ func get_math_binop_autocast(
                     right_hand_typeinfo.orig_type_name {
             return cast_all_to("i8")
         }
+        result.cast_lefthand_to = left_hand_typeinfo.copy()
+        result.cast_righthand_to = right_hand_typeinfo.copy()
         result.result_type = left_hand_typeinfo.copy()
         return result
     }
@@ -559,7 +611,7 @@ func get_math_binop_autocast(
                 }
                 return cast_all_to("u" + math.max(
                     size, right_hand_bits
-                )).as_str()
+                ).as_str())
             }
         }
         i += 1

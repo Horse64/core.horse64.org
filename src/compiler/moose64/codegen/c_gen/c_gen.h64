@@ -47,6 +47,7 @@ import compiler.project
 import compiler.storage.scope as st_scope
 import compiler.storage.scope.manage as scope_manage
 import compiler.storage.ref as st_ref
+import compiler.token as token
 import compiler.typeinfo as typeinfo
 import compiler.typeinfo.ast_typeref as ast_typeref
 
@@ -1793,6 +1794,12 @@ func node_to_c_string(project_file, node, parents,
                 later:
 
                 await conditional_str
+                if conditional_str == none {
+                    assert(clause.subexprs[1].damaged)
+                    clause.damaged = yes
+                    node.damaged = yes
+                    return later ""
+                }
                 var contents_strs = node_list_to_c_strings(
                     project_file, clause.subblocks[1],
                     parents + [node, clause],
@@ -2677,6 +2684,18 @@ func node_to_c_string(project_file, node, parents,
         return "(" + container_str + ") [" +
             " (" + index_str + ") - 1]"
     } elseif node.kind == ast.N_EXPR_BINOP {
+        var binop_type_result = m64_ast_analyze.
+            compute_and_verify_regular_m64_binop_types(
+                node, parents,
+                project_file=project_file,
+                msgs=msgs, debug=debug)
+        later:
+
+        await binop_type_result
+        if binop_type_result == none {
+            node.damaged = yes
+            return later none
+        }
         var left_hand = node_to_c_string(
             project_file, node.subexprs[1],
             parents + [node],
@@ -2687,6 +2706,11 @@ func node_to_c_string(project_file, node, parents,
         later:
 
         await left_hand
+        if left_hand == none {
+            assert(node.subexprs[1].damaged)
+            node.damaged = yes
+            return later none
+        }
         var right_hand = node_to_c_string(
             project_file, node.subexprs[2],
             parents + [node],
@@ -2697,135 +2721,64 @@ func node_to_c_string(project_file, node, parents,
         later:
 
         await right_hand
-        func generate_with_autocasts_if_needed {
-            if not token.math_ops.has(node.optoken.str) and
-                    not token.compare_ops.has(node.optoken.str) {
-                return later none
-            }
-            var is_comparison = token.compare_ops.has(
-                node.optoken.str
-            )
-            var left_side_type = _get_c_or_m64_type_of_node_do(
-                project_file, node.subexprs[1], parents + [node],
-                _known_typeinfo_map=_known_typeinfo_map,
-                store_self_value_ref_for_funcs=no,
-                msgs=msgs, debug=debug
+        if right_hand == none {
+            assert(node.subexprs[2].damaged)
+            node.damaged = yes
+            return later none
+        }
+        assert(binop_type_result.left_hand_cast_to_type != none)
+        assert(binop_type_result.right_hand_cast_to_type != none)
+        assert(binop_type_result.result_type != none)
+        var left_hand_converted =
+            node_generate_c_type_conversion_code(
+                project_file,
+                binop_type_result.left_hand_cast_to_type,
+                node.subexprs[1], parents + [node],
+                indent=indent,
+                add_to_header_callback=
+                    add_to_header_callback,
+                add_to_top_callback=
+                    add_to_top_callback,
+                msgs=msgs, build_options=build_options,
             ) later:
 
-            await left_side_type
-            var right_side_type = _get_c_or_m64_type_of_node_do(
-                project_file, node.subexprs[2], parents + [node],
-                _known_typeinfo_map=_known_typeinfo_map,
-                store_self_value_ref_for_funcs=no,
-                msgs=msgs, debug=debug
+        await left_hand_converted
+        var right_hand_converted =
+            node_generate_c_type_conversion_code(
+                project_file,
+                binop_type_result.right_hand_cast_to_type,
+                node.subexprs[2], parents + [node],
+                indent=indent,
+                add_to_header_callback=
+                    add_to_header_callback,
+                add_to_top_callback=
+                    add_to_top_callback,
+                msgs=msgs, build_options=build_options,
             ) later:
 
-            await right_side_type
-            if left_side_type == none or right_side_type == none {
-                if not left_side_type.damaged and
-                        not right_side_type.damaged {
-                    throw new RuntimeError("Internal error, "
-                        "failed to get binop types.")
-                }
-                return later none
-            }
-            var result = autocast.get_math_binop_autocast(
-                left_side_type, right_side_type,
-                is_cmp_op=is_comparison,
-                is_moose64=is_moose64,
-            )
-            if debug {
-                print(program_name + ": debug: "
-                    "node_to_c_string(): "
-                    "Obtained autocast info for "
-                    "binop: result=" + result.as_str())
-            }
-            if result.incompatible {
-                if msgs == none {
-                    throw new ValueError("Found binary operator "
-                        "applied on incompatible operators.")
-                }
-                if not node.damaged {
-                    msgs.add(new msg.FileMsg(
-                        "Unexpected '" + node.optoken.str.as_str() +
-                        "' operator applied to incompatible types " +
-                        left_side_type.describe_to_user(
-                            project=project_file.project,
-                            add_quotes_where_useful=yes,
-                            is_moose64=yes
-                        ) + " "
-                        "and " + right_side_type.describe_to_user(
-                            project=project_file.project,
-                            add_quotes_where_useful=yes,
-                            is_moose64=yes
-                        ) + ".",
-                        source_file=project_file,
-                        line=node.line, col=node.col,
-                    ))
-                }
-                node.damaged = yes
-                return later none
-            }
-            var left_hand_converted =
-                node_generate_c_type_conversion_code(
-                    project_file,
-                    result.cast_lefthand_to,
-                    node.subexprs[1], parents + [node],
-                    indent=indent,
-                    add_to_header_callback=
-                        add_to_header_callback,
-                    add_to_top_callback=
-                        add_to_top_callback,
-                    msgs=msgs, build_options=build_options,
-                ) later:
-
-            await left_hand_converted
-            var right_hand_converted =
-                node_generate_c_type_conversion_code(
-                    project_file,
-                    result.cast_righthand_to,
-                    node.subexprs[2], parents + [node],
-                    indent=indent,
-                    add_to_header_callback=
-                        add_to_header_callback,
-                    add_to_top_callback=
-                        add_to_top_callback,
-                    msgs=msgs, build_options=build_options,
-                ) later:
-
-            await right_hand_converted
-            left_hand = left_hand_converted
-            right_hand = right_hand_converted
-            var inner_code_str =
-                "(" + left_hand + ") " + optoken_to_c_token(
-                node.optoken) + " (" + right_hand + ")"
-            var result_converted =
-                node_generate_c_type_conversion_code(
-                    project_file,
-                    result.result_type,
-                    node, parents,
-                    source_value_known_code_str=
-                        inner_code_str,
-                    indent=indent,
-                    add_to_header_callback=
-                        add_to_header_callback,
-                    add_to_top_callback=
-                        add_to_top_callback,
-                    msgs=msgs, build_options=build_options,
-                ) later:
-
-            await result_converted
-            return result_converted
-        }
-        var code_str =
-            generate_with_autocasts_if_needed() later:
-
-        await code_str
-        if code_str != none {
-            return code_str
-        }
-        return "(" + left_hand + ") " + optoken_to_c_token(
+        await right_hand_converted
+        left_hand = left_hand_converted
+        right_hand = right_hand_converted
+        var inner_code_str =
+            "(" + left_hand + ") " + optoken_to_c_token(
             node.optoken) + " (" + right_hand + ")"
+        var result_converted =
+            node_generate_c_type_conversion_code(
+                project_file,
+                binop_type_result.result_type,
+                node, parents,
+                source_value_known_code_str=
+                    inner_code_str,
+                indent=indent,
+                add_to_header_callback=
+                    add_to_header_callback,
+                add_to_top_callback=
+                    add_to_top_callback,
+                msgs=msgs, build_options=build_options,
+            ) later:
+
+        await result_converted
+        return result_converted
     } elseif node.kind == ast.N_STMT_ASSIGN {
         if debug {
             print(program_name + ": debug: " +
