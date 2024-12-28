@@ -281,7 +281,12 @@ func parse(tokens, pos, msgs, project_file=none,
             if v.damaged {
                 stmt.damaged = yes
             }
-            assert(v.token_len != none)
+            assert(v.token_len != none,
+                "Somehow got node with no token len, "
+                "v=" + v.as_str() + " "
+                "pos=" + pos.as_str() + " "
+                "tokens.sub(pos, pos + 10)=" +
+                    tokens.sub(pos, pos + 10).as_str())
         }
         assert(v != none)
         stmt.has_type_expr = yes
