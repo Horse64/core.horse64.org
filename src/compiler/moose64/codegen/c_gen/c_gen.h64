@@ -2886,7 +2886,6 @@ func node_to_c_string(project_file, node, parents,
                     node.assign_token.str)
             func check_if_assign_allowed {
                 if is_math_assign {
-                    var cast_info = 
                     var math_cast_result = m64_autocast.
                         get_math_binop_autocast(
                             left_hand_typeinfo,
@@ -2925,6 +2924,7 @@ func node_to_c_string(project_file, node, parents,
                     }
                     return later yes
                 }
+
                 var allowed = m64_autocast.
                     check_if_allowed_implicit_cast_from_to(
                         right_hand_typeinfo,

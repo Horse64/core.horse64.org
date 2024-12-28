@@ -90,28 +90,6 @@ func check_if_allowed_implicit_cast_from_to(
     var right_hand_source_typeinfo = from_typeinfo
     var left_hand_target_typeinfo = to_typeinfo
 
-    if from_typeinfo.is_readonly() and
-            not to_typeinfo.is_readonly() {
-        if debug {
-            print("moosec: debug: "
-                "check_if_allowed_implicit_cast_from_to(): "
-                "We're trying to pass a readonly as a "
-                "non-readonly, this isn't allowed.")
-        }
-        return no
-    }
-    if from_typeinfo.is_array_with_readonly_data() and
-            not to_typeinfo.is_array_with_readonly_data() {
-        if debug {
-            print("moosec: debug: "
-                "check_if_allowed_implicit_cast_from_to(): "
-                "We're trying to pass an array with readonly "
-                "data to an array with non-readonly data, "
-                "this isn't allowed.")
-        }
-        return no
-    }
-
     var refs_left = left_hand_target_typeinfo.ref_count(
         include_c_arrays=yes, include_arrays=yes,
         include_implicit_refs=no, include_explicit_refs=yes
@@ -139,12 +117,42 @@ func check_if_allowed_implicit_cast_from_to(
     ) > 0
     var source_is_array = right_hand_source_typeinfo.is_array()
 
+    var both_plain_num_types = no
+    if refs_left == 0 and refs_right == 0 and
+            right_hand_source_typeinfo.is_plain_num_type() and
+            left_hand_target_typeinfo.is_plain_num_type() {
+        both_plain_num_types = yes
+    }
+    if not both_plain_num_types and
+            from_typeinfo.is_readonly() and
+            not to_typeinfo.is_readonly() {
+        if debug {
+            print("moosec: debug: "
+                "check_if_allowed_implicit_cast_from_to(): "
+                "We're trying to pass a readonly as a "
+                "non-readonly, this isn't allowed for this "
+                "type combination.")
+        }
+        return no
+    }
+    if from_typeinfo.is_array_with_readonly_data() and
+            not to_typeinfo.is_array_with_readonly_data() {
+        if debug {
+            print("moosec: debug: "
+                "check_if_allowed_implicit_cast_from_to(): "
+                "We're trying to pass an array with readonly "
+                "data to an array with non-readonly data, "
+                "this isn't allowed.")
+        }
+        return no
+    }
     if not left_hand_target_typeinfo.has_equivalent_modifiers(
             right_hand_source_typeinfo,
             allow_autodrop_mods=yes,
             allow_autoadd_mods=yes,
             is_moose64=is_moose64,
-            ) and not (source_is_any and source_is_ptr and
+            ) and not both_plain_num_types and
+            not (source_is_any and source_is_ptr and
                 right_hand_source_typeinfo.modifiers.len == 1) {
         if debug {
             print("moosec: debug: "
@@ -321,19 +329,21 @@ func check_if_allowed_implicit_cast_from_to(
     return no
 }
 
-func is_plain_num_type(typeinfo) {
-    if typeinfo.kind != typeinfo.TI_C_TYPE {
+func is_plain_num_type(typeinfo_value) {
+    if typeinfo_value.kind != typeinfo.TI_C_TYPE {
         return no
     }
-    if get_mods_that_arent_regular_for_nums(typeinfo).len != 0 {
+    if get_mods_that_arent_regular_for_nums(
+                typeinfo_value
+            ).len != 0 {
         return no
     }
     if ast_typeref.builtin_moose64_unsigned_num_types.has(
-            typeinfo.orig_type_name
+            typeinfo_value.orig_type_name
             ) {
         return yes
     } elseif ast_typeref.builtin_moose64_signed_num_types.has(
-            typeinfo.orig_type_name
+            typeinfo_value.orig_type_name
             ) {
         return yes
     }
