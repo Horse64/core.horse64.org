@@ -942,7 +942,7 @@ cpdef translate_expression_tokens(list s, sc,
         #print("CHANGED TO ASSIGN: " + str(s))
         #print("ORIG: " + str(orig_s))
 
-    # Translate typename()/"throw"/"has_attr"/...:
+    # Translate typename()/assert()/"throw"/"has_attr"/...:
     previous_token = None
     i = 0
     while i < len(s):
@@ -958,6 +958,32 @@ cpdef translate_expression_tokens(list s, sc,
                 previous_token != "."):
             s = s[:i] + ["_translator_runtime_helpers",
                 ".", "h64_type"] + s[i + 1:]
+        elif (s[i] == "assert" and
+                previous_token != "." and
+                nextnonblank(s, i) == "("):
+            i2 = nextnonblankidx(s, i)
+            assert(s[i2] == "(")
+            open_bracket_idx = i2
+            comma_idx = None
+            bdepth = 0
+            while i2 < len(s):
+                if s[i2] in {"(", "[", "{"}:
+                    bdepth += 1
+                elif s[i2] == "," and bdepth == 1:
+                    if comma_idx == None:
+                        comma_idx = i2
+                elif s[i2] in {")", "]", "}"}:
+                    bdepth -= 1
+                    if bdepth <= 0:
+                        assert(s[i2] == ")")
+                        break
+                i2 += 1
+            assert(i2 < len(s) and s[i2] == ")")
+            if comma_idx != None:
+                s = s[:comma_idx] + [")",
+                    ",", "("] + s[comma_idx + 1:]
+            i += 1
+            continue
         elif (s[i] == "later" and
                 previous_token == "return"):
             # Simply skip this.
