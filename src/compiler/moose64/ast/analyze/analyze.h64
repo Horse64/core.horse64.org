@@ -625,6 +625,10 @@ func _get_c_or_m64_type_of_node_do(
             "left_hand_instance_ref=" +
             left_hand_instance_ref.as_str() + " "
             "node.kind=" + ast.NodeKind.num_label(node.kind))
+        if node.kind == ast.N_EXPR_BINOP {
+            print(dbg_prefix + " Binop optoken=" +
+                node.optoken.as_str())
+        }
     }
     if node.kind == ast.N_STMT_VAR {
         if not node.has_type_expr {
@@ -696,7 +700,6 @@ func _get_c_or_m64_type_of_node_do(
         var result = typeinfo.
             create_from_simple_m64_type("f64")
         return result
-    
     } elseif node.kind == ast.N_EXPR_UNOP and
             node.subexprs.len >= 1 and
             node.optoken.str == 'not' {
@@ -856,7 +859,13 @@ func _get_c_or_m64_type_of_node_do(
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.subexprs.len >= 2 and
             (token.compare_ops.has(node.optoken.str) or
+            token.bool_compare_ops.has(node.optoken.str) or
             token.math_ops.has(node.optoken.str)) {
+        if debug {
+            print(dbg_prefix + " Calling "
+                "compute_and_verify_regular_m64_binop_types() "
+                "to get casting and type info...")
+        }
         var binop_type_result =
             compute_and_verify_regular_m64_binop_types(
                 node, parents,
@@ -866,6 +875,12 @@ func _get_c_or_m64_type_of_node_do(
         later:
 
         await binop_type_result
+        if debug {
+            print(dbg_prefix + " Got "
+                "casting and type info. "
+                "binop_type_result=" +
+                    binop_type_result.as_str())
+        }
         if binop_type_result == none {
             assert(node.damaged)
             return later none
