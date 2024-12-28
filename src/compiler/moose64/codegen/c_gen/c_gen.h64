@@ -2881,13 +2881,59 @@ func node_to_c_string(project_file, node, parents,
                 }
                 return later ""
             }
-            var allowed = m64_autocast.
-                check_if_allowed_implicit_cast_from_to(
-                    right_hand_typeinfo,
-                    left_hand_typeinfo,
-                    is_moose64=is_moose64,
-                )
-            if not allowed {
+            var is_math_assign =
+                token.math_assign_ops.has(
+                    node.assign_token.str)
+            func check_if_assign_allowed {
+                if is_math_assign {
+                    var cast_info = 
+                    var math_cast_result = m64_autocast.
+                        get_math_binop_autocast(
+                            left_hand_typeinfo,
+                            right_hand_typeinfo,
+                            is_cmp_op=no,
+                            is_moose64=is_moose64,
+                        )
+                    if math_cast_result.incompatible {
+                        if msgs == none {
+                            throw new ValueError("Found binary operator "
+                                "applied on incompatible operators.")
+                        }
+                        if not node.damaged {
+                            msgs.add(new msg.FileMsg(
+                                "Unexpected '" + node.assign_token.
+                                    str.as_str() +
+                                "' assignment applied to incompatible "
+                                "types " +
+                                left_hand_typeinfo.describe_to_user(
+                                    project=project_file.project,
+                                    add_quotes_where_useful=yes,
+                                    is_moose64=yes
+                                ) + " "
+                                "and " +
+                                right_hand_typeinfo.describe_to_user(
+                                    project=project_file.project,
+                                    add_quotes_where_useful=yes,
+                                    is_moose64=yes
+                                ) + ".",
+                                source_file=project_file,
+                                line=node.line, col=node.col,
+                            ))
+                        }
+                        node.damaged = yes
+                        return later no
+                    }
+                    return later yes
+                }
+                var allowed = m64_autocast.
+                    check_if_allowed_implicit_cast_from_to(
+                        right_hand_typeinfo,
+                        left_hand_typeinfo,
+                        is_moose64=is_moose64,
+                    )
+                if allowed {
+                    return later yes
+                }
                 if msg == none {
                     throw new RuntimeError(
                         "Found a right-hand expression for "
@@ -2915,7 +2961,16 @@ func node_to_c_string(project_file, node, parents,
                         ))
                     }
                 }
+                return later no
             }
+            var check_assign = check_if_assign_allowed()
+            later:
+
+            await check_assign
+            if not check_assign {
+                return later
+            }
+            
             var right_hand_str =
                 node_generate_c_type_conversion_code(
                     project_file, left_hand_typeinfo,
