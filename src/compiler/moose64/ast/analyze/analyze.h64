@@ -605,9 +605,13 @@ func _get_c_or_m64_type_of_node_do(
         }
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.subexprs.len >= 2 and
-            token.math_ops.has(node.optoken.str) {
+            (token.compare_ops.has(node.optoken.str) or
+            token.math_ops.has(node.optoken.str)) {
+        var is_comparison = token.compare_ops.has(node.optoken.str)
         if debug {
-            print(dbg_prefix + " Found math binary op '" +
+            print(dbg_prefix + " Found " +
+                if is_comparison ("comparison") else
+                    ("math") + " binary op '" +
                 node.optoken.str + "', evaluating types of "
                 "operands...")
         }
@@ -649,7 +653,8 @@ func _get_c_or_m64_type_of_node_do(
                 "optoken.str='" + node.optoken.str.as_str() + "'")
         }
         var result = autocast.get_math_binop_autocast(
-            left_side_type, right_side_type, is_cmp_op=no,
+            left_side_type, right_side_type,
+            is_cmp_op=is_comparison,
             is_moose64=is_moose64,
         )
         if debug {
@@ -681,6 +686,11 @@ func _get_c_or_m64_type_of_node_do(
             }
             node.damaged = yes
             return later none
+        }
+        if is_comparison {
+            return typeinfo.create_from_simple_m64_type(
+                "bool"
+            )
         }
         return later result.result_type
     } elseif node.kind == ast.N_EXPR_IDREF {

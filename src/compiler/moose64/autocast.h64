@@ -353,6 +353,9 @@ func get_math_binop_autocast(
         if override_result != none {
             result_name = override_result
         }
+        if is_cmp_op {
+            result_name = "bool"
+        }
         result.result_type =
             typeinfo.create_from_simple_m64_type(result_name)
         return result
@@ -408,6 +411,8 @@ func get_math_binop_autocast(
         }
         result.incompatible = yes
         return result
+    } elseif is_cmp_op and refs_right > 0 and refs_left > 0 {
+        return cast_all_to("addr_diff")
     }
 
     # Below is the section for non-ref-types:
