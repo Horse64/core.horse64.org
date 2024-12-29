@@ -96,6 +96,22 @@ type ComputeBinopTypesResult {
     var result_type
 }
 
+func ComputeBinopTypesResult.as_str {
+    var t = "ComputeBinopTypeResult{"
+    t += "left_hand_type=" +
+        self.left_hand_type.as_str() + ","
+    t += "left_hand_cast_to_type=" +
+        self.left_hand_cast_to_type.as_str() + ","
+    t += "right_hand_type=" +
+        self.right_hand_type.as_str() + ","
+    t += "right_hand_cast_to_type=" +
+        self.right_hand_cast_to_type.as_str() + ","
+    t += "result_type=" +
+        self.result_type.as_str()
+    t += "}"
+    return t
+}
+
 func compute_and_verify_regular_m64_binop_types(
         binop_node, binop_node_parents,
         _known_typeinfo_map=none,
@@ -126,7 +142,7 @@ func compute_and_verify_regular_m64_binop_types(
             if is_comparison ("comparison") else
                 ("math") + " binary op '" +
             node.optoken.str + "', evaluating types of "
-            "operands...")
+            "operands. node=" + node.as_str())
     }
 
     var left_side_type = _get_c_or_m64_type_of_node_do(
@@ -879,7 +895,8 @@ func _get_c_or_m64_type_of_node_do(
             print(dbg_prefix + " Got "
                 "casting and type info. "
                 "binop_type_result=" +
-                    binop_type_result.as_str())
+                    binop_type_result.as_str() + " "
+                "node=" + node.as_str())
         }
         if binop_type_result == none {
             assert(node.damaged)
