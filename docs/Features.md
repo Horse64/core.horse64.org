@@ -125,12 +125,13 @@ If you want to learn Horse64 and you can already code,
 |✔|✔|✔| | |✔|**Minimizes concurrency crashes** in buggy code.          |
 |✔| |✔|〰|✔|✔|**Line breaks optional** for versatile code layout.       |
 |✔| |〰|✔| | |**Concurrency** of all I/O and network default APIs.      |
-|✔|✔|✔|✔| |✔|**Garbage-Collector** to make avoiding leaks easier.      |
-|✔| |〰|✔| | |**1st-class type extending without inheritance.**         |
-| |✔| | |✔| |**1st-class multiple base types inheritance** for mixins. |
-|✔| | |✔| | |**Parallel threaded execution** for async calls.          |
-| | | | | |✔|**Tail-call optimization** enabled by default.            |
-|✔| | | | |✔|**1-based indexing** to be more beginner-friendly.        |
+|✔|✔|✔|✔|✔| |**Garbage-Collector** to make avoiding leaks easier.      |
+|✔|✔|✔|✔| |✔|**Object-oriented class types** as built-in feature.     |
+|✔| |〰|✔| |〰|**Extend types without inheriting** as built-in feature.  |
+| |✔| | |✔| |**Native multiple bases inheritance** for mixins.         |
+|✔| | |✔| | |**Auto-parallel threaded execution** of every async call. |
+| | | | |❓|✔|**Tail-call optimization** enabled by default.            |
+|✔| | | | |✔|**1-based indexing** that is more beginner-friendly.      |
 
 ### Multimedia and Desktop App Features
 
