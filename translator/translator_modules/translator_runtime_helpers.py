@@ -715,17 +715,19 @@ def _container_sort(container, *args, **kwargs):
                     if (type(key_name) in {int, float} or
                             type(a[1]) in {dict}):
                         idx = key_name
-                        if type(a[1]) == list:
-                            idx -= 1
-                        key_a = a[1][key_name]
+                        if (type(key_name) in {int, float} and
+                                not isinstance(a[1], dict)):
+                            idx = round(idx) - 1
+                        key_a = a[1][idx]
                     else:
                         key_a = getattr(a[1], key_name)
                     if (type(key_name) in {int, float} or
                             type(b[1]) in {dict}):
                         idx = key_name
-                        if type(b[1]) == list:
-                            idx -= 1
-                        key_b = b[1][key_name]
+                        if (type(key_name) in {int, float} and
+                                not isinstance(b[1], dict)):
+                            idx = round(idx) - 1
+                        key_b = b[1][idx]
                     else:
                         key_b = getattr(b[1], key_name)
                     if key_a == key_b:
