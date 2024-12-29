@@ -3420,7 +3420,7 @@ func node_to_c_string(project_file, node, parents,
                 return later
             }
             item = queue.pop()
-            result = handle_var(item)
+            result = handle_var(item) later repeat
         }
         handle_all_vars() later:
 
