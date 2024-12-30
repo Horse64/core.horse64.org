@@ -1557,19 +1557,11 @@ func parse_expression_unwrapped(
         }
 
         # Sort operators by precedence (and secondarily the position):
-        func sort_op_positions(a, b) {
-            if a[2] > b[2] {  # Precedence comp.
-                return yes
-            } elseif a[2] == b[2] and a[1] > b[1] {  # Tok. pos comp.
-                return yes
-            }
-            return no
-        }
         outer_level_ops_at.sort(by=[2, 1])
         if debug {
             var debugmsg = "compiler.ast.expr: "
-                "parse_expression_unwrapped() " +
-                debug_id + " parsing operators expression " +
+                "parse_expression_unwrapped(): " +
+                debug_id + ": Parsing operators expression " +
                 tokens.sub(pos, tokens_len).as_str() +
                 " with outer_level_ops_at="
             for op_entry in outer_level_ops_at {
@@ -1578,6 +1570,9 @@ func parse_expression_unwrapped(
                     ", op=" + token.describe_token(
                     tokens[op_entry[1]]) + ")"
             }
+            debugmsg += " with most outer operand at pos=" +
+                outer_level_ops_at[
+                    outer_level_ops_at.len][1].as_str()
             print(debugmsg)
         }
 
@@ -1749,6 +1744,13 @@ func parse_expression_unwrapped(
                 # If this is the last one, bail here:
                 if op_assemble_queue.len == 0 {
                     resulting_node = op_node
+                    if debug {
+                        print("compiler.ast.expr: "
+                            "parse_expression_unwrapped() " +
+                            debug_id + " Got operand final "
+                            "MOST OUTER NODE: " +
+                            resulting_node.as_str())
+                    }
                     break
                 }
                 # If not the last one, store intermediate result:
