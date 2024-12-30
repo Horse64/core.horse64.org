@@ -212,9 +212,28 @@ func TypeInfo.is_readonly {
 }
 
 func TypeInfo.get_c_zeroing_code {
-    if self.ref_count(include_c_arrays=yes, include_arrays=no,
+    if self.ref_count(include_c_arrays=yes,
+            include_arrays=yes,
             include_implicit_refs=yes,
-            include_explicit_refs=yes) {
+            include_explicit_refs=yes) > 0 {
+        var idx = self.modifiers.len
+        while idx >= 1 {
+            var mod = self.modifiers[idx]
+            if {"ref", "array", "implicit ref"}.has(
+                    mod.name) {
+                break
+            }
+            if mod.name == "c_array" {
+                for prop in mod.props {
+                    if prop.prop_name == "range" and
+                            prop.range_value_num != none {
+                        return "{0}"
+                    }
+                }
+                break
+            }
+            idx -= 1
+        }
         return "((void*)0)"
     } elseif self.kind == TI_USERTYPE {
         return "{0}"
