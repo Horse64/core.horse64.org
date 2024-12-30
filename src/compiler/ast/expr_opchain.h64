@@ -1,0 +1,393 @@
+## @module compiler.ast.expr_cast
+# Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+# Alternatively, at your option, this file is offered under the Apache 2
+# license, see accompanied LICENSE.md.
+
+import math from core.horse64.org
+
+import compiler.ast.expr as ast_expr
+import compiler.msg as msg
+import compiler.operator as operator
+import compiler.token as token
+
+func parse_operator_chain(
+        tokens, pos, tokens_len, nesting_depth,
+        left_hand=none,
+        project_file=none,
+        is_moose64=no, msgs=none,
+        debug=no) {
+    # This is an expression with 1+ operators that needs untangling.
+    # Our goal is to nest all operators with right order in a tree.
+    var precedence_map = operator.op_str_to_precedence_map
+    var outer_level_ops_operands = []  # Parsed in-between operands.
+    var outer_level_ops_at = []  # Positions of all ops in this expr.
+    var outer_level_ops_exprs = {->}  # Map of op pos to expr node.
+    var outer_level_ops_exprs_wrap_pos =
+        {->}  # Map that says if an op expr was wrapped by another.
+    var expr_len = token.get_naive_stmt_or_expr_len(
+        tokens, pos, max_len=tokens_len, for_expr=yes,
+        is_moose64=is_moose64
+    )
+    assert(expr_len + pos - 1 <= tokens_len)
+    tokens_len = pos + math.max(0, expr_len - 1)
+    if expr_len > 2 and tokens_len >= 2 and
+            tokens[tokens_len - 1].kind == token.T_KEYWORD and
+            tokens[tokens_len - 1].str == "later" {
+        # Stop before trailing later since that's parsed on
+        # a statement level.
+        expr_len -= 2
+        tokens_len -= 2
+    }
+
+    # First, collect all operators for precedence ordering:
+    outer_level_ops_operands.add(left_hand)
+    outer_level_ops_at.add([
+        pos,  # The position.
+        precedence_map[tokens[pos].str]
+            [tokens[pos].kind],  # The precedence.
+        1  # The left operand index.
+    ])
+    var bracket_depth = 0
+    var operandstart = pos + 1
+    var inline_if_depth = 0
+    var i = pos + 1
+    while i <= tokens_len {
+        if tokens[i].kind == token.T_ENCLOSE {
+            if {"{", "(", "["}.has(tokens[i].str) {
+                bracket_depth += 1
+            } else {
+                bracket_depth -= 1
+            }
+        } elseif bracket_depth == 0 {
+            if inline_if_depth == 0 and
+                    {token.T_MATH, token.T_UNARYMATH,
+                    token.T_COMPARE,
+                    token.T_BOOLCOMP}.has(tokens[i].kind) {
+                # Found a relevant operator!
+                outer_level_ops_at.add([
+                    i,  # The position.
+                    precedence_map[tokens[i].str]
+                        [tokens[i].kind],  # The precedence.
+                    outer_level_ops_operands.len +
+                    1,  # Left operand index.
+                ])
+                if i > operandstart {  # Collect range of operand:
+                    outer_level_ops_operands.add([
+                        operandstart, i - 1
+                    ])
+                } else {
+                    outer_level_ops_operands.add(none)
+                }
+                operandstart = i + 1
+            } elseif tokens[i].kind == token.T_KEYWORD and
+                    tokens[i].str == "if" {
+                inline_if_depth += 1
+            } elseif tokens[i].kind == token.T_KEYWORD and
+                    tokens[i].str == "else" {
+                inline_if_depth = math.max(
+                    0, inline_if_depth - 1)
+            }
+        }
+        i += 1
+    }
+    if i > operandstart {  # Collect final trailing operand:
+        outer_level_ops_operands.add([
+            operandstart, i - 1
+        ])
+    } else {
+        outer_level_ops_operands.add(none)
+    }
+
+    # For each operator collected, add positions of neighbors:
+    i = 1
+    while i <= outer_level_ops_at.len {
+        var prev = none
+        if i > 1 {
+            prev = outer_level_ops_at[i - 1][1]
+        }
+        var next = none
+        if i < outer_level_ops_at.len {
+            next = outer_level_ops_at[i + 1][1]
+        }
+        # After the next code line, each entry will look like this:
+        # [operator token pos, operator precd.,
+        # left-hand operand idx,
+        # previous op token pos, next operator token pos]
+        assert(outer_level_ops_at[i].len == 3)
+        outer_level_ops_at[i] += [prev, next]
+        assert(outer_level_ops_at[i].len == 5)
+        i += 1
+    }
+
+    # Sort operators by precedence (and secondarily the position):
+    outer_level_ops_at.sort(by=[2, 1])
+    if debug {
+        var debugmsg = "compiler.ast.expr: "
+            "parse_expression_unwrapped(): " +
+            debug_id + ": Parsing operators expression " +
+            tokens.sub(pos, tokens_len).as_str() +
+            " with outer_level_ops_at="
+        for op_entry in outer_level_ops_at {
+            debugmsg += "(pos=" + op_entry[1].as_str() +
+                ", precedence=" + op_entry[2].as_str() +
+                ", op=" + token.describe_token(
+                tokens[op_entry[1]]) + ")"
+        }
+        debugmsg += " with most outer operand at pos=" +
+            outer_level_ops_at[
+                outer_level_ops_at.len][1].as_str()
+        print(debugmsg)
+    }
+
+    # Convert all the in-between operands into expressions:
+    var operand_pos = outer_level_ops_operands.len
+    var operands_queue = outer_level_ops_operands.copy()
+    func parse_operand_if_needed(operand) {
+        if typename(operand) != "list" {
+            # Either 'none' or already transformed.
+            return operand
+        }
+        # Get expression node for this operand's range:
+        assert(operand[2] >= operand[1])
+        var operand_parsed =
+            ast_expr._parse_expression_notlater(
+                tokens, operand[1], nesting_depth, msgs,
+                project_file=project_file,
+                max_len=operand[2], debug=debug
+            )
+
+        if operand_parsed == none or
+                (operand[1] + operand_parsed.token_len - 1 <
+                operand[2]) {
+            assert(operand_parsed == none or
+                    operand_parsed.token_len > 0)
+            var after_pos = operand[1] + (
+                if operand_parsed != none
+                    (operand_parsed.token_len) else (0)
+            )
+            if operand_parsed == none or
+                    not operand_parsed.has_damage() {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected " + token.describe_token_at(
+                        tokens, after_pos) +
+                    ", expected any valid operator to "
+                    "follow up " + token.describe_token_at(
+                        tokens, after_pos - 1) + " "
+                    "found in line " +
+                    token.get_line(tokens, after_pos - 1
+                                    ).as_str() + ", column " +
+                    token.get_col(tokens, after_pos - 1
+                                    ).as_str() + ".",
+                    source_file=project_file,
+                    line=token.get_line(tokens, after_pos),
+                    col=token.get_col(tokens, after_pos),
+                ))
+            }
+            if operand_parsed == none {
+                operand_parsed = new ast_expr.InvalidExpr(
+                    after_pos - operand[1]
+                )
+            }
+            operand_parsed.damaged = yes
+        }
+        return operand_parsed
+    }
+    assert(operands_queue.len > 0)
+    var next_operand = operands_queue.pop()
+    while yes {
+        var operand_parsed = parse_operand_if_needed(next_operand)
+
+        outer_level_ops_operands[operand_pos] = operand_parsed
+        if operands_queue.len > 0 {
+            # If we arrive here, we got operands left to convert:
+            operand_pos -= 1
+            next_operand = operands_queue.pop()
+            continue
+        }
+        # We're done converting operands.
+        if debug {
+            print("compiler.ast.expr: parse_expression_unwrapped() " +
+                debug_id + " parsed operands RESULT: " +
+                outer_level_ops_operands.as_str())
+        }
+
+        # Now, assemble the actual final expression tree:
+        var resulting_node = none
+        var op_assemble_queue = outer_level_ops_at.copy()
+        while op_assemble_queue.len > 0 {  # Iterate in nesting order.
+            var op_entry = op_assemble_queue.pop_at(1)
+            var op_has_lefthand = token.token_has_lefthand(
+                tokens[op_entry[1]]
+            )
+            var op_token_pos = op_entry[1]
+            var op_left_child = none
+            var op_right_child = none
+            if op_has_lefthand {
+                # A binary operator. Get left-hand subtree:
+                var prev_op_pos = op_entry[4]
+                if prev_op_pos != none and
+                        outer_level_ops_exprs.has(prev_op_pos) {
+                    # The left-hand child is a nested operator:
+                    while yes {
+                        op_left_child = outer_level_ops_exprs[
+                            prev_op_pos
+                        ]
+                        if outer_level_ops_exprs_wrap_pos[
+                                prev_op_pos] != none {
+                            prev_op_pos = outer_level_ops_exprs_wrap_pos[
+                                prev_op_pos]
+                        } else {
+                            outer_level_ops_exprs_wrap_pos[
+                                prev_op_pos] = op_token_pos
+                            break
+                        }
+                    }
+                } else {
+                    # The left-hand child is a bare operand:
+                    var left_operand_no = op_entry[3]
+                    op_left_child = outer_level_ops_operands[
+                        left_operand_no
+                    ]
+                }
+            }
+            if op_has_lefthand and op_left_child == none {
+                # Example for this error: '+', '+' in a row.
+                msgs.add(new msg.FileMsg(
+                    "Unexpected " + token.describe_token_at(
+                        tokens, op_token_pos - 1) +
+                    ", expected valid left-hand operand "
+                    "for operator " + token.describe_token_at(
+                        tokens, op_token_pos) + " "
+                    "found in line " +
+                    token.get_line(tokens, op_token_pos
+                                ).as_str() + ", column " +
+                    token.get_col(tokens,op_token_pos
+                                ).as_str() + ".",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+                op_left_child = new ast_expr.InvalidExpr(1)
+            }
+            # Now, get right-hand subtree:
+            var next_op_pos = op_entry[5]
+            if outer_level_ops_exprs.has(next_op_pos) {
+                # The right-hand child is a nested operator:
+                while yes {
+                    op_right_child = outer_level_ops_exprs[
+                        next_op_pos
+                    ]
+                    if outer_level_ops_exprs_wrap_pos[
+                            next_op_pos] != none {
+                        next_op_pos = outer_level_ops_exprs_wrap_pos[
+                            next_op_pos]
+                    } else {
+                        outer_level_ops_exprs_wrap_pos[
+                            next_op_pos] = op_token_pos
+                        break
+                    }
+                }
+            } else {
+                # The right-hand child is a bare operand:
+                var left_operand_no = op_entry[3]
+                if left_operand_no + 1 <=
+                        outer_level_ops_operands.len {
+                    op_right_child = outer_level_ops_operands[
+                        # Add 1 to this for right-hand side:
+                        left_operand_no + 1
+                    ]
+                }
+            }
+            if op_right_child == none {
+                # Example for this error: '+', '+' in a row.
+                msgs.add(new msg.FileMsg(
+                    "Unexpected " + token.describe_token_at(
+                        tokens, op_token_pos + 1) +
+                    ", expected valid right-hand operand "
+                    "for operator " + token.describe_token_at(
+                        tokens, op_token_pos) + " "
+                    "found in line " +
+                    token.get_line(tokens, op_token_pos
+                                ).as_str() + ", column " +
+                    token.get_col(tokens, op_token_pos
+                                ).as_str() + ".",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+                op_right_child = new ast_expr.InvalidExpr(1)
+            }
+            # Create the operator's expression node:
+            var op_node
+            if op_has_lefthand {
+                op_node = new ast_expr.BinopExpr(
+                    tokens[op_token_pos])
+                op_node.subexprs.add(op_left_child)
+            } else {
+                op_node = new ast_expr.UnopExpr(
+                    tokens[op_token_pos])
+            }
+            op_node.subexprs.add(op_right_child)
+            op_node.line = token.get_line(
+                tokens, op_token_pos)
+            op_node.col = token.get_line(
+                tokens, op_token_pos)
+            # If this is the last one, bail here:
+            if op_assemble_queue.len == 0 {
+                resulting_node = op_node
+                if debug {
+                    print("compiler.ast.expr: "
+                        "parse_expression_unwrapped(): " +
+                        debug_id + ": Got operand final "
+                        "MOST OUTER NODE: " +
+                        resulting_node.as_str())
+                }
+                break
+            } else {
+                if debug {
+                    print("compiler.ast.expr: "
+                        "parse_expression_unwrapped(): " +
+                        debug_id + ": Wrapped a preliminary "
+                        "node. "
+                        "op_node=" + op_node.as_str() + " "
+                        "op_token_pos=" +
+                            op_token_pos.as_str())
+                }
+            }
+            # If not the last one, store intermediate result:
+            outer_level_ops_exprs[op_token_pos] = op_node
+            outer_level_ops_exprs_wrap_pos[op_token_pos] = none
+        }
+        assert(resulting_node != none)
+        resulting_node.token_len = (tokens_len - pos) + 1
+        if left_hand != none {
+            resulting_node.token_len += left_hand.token_len
+        }
+        return resulting_node
+    }
+    throw new RuntimeError(
+        "Internal error, failed to return "
+        "operator chain result node")
+}
