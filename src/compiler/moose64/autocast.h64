@@ -473,6 +473,41 @@ func get_math_binop_autocast(
                 "to address type.")
         }
         return cast_all_to("addr")
+    } elseif refs_left > 0 and refs_right > 0 and
+            refs_left == refs_right and
+            {typeinfo.TI_C_TYPE,
+             typeinfo.TI_USERTYPE}.has(
+                 left_hand_typeinfo.kind) and
+            (left_hand_typeinfo.kind ==
+                right_hand_typeinfo.kind or
+                left_is_any or right_is_any) {
+        # If this is vaguely a similar type, then
+        # allow math on this for the sake of pointer
+        # comparisons.
+        if left_hand_typeinfo.kind == typeinfo.TI_C_TYPE {
+            if (right_hand_typeinfo.kind ==
+                    typeinfo.TI_C_TYPE and
+                    left_hand_typeinfo.orig_type_name ==
+                        right_hand_typeinfo.orig_type_name) or
+                    left_is_any or right_is_any {
+                return cast_all_to("addr_diff")
+            }
+            result.incompatible = yes
+            return result
+        }
+        if left_hand_typeinfo.kind == typeinfo.TI_USERTYPE {
+            if (right_hand_typeinfo.kind ==
+                    typeinfo.TI_USERTYPE and
+                    left_hand_typeinfo.user_type_ref.alike(
+                        right_hand_typeinfo.user_type_ref)) or
+                    left_is_any or right_is_any {
+                return cast_all_to("addr_diff")
+            }
+            result.incompatible = yes
+            return result
+        }
+        result.incompatible = yes
+        return result
     }
 
     # Below is the section for non-ref-types:
