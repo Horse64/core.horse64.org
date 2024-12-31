@@ -5,7 +5,7 @@ Syntax Basics
 =============
 
 **Warning:** While this tutorial is meant for complete beginners
-new for programming, please note programming can be **difficult**
+new to programming, please note programming can be **difficult**
 and seem arcane at first. Make sure to have the Horse64 code
 editor running to try things right away, and to experiment a lot
 so you can get a practical intuition for what you're doing.
