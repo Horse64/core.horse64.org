@@ -4,13 +4,18 @@
 Object-oriented programming in Horse64
 ======================================
 
+**Note:** If you're new to programming, you might
+want to read [this basic example first](
+/docs/Tutorial/Syntax.md#types
+).
+
 Programming with so-called *object types* in Horse64
 can be useful for organizing your code.
 But initially, the following may seem convoluted:
 **You'll only find this essential to use in
-larger programs.** (But it's not bad [coding style
+larger programs.** (But it's not considered bad [coding style
 ](/docs/Coding%20Style.md#what-and-why) to use it in
-small ones.)
+small ones either.)
 
 
 Custom `types` in Horse64

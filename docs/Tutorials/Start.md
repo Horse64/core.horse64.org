@@ -9,7 +9,8 @@ check out [the initial setup tutorial](/docs/Tutorials/Initial Setup.md).
 
 Then, try out these tutorials if you're a beginner:
 
-- [FIXME](/FIXME.md).
+- [/docs/Tutorials/Syntax](A from-scratch introduction to
+    Horse64 and how their "syntax" looks like.).
 
 Or if you're coming from other programming languages:
 

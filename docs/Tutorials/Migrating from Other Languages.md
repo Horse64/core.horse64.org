@@ -24,7 +24,8 @@ Read on for a more detailed look at various parts:
 Basic **syntax** differences
 ----------------------------
 
-Horse64's syntax has the following qualities:
+[Horse64's syntax](/docs/Tutorials/Syntax) has the following
+qualities:
 
 - It's inspired by a **blend of Lua and Go**.
 
@@ -38,6 +39,9 @@ Horse64's syntax has the following qualities:
 
 - Generally it's a minimal but readable look that is less
   technical than e.g. JavaScript.
+
+If you want to read a [more detailed syntax introduction,
+go here](/docs/Tutorials/Syntax).
 
 
 Program structure
@@ -61,7 +65,8 @@ func main {
 }
 ```
 
-You can import neigboring code files as modules.
+You can import neigboring code files as modules to make use
+of the respective functions in those neighboring files.
 
 **Note:** In Horse64, **regular code can't be outside
 a `func`** like it might be in Python, Javascript, or Lua.
