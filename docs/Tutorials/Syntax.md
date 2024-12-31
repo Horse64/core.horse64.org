@@ -4,20 +4,21 @@
 Syntax Basics
 =============
 
-**Warning:** While this tutorial is meant for complete beginners
-new to programming, please note programming can be **difficult**
-and seem arcane at first. Make sure to have the Horse64 code
-editor running to try things right away, and to experiment a lot
-so you can get a practical intuition for what you're doing.
+> **Warning**
+  While this tutorial is meant for complete beginners
+  new to programming, please note programming can be **difficult**
+  and seem arcane at first. Make sure to have the Horse64 code
+  editor running to try things right away, and to experiment a lot
+  so you can get a practical intuition for what you're doing.
 
 Code for Horse64 is stored in `.h64` text files. These are files
 holding for instructions to run that make up your programs.
 When such a program runs, the instructions are executed,
 making up the behavior of your program.
 
-Continue reading for an explanation of how to write a program.
-How a program is laid out in code is commonly called the
-"syntax" of the program. This syntax will be explained here.
+> **Note**
+  The rules for the layout of programs in a language, like
+  for Horse64, is commonly called the "Syntax" of that language.
 
 
 Functions
