@@ -59,7 +59,7 @@ ensure-devtools:
 	@if [ ! -e ../horse_modules/devtools.horse64.org ]; then git clone https://codeberg.org/Horse64/devtools.horse64.org ../horse_modules/devtools.horse64.org; fi
 ensure-moose64:
 	@if [ ! -e ../horse_modules ]; then mkdir ../horse_modules; fi
-	@if [ ! -e ../horse_modules/m64.horse64.org ]; then git clone https://codeberg.org/Horse64/m64.horse64.org ../horse_modules/m64.horse64.org; fi
+	@if [ ! -e ../horse_modules/m64.horse64.org ]; then git clone https://codeberg.org/Moose64/m64.horse64.org ../horse_modules/m64.horse64.org; fi
 ensure-hvm:
 	@if [ ! -e ../horse_modules ]; then mkdir ../horse_modules; fi
 	@if [ ! -e ../horse_modules/hvm.horse64.org ]; then git clone https://codeberg.org/Horse64/hvm.horse64.org ../horse_modules/hvm.horse64.org; fi
