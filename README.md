@@ -53,5 +53,5 @@ bunch of projects. Due to that, **locating where each
 component is** and where the code is, can occasionally
 be challenging. Therefore, there's a
 [handy resource list for finding projects and
-code locations](/docs/Resource.md) to help you out.
+code locations](/docs/Resources.md) to help you out.
 
