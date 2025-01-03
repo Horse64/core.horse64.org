@@ -1,5 +1,5 @@
 ## @module compiler.moose64.c_importer
-# Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2024-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -70,6 +70,11 @@ func CImportInfo._process_c_include(project, ipath) {
             "void exit(int value);",
             _override_func_signature=
                 "(<-i32)->empty"
+        )
+        new_items["abort"] = new c_symbol.CFuncSymbol(
+            "void abort(void);",
+            _override_func_signature=
+                "()->empty"
         )
     } elseif ipath == "string.h" {
         new_items["memcpy"] = new c_symbol.CFuncSymbol(
