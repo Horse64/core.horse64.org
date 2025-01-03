@@ -43,3 +43,14 @@ base tools including *horp* are shipped with the SDK.)
 If you're interested in helping the project, [check how
 to contribute here](/docs/How%20to%20Contribute.md).
 
+
+Find Various Components
+-----------------------
+
+If you want to contribute or report a bug, you'll find
+the Horse64 and Moose64 ecosystem is made of a larger
+bunch of projects. Due to that, finding where the code for
+a component is can be challenging. Therefore, there's a
+[handy resource list for finding projects and
+code locations](/docs/Resource.md) to help you out.
+

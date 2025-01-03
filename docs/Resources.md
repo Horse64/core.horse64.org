@@ -61,7 +61,17 @@ Documentation
 
 If you're reading this, you found the documentation! If you got
 some offline copy, you can find [the latest online copy of the
-documentation here](https://horse64.org/docs/Welcome).
+**Horse64** documentation here](https://horse64.org/docs/Welcome).
+There is also [the online copy of the **Moose64**
+documentation](https://m64.horse64.org/docs/Introduction).
+
+If you want to contribute to and change the docs, go look here:
+
+- Find the [🧬 documentation code files for Horse64 here](
+  https://codeberg.org/Horse64/core.horse64.org/src/branch/main/src).
+
+- Find the [🧬 documentation code for Moose64 here](
+  https://codeberg.org/Moose64/m64.horse64.org/src/branch/main/src).
 
 
 License
