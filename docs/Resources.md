@@ -14,9 +14,8 @@ SDK
 ---
 
 If you want to get started, [**go here for
-the SDK** (Software Development Kit) for Horse64](
-https://horse64.org/get
-).
+the SDK** (Software Development Kit) for Horse64 and
+Moose64](https://horse64.org/get).
 
 
 Report bugs
@@ -31,25 +30,38 @@ a misunderstanding.
 
 To report bugs, here are the locations for core components:
 
-- [Compiler bug reports](
+- [Compiler bug reports (this includes both Horse64's horsec
+  and Moose64's moosec)](
   https://codeberg.org/Horse64/core.horse64.org/issues).
 
-- [Standard library bug reports](
+- [Standard library bug reports for Horse64 (behavior
+  of built-in libraries like opening files, etc.)](
   https://codeberg.org/Horse64/core.horse64.org/issues).
 
-- [Horp (package manager) bug reports](
+- [Standard library bug reports for Moose64](
+  https://codeberg.org/Moose64/m64.horse64.org/issues
+  ).
+
+- ["Horp" package manager bug reports](
   https://codeberg.org/Horse64/horp.horse64.org/issues).
 
-- [HVM (C runtime) bug reports](
+- [HVM (Horse64's runtime) bug reports](
   https://codeberg.org/Horse64/hvm.horse64.org/issues).
+
+- [Syntax highlighting and other extra developer
+  libraries bug reports](
+  https://codeberg.org/Horse64/devtools.horse64.org/issues).
+
+If you are unsure where to file a bug, **simply guess**,
+the maintainers will move it around if needed.
 
 
 Documentation
 -------------
 
 If you're reading this, you found the documentation! If you got
-some offline copy, [switch to the latest online copy of the
-documentation](https://horse64.org/docs/Welcome).
+some offline copy, you can find [the latest online copy of the
+documentation here](https://horse64.org/docs/Welcome).
 
 
 License
@@ -93,14 +105,28 @@ of the core projects are almost the same.
 Standard library
 ----------------
 
-The standard library providing all the built-in functionality in
-the `core.horse64.org` can be found in the same repository as
+The standard library provides all the built-in functionality
+like opening files, parsing basic formats like JSON, and
+basic text formatting and so son.
+
+### Horse64 standard library
+
+For Horse64, the standard library is in the `core.horse64.org`
+package which is the same repository that also contains
 [horsec](#Horsec).
 
-- Get it by fetching the [**SDK**](#sdk).
+- Get the standard library by fetching the [**SDK**](#sdk).
 
-- Find the [🧬 standard library code here](
+- Find the [🧬 standard library code for Horse64 here](
   https://codeberg.org/Horse64/core.horse64.org/src/branch/main/src).
+
+### Moose64 standard library
+
+For Moose64, the standard library is in the `m64.horse64.org`
+package.
+
+- Find the [🧬 standard library code for Moose64 here](
+  https://codeberg.org/Moose64/m64.horse64.org/src/branch/main/src).
 
 
 Horp
@@ -139,7 +165,7 @@ particularly useful for handling C integration and low level code.
 - Check out the [Moose64 website](https://m64.horse64.org).
 
 - Here's the [Moose64 standard library](
-  https://codeberg.org/Horse64/m64.horse64.org).
+  https://codeberg.org/Moose64/m64.horse64.org).
 
 
 Moosec
@@ -202,11 +228,11 @@ check the **contributors for the central packages:**
   https://codeberg.org/Horse64/hvm.horse64.org/src/branch/main/AUTHORS.md),
 - [Package manager authors](
   https://codeberg.org/Horse64/horp.horse64.org/src/branch/main/AUTHORS.md),
-- [Runtime base library authors](
+- [Runtime base library (Spew3D) authors](
   https://codeberg.org/Spew3D/Spew3D/src/branch/main/AUTHORS.md).
 
 And for Moose64 specifically:
 
 - [Moose64 stdlib authors](
-  https://codeberg.org/Horse64/m64.horse64.org/src/branch/main/AUTHORS.md).
+  https://codeberg.org/Moose64/m64.horse64.org/src/branch/main/AUTHORS.md).
 
