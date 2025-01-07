@@ -33,6 +33,21 @@ import process from core.horse64.org
 import system from core.horse64.org
 import text from core.horse64.org
 
+var repo_names = [
+    "code-editor.horse64.org",
+    "hvm.horse64.org",
+    "devtools.horse64.org",
+    "hodoc.horse64.org",
+    "horp.horse64.org",
+    "m64.horse64.org",
+    "horsels.horse64.org",
+    "helpers-for-sdk-download.horse64.org",
+    "Spew3D",
+    "spew3d.horse64.org",
+    "Spew3D-Web",
+    "Spew3D-Net"
+]
+
 func main {
     # Get the base dir our script is in:
     var exec_path = system.self_exec_path()
@@ -67,7 +82,7 @@ func main {
             print("Version 2025.1")
             system.exit(0)
         }
-        if arg == "--dco-signature" and index + 1 <= len(args) {
+        if arg == "--dco-signature" and index + 1 <= args.len {
             dco_signature = args[index + 1]
             index += 1
             continue
@@ -119,7 +134,7 @@ func main {
                 file_obj.close()
             }
             var lines = contents.splitlines()
-            var had_change = False
+            var had_change = no
             var new_lines = []
             for line in lines {
                 var start_str = "copyright (c) "
@@ -155,8 +170,9 @@ func main {
                 original_year = math.round(
                     original_year.to_num())
                 var insert_year_str = original_year.as_str()
-                if original_year < to_year:
+                if original_year < to_year {
                     insert_year_str += "-" + to_year.as_str()
+                }
                 insert_line = ("Copyright (c) " +
                     insert_year_str + remainder)
                 if line.trim().lower() ==
@@ -213,42 +229,54 @@ func main {
     # Collect all repositories:
     var mainrepopath = path.join(our_dir, "..")
     var repo_paths = [mainrepopath]
-    var folder_list = io.list_dir(path.join(mainrepopath, "..")
+    var folder_list = io.list_dir(path.join(mainrepopath, ".."))
     later:
 
     await folder_list
-    for reponame in folder_list {
-        if not reponame in [
-                "code-editor.horse64.org",
-                "hvm.horse64.org",
-                "devtools.horse64.org",
-                "hodoc.horse64.org",
-                "horp.horse64.org",
-                "m64.horse64.org",
-                "horsels.horse64.org",
-                "helpers-for-sdk-download.horse64.org",
-                "Spew3D",
-                "spew3d.horse64.org",
-                "Spew3D-Web",
-                "Spew3D-Net"] {
-            continue
+    func filter_repo_list {
+        var new_folder_list = []
+        func add_folder_if_applicable(folder_name) {
+            if not repo_names.has(folder_name) {
+                return later
+            }
+            var rpath = path.join(
+                mainrepopath, "..", folder_name)
+            var is_dir = io.is_dir(
+                rpath) later:
+
+            await is_dir
+            if not is_dir {
+                return later
+            }
+            print("Found repository: " +
+                folder_name.as_str())
+            repo_paths.add(rpath)
         }
-        print("Found repository: " + reponame.as_str())
-        repopath = path.join(mainrepopath, "..", reponame)
-        if not path.isdir(repopath) {
-            continue
+        var queue = folder_list.copy()
+        if queue.len == 0 {
+            return later
         }
-        repo_paths.add(path.normalize(repopath))
+        var item = queue.pop()
+        var _unused = add_folder_if_applicable(item)
+        later:
+
+        await _unused
+        if queue.len == 0 {
+            return later
+        }
+        item = queue.pop()
+        _unused = add_folder_if_applicable(item)
+        later repeat
     }
+    filter_repo_list() later:
 
     # Make sure nothing is scheduled yet before we touch it:
-    for repopath in repo_paths {
     func check_repo_clean(repopath) {
         print("Verifying repo is clean: " +
-            repopath.as_str()))
+            repopath.as_str())
         var o = process.run([
             "git", "status", "--porcelain=1"],
-            run_in-dir=repopath) later:
+            run_in_dir=repopath) later:
 
         await o
         var lines = o.splitlines()
