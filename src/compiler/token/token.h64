@@ -1,5 +1,5 @@
 ## @module compiler.token
-# Copyright (c) 2020-2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2020-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -1188,6 +1188,7 @@ enum TokenKind {
     T_COMMA,
     T_DOT,
     T_COLON,
+    T_ELLIPSIS,
 }
 
 type Token {
@@ -1653,7 +1654,7 @@ func tokenize_str(
                 result.msgs].as_str())
         }
 
-        if i + 1 < strlen and c == "-" and
+        if i + 1 <= strlen and c == "-" and
                 str[i + 1] == ">" {
             # -> map operator, or -> return type operator.
             result.tokens.add(new Token(
@@ -1662,7 +1663,7 @@ func tokenize_str(
             i += 1
             col += 1
             continue
-        } elseif is_moose64 and i + 1 < strlen and
+        } elseif is_moose64 and i + 1 <= strlen and
                 c == "<" and str[i + 1] == "-" and
                 is_leftptr_at_token_str_pos(
                     str, i, result.tokens,
@@ -1678,6 +1679,16 @@ func tokenize_str(
             col += 1
             continue
         } elseif c == "." {
+            if i + 2 <= strlen and
+                    str[i + 1] == "." and
+                    str[i + 2] == "." {
+                result.tokens.add(new Token(
+                    ".", T_ELLIPSIS, line, col
+                ))
+                i += 1
+                col += 1
+                continue
+            }
             # Dot.
             result.tokens.add(new Token(
                 ".", T_DOT, line, col
@@ -2160,7 +2171,7 @@ func tokenize_str(
             col += name.len - 1
             continue
         } elseif text.code(c) == code_0 and
-                i < strlen and str[i + 1] == "x" {
+                i + 1 <= strlen and str[i + 1] == "x" {
             # Hex number. Goes until a char stops fitting.
             var k = i + 2
             while k <= strlen {

@@ -1,5 +1,5 @@
  ## @module compiler.ast_typeref
-# Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2024-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -270,13 +270,15 @@ type TypeRefFuncExpr base TypeRefExpr {
     var return_typeref_expr
     var func_storage_ref
     var is_failable = no
-    var is_func_attr
     var is_autoprop_func = no
+    var is_func_attr = no
 }
 
 func TypeRefFuncExpr.init {
     base.init()
     self.is_func_ref = yes
+    self.is_multi_type = no
+    self.is_multi_arg = no
     self.name = none
     self.type_path = none
 }
@@ -309,24 +311,13 @@ func TypeRefFuncExpr.is_equivalent(
     if not other_func_expr.is_func_ref {
         return no
     }
-    if other_func_expr.arg_typeref_exprs.len !=
-            self.arg_typeref_exprs.len {
-        return no
+    if self.func_storage_ref != none and
+            other_func_expr.func_storage_ref != none {
+        return (self.func_storage_ref.alike(
+            other_func_expr.func_storage_ref))
     }
-    if self.return_typeref_expr == none or
-            self.return_typeref_expr.name == "empty" {
-        if other_func_expr.return_typeref_expr != none and
-                other_func_expr.return_typeref_expr.name !=
-                "empty" {
-            return no
-        }
-    } else {
-        if not self.return_typeref_expr.is_equivalent(
-                other_func_expr.return_typeref_expr,
-                is_moose64=is_moose64,
-                ) {
-            return no
-        }
+    if not self.cmp_signature(other_func_expr) {
+        return no
     }
     if self.modifiers.len != other_func_expr.modifiers.len {
         return no
@@ -341,16 +332,6 @@ func TypeRefFuncExpr.is_equivalent(
         }
         modidx += 1
     }
-    var argidx = 1
-    while argidx <= self.arg_typeref_exprs.len {
-        if not self.arg_typeref_exprs[argidx].is_equivalent(
-                other_func_expr.arg_typeref_exprs[argidx],
-                is_moose64=is_moose64,
-                ) {
-            return no
-        }
-        argidx += 1
-    }
     return yes
 }
 
@@ -364,8 +345,14 @@ func TypeRefFuncExpr.cmp_signature(
             other_type_expr.arg_typeref_exprs.len {
         return no
     }
-    if self.return_typeref_expr != none {
+    if self.return_typeref_expr != none and
+            (self.return_typeref_expr.name != "empty" or
+             self.return_typeref_expr.is_user_type()) {
         if other_type_expr.return_typeref_expr == none or
+                (other_type_expr.return_typeref_expr.name ==
+                    "empty" and
+                 not other_type_expr.return_typeref_expr.
+                    is_user_type()) or
                 not self.return_typeref_expr.is_equivalent(
                     other_type_expr.return_typeref_expr,
                     is_moose64=is_moose64,
@@ -373,7 +360,11 @@ func TypeRefFuncExpr.cmp_signature(
             return no
         }
     } else {
-        if other_type_expr.return_typeref_expr != none {
+        if other_type_expr.return_typeref_expr != none and
+                (other_type_expr.return_typeref_expr.
+                    name != "empty" or
+                 other_type_expr.return_typeref_expr.
+                    is_user_type()) {
             return no
         }
     }
@@ -766,6 +757,8 @@ type TypeRefExpr base ast.TreeNode {
     var modifiers = []
     var has_init_expr
     var is_func_ref = no
+    var is_multi_type = no
+    var is_multi_arg = no
     var storage_ref = none
 
     var is_special_madeup_builtin = no  # Like .len, etc.
@@ -778,6 +771,78 @@ type TypeRefExpr base ast.TreeNode {
 func TypeRefExpr.init {
     base.init()
     self.kind = ast.N_EXPR_TYPEREF
+}
+
+type MultiTypeRefExpr base TypeRefExpr {
+    var sub_type_refs = []
+}
+
+func MultiTypeRefExpr.init {
+    base.init()
+    self.is_multi_type = yes
+    self.name = "multi"
+}
+
+func MultiTypeRefExpr.is_equivalent(
+        other_expr, is_moose64=no
+        ) {
+    if not other_expr.is_multi_type {
+        return no
+    }
+    if self.sub_type_refs.len !=
+            other_expr.sub_type_refs {
+        return no
+    }
+    var idx = 0
+    for sub_type in self.sub_type_refs {
+        idx += 1
+        if not other_expr.sub_type_refs[idx].
+                is_equivalent(
+                    sub_type) {
+            return no
+        }
+    }
+    return yes
+}
+
+func MultiTypeRefExpr.is_user_type {
+    return no
+}
+
+type MultiArgTypeRefExpr base TypeRefExpr {
+    var arg_type
+}
+
+func MultiArgTypeRefExpr.init {
+    base.init()
+    self.is_multi_arg = yes
+    self.name = "..."
+}
+
+func MultiArgTypeRefExpr.is_equivalent(
+        other_expr, is_moose64=no
+        ) {
+    if not other_expr.is_multi_arg {
+        return no
+    }
+    if self.arg_type.is_equivlent(
+            other_expr.arg_type) {
+        return no
+    }
+    return yes
+}
+
+func MultiArgTypeRefExpr.as_code(indent=0) {
+    if self.damaged {
+        return "(damaged type ref expr.)"
+    }
+    var t = ""
+    t += self.arg_type.as_code(indent=indent)
+    return t
+}
+
+func MultiArgTypeRefExpr.is_user_type {
+    return no
 }
 
 func TypeRefFuncExpr.is_equivalent(
