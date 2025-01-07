@@ -75,7 +75,7 @@ func read_write_transfer(
     return no  # Not end of file!
 }
 
-func files_alike(file_path_1, file_path_p2) {
+func files_alike(file_path_1, file_path_2) {
     var exists_path_1 = io.exists(file_path_1)
     later:
 
@@ -91,11 +91,11 @@ func files_alike(file_path_1, file_path_p2) {
         return yes
     }
 
-    var file_obj_1 = io.open(file_path_1)
+    var file_obj_1 = io.open(file_path_1, "r")
     later:
 
     await file_obj_1
-    var file_obj_2 = io.open(file_path_2)
+    var file_obj_2 = io.open(file_path_2, "r")
     later:
 
     do {
@@ -141,6 +141,7 @@ func files_alike(file_path_1, file_path_p2) {
     var resume = compare_chunk()
     later:
 
+    await resume
     if not resume {
         return not found_difference
     }
