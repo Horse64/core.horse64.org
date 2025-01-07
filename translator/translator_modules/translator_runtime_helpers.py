@@ -1508,13 +1508,16 @@ def _io_remove_file(v, cb, allow_vfs=True, allow_disk=True):
     _async_ops_lock.release()
 
 def _io_copy_file(v1, v2, cb, allow_vfs=True, allow_disk=True):
-    def async_remove_dir_do(job):
-        v = job.userdata["v"]
+    assert(v1 != None)
+    assert(v2 != None)
+    assert(cb != None)
+    def async_copy_file_do(job):
+        v1 = job.userdata["v1"]
         v2 = job.userdata["v2"]
         allow_vfs = job.userdata["allow_vfs"]
         allow_disk = job.userdata["allow_disk"]
-        if v == "":
-            v = "."
+        if v1 == "":
+            v1 = "."
         if not allow_disk:
             if v2 == ".":
                 result = [
@@ -1528,14 +1531,18 @@ def _io_copy_file(v1, v2, cb, allow_vfs=True, allow_disk=True):
             result = [None, None]
             try:
                 import shutil
-                result[1] = _wrap_io(shutil.copyfile)(v, v2)
+                result[1] = _wrap_io(shutil.copyfile)(v1, v2)
             except Exception as e:
                 result[0] = e
                 result[1] = None
         job.userdata2 = result
+        assert(job.userdata2 != None)
         job.done = True
     def done_cb(op):
+        assert(op != None)
+        assert(op.userdata != None)
         result = op.userdata2
+        assert(result != None)
         f = op.userdata["usercb"]
         op.userdata = None
         op.userdata2 = None
@@ -1543,12 +1550,12 @@ def _io_copy_file(v1, v2, cb, allow_vfs=True, allow_disk=True):
         op.callback_func = None
         return f(result[0], result[1])
     op = _AsyncOperation({
-        "v": v,
+        "v1": v1,
         "v2": v2,
         "allow_disk": allow_disk,
         "allow_vfs": allow_vfs,
         "usercb": cb},
-        async_remove_dir_do, done_cb)
+        async_copy_file_do, done_cb)
     _async_ops_lock.acquire()
     _async_ops.append(op)
     _async_ops_lock.release()
@@ -3494,7 +3501,8 @@ def _to_num(v):
         v = v.decode("utf-8", "surrogateescape")
     assert(type(v) == str)
     while (v.endswith("0") and len(v) > 1 and
-            v[-2] != "-"):
+            "." in v):
+        assert("." in v)
         v = v[:-1]
     if v.endswith("."):
         v = v[:-1]
@@ -3957,6 +3965,18 @@ def _path_join(*args):
     path_sep = os.path.sep + ""
     result = ""
     for item in args:
+        if type(item) == list:
+            inner = ""
+            for inneritem in item:
+                if len(inner) > 0 and \
+                        not inner.endswith(path_sep):
+                    inner += path_sep
+                if len(inner) > 0:
+                    while inneritem.startswith(path_sep) or \
+                            inneritem.startswith("/"):
+                        inneritem = inneritem[1:]
+                inner += inneritem.replace("/", path_sep)
+            item = inner
         if len(result) > 0 and \
                 not result.endswith(path_sep):
             result += path_sep
