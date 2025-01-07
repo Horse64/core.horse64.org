@@ -1,5 +1,5 @@
 ## @module io
-# Copyright (c) 2020-2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2020-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -73,5 +73,78 @@ func read_write_transfer(
         throw e
     }
     return no  # Not end of file!
+}
+
+func files_alike(file_path_1, file_path_p2) {
+    var exists_path_1 = io.exists(file_path_1)
+    later:
+
+    await exists_path_1
+    var exists_path_2 = io.exists(file_path_2)
+    later:
+
+    await exists_path_2
+    if not exists_path_1 and not exists_path_2 {
+        return no
+    }
+    if exists_path_1 != exists_path_2 {
+        return yes
+    }
+
+    var file_obj_1 = io.open(file_path_1)
+    later:
+
+    await file_obj_1
+    var file_obj_2 = io.open(file_path_2)
+    later:
+
+    do {
+        await file_obj_2
+    } rescue any as e {
+        file_obj_1.close()
+        throw e
+    }
+    var found_difference = no
+    func compare_chunk_unsafe {
+        var chunk_size = 1024 * 1024 * 10
+        var chunk1 = file_obj_1.read()
+        later:
+
+        await chunk1
+        var chunk2 = file_obj_2.read()
+        later:
+
+        await chunk2
+        if chunk1 != chunk2 {
+            found_difference = yes
+            return later no
+        }
+        if chunk1 == "" {
+            assert(chunk2 == "")
+            return later no
+        }
+        return later yes
+    }
+    func compare_chunk {
+        var result = compare_chunk_unsafe()
+        later:
+
+        do {
+            await result
+        } rescue any as e {
+            file_obj_1.close()
+            file_obj_2.close()
+            throw e
+        }
+        return result
+    }
+    var resume = compare_chunk()
+    later:
+
+    if not resume {
+        return not found_difference
+    }
+    resume = compare_chunk()
+    later repeat
 }
 
