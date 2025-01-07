@@ -59,7 +59,7 @@ func main {
     )
 
     # First, parse command line options:
-    var dry_run = yes
+    var dry_run = no
     var dco_signature = ""
     var args = process.args
     var index = 0
@@ -121,7 +121,7 @@ func main {
                 return later no
             }
             var file_obj = io.open(
-                ath.join(rpath, relpath), "r"
+                path.join(rpath, relpath), "r"
             ) later:
 
             await file_obj
@@ -149,9 +149,9 @@ func main {
                     line.sub(start_str.len + 1).trim()
                 var remainder = original_year_str
                 while remainder.len > 0 and (
-                        (text.code(remainder[0]) >= code_0 and
-                        text.code(remainder[0]) <= code_9) or
-                        remainder[0] == "-") {
+                        (text.code(remainder[1]) >= code_0 and
+                        text.code(remainder[1]) <= code_9) or
+                        remainder[1] == "-") {
                     remainder = remainder.sub(2)
                 }
                 var original_year = original_year_str
@@ -167,9 +167,12 @@ func main {
                     original_year = original_year.sub(
                         1, original_year.find(",") - 1)
                 }
+                assert(original_year.len >= 4)
                 original_year = math.round(
                     original_year.to_num())
+                assert(original_year >= 1000)
                 var insert_year_str = original_year.as_str()
+                assert(insert_year_str.len >= 4)
                 if original_year < to_year {
                     insert_year_str += "-" + to_year.as_str()
                 }
@@ -202,8 +205,8 @@ func main {
                     } finally {
                         file_obj.close()
                     }
-                    var o = process.run([
-                        "git", "add",
+                    var o = process.run(
+                        "git", args=["add",
                         relpath], run_in_dir=rpath)
                     later:
 
@@ -274,8 +277,9 @@ func main {
     func check_repo_clean(repopath) {
         print("Verifying repo is clean: " +
             repopath.as_str())
-        var o = process.run([
-            "git", "status", "--porcelain=1"],
+        var o = process.run(
+            "git", args=[
+                "status", "--porcelain=1"],
             run_in_dir=repopath) later:
 
         await o
@@ -286,7 +290,7 @@ func main {
                 changelines.add(line)
             }
         }
-        if lines.len > 0 {
+        if changelines.len > 0 {
             print("Aborting, repository has changes "
                 "scheduled: " + repopath)
             throw new RuntimeError(
@@ -316,7 +320,7 @@ func main {
     later:
 
     # Check all repositories if they need to be updated:
-    func udate_repo_if_needed(repopath) {
+    func update_repo_if_needed(repopath) {
         repopath = path.normalize(path.make_abs(repopath))
         var reponame = path.basename(path.normalize(repopath))
         print("Checking repository: " + reponame.as_str())
@@ -325,12 +329,9 @@ func main {
                     path.normalize(mainrepopath) {
                 return no
             }
-            if typename(rel_path) == list {
-                var new_path = ""
-                for element in rel_path {
-                    new_path = path.join(element)
-                }
-                rel_path = new_path
+            if typename(rel_path) == "list" {
+                rel_path = path.join("", rel_path)
+                assert(typename(rel_path) == "str")
             }
             var files_alike = io.files_alike(
                 path.join(repopath, rel_path),
@@ -338,6 +339,9 @@ func main {
             ) later:
 
             await files_alike
+            if files_alike {
+                return no
+            }
             var base_dir = path.normalize(rel_path)
             if base_dir.has(path.sep) {
                 base_dir = base_dir.sub(
@@ -354,11 +358,11 @@ func main {
                     ignore_exists=yes
                 ) later:
 
-                io.copyfile(path.join(mainrepopath, rel_path),
+                io.copy_file(path.join(mainrepopath, rel_path),
                     path.join(repopath, rel_path)) later:
 
-                var o = process.run(["git", "add",
-                    rel_path],
+                var o = process.run("git",
+                    args=["add", rel_path],
                     run_in_dir=repopath) later:
 
                 await o
@@ -391,7 +395,7 @@ func main {
         changed = (changed or changed_3)
 
         var changed_4 = update_rel_path_file(
-            [".git", "workflows",
+            [".github", "workflows",
                 "close-all-pull-requests.yml"])
         later:
 
@@ -405,11 +409,12 @@ func main {
         await changed_5
         changed = (changed or changed_5)
         if not dry_run and changed {
-            var o = process.run(["git", "commit",
-                "-m", "housekeeping: Updating "
-                "misc repository meta files via "
-                "tools/update-repos.py",
-                "-m", dco_signature],
+            var o = process.run("git",
+                args=["commit", "-m",
+                    "housekeeping: Updating "
+                    "misc repository meta files via "
+                    "tools/update-repos.py",
+                    "-m", dco_signature],
                 run_in_dir=repopath) later:
 
             await o
@@ -430,7 +435,7 @@ func main {
             return later
         }
         item = queue.pop()
-        result = check_repo_clean(item)
+        result = update_repo_if_needed(item)
         later repeat
     }
     update_repos_if_needed()
