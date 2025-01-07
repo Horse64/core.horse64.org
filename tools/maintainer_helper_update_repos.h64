@@ -24,3 +24,387 @@
 #
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
+
+import date from core.horse64.org
+import io from core.horse64.org
+import math from core.horse64.org
+import path from core.horse64.org
+import process from core.horse64.org
+import system from core.horse64.org
+import text from core.horse64.org
+
+func main {
+    # Get the base dir our script is in:
+    var exec_path = system.self_exec_path()
+    later:
+
+    await exec_path
+    var our_dir = path.make_abs(
+        path.dirname(exec_path)
+    )
+
+    # First, parse command line options:
+    var dry_run = yes
+    var dco_signature = ""
+    var args = process.args
+    var index = 0
+    while index + 1 <= args.len {
+        index += 1
+        arg = args[index]
+        if arg == "--dry-run" {
+            dry_run = yes
+            continue
+        }
+        if arg == "--help" {
+            print("Helper tool to update all Horse64 repositories,\n"
+                "assuming sibling repositories are cloned into the\n"
+                "parent folder with unchanged folder names.\n"
+                "(If you don't know what any of this means, just\n"
+                "don't use it, it's meant for maintainer work.)")
+            system.exit(0)
+        }
+        if arg in ["-v", "--version", "-V"] {
+            print("Version 2025.1")
+            system.exit(0)
+        }
+        if arg == "--dco-signature" and index + 1 <= len(args) {
+            dco_signature = args[index + 1]
+            index += 1
+            continue
+        }
+        throw new RuntimeError("Unknown command line "
+            "argument encountered.")
+    }
+    if (not "@" in dco_signature or
+            not dco_signature.ends(">") or
+            not dco_signature.starts("DCO-1.1-Signed-off-by") or
+            "@work.email" in dco_signature) {
+        print("Error: Read LICENSE.md to understand and agree\n"
+            "to the DCO, then use --dco-signature to specify\n"
+            "your name and e-mail to sign the maintenance changes.\n"
+            " Example: --dco-signature "
+            "'DCO-1.1-Signed-off-by: Jane <jane@work.email>'")
+        throw new RuntimeError("missing DCO info")
+    }
+
+    # Preparations and helper functions:
+    if dry_run {
+        print("(NOT changing anything, just a test run)")
+    }
+    func update_misc_years(rpath, to_year="today") {
+        if to_year == "today" {
+            to_year = date.get_year()
+        }
+        var contents = none
+        func do_update_on_relpath(relpath) {
+            var relpath_exists = io.exists(
+                path.join(rpath,
+                    relpath)) later:
+
+            await relpath_exists
+            if not relpath_exists {
+                return later no
+            }
+            var file_obj = io.open(
+                ath.join(rpath, relpath), "r"
+            ) later:
+
+            await file_obj
+            var contents = file_obj.read()
+            later:
+
+            do {
+                await contents
+            } finally {
+                file_obj.close()
+            }
+            var lines = contents.splitlines()
+            var had_change = False
+            var new_lines = []
+            for line in lines {
+                var start_str = "copyright (c) "
+                if (not line.lower().starts("copyright (c) ") or
+                        not "ell1e" in line.lower()) {
+                    new_lines.add(line)
+                    continue
+                }
+                var code_0 = text.code('0')
+                var code_9 = text.code('9')
+                var original_year_str =
+                    line.sub(start_str.len + 1).trim()
+                var remainder = original_year_str
+                while remainder.len > 0 and (
+                        (text.code(remainder[0]) >= code_0 and
+                        text.code(remainder[0]) <= code_9) or
+                        remainder[0] == "-") {
+                    remainder = remainder.sub(2)
+                }
+                var original_year = original_year_str
+                if original_year.has(" ") {
+                    original_year = original_year.sub(
+                        1, original_year.find(" ") - 1)
+                }
+                if original_year.has("-") {
+                    original_year = original_year.sub(
+                        1, original_year.find("-") - 1)
+                }
+                if original_year.has(",") {
+                    original_year = original_year.sub(
+                        1, original_year.find(",") - 1)
+                }
+                original_year = math.round(
+                    original_year.to_num())
+                var insert_year_str = original_year.as_str()
+                if original_year < to_year:
+                    insert_year_str += "-" + to_year.as_str()
+                insert_line = ("Copyright (c) " +
+                    insert_year_str + remainder)
+                if line.trim().lower() ==
+                        insert_line.trim().lower() {
+                    new_lines.add(line)
+                    continue
+                }
+                new_lines.add(insert_line)
+                had_change = yes
+            }
+            if had_change {
+                var msg =
+                    "Updated " + path.basename(path.normalize(
+                        rpath)) + ": " + relpath + " year bumped"
+                if not dry_run {
+                    var file_obj = io.open(
+                        path.join(rpath, relpath), "w"
+                    ) later:
+
+                    await file_obj
+                    var _unused = file_obj.write(
+                        "\n".join(new_lines))
+                    later:
+
+                    do {
+                        await _unused
+                    } finally {
+                        file_obj.close()
+                    }
+                    var o = process.run([
+                        "git", "add",
+                        relpath], run_in_dir=rpath)
+                    later:
+
+                    await o
+                    print(msg)
+                    return yes
+                }
+                print(msg)
+                return yes
+            }
+            return no
+        }
+        var result = do_update_on_relpath("LICENSE.md")
+        later:
+
+        await result
+        if result {
+            return yes
+        }
+        return no
+    }
+
+    # Collect all repositories:
+    var mainrepopath = path.join(our_dir, "..")
+    var repo_paths = [mainrepopath]
+    var folder_list = io.list_dir(path.join(mainrepopath, "..")
+    later:
+
+    await folder_list
+    for reponame in folder_list {
+        if not reponame in [
+                "code-editor.horse64.org",
+                "hvm.horse64.org",
+                "devtools.horse64.org",
+                "hodoc.horse64.org",
+                "horp.horse64.org",
+                "m64.horse64.org",
+                "horsels.horse64.org",
+                "helpers-for-sdk-download.horse64.org",
+                "Spew3D",
+                "spew3d.horse64.org",
+                "Spew3D-Web",
+                "Spew3D-Net"] {
+            continue
+        }
+        print("Found repository: " + reponame.as_str())
+        repopath = path.join(mainrepopath, "..", reponame)
+        if not path.isdir(repopath) {
+            continue
+        }
+        repo_paths.add(path.normalize(repopath))
+    }
+
+    # Make sure nothing is scheduled yet before we touch it:
+    for repopath in repo_paths {
+    func check_repo_clean(repopath) {
+        print("Verifying repo is clean: " +
+            repopath.as_str()))
+        var o = process.run([
+            "git", "status", "--porcelain=1"],
+            run_in-dir=repopath) later:
+
+        await o
+        var lines = o.splitlines()
+        var changelines = []
+        for line in lines {
+            if line.trim().starts("A") {
+                changelines.add(line)
+            }
+        }
+        if lines.len > 0 {
+            print("Aborting, repository has changes "
+                "scheduled: " + repopath)
+            throw new RuntimeError(
+                "Found repository with changes to be "
+                "committed, deal with that first.")
+        }
+        return later
+    }
+    func check_repos_clean {
+        var queue = repo_paths.copy()
+        if queue.len == 0 {
+            return later
+        }
+        var item = queue.pop()
+        var result = check_repo_clean(item)
+        later:
+
+        await result
+        if queue.len == 0 {
+            return later
+        }
+        item = queue.pop()
+        result = check_repo_clean(item)
+        later repeat
+    }
+    check_repos_clean()
+    later:
+
+    # Check all repositories if they need to be updated:
+    func udate_repo_if_needed(repopath) {
+        repopath = path.normalize(path.make_abs(repopath))
+        var reponame = path.basename(path.normalize(repopath))
+        print("Checking repository: " + reponame.as_str())
+        func update_rel_path_file(rel_path) {
+            if path.normalize(repopath) ==
+                    path.normalize(mainrepopath) {
+                return no
+            }
+            if typename(rel_path) == list {
+                var new_path = ""
+                for element in rel_path {
+                    new_path = path.join(element)
+                }
+                rel_path = new_path
+            }
+            var files_alike = io.files_alike(
+                path.join(repopath, rel_path),
+                path.join(mainrepopath, rel_path)
+            ) later:
+
+            await files_alike
+            var base_dir = path.normalize(rel_path)
+            if base_dir.has(path.sep) {
+                base_dir = base_dir.sub(
+                    1, base_dir.find(path.sep) - 1)
+            }
+            var msg = "Updated " + reponame + " "
+                "by updating: " + rel_path + " "
+                "(inside: " +
+                base_dir.as_str() + ")"
+            if not dry_run {
+                var base_dir = path.join(
+                    repopath, base_dir)
+                io.make_dir(base_dir,
+                    ignore_exists=yes
+                ) later:
+
+                io.copyfile(path.join(mainrepopath, rel_path),
+                    path.join(repopath, rel_path)) later:
+
+                var o = process.run(["git", "add",
+                    rel_path],
+                    run_in_dir=repopath) later:
+
+                await o
+                print(msg)
+                return yes
+            }
+            print(msg)
+            return yes
+        }
+        var changed = no
+        var changed_1 = update_rel_path_file(
+            [".gitea", "ISSUE_TEMPLATE", "bug.yml"])
+        later:
+
+        await changed_1
+        changed = (changed or changed_1)
+
+        var changed_2 = update_rel_path_file(
+            [".gitea", "ISSUE_TEMPLATE", "proposal.yml"])
+        later:
+
+        await changed_2
+        changed = (changed or changed_2)
+
+        var changed_3 = update_rel_path_file(
+            [".git", "hooks", "commit-msg"])
+        later:
+
+        await changed_3
+        changed = (changed or changed_3)
+
+        var changed_4 = update_rel_path_file(
+            [".git", "workflows",
+                "close-all-pull-requests.yml"])
+        later:
+
+        await changed_4
+        changed = (changed or changed_4)
+
+        var changed_5 = update_misc_years(
+            repopath)
+        later:
+
+        await changed_5
+        changed = (changed or changed_5)
+        if not dry_run and changed {
+            var o = process.run(["git", "commit",
+                "-m", "housekeeping: Updating "
+                "misc repository meta files via "
+                "tools/update-repos.py",
+                "-m", dco_signature],
+                run_in_dir=repopath) later:
+
+            await o
+            return later
+        }
+    }
+    func update_repos_if_needed {
+        var queue = repo_paths.copy()
+        if queue.len == 0 {
+            return later
+        }
+        var item = queue.pop()
+        var result = update_repo_if_needed(item)
+        later:
+
+        await result
+        if queue.len == 0 {
+            return later
+        }
+        item = queue.pop()
+        result = check_repo_clean(item)
+        later repeat
+    }
+    update_repos_if_needed()
+    later:
+}
