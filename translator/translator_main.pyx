@@ -195,6 +195,10 @@ remapped_uses = {
         "compiler.run_file":
             "_translator_runtime_helpers._compiler_run_file",
     },
+    "date@core.horse64.org": {
+        "date.get_year":
+            "_translator_runtime_helpers._date_get_year",
+    },
     "debugger@core.horse64.org": {
         "debugger.is_debug_build":
             "(lambda: True)",
@@ -225,6 +229,8 @@ remapped_uses = {
             "_translator_runtime_helpers._make_or_get_appcache",
         "io.remove_file":
             "_translator_runtime_helpers._io_remove_file",
+        "io.copy_file":
+            "_translator_runtime_helpers._io_copy_file",
         "io.copy_dir":
             "_translator_runtime_helpers._io_copy_dir",
         "io.remove_dir":

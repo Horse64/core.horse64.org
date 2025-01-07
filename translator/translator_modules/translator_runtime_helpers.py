@@ -1097,6 +1097,10 @@ def _uri_basename(v):
     new_path = new_path.replace("/", os.path.sep)
     return os.path.basename(new_path)
 
+def _date_get_year():
+    import datetime
+    return datetime.date.today().year
+
 def _uri_dirname(v):
     if (v.lower().startswith("file://") or
             v.lower().startswith("vfs://")):
@@ -1499,6 +1503,52 @@ def _io_remove_file(v, cb, allow_vfs=True, allow_disk=True):
         "allow_vfs": allow_vfs,
         "usercb": cb},
         async_remove_file_do, done_cb)
+    _async_ops_lock.acquire()
+    _async_ops.append(op)
+    _async_ops_lock.release()
+
+def _io_copy_file(v1, v2, cb, allow_vfs=True, allow_disk=True):
+    def async_remove_dir_do(job):
+        v = job.userdata["v"]
+        v2 = job.userdata["v2"]
+        allow_vfs = job.userdata["allow_vfs"]
+        allow_disk = job.userdata["allow_disk"]
+        if v == "":
+            v = "."
+        if not allow_disk:
+            if v2 == ".":
+                result = [
+                    _PermissionDeniedError("Read-only target."), None
+                ]
+            else:
+                result = [
+                    _PathNotFoundError("Path doesn't exist."), None
+                ]
+        else:
+            result = [None, None]
+            try:
+                import shutil
+                result[1] = _wrap_io(shutil.copyfile)(v, v2)
+            except Exception as e:
+                result[0] = e
+                result[1] = None
+        job.userdata2 = result
+        job.done = True
+    def done_cb(op):
+        result = op.userdata2
+        f = op.userdata["usercb"]
+        op.userdata = None
+        op.userdata2 = None
+        op.do_func = None
+        op.callback_func = None
+        return f(result[0], result[1])
+    op = _AsyncOperation({
+        "v": v,
+        "v2": v2,
+        "allow_disk": allow_disk,
+        "allow_vfs": allow_vfs,
+        "usercb": cb},
+        async_remove_dir_do, done_cb)
     _async_ops_lock.acquire()
     _async_ops.append(op)
     _async_ops_lock.release()
