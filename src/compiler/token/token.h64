@@ -1168,6 +1168,7 @@ enum TokenKind {
     T_WSPACE,
     T_ENCLOSE,
     T_STR,
+    T_CHAR,
     T_INLINECODE,
     T_BYTES,
     T_NUM,
@@ -1708,31 +1709,49 @@ func tokenize_str(
             continue
         } elseif c == "'" or c == '"' or
                 (c == "b" and i + 1 < strlen and
+                (str[i + 1] == "'" or str[i + 1] == '"') or
+                (c == "c" and is_moose64 and
+                 i + 1 < strlen and
                 (str[i + 1] == "'" or str[i + 1] == '"')) {
             # Str or bytes literal:
             var start_line = line
             var start_col = col
             var end_marker = c
             var is_bytes = no
+            var is_char = no
+            var literal_name = "string"
+            var literal_prefix = ""
+            var token_type = T_STR
             var k = i
             if c == "b" {
+                literal_prefix = "b"
                 is_bytes = yes
                 end_marker = str[i + 1]
+                literal_name = "bytes"
+                token_type = T_BYTES
+                k += 1
+                col += 1
+            } elseif c == "c" {
+                literal_prefix = "c"
+                is_char = yes
+                end_marker = str[i + 1]
+                literal_name = "char"
+                token_type = T_CHAR
                 k += 1
                 col += 1
             }
             if k + 1 > strlen {
                 result.msgs.add(new msg.FileMsg(
                     "Unterminated " +
-                    if is_bytes ("bytes") else ("string") +
-                    " literal.",
+                    literal_name + " "
+                    "literal.",
                     source_file=project_file,
                     line=start_line, col=start_col
                 ))
                 result.tokens.add(new Token(
-                    if is_bytes ("b") else ("") +
+                    literal_prefix +
                     end_marker + end_marker,
-                    if is_bytes (T_BYTES) else (T_STR),
+                    token_type,
                     start_line, start_col))
                 continue
             }
@@ -1799,8 +1818,8 @@ func tokenize_str(
                 cutoff = yes
                 result.msgs.add(new msg.FileMsg(
                     "Unterminated " +
-                    if is_bytes ("bytes") else ("string") +
-                    " literal.",
+                    literal_name + " "
+                    "literal.",
                     source_file=project_file,
                     line=start_line, col=start_col
                 ))
@@ -1869,7 +1888,7 @@ func tokenize_str(
             }
             result.tokens.add(new Token(
                 str.sub(i, k),
-                if is_bytes (T_BYTES) else (T_STR),
+                token_type,
                 start_line, start_col
             ))
             i = k
