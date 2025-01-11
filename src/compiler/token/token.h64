@@ -1319,6 +1319,9 @@ func describe_token_str(s) {
     if alike_num(s) {
         return s
     }
+    if s == "..." {
+        return "'...'"
+    }
     if s.glyph_len <= 1 {
         return describe_char_at(s, 1, maybe_cutoff_glyph=no)
     }
@@ -1695,7 +1698,7 @@ func tokenize_str(
                     str[i + 1] == "." and
                     str[i + 2] == "." {
                 result.tokens.add(new Token(
-                    ".", T_ELLIPSIS, line, col
+                    "...", T_ELLIPSIS, line, col
                 ))
                 i += 1
                 col += 1
