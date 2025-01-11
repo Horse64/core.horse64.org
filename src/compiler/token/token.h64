@@ -276,16 +276,27 @@ func parse_token_value(tok) {
     } elseif tok.kind == T_BIGNUM {
         throw new TypeError("Cannot return actual "
             "literal value for T_BIGNUM token.")
-    } elseif tok.kind == T_STR {
-        if tok.str.len == 0 or
-                not {"'", '"'}.has(tok.str[1]) {
-            # Invalid literal. Just return empty value.
-            return ""
+    } elseif tok.kind == T_STR or
+            tok.kind == T_CHAR {
+        var i = 2
+        if tok.kind == T_CHAR {
+            if tok.str.len < 2 or
+                    tok.str[1] != "c" or
+                    not {"'", '"'}.has(tok.str[2]) {
+                # Invalid literal. Just return empty value.
+                return ""
+            }
+            i = 3
+        } else {
+            if tok.str.len == 0 or
+                    not {"'", '"'}.has(tok.str[1]) {
+                # Invalid literal. Just return empty value.
+                return ""
+            }
         }
         var toklen = tok.str.len
         var escaped = no
         var result = ""
-        var i = 2
         while i <= toklen - 1 {
             if escaped {
                 escaped = no
