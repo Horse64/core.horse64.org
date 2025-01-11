@@ -1720,10 +1720,10 @@ func tokenize_str(
             continue
         } elseif c == "'" or c == '"' or
                 (c == "b" and i + 1 < strlen and
-                (str[i + 1] == "'" or str[i + 1] == '"') or
+                 (str[i + 1] == "'" or str[i + 1] == '"')) or
                 (c == "c" and is_moose64 and
                  i + 1 < strlen and
-                (str[i + 1] == "'" or str[i + 1] == '"')) {
+                 (str[i + 1] == "'" or str[i + 1] == '"')) {
             # Str or bytes literal:
             var start_line = line
             var start_col = col
