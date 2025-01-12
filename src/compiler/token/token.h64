@@ -791,6 +791,55 @@ func can_stmt_or_expr_end_before_token(
         return no
     }
     if tokens[tok_pos - 1].kind == T_KEYWORD and
+            tokens[tok_pos - 1].str == "readonly" {
+        var is_func_property = no
+        var bdepth = 0
+        var pos = tok_pos - 1
+        while pos - 1 >= 1 {
+            pos -= 1
+            if tokens[pos].kind == T_ENCLOSE {
+                if {")", "]", "}"}.has(tokens[pos]) {
+                    bdepth += 1
+                    continue
+                } elseif {"(", "[", "{"}.has(tokens[pos]) {
+                    bdepth -= 1
+                    continue
+                }
+            } elseif bdepth <= 0 and
+                    tokens[pos].kind == T_RIGHTPTR {
+                is_func_property = yes
+                break
+            } elseif bdepth <= 0 and
+                    tokens[pos].kind == T_LEFTPTR {
+                is_func_property = no
+                break
+            } elseif bdepth <= 0 and
+                    (tokens[pos].kind == T_ASSIGN or
+                     tokens[pos].kind == T_MATHASSIGN) {
+                is_func_property = no
+                break
+            } elseif tokens[pos].kind == T_KEYWORD and
+                    bdepth <= 0 and
+                    tokens[pos].str == "func" {
+                is_func_property = yes
+                break
+            } elseif tokens[pos].kind == T_KEYWORD and
+                    bdepth <= 0 and
+                    (_maybe_stmt_token_strs.has(
+                        tokens[pos].str
+                    ) or (is_moose64 and
+                    _maybe_stmt_token_strs_moose64.has(
+                        tokens[pos].str
+                    ))) {
+                is_func_property = no
+                break
+            }
+        }
+        if is_func_property {
+            return no
+        }
+    }
+    if tokens[tok_pos - 1].kind == T_KEYWORD and
             tokens[tok_pos - 1].str == "failed" {
         if tok_pos > 2 and
                 tokens[tok_pos - 2].kind == T_KEYWORD and
