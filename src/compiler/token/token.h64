@@ -1057,7 +1057,7 @@ func token_has_lefthand(t) {
     }
     if t.kind == T_KEYWORD and {
             "as", "from", "in", "failable",
-            "override",
+            "override", "readonly",
             "elseif", "else", "rescue",
             "finally", "later",
             "protect"}.has(t.str) {

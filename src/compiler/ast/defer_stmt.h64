@@ -36,6 +36,7 @@ import compiler.token as token
 
 type DeferStmt base ast.StmtNode {
     var has_later = no
+    var has_failed = no
 }
 
 func DeferStmt.init {
@@ -45,6 +46,8 @@ func DeferStmt.init {
 
 func DeferStmt.as_json_obj {
     var output = base.as_json_obj()
+    output["has_later"] = self.has_later
+    output["has_failed"] = self.has_faileed
     return output
 }
 
@@ -84,6 +87,13 @@ func parse(tokens, pos, msgs, project_file=none,
     stmt.col = token.get_col(tokens, pos)
     pos += 1
 
+    if pos <= tokens_len and
+            tokens[pos].kind == token.T_KEYWORD and
+            tokens[pos].str == "failed" {
+        stmt.has_failed = yes
+        pos += 1
+    }
+        
     var v = expr.parse_expression(
         tokens, pos, msgs,
         project_file=project_file,
@@ -98,14 +108,16 @@ func parse(tokens, pos, msgs, project_file=none,
     if v.kind != ast.N_EXPR_BINOP or
             v.optoken.kind != token.T_ENCLOSE or
             v.optoken.str != "(" {
-        msgs.add(new msg.FileMsg(
-            "Unexpected argument expression of type " +
-            ast.NodeKind.num_label(v.kind) + ", expected " +
-            "a func call expression instead.",
-            source_file=project_file,
-            line=token.get_line(tokens, startpos),
-            col=token.get_col(tokens, startpos),
-        ))
+        if not v.damaged {
+            msgs.add(new msg.FileMsg(
+                "Unexpected argument expression of type " +
+                ast.NodeKind.num_label(v.kind) + ", expected " +
+                "a func call expression instead.",
+                source_file=project_file,
+                line=token.get_line(tokens, startpos),
+                col=token.get_col(tokens, startpos),
+            ))
+        }
         stmt.damaged = yes
     }
     pos += v.token_len
@@ -117,13 +129,15 @@ func parse(tokens, pos, msgs, project_file=none,
         stmt.has_later = yes
         pos += 1
         if is_moose64 {
-            msgs.add(new msg.FileMsg(
-                "Unexpected 'defer ... later', expected "
-                "a regular call since 'later' isn't supported.",
-                source_file=project_file,
-                line=token.get_line(tokens, startpos),
-                col=token.get_col(tokens, startpos),
-            ))
+            if not stmt.damaged {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected 'defer ... later', expected "
+                    "a regular call since 'later' isn't supported.",
+                    source_file=project_file,
+                    line=token.get_line(tokens, startpos),
+                    col=token.get_col(tokens, startpos),
+                ))
+            }
             stmt.damaged = yes
         }
     }
