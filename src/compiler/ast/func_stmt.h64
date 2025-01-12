@@ -617,8 +617,8 @@ func parse(tokens, pos, msgs, project_file=none,
             ))
             var skiplen = math.max(1,
                 token.get_naive_stmt_or_expr_len(
-                    tokens, pos - 1, bracket_depth=0, for_expr=no,
-                    is_moose64=is_moose64
+                    tokens, pos - 1, bracket_depth=0,
+                    for_expr=no, is_moose64=is_moose64
                 ) - 1)
             v = new expr.InvalidExpr(skiplen)
             stmt.damaged = yes
