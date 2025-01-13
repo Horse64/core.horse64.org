@@ -1466,6 +1466,18 @@ func parse_expression_unwrapped(
     }
 }
 
+type CallMultiArg base ast.TreeNode {
+}
+
+func CallMultiArg.init {
+    base.init()
+    self.kind = ast.N_EXPR_CALLMULTIARG
+}
+
+func CallMultiArg.as_code(indent=0) {
+    return "..."
+}
+
 type CallKWArgExpr base ast.TreeNode {
     var label
 }
@@ -1549,6 +1561,8 @@ func CallArgsExpr.as_code(indent=0) {
             }
             t += "=" + arg.subexprs[1].as_code(indent=indent)
         } else {
+            assert({ast.N_EXPR_CALLMULTIARG,
+                ast.N_EXPR_ARGNAME}.has(arg))
             t += arg.as_code(indent=indent)
             if self.has_types {
                 t += " <- " + argtypes[idx].as_str()
@@ -1790,11 +1804,13 @@ func _parse_call_or_funcdef_args_notlater(
     if debug {
         print("compiler.ast.expr: "
             "_parse_call_or_funcdef_args_notlater() on " +
-            tokens.sub(pos, math.min(pos + 10, tokens_len)).as_str() +
+            tokens.sub(pos, math.min(
+                pos + 10, tokens_len)).as_str() +
             "... with pos=" + pos.as_str() + ", "
             "tokens.len=" + tokens.len.as_str() + ", "
             "is_moose64=" + is_moose64.as_str() + ", "
-            "require_type_refs=" + require_type_refs.as_str() + ", "
+            "require_type_refs=" +
+                require_type_refs.as_str() + ", "
             "is_call=" + is_call.as_str() + ", "
             "max_len=" + max_len.as_str())
     }
@@ -1827,47 +1843,127 @@ func _parse_call_or_funcdef_args_notlater(
     }
 
     # Now parse first argument:
+    func skip_to_next_arg {
+        var bdepth = 0
+        var forward_pos = pos
+        while forward_pos <= tokens_len and
+                tokens[forward_pos].kind !=
+                    token.T_COMMA and
+                (tokens[forward_pos].kind !=
+                    token.T_ENCLOSE or
+                    bdepth > 0 or
+                    tokens[forward_pos].str != ")") {
+            if tokens[forward_pos].kind ==
+                    token.T_ENCLOSE {
+                if {"(", "{", "["}.has(
+                        tokens[forward_pos].str) {
+                    bdepth += 1
+                } elseif {")", "}", "]"}.has(
+                        tokens[forward_pos].str) {
+                    bdepth -= 1
+                }
+            }
+            if bdepth <= 0 and
+                    tokens[forward_pos].kind ==
+                        token.T_KEYWORD and
+                    token._maybe_stmt_token_strs.has(
+                        tokens[forward_pos].str
+                    ) and
+                    tokens[forward_pos].str != "func" {
+                forward_pos = tokens_len
+                break
+            }
+            forward_pos += 1
+        }
+        if forward_pos < tokens_len {
+            pos = forward_pos
+        }
+    }
     var type_exprs = []
     while yes {
-        var arg = parse_single_call_or_funcdef_arg(
-            tokens, pos, nesting_depth, msgs, is_call=is_call,
-            project_file=project_file,
-            callordef_line=callordef_line,
-            callordef_col=callordef_col,
-            require_type_refs=require_type_refs,
-            allow_type_refs=allow_type_refs,
-        )
-        if arg != none {
-            pos += arg.token_len
-        }
-        var type_expr = none
-        if require_type_refs and (pos > tokens_len or
-                tokens[pos].kind != token.T_LEFTPTR) {
-            if arg != none and not arg.damaged {
+        var skipped_type = no
+        if tokens[pos].kind == token.T_ELLIPSIS and
+                is_moose64 {
+            arg = new CallMultiArg()
+            arg.line = tokens[pos].line
+            arg.col = tokens[pos].col
+            arg.token_len = 1
+            pos += 1
+            if pos > tokens_len or
+                    (require_type_refs and
+                     tokens[pos].kind != token.T_LEFTPTR) or
+                    ((tokens[pos].kind != token.T_ENCLOSE or
+                      tokens[pos].str != ")") and
+                     (tokens[pos].kind != token.T_LEFTPTR or
+                      (not allow_type_refs and
+                       not require_type_refs))) {
                 msgs.add(new msg.FileMsg(
-                    "Unexpected " + token.describe_token_at(
+                    "Unexpected " +
+                    token.describe_token_at(
                         tokens, pos) +
-                    ", expected '<-' (T_LEFTPTR) for the "
-                    "argument's type.",
+                    ", expected " +
+                    if require_type_refs
+                        ("'<-' (T_LEFTPTR) for the "
+                         "argument's type.") else
+                        ("')' (T_ENCLOSE) to end "
+                         "the argument list"),
                     source_file=project_file,
                     line=token.get_line(tokens, pos),
                     col=token.get_col(tokens, pos),
                 ))
                 arg.damaged = yes
+                skip_to_next_arg()
+                skipped_type = yes
             }
-        } elseif (allow_type_refs or require_type_refs) and
+        } else {
+            var arg = parse_single_call_or_funcdef_arg(
+                tokens, pos, nesting_depth, msgs,
+                is_call=is_call,
+                project_file=project_file,
+                callordef_line=callordef_line,
+                callordef_col=callordef_col,
+                require_type_refs=require_type_refs,
+                allow_type_refs=allow_type_refs,
+            )
+            if arg != none {
+                pos += arg.token_len
+            }
+        }
+        var type_expr = none
+        if not skipped_type and require_type_refs and
+                (pos > tokens_len or
+                 tokens[pos].kind != token.T_LEFTPTR) {
+            if arg != none and not arg.damaged {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected " +
+                    token.describe_token_at(
+                        tokens, pos) +
+                    ", expected '<-' (T_LEFTPTR) for "
+                    "the argument's type.",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+                arg.damaged = yes
+                skip_to_next_arg()
+            }
+        } elseif not skipped_type and (allow_type_refs or
+                require_type_refs) and
                 pos <= tokens_len and
                 tokens[pos].kind == token.T_LEFTPTR {
             pos += 1
             var v = ast_typeref._parse_typeref_notlater(
-                tokens, pos, msgs, project_file=project_file,
-                max_len=tokens_len, is_moose64=is_moose64,
+                tokens, pos, msgs,
+                project_file=project_file,
+                max_len=tokens_len,
+                is_moose64=is_moose64,
                 debug=debug
             )
             if v == none {
                 if arg != none and not arg.damaged {
                     msgs.add(new msg.FileMsg(
-                        "Unexpected " + token.describe_token_at(
+                        "Unexpected " +
+                        token.describe_token_at(
                             tokens, pos) +
                         ", expected type ref expression to "
                         "represent argument's type.",
@@ -1890,15 +1986,17 @@ func _parse_call_or_funcdef_args_notlater(
         }
         assert(pos >= 1)
         assert(arg.token_len >= 1)
-        if pos > tokens_len or tokens[pos].kind != token.T_COMMA or
+        if pos > tokens_len or
+                tokens[pos].kind != token.T_COMMA or
                 (tokens[pos].kind == token.T_COMMA and
                 pos + 1 <= tokens_len and
                 tokens[pos + 1].kind == token.T_ENCLOSE and
                 tokens[pos + 1].str == ")") {
             # We reached the end. If this isn't ')', then
-            # parse_single_call_or_funcdef_arg() should have already
-            # added an error to the msgs list.
-            if pos <= tokens_len and tokens[pos].kind == token.T_COMMA {
+            # parse_single_call_or_funcdef_arg() should have
+            # already added an error to the msgs list.
+            if pos <= tokens_len and
+                    tokens[pos].kind == token.T_COMMA {
                 pos += 1
             }
             if pos > tokens_len or

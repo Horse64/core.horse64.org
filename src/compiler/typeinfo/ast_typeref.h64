@@ -46,7 +46,8 @@ const builtin_moose64_types = {
     "byte", "i8", "i16", "u16", "addr", "addr_diff",
     "i32", "i64", "size", "u32", "u64",
     "f32", "f64", "bool", "empty",
-    "any", "auto", "moose64_failed_result_t"
+    "any", "auto", "moose64_failed_result_t",
+    "c_vararg",
 }
 const builtin_moose64_type_modifiers = {
     "ref", "array", "c_array", "readonly"
