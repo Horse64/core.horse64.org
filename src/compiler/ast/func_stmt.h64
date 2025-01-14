@@ -531,10 +531,20 @@ func parse(tokens, pos, msgs, project_file=none,
         var idx = 0
         for arg in args {
             idx += 1
-            if arg.kind == ast.N_EXPR_ARGNAME or
-                    arg.kind == ast.N_EXPR_INVALID {
+            if {ast.N_EXPR_ARGNAME,
+                    ast.N_EXPR_INVALID
+                    }.has(
+                        arg.kind) {
                 if argsobj.has_types {
                     type_exprs.add(argtypes[idx])
+                }
+                continue
+            } elseif arg.kind == ast.N_EXPR_CALLMULTIARG {
+                if argsobj.has_types {
+                    var arg_type = new ast_typeref.
+                        MultiArgTypeRefExpr()
+                    arg_type.arg_type = argtypes[idx]
+                    type_exprs.add(arg_type)
                 }
                 continue
             }

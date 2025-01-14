@@ -1467,6 +1467,7 @@ func parse_expression_unwrapped(
 }
 
 type CallMultiArg base ast.TreeNode {
+    var label = "..."
 }
 
 func CallMultiArg.init {
