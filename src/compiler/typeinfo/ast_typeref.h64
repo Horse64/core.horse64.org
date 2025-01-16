@@ -2025,6 +2025,7 @@ func _parse_typeref_notlater(
                 break
             }
             pos += ast_typeref.token_len
+            ast_typeref_list.add(ast_typeref)
             if pos < tokens.len and (
                     max_len == none or
                     pos <= max_len) {
