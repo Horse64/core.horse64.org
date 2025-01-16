@@ -25,6 +25,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import math from core.horse64.org
 import text from core.horse64.org
 import textfmt from core.horse64.org
 
@@ -1939,6 +1940,159 @@ func _parse_typeref_notlater(
         }
         return none
     }
+    func parse_multi_args(tokens, pos,
+            project_file=none,
+            max_depth=none, outer_startpos=none,
+            msgs=none, max_len=none,
+            is_moose64=no, debug=no) {
+        assert(max_len == none or pos <= max_len)
+        assert(tokens[pos].kind == token.T_ENCLOSE and
+               tokens[pos].str == "(")
+        var ast_typeref_list = []
+        var startpos = pos
+        pos += 1
+        if max_depth <= 0 {
+            var type_startpos = pos
+            msgs.add(new msg.FileMsg(
+                "Invalid " + token.describe_token_at(
+                    tokens, pos) + " "
+                ", exceeds maximum nesting depth "
+                "for type expression starting "
+                "in line " +
+                token.get_line(tokens,
+                    outer_startpos).as_str() +
+                ", column " +
+                token.get_col(tokens,
+                    outer_startpos).as_str() + ".",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+            var bdepth = 1
+            while pos <= tokens.len and (
+                        max_len == none or
+                        pos <= max_len) and
+                    bdepth > 0 {
+                if token.surely_to_toplevel_even_in_bad_code(
+                        tokens, pos, is_moose64=is_moose64
+                        ) {
+                    pos -= 1
+                    break
+                }
+                if tokens[pos].kind == token.T_ENCLOSE and
+                        {"(", "{", "["}.has(tokens[pos].str) {
+                    bdepth += 1
+                } elseif tokens[pos].kind == token.T_ENCLOSE and
+                        {")", "}", "]"}.has(tokens[pos].str) {
+                    bdepth -= 1
+                    if bdepth <= 0 {
+                        break
+                    }
+                }
+                pos += 1
+            }
+            pos += 1
+            var expr_len = (pos - type_startpos)
+            var closed_correctly = no
+            if bdepth <= 0 and pos - 1 >= startpos and
+                    tokens[pos - 1].kind == token.T_ENCLOSE and
+                    tokens[pos - 1].str == ")" {
+                closed_correctly = yes
+                expr_len -= 1
+            }
+            var inner_type = new ast_expr.InvalidExpr(expr_len)
+            return [pos, [inner_type], closed_correctly]
+        }
+        while pos <= tokens.len and
+                (max_len == none or
+                 pos <= max_len) {
+            if tokens[pos].kind == token.T_ENCLOSE and
+                    {")", "}", "]"}.has(
+                        tokens[pos].str) {
+                break
+            }
+            var ast_typeref = _parse_typeref_notlater(
+                tokens, pos, msgs,
+                extend_typeref_expr=none,
+                project_file=project_file,
+                max_len=max_len, max_depth=(
+                    max_depth - 1
+                ), is_nested_in_type=yes,
+                is_moose64=is_moose64,
+                debug=debug
+            )
+            if ast_typeref == none {
+                break
+            }
+            pos += ast_typeref.token_len
+            if pos < tokens.len and (
+                    max_len == none or
+                    pos <= max_len) {
+                if tokens[pos].kind != token.T_COMMA {
+                    break
+                }
+                pos += 1
+            }
+        }
+        var missed_closing_bracket = no
+        if pos > tokens.len or (
+                max_len != none and
+                pos > max_len) or
+                tokens[pos].kind != token.T_ENCLOSE or
+                tokens[pos].str != ")" {
+            missed_closing_bracket = yes
+            msgs.add(new msg.FileMsg(
+                "Invalid " + token.describe_token_at(
+                    tokens, pos) + " "
+                ", expected ',' to continue or "
+                "')' to close the '(' "
+                "found in line " +
+                token.get_col(tokens,
+                    startpos).as_str() +
+                ", column " +
+                token.get_col(tokens,
+                    startpos).as_str() + ".",
+                source_file=project_file,
+                line=token.get_line(tokens, pos),
+                col=token.get_col(tokens, pos),
+            ))
+        } else {
+            pos += 1  # Go past ')'
+        }
+        if missed_closing_bracket or
+                ast_typeref_list.len == 0 {
+            if ast_typeref_list.len == 0 {
+                var errorpos = pos
+                if not missed_closing_bracket {
+                    errorpos -= 1
+                }
+                msgs.add(new msg.FileMsg(
+                    "Invalid " + token.describe_token_at(
+                        tokens, errorpos) + " "
+                    ", expected type for 'multi' "
+                    "type starting in line " +
+                    token.get_col(tokens,
+                        startpos).as_str() +
+                    ", column " +
+                    token.get_col(tokens,
+                        startpos).as_str() + ".",
+                    source_file=project_file,
+                    line=token.get_line(tokens, errorpos),
+                    col=token.get_col(tokens, errorpos),
+                ))
+                var inner_type = new ast_expr.InvalidExpr(
+                    math.max(1, errorpos - (startpos + 1)))
+                ast_typeref_list.add(inner_type)
+            }
+            assert(ast_typeref_list.len > 0)
+            for item in ast_typeref_list {
+                item.damaged = yes
+            }
+            return [pos, ast_typeref_list,
+                not missed_closing_bracket]
+        }
+        return [pos, ast_typeref_list, yes]
+    }
     func parse_func_type(tokens, pos, max_len=none,
             nested_in_parens=no, debug=no) {
         if debug {
@@ -1956,11 +2110,12 @@ func _parse_typeref_notlater(
                 description += " "
             }
             msgs.add(new msg.FileMsg(
-                description + "func type "
-                "in line " +
-                token.get_line(tokens, startpos).as_str() +
+                description + "func type in line " +
+                token.get_line(tokens,
+                    startpos).as_str() +
                 ", column " +
-                token.get_col(tokens, startpos).as_str() + ".",
+                token.get_col(tokens,
+                    startpos).as_str() + ".",
                 source_file=project_file,
                 line=token.get_line(tokens, pos),
                 col=token.get_col(tokens, pos),
@@ -2310,8 +2465,8 @@ func _parse_typeref_notlater(
                 msgs.add(new msg.FileMsg(
                     "Unexpected " + token.describe_token_at(
                         tokens, pos) + " "
-                    ", expected '(' "
-                    "for ')' found "
+                    ", expected ')' "
+                    "for '(' found "
                     "in line " +
                     token.get_line(tokens,
                                 bracket_open_pos).as_str() +
@@ -2344,6 +2499,7 @@ func _parse_typeref_notlater(
         if typeref_expr == none and pos <= max_len and
                 (tokens[pos].kind == token.T_IDENT or
                 tokens[pos].kind == token.T_KEYWORD) and
+                tokens[pos].str != "multi" and
                 not is_implicit_ref(tokens, pos, max_len) and
                 ((is_moose64 and
                   builtin_moose64_types.has(tokens[pos].str)) or
@@ -2356,6 +2512,61 @@ func _parse_typeref_notlater(
             pos += 1
             typeref_token_len =
                 start_token_len + (pos - startpos)
+        }
+        if typeref_expr == none and pos <= max_len and
+                (tokens[pos].kind == token.T_IDENT or
+                tokens[pos].kind == token.T_KEYWORD) and
+                tokens[pos].str == "multi" {
+            typeref_expr = new MultiTypeRefExpr()
+            typeref_expr.name = tokens[pos].str
+            typeref_expr.line = token.get_line(tokens, pos)
+            typeref_expr.col = token.get_col(tokens, pos)
+            pos += 1
+            if pos > max_len or
+                    tokens[pos].kind != token.T_ENCLOSE or
+                    tokens[pos].str != "(" {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected " + token.describe_token_at(
+                        tokens, pos) + " "
+                    ", expected '(' "
+                    "to specify types for 'multi' found "
+                    "in line " +
+                    typeref_expr.line.as_str() +
+                    ", column " +
+                    typeref_expr.col.as_str() + ".",
+                    source_file=project_file,
+                    line=token.get_line(tokens, pos),
+                    col=token.get_col(tokens, pos),
+                ))
+                var expr_len = start_token_len + (pos - startpos)
+                return new ast_expr.InvalidExpr(expr_len)
+            }
+            var inner_ast_typerefs_result = parse_multi_args(
+                tokens, pos,
+                project_file=project_file,
+                max_depth=max_depth,
+                outer_startpos=startpos,
+                msgs=msgs, max_len=max_len,
+                is_moose64=is_moose64, debug=debug)
+            var inner_ast_typerefs =
+                inner_ast_typerefs_result[2]
+            pos = inner_ast_typerefs_result[1]
+            var closed_correctly =
+                inner_ast_typerefs_result[3]
+
+            typeref_expr.sub_type_refs = inner_ast_typerefs
+            typeref_token_len =
+                start_token_len + (pos - startpos)
+            typeref_expr.token_len = typeref_token_len
+            for inner_typeref in typeref_expr.sub_type_refs {
+                if inner_typeref.damaged {
+                    typeref_expr.damaged = yes
+                }
+            }
+            if not closed_correctly {
+                typeref_expr.damaged = yes
+                return typeref_expr
+            }
         }
         if typeref_expr == none and pos <= max_len and
                 tokens[pos].kind == token.T_IDENT and
