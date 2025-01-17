@@ -277,9 +277,9 @@ func parse_token_value(tok) {
         throw new TypeError("Cannot return actual "
             "literal value for T_BIGNUM token.")
     } elseif tok.kind == T_STR or
-            tok.kind == T_CHAR {
+            tok.kind == T_CHARCODE {
         var i = 2
-        if tok.kind == T_CHAR {
+        if tok.kind == T_CHARCODE {
             if tok.str.len < 2 or
                     tok.str[1] != "c" or
                     not {"'", '"'}.has(tok.str[2]) {
@@ -1230,7 +1230,7 @@ enum TokenKind {
     T_WSPACE,
     T_ENCLOSE,
     T_STR,
-    T_CHAR,
+    T_CHARCODE,
     T_INLINECODE,
     T_BYTES,
     T_NUM,
@@ -1775,7 +1775,7 @@ func tokenize_str(
         } elseif c == "'" or c == '"' or
                 (c == "b" and i + 1 < strlen and
                  (str[i + 1] == "'" or str[i + 1] == '"')) or
-                (c == "c" and is_moose64 and
+                (c == "c" and
                  i + 1 < strlen and
                  (str[i + 1] == "'" or str[i + 1] == '"')) {
             # Str or bytes literal:
@@ -1801,7 +1801,7 @@ func tokenize_str(
                 is_char = yes
                 end_marker = str[i + 1]
                 literal_name = "char"
-                token_type = T_CHAR
+                token_type = T_CHARCODE
                 k += 1
                 col += 1
             }
@@ -1951,11 +1951,26 @@ func tokenize_str(
                     }
                 }
             }
-            result.tokens.add(new Token(
+            var strtok = new Token(
                 str.sub(i, k),
                 token_type,
                 start_line, start_col
-            ))
+            )
+            if token_type == T_CHARCODE {
+                var val = parse_token_value(
+                    strtok
+                )
+                if val.len != 1 {
+                    result.msgs.add(new msg.FileMsg(
+                        "Invalid T_CHARCODE " +
+                        "literal, expected a single "
+                        "32bit widechar code point.",
+                        source_file=project_file,
+                        line=start_line, col=start_col
+                    ))
+                }
+            }
+            result.tokens.add(strtok)
             i = k
             continue
         } elseif c == "#" {

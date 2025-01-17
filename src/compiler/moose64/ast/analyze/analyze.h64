@@ -1,5 +1,5 @@
 ## @module compiler.moose64.ast.analyze
-# Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2024-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -31,6 +31,7 @@ import textfmt from core.horse64.org
 
 import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
+import compiler.ast.expr as ast_expr
 import compiler.builtin_syms as builtin_syms
 import compiler.moose64.autocast as m64_autocast
 import compiler.moose64.builtins as m64_builtins
@@ -684,8 +685,13 @@ func _get_c_or_m64_type_of_node_do(
         ))
         return result
     } elseif node.kind == ast.N_EXPR_LIT and
-            typename(node.value) == "str" and
-            not node.is_big_num {
+            node.literal_kind == ast_expr.LK_CHARCODE {
+        var result = typeinfo.
+            create_from_simple_m64_type("u32")
+        return result
+    } elseif node.kind == ast.N_EXPR_LIT and
+            node.literal_kind == ast_expr.LK_NORMAL and
+            typename(node.value) == "str" {
         var result = typeinfo.
             create_from_simple_m64_type("byte")
         result.modifiers.add(new ast_typeref.TypeRefMod(
@@ -695,10 +701,11 @@ func _get_c_or_m64_type_of_node_do(
             "c_array"
         ))
         return result
-    } elseif node.kind == ast.N_EXPR_LIT and
-            (typename(node.value) == "num" or
-             (typename(node.value) == "str" and
-              node.is_big_num)) {
+    } elseif node.kind == ast.N_EXPR_LIT and ((
+            node.literal_kind == LK_NORMAL and
+            typename(node.value) == "num") or (
+            node.literal_kind == LK_BIGNUM and
+            typename(node.value) == "str")) {
         var num_as_str = node.value.as_str()
         if num_as_str.find(".") == none {
             if bignum.compare_nums(

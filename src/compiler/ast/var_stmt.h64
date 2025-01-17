@@ -1,5 +1,5 @@
 ## @module compiler.ast.var_stmt
-# Copyright (c) 2023-2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2023-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -29,7 +29,7 @@ import math from core.horse64.org
 
 import compiler.ast as ast
 import compiler.ast.block as block
-import compiler.ast.expr as expr
+import compiler.ast.expr as ast_expr
 import compiler.ast.invalid_stmt as invalid_stmt
 import compiler.ast.later_parse as later_parse
 import compiler.typeinfo.ast_typeref as ast_typeref
@@ -160,7 +160,7 @@ func VarStmt.set_obvious_initial_values {
         }
         if val_expr != none and
                 val_expr.kind == ast.N_EXPR_LIT and
-                not val_expr.is_big_num {
+                val_expr.literal_kind == ast_expr.LK_NORMAL {
             self.initial_values_known.add(yes)
             self.initial_values.add(val_expr.value)
         } else {
@@ -275,7 +275,7 @@ func parse(tokens, pos, msgs, project_file=none,
                     tokens, pos - 1, bracket_depth=0, for_expr=no,
                     is_moose64=is_moose64
                 ) - 1)
-            v = new expr.InvalidExpr(skiplen)
+            v = new ast_expr.InvalidExpr(skiplen)
             stmt.damaged = yes
         } else {
             if v.damaged {
@@ -358,7 +358,7 @@ func parse(tokens, pos, msgs, project_file=none,
         }
         assert(stmt.subexprs.len == 1)
         var type_expr = stmt.subexprs[1]
-        var inner_expr = expr.parse_call_or_funcdef_args(
+        var inner_expr = ast_expr.parse_call_or_funcdef_args(
             tokens, pos, msgs,
             is_call=yes, project_file=project_file,
             callordef_line=token.get_line(tokens, pos),
@@ -464,7 +464,8 @@ func parse(tokens, pos, msgs, project_file=none,
     if tokens[pos].kind != token.T_ASSIGN {
         var i = 1
         while i <= varcount {
-            var lexpr = new expr.LiteralExpr()
+            var lexpr = new ast_expr.LiteralExpr()
+            lexpr.literal_kind = ast_expr.LK_NORMAL
             lexpr.value = none
             if not stmt.has_type_expr {
                 stmt.subexprs.add(lexpr)
@@ -491,7 +492,7 @@ func parse(tokens, pos, msgs, project_file=none,
         print("compiler.ast.var_stmt: parse() fetching " +
             "init expression at pos=" + pos.as_str())
     }
-    var v2 = expr.parse_expression(
+    var v2 = ast_expr.parse_expression(
         tokens, pos, msgs, is_moose64=is_moose64,
         project_file=project_file, debug=debug
     ) later:
@@ -518,7 +519,8 @@ func parse(tokens, pos, msgs, project_file=none,
         pos += skiplen
         stmt.token_len = (pos - startpos)
         while remaining_count > 0 {
-            var lexpr = new expr.LiteralExpr()
+            var lexpr = new ast_expr.LiteralExpr()
+            lexpr.literal_kind = ast_expr.LK_NORMAL
             lexpr.value = none
             if not stmt.has_type_expr {
                 stmt.subexprs.add(lexpr)
@@ -611,7 +613,8 @@ func parse(tokens, pos, msgs, project_file=none,
         pos += skiplen
         stmt.token_len = pos - startpos
         while remaining_count > 0 {
-            var lexpr = new expr.LiteralExpr()
+            var lexpr = new ast_expr.LiteralExpr()
+            lexpr.literal_kind = ast_expr.LK_NORMAL
             lexpr.value = none
             if not stmt.has_type_expr {
                 stmt.subexprs.add(lexpr)
@@ -631,7 +634,7 @@ func parse(tokens, pos, msgs, project_file=none,
         print("compiler.ast.var_stmt: parse() fetching " +
             "init expression at pos=" + pos.as_str())
     }
-    v2 = expr.parse_expression(
+    v2 = ast_expr.parse_expression(
         tokens, pos, msgs, is_moose64=is_moose64,
         project_file=project_file, debug=debug
     ) later repeat

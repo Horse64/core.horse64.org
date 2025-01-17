@@ -1,5 +1,5 @@
 ## @module compiler.moose64.codegen.c_gen
-# Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2024-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -25,6 +25,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import bignum from core.horse64.org
 import io from core.horse64.org
 import math from core.horse64.org
 import path from core.horse64.org
@@ -1733,11 +1734,16 @@ func node_to_c_string(project_file, node, parents,
         return later ""
     }
     if node.kind == ast.N_EXPR_LIT and
-            typename(node.value) == "str" and
-            not node.is_big_num {
+            node.literal_kind == ast_expr.LK_NORMAL and
+            typename(node.value) == "str" {
         return later textfmt.as_escaped_code_string(
             node.value, for_c_code=yes
         )
+    } elseif node.kind == ast.N_EXPR_LIT and
+            node.literal_kind == ast_expr.LK_CHARCODE {
+        assert(typename(node.value) == "num")
+        return later "((uint32_t)" +
+            node.value.as_str() + ")"
     } elseif node.kind == ast.N_STMT_CALL {
         var call_expr = node.subexprs[1]
         var inner_result = node_to_c_string(
@@ -3182,16 +3188,32 @@ func node_to_c_string(project_file, node, parents,
         )
         return later t
     } elseif node.kind == ast.N_EXPR_LIT and
+            node.literal_kind == ast_expr.LK_NORMAL and
             typename(node.value) == "bool" {
         return if node.value ("1") else ("0")
     } elseif node.kind == ast.N_EXPR_LIT and
+            node.literal_kind == ast_expr.LK_NORMAL and
             node.value == none {
         return later "((void*) 0)"
-    } elseif node.kind == ast.N_EXPR_LIT and
-            (typename(node.value) == "num" or
-             (typename(node.value) == "str" and
-              node.is_big_num)) {
-        return later node.value.as_str()
+    } elseif node.kind == ast.N_EXPR_LIT and ((
+            node.literal_kind == ast_expr.LK_NORMAL and
+            typename(node.value) == "num") or (
+            node.literal_kind == ast_expr.LK_BIGNUM and
+            typename(node.value) == "str")) {
+        var num_as_str = node.value.as_str()
+        var c_type_prefix = "(int32_t)"
+        if num_as_str.find(".") == none {
+            if bignum.compare_nums(
+                    num_as_str, "2147483647") > 0 or
+                    bignum.compare_nums(
+                    num_as_str, "-2147483648") < 0 {
+                c_type_prefix = "(int64_t)"
+            }
+        } else {
+            c_type_prefix = "(double)"
+        }
+        return later "(" + c_type_prefix +
+            num_as_str + ")"
     } elseif node.kind == ast.N_STMT_VAR {
         if node_to_c_options.skip_global_vars and
                 node.scope == none {
