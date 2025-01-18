@@ -36,6 +36,7 @@ import textfmt
 
 enum BuiltinItemKind {
     BI_FUNC,
+    BI_VAR,
     BI_STRUCT,
     BI_TYPE,
     BI_ENUM,

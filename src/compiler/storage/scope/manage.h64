@@ -314,7 +314,7 @@ func project.ProjectFile.try_lookup_symbol_path(
             ) {
         var builtin_lookup_result =
             builtin_syms.try_lookup_symbol(
-                self.project, check_path[1],
+                self.project, check_path.join("."),
                 if self.modinfo != none (self.modinfo.module_name)
                     else (none),
                 in_package_name=if self.modinfo != none

@@ -247,6 +247,38 @@ func register_builtins_with_project(project) {
         func_signature="(<-any ref)->any",
         is_moose64=yes) later:
 
+    id = m64_c_importer.get_mcref_id(project)
+    builtin_syms.register_symbol(
+        project, "multi_args.len",
+        new st_ref.StorageRef(st_ref.ST_MCREF, id),
+        builtin_syms.BI_VAR, "$any",
+        func_signature="(<-any ref)->any",
+        is_moose64=yes) later:
+
+    id = m64_c_importer.get_mcref_id(project)
+    builtin_syms.register_symbol(
+        project, "multi_args.count",
+        new st_ref.StorageRef(st_ref.ST_MCREF, id),
+        builtin_syms.BI_FUNC, "$any",
+        func_signature="(<-any ref)->any",
+        is_moose64=yes) later:
+
+    id = m64_c_importer.get_mcref_id(project)
+    builtin_syms.register_symbol(
+        project, "multi_args.forward",
+        new st_ref.StorageRef(st_ref.ST_MCREF, id),
+        builtin_syms.BI_FUNC, "$any",
+        func_signature="(<-any ref)->any",
+        is_moose64=yes) later:
+
+    id = m64_c_importer.get_mcref_id(project)
+    builtin_syms.register_symbol(
+        project, "multi_args.get",
+        new st_ref.StorageRef(st_ref.ST_MCREF, id),
+        builtin_syms.BI_FUNC, "$any",
+        func_signature="(<-any ref)->any",
+        is_moose64=yes) later:
+
     return later
 }
 
