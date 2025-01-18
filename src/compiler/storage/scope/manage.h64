@@ -308,7 +308,7 @@ func project.ProjectFile.try_lookup_symbol_path(
             ": debug: try_lookup_symbol_path(): "
             "Will try injections from compiler.builtin_syms module.")
     }
-    if check_path.len == 1 and
+    if check_path.len >= 1 and
             not self.global_scope.name_to_stmt_map.has(
                 check_path[1]
             ) {
