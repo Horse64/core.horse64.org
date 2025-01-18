@@ -1,5 +1,5 @@
 ## @module compiler.project
-# Copyright (c) 2020-2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2020-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -43,6 +43,7 @@ import compiler.builtin_syms as builtin_syms
 import compiler.cext as cext
 import compiler.comment.command as command_comment
 import compiler.moose64.builtins as m64_builtins
+import compiler.moose64.storage as m64_storage
 import compiler.msg as msg
 import compiler.storage.scope.manage as scope_manage
 import compiler.storage.ref as st_ref

@@ -1,5 +1,5 @@
 ## @module compiler.storage
-# Copyright (c) 2023-2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2023-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -33,6 +33,7 @@ import compiler.ast.expr as ast_expr
 import compiler.ast.func_stmt as func_stmt
 import compiler.ast.transform as transform
 import compiler.cext as cext
+import compiler.moose64.storage as m64_storage
 import compiler.msg as msg
 import compiler.project as project
 import compiler.storage.scope as st_scope
@@ -1569,6 +1570,12 @@ func project.Project.compute_all_scopes(
                     }
                 } else {
                     node.ref = result
+                    if is_moose64 {
+                        m64_storage.
+                            handle_node_storage_redirects(
+                                node, project_file=pfile
+                            )
+                    }
                 }
                 return later node
             } elseif node.kind == ast.N_EXPR_BINOP and
@@ -1726,6 +1733,14 @@ func project.Project.compute_all_scopes(
                         replacement_idref.type_path = none
                     }
                     replacement_idref.ref = ref
+                    
+                    if is_moose64 {
+                        m64_storage.
+                            handle_node_storage_redirects(
+                                replacement_idref.ref,
+                                project_file=pfile
+                            )
+                    }
 
                     if omitted_righthands == 0 {
                         # Nuke the original node and subtree,

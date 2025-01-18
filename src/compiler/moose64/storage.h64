@@ -1,5 +1,5 @@
-## @module compiler.moose64.main
-# Copyright (c) 2024-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+## @module compiler.moose64.storage
+# Copyright (c) 2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -25,14 +25,31 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-import compiler.main
+import compiler.ast as ast
+import compiler.moose64.builtins as m64_builtins
 
-func main {
-    var result = compiler.main.do_main(is_moose64=yes)
-    later:
-
-    await result
-    return later result
+func handle_node_storage_redirects(
+        node, project_file=none) {
+    const is_moose64 = yes
+    if not m64_builtins.
+            is_ast_node_referring_to_m64_builtin_assert(
+                project_file, node,
+                is_moose64=is_moose64) {
+        return
+    }
+    assert(node.kind == ast.N_EXPR_IDREF or
+        (node.kind == ast.N_EXPR_BINOP and
+        node.optoken.str == "." and
+        node.subexprs.len >= 2))
+    var target_ref = m64_builtins.
+        get_m64_debug_assert_func_storage_ref(
+            "assert", project=project_file.project,
+            is_moose64=is_moose64,
+        )
+    if node.kind == ast.N_EXPR_IDREF {
+        node.ref = target_ref
+    } elseif node.kind == ast.N_EXPR_BINOP {
+        node.subexprs[2].ref = target_ref
+    }
 }
-
 
