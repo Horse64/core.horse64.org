@@ -439,7 +439,11 @@ func find_func_overrides_by_st_ref(
                         "func_sinfo=" +
                             func_sinfo.as_str() + " "
                         "storage_ref=" +
-                            storage_ref.as_str())
+                            storage_ref.as_str() + " "
+                        "anscope=" + anscope.as_str() + " "
+                        "anscope.id_to_origin_gscope_map=" +
+                            anscope.
+                                id_to_origin_gscope_map.as_str())
                     throw new ValueError("There seems to be "
                         "a broken func attr where the attr "
                         "names scope can't return the global "

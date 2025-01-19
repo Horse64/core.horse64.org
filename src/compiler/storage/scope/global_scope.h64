@@ -1079,6 +1079,7 @@ func project.Project.finalize_global_scope_attr_storage(
 
     await success
     if not success {
+        assert(msg.msgs_contain_error(msgs))
         return later
     }
 
@@ -1092,6 +1093,7 @@ func project.Project.finalize_global_scope_attr_storage(
 
     await success
     if not success {
+        assert(msg.msgs_contain_error(msgs))
         return later
     }
 
