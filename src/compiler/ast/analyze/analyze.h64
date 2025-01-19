@@ -380,8 +380,8 @@ func find_func_overrides_by_st_ref(
     if storage_ref.kind == st_ref.ST_GLOBAL {
         gnode = st_scope.global_id_to_item(
             project, storage_ref.id)
-        assert(gnode != none)
-        if typename(gnode.symbol_info) == "list" {
+        if gnode != none and
+                typename(gnode.symbol_info) == "list" {
             gnode = none
         }
         if gnode != none and
@@ -409,11 +409,12 @@ func find_func_overrides_by_st_ref(
             if anscope == none {
                 gnode = none
             } else {
-                var gnode = anscope.get_funcattr_node(
+                gnode = anscope.get_funcattr_node(
                     storage_ref.id[2]
                 )
             }
-            if gnode.kind == ast.N_STMT_FUNC {
+            if gnode != none and
+                    gnode.kind == ast.N_STMT_FUNC {
                 func_name = gnode.label
             }
         }
@@ -423,8 +424,13 @@ func find_func_overrides_by_st_ref(
     }
     if gnode == none or gnode.kind != ast.N_STMT_FUNC or
             func_name == none {
-        throw new ValueError("Item that was specified "
-            "by storage reference doesn't seem to be "
+        print(if is_moose64 ("moosec") else ("horsec") +
+            ": error: Internal error, "
+            "find_func_overrides_by_st_ref() "
+            "used on storage ref that isn't a func. "
+            "storage_ref=" + storage_ref.as_str())
+        throw new ValueError("The item that was specified "
+            "by the storage reference doesn't seem to be "
             "a function.")
     }
 
@@ -1349,7 +1355,12 @@ func get_called_or_assigned_func_types(
             print(dbg_prefix +
                 " get_called_or_assigned_func_types(): "
                 "The signature doesn't match and overrides are "
-                "allowed. Let's go looking for one...")
+                "allowed. Let's go looking for one. "
+                "func_var_typeinfo=" +
+                    func_var_typeinfo.as_str() + " "
+                "func_var_typeinfo.user_type_ref=" +
+                    func_var_typeinfo.user_type_ref.as_str() + " "
+                "called_node=" + called_node.as_str())
         }
 
         var override_info_list =

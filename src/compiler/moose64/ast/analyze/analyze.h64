@@ -702,9 +702,9 @@ func _get_c_or_m64_type_of_node_do(
         ))
         return result
     } elseif node.kind == ast.N_EXPR_LIT and ((
-            node.literal_kind == LK_NORMAL and
+            node.literal_kind == ast_expr.LK_NORMAL and
             typename(node.value) == "num") or (
-            node.literal_kind == LK_BIGNUM and
+            node.literal_kind == ast_expr.LK_BIGNUM and
             typename(node.value) == "str")) {
         var num_as_str = node.value.as_str()
         if num_as_str.find(".") == none {
