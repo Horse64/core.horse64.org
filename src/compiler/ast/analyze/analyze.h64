@@ -370,7 +370,9 @@ func get_func_info_and_get_true_func_node(
 }
 
 func find_func_overrides_by_st_ref(
-        storage_ref, project, msgs=none,
+        storage_ref, project,
+        error_when_finding_invalid_storage=yes,
+        msgs=none,
         is_moose64=no) {
     var gnode = none
     var gscope = none
@@ -407,11 +409,43 @@ func find_func_overrides_by_st_ref(
                     is_moose64=is_moose64
                 )
             if anscope == none {
-                gnode = none
+                if error_when_finding_invalid_storage {
+                    print(if is_moose64 ("moosec")
+                        else ("horsec") +
+                        ": error: Internal error, got attr "
+                        "storage ref where we can't get the "
+                        "anscope for the base type. "
+                        "func_sinfo=" +
+                            func_sinfo.as_str() + " "
+                        "storage_ref=" +
+                            storage_ref.as_str())
+                    throw new ValueError("There seems to be "
+                        "a broken type where the attr names "
+                        "scope can't be acquired.")
+                } else {
+                    gnode = none
+                }
             } else {
                 gnode = anscope.get_funcattr_node(
                     storage_ref.id[2]
                 )
+                if gnode == none and
+                        error_when_finding_invalid_storage {
+                    print(if is_moose64 ("moosec")
+                        else ("horsec") +
+                        ": error: Internal error, got func "
+                        "attr storage ref where we can't get "
+                        "the func attr's global node. "
+                        "func_sinfo=" +
+                            func_sinfo.as_str() + " "
+                        "storage_ref=" +
+                            storage_ref.as_str())
+                    throw new ValueError("There seems to be "
+                        "a broken func attr where the attr "
+                        "names scope can't return the global "
+                        "node associated. The data "
+                        "structures might be corrupted.")
+                }
             }
             if gnode != none and
                     gnode.kind == ast.N_STMT_FUNC {
@@ -424,14 +458,18 @@ func find_func_overrides_by_st_ref(
     }
     if gnode == none or gnode.kind != ast.N_STMT_FUNC or
             func_name == none {
-        print(if is_moose64 ("moosec") else ("horsec") +
-            ": error: Internal error, "
-            "find_func_overrides_by_st_ref() "
-            "used on storage ref that isn't a func. "
-            "storage_ref=" + storage_ref.as_str())
-        throw new ValueError("The item that was specified "
-            "by the storage reference doesn't seem to be "
-            "a function.")
+        if error_when_finding_invalid_storage {
+            print(if is_moose64 ("moosec") else ("horsec") +
+                ": error: Internal error, "
+                "find_func_overrides_by_st_ref() "
+                "used on storage ref that isn't a func. "
+                "storage_ref=" + storage_ref.as_str())
+            throw new ValueError("The item that was "
+                "specified by the storage reference  "
+                "doesn't seem to be a function.")
+        } else {
+            return none
+        }
     }
 
     var result = []
