@@ -285,14 +285,30 @@ func project.Project.finalize_func_typerefs_all_files(
             if not is_moose64 and symbol_info.typeref_expr == none {
                 return later yes
             }
-            assert(symbol_info.typeref_expr != none)
+            var typeref_expr = symbol_info.typeref_expr
+            assert(typeref_expr != none)
             var result =
-                symbol_info.typeref_expr.try_resolve_to_user_type(
+                typeref_expr.try_resolve_to_user_type(
                     pfile, is_moose64=is_moose64
                 ) later:
 
             await result
             if not result {
+                if msgs != none and
+                        not msg.msgs_contain_error(msgs) {
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected damaged declaration "
+                        "of type " +
+                        typeref_expr.describe_to_user(
+                            project=pfile.project,
+                            is_moose64=is_moose64) + ", "
+                        "contains invalid sub types.",
+                        source_file=pfile,
+                        line=stmt.line,
+                        col=stmt.col,
+                    ))
+                }
+                stmt.damaged = yes
                 return later no
             }
             return later yes
