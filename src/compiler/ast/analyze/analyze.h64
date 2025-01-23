@@ -583,6 +583,7 @@ func find_func_overrides_by_st_ref(
 
 type CalledFuncTypesResult {
     var called_func_is_attr = no
+    var user_facing_called_args_len = 0
 
     var func_var_type_expr
     var func_var_typeinfo
@@ -887,13 +888,13 @@ func get_called_or_assigned_func_types(
     var arg_var_type_exprs = []
 
     # Now, collect info about expected vs actually given call signature:
-    var expected_args =
+    var expected_args_len =
         func_typeinfo.func_typeexpr.arg_typeref_exprs.len +
         if func_typeinfo.func_typeexpr.is_func_attr (-1) else (0) +
         if func_typeinfo.func_typeexpr.is_failable (-1) else (0)
-    assert(expected_args >= 0)
+    assert(expected_args_len >= 0)
     var called_args_exprs = call_args_expr.subexprs.copy()
-    var called_args = call_args_expr.subexprs.len
+    var called_args_len = call_args_expr.subexprs.len
     if func_typeinfo.func_typeexpr.is_failable {
         var arg_typeref_exprs =
              func_typeinfo.func_typeexpr.
@@ -912,7 +913,8 @@ func get_called_or_assigned_func_types(
                 "parameter at the end. Info: "
                 "arg_typeref_exprs=" +
                     arg_typeref_exprs.as_str() + " "
-                "expected_args=" + expected_args.as_str() + " "
+                "expected_args_len=" +
+                    expected_args_len.as_str() + " "
                 "is_func_attr=" +
                     func_typeinfo.func_typeexpr.
                         is_func_attr.as_str() + " "
@@ -935,8 +937,8 @@ func get_called_or_assigned_func_types(
             called_node_ref=called_node_ref,
             is_moose64=is_moose64
         )
-    var effective_called_args =
-        called_args + if is_self_call (1) else (0)
+    var user_facing_called_args_len =
+        called_args_len
     var last_param_m64_typeinfo = none
     func determine_last_param_type_if_needed {
         if called_args_exprs.len <= 0 {
@@ -1014,6 +1016,7 @@ func get_called_or_assigned_func_types(
         func_typeinfo.func_typeexpr.
             arg_typeref_exprs.copy()
     var called_actual_arg_types = []
+    var called_actual_arg_user_indexes = []
     var is_failable_call =
         last_param_m64_typeinfo != none and
         last_param_m64_typeinfo.kind == typeinfo.TI_C_TYPE and
@@ -1021,6 +1024,10 @@ func get_called_or_assigned_func_types(
             "moose64_failed_result_t" and
         last_param_m64_typeinfo.modifiers.len == 1 and
         last_param_m64_typeinfo.modifiers[1].name == "ref"
+    if is_failable_call {
+        assert(user_facing_called_args_len > 0)
+        user_facing_called_args_len -= 1
+    }
     var expected_failable_call =
         func_typeinfo.func_typeexpr.is_failable
     if expected_failable_call {
@@ -1057,7 +1064,7 @@ func get_called_or_assigned_func_types(
     func determine_adhoc_self_call {
         var could_be_adhoc_self_call = no
         if expected_self_call and not is_self_call and
-                called_args >= expected_args + 1 and
+                called_args_len >= expected_args_len + 1 and
                 called_args_exprs.len > 0 {
             could_be_adhoc_self_call = yes
         }
@@ -1123,7 +1130,8 @@ func get_called_or_assigned_func_types(
             called_with_self_str = "with self ref"
             is_self_call = yes
             called_args_exprs = called_args_exprs.sub(2)
-            called_args -= 1
+            called_args_len -= 1
+            expected_args_len += 1
         } else {
             if debug {
                 print(dbg_prefix + " "
@@ -1149,9 +1157,7 @@ func get_called_or_assigned_func_types(
     var signature_arg_mismatch_info = none
 
     var signature_mismatch = no
-    if effective_called_args != expected_args +
-            if func_typeinfo.func_typeexpr.is_func_attr (1) else (0) +
-            if func_typeinfo.func_typeexpr.is_failable (1) else (0) or
+    if user_facing_called_args_len != expected_args_len or
             is_failable_call != expected_failable_call or
             is_self_call != expected_self_call {
         signature_mismatch = yes
@@ -1176,6 +1182,14 @@ func get_called_or_assigned_func_types(
         }
         func create_arg_list {
             func obtain_arg(arg_idx) {
+                # The argument number the user thinks this is:
+                var user_facing_idx = arg_idx
+                if is_called_with_adhoc_self {
+                    # (Since called_args_exprs is trimmed to
+                    # the non-self args even in the ad-hoc case.)
+                    user_facing_idx += 1
+                }
+
                 # Determine the argument type:
                 var arg_type =
                     m64_ast_analyze.get_c_or_m64_type_of_node(
@@ -1209,6 +1223,8 @@ func get_called_or_assigned_func_types(
                     )
                 }
                 called_actual_arg_types.add(arg_type)
+                called_actual_arg_user_indexes.add(
+                    user_facing_idx)
                 return yes
             }
 
@@ -1246,7 +1262,8 @@ func get_called_or_assigned_func_types(
         assert(called_actual_arg_types.len ==
             expected_actual_arg_typeexprs.len)
 
-        func test_arg(idx, arg_signature_expr, arg_actual_type) {
+        func test_arg(idx, user_facing_idx,
+                arg_signature_expr, arg_actual_type) {
             var signature_typeinfo =
                 typeinfo.create_typeinfo_from_typeexpr(
                     arg_signature_expr, is_moose64=yes
@@ -1282,7 +1299,9 @@ func get_called_or_assigned_func_types(
             if debug {
                 print(dbg_prefix +
                     " get_called_or_assigned_func_types(): "
-                    "Testing arg #" + idx.as_str() + " which " +
+                    "Testing arg #" + idx.as_str() + " ("
+                    "user-facing #" +
+                    user_facing_idx.as_str() + ") which " +
                     if allowed ("fits") else ("doesn't fit") + ". "
                     "arg_actual_type=" +
                         arg_actual_type.as_str() + " "
@@ -1295,7 +1314,8 @@ func get_called_or_assigned_func_types(
             }
             if not allowed {
                 signature_arg_mismatch_info = [
-                    idx, signature_typeinfo, arg_actual_type
+                    idx, user_facing_idx,
+                    signature_typeinfo, arg_actual_type
                 ]
                 signature_mismatch = yes
                 return later no
@@ -1308,7 +1328,9 @@ func get_called_or_assigned_func_types(
         for arg_expr in
                 expected_actual_arg_typeexprs {
             idx += 1
-            args_queue.add([idx, arg_expr,
+            args_queue.add([idx,
+                called_actual_arg_user_indexes[idx],
+                arg_expr,
                 called_actual_arg_types[idx]])
         }
         if args_queue.len == 0 {
@@ -1316,7 +1338,8 @@ func get_called_or_assigned_func_types(
         }
         var next_arg = args_queue.pop_at(1)
         var does_match = test_arg(
-            next_arg[1], next_arg[2], next_arg[3]
+            next_arg[1], next_arg[2], next_arg[3],
+            next_arg[4],
         ) later:
 
         await does_match
@@ -1330,7 +1353,8 @@ func get_called_or_assigned_func_types(
         }
         next_arg = args_queue.pop_at(1)
         does_match = test_arg(
-            next_arg[1], next_arg[2], next_arg[3]
+            next_arg[1], next_arg[2], next_arg[3],
+            next_arg[4],
         ) later repeat
     }
     evaluate_param_types_if_needed()
@@ -1453,16 +1477,18 @@ func get_called_or_assigned_func_types(
                         called_node.as_str() + " "
                     "called_node_parent=" +
                         called_node_parent.as_str() + " "
-                    "effective_called_args=" +
-                        effective_called_args.as_str() + " "
-                    "expected_args=" +
-                        expected_args.as_str() + " "
+                    "user_facing_called_args_len=" +
+                        user_facing_called_args_len.as_str() + " "
+                    "expected_args_len=" +
+                        expected_args_len.as_str() + " "
                     "signature_arg_mismatch_info=" +
                         signature_arg_mismatch_info.as_str() + " "
                     "is_failable_call=" +
                         is_failable_call.as_str() + " "
                     "is_self_call=" +
                         is_self_call.as_str() + " "
+                    "is_called_with_adhoc_self=" +
+                        is_called_with_adhoc_self.as_str() + " "
                     "expected_self_call=" +
                         expected_self_call.as_str() + " "
                     "is_func_attr=" +
@@ -1472,17 +1498,27 @@ func get_called_or_assigned_func_types(
                     "arguments.")
             }
             var expected_s =
-                if expected_args != 1 ("s") else ("")
+                if expected_args_len != 1
+                    ("s") else ("")
             var called_s =
-                if called_args != 1 ("s") else ("")
+                if user_facing_called_args_len != 1
+                    ("s") else ("")
             if debug {
                 print(dbg_prefix +
                     " get_called_or_assigned_func_types(): "
                     "Got args mismatch, debug info: "
-                    "expected_args=" + expected_args.as_str() + " "
-                    "called_args=" + called_args.as_str() + " "
+                    "called_actual_arg_user_indexes=" +
+                        called_actual_arg_user_indexes.as_str() + " "
+                    "called_actual_arg_types=" +
+                        called_actual_arg_types.as_str() + " "
+                    "expected_args_len=" +
+                        expected_args_len.as_str() + " "
+                    "user_facing_called_args_len=" +
+                        user_facing_called_args_len.as_str() + " "
                     "is_self_call=" +
                         is_self_call.as_str() + " "
+                    "is_called_with_adhoc_self=" +
+                        is_called_with_adhoc_self.as_str() + " "
                     "expected_self_call=" +
                         expected_self_call.as_str() + " "
                     "signature_arg_mismatch_info=" +
@@ -1497,8 +1533,8 @@ func get_called_or_assigned_func_types(
             }
             if not called_node.damaged {
                 # Emit an error message:
-                var arg_count_mismatch =
-                    (expected_args != called_args)
+                var arg_count_mismatch = (expected_args_len !=
+                    user_facing_called_args_len)
                 if not arg_count_mismatch and
                         is_failable_call != expected_failable_call {
                     msgs.add(new msg.FileMsg(
@@ -1510,33 +1546,34 @@ func get_called_or_assigned_func_types(
                             ("is marked failable")
                             else ("is regular non-failable") +
                         ".",
-                        kind=msg.M_ERROR, source_file=project_file,
+                        kind=msg.M_ERROR,
+                        source_file=project_file,
                         line=called_node.line,
                         col=called_node.col
                     ))
                 } elseif not arg_count_mismatch and
                         signature_arg_mismatch_info != none {
                     var smmi = signature_arg_mismatch_info
-                    var nth = smmi[1].as_str() + "th"
-                    if smmi[1] == 1 or
-                            (smmi[1] != 11 and
-                            smmi[1].as_str().ends("1")) {
-                        nth = smmi[1].as_str() + "st"
-                    } elseif smmi[1] == 2 or
-                            (smmi[1] != 12 and
-                            smmi[1].as_str().ends("2")) {
-                        nth = smmi[1].as_str() + "nd"
+                    var nth = smmi[2].as_str() + "th"
+                    if smmi[2] == 1 or
+                            (smmi[2] != 11 and
+                            smmi[2].as_str().ends("1")) {
+                        nth = smmi[2].as_str() + "st"
+                    } elseif smmi[2] == 2 or
+                            (smmi[2] != 12 and
+                            smmi[2].as_str().ends("2")) {
+                        nth = smmi[2].as_str() + "nd"
                     }
                     msgs.add(new msg.FileMsg(
                         "Unexpected argument mismatch, " +
                         "the " + nth + " argument was passed type " +
-                            smmi[3].describe_to_user(
+                            smmi[4].describe_to_user(
                                 project=project_file.project,
                                 add_quotes_where_useful=yes,
                                 is_moose64=yes,
                             ) + " which isn't compatible with " +
                         "expected type " +
-                            smmi[2].describe_to_user(
+                            smmi[3].describe_to_user(
                                 project=project_file.project,
                                 add_quotes_where_useful=yes,
                                 is_moose64=yes,
@@ -1551,12 +1588,13 @@ func get_called_or_assigned_func_types(
                         msgs.add(new msg.FileMsg(
                             "Unexpected number of args, " +
                             called_name + " expects " +
-                            expected_args.as_str() + " "
+                            expected_args_len.as_str() + " "
                             "arg" + expected_s + " " +
                             "but this call provides " +
-                            called_args.as_str() +
+                            user_facing_called_args_len.as_str() +
                             " arg" + called_s + ".",
-                            kind=msg.M_ERROR, source_file=project_file,
+                            kind=msg.M_ERROR,
+                            source_file=project_file,
                             line=called_node.line,
                             col=called_node.col,
                         ))
@@ -1567,13 +1605,15 @@ func get_called_or_assigned_func_types(
                     msgs.add(new msg.FileMsg(
                         "Unexpected number of args, " +
                         called_name + " expects " +
-                        expected_args.as_str() + " "
+                        expected_args_len.as_str() + " "
                         "arg" + expected_s + " " +
                         expected_with_self_str + " "
                         "but this call provides " +
-                        called_args.as_str() + " arg" + called_s + " " +
+                        user_facing_called_args_len.as_str() + " "
+                        "arg" + called_s + " " +
                         called_with_self_str + ".",
-                        kind=msg.M_ERROR, source_file=project_file,
+                        kind=msg.M_ERROR,
+                        source_file=project_file,
                         line=called_node.line,
                         col=called_node.col,
                     ))
@@ -1652,6 +1692,8 @@ func get_called_or_assigned_func_types(
     result.is_external = is_external
     result.called_func_is_attr =
         func_typeinfo.func_typeexpr.is_func_attr
+    result.user_facing_called_args_len =
+        user_facing_called_args_len
     result.func_var_type_expr = func_var_typeref.copy()
     result.func_var_typeinfo = func_var_typeinfo
     result.func_var_name = func_actual_name
