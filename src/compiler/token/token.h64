@@ -1517,6 +1517,7 @@ func is_leftptr_at_token_str_pos(
             ) {
         return no
     }
+    var bracket_depth = 0
     var k = past_tokens.len
     while k >= 1 {
         if debug {
@@ -1534,23 +1535,30 @@ func is_leftptr_at_token_str_pos(
         }
         if kind == T_ENCLOSE and
                 {")", "]", "}"}.has(past_tokens[k].str) {
-            # Skip over inner bracket nestings.
-            var bracket_depth = 1
-            var z = k - 1
-            while z >= 1 {
-                if past_tokens[z].kind == T_ENCLOSE and
-                        {"(", "[", "{"}.has(past_tokens[z].str) {
-                    bracket_depth -= 1
-                    if bracket_depth <= 0 {
-                        break
+            bracket_depth += 1
+            if bracket_depth >= 1 {
+                # Skip over inner bracket nestings.
+                var inner_bdepth = 1
+                var z = k - 1
+                while z >= 1 {
+                    if past_tokens[z].kind == T_ENCLOSE and
+                            {"(", "[", "{"}.has(
+                                past_tokens[z].str) {
+                        inner_bdepth -= 1
+                        if inner_bdepth <= 0 {
+                            break
+                        }
+                    } elseif past_tokens[z].kind == T_ENCLOSE and
+                            {")", "]", "}"}.has(
+                                past_tokens[z].str) {
+                        inner_bdepth += 1
                     }
-                } elseif past_tokens[z].kind == T_ENCLOSE and
-                        {")", "]", "}"}.has(past_tokens[z].str) {
-                    bracket_depth += 1
+                    z -= 1
                 }
-                z -= 1
+                k = z - 1
+            } else {
+                k -= 1
             }
-            k = z - 1
             continue
         }
         if kind == T_ENCLOSE and
@@ -1560,13 +1568,20 @@ func is_leftptr_at_token_str_pos(
                 # This is part of a (... <- test) -> ... func type.
                 return yes
             }
+            bracket_depth -= 1
         }
         if kind == T_IDENT and k > 1 and
                 past_tokens[k - 1].kind == T_KEYWORD and
                 {"var", "const"}.has(past_tokens[k - 1].str) {
             return yes
         }
-        if kind == T_IDENT and k > 1 and
+        if kind == T_KEYWORD and
+                _maybe_stmt_token_strs.has(
+                    past_tokens[k].str) and
+                bracket_depth < 0 {
+            return no
+        }
+        if {T_ELLIPSIS, T_IDENT}.has(kind) and k > 1 and
                 (past_tokens[k - 1].kind == T_COMMA or
                  (past_tokens[k - 1].kind == T_ENCLOSE and
                   past_tokens[k - 1].str == "(")) {
