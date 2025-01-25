@@ -1,5 +1,5 @@
 ## @module compiler.ast.func_stmt
-# Copyright (c) 2023-2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2023-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -525,6 +525,8 @@ func parse(tokens, pos, msgs, project_file=none,
         for arg in args {
             if arg.kind == ast.N_EXPR_ARGNAME {
                 stmt.arg_labels.add(arg.label)
+            } elseif arg.kind == ast.N_EXPR_CALLMULTIARG {
+                stmt.arg_labels.add("...")
             }
         }
         var type_exprs = []
@@ -654,8 +656,10 @@ func parse(tokens, pos, msgs, project_file=none,
         tokens, pos, msgs, project_file=project_file,
         is_moose64=is_moose64,
         block_purpose_name="for func statement starting in "
-            "line " + token.get_line(tokens, startpos).as_str() +
-            ", column " + token.get_col(tokens, startpos).as_str(),
+            "line " + token.get_line(
+                tokens, startpos).as_str() +
+            ", column " + token.get_col(
+                tokens, startpos).as_str(),
         debug=debug,
     ) later:
 
@@ -666,6 +670,25 @@ func parse(tokens, pos, msgs, project_file=none,
     pos += block_result.token_len
     stmt.subblocks.add(block_result.stmts)
     stmt.token_len = (pos - startpos)
+    if debug {
+        var arg_types = none
+        if stmt.has_arg_types.as_str() {
+            var offset = stmt.subexprs.len -
+                stmt.arg_labels.len -
+                if stmt.has_return_type (1) else (0)
+            arg_types = stmt.subexprs.sub(
+                offset, stmt.arg_labels.len
+            )
+        }
+        print("compiler.ast.func_stmt: parse(): Final "
+            "func parameters: arg_labels=" +
+                stmt.arg_labels.as_str() + " "
+            "has_arg_types=" +
+                stmt.has_arg_types.as_str() + " "
+            "subexprs[limited to arg types]=" +
+                arg_types.as_str())
+    }
+
     return later stmt
 }
 
