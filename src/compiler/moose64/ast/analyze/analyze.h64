@@ -60,15 +60,18 @@ func get_c_or_m64_type_of_typeref(
         }
         return later tinfo
     }
-    var m64_type_ref = typeref.try_resolve_to_user_type(
+    var m64_type_ref_result = typeref.try_resolve_to_user_type(
         project_file, is_moose64=yes
     ) later:
 
-    await m64_type_ref
-    assert(m64_type_ref.kind != st_ref.ST_LOCAL)
+    await m64_type_ref_result
+    var m64_type_ref = 
+        m64_type_ref_result.resolved_storage_ref
     if m64_type_ref == none {
         return later none
     }
+    m64_type_ref = m64_type_ref_result.resolved_storage_ref
+    assert(m64_type_ref.kind != st_ref.ST_LOCAL)
     var m64_symbol_info = st_ref.ref_to_symbol_info(
         m64_type_ref, project=project_file.project,
         is_moose64=is_moose64,

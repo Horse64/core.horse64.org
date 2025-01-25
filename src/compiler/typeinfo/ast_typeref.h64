@@ -523,9 +523,10 @@ func TypeRefFuncExpr.copy {
 
 func TypeRefFuncExpr.try_resolve_param_types(
         project_file, recursive=no, force_recompute=no,
-        is_moose64=no
+        is_moose64=no, debug=no
         ) {
-    var had_failure = no
+    var had_error = no
+    var error_result = none
 
     var builtin_names =
         if is_moose64 (builtin_moose64_types)
@@ -534,12 +535,13 @@ func TypeRefFuncExpr.try_resolve_param_types(
         if not item.is_func_ref {
             var result = item.try_resolve_to_user_type(
                 project_file, force_recompute=force_recompute,
-                is_moose64=is_moose64
+                is_moose64=is_moose64, debug=debug,
             ) later:
 
             await result
-            if not result and not builtin_names.has(item.name) {
-                had_failure = yes
+            if result.had_error {
+                had_error = yes
+                error_result = result
             }
             return later
         }
@@ -547,26 +549,38 @@ func TypeRefFuncExpr.try_resolve_param_types(
             project_file, recursive=recursive,
             skip_params=(not recursive),
             force_recompute=force_recompute,
-            is_moose64=is_moose64
+            is_moose64=is_moose64, debug=debug,
         ) later:
 
         await result
         # Func typerefs may not point to any specific actual
         # defined function, so we ignore if this fails.
+        # We just call it anyway to store the result for
+        # later use.
     }
 
-    base.try_resolve_to_user_type(
+    var base_result = base.try_resolve_to_user_type(
         project_file, force_recompute=force_recompute,
-        is_moose64=is_moose64
+        is_moose64=is_moose64, debug=debug,
     )
     later:
 
+    await base_result
+    assert(base_result != none)
+    if base_result.had_error {
+        return base_result
+    }
+
+    var final_result = base_result
     var queue = self.arg_typeref_exprs.copy()
     if self.return_typeref_expr != none {
         queue.add(self.return_typeref_expr)
     }
     if queue.len == 0 {
-        return later not had_failure
+        if had_error {
+            return error_result
+        }
+        return later final_result
     }
     var item = queue.pop()
     var _unused = resolve_item(item)
@@ -575,7 +589,10 @@ func TypeRefFuncExpr.try_resolve_param_types(
     await _unused
 
     if queue.len == 0 {
-        return later not had_failure
+        if had_error {
+            return error_result
+        }
+        return later final_result
     }
     item = queue.pop()
     _unused = resolve_item(item) later repeat
@@ -584,8 +601,11 @@ func TypeRefFuncExpr.try_resolve_param_types(
 func TypeRefFuncExpr.try_resolve_to_user_type(
         project_file, recursive=no, skip_params=no,
         force_recompute=no,
-        is_moose64=no
+        is_moose64=no,
+        debug=no
         ) {
+    var param_error_result = none
+
     func run_concurrent {
         if skip_params {
             return later yes
@@ -597,22 +617,33 @@ func TypeRefFuncExpr.try_resolve_to_user_type(
         ) later:
 
         await result
-        if not result or self.func_storage_ref == none {
+        if result.had_error {
+            param_error_result = result
             return later no
         }
         return later yes
     }
-    var result = run_concurrent()
+    var success = run_concurrent()
 
     later:
-    await result
-    if not result {
-        return later none
+    await success
+    if not success {
+        if param_error_result != none {
+            return later param_error_result
+        }
+        var result = new TryResolveUserTypeResult()
+        result.had_error = yes
+        result.error_ast_typeref = self
+        return later result
     }
     if self.func_storage_ref == none {
-        return later none
+        var result = new TryResolveUserTypeResult()
+        return later result
     }
-    return later self.func_storage_ref.copy()
+    var result = new TryResolveUserTypeResult()
+    result.resolved_storage_ref =
+        self.func_storage_ref.copy()
+    return result
 }
 
 func create_typeref_from_func_node(
@@ -1374,8 +1405,17 @@ func get_c_builtin_for_m64_base_type(name) {
     }
 }
 
+type TryResolveUserTypeResult {
+    var had_error = no
+    var error_ast_typeref = none
+
+    var resolved_storage_ref = none
+    var resolved_to_nonuser_type = no
+}
+
 func TypeRefExpr.try_resolve_to_user_type_nonrecursive(
-        project_file, force_recompute=no, is_moose64=no
+        project_file, force_recompute=no,
+        is_moose64=no, debug=no,
         ) {
     var builtin_names =
         if is_moose64 (builtin_moose64_types)
@@ -1384,11 +1424,25 @@ func TypeRefExpr.try_resolve_to_user_type_nonrecursive(
         if self.is_func_ref and self.storage_ref == none and
                 self.func_storage_ref != none {
             self.storage_ref = self.func_storage_ref.copy()
+            var result = new TryResolveUserTypeResult()
+            result.resolved_storage_ref = self.storage_ref.copy()
+            return result
         }
-        return none
+
+        if not self.is_func_ref {
+            var result = new TryResolveUserTypeResult()
+            result.resolved_to_nonuser_type = yes
+            return result
+        }
+        var result = new TryResolveUserTypeResult()
+        result.had_error = yes
+        result.error_ast_typeref = self
+        return result
     }
     if self.storage_ref != none and not force_recompute {
-        return self.storage_ref.copy()
+        var result = new TryResolveUserTypeResult()
+        result.resolved_storage_ref = self.storage_ref.copy()
+        return result
     }
     self.adjust_storage_to_file(project_file)
     var type_path = self.type_path
@@ -1400,22 +1454,34 @@ func TypeRefExpr.try_resolve_to_user_type_nonrecursive(
         print("horsec: error: Fatal internal error, "
             "trying to resolve type ref with no name: " +
             self.as_str())
+        throw new RuntimeError(
+            "Encountered broken AST typeref with "
+            "no name.")
     }
     assert(self.name != none)
-    var result = project_file.try_lookup_symbol_path(
+    var result_ref = project_file.try_lookup_symbol_path(
         none, name=self.name, type_path=type_path,
         is_write_access=no, is_moose64=is_moose64
     )
-    self.storage_ref = result.copy()
+    if result_ref == none {
+        var result = new TryResolveUserTypeResult()
+        result.had_error = yes
+        result.error_ast_typeref = self
+        return result
+    }
+    self.storage_ref = result_ref.copy()
+    var result = new TryResolveUserTypeResult()
+    result.resolved_storage_ref = result_ref
     return result
 }
 
 func TypeRefExpr.try_resolve_to_user_type(
-        project_file, force_recompute=no, is_moose64=no
+        project_file, force_recompute=no,
+        is_moose64=no, debug=no,
         ) {
     return later self.try_resolve_to_user_type_nonrecursive(
         project_file, force_recompute=force_recompute,
-        is_moose64=is_moose64,
+        is_moose64=is_moose64, debug=debug,
     )
 }
 
@@ -1805,11 +1871,13 @@ func resolve_st_ref_to_type_ref_and_expr(
         }
         var result = result_expr.try_resolve_to_user_type(
             project_file, force_recompute=no,
-            is_moose64=is_moose64
+            is_moose64=is_moose64,
         ) later:
 
         await result
-        result_ref = result
+        if not result.had_error {
+            result_ref = result.resolved_storage_ref
+        }
     }
     obtain_result_ref_if_needed()
     later:

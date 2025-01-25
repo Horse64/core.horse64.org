@@ -1901,7 +1901,7 @@ func visit_to_resolve_known_attrs(
                 ) later:
 
             await result
-            our_type_ref = result
+            our_type_ref = result.resolved_storage_ref
         }
         resolve_our_type_ref_if_needed()
         later:
