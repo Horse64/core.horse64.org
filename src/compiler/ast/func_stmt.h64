@@ -635,7 +635,8 @@ func parse(tokens, pos, msgs, project_file=none,
             v = new expr.InvalidExpr(skiplen)
             stmt.damaged = yes
         } elseif v.damaged {
-            stmt.damaged = yes
+            assert(msgs != none and
+                msg.msgs_contain_error(msgs))
         }
         type_expr = v
         assert(not stmt.has_return_type)
@@ -665,6 +666,8 @@ func parse(tokens, pos, msgs, project_file=none,
 
     await block_result
     if block_result.has_damage() {
+        assert(msgs != none and
+            msg.msgs_contain_error(msgs))
         stmt.damaged = yes
     }
     pos += block_result.token_len
