@@ -688,6 +688,9 @@ func parse(tokens, pos, msgs, project_file=none,
             "subexprs[limited to arg types]=" +
                 arg_types.as_str())
     }
+    assert(not stmt.damaged or
+        (msgs != none and
+         msg.msgs_contain_error(msgs)))
 
     return later stmt
 }

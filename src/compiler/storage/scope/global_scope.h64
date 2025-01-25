@@ -904,6 +904,7 @@ func process_toplevel_stmt(
         stand_in_node.kind = statement.kind
         stand_in_node.line = statement.line
         stand_in_node.col = statement.col
+        stand_in_node.damaged = statement.damaged
         return stand_in_node
     }
 

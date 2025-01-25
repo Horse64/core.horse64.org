@@ -619,6 +619,11 @@ func create_typeref_from_func_node(
         project_file, node, debug=no
         ) {
     var is_moose64 = project_file.project.is_moose64
+    if node.damaged {
+        return none
+    }
+    assert(node.extended_final_arg_count() >=
+        node.arg_labels.len)
     assert(node.kind == ast.N_STMT_FUNC)
     assert(node.extended_final_arg_count() == 0 or
         not is_moose64 or node.extended_final_has_arg_types())
