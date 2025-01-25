@@ -1978,7 +1978,9 @@ func tokenize_str(
                 if val.len != 1 {
                     result.msgs.add(new msg.FileMsg(
                         "Invalid T_CHARCODE " +
-                        "literal, expected a single "
+                        "literal of wrong length, "
+                        "expected it to contain "
+                        "text equivalent to a single "
                         "32bit widechar code point.",
                         source_file=project_file,
                         line=start_line, col=start_col
