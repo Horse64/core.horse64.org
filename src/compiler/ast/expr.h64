@@ -741,7 +741,9 @@ func parse_expression_unwrapped(
         }
         # Handle container constructors for map, list, set, vector:
         if tokens[pos].kind == token.T_ENCLOSE and
-                {"{", "["}.has(tokens[pos].str) {
+                {"{", "["}.has(tokens[pos].str) and
+                (tokens[pos].str == '[' or
+                 not is_moose64) {
             var openbracket = tokens[pos].str
             pos += 1
             var node = new ContainerExpr()
@@ -786,7 +788,8 @@ func parse_expression_unwrapped(
                             "Unexpected " +
                             token.describe_token_at(
                                 tokens, pos) +
-                            ", expected ')' (T_ENCLOSE) closing the "
+                            ", expected '" + closebracket  + "' "
+                            "(T_ENCLOSE) closing the "
                             "opening bracket '" +
                             openbracket + "' in line " +
                             startline.as_str() +
