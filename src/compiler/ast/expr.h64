@@ -1603,8 +1603,6 @@ func CallArgsExpr.as_code(indent=0) {
             }
             t += "=" + arg.subexprs[1].as_code(indent=indent)
         } else {
-            assert({ast.N_EXPR_CALLMULTIARG,
-                ast.N_EXPR_ARGNAME}.has(arg))
             t += arg.as_code(indent=indent)
             if self.has_types {
                 t += " <- " + argtypes[idx].as_str()
@@ -1925,7 +1923,7 @@ func _parse_call_or_funcdef_args_notlater(
     while yes {
         var skipped_type = no
         if tokens[pos].kind == token.T_ELLIPSIS and
-                is_moose64 {
+                is_moose64 and not is_call {
             arg = new CallMultiArg()
             arg.line = tokens[pos].line
             arg.col = tokens[pos].col
