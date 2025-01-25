@@ -861,6 +861,46 @@ func MultiTypeRefExpr.is_user_type {
     return no
 }
 
+func MultiTypeRefExpr.try_resolve_to_user_type(
+        project_file, force_recompute=no,
+        is_moose64=no, debug=no,
+        ) {
+    var final_result = new TryResolveUserTypeResult()
+
+    func handle_item(sub_type_ref) {
+        var inner_result =
+            sub_type_ref.try_resolve_to_user_type(
+                project_file,
+                force_recompute=force_recompute,
+                is_moose64=is_moose64,
+                debug=debug,
+            )
+            later:
+
+        await inner_result
+        if inner_result.had_error {
+            final_result = inenr_result
+            return later no
+        }
+        return later yes
+    }
+
+    var queue = self.sub_type_refs.copy()
+    if queue.len == 0 {
+        return later final_result
+    }
+    var item = queue.pop()
+    var success = handle_item(item)
+    later:
+
+    await success
+    if queue.len == 0 or not success {
+        return final_result
+    }
+    item = queue.pop()
+    success = handle_item(item) later repeat
+}
+
 type MultiArgTypeRefExpr base TypeRefExpr {
     var arg_type
 }
@@ -895,6 +935,14 @@ func MultiArgTypeRefExpr.as_code(indent=0) {
 
 func MultiArgTypeRefExpr.is_user_type {
     return no
+}
+
+func MultiArgTypeRefExpr.try_resolve_to_user_type(
+        project_file, force_recompute=no,
+        is_moose64=no, debug=no,
+        ) {
+    var result = new TryResolveUserTypeResult()
+    return later result
 }
 
 func TypeRefFuncExpr.is_equivalent(
