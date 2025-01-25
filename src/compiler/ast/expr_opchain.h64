@@ -1,5 +1,5 @@
-## @module compiler.ast.expr_cast
-# Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+## @module compiler.ast.expr_opchain
+# Copyright (c) 2024-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import math from core.horse64.org
+import random from core.horse64.org
 
 import compiler.ast.expr as ast_expr
 import compiler.msg as msg
@@ -40,6 +41,12 @@ func parse_operator_chain(
         debug=no) {
     # This is an expression with 1+ operators that needs untangling.
     # Our goal is to nest all operators with right order in a tree.
+
+    # Variables:
+    var debug_id = none
+    if debug {
+        debug_id = random.gen_id()
+    }
     var precedence_map = operator.op_str_to_precedence_map
     var outer_level_ops_operands = []  # Parsed in-between operands.
     var outer_level_ops_at = []  # Positions of all ops in this expr.
