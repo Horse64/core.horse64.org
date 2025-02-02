@@ -99,6 +99,12 @@ const special_words = {
     "none", "yes", "no", "and", "or", "not", "new",
 }
 
+const special_words_moose64_only = {
+    "c_import", "failable", "failed",
+    "union", "override", "auto_own",
+    "packed",
+}
+
 func is_maybe_token_str(s, is_moose64=no) {
     if _maybe_stmt_token_strs.has(s) {
         return yes
@@ -1127,8 +1133,7 @@ func is_special_word(value, is_moose64=no) {
             value.kind == T_NONE or
             value.kind == T_BOOLCOMP
     }
-    if is_moose64 and {"c_import", "failable", "failed",
-            "union", "override"}.has(value) {
+    if is_moose64 and special_words_moose64_only.has(value) {
         return yes
     }
     return special_words.has(value)

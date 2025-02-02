@@ -38,6 +38,8 @@ import compiler.token as token
 
 type StructStmt base ast.StmtNode {
     var label
+    var is_packed = no
+    var is_auto_own = no
 }
 
 func StructStmt.init {
@@ -48,6 +50,10 @@ func StructStmt.init {
 func StructStmt.as_json_obj {
     var output = base.as_json_obj()
     output["label"] = self.label
+    if self.is_auto_own {
+        output["auto_own"] = yes
+    }
+    output["packed"] = self.is_packed
     return output
 }
 
@@ -242,6 +248,24 @@ func parse(tokens, pos, msgs, project_file=none,
     pos += block_result.token_len
     stmt.subblocks.add(block_result.stmts)
     stmt.token_len = (pos - startpos)
+    if pos - 1 >= 1 and
+            tokens[pos - 1].kind == token.T_ENCLOSE and
+            tokens[pos - 1].str == "}" {
+        while pos <= tokens_len and
+                tokens[pos].kind == token.T_KEYWORD and
+                {"packed", "auto_own"}.has(
+                    tokens[pos].str
+                ) {
+            var t = tokens[pos].str
+            if t == "packed" {
+                stmt.is_packed = yes
+            } elseif t == "auto_own" {
+                stmt.is_auto_own = yes
+            }
+            pos += 1
+            stmt.token_len += 1
+        }
+    }
     if not stmt.damaged {
         type_stmt.check_type_block_contents(
             stmt, msgs, project_file=project_file,
