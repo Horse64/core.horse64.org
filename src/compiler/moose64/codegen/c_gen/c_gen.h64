@@ -1203,7 +1203,7 @@ func optoken_to_c_token(token) {
     return token.str
 }
 
-func wrap_c_expr_as_needed_by_typeinfo(
+func node_conv_code_to_use_as_nested_expr(
         var_typeinfo, expr_str,
         node, parents,
         is_moose64=no,
@@ -1216,7 +1216,7 @@ func wrap_c_expr_as_needed_by_typeinfo(
         if is_moose64 ("moosec") else ("horsec")
     if debug {
         print(program_name + ": debug: "
-            "wrap_c_expr_as_needed_by_typeinfo(): "
+            "node_conv_code_to_use_as_nested_expr(): "
             "Lauched on node=" + node.as_str() + " "
             "with var_typeinfo=" +
                 var_typeinfo.as_str())
@@ -1224,6 +1224,9 @@ func wrap_c_expr_as_needed_by_typeinfo(
     var is_eq_operand = no
     var is_assign_lefthand = no
     var is_assign_righthand = no
+    var other_operand_node = none
+    var corresponding_assign_righthand_node = none
+    var corresponding_assign_lefthand_node = none
     func is_assign_or_equality_operator(node) {
         return node != none and
             (node.kind == ast.N_STMT_ASSIGN or
@@ -1231,6 +1234,7 @@ func wrap_c_expr_as_needed_by_typeinfo(
               {"==", "!="}.has(node.optoken.str)))
     }
     var relevant_parent = none
+    var relevant_parents_chain = parents
     if parents.len > 0 {
         relevant_parent = parents[parents.len]
         if relevant_parent.kind == ast.N_EXPR_BINOP and
@@ -1239,6 +1243,9 @@ func wrap_c_expr_as_needed_by_typeinfo(
                 relevant_parent.subexprs.len >= 2 and
                 relevant_parent.subexprs[2] == node {
             relevant_parent = parents[parents.len - 1]
+            relevant_parents_chain = parents.sub(
+                1, parents.len - 1
+            )
         }
     }
     if parents.len > 0 and
@@ -1251,8 +1258,20 @@ func wrap_c_expr_as_needed_by_typeinfo(
             assign_or_eq_stmt = parents[parents.len - 1]
             child_node = parents[parents.len]
         }
-        if assign_or_eq_stmt.kind == ast.N_EXPR_BINOP {
+        if assign_or_eq_stmt.kind == ast.N_EXPR_BINOP and
+                token.compare_ops.has(
+                    assign_or_eq_stmt.optoken.str
+                ) {
             is_eq_operand = yes
+            if assign_or_eq_stmt.subexprs.len > 2 and
+                    assign_or_eq_stmt.subexprs[2] == child_node {
+                other_operand_node =
+                    assign_or_eq_stmt.subexprs[1]
+            } elseif assign_or_eq_stmt.subexprs.len > 2 and
+                    assign_or_eq_stmt.subexprs[1] == child_node {
+                other_operand_node =
+                    assign_or_eq_stmt.subexprs[2]
+            }
         } else {
             assert(assign_or_eq_stmt.kind == ast.N_STMT_ASSIGN)
             var pairs_count =
@@ -1261,20 +1280,25 @@ func wrap_c_expr_as_needed_by_typeinfo(
             while i <= pairs_count {
                 if assign_or_eq_stmt.subexprs[i] == child_node {
                     is_assign_lefthand = yes
+                    corresponding_assign_righthand_node =
+                        assign_or_eq_stmt.subexprs[i + pairs_count]
                     break
                 } elseif assign_or_eq_stmt.subexprs[
                         pairs_count + i
                         ] == child_node {
                     is_assign_righthand = yes
+                    corresponding_assign_lefthand_node =
+                        assign_or_eq_stmt.subexprs[i]
                     break
                 }
                 i += 1
             }
         }
     }
+
     if debug {
         print(program_name + ": debug: "
-            "wrap_c_expr_as_needed_by_typeinfo(): "
+            "node_conv_code_to_use_as_nested_expr(): "
             "Computed this info: " +
             "var_typeinfo.is_array()=" +
                 var_typeinfo.is_array().as_str() + " "
@@ -1315,7 +1339,7 @@ func wrap_c_expr_as_needed_by_typeinfo(
     }
     if not is_assign_lefthand and
             var_typeinfo.has_outer_implicit_ref() {
-        # XXX: The expflanation why we make implicit refs by
+        # XXX: The explanation why we make implicit refs by
         # value but not if they're assignment left-hands:
         #
         # In short, if we assign TO(!) implicit refs as
@@ -1324,18 +1348,18 @@ func wrap_c_expr_as_needed_by_typeinfo(
         # should be by value.
         #
         # Hence if it's a right hand we add '*' to make it
-        # by value, if it's left hand we omit it to keep it
-        # by reference.
+        # by value, if it's a left hand we omit it to keep
+        # it by reference.
         #
         # (In the latter case, N_STMT_ASSIGN will use
-        # node_generate_c_type_conversion_code() to add
+        # node_conv_code_as_passed_around_c_val() to add
         # '&(...)' to the right-hand side so it's assignable
         # by reference. As a result, it all works out.)
         expr_str = "(*" + expr_str + ")"
     }
     if debug {
         print(program_name + ": debug: "
-            "wrap_c_expr_as_needed_by_typeinfo(): "
+            "node_conv_code_to_use_as_nested_expr(): "
             "Got this result: " +
             "expr_str=" +
                 textfmt.as_escaped_code_string(
@@ -1493,7 +1517,7 @@ func generate_var_assigned_values_code(
                 return later
             }
             expr_result =
-                node_generate_c_type_conversion_code(
+                node_conv_code_as_passed_around_c_val(
                     project_file, var_tinfo,
                     entry[2], parents + [vstmt],
                     indent=indent,
@@ -1577,13 +1601,14 @@ func generate_var_assigned_values_code(
     later repeat
 }
 
-func node_generate_c_type_conversion_code(
+func node_conv_code_as_passed_around_c_val(
         project_file, target_typeinfo,
         source_value_node,
         source_value_parents,
         source_value_known_code_str=none,
         indent=0, add_to_header_callback=none,
         add_to_top_callback=none,
+        is_explicit_cast=no,
         msgs=none, build_options=none,
         debug=no) {
     const is_moose64 = yes
@@ -1598,7 +1623,7 @@ func node_generate_c_type_conversion_code(
     var t = ""
     if debug {
         print(program_name + ": debug: " +
-            "node_generate_c_type_conversion_code(): "
+            "node_conv_code_as_passed_around_c_val(): "
             "Called on source_value_node=" +
                 source_value_node.as_str())
     }
@@ -1613,7 +1638,7 @@ func node_generate_c_type_conversion_code(
     await inner_typeinfo
     if debug {
         print(program_name + ": debug: " +
-            "node_generate_c_type_conversion_code(): "
+            "node_conv_code_as_passed_around_c_val(): "
             "Got inner_typeinfo=" +
                 inner_typeinfo.as_str())
     }
@@ -1663,7 +1688,7 @@ func node_generate_c_type_conversion_code(
     generate_expr_code_if_needed() later:
     if debug {
         print(program_name + ": debug: " +
-            "node_generate_c_type_conversion_code(): "
+            "node_conv_code_as_passed_around_c_val(): "
             "Got inner_expr_str=" +
                 textfmt.as_escaped_code_string(
                     inner_expr_str
@@ -1697,7 +1722,18 @@ func node_generate_c_type_conversion_code(
             project=project, project_file=project_file,
             is_moose64=is_moose64) + ") " + t
     }
-    if target_typeinfo.has_outer_implicit_ref() {
+    var already_is_implicit_refe_usable_ptr = no
+    if is_explicit_cast and
+            target_typeinfo.has_outer_implicit_ref() and
+            inner_typeinfo.ref_count(
+                include_c_arrays=yes,
+                include_arrays=no,
+                include_implicit_refs=no,
+                include_explicit_refs=yes) {
+        already_is_implicit_refe_usable_ptr = yes
+    }
+    if target_typeinfo.has_outer_implicit_ref() and
+            already_is_implicit_refe_usable_ptr {
         t = "&(" + t + ")"
     }
 
@@ -2113,7 +2149,7 @@ func node_to_c_string(project_file, node, parents,
         later:
 
         await right_hand_str
-        return later wrap_c_expr_as_needed_by_typeinfo(
+        return later node_conv_code_to_use_as_nested_expr(
             righthand_typeinfo,
             left_hand_str + "." + right_hand_str,
             node.subexprs[2], parents + [node],
@@ -2496,7 +2532,7 @@ func node_to_c_string(project_file, node, parents,
                 # Don't apply any of the conversion code.
                 # The built-ins do different things anyway,
                 # so we don't do the usual
-                # node_generate_c_type_conversion_code()
+                # node_conv_code_as_passed_around_c_val()
                 # in here.
                 var arg_typeinfo =
                     m64_ast_analyze.get_c_or_m64_type_of_node(
@@ -2589,7 +2625,7 @@ func node_to_c_string(project_file, node, parents,
                     arg_typeexpr, is_moose64=is_moose64
                 )
             var converted_c_str =
-                node_generate_c_type_conversion_code(
+                node_conv_code_as_passed_around_c_val(
                     project_file, arg_typeinfo,
                     arg_expr, parents + [node, node.subexprs[2]],
                     indent=indent,
@@ -2736,7 +2772,7 @@ func node_to_c_string(project_file, node, parents,
         assert(binop_type_result.right_hand_cast_to_type != none)
         assert(binop_type_result.result_type != none)
         var left_hand_converted =
-            node_generate_c_type_conversion_code(
+            node_conv_code_as_passed_around_c_val(
                 project_file,
                 binop_type_result.left_hand_cast_to_type,
                 node.subexprs[1], parents + [node],
@@ -2750,7 +2786,7 @@ func node_to_c_string(project_file, node, parents,
 
         await left_hand_converted
         var right_hand_converted =
-            node_generate_c_type_conversion_code(
+            node_conv_code_as_passed_around_c_val(
                 project_file,
                 binop_type_result.right_hand_cast_to_type,
                 node.subexprs[2], parents + [node],
@@ -2769,7 +2805,7 @@ func node_to_c_string(project_file, node, parents,
             "(" + left_hand + ") " + optoken_to_c_token(
             node.optoken) + " (" + right_hand + ")"
         var result_converted =
-            node_generate_c_type_conversion_code(
+            node_conv_code_as_passed_around_c_val(
                 project_file,
                 binop_type_result.result_type,
                 node, parents,
@@ -2978,7 +3014,7 @@ func node_to_c_string(project_file, node, parents,
             }
             
             var right_hand_str =
-                node_generate_c_type_conversion_code(
+                node_conv_code_as_passed_around_c_val(
                     project_file, left_hand_typeinfo,
                     entry[2], parents + [node],
                     indent=indent,
@@ -3114,7 +3150,7 @@ func node_to_c_string(project_file, node, parents,
         }
         var label_str = get_label()
         if not is_attr_kind_of_expr {
-            label_str = wrap_c_expr_as_needed_by_typeinfo(
+            label_str = node_conv_code_to_use_as_nested_expr(
                 var_tinfo, label_str,
                 node, parents,
                 is_moose64=is_moose64,
@@ -3181,7 +3217,91 @@ func node_to_c_string(project_file, node, parents,
                 node.typeref_expr,
                 is_moose64=is_moose64,
             )
-        t = wrap_c_expr_as_needed_by_typeinfo(
+        if var_tinfo.ref_count(
+                include_c_arrays=yes,
+                include_arrays=yes,
+                include_implicit_refs=yes,
+                include_explicit_refs=yes) == 0 {
+            if outer_tinfo.ref_count(
+                    include_c_arrays=no,
+                    include_arrays=no,
+                    include_implicit_refs=yes,
+                    include_explicit_refs=no) > 0 {
+                if msg == none {
+                    throw new RuntimeError(
+                        "Can't cast a type that is in no manner "
+                        "passable by reference explicitly into "
+                        "an implicit reference.")
+                } else {
+                    if not node.damaged {
+                        node.damaged = yes
+                        msgs.add(new msg.FileMsg(
+                            "Unexpected explicit cast of non-ref "
+                            "type " +
+                            var_tinfo.describe_to_user(
+                                project=project_file.project,
+                                is_moose64=is_moose64,
+                            ) + " into an implicit ref type, "
+                            "to convert this to an implicit ref "
+                            "simply assign it to a variable of "
+                            "a matching implicit ref type.",
+                            source_file=project_file,
+                            line=entry[2].line,
+                            col=entry[2].col,
+                        ))
+                    }
+                }
+            } elseif outer_tinfo.ref_count(
+                    include_c_arrays=yes,
+                    include_arrays=yes,
+                    include_implicit_refs=no,
+                    include_explicit_refs=yes) > 0 and
+                    (var_tinfo.kind != typeinfo.TI_C_TYPE or
+                     not ast_typeref.builtin_moose64_num_types.has(
+                         var_tinfo.orig_type_name)) {
+                if msg == none {
+                    throw new RuntimeError(
+                        "Can't treat this type in any "
+                        "reasonable manner as an address.")
+                } else {
+                    if not node.damaged {
+                        node.damaged = yes
+                        msgs.add(new msg.FileMsg(
+                            "Unexpected explicit cast of non-numeric "
+                            "non-ref "
+                            "type " +
+                            var_tinfo.describe_to_user(
+                                project=project_file.project,
+                                is_moose64=is_moose64,
+                            ) + " into an explicit ref, "
+                            "there is no obvious way this type could "
+                            "be treated as a memory address.",
+                            source_file=project_file,
+                            line=entry[2].line,
+                            col=entry[2].col,
+                        ))
+                    }
+                }
+            }
+        }
+        var converted_code =
+            node_conv_code_as_passed_around_c_val(
+                project_file, outer_tinfo,
+                var_tinfo,
+                parents + [node],
+                source_value_known_code_str=t,
+                indent=indent,
+                add_to_header_callback=
+                    add_to_header_callback,
+                add_to_top_callback=
+                    add_to_top_callback,
+                is_explicit_cast=yes,
+                msgs=msgs,
+                build_options=build_options,
+                debug=no) later:
+
+        await converted_code
+        t = node_conv_code_to_use_as_nested_expr(
             outer_tinfo, t,
             node, parents,
             is_moose64=is_moose64,
