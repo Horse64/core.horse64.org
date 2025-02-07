@@ -101,7 +101,7 @@ of the core projects are almost the same.
   Example to check what the SDK includes:
 
   1. [Download and extract the SDK source code](
-     https://codeberg.org/Horse64/sdk.horse64.org/archive/main.zip).
+     https://codeberg.org/Horse64/helpers-for-sdk-download.horse64.org/archive/main.zip).
 
   2. Make sure [**horp**](#horp) is available on your system.
 
