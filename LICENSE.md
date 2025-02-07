@@ -11,9 +11,8 @@ too.)*
 License
 -------
 
-Files outside of the `logo` and `vendor` directories are, unless
-indicated otherwise, licensed under the following **BSD-2-Clause
-license**:
+Files outside of the `vendor` directories are, unless indicated
+otherwise, licensed under the following **BSD-2-Clause license**:
 
 ```
 Copyright (c) 2020-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
@@ -40,8 +39,8 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 ```
 
-Alternatively, at your option, files outside of the `logo` and `vendor`
-directories are, unless indicated otherwise, also offered under the
+Alternatively, at your option, files outside of the `vendor`
+directory are, unless indicated otherwise, also offered under the
 following **Apache 2 License**:
 
 ```
@@ -247,31 +246,6 @@ following **Apache 2 License**:
    See the License for the specific language governing permissions and
    limitations under the License.
 ```
-
-
-Logo license
-------------
-
-This concerns the files inside `logo` directory:
-
-```
-Horse64 Logo is Copyright (C) 2020-2024, ellie/@ell1e. All Rights Reserved.
-
-The "Horse64 Logo"'s files are located in `logo/` with the filenames
-starting with "logo".
-The Horse64 Logo and its files may only be used in the official
-unmodified "Horse64" distribution as maintained by ellie/@ell1e,
-currently found at codeberg.org/Horse64, github.com/Horse64, and
-https://horse64.org/.
-These official places may change in the future, watch out for that.
-DON'T DISTRIBUTE MODIFIED OR UNOFFICIAL HORSE64 VERSIONS WITH THE LOGO,
-PLEASE DON'T USE THE OFFICIAL NAME "Horse64" FOR THEM EITHER.
-```
-
-*(Non-binding side notes: 1. Binaries you compile with `horsec` yourself
-of your own programs shouldn't by default include the logo, so these
-should be unaffected. 2. If you fork Horse64 just temporarily for
-preparing pull requests, that's fine of course.)*
 
 
 Contributions
