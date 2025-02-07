@@ -313,5 +313,5 @@ Logos
 Also, official Horse64 SDK binaries may fetch [the official logos](
     https://codeberg.org/Horse64/branding/src/branch/main/LICENSE.md)
 on demand, if updates are permitted by the user. You should disable
-that functionality in forks.
+that functionality in forks of the SDK tooling.
 
