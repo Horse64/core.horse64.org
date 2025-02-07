@@ -85,10 +85,10 @@ func files_alike(file_path_1, file_path_2) {
 
     await exists_path_2
     if not exists_path_1 and not exists_path_2 {
-        return no
+        return yes
     }
     if exists_path_1 != exists_path_2 {
-        return yes
+        return no
     }
 
     var file_obj_1 = io.open(file_path_1, "r")
