@@ -306,3 +306,12 @@ By making a contribution to this project, I certify that:
     maintained indefinitely and may be redistributed consistent with
     this project or the open source license(s) involved.
 ```
+
+Logos
+-----
+
+Also, official Horse64 SDK binaries may fetch [the official logos](
+    https://codeberg.org/Horse64/branding/src/branch/main/LICENSE.md)
+on demand, if updates are permitted by the user. You should disable
+that functionality in forks.
+
