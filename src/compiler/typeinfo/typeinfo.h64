@@ -1220,6 +1220,10 @@ func create_typeinfo_from_global_ref(
                     st_scope.SINFO_FUNC}.has(
                         sinfo.kind) or
                     sinfo.typeref_expr.is_func_ref)
+                assert(not sinfo.typeref_expr.is_func_ref or
+                    (sinfo.typeref_expr.func_storage_ref != none and
+                     sinfo.typeref_expr.func_storage_ref.alike(
+                        target_ref)))
             }
         }
     }

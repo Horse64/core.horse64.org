@@ -45,11 +45,45 @@ import compiler.typeinfo.ast_typeref as ast_typeref
 
 func get_c_or_m64_type_of_typeref(
         project_file, typeref,
-        store_self_value_ref_for_funcs=no, msgs=none
+        store_self_value_ref_for_funcs=no,
+        msgs=none,
+        debug=no,
         ) {
+    if debug {
+        print("moosec: debug: " +
+            "get_c_or_m64_type_of_typeref(): "
+            "Called on: " +
+            "typeref=" + typeref.as_str() + " "
+            "typeref.is_user_type()=" +
+                typeref.is_user_type().as_str() + ", "
+            "typeref.is_func_ref=" +
+                typeref.is_func_ref.as_str() + ", "
+            "typeref.func_storage_ref=" +
+                if typeref.is_func_ref
+                    (typeref.func_storage_ref.as_str())
+                    else ("(not a func)") + " "
+            "typeref.is_multi_type=" +
+                typeref.is_multi_type.as_str() + ", "
+            "typeref.is_multi_arg=" +
+                typeref.is_multi_arg.as_str() + "")
+    }
     var is_moose64 = yes
     if not typeref.is_user_type() {
+        if debug {
+            print("moosec: debug: " +
+                "get_c_or_m64_type_of_typeref(): The "
+                "not-a-user-type branch was entered.")
+        }
         var c_name = typeref.get_c_builtin_for_m64_base_type()
+        if c_name == none {
+            print("moosec: error: "
+                "get_c_or_m64_type_of_typeref(): "
+                "Internal error, found broken typeref: " +
+                typeref.as_str())
+            throw new RuntimeError(
+                "Internal error, couldn't get C name "
+                "of m64 type ref.")
+        }
         assert(c_name != none)
         var tinfo = new typeinfo.TypeInfo(typeinfo.TI_C_TYPE)
         tinfo._set_orig_type_expr(typeref)
@@ -60,11 +94,24 @@ func get_c_or_m64_type_of_typeref(
         }
         return later tinfo
     }
+    if debug {
+        print("moosec: debug: " +
+            "get_c_or_m64_type_of_typeref(): The "
+            "user type branch was entered.")
+    }
     var m64_type_ref_result = typeref.try_resolve_to_user_type(
-        project_file, is_moose64=yes
+        project_file, is_moose64=yes,
+        debug=yes,
     ) later:
 
     await m64_type_ref_result
+    if debug {
+        print("moosec: debug: " +
+            "get_c_or_m64_type_of_typeref(): We "
+            "attempted a user type resolution. "
+            "m64_type_ref_result=" +
+                m64_type_ref_result.as_str())
+    }
     var m64_type_ref = 
         m64_type_ref_result.resolved_storage_ref
     if m64_type_ref == none {

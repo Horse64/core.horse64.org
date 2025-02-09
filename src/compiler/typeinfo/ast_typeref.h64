@@ -516,8 +516,13 @@ func TypeRefFuncExpr.copy {
     }
     self_copy.return_typeref_expr =
         self_copy.return_typeref_expr.copy()
-    self_copy.func_storage_ref =
-        self_copy.func_storage_ref.copy()
+    if self_copy.func_storage_ref != none {
+        self_copy.func_storage_ref =
+            self_copy.func_storage_ref.copy()
+    }
+    if self.name != none {
+        self_copy.name = self.name
+    }
     return self_copy
 }
 
@@ -559,19 +564,7 @@ func TypeRefFuncExpr.try_resolve_param_types(
         # later use.
     }
 
-    var base_result = base.try_resolve_to_user_type(
-        project_file, force_recompute=force_recompute,
-        is_moose64=is_moose64, debug=debug,
-    )
-    later:
-
-    await base_result
-    assert(base_result != none)
-    if base_result.had_error {
-        return base_result
-    }
-
-    var final_result = base_result
+    var final_result = new TryResolveUserTypeResult()
     var queue = self.arg_typeref_exprs.copy()
     if self.return_typeref_expr != none {
         queue.add(self.return_typeref_expr)
@@ -1461,6 +1454,19 @@ type TryResolveUserTypeResult {
     var resolved_to_nonuser_type = no
 }
 
+func TryResolveUserTypeResult.as_str {
+    return "TryResolveUserTypeResult{" +
+        "had_error=" +
+            self.had_error.as_str() + ","
+        "error_ast_typeref=" +
+            self.error_ast_typeref.as_str() + ","
+        "resolved_storage_ref=" +
+            self.resolved_storage_ref.as_str() + ","
+        "resolved_to_nonuser_type=" +
+            self.resolved_to_nonuser_type.as_str() +
+    "}"
+}
+
 func TypeRefExpr.try_resolve_to_user_type_nonrecursive(
         project_file, force_recompute=no,
         is_moose64=no, debug=no,
@@ -2001,6 +2007,8 @@ func _parse_typeref_notlater(
         }
         return none
     }
+    var start_line = tokens[pos].line
+    var start_col = tokens[pos].col
 
     func check_if_func_type(tokens, pos, max_len=none,
             is_nested_in_type=no, debug=no) {
@@ -2485,7 +2493,9 @@ func _parse_typeref_notlater(
                 "func_ref=" + func_ref.as_str() + " "
                 "func_ref.token_len=" +
                     func_ref.token_len.as_str() + " "
-                "pos=" + pos.as_str())
+                "pos=" + pos.as_str() + " "
+                "line=" + start_line.as_str() + " "
+                "col=" + start_col.as_str())
         }
         return func_ref
     }
@@ -2532,6 +2542,11 @@ func _parse_typeref_notlater(
                 ))
                 pos += 1
                 var expr_len = start_token_len + (pos - startpos)
+                if debug {
+                    print(program_name + ": debug: "
+                        "_parse_typeref_notlater(): " +
+                        "Bailing with invalid expr.")
+                }
                 return new ast_expr.InvalidExpr(expr_len)
             }
             var func_type_token_len = 0
@@ -2627,6 +2642,11 @@ func _parse_typeref_notlater(
                     col=token.get_col(tokens, pos),
                 ))
                 var expr_len = start_token_len + (pos - startpos)
+                if debug {
+                    print(program_name + ": debug: "
+                        "_parse_typeref_notlater(): " +
+                        "Bailing with invalid expr.")
+                }
                 return new ast_expr.InvalidExpr(expr_len)
             }
             typeref_expr = inner_expr
@@ -2688,6 +2708,11 @@ func _parse_typeref_notlater(
                     col=token.get_col(tokens, pos),
                 ))
                 var expr_len = start_token_len + (pos - startpos)
+                if debug {
+                    print(program_name + ": debug: "
+                        "_parse_typeref_notlater(): " +
+                        "Bailing with invalid expr.")
+                }
                 return new ast_expr.InvalidExpr(expr_len)
             }
             var inner_ast_typerefs_result = parse_multi_args(
@@ -2714,6 +2739,11 @@ func _parse_typeref_notlater(
             }
             if not closed_correctly {
                 typeref_expr.damaged = yes
+                if debug {
+                    print(program_name + ": debug: "
+                        "_parse_typeref_notlater(): " +
+                        "Bailing with incomplete expr.")
+                }
                 return typeref_expr
             }
         }
@@ -2821,6 +2851,11 @@ func _parse_typeref_notlater(
     }
     if typeref_expr == none or
             typeref_token_len <= start_token_len {
+        if debug {
+            print(program_name + ": debug: "
+                "_parse_typeref_notlater(): " +
+                "Bailing with no expr.")
+        }
         return none
     }
     assert(typeref_expr != none)
@@ -2829,6 +2864,21 @@ func _parse_typeref_notlater(
     typeref_expr.modifiers = mods
     typeref_expr.token_len = typeref_token_len
     assert(typeref_expr.token_len != none)
+    if debug {
+        print(program_name + ": debug: "
+            "_parse_typeref_notlater(): " +
+            "Result: " +
+                typeref_expr.as_str() + " "
+            "(typeref_expr.is_user_type()=" +
+                typeref_expr.is_user_type().as_str() + ", "
+            "typeref.is_func_ref=" +
+                typeref_expr.is_func_ref.as_str() + ", "
+            "typeref.is_multi_type=" +
+                typeref_expr.is_multi_type.as_str() + ", "
+            "typeref.is_multi_arg=" +
+                typeref_expr.is_multi_arg.as_str() + "")
+    }
+
     return typeref_expr
 }
 

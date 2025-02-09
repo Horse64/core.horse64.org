@@ -634,8 +634,20 @@ func get_called_or_assigned_func_types(
     var dbg_prefix = if is_moose64 ("moosec: debug:")
         else ("horsec: debug:")
     if debug {
-        print(dbg_prefix + " get_called_or_assigned_func_types(): "
+        var t = (dbg_prefix + " get_called_or_assigned_func_types(): "
             "Launched on called_node=" + called_node.as_str())
+        if _internal_override_called_func_typerefexpr != none {
+            t += (", "
+                "with: _internal_override_called_func_typerefexpr=" +
+                    _internal_override_called_func_typerefexpr.as_str() + " "
+                "_internal_override_called_func_st_ref=" +
+                    _internal_override_called_func_st_ref.as_str() + " "
+                "_internal_override_called_func_typerefexpr=" +
+                    _internal_override_called_func_typerefexpr.as_str())
+        } else {
+            t += "."
+        }
+        print(t)
     }
     if allow_noncall_ref {
         throw new RuntimeError("Option allow_noncall_ref=yes "
@@ -716,10 +728,20 @@ func get_called_or_assigned_func_types(
                     project_file,
                     _internal_override_called_func_typerefexpr,
                     store_self_value_ref_for_funcs=no,
-                    msgs=msgs
+                    msgs=msgs,
                 ) later:  # (The override.)
 
             await func_typeinfo
+            if debug {
+                print(dbg_prefix + " "
+                    "get_called_or_assigned_func_types(): "
+                    "Examining override with overriden typeref "
+                    "expr. Details: " +
+                    "unaltered_typeinfo=" +
+                        unaltered_typeinfo.as_str() + " "
+                    "func_typeinfo=" +
+                        func_typeinfo.as_str())
+            }
             if unaltered_typeinfo == none or
                     func_typeinfo == none {
                 func_typeinfo = none
@@ -769,6 +791,14 @@ func get_called_or_assigned_func_types(
             }
             return later result
         }
+        if debug {
+            print(dbg_prefix +
+                " get_called_or_assigned_func_types(): "
+                "Unexpectedly don't have func_typeinfo, while "
+                "looking at: " +
+                "called_node=" +
+                    called_node.as_str())
+        }
         if msgs == none {
             throw new RuntimeError("Failed to determine node type, "
                 "internal error.")
@@ -798,7 +828,7 @@ func get_called_or_assigned_func_types(
                 }
             }
             msgs.add(new msg.FileMsg(
-                "Unexpectedly failed to determine C type of "
+                "Unexpectedly failed to determine full type of "
                 "called " + desc + ". Did you use cyclic references?",
                 kind=msg.M_ERROR, source_file=project_file,
                 line=called_node_parent.line,
@@ -810,7 +840,8 @@ func get_called_or_assigned_func_types(
     }
     if func_typeinfo.kind != typeinfo.TI_FUNCREF {
         if msgs == none {
-            throw new RuntimeError("The called node isn't a function.")
+            throw new RuntimeError(
+                "The called node isn't a function.")
         }
         msgs.add(new msg.FileMsg(
             "Unexpected call to non-func item, "
@@ -1295,6 +1326,9 @@ func get_called_or_assigned_func_types(
                     arg_signature_expr, is_moose64=yes
                 )
             if signature_typeinfo == none {
+                if arg_signature_expr.damaged {
+                    return later no
+                }
                 if msgs != none {
                     for m in msgs {
                         if m.kind == msg.M_ERROR {
