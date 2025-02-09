@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import random from core.horse64.org
+import textfmt from core.horse64.org
 
 import compiler.ast as ast
 import compiler.ast.analyze.eval as ast_eval
@@ -773,9 +774,33 @@ func get_called_or_assigned_func_types(
                 "internal error.")
         }
         if not called_node.damaged {
+            var desc = "function"
+            if called_node_name != none {
+                desc = "function " + textfmt.as_escaped_code_string(
+                    called_node_name)
+                if called_node.kind == ast.N_EXPR_BINOP and
+                        called_node.optoken.str == "." and
+                        called_node.subexprs.len == 2 and
+                        called_node.subexprs[1].kind ==
+                            ast.N_EXPR_IDREF {
+                    desc = "function " +
+                        textfmt.as_escaped_code_string(
+                            called_node.subexprs[1].label + "." +
+                            called_node_name)
+                } elseif called_node.kind == ast.N_EXPR_IDREF and
+                        called_node.type_path != none and
+                        called_node.type_path.len > 0 {
+                    desc = "function " +
+                        textfmt.as_escaped_code_string(
+                            called_node.
+                                type_path.join(".") + "." +
+                            called_node_name)
+                }
+            }
+            print("called_node=" + called_node.as_str())
             msgs.add(new msg.FileMsg(
                 "Unexpectedly failed to determine C type of "
-                "called function. Did you use cyclic references?",
+                "called " + desc + ". Did you use cyclic references?",
                 kind=msg.M_ERROR, source_file=project_file,
                 line=called_node_parent.line,
                 col=called_node_parent.col,

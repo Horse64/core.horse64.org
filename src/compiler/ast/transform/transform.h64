@@ -615,6 +615,10 @@ func do_all_pre_nameres_transformations(
             "Doing required pre name resolution transforms... "
             "[t=" + time.ticks().as_str() + "]")
     }
+    if msgs != none and
+            msg.msgs_contain_error(msgs) {
+        return later no
+    }
 
     func do_m64_transforms_if_needed {
         if build_options == none or
@@ -643,7 +647,8 @@ func do_all_pre_nameres_transformations(
     later:
 
     await success
-    if not success {
+    if not success or (msgs != none and
+            msg.msgs_contain_error(msgs)) {
         return later no
     }
 
@@ -924,7 +929,8 @@ func transform_func_overrides_and_check_func_arg_sig_match(
                 "called_node=" + called_node.as_str() + " "
                 "node=" + node.as_str() + " "
                 "node.damaged=" + node.damaged.as_str() + " "
-                "(msgs is set: " + (msgs != none).as_str() + ")")
+                "msgs=" + if msgs != none(msgs.as_str())
+                    else ("none") + ")")
             throw new RuntimeError("Internal error, "
                 "failed to obtain a valid func type expr.")
         }
@@ -938,7 +944,8 @@ func transform_func_overrides_and_check_func_arg_sig_match(
         return later node
     }
     var result = visit_ast_tree(
-        project_ast, do_transform_step, pass_func_boundaries=yes,
+        project_ast, do_transform_step,
+        pass_func_boundaries=yes,
         parent_chain=yes, backward=no
     ) later:
 
@@ -957,13 +964,19 @@ func do_all_post_nameres_transformations(
             "Entering checks and analysis... "
             "[t=" + time.ticks().as_str() + "]")
     }
+    if msgs != none and
+            msg.msgs_contain_error(msgs) {
+        return later no
+    }
+
     var is_moose64 = (build_options != none and
         build_options.is_moose64)
     var success = ast_analyze.do_advanced_check_and_analysis(
         project, msgs) later:
 
     await success
-    if not success {
+    if not success or (msgs != none and
+            msg.msgs_contain_error(msgs)) {
         return later no
     }
     func do_m64_transforms_if_needed {
@@ -994,30 +1007,12 @@ func do_all_post_nameres_transformations(
         assert(result == yes or result == no)
         return result
     }
-    func do_later_transform_if_needed {
-        if is_moose64 {
-            return later yes
-        }
-        if build_options != none and build_options.print_stages {
-            print(build_options.build_program_name +
-                ": info: stage transformed-code: "
-                "Entering later transform... "
-                "[t=" + time.ticks().as_str() + "]")
-        }
-        success = later_transform.first_pass_later_transform(
-            project, msgs, build_options=build_options
-        )
-        later:
-
-        await success
-
-        return success
-    }
     success = do_m64_transforms_if_needed()
     later:
 
     await success
-    if not success {
+    if not success or (msgs != none and
+            msg.msgs_contain_error(msgs)) {
         return later no
     }
     var had_error = no
@@ -1046,14 +1041,35 @@ func do_all_post_nameres_transformations(
     later:
 
     await success
-    if not success {
+    if not success or (msgs != none and
+            msg.msgs_contain_error(msgs)) {
         return later no
+    }
+    func do_later_transform_if_needed {
+        if is_moose64 {
+            return later yes
+        }
+        if build_options != none and build_options.print_stages {
+            print(build_options.build_program_name +
+                ": info: stage transformed-code: "
+                "Entering later transform... "
+                "[t=" + time.ticks().as_str() + "]")
+        }
+        success = later_transform.first_pass_later_transform(
+            project, msgs, build_options=build_options
+        )
+        later:
+
+        await success
+
+        return success
     }
     success = do_later_transform_if_needed()
     later:
 
     await success
-    if not success {
+    if not success or (msgs != none and
+            msg.msgs_contain_error(msgs)) {
         return later no
     }
 
@@ -1063,7 +1079,8 @@ func do_all_post_nameres_transformations(
         ) later:
 
     await success
-    if not success {
+    if not success or (msgs != none and
+            msg.msgs_contain_error(msgs)) {
         return later no
     }
     if build_options != none and build_options.print_stages {
