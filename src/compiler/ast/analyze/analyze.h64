@@ -797,7 +797,6 @@ func get_called_or_assigned_func_types(
                             called_node_name)
                 }
             }
-            print("called_node=" + called_node.as_str())
             msgs.add(new msg.FileMsg(
                 "Unexpectedly failed to determine C type of "
                 "called " + desc + ". Did you use cyclic references?",
