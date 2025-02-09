@@ -1658,24 +1658,125 @@ func visit_to_resolve_known_attrs(
         var our_type_expr = none
         func resolve_usertype_attr_from_global_storage(
                 storage_id, associated_type_expr_if_known=none,
+                is_attr=no
                 ) {
+            if storage_id == none {
+                return later no
+            }
+            if is_attr {
+                assert(typename(storage_id) == "list")
+                assert(storage_id.len == 2)
+                var attr_type_ast_ref = none
+                var attr_type_st_ref = none
+                var attr_symbol = none
+                var anscope = none
+                if pfile.project.storage_id_to_anscope_map.has(
+                        storage_id[1]) {
+                    anscope =
+                        pfile.project.storage_id_to_anscope_map[
+                            storage_id[1]
+                        ]
+                }
+                if anscope != none and (anscope.is_type or
+                        anscope.is_struct) {
+                    if anscope.id_to_symbol_map.has(
+                            storage_id[2]) {
+                        attr_symbol =
+                            anscope.id_to_symbol_map[
+                                storage_id[2]
+                            ]
+                    } else {
+                        print(dbg_header +
+                            "resolve_usertype_attr_from_"
+                                "global_storage(): "
+                            "Failed to find this storage id "
+                            "in anscope: "
+                            "storage_id=" +
+                                storage_id[2].as_str() + ", "
+                            "with anscope.id_to_symbol_map=" +
+                            anscope.id_to_symbol_map.as_str())
+                    }
+                }
+                if attr_symbol != none {
+                    attr_type_ast_ref = attr_symbol.typeref_expr
+                    attr_type_st_ref =
+                        attr_symbol.type_storage_ref
+                }
+                func resolve_attr_type_if_needed {
+                    if attr_type_ast_ref == none or
+                            not attr_type_ast_ref.is_user_type() or
+                            attr_type_st_ref != none {
+                        return later
+                    }
+                    var result = attr_type_ast_ref.
+                        try_resolve_to_user_type(
+                            project_file,
+                            is_moose64=is_moose64
+                        ) later:
+
+                    await result
+                    if not result.had_error and
+                            result.resolved_storage_ref != none {
+                        attr_type_st_ref =
+                            result.resolved_storage_ref.copy()
+                    }
+                }
+                resolve_attr_type_if_needed()
+                later:
+
+                if debug {
+                    print(dbg_header +
+                        "resolve_usertype_attr_from_global_storage(): "
+                        "Got a global attr we're indexing, "
+                        "with: "
+                        "storage_id=" + storage_id.as_str() + " "
+                        "anscope=" + anscope.as_str() + " "
+                        "attr_type_ast_ref=" +
+                            attr_type_ast_ref.as_str() + " "
+                        "attr_type_st_ref=" +
+                            attr_type_st_ref.as_str())
+                }
+                if attr_type_st_ref != none and
+                        attr_type_st_ref.kind == st_ref.ST_GLOBAL {
+                    var inner_result =
+                        resolve_usertype_attr_from_global_storage(
+                            attr_type_st_ref.id,
+                            associated_type_expr_if_known=
+                                attr_type_ast_ref,
+                        ) later:
+
+                    await inner_result
+                    return inner_result
+                }
+                return later no
+            }
+
+            if debug {
+                print(dbg_header +
+                    "resolve_usertype_attr_from_"
+                        "global_storage(): "
+                        "Got a global we're indexing: "
+                        "storage_id=" + storage_id.as_str() + " "
+                        "associated_type_expr_if_known=" +
+                            associated_type_expr_if_known.as_str())
+            }
             assert(typename(storage_id) == "num")
             if associated_type_expr_if_known != none {
                 if associated_type_expr_if_known.is_array() {
-                    return no
+                    return later no
                 } elseif associated_type_expr_if_known.ref_count(
                         include_c_arrays=yes,
                         include_arrays=no,
                         include_implicit_refs=no,
                         include_explicit_refs=yes,
                         ) > 0 {
-                    return no
+                    return later no
                 }
             }
             if not pfile.project.storage_id_to_anscope_map.has(
                     storage_id) {
                 # This storage id refers to a global that isn't a type.
-                return no
+                return later no
             }
             var anscope =
                 pfile.project.storage_id_to_anscope_map[
@@ -1706,24 +1807,34 @@ func visit_to_resolve_known_attrs(
                         "have this attribute"
                 }
             }
-            return yes
+            return later yes
         }
         var indexing_makes_it_readonly = no
         var indexing_worked = no
+        var try_index_storage_id = none
+        var try_index_as_attr = no
         if left_type_global_ref != none and
-                left_type_global_ref.kind == st_ref.ST_GLOBAL and
+                {st_ref.ST_GLOBAL, st_ref.ST_GLOBALATTR}.has(
+                    left_type_global_ref.kind) and
                 (left_type_expr == none or
                  left_type_expr.is_user_type()) {
-            # Indexing a global user type, let's resolve this:
-            indexing_worked =
-                resolve_usertype_attr_from_global_storage(
-                    left_type_global_ref.id,
-                    associated_type_expr_if_known=left_type_expr,
-                )
-            if indexing_worked and left_type_expr != none and
-                    left_type_expr.is_readonly() {
-                indexing_makes_it_readonly = yes
-            }
+            try_index_storage_id = left_type_global_ref.id
+            try_index_as_attr = (
+                left_type_global_ref.kind ==
+                            st_ref.ST_GLOBALATTR)
+        }
+        # Try resolve this as indexing a global:
+        indexing_worked =
+            resolve_usertype_attr_from_global_storage(
+                try_index_storage_id,
+                associated_type_expr_if_known=left_type_expr,
+                is_attr=try_index_as_attr,
+            ) later:
+
+        await indexing_worked
+        if indexing_worked and left_type_expr != none and
+                left_type_expr.is_readonly() {
+            indexing_makes_it_readonly = yes
         }
         if debug {
             print(dbg_header +
@@ -1791,14 +1902,6 @@ func visit_to_resolve_known_attrs(
                 var self_type = left_type_expr.copy()
                 our_type_expr.special_madeup_builtin_base_expr =
                     self_type
-            } elseif not is_attr_error and
-                    left_type_expr != none and
-                    left_type_expr.is_user_type() {
-                assert(left_type_global_ref != none)
-                resolve_usertype_attr_from_global_storage(
-                    left_type_global_ref.id,
-                    associated_type_expr_if_known=left_type_expr,
-                )
             }
         } elseif not is_moose64 and
                 left_type_global_ref != none and

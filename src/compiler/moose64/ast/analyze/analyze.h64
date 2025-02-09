@@ -557,9 +557,10 @@ func _get_c_or_m64_type_of_node_do(
         }
         node.damaged = yes
         msgs.add(new msg.FileMsg(
-            "The attribute " + textfmt.as_escaped_code_string(
+            "Unexpected attribute name " +
+            textfmt.as_escaped_code_string(
                 aname
-            ) + " cannot be found on this item.",
+            ) + ", this value doesn't have this attribute.",
             source_file=project_file,
             line=node.line, col=node.col,
         ))
