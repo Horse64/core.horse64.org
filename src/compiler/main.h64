@@ -99,11 +99,19 @@ func parse_ast_target_from_args(args, checked_ast=no,
         force_single_file=no, build_options=none,
         debug=no, debug_modules=no, debug_storage=no,
         debug_global_storage=no, debug_failed_lookups=no) {
+    const program_name =
+        if build_options != none
+            (build_options.build_program_name)
+            else ("horsec")
+    var msgs = []
     if build_options.print_stages {
-        print(build_options.build_program_name +
-            ": info: stage tokens: "
+        clog.log_or_print(new msg.FileMsg(
+            "stage tokens: "
             "Dispatching for parsing first file... "
-            "[t=" + time.ticks().as_str() + "]")
+            "[t=" + time.ticks().as_str() + "]",
+            kind=msg.M_INFO),
+            msgs=msgs, program_name=program_name
+        )
     }
     func get_ast {
         if args["--code"] != none {
@@ -119,6 +127,7 @@ func parse_ast_target_from_args(args, checked_ast=no,
             ) later:
 
             await tresult
+            tresult.msgs = msgs + tresult.msgs
             return tresult
         }
         var src_path = args["source file"]
@@ -134,11 +143,13 @@ func parse_ast_target_from_args(args, checked_ast=no,
         ) later:
 
         await tresult
+        tresult.msgs = msgs + tresult.msgs
         return later tresult
     }
     var tresult = get_ast() later:
 
     await tresult
+    tresult.msgs = msgs + tresult.msgs
     if not checked_ast {
         return later tresult
     }
@@ -147,10 +158,13 @@ func parse_ast_target_from_args(args, checked_ast=no,
         tresult
     )
     if build_options.print_stages {
-        print(build_options.build_program_name +
-            ": info: stage checked-ast: "
+        clog.log_or_print(new msg.FileMsg(
+            "stage checked-ast: "
             "Now starting to ensure all files are parsed... "
-            "[t=" + time.ticks().as_str() + "]")
+            "[t=" + time.ticks().as_str() + "]",
+            kind=msg.M_INFO),
+            msgs=tresult.msgs, program_name=program_name
+        )
     }
     tresult.project_file.project.build_options = build_options
     tresult.project_file.project.ensure_global_scope_for_full_project(
@@ -158,16 +172,23 @@ func parse_ast_target_from_args(args, checked_ast=no,
     ) later:
 
     if build_options.print_stages {
-        print(build_options.build_program_name +
-            ": info: stage checked-ast: "
+        clog.log_or_print(new msg.FileMsg(
+            "stage checked-ast: "
             "Done ensuring all files are parsed. "
-            "[t=" + time.ticks().as_str() + "]")
+            "[t=" + time.ticks().as_str() + "]",
+            kind=msg.M_INFO),
+            msgs=tresult.msgs, program_name=program_name
+        )
     }
     if debug_modules {
-        print("compiler.main: parse_ast_target_from_args() " +
-            "full list of project files that were processed: " +
+        clog.log_or_print(new msg.FileMsg(
+            "parse_ast_target_from_args(): " +
+            "Full list of project files that were processed: " +
             tresult.project_file.project.
-                module_uri_to_file_map.values().as_str())
+                module_uri_to_file_map.values().as_str(),
+            kind=msg.M_DEBUG),
+            msgs=tresult.msgs, program_name=program_name
+        )
     }
     var had_error = no
     for m in tresult.msgs {
@@ -187,10 +208,13 @@ func parse_ast_target_from_args(args, checked_ast=no,
     later:
 
     if build_options.print_stages {
-        print(build_options.build_program_name +
-            ": info: stage checked-ast: "
+        clog.log_or_print(new msg.FileMsg(
+            "stage checked-ast: "
             "Now computing and checking all storage... "
-            "[t=" + time.ticks().as_str() + "]")
+            "[t=" + time.ticks().as_str() + "]",
+            kind=msg.M_INFO),
+            msgs=tresult.msgs, program_name=program_name
+        )
     }
     var success = tresult.project_file.project.
         compute_and_check_all_storage(
@@ -202,10 +226,13 @@ func parse_ast_target_from_args(args, checked_ast=no,
 
     await success
     if build_options.print_stages {
-        print(build_options.build_program_name +
-            ": info: stage checked-ast: "
+        clog.log_or_print(new msg.FileMsg(
+            "stage checked-ast: "
             "Done computing storage for all files. "
-            "[t=" + time.ticks().as_str() + "]")
+            "[t=" + time.ticks().as_str() + "]",
+            kind=msg.M_INFO),
+            msgs=tresult.msgs, program_name=program_name
+        )
     }
     had_error = no
     for m in tresult.msgs {
@@ -396,6 +423,7 @@ func action_compile_do(
         throw new TypeError("Argument args_parse_result "
             "doesn't seem to be valid argparse result object.")
     }
+
     var result = args_parse_result
     var boptions = build_options
     if boptions == none {
@@ -472,7 +500,7 @@ func action_compile_do(
 
     # Analyze the type info from type annotations if we have any:
     print_stage_info("transformed-code",
-            "Deduce and verify types...")
+        "Deduce and verify types...")
     success = typeinfo.ensure_all_type_info(
         aresult.project_file.project,
         aresult.msgs, is_moose64=is_moose64) later:

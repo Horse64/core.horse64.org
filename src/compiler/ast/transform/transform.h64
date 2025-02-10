@@ -37,6 +37,7 @@ import compiler.ast.expr as ast_expr
 import compiler.ast.if_stmt as if_stmt
 import compiler.ast.transform.later_transform as later_transform
 import compiler.ast.var_stmt as var_stmt
+import compiler.compiler_log as clog
 import compiler.globals_order
 import compiler.moose64.ast.transform as m64_ast_transform
 import compiler.msg as msg
@@ -609,11 +610,18 @@ func do_simply_on_all_exprs(stmt, callback) {
 func do_all_pre_nameres_transformations(
         project, msgs, build_options=none
         ) {
+    const program_name =
+        if build_options != none
+            (build_options.build_program_name)
+            else ("horsec")
     if build_options != none and build_options.print_stages {
-        print(build_options.build_program_name +
-            ": info: stage checked-ast: "
+        clog.log_or_print(new msg.FileMsg(
+            "stage checked-ast: "
             "Doing required pre name resolution transforms... "
-            "[t=" + time.ticks().as_str() + "]")
+            "[t=" + time.ticks().as_str() + "]",
+            kind=msg.M_INFO),
+            msgs=msgs, program_name=program_name
+        )
     }
     if msgs != none and
             msg.msgs_contain_error(msgs) {
@@ -653,10 +661,13 @@ func do_all_pre_nameres_transformations(
     }
 
     if build_options != none and build_options.print_stages {
-        print(build_options.build_program_name +
-            ": info: stage checked-ast: "
+        clog.log_or_print(new msg.FileMsg(
+            "checked-ast: "
             "Finished pre name resolution transforms."
-            "[t=" + time.ticks().as_str() + "]")
+            "[t=" + time.ticks().as_str() + "]",
+            kind=msg.M_INFO),
+            msgs=msgs, program_name=program_name
+        )
     }
     return later success
 }
@@ -958,11 +969,18 @@ func transform_func_overrides_and_check_func_arg_sig_match(
 
 func do_all_post_nameres_transformations(
         project, msgs, build_options=none) {
+    const program_name =
+        if build_options != none
+            (build_options.build_program_name)
+            else ("horsec")
     if build_options != none and build_options.print_stages {
-        print(build_options.build_program_name +
-            ": info: stage transformed-code: "
+        clog.log_or_print(new msg.FileMsg(
+            "stage transformed-code: "
             "Entering checks and analysis... "
-            "[t=" + time.ticks().as_str() + "]")
+            "[t=" + time.ticks().as_str() + "]",
+            kind=msg.M_INFO),
+            msgs=msgs, program_name=program_name
+        )
     }
     if msgs != none and
             msg.msgs_contain_error(msgs) {
@@ -985,10 +1003,13 @@ func do_all_post_nameres_transformations(
         }
         if build_options != none and
                 build_options.print_stages {
-            print(build_options.build_program_name +
-                ": info: stage transformed-code: "
+            clog.log_or_print(new msg.FileMsg(
+                "stage transformed-code: "
                 "Entering moose64-specific transform... "
-                "[t=" + time.ticks().as_str() + "]")
+                "[t=" + time.ticks().as_str() + "]",
+                kind=msg.M_INFO),
+                msgs=msgs, program_name=program_name
+            )
         }
 
         func process_file(pfile) {
@@ -1050,10 +1071,13 @@ func do_all_post_nameres_transformations(
             return later yes
         }
         if build_options != none and build_options.print_stages {
-            print(build_options.build_program_name +
-                ": info: stage transformed-code: "
+            clog.log_or_print(new msg.FileMsg(
+                "stage transformed-code: "
                 "Entering later transform... "
-                "[t=" + time.ticks().as_str() + "]")
+                "[t=" + time.ticks().as_str() + "]",
+                kind=msg.M_INFO),
+                msgs=msgs, program_name=program_name
+            )
         }
         success = later_transform.first_pass_later_transform(
             project, msgs, build_options=build_options
@@ -1084,10 +1108,13 @@ func do_all_post_nameres_transformations(
         return later no
     }
     if build_options != none and build_options.print_stages {
-        print(build_options.build_program_name +
-            ": info: stage transformed-code: "
+        clog.log_or_print(new msg.FileMsg(
+            "stage transformed-code: "
             "All analysis and transformations done."
-            "[t=" + time.ticks().as_str() + "]")
+            "[t=" + time.ticks().as_str() + "]",
+            kind=msg.M_INFO),
+            msgs=msgs, program_name=program_name
+        )
     }
     return later success
 }

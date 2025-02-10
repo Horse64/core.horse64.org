@@ -51,6 +51,7 @@ import compiler.ast.type_stmt as type_stmt
 import compiler.ast.var_stmt as var_stmt
 import compiler.ast.while_stmt as while_stmt
 import compiler.ast.with_stmt as with_stmt
+import compiler.compiler_log as clog
 import compiler.msg as msg
 import compiler.project as project
 import compiler.storage.scope.global_scope as global_scope
@@ -703,12 +704,19 @@ func _parse_tokens_file_to_ast_ex(
         debug=no, debug_modules=no,
         debug_global_storage=no
         ) {
+    const program_name =
+        if build_options != none
+            (build_options.build_program_name)
+            else ("horsec")
+    var msgs = []
     if build_options != none and
             build_options.print_stages {
-        print(build_options.build_program_name +
-            ": info: stage tokens: "
+        clog.log_or_print(new msg.FileMsg(
+            "stage tokens: "
             "Now tokenizing " + print_stages_file_caption + "... "
-            "[t=" + time.ticks().as_str() + "]")
+            "[t=" + time.ticks().as_str() + "]",
+            kind=msg.M_INFO),
+            msgs=msgs, program_name=program_name)
     }
     var tresult = _tokenize_this_file_for_ast(
         tokens_source, project_file=project_file,
@@ -726,12 +734,15 @@ func _parse_tokens_file_to_ast_ex(
     later:
 
     await tresult
+    tresult.msgs = msgs + tresult.msgs
     if build_options != none and
             build_options.print_stages {
-        print(build_options.build_program_name +
-            ": info: stage ast: "
+        clog.log_or_print(new msg.FileMsg(
+            "stage ast: "
             "Now parsing " + print_stages_file_caption + "... "
-            "[t=" + time.ticks().as_str() + "]")
+            "[t=" + time.ticks().as_str() + "]",
+            kind=msg.M_INFO),
+            msgs=tresult.msgs, program_name=program_name)
     }
     var aresult = parse_to_ast_ex(
         tresult.tokens, 1,
@@ -745,11 +756,13 @@ func _parse_tokens_file_to_ast_ex(
     await aresult
     if build_options != none and
             build_options.print_stages {
-        print(build_options.build_program_name +
-            ": info: stage ast: "
+        clog.log_or_print(new msg.FileMsg(
+            "stage ast: "
             "Parsed " + print_stages_file_caption +
             " fully now. "
-            "[t=" + time.ticks().as_str() + "]")
+            "[t=" + time.ticks().as_str() + "]",
+            kind=msg.M_INFO),
+            msgs=aresult.msgs, program_name=program_name)
     }
     if tresult.project_file != none {
         aresult.project_file = tresult.project_file
