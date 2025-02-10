@@ -566,6 +566,80 @@ func create_from_simple_m64_type(m64_type) {
     return tinfo
 }
 
+func create_typeinfo_from_typeexpr_and_verify(
+        type_expr,
+        store_self_value_ref_for_funcs=no,
+        self_ref_if_known=none,
+        self_node_if_known=none,
+        base_node_if_known=none,
+        base_node_parents_if_known=none,
+        project_file=none,
+        is_moose64=no, debug=no,
+        ) {
+    if debug {
+        print(if is_moose64 ("moosec") else ("horsec") + ": "
+            "debug: create_typeinfo_from_typeexpr_and_verify(): "
+            "Called on type_expr=" + type_expr.as_str() + " "
+            "to make typeinfo. is_moose64=" + is_moose64.as_str())
+    }
+    var tinfo = create_typeinfo_from_typeexpr(
+        type_expr, is_moose64=is_moose64, debug=debug)
+    if tinfo == none {
+        if debug {
+            print(if is_moose64 ("moosec") else ("horsec") + ": "
+                "debug: create_typeinfo_from_typeexpr_and_verify(): "
+                "Called create_typeinfo_from_typeexpr(), "
+                "but failed.")
+        }
+        return later none
+    }
+    if debug {
+        print(if is_moose64 ("moosec") else ("horsec") + ": "
+            "debug: create_typeinfo_from_typeexpr_and_verify(): "
+            "Called create_typeinfo_from_typeexpr(), "
+            "got this: tinfo=" + tinfo.as_str())
+    }
+
+    var result = type_expr.try_resolve_to_user_type(
+        project_file, is_moose64=is_moose64,
+    ) later:
+
+    await result
+    if result.had_error {
+        if debug {
+            print(if is_moose64 ("moosec") else ("horsec") + ": "
+                "debug: create_typeinfo_from_typeexpr_and_verify(): "
+                "Had user type resolution error.")
+        }
+        return later none
+    }
+    if store_self_value_ref_for_funcs {
+        if self_node_if_known == none and
+                self_ref_if_known == none and
+                base_node_if_known != none and
+                base_node_if_known.kind == ast.N_EXPR_IDREF and
+                base_node_parents_if_known != none and
+                base_node_parents_if_known.len > 0 {
+            var direct_parent = base_node_parents_if_known[
+                base_node_parents_if_known.len
+            ]
+            if direct_parent.kind == ast.N_EXPR_BINOP and
+                    direct_parent.optoken.str == "." and
+                    direct_parent.subexprs.len == 2 and
+                    direct_parent.subexprs[2] ==
+                        self_node_if_known {
+                self_node_if_known = direct_parent.subexprs[1]
+            }
+        }
+        add_self_ref_to_func_typeinfo(
+            tinfo,
+            self_ref_if_known=self_ref_if_known,
+            self_node_if_known=self_node_if_known,
+        )
+    }
+    return later tinfo
+}
+
 func create_typeinfo_from_typeexpr(
         type_expr, is_moose64=no, debug=no
         ) {
@@ -1187,6 +1261,45 @@ func TypeInfo.cmp_signature(
     )
 }
 
+func add_self_ref_to_func_typeinfo(
+        tinfo,
+        self_ref_if_known=none,
+        self_node_if_known=none,
+        ) {
+    if not tinfo.is_func_ref {
+        return
+    }
+    if self_ref_if_known == none and self_node_if_known != none {
+        if self_node_if_known.kind == ast.N_EXPR_IDREF and
+                self_node_if_known.ref != none {
+            self_ref_if_known = self_node_if_known.ref
+        } elseif self_node_if_known.kind == ast.N_EXPR_BINOP and
+                self_node_if_known.optoken.str == "." and
+                self_node_if_known.subexprs.len >= 2 and
+                self_node_if_known.subexprs[2].kind ==
+                    ast.N_EXPR_IDREF and
+                self_node_if_known.subexprs[2].ref != none {
+            self_ref_if_known =
+                self_node_if_known.subexprs[2].ref
+        }
+    }
+    if store_self_value_ref_for_funcs and
+            ((base_typeref_expr_if_known != none and
+                base_typeref_expr_if_known.is_func_attr) or
+                (base_symbol_info_if_known != none and
+                base_symbol_info_if_known.kind ==
+                    st_scope.SINFO_FUNCATTR)) and
+            self_ref_if_known != none and
+            {st_ref.ST_LOCAL, st_ref.ST_GLOBAL}.has(
+                self_ref_if_known.kind
+            ) {
+        # This must be the item we're accessing the function
+        # on, and it's a concrete instance.
+        tinfo.func_self_ref = self_ref_if_known.copy()
+        assert(typename(tinfo.func_self_ref) != "list")
+    }
+}
+
 func create_typeinfo_from_global_ref(
         target_ref, base_typeref_expr_if_known=none,
         base_node_if_known=none,
@@ -1243,6 +1356,34 @@ func create_typeinfo_from_global_ref(
             "project=" + project.as_str())
     }
 
+    func set_modifiers(tinfo) {
+        tinfo.modifiers = []
+        if base_typeref_expr_if_known != none {
+            var texpr = base_typeref_expr_if_known
+            for mod in texpr.modifiers {
+                tinfo.modifiers.add(mod.copy())
+            }
+        } elseif project != none and
+                tinfo._orig_typeexpr == none {
+            var sinfo = st_ref.ref_to_symbol_info(
+                target_ref,
+                project=project, is_moose64=is_moose64,
+            )
+            if sinfo.typeref_expr != none and
+                    not sinfo.typeref_expr.is_func_ref {
+                if sinfo.typeref_expr.is_user_type() {
+                    tinfo._orig_typeexpr =
+                        sinfo.typeref_expr.copy()
+                } elseif sinfo.typeref_expr.modifiers.len > 0 and
+                        tinfo.modifiers.len == 0 {
+                    for mod in sinfo.typeref_expr.modifiers {
+                        tinfo.modifiers.add(mod.copy())
+                    }
+                }
+            }
+        }
+    }
+
     if (base_typeref_expr_if_known != none and
             base_typeref_expr_if_known.is_func_ref) or
             (base_symbol_info_if_known != none and
@@ -1278,40 +1419,14 @@ func create_typeinfo_from_global_ref(
                 ) {
             tinfo.user_type_ref = target_ref.copy()
         }
-        if self_ref_if_known == none and
-                self_node_if_known != none and
-                self_node_if_known.kind == ast.N_EXPR_IDREF {
-            self_ref_if_known = self_node_if_known.ref
+        if store_self_value_ref_for_funcs {
+            add_self_ref_to_func_typeinfo(
+                tinfo,
+                self_ref_if_known=self_ref_if_known,
+                self_node_if_known=self_node_if_known,
+            )
         }
-        if self_ref_if_known and self_node_if_known != none {
-            if self_node_if_known.kind == ast.N_EXPR_IDREF and
-                    self_node_if_known.ref != none {
-                self_ref_if_known = self_node_if_known.ref
-            } elseif self_node_if_known.kind == ast.N_EXPR_BINOP and
-                    self_node_if_known.optoken.str == "." and
-                    self_node_if_known.subexprs.len >= 2 and
-                    self_node_if_known.subexprs[2].kind ==
-                        ast.N_EXPR_IDREF and
-                    self_node_if_known.subexprs[2].ref != none {
-                self_ref_if_known =
-                    self_node_if_known.subexprs[2].ref
-            }
-        }
-        if store_self_value_ref_for_funcs and
-                ((base_typeref_expr_if_known != none and
-                  base_typeref_expr_if_known.is_func_attr) or
-                 (base_symbol_info_if_known != none and
-                  base_symbol_info_if_known.kind ==
-                      st_scope.SINFO_FUNCATTR)) and
-                self_ref_if_known != none and
-                {st_ref.ST_LOCAL, st_ref.ST_GLOBAL}.has(
-                    self_ref_if_known.kind
-                ) {
-            # This must be the item we're accessing the function
-            # on, and it's a concrete instance.
-            tinfo.func_self_ref = self_ref_if_known.copy()
-            assert(typename(tinfo.func_self_ref) != "list")
-        }
+        set_modifiers(tinfo)
         return tinfo
     }
     assert(target_ref.kind != st_ref.ST_LOCAL)
@@ -1342,31 +1457,8 @@ func create_typeinfo_from_global_ref(
         }
     }
     tinfo.user_type_ref = target_ref.copy()
-    tinfo.modifiers = []
-    if base_typeref_expr_if_known != none {
-        var texpr = base_typeref_expr_if_known
-        for mod in texpr.modifiers {
-            tinfo.modifiers.add(mod.copy())
-        }
-    } elseif project != none and
-            tinfo._orig_typeexpr == none {
-        var sinfo = st_ref.ref_to_symbol_info(
-            target_ref,
-            project=project, is_moose64=is_moose64,
-        )
-        if sinfo.typeref_expr != none and
-                not sinfo.typeref_expr.is_func_ref {
-            if sinfo.typeref_expr.is_user_type() {
-                tinfo._orig_typeexpr =
-                    sinfo.typeref_expr.copy()
-            } elseif sinfo.typeref_expr.modifiers.len > 0 and
-                    tinfo.modifiers.len == 0 {
-                for mod in sinfo.typeref_expr.modifiers {
-                    tinfo.modifiers.add(mod.copy())
-                }
-            }
-        }
-    }
+    set_modifiers(tinfo)
+
     if tinfo._orig_typeexpr != none and
             tinfo.modifiers.len == 0 and
             tinfo._orig_typeexpr.modifiers.len > 0 {

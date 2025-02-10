@@ -723,12 +723,12 @@ func get_called_or_assigned_func_types(
                 ) later:  # (What we originally would have called.)
 
             await unaltered_typeinfo
-            func_typeinfo = m64_ast_analyze.
-                get_c_or_m64_type_of_typeref(
-                    project_file,
+            func_typeinfo = typeinfo.
+                create_typeinfo_from_typeexpr_and_verify(
                     _internal_override_called_func_typerefexpr,
+                    project_file=project_file, 
                     store_self_value_ref_for_funcs=no,
-                    msgs=msgs,
+                    is_moose64=is_moose64,
                 ) later:  # (The override.)
 
             await func_typeinfo
@@ -1038,7 +1038,7 @@ func get_called_or_assigned_func_types(
                     called_args_exprs.len
                 ], called_node_parents + [call_args_expr],
                 store_self_value_ref_for_funcs=no,
-                msgs=msgs, debug=no
+                msgs=msgs, debug=no,
             ) later:
 
         await last_param_m64_typeinfo
@@ -1130,13 +1130,13 @@ func get_called_or_assigned_func_types(
         }
 
         var potential_self_ref = none
-        var arg_type =
-            m64_ast_analyze.get_c_or_m64_type_of_node(
+        var arg_type = m64_ast_analyze.
+            get_c_or_m64_type_of_node(
                 project_file, called_args_exprs[
                     1
                 ], called_node_parents + [call_args_expr],
                 store_self_value_ref_for_funcs=no,
-                msgs=msgs, debug=no
+                msgs=msgs,
             ) later:
 
         await arg_type
@@ -1254,7 +1254,7 @@ func get_called_or_assigned_func_types(
                             arg_idx
                         ], called_node_parents + [call_args_expr],
                         store_self_value_ref_for_funcs=no,
-                        msgs=msgs, debug=no
+                        msgs=msgs,
                     ) later:
 
                 await arg_type
@@ -1687,15 +1687,13 @@ func get_called_or_assigned_func_types(
                     " get_called_or_assigned_func_types(): "
                     "Re-tracing first mismatching type "
                     "for debug info...")
-                var arg_type =
-                    m64_ast_analyze.get_c_or_m64_type_of_node(
-                        project_file,
-                        called_args_exprs[
+                var arg_type = m64_ast_analyze.
+                    get_c_or_m64_type_of_node(
+                        project_file, called_args_exprs[
                             signature_arg_mismatch_info[1]
-                        ],
-                        called_node_parents + [call_args_expr],
+                        ], called_node_parents + [call_args_expr],
                         store_self_value_ref_for_funcs=no,
-                        msgs=msgs, debug=yes
+                        msgs=msgs, debug=yes,
                     ) later:
 
                 await arg_type
@@ -1715,11 +1713,13 @@ func get_called_or_assigned_func_types(
         func handle_arg(arg) {
             idx += 1
             var scope = called_node.scope
-            var tinfo = m64_ast_analyze.get_c_or_m64_type_of_typeref(
-                project_file, arg,
-                store_self_value_ref_for_funcs=no,
-                msgs=msgs
-            ) later:
+            var tinfo = typeinfo.
+                create_typeinfo_from_typeexpr_and_verify(
+                    arg,
+                    project_file=project_file, 
+                    store_self_value_ref_for_funcs=no,
+                    is_moose64=yes,
+                ) later:
 
             await tinfo
             if tinfo == none {

@@ -43,101 +43,6 @@ import compiler.token as token
 import compiler.typeinfo as typeinfo
 import compiler.typeinfo.ast_typeref as ast_typeref
 
-func get_c_or_m64_type_of_typeref(
-        project_file, typeref,
-        store_self_value_ref_for_funcs=no,
-        msgs=none,
-        debug=no,
-        ) {
-    if debug {
-        print("moosec: debug: " +
-            "get_c_or_m64_type_of_typeref(): "
-            "Called on: " +
-            "typeref=" + typeref.as_str() + " "
-            "typeref.is_user_type()=" +
-                typeref.is_user_type().as_str() + ", "
-            "typeref.is_func_ref=" +
-                typeref.is_func_ref.as_str() + ", "
-            "typeref.func_storage_ref=" +
-                if typeref.is_func_ref
-                    (typeref.func_storage_ref.as_str())
-                    else ("(not a func)") + " "
-            "typeref.is_multi_type=" +
-                typeref.is_multi_type.as_str() + ", "
-            "typeref.is_multi_arg=" +
-                typeref.is_multi_arg.as_str() + "")
-    }
-    var is_moose64 = yes
-    if not typeref.is_user_type() {
-        if debug {
-            print("moosec: debug: " +
-                "get_c_or_m64_type_of_typeref(): The "
-                "not-a-user-type branch was entered.")
-        }
-        var c_name = typeref.get_c_builtin_for_m64_base_type()
-        if c_name == none {
-            print("moosec: error: "
-                "get_c_or_m64_type_of_typeref(): "
-                "Internal error, found broken typeref: " +
-                typeref.as_str())
-            throw new RuntimeError(
-                "Internal error, couldn't get C name "
-                "of m64 type ref.")
-        }
-        assert(c_name != none)
-        var tinfo = new typeinfo.TypeInfo(typeinfo.TI_C_TYPE)
-        tinfo._set_orig_type_expr(typeref)
-        tinfo.orig_type_name = typeref.name
-        tinfo.c_type_name = c_name
-        for mod in typeref.modifiers {
-            tinfo.modifiers.add(mod.copy())
-        }
-        return later tinfo
-    }
-    if debug {
-        print("moosec: debug: " +
-            "get_c_or_m64_type_of_typeref(): The "
-            "user type branch was entered.")
-    }
-    var m64_type_ref_result = typeref.try_resolve_to_user_type(
-        project_file, is_moose64=yes,
-        debug=yes,
-    ) later:
-
-    await m64_type_ref_result
-    if debug {
-        print("moosec: debug: " +
-            "get_c_or_m64_type_of_typeref(): We "
-            "attempted a user type resolution. "
-            "m64_type_ref_result=" +
-                m64_type_ref_result.as_str())
-    }
-    var m64_type_ref = 
-        m64_type_ref_result.resolved_storage_ref
-    if m64_type_ref == none {
-        return later none
-    }
-    assert(m64_type_ref.kind != st_ref.ST_LOCAL)
-    var m64_symbol_info = st_ref.ref_to_symbol_info(
-        m64_type_ref, project=project_file.project,
-        is_moose64=is_moose64,
-    )
-    if m64_symbol_info == none {
-        return later none
-    }
-
-    var tinfo = new typeinfo.create_typeinfo_from_global_ref(
-        m64_type_ref,
-        base_symbol_info_if_known=m64_symbol_info,
-        base_typeref_expr_if_known=typeref,
-        store_self_value_ref_for_funcs=
-            store_self_value_ref_for_funcs,
-        project=project_file.project,
-        is_moose64=yes,
-    )
-    return later tinfo
-}
-
 type ComputeBinopTypesResult {
     var left_hand_type
     var left_hand_cast_to_type
@@ -481,8 +386,9 @@ func get_c_or_m64_type_of_sym_info(
             is_moose64=is_moose64,
         )
         if debug {
-            print(dbg_prefix + " create_typeinfo_from_global_ref "
-                "returned tinfo=" + tinfo.as_str())
+            print(dbg_prefix + " Called "
+                "create_typeinfo_from_global_ref "
+                "and got tinfo=" + tinfo.as_str())
         }
         return later tinfo
     }
@@ -492,14 +398,28 @@ func get_c_or_m64_type_of_sym_info(
     if typeref_expr == none {
         return later none
     }
-    var result = get_c_or_m64_type_of_typeref(
-        project_file, typeref_expr,
-        store_self_value_ref_for_funcs=
-            store_self_value_ref_for_funcs,
-        msgs=msgs
-    ) later:
+    if debug {
+        print(dbg_prefix + " Will now call "
+            "create_typeinfo_from_typeexpr_and_verify "
+            "on: typeref_expr=" + typeref_expr.as_str())
+    }
+    var result = typeinfo.
+        create_typeinfo_from_typeexpr_and_verify(
+            typeref_expr,
+            project_file=project_file, 
+            store_self_value_ref_for_funcs=
+                store_self_value_ref_for_funcs,
+            base_node_if_known=node_with_reference,
+            base_node_parents_if_known=
+                node_with_reference_parents,
+            is_moose64=is_moose64, debug=debug,
+        ) later:
 
     await result
+    if debug {
+        print(dbg_prefix + " Got typeinfo "
+            "result: result=" + result.as_str())
+    }
     return result
 }
 
@@ -701,12 +621,16 @@ func _get_c_or_m64_type_of_node_do(
         if not node.has_type_expr {
             return later none
         }
-        var result = get_c_or_m64_type_of_typeref(
-            project_file, node.subexprs[node.subexprs.len],
-            store_self_value_ref_for_funcs=
-                store_self_value_ref_for_funcs,
-            msgs=msgs
-        ) later:
+        var result = typeinfo.
+            create_typeinfo_from_typeexpr_and_verify(
+                node.subexprs[node.subexprs.len],
+                project_file=project_file, 
+                store_self_value_ref_for_funcs=
+                    store_self_value_ref_for_funcs,
+                base_node_if_known=node,
+                base_node_parents_if_known=parents,
+                is_moose64=is_moose64,
+            ) later:
 
         await result
         if debug {
@@ -1571,11 +1495,13 @@ func _get_c_or_m64_type_of_node_do(
             return tinfo
         }
 
-        var tinfo = get_c_or_m64_type_of_typeref(
-            project_file,
-            func_type_expr.return_typeref_expr,
-            store_self_value_ref_for_funcs=no, msgs=msgs
-        ) later:
+        var tinfo = typeinfo.
+            create_typeinfo_from_typeexpr_and_verify(
+                func_type_expr.return_typeref_expr,
+                project_file=project_file, 
+                store_self_value_ref_for_funcs=no,
+                is_moose64=is_moose64,
+            ) later:
 
         await tinfo
         return tinfo
