@@ -1,5 +1,5 @@
 ## @module compiler.main
-# Copyright (c) 2020-2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2020-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -110,7 +110,9 @@ func parse_ast_target_from_args(args, checked_ast=no,
             "Dispatching for parsing first file... "
             "[t=" + time.ticks().as_str() + "]",
             kind=msg.M_INFO),
-            msgs=msgs, program_name=program_name
+            msgs=msgs, program_name=program_name,
+            force_print=
+                not build_options.format_output_for_scripts,
         )
     }
     func get_ast {
@@ -163,7 +165,9 @@ func parse_ast_target_from_args(args, checked_ast=no,
             "Now starting to ensure all files are parsed... "
             "[t=" + time.ticks().as_str() + "]",
             kind=msg.M_INFO),
-            msgs=tresult.msgs, program_name=program_name
+            msgs=tresult.msgs, program_name=program_name,
+            force_print=
+                not build_options.format_output_for_scripts,
         )
     }
     tresult.project_file.project.build_options = build_options
@@ -177,7 +181,9 @@ func parse_ast_target_from_args(args, checked_ast=no,
             "Done ensuring all files are parsed. "
             "[t=" + time.ticks().as_str() + "]",
             kind=msg.M_INFO),
-            msgs=tresult.msgs, program_name=program_name
+            msgs=tresult.msgs, program_name=program_name,
+            force_print=
+                not build_options.format_output_for_scripts,
         )
     }
     if debug_modules {
@@ -187,7 +193,9 @@ func parse_ast_target_from_args(args, checked_ast=no,
             tresult.project_file.project.
                 module_uri_to_file_map.values().as_str(),
             kind=msg.M_DEBUG),
-            msgs=tresult.msgs, program_name=program_name
+            msgs=tresult.msgs, program_name=program_name,
+            force_print=
+                not build_options.format_output_for_scripts,
         )
     }
     var had_error = no
@@ -213,7 +221,9 @@ func parse_ast_target_from_args(args, checked_ast=no,
             "Now computing and checking all storage... "
             "[t=" + time.ticks().as_str() + "]",
             kind=msg.M_INFO),
-            msgs=tresult.msgs, program_name=program_name
+            msgs=tresult.msgs, program_name=program_name,
+            force_print=
+                not build_options.format_output_for_scripts,
         )
     }
     var success = tresult.project_file.project.
@@ -231,7 +241,9 @@ func parse_ast_target_from_args(args, checked_ast=no,
             "Done computing storage for all files. "
             "[t=" + time.ticks().as_str() + "]",
             kind=msg.M_INFO),
-            msgs=tresult.msgs, program_name=program_name
+            msgs=tresult.msgs, program_name=program_name,
+            force_print=
+                not build_options.format_output_for_scripts,
         )
     }
     had_error = no
@@ -442,6 +454,7 @@ func action_compile_do(
     var opt_for_script =
         result.args.has("--for-script") and
         result.args["--for-script"]
+    boptions.format_output_for_scripts = opt_for_script
     var program_name = if is_moose64 ("moosec") else ("horsec")
 
     var aresult = parse_ast_target_from_args(
@@ -474,7 +487,7 @@ func action_compile_do(
             "[t=" + time.ticks().as_str() + "]",
             kind=msg.M_INFO,
         ), msgs=aresult.msgs, program_name=program_name,
-        force_print=not opt_for_script)
+        force_print=not boptions.format_output_for_scripts)
     }
 
     # Apply code check and do basic analysis:
@@ -1076,19 +1089,22 @@ func actionparser_compile_or_run(
     }
     var opt_for_script =
         not is_run_cmd and result.args["--for-script"]
+    boptions.format_output_for_scripts = opt_for_script
     if boptions.print_stages {
         clog.log_or_print(new msg.FileMsg(
             "stage init: "
             "Launched & done parsing options. "
             "[t=" + time.ticks().as_str() + "]",
             kind=msg.M_INFO,
-        ), msgs=msgs, program_name=program_name)
+        ), msgs=msgs, program_name=program_name,
+        force_print=not boptions.format_output_for_scripts)
     }
     if boptions.verbose_mode {
         clog.log_or_print(new msg.FileMsg(
             "Now beginning to compile program.",
             kind=msg.M_INFO,
-        ), msgs=msgs, program_name=program_name)
+        ), msgs=msgs, program_name=program_name,
+        force_print=not boptions.format_output_for_scripts)
     }
     if not is_run_cmd {
         if boptions.output_file != none {
@@ -1127,7 +1143,8 @@ func actionparser_compile_or_run(
                 "Tokenizing first target file. "
                 "[t=" + time.ticks().as_str() + "]",
                 kind=msg.M_INFO,
-            ), msgs=msgs, program_name=program_name)
+            ), msgs=msgs, program_name=program_name,
+            force_print=not boptions.format_output_for_scripts)
         }
         var tresult = tokenize_target_from_args(result.args)
         later:
@@ -1140,7 +1157,8 @@ func actionparser_compile_or_run(
                 "Printing result "
                 " [t=" + time.ticks().as_str() + ".",
                 kind=msg.M_INFO,
-            ), msgs=tresult.msgs, program_name=program_name)
+            ), msgs=tresult.msgs, program_name=program_name,
+            force_print=not boptions.format_output_for_scripts)
         }
         var had_error = no
         for m in tresult.msgs {

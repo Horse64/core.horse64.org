@@ -1,5 +1,5 @@
 ## @module compiler.moose64.ast.transform
-# Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2024-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -27,6 +27,7 @@
 
 import math from core.horse64.org
 import random from core.horse64.org
+import time from core.horse64.org
 
 import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
@@ -35,6 +36,7 @@ import compiler.ast.call_or_assign_stmt as call_or_assign_stmt
 import compiler.ast.expr as ast_expr
 import compiler.ast.return_stmt as return_stmt
 import compiler.ast.transform as ast_transform
+import compiler.compiler_log as clog
 import compiler.builtin_syms as builtin_syms
 import compiler.moose64.ast.analyze as m64_ast_analyze
 import compiler.msg as msg
@@ -1070,11 +1072,34 @@ func transform_desugar_failed_checks(
 }
 
 func do_moose64_transforms_post_nameresolution(
-        project_file, msgs) {
+        project_file, msgs, build_options=none) {
+    const program_name =
+        if build_options != none
+            (build_options.build_program_name)
+            else ("moosec")
+    var caption_uri = if project_file.source_uri == none
+        ("<unknown>") else (project_file.source_uri)
+    var file_caption = "file " +
+        if caption_uri.len <= 25 (caption_uri)
+            else ("..." + caption_uri.sub(caption_uri.len - 25))
 
     var call_expr_to_failed_check_map = {->}
     var failed_check_to_call_expr_map = {->}
     var parent_stmt_to_call_exprs_map = {->}
+
+    if build_options != none and
+            build_options.print_stages {
+        clog.log_or_print(new msg.FileMsg(
+            "stage transformed-code: "
+            "Starting Moose64 failed checks transform for " +
+            file_caption + "... "
+            "[t=" + time.ticks().as_str() + "]",
+            kind=msg.M_INFO),
+            msgs=msgs, program_name=program_name,
+            force_print=
+                not build_options.format_output_for_scripts,
+        )
+    }
 
     var result = transform_associate_failed_checks(
         project_file, project_file.ast, msgs,
@@ -1106,6 +1131,20 @@ func do_moose64_transforms_post_nameresolution(
     await result
     if not result {
         return later no
+    }
+
+    if build_options != none and
+            build_options.print_stages {
+        clog.log_or_print(new msg.FileMsg(
+            "stage transformed-code: "
+            "Starting Moose64 defer transform for " +
+            file_caption + "... "
+            "[t=" + time.ticks().as_str() + "]",
+            kind=msg.M_INFO),
+            msgs=msgs, program_name=program_name,
+            force_print=
+                not build_options.format_output_for_scripts,
+        )
     }
 
     result = transform_defer(

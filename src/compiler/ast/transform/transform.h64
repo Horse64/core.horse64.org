@@ -1,5 +1,5 @@
 ## @module compiler.ast.transform
-# Copyright (c) 2023-2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2023-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -620,7 +620,9 @@ func do_all_pre_nameres_transformations(
             "Doing required pre name resolution transforms... "
             "[t=" + time.ticks().as_str() + "]",
             kind=msg.M_INFO),
-            msgs=msgs, program_name=program_name
+            msgs=msgs, program_name=program_name,
+            force_print=
+                not build_options.format_output_for_scripts,
         )
     }
     if msgs != none and
@@ -666,7 +668,9 @@ func do_all_pre_nameres_transformations(
             "Finished pre name resolution transforms."
             "[t=" + time.ticks().as_str() + "]",
             kind=msg.M_INFO),
-            msgs=msgs, program_name=program_name
+            msgs=msgs, program_name=program_name,
+            force_print=
+                not build_options.format_output_for_scripts,
         )
     }
     return later success
@@ -979,7 +983,9 @@ func do_all_post_nameres_transformations(
             "Entering checks and analysis... "
             "[t=" + time.ticks().as_str() + "]",
             kind=msg.M_INFO),
-            msgs=msgs, program_name=program_name
+            msgs=msgs, program_name=program_name,
+            force_print=
+                not build_options.format_output_for_scripts,
         )
     }
     if msgs != none and
@@ -1005,17 +1011,19 @@ func do_all_post_nameres_transformations(
                 build_options.print_stages {
             clog.log_or_print(new msg.FileMsg(
                 "stage transformed-code: "
-                "Entering moose64-specific transform... "
+                "Entering Moose64-specific transform... "
                 "[t=" + time.ticks().as_str() + "]",
                 kind=msg.M_INFO),
-                msgs=msgs, program_name=program_name
+                msgs=msgs, program_name=program_name,
+                force_print=
+                    not build_options.format_output_for_scripts,
             )
         }
 
         func process_file(pfile) {
             var result = m64_ast_transform.
                 do_moose64_transforms_post_nameresolution(
-                    pfile, msgs)
+                    pfile, msgs, build_options=build_options)
             later:
 
             await result
@@ -1038,6 +1046,18 @@ func do_all_post_nameres_transformations(
     }
     var had_error = no
     func do_func_call_check_and_overrides {
+        if build_options != none and
+                build_options.print_stages {
+            clog.log_or_print(new msg.FileMsg(
+                "stage transformed-code: "
+                "Entering func overrides transform... "
+                "[t=" + time.ticks().as_str() + "]",
+                kind=msg.M_INFO),
+                msgs=msgs, program_name=program_name,
+                force_print=
+                    not build_options.format_output_for_scripts,
+            )
+        }
         func process_file(pfile) {
             var result =
                 transform_func_overrides_and_check_func_arg_sig_match(
@@ -1076,7 +1096,9 @@ func do_all_post_nameres_transformations(
                 "Entering later transform... "
                 "[t=" + time.ticks().as_str() + "]",
                 kind=msg.M_INFO),
-                msgs=msgs, program_name=program_name
+                msgs=msgs, program_name=program_name,
+                force_print=
+                    not build_options.format_output_for_scripts,
             )
         }
         success = later_transform.first_pass_later_transform(
@@ -1097,6 +1119,19 @@ func do_all_post_nameres_transformations(
         return later no
     }
 
+    if build_options != none and
+            build_options.print_stages {
+        clog.log_or_print(new msg.FileMsg(
+            "stage transformed-code: "
+            "Registering global variables for "
+            "partial ordering for initialization... "
+            "[t=" + time.ticks().as_str() + "]",
+            kind=msg.M_INFO),
+            msgs=msgs, program_name=program_name,
+            force_print=
+                not build_options.format_output_for_scripts,
+        )
+    }
     success = compiler.globals_order.
         register_globals_for_project(
             project, msgs=msgs, is_moose64=is_moose64
@@ -1113,7 +1148,9 @@ func do_all_post_nameres_transformations(
             "All analysis and transformations done."
             "[t=" + time.ticks().as_str() + "]",
             kind=msg.M_INFO),
-            msgs=msgs, program_name=program_name
+            msgs=msgs, program_name=program_name,
+            force_print=
+                not build_options.format_output_for_scripts,
         )
     }
     return later success

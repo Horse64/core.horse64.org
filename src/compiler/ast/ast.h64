@@ -1,5 +1,5 @@
 ## @module compiler.ast
-# Copyright (c) 2020-2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2020-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -716,7 +716,9 @@ func _parse_tokens_file_to_ast_ex(
             "Now tokenizing " + print_stages_file_caption + "... "
             "[t=" + time.ticks().as_str() + "]",
             kind=msg.M_INFO),
-            msgs=msgs, program_name=program_name)
+            msgs=msgs, program_name=program_name,
+            force_print=
+                not build_options.format_output_for_scripts)
     }
     var tresult = _tokenize_this_file_for_ast(
         tokens_source, project_file=project_file,
@@ -742,7 +744,9 @@ func _parse_tokens_file_to_ast_ex(
             "Now parsing " + print_stages_file_caption + "... "
             "[t=" + time.ticks().as_str() + "]",
             kind=msg.M_INFO),
-            msgs=tresult.msgs, program_name=program_name)
+            msgs=tresult.msgs, program_name=program_name,
+            force_print=
+                not build_options.format_output_for_scripts)
     }
     var aresult = parse_to_ast_ex(
         tresult.tokens, 1,
@@ -762,7 +766,9 @@ func _parse_tokens_file_to_ast_ex(
             " fully now. "
             "[t=" + time.ticks().as_str() + "]",
             kind=msg.M_INFO),
-            msgs=aresult.msgs, program_name=program_name)
+            msgs=aresult.msgs, program_name=program_name,
+            force_print=
+                not build_options.format_output_for_scripts)
     }
     if tresult.project_file != none {
         aresult.project_file = tresult.project_file
