@@ -1344,7 +1344,7 @@ func TypeRefExpr.copy {
     return self_copy
 }
 
-func TypeRefExpr.adjust_storage_to_file(pfile) {
+func TypeRefExpr.adjust_type_path_for_use_in_file(pfile) {
     if self.storage_ref == none {
         return
     }
@@ -1475,9 +1475,11 @@ func TypeRefExpr.try_resolve_to_user_type_nonrecursive(
         if is_moose64 (builtin_moose64_types)
             else (builtin_horse64_types)
     if self.is_func_ref or builtin_names.has(self.name) {
-        if self.is_func_ref and self.storage_ref == none and
-                self.func_storage_ref != none {
-            self.storage_ref = self.func_storage_ref.copy()
+        if self.is_func_ref {
+            if self.storage_ref == none and
+                    self.func_storage_ref != none {
+                self.storage_ref = self.func_storage_ref.copy()
+            }
             var result = new TryResolveUserTypeResult()
             result.resolved_storage_ref = self.storage_ref.copy()
             return result
@@ -1498,7 +1500,7 @@ func TypeRefExpr.try_resolve_to_user_type_nonrecursive(
         result.resolved_storage_ref = self.storage_ref.copy()
         return result
     }
-    self.adjust_storage_to_file(project_file)
+    self.adjust_type_path_for_use_in_file(project_file)
     var type_path = self.type_path
     if type_path != none and type_path.len == 0 {
         type_path = none
@@ -1558,10 +1560,8 @@ func TypeRefExpr.may_have_data_attr {
     if not builtin_moose64_types.has(self.name) {
         return yes
     }
-    for mod in self.modifiers {
-        if {"array"}.has(mod.name) {
-            return yes
-        }
+    if self.is_array() {
+        return yes
     }
     return no
 }
@@ -1570,10 +1570,8 @@ func TypeRefExpr.may_have_len_attr {
     if not builtin_moose64_types.has(self.name) {
         return yes
     }
-    for mod in self.modifiers {
-        if {"array"}.has(mod.name) {
-            return yes
-        }
+    if self.is_array() {
+        return yes
     }
     return no
 }
