@@ -137,7 +137,7 @@ This project **doesn't accept funding nor donations.**
 
 - But [here is info on the key people
   ](https://horse64.org/who), if you wanted to cheer them
-  on or to support them outside of this project.
+  on or to join their other ventures and activities.
 
 
 Maintainer checklists
