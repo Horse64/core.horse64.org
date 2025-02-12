@@ -350,7 +350,10 @@ func is_plain_num_type(typeinfo_value) {
 }
 
 func get_math_binop_autocast(
-        left_hand_typeinfo, right_hand_typeinfo, is_cmp_op=no,
+        left_hand_typeinfo, right_hand_typeinfo,
+        left_side_is_literal_none=no,
+        right_side_is_literal_none=no,
+        is_cmp_op=no,
         is_moose64=no, debug=no,
         ) {
     const program_name = if is_moose64 ("moosec") else ("horsec")
@@ -512,6 +515,21 @@ func get_math_binop_autocast(
 
     # Below is the section for non-ref-types:
 
+    if left_hand_typeinfo.ref_count(
+            include_c_arrays=no,
+            include_arrays=no,
+            include_implicit_refs=yes,
+            include_explicit_refs=no) > 0 and
+            right_side_is_literal_none {
+        return cast_all_to("addr")
+    } elseif right_hand_typeinfo.ref_count(
+            include_c_arrays=no,
+            include_arrays=no,
+            include_implicit_refs=yes,
+            include_explicit_refs=no) > 0 and
+            left_side_is_literal_none {
+        return cast_all_to("addr")
+    }
     var right_hand_num_filtered_mods = []
     var left_hand_num_filtered_mods = []
     for mod in left_hand_typeinfo.modifiers {

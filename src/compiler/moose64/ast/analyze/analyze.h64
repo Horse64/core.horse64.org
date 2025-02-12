@@ -207,6 +207,14 @@ func compute_and_verify_regular_m64_binop_types(
     var math_cast_result = m64_autocast.
         get_math_binop_autocast(
             left_side_type, right_side_type,
+            left_side_is_literal_none=
+                (node.subexprs.len >= 2 and
+                 node.subexprs[1].kind == ast.N_EXPR_LIT and
+                 node.subexprs[1].value == none),
+            right_side_is_literal_none=
+                (node.subexprs.len >= 2 and
+                 node.subexprs[2].kind == ast.N_EXPR_LIT and
+                 node.subexprs[2].value == none),
             is_cmp_op=is_comparison,
             is_moose64=is_moose64,
         )
