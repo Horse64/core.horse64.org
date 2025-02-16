@@ -936,6 +936,21 @@ func _get_c_or_m64_type_of_node_do(
                 if parents[i].kind == ast.N_STMT_FUNC or
                         parents[i].kind == ast.N_STMT_FUNCEXTEND {
                     func_node = parents[i]
+                    if func_node.type_path == none or
+                            func_node.type_path.len == 0 {
+                        i -= 1
+                        while i >= 1 {
+                            if (parents[i].kind == ast.N_STMT_FUNC or
+                                    parents[i].kind ==
+                                    ast.N_STMT_FUNCEXTEND) and
+                                    parents[i].type_path != none and
+                                    parents[i].type_path.len > 0 {
+                                func_node = parents[i]
+                                break
+                            }
+                            i -= 1
+                        }
+                    }
                     break
                 }
                 i -= 1
@@ -944,13 +959,30 @@ func _get_c_or_m64_type_of_node_do(
                 if not node.damaged {
                     if msgs == none {
                         throw new ValueError(
-                            "Found invalid use of 'self "
+                            "Found invalid use of 'self' "
                             "outside of function."
                         )
                     }
                     msgs.add(new msg.FileMsg(
                         "Invalid use of 'self' outside "
                         "of a function.",
+                        line=node.line, col.node.col
+                    ))
+                }
+                node.damaged = yes
+                return none
+            } elseif func_node.type_path == none or
+                    func_node.type_path.len == 0 {
+                if not node.damaged {
+                    if msgs == none {
+                        throw new ValueError(
+                            "Found invalid use of 'self' "
+                            "in function that isn't func attr."
+                        )
+                    }
+                    msgs.add(new msg.FileMsg(
+                        "Invalid use of 'self' in func "
+                        "that isn't a func attr.",
                         line=node.line, col.node.col
                     ))
                 }
@@ -1022,7 +1054,37 @@ func _get_c_or_m64_type_of_node_do(
                     node.ref.kind == st_ref.ST_MCREF and
                     m64_builtins.
                     is_ast_node_referring_to_m64_multi_args_forward(
-                            project_file, node, is_moose64=is_moose64) {
+                        project_file, node,
+                        is_moose64=is_moose64) {
+                var i = parents.len
+                while i >= 1 {
+                    if parents[i].kind == ast.N_STMT_FUNC or
+                            parents[i].kind == ast.N_STMT_FUNCEXTEND {
+                        func_node = parents[i]
+                        break
+                    }
+                    i -= 1
+                }
+                if func_node == none {
+                    if not node.damaged {
+                        if msgs == none {
+                            throw new ValueError(
+                                "Found invalid use of 'multi_arg' "
+                                "outside of function."
+                            )
+                        }
+                        msgs.add(new msg.FileMsg(
+                            "Invalid use of 'multi_arg' outside "
+                            "of a function.",
+                            line=node.line, col.node.col
+                        ))
+                    }
+                    node.damaged = yes
+                    return none
+                }
+                var func_scope = node.scope.func_scope
+                assert(func_scope != none)
+
                 throw new RuntimeError("Not implemented yet.")
             } elseif node.ref != none and
                     node.ref.kind == st_ref.ST_MCREF {
