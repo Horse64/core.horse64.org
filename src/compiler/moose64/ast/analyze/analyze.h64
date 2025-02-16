@@ -1019,6 +1019,12 @@ func _get_c_or_m64_type_of_node_do(
                 }
                 return later none
             } elseif node.ref != none and
+                    node.ref.kind == st_ref.ST_MCREF and
+                    m64_builtins.
+                    is_ast_node_referring_to_m64_multi_args_forward(
+                            project_file, node, is_moose64=is_moose64) {
+                throw new RuntimeError("Not implemented yet.")
+            } elseif node.ref != none and
                     node.ref.kind == st_ref.ST_MCREF {
                 var builtin_item = builtin_syms.get_item_by_storage_ref(
                     project_file.project, node.ref

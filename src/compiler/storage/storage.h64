@@ -1746,7 +1746,7 @@ func project.Project.compute_all_scopes(
                     if is_moose64 {
                         m64_storage.
                             handle_node_storage_redirects(
-                                replacement_idref.ref,
+                                replacement_idref,
                                 project_file=pfile
                             )
                     }
