@@ -1052,10 +1052,31 @@ func _get_c_or_m64_type_of_node_do(
                 return later none
             } elseif node.ref != none and
                     node.ref.kind == st_ref.ST_MCREF and
-                    m64_builtins.
+                    (m64_builtins.
+                     is_ast_node_referring_to_m64_multi_args_forward(
+                        project_file, node,
+                        is_moose64=is_moose64) or
+                     m64_builtins.
+                     is_ast_node_referring_to_m64_multi_args_len(
+                        project_file, node,
+                        is_moose64=is_moose64) or
+                     m64_builtins.
+                     is_ast_node_referring_to_m64_multi_args_get(
+                        project_file, node,
+                        is_moose64=is_moose64)) {
+                var is_forward = m64_builtins.
                     is_ast_node_referring_to_m64_multi_args_forward(
                         project_file, node,
-                        is_moose64=is_moose64) {
+                        is_moose64=is_moose64)
+                var is_len = m64_builtins.
+                    is_ast_node_referring_to_m64_multi_args_len(
+                        project_file, node,
+                        is_moose64=is_moose64)
+                var is_get = m64_builtins.
+                    is_ast_node_referring_to_m64_multi_args_get(
+                        project_file, node,
+                        is_moose64=is_moose64)
+
                 var i = parents.len
                 while i >= 1 {
                     if parents[i].kind == ast.N_STMT_FUNC or
@@ -1085,6 +1106,68 @@ func _get_c_or_m64_type_of_node_do(
                 var func_scope = node.scope.func_scope
                 assert(func_scope != none)
 
+                var arg_type_exprs = func_scope.
+                    extended_final_arg_type_exprs()
+                var multi_arg_idx = none
+                var idx = 0
+                for arg_expr in arg_type_exprs {
+                    idx += 1
+                    if arg_expr.is_multi_arg {
+                        if multi_arg_idx != none {
+                            if not node.damaged {
+                                if msgs == none {
+                                    throw new ValueError(
+                                        "Found invalid use of 'multi_arg' "
+                                        "in a function with more than "
+                                        "one multi arg parameter."
+                                    )
+                                }
+                                msgs.add(new msg.FileMsg(
+                                    "Invalid use of 'multi_arg' "
+                                    "in a function with more than "
+                                    "one multi arg parameter.",
+                                    line=node.line, col.node.col
+                                ))
+                            }
+                            node.damaged = yes
+                            return later none
+                        }
+                        multi_arg_idx = idx
+                    }
+                }
+                if multi_arg_idx == none {
+                    if not node.damaged {
+                        if msgs == none {
+                            throw new ValueError(
+                                "Found invalid use of 'multi_arg' "
+                                "in a function without "
+                                "any multi arg parameter."
+                            )
+                        }
+                        msgs.add(new msg.FileMsg(
+                            "Invalid use of 'multi_arg' "
+                            "in a function without "
+                            "any multi arg parameter.",
+                            line=node.line, col.node.col
+                        ))
+                    }
+                    node.damaged = yes
+                    return later none
+                }
+
+                var multi_arg_ast_type_expr =
+                    arg_type_exprs[multi_arg_idx]
+
+                if is_len {
+                    var type_result = new typeinfo.TypeInfo(
+                        typeinfo.TI_C_TYPE
+                    )
+                    type_result.orig_type_name = "size"
+                    type_result.c_type_name =
+                        ast_typeref.get_c_builtin_for_m64_base_type(
+                            "size")
+                    return type_result
+                }
                 throw new RuntimeError("Not implemented yet.")
             } elseif node.ref != none and
                     node.ref.kind == st_ref.ST_MCREF {
