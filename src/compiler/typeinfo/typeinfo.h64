@@ -77,7 +77,7 @@ enum TypeInfoKind {
     TI_USERTYPE,
     TI_FUNCREF,
     TI_MULTITYPE,
-    TI_MULTIARG,
+    TI_LISTARG,
 }
 
 ## This is a concrete type info instance based on what was
@@ -695,8 +695,8 @@ func create_typeinfo_from_typeexpr(
         }
         tinfo._orig_typeexpr = type_expr.copy()
         return tinfo
-    } elseif type_expr.is_multi_arg {
-        var tinfo = new TypeInfo(TI_MULTIARG)
+    } elseif type_expr.is_list_arg {
+        var tinfo = new TypeInfo(TI_LISTARG)
         tinfo._orig_typeexpr = type_expr.copy()
         return tinfo
     } else {
@@ -793,6 +793,25 @@ func TypeInfo.describe_to_user(
     if texpr.is_func_ref {
         var func_sig_with_mods = texpr.as_str()
         return "'" + func_sig_with_mods + "' (func)"
+    } elseif texpr.is_list_arg {
+        return texpr.arg_type.describe_to_user(
+            project=project,
+            add_quotes_where_useful=
+                add_quotes_where_useful,
+            is_moose64=is_moose64) + " (list)"
+    } elseif texpr.is_multi_type {
+        var t = ""
+        for sub_expr in texpr.sub_type_refs {
+            if t != "" {
+                t += ", "
+            }
+            t += sub_expr.describe_to_user(
+                project=project,
+                add_quotes_where_useful=
+                    add_quotes_where_useful,
+                is_moose64=is_moose64)
+        }
+        return "multi (" + t + ")"
     } else {
         var t = texpr.as_code()
         if add_quotes_where_useful {

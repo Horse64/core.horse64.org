@@ -91,29 +91,29 @@ func is_ast_node_referring_to_m64_memory_as_ref(
         is_moose64=is_moose64)
 }
 
-func is_ast_node_referring_to_m64_multi_args_forward(
+func is_ast_node_referring_to_m64_list_arg_forward(
         project_file, node, is_moose64=no) {
     return is_ast_node_referring_to_m64_builtin_by_name(
         project_file, node,
-        "multi_args.forward", in_module_name=none,
+        "list_arg.forward", in_module_name=none,
         in_package_name=none,
         is_moose64=is_moose64)
 }
 
-func is_ast_node_referring_to_m64_multi_args_len(
+func is_ast_node_referring_to_m64_list_arg_len(
         project_file, node, is_moose64=no) {
     return is_ast_node_referring_to_m64_builtin_by_name(
         project_file, node,
-        "multi_args.len", in_module_name=none,
+        "list_arg.len", in_module_name=none,
         in_package_name=none,
         is_moose64=is_moose64)
 }
 
-func is_ast_node_referring_to_m64_multi_args_get(
+func is_ast_node_referring_to_m64_list_arg_get(
         project_file, node, is_moose64=no) {
     return is_ast_node_referring_to_m64_builtin_by_name(
         project_file, node,
-        "multi_args.get", in_module_name=none,
+        "list_arg.get", in_module_name=none,
         in_package_name=none,
         is_moose64=is_moose64)
 }
@@ -298,7 +298,7 @@ func register_builtins_with_project(project) {
 
     id = m64_c_importer.get_mcref_id(project)
     builtin_syms.register_symbol(
-        project, "multi_args.len",
+        project, "list_arg.len",
         new st_ref.StorageRef(st_ref.ST_MCREF, id),
         builtin_syms.BI_VAR, "$any",
         func_signature="(<-any ref)->any",
@@ -306,7 +306,7 @@ func register_builtins_with_project(project) {
 
     id = m64_c_importer.get_mcref_id(project)
     builtin_syms.register_symbol(
-        project, "multi_args.forward",
+        project, "list_arg.forward",
         new st_ref.StorageRef(st_ref.ST_MCREF, id),
         builtin_syms.BI_FUNC, "$any",
         func_signature="(<-any ref)->any",
@@ -314,7 +314,7 @@ func register_builtins_with_project(project) {
 
     id = m64_c_importer.get_mcref_id(project)
     builtin_syms.register_symbol(
-        project, "multi_args.get",
+        project, "list_arg.get",
         new st_ref.StorageRef(st_ref.ST_MCREF, id),
         builtin_syms.BI_FUNC, "$any",
         func_signature="(<-any ref)->any",

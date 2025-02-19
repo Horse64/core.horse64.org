@@ -431,33 +431,33 @@ func get_c_or_m64_type_of_sym_info(
     return result
 }
 
-type MultiArgNodeInfo {
+type ListArgNodeInfo {
     var is_forward = no
     var is_len = no
     var is_get = no
     var arg_type_expr = none
 }
 
-func get_multi_arg_node_info(
+func get_list_arg_node_info(
         project_file, node, parents,
         is_moose64=no, msgs=none,
         ) {
     var is_forward = m64_builtins.
-        is_ast_node_referring_to_m64_multi_args_forward(
+        is_ast_node_referring_to_m64_list_arg_forward(
             project_file, node,
             is_moose64=is_moose64)
     var is_len = m64_builtins.
-        is_ast_node_referring_to_m64_multi_args_len(
+        is_ast_node_referring_to_m64_list_arg_len(
             project_file, node,
             is_moose64=is_moose64)
     var is_get = m64_builtins.
-        is_ast_node_referring_to_m64_multi_args_get(
+        is_ast_node_referring_to_m64_list_arg_get(
             project_file, node,
             is_moose64=is_moose64)
     if not is_forward and not is_len and not is_get {
-        return new MultiArgNodeInfo()
+        return new ListArgNodeInfo()
     }
-    var result = new MultiArgNodeInfo()
+    var result = new ListArgNodeInfo()
     result.is_forward = is_forward
     result.is_len = is_len
     result.is_get = is_get
@@ -475,12 +475,12 @@ func get_multi_arg_node_info(
         if not node.damaged {
             if msgs == none {
                 throw new ValueError(
-                    "Found invalid use of 'multi_arg' "
+                    "Found invalid use of 'list_arg' "
                     "outside of function."
                 )
             }
             msgs.add(new msg.FileMsg(
-                "Invalid use of 'multi_arg' outside "
+                "Invalid use of 'list_arg' outside "
                 "of a function.",
                 line=node.line, col.node.col
             ))
@@ -493,46 +493,46 @@ func get_multi_arg_node_info(
 
     var arg_type_exprs = func_scope.
         extended_final_arg_type_exprs()
-    var multi_arg_idx = none
+    var list_arg_idx = none
     var idx = 0
     for arg_expr in arg_type_exprs {
         idx += 1
-        if arg_expr.is_multi_arg {
-            if multi_arg_idx != none {
+        if arg_expr.is_list_arg {
+            if list_arg_idx != none {
                 if not node.damaged {
                     if msgs == none {
                         throw new ValueError(
-                            "Found invalid use of 'multi_arg' "
+                            "Found invalid use of 'list_arg' "
                             "in a function with more than "
-                            "one multi arg parameter."
+                            "one list arg parameter."
                         )
                     }
                     msgs.add(new msg.FileMsg(
-                        "Invalid use of 'multi_arg' "
+                        "Invalid use of 'list_arg' "
                         "in a function with more than "
-                        "one multi arg parameter.",
+                        "one list arg parameter.",
                         line=node.line, col.node.col
                     ))
                 }
                 node.damaged = yes
                 return result
             }
-            multi_arg_idx = idx
+            list_arg_idx = idx
         }
     }
-    if multi_arg_idx == none {
+    if list_arg_idx == none {
         if not node.damaged {
             if msgs == none {
                 throw new ValueError(
-                    "Found invalid use of 'multi_arg' "
+                    "Found invalid use of 'list_arg' "
                     "in a function without "
-                    "any multi arg parameter."
+                    "any list arg parameter."
                 )
             }
             msgs.add(new msg.FileMsg(
-                "Invalid use of 'multi_arg' "
+                "Invalid use of 'list_arg' "
                 "in a function without "
-                "any multi arg parameter.",
+                "any list arg parameter.",
                 line=node.line, col.node.col
             ))
         }
@@ -541,7 +541,7 @@ func get_multi_arg_node_info(
     }
 
     result.arg_type_expr =
-        arg_type_exprs[multi_arg_idx].copy()
+        arg_type_exprs[list_arg_idx].copy()
     return result
 }
 
@@ -1167,27 +1167,27 @@ func _get_c_or_m64_type_of_node_do(
             } elseif node.ref != none and
                     node.ref.kind == st_ref.ST_MCREF and
                     (m64_builtins.
-                     is_ast_node_referring_to_m64_multi_args_forward(
+                     is_ast_node_referring_to_m64_list_arg_forward(
                         project_file, node,
                         is_moose64=is_moose64) or
                      m64_builtins.
-                     is_ast_node_referring_to_m64_multi_args_len(
+                     is_ast_node_referring_to_m64_list_arg_len(
                         project_file, node,
                         is_moose64=is_moose64) or
                      m64_builtins.
-                     is_ast_node_referring_to_m64_multi_args_get(
+                     is_ast_node_referring_to_m64_list_arg_get(
                         project_file, node,
                         is_moose64=is_moose64)) {
-                var multi_arg_info = get_multi_arg_node_info(
+                var list_arg_info = get_list_arg_node_info(
                     project_file, node, parents,
                     is_moose64=is_moose64, msgs=msgs,
                 )
-                if multi_arg_info.arg_type_expr == none {
+                if list_arg_info.arg_type_expr == none {
                     assert(node.damaged)
                     return later none
                 }
 
-                if multi_arg_info.is_len {
+                if list_arg_info.is_len {
                     var type_result = new typeinfo.TypeInfo(
                         typeinfo.TI_C_TYPE
                     )
@@ -1594,40 +1594,40 @@ func _get_c_or_m64_type_of_node_do(
         } elseif node.subexprs[1].ref != none and
                 node.subexprs[1].ref.kind == st_ref.ST_MCREF and
                 (m64_builtins.
-                    is_ast_node_referring_to_m64_multi_args_forward(
+                    is_ast_node_referring_to_m64_list_arg_forward(
                     project_file, node.subexprs[1],
                     is_moose64=is_moose64) or
                     m64_builtins.
-                    is_ast_node_referring_to_m64_multi_args_get(
+                    is_ast_node_referring_to_m64_list_arg_get(
                     project_file, node.subexprs[1],
                     is_moose64=is_moose64)) {
             if debug {
                 print(dbg_prefix + " Got call binop on "
-                    "multi_arg.forward() or multi_arg.get()...")
+                    "list_arg.forward() or list_arg.get()...")
             }
-            var multi_arg_info = get_multi_arg_node_info(
+            var list_arg_info = get_list_arg_node_info(
                 project_file, node.subexprs[1],
                 [node] + parents,
                 is_moose64=is_moose64, msgs=msgs,
             )
-            if multi_arg_info.arg_type_expr == none {
+            if list_arg_info.arg_type_expr == none {
                 assert(node.subexprs[1].damaged)
                 node.damaged = yes
                 return later none
             }
             
-            if multi_arg_info.is_forward {
+            if list_arg_info.is_forward {
                 var type_result =
                     new typeinfo.create_typeinfo_from_typeexpr(
-                        multi_arg_info.arg_type_expr,
+                        list_arg_info.arg_type_expr,
                         is_moose64=is_moose64,
                     )
                 return later type_result
-            } elseif multi_arg_info.is_get {
-                assert(multi_arg_info.arg_type_expr.is_multi_arg)
+            } elseif list_arg_info.is_get {
+                assert(list_arg_info.arg_type_expr.is_list_arg)
                 var type_result =
                     new typeinfo.create_typeinfo_from_typeexpr(
-                        multi_arg_info.arg_type_expr.arg_type,
+                        list_arg_info.arg_type_expr.arg_type,
                         is_moose64=is_moose64,
                     )
                 return later type_result

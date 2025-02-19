@@ -525,7 +525,7 @@ func parse(tokens, pos, msgs, project_file=none,
         for arg in args {
             if arg.kind == ast.N_EXPR_ARGNAME {
                 stmt.arg_labels.add(arg.label)
-            } elseif arg.kind == ast.N_EXPR_CALLMULTIARG {
+            } elseif arg.kind == ast.N_EXPR_CALLLISTARG {
                 stmt.arg_labels.add("...")
             }
         }
@@ -541,10 +541,10 @@ func parse(tokens, pos, msgs, project_file=none,
                     type_exprs.add(argtypes[idx])
                 }
                 continue
-            } elseif arg.kind == ast.N_EXPR_CALLMULTIARG {
+            } elseif arg.kind == ast.N_EXPR_CALLLISTARG {
                 if argsobj.has_types {
                     var arg_type = new ast_typeref.
-                        MultiArgTypeRefExpr()
+                        ListArgTypeRefExpr()
                     arg_type.arg_type = argtypes[idx]
                     type_exprs.add(arg_type)
                 }

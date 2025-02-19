@@ -280,7 +280,7 @@ func TypeRefFuncExpr.init {
     base.init()
     self.is_func_ref = yes
     self.is_multi_type = no
-    self.is_multi_arg = no
+    self.is_list_arg = no
     self.name = none
     self.type_path = none
 }
@@ -803,7 +803,7 @@ type TypeRefExpr base ast.TreeNode {
     var has_init_expr
     var is_func_ref = no
     var is_multi_type = no
-    var is_multi_arg = no
+    var is_list_arg = no
     var storage_ref = none
 
     var is_special_madeup_builtin = no  # Like .len, etc.
@@ -894,20 +894,20 @@ func MultiTypeRefExpr.try_resolve_to_user_type(
     success = handle_item(item) later repeat
 }
 
-type MultiArgTypeRefExpr base TypeRefExpr {
+type ListArgTypeRefExpr base TypeRefExpr {
     var arg_type
 }
 
-func MultiArgTypeRefExpr.init {
+func ListArgTypeRefExpr.init {
     base.init()
-    self.is_multi_arg = yes
+    self.is_list_arg = yes
     self.name = "..."
 }
 
-func MultiArgTypeRefExpr.is_equivalent(
+func ListArgTypeRefExpr.is_equivalent(
         other_expr, is_moose64=no
         ) {
-    if not other_expr.is_multi_arg {
+    if not other_expr.is_list_arg {
         return no
     }
     if self.arg_type.is_equivlent(
@@ -917,7 +917,7 @@ func MultiArgTypeRefExpr.is_equivalent(
     return yes
 }
 
-func MultiArgTypeRefExpr.as_code(indent=0) {
+func ListArgTypeRefExpr.as_code(indent=0) {
     if self.damaged {
         return "(damaged type ref expr.)"
     }
@@ -926,11 +926,11 @@ func MultiArgTypeRefExpr.as_code(indent=0) {
     return t
 }
 
-func MultiArgTypeRefExpr.is_user_type {
+func ListArgTypeRefExpr.is_user_type {
     return no
 }
 
-func MultiArgTypeRefExpr.try_resolve_to_user_type(
+func ListArgTypeRefExpr.try_resolve_to_user_type(
         project_file, force_recompute=no,
         is_moose64=no, debug=no,
         ) {
@@ -1966,6 +1966,21 @@ func TypeRefExpr.describe_to_user(
     var tinfo = typeinfo.create_typeinfo_from_typeexpr(
         self, is_moose64=is_moose64, debug=no
     )
+    if tinfo == none {
+        print(if is_moose64 ("moosec") else ("horsec") +
+            ": error: Fatal internal error, failed to "
+            "convert typeref expr to type info. "
+            "self=" + self.as_str() + " "
+            "self.is_multi_type=" +
+                self.is_multi_type.as_str() + " "
+            "self.is_func_ref=" +
+                self.is_func_ref.as_str() + " "
+            "self.is_list_arg=" +
+                self.is_list_arg.as_str())
+        throw new RuntimeError("Unexpectedly failed to "
+            "convert AST typeref expression, this "
+            "shouldn't be possible.")
+    }
     return tinfo.describe_to_user(
         project=project, add_quotes_where_useful=
             add_quotes_where_useful,
@@ -2875,8 +2890,8 @@ func _parse_typeref_notlater(
                 typeref_expr.is_func_ref.as_str() + ", "
             "typeref.is_multi_type=" +
                 typeref_expr.is_multi_type.as_str() + ", "
-            "typeref.is_multi_arg=" +
-                typeref_expr.is_multi_arg.as_str() + "")
+            "typeref.is_list_arg=" +
+                typeref_expr.is_list_arg.as_str() + "")
     }
 
     return typeref_expr
