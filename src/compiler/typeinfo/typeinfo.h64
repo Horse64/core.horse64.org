@@ -655,7 +655,7 @@ func create_typeinfo_from_typeexpr(
         tinfo.c_type_name = ast_typeref._m64_to_c_name_map[
             type_expr.name + ""
         ]
-        tinfo.orig_type_name =  type_expr.name + ""
+        tinfo.orig_type_name = type_expr.name + ""
         for mod in type_expr.modifiers {
             tinfo.modifiers.add(mod)
         }
