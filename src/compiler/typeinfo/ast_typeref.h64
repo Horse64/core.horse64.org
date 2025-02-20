@@ -1414,11 +1414,13 @@ func get_known_c_type_size(c_type) {
 const _m64_to_c_name_map = {
     "f32"-> "_m64_float32_t",
     "f64"-> "_m64_float64_t",
+    "i8"-> "signed char",
+    "i16"-> "int16_t",
     "i32"-> "int32_t",
     "i64"-> "int64_t",
     "bool"-> "signed char",
+    "u8"-> "unsigned char",
     "byte"-> "unsigned char",
-    "i16"-> "int16_t",
     "u16"-> "uint16_t",
     "u32"-> "uint32_t",
     "u64"-> "uint64_t",
@@ -1976,7 +1978,12 @@ func TypeRefExpr.describe_to_user(
             "self.is_func_ref=" +
                 self.is_func_ref.as_str() + " "
             "self.is_list_arg=" +
-                self.is_list_arg.as_str())
+                self.is_list_arg.as_str() + " "
+            "self.is_user_type()=" +
+                self.is_user_type().as_str() + " "
+            "self.storage_ref=" +
+                if not self.is_user_type() ("not user type")
+                    else (self.storage_ref.as_str()))
         throw new RuntimeError("Unexpectedly failed to "
             "convert AST typeref expression, this "
             "shouldn't be possible.")
