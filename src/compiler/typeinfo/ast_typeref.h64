@@ -872,7 +872,7 @@ func MultiTypeRefExpr.try_resolve_to_user_type(
 
         await inner_result
         if inner_result.had_error {
-            final_result = inenr_result
+            final_result = inner_result
             return later no
         }
         return later yes
@@ -934,6 +934,27 @@ func ListArgTypeRefExpr.try_resolve_to_user_type(
         project_file, force_recompute=no,
         is_moose64=no, debug=no,
         ) {
+    func resolve_inner {
+        if self.arg_type == none {
+            return later none
+        }
+        var inner_result = self.arg_type.try_resolve_to_user_type(
+            project_file, force_recompute=force_recompute,
+            is_moose64=is_moose64, debug=debug
+        ) later:
+
+        await inner_result
+        if inner_result.had_error {
+            return later inner_result
+        }
+        return later none
+    }
+    var result_inner = resolve_inner() later:
+
+    await result_inner
+    if result_inner != none {
+        return result_inner
+    }
     var result = new TryResolveUserTypeResult()
     return later result
 }
