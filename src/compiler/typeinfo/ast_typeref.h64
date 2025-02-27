@@ -1969,10 +1969,24 @@ func TypeRefExpr.describe_to_user(
         self, is_moose64=is_moose64, debug=no
     )
     if tinfo == none {
+        if not self.is_func_ref and
+                self.is_user_type() and
+                self.storage_ref == none {
+            # We can't convert this special case in a
+            # non-later function. Print this manually:
+            var t = self.as_code()
+            if add_quotes_where_useful and
+                    self.is_user_type() {
+                t = "'" + t + "'"
+            }
+            return t
+        }
         print(if is_moose64 ("moosec") else ("horsec") +
             ": error: Fatal internal error, failed to "
             "convert typeref expr to type info. "
             "self=" + self.as_str() + " "
+            "self.line=" + self.line.as_str() + " "
+            "self.col=" + self.col.as_str() + " "
             "self.is_multi_type=" +
                 self.is_multi_type.as_str() + " "
             "self.is_func_ref=" +
