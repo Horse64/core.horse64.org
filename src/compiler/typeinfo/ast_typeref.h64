@@ -910,8 +910,12 @@ func ListArgTypeRefExpr.is_equivalent(
     if not other_expr.is_list_arg {
         return no
     }
-    if self.arg_type.is_equivlent(
-            other_expr.arg_type) {
+    if self.arg_type == none {
+        return other_expr.arg_type == none
+    }
+    if other.arg_type == none or
+            self.arg_type.is_equivalent(
+                other_expr.arg_type) {
         return no
     }
     return yes
