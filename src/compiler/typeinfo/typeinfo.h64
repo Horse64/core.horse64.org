@@ -98,7 +98,9 @@ type TypeInfo {
     var modifiers = []
 
     ## For `TI_MULTITYPE`, this has the @{sub type info|TypeInfo} for
-    ## each sub type, stored in a @{list}. Otherwise, this is `none`.
+    ## each sub type, stored in a @{list}. For `TI_LISTARG`, this
+    ## will be a @{list} with one entry to store the list arg type.
+    ## Otherwise, this is `none`.
     var sub_types = none
 
     ## For `TI_USERTYPE` or `TI_FUNCREF`, this holds a @{compiler.
@@ -337,6 +339,35 @@ func TypeInfo.is_equivalent(
     if self.kind != other_typeinfo.kind {
         return no
     }
+    if self.kind == TI_LISTARG {
+        assert(self.func_self_ref == none and
+            self.autoprop_self_ref == none)
+        assert(self.sub_types != none and
+            self.sub_types.len == 1)
+        if self.sub_types[1] == none {
+            return (other_typeinfo.sub_types[1] == none)
+        }
+        return self.sub_types[1].is_equivalent(
+            other_typeinfo.sub_types[1]
+        )
+    }
+    if self.kind == TI_MULTITYPE {
+        assert(self.func_self_ref == none and
+            self.autoprop_self_ref == none)
+        assert(self.sub_types != none)
+        if self.sub_types.len != other_typeinfo.sub_types.len {
+            return no
+        }
+        var idx = 0
+        for sub_type in self.sub_types {
+            idx += 1
+            if not sub_type.is_equivalent(
+                    other_typeinfo.sub_types[idx]) {
+                return no
+            }
+        }
+        return yes
+    }
     if self.autoprop_func_typeexpr != none or
             other_typeinfo.autoprop_func_typeexpr != none {
         if self.autoprop_func_typeexpr == none or
@@ -348,14 +379,14 @@ func TypeInfo.is_equivalent(
             return no
         }
         if not ignore_self_ref {
-            if self.autoprop_func_self_ref != none or
-                    other_typeinfo.autoprop_func_self_ref != none {
-                if self.autoprop_func_self_ref == none or
-                        other_typeinfo.autoprop_func_self_ref == none {
+            if self.autoprop_self_ref != none or
+                    other_typeinfo.autoprop_self_ref != none {
+                if self.autoprop_self_ref == none or
+                        other_typeinfo.autoprop_self_ref == none {
                     return no
                 }
-                if not self.autoprop_func_self_ref.alike(
-                        other_typeinfo.autoprop_func_self_ref) {
+                if not self.autoprop_self_ref.alike(
+                        other_typeinfo.autoprop_self_ref) {
                     return no
                 }
             }
@@ -685,11 +716,12 @@ func create_typeinfo_from_typeexpr(
     } elseif type_expr.is_multi_type {
         var tinfo = new TypeInfo(TI_MULTITYPE)
         tinfo.sub_types = []
-        for sub_type_ref in type_expr.sub_type_refs {
+        for sub_type_ref_expr in type_expr.sub_type_refs {
             tinfo.sub_types.add(
                 create_typeinfo_from_typeexpr(
-                    sub_type_ref, is_moose64=is_moose64,
-                    debug=debug
+                    sub_type_ref_expr,
+                    is_moose64=is_moose64,
+                    debug=debug,
                 )
             )
         }
@@ -698,6 +730,16 @@ func create_typeinfo_from_typeexpr(
     } elseif type_expr.is_list_arg {
         var tinfo = new TypeInfo(TI_LISTARG)
         tinfo._orig_typeexpr = type_expr.copy()
+        tinfo.sub_types = []
+        var sub_type_info = none
+        if type_expr.arg_type != none {
+            sub_type_info = create_typeinfo_from_typeexpr(
+                type_expr.arg_type,
+                is_moose64=is_moose64,
+                debug=debug,
+            )
+        }
+        tinfo.sub_types.add(sub_type_info)
         return tinfo
     } else {
         if debug {
