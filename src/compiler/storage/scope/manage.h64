@@ -1477,6 +1477,57 @@ func visit_to_resolve_known_attrs(
                 start_at_root.as_str())
     }
     func try_resolve_item(node, parents) {
+        if node.kind == ast.N_STMT_VAR and
+                node.has_type_expr {
+            var type_expr = node.subexprs[node.subexprs.len]
+            type_expr.try_resolve_to_user_type(
+                pfile, is_moose64=is_moose64,
+            ) later:
+
+            return later node
+        }
+        if (node.kind == ast.N_STMT_FUNC and
+                (node.has_arg_types or
+                node.has_return_type)) or
+                (node.kind == ast.N_STMT_FUNCEXTEND and
+                 node.has_arg_types) {
+            var expr_list = []
+            if node.kind == ast.N_STMT_FUNC and
+                    node.extended_final_has_return_type() {
+                var texpr = node.extended_final_return_type_expr()
+                if texpr != none {
+                    expr_list.add(
+                        texpr
+                    )
+                }
+            }
+            if node.extended_final_has_arg_types() {
+                var texprs = node.extended_final_arg_type_exprs()
+                expr_list += texprs
+            }
+            func resolve_texpr(texpr) {
+                texpr.try_resolve_to_user_type(
+                    pfile, is_moose64=is_moose64,
+                ) later:
+
+                return later node
+            }
+            if expr_list.len == 0 {
+                return later node
+            }
+            var item = expr_list.pop()
+            var result = resolve_texpr(item)
+            later:
+
+            await result
+            if expr_list.len == 0 {
+                return later node
+            }
+            item = expr_list.pop()
+            result = resolve_texpr(item)
+            later repeat
+        }
+
         if node.kind != ast.N_EXPR_IDREF {
             return later node
         }

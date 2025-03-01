@@ -613,6 +613,21 @@ func create_typeinfo_from_typeexpr_and_verify(
             "Called on type_expr=" + type_expr.as_str() + " "
             "to make typeinfo. is_moose64=" + is_moose64.as_str())
     }
+
+    var result = type_expr.try_resolve_to_user_type(
+        project_file, is_moose64=is_moose64,
+    ) later:
+
+    await result
+    if result.had_error {
+        if debug {
+            print(if is_moose64 ("moosec") else ("horsec") + ": "
+                "debug: create_typeinfo_from_typeexpr_and_verify(): "
+                "Had user type resolution error.")
+        }
+        return later none
+    }
+
     var tinfo = create_typeinfo_from_typeexpr(
         type_expr, is_moose64=is_moose64, debug=debug)
     if tinfo == none {
@@ -631,19 +646,6 @@ func create_typeinfo_from_typeexpr_and_verify(
             "got this: tinfo=" + tinfo.as_str())
     }
 
-    var result = type_expr.try_resolve_to_user_type(
-        project_file, is_moose64=is_moose64,
-    ) later:
-
-    await result
-    if result.had_error {
-        if debug {
-            print(if is_moose64 ("moosec") else ("horsec") + ": "
-                "debug: create_typeinfo_from_typeexpr_and_verify(): "
-                "Had user type resolution error.")
-        }
-        return later none
-    }
     if store_self_value_ref_for_funcs {
         if self_node_if_known == none and
                 self_ref_if_known == none and

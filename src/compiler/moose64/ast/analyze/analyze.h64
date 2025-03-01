@@ -314,7 +314,8 @@ func get_c_or_m64_type_of_sym_info(
             node_with_reference, node_with_reference_parents
         )
         if debug {
-            print(dbg_prefix + " Tried to get var_node=" +
+            print(dbg_prefix + " Tried to get var node. "
+                "var_node=" +
                 var_node.as_str())
         }
         if var_node != none or var_node.kind != ast.N_STMT_VAR {
@@ -322,6 +323,11 @@ func get_c_or_m64_type_of_sym_info(
                 return later none
             }
             typeref_expr = var_node.subexprs[var_node.subexprs.len]
+            if debug {
+                print(dbg_prefix + " Got var node type. "
+                    "typeref_expr=" +
+                    typeref_expr.as_str())
+            }
         }
     } elseif target_ref == none and
             node_with_reference != none and
