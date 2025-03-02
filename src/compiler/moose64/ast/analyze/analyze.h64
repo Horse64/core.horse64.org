@@ -1597,7 +1597,9 @@ func _get_c_or_m64_type_of_node_do(
                     )
             }
             return later size_result
-        } elseif node.subexprs[1].ref != none and
+        } elseif node.subexprs.len >= 2 and
+                node.subexprs[1].kind == ast.N_EXPR_IDREF and
+                node.subexprs[1].ref != none and
                 node.subexprs[1].ref.kind == st_ref.ST_MCREF and
                 (m64_builtins.
                     is_ast_node_referring_to_m64_list_arg_forward(
