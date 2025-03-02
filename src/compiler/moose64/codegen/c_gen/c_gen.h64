@@ -594,7 +594,7 @@ func CExportTracker.create_null_size_struct_name(
         msgs=msgs, build_options=build_options,
     )
     pfile_info.null_size_structs_name_map[
-        old_struct_typeinfo
+        struct_typeinfo.copy()
     ] = new_name
     return new_name
 }
@@ -1989,15 +1989,17 @@ func node_to_c_string(project_file, node, parents,
                         include_explicit_refs=yes) > 0 {
                     t += " NULL"
                 } elseif return_tinfo.kind == typeinfo.TI_USERTYPE {
-                    t += " " + create_null_size_struct_name(
-                        return_tinfo,
-                        add_to_top_callback=
-                            add_to_top_callback,
-                        project_file=project_file,
-                        global_name_assign_callback=
-                            get_global_symbol_c_name,
-                        build_options=build_options,
-                        msgs=msgs, is_moose64=is_moose64)
+                    t += " " + c_export_tracker.
+                        create_null_size_struct_name(
+                            return_tinfo,
+                            add_to_top_callback=
+                                add_to_top_callback,
+                            project_file=project_file,
+                            global_name_assign_callback=
+                                get_global_symbol_c_name,
+                            build_options=build_options,
+                            msgs=msgs, is_moose64=is_moose64
+                        )
                 } elseif return_tinfo.is_plain_num_type() or
                         return_tinfo.is_regular_bool_type() {
                     t += " 0"
