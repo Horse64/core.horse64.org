@@ -299,7 +299,7 @@ enum LiteralKind {
 
 type LiteralExpr base ast.TreeNode {
     var value
-    var literal_kind
+    var literal_kind = LK_NORMAL
 }
 
 func LiteralExpr.init {
@@ -332,6 +332,7 @@ func LiteralExpr.as_json_obj {
         output["literal-kind"] = "LK_CHARCODE"
         return point
     }
+    assert(self.literal_kind == LK_NORMAL)
     output["literal-kind"] = "LK_NORMAL"
     if typename(self.value) == "bytes" {
         output["value-base64"] = base64.dump(self.value)

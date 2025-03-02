@@ -2131,7 +2131,8 @@ func node_to_c_string(project_file, node, parents,
                 print(program_name + ": error: Internal error, "
                     "failed to get type info in moose64 C code gen "
                     "for this identifier: node=" +
-                    node.subexprs[2].as_str())
+                    node.subexprs[2].as_str() + " " +
+                    "project_file=" + project_file.as_str())
                 throw new RuntimeError("Unexpectedly failed "
                     "to get usable var def type info.")
             }
@@ -3456,7 +3457,8 @@ func node_to_c_string(project_file, node, parents,
                     print(program_name + ": error: Internal error, "
                         "failed to get type info in moose64 C code "
                         "gen for this var init expression: "
-                        "expr=" + assigned_expr.as_str())
+                        "expr=" + assigned_expr.as_str() + " "
+                        "project_file=" + project_file.as_str())
                     throw new RuntimeError("Unexpectedly failed "
                         "to get usable var init type info.")
                 }
