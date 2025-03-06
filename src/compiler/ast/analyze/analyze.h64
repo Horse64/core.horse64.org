@@ -373,13 +373,23 @@ func get_func_info_and_get_true_func_node(
 func find_func_overrides_by_st_ref(
         storage_ref, project,
         error_when_finding_invalid_storage=yes,
-        msgs=none,
+        msgs=none, debug=no,
         is_moose64=no) {
+    var program_name =
+        if is_moose64 ("moosec") else ("horsec")
     var gnode = none
     var gscope = none
     var func_name = none
     var anscope = none
     var is_func_attr = no
+
+    if debug {
+        print(program_name + ": debug: "
+            "find_func_overrides_by_st_ref(): "
+            "Will look up overrides. " +
+            "storage_ref=" + storage_ref.as_str())
+    }
+
     if storage_ref.kind == st_ref.ST_GLOBAL {
         gnode = st_scope.global_id_to_item(
             project, storage_ref.id)
@@ -479,6 +489,15 @@ func find_func_overrides_by_st_ref(
         }
     }
 
+    if debug {
+        print(program_name + ": debug: "
+            "find_func_overrides_by_st_ref(): "
+            "We managed to find the func node. " +
+            "gnode=" + gnode.as_str() + " "+
+            "anscope=" + anscope.as_str() + " "
+            "gscope=" + gscope.as_str())
+    }
+
     # A list of info we want to have:
     var is_in_itself_override = gnode.is_override
     var override_base_name = none
@@ -493,26 +512,26 @@ func find_func_overrides_by_st_ref(
                     st_scope.SINFO_FUNC}.has(sym.kind) {
                 continue
             }
-            var gnode = anscope.get_funcattr_node(
+            var other_gnode = anscope.get_funcattr_node(
                 sym.storage_id
             )
-            if gnode.is_override {
+            if other_gnode.is_override {
                 continue
             }
-            all_nonoverridden_names.add(gnode.label)
+            all_nonoverridden_names.add(other_gnode.label)
         }
     } else {
         assert(gscope != none)
         for alt_func_name in gscope.name_to_stmt_map {
-            var gnode = gscope.name_to_stmt_map[
+            var other_gnode = gscope.name_to_stmt_map[
                 alt_func_name
             ]
-            if typename(gnode) == "list" or
-                    gnode.kind != ast.N_STMT_FUNC or
-                    gnode.is_override {
+            if typename(other_gnode) == "list" or
+                    other_gnode.kind != ast.N_STMT_FUNC or
+                    other_gnode.is_override {
                 continue
             }
-            all_nonoverridden_names.add(gnode.label)
+            all_nonoverridden_names.add(other_gnode.label)
         }
     }
     if is_in_itself_override {
@@ -526,8 +545,27 @@ func find_func_overrides_by_st_ref(
             }
         }
         override_base_name = best_candidate_name
+        if override_base_name == none {
+            throw new RuntimeError("Internal error, "
+                "failed to determine base name for "
+                "overridden func.")
+        }
     } else {
         override_base_name = gnode.label
+    }
+    if debug {
+        print(program_name + ": debug: "
+            "find_func_overrides_by_st_ref(): "
+            "We got all the extra info. "
+            "override_base_name=" +
+                textfmt.as_escaped_code_string(
+                    override_base_name) + " "
+            "gnode.label=" + gnode.label.as_str() + " "
+            "is_func_attr=" + is_func_attr.as_str() + " "
+            "is_in_itself_override=" +
+                is_in_itself_override.as_str() + " "
+            "all_nonoverridden_names=" +
+                all_nonoverridden_names.as_str())
     }
 
     # Now collect the actual overrides:
@@ -679,6 +717,7 @@ func get_called_or_assigned_func_types(
     var prog_name = if is_moose64 ("moosec") else ("horsec")
     var dbg_prefix = if is_moose64 ("moosec: debug:")
         else ("horsec: debug:")
+
     if debug {
         var t = (dbg_prefix + " get_called_or_assigned_func_types(): "
             "Launched on called_node=" + called_node.as_str())
@@ -797,7 +836,8 @@ func get_called_or_assigned_func_types(
                 cft_result.func_ref,
                 project_file.project,
                 msgs=msgs,
-                is_moose64=is_moose64
+                is_moose64=is_moose64,
+                debug=debug,
             )
         if override_info_list.len > 1 {
             # Determine if currently, the node is already
@@ -977,10 +1017,16 @@ func get_called_or_assigned_func_types(
     later:
 
     if debug {
-        print(dbg_prefix +
-            " get_called_or_assigned_func_types(): "
-            "Got type of node result func_typeinfo=" +
-            func_typeinfo.as_str())
+        print(dbg_prefix + " "
+            "get_called_or_assigned_func_types(): "
+            "Got a node type result. func_typeinfo=" +
+            func_typeinfo.as_str() + " "
+            "func_typeinfo.func_typeexpr.name=" +
+                if func_typeinfo != none and
+                func_typeinfo.kind == typeinfo.TI_FUNCREF and
+                func_typeinfo.func_typeexpr != none
+                    (func_typeinfo.func_typeexpr.name.as_str())
+                    else ("none"))
     }
     if func_typeinfo == none {
         if is_external and
@@ -1567,8 +1613,8 @@ func get_called_or_assigned_func_types(
                     arg_actual_type, signature_typeinfo,
                 )
             if debug {
-                print(dbg_prefix +
-                    " get_called_or_assigned_func_types(): "
+                print(dbg_prefix + " "
+                    "get_called_or_assigned_func_types(): "
                     "Testing arg #" + idx.as_str() + " ("
                     "user-facing #" +
                     user_facing_idx.as_str() + ") which " +
@@ -1642,8 +1688,8 @@ func get_called_or_assigned_func_types(
         var storage_ref = entry[2]
         var name = entry[3].label
         if debug {
-            print(dbg_prefix +
-                " get_called_or_assigned_func_types(): "
+            print(dbg_prefix + " "
+                "get_called_or_assigned_func_types(): "
                 "Will now test entry=" + entry.as_str() + " "
                 "as an override...")
         }
@@ -1667,8 +1713,8 @@ func get_called_or_assigned_func_types(
             inner_result = none
         }
         if debug {
-            print(dbg_prefix +
-                " get_called_or_assigned_func_types(): "
+            print(dbg_prefix + " "
+                "get_called_or_assigned_func_types(): "
                 "Override test returned result=" +
                 inner_result.as_str() + " (" +
                 "success: " +
@@ -1692,8 +1738,8 @@ func get_called_or_assigned_func_types(
             return later
         }
         if debug {
-            print(dbg_prefix +
-                " get_called_or_assigned_func_types(): "
+            print(dbg_prefix + " "
+                "get_called_or_assigned_func_types(): "
                 "The signature doesn't match and overrides are "
                 "allowed. Let's go looking for one. "
                 "func_var_typeinfo=" +
@@ -1708,9 +1754,22 @@ func get_called_or_assigned_func_types(
                 func_var_typeinfo.user_type_ref,
                 project_file.project,
                 msgs=msgs,
-                is_moose64=is_moose64
+                is_moose64=is_moose64,
+                debug=debug,
             )
+        if debug {
+            print(dbg_prefix + " "
+                "get_called_or_assigned_func_types(): "
+                "We got the override list to look at. "
+                "override_info_list=" +
+                    override_info_list.as_str())
+        }
         if override_info_list.len <= 1 {
+            if debug {
+                print(dbg_prefix + " "
+                    "get_called_or_assigned_func_types(): "
+                    "There are no overrides, so we bail.")
+            }
             return
         }
         for entry in override_info_list {

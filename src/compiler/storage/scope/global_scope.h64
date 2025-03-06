@@ -170,8 +170,9 @@ func project.Project.finalize_func_typerefs_all_files(
                 var si = value.symbol_info
                 si.typeref_expr =
                     ast_typeref.create_typeref_from_func_node(
-                        pfile, value
+                        pfile, value, debug=no
                     )
+                assert(lbl == none or si.typeref_expr.name != none)
                 assert(si.typeref_expr == none or
                     si.typeref_expr.is_func_ref)
                 if is_moose64 and si.typeref_expr == none {
