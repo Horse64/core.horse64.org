@@ -2935,6 +2935,18 @@ func node_to_c_string(project_file, node, parents,
                         get_math_binop_autocast(
                             left_hand_typeinfo,
                             right_hand_typeinfo,
+                            left_side_is_literal_none=
+                                entry[1] != none and
+                                entry[1].kind == ast.N_EXPR_LIT and
+                                entry[1].literal_kind ==
+                                    ast_expr.LK_NORMAL and
+                                entry[1].value == none,
+                            right_side_is_literal_none=
+                                entry[2] != none and
+                                entry[2].kind == ast.N_EXPR_LIT and
+                                entry[2].literal_kind ==
+                                    ast_expr.LK_NORMAL and
+                                entry[2].value == none,
                             is_cmp_op=no,
                             is_moose64=is_moose64,
                         )
@@ -2974,6 +2986,18 @@ func node_to_c_string(project_file, node, parents,
                     check_if_allowed_implicit_cast_from_to(
                         right_hand_typeinfo,
                         left_hand_typeinfo,
+                        left_side_is_literal_none=
+                            entry[1] != none and
+                            entry[1].kind == ast.N_EXPR_LIT and
+                            entry[1].literal_kind ==
+                                ast_expr.LK_NORMAL and
+                            entry[1].value == none,
+                        right_side_is_literal_none=
+                            entry[2] != none and
+                            entry[2].kind == ast.N_EXPR_LIT and
+                            entry[2].literal_kind ==
+                                ast_expr.LK_NORMAL and
+                            entry[2].value == none,
                         is_moose64=is_moose64,
                     )
                 if allowed {

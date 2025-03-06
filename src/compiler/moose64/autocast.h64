@@ -78,7 +78,10 @@ func get_mods_that_arent_regular_for_nums(tinfo,
 }
 
 func check_if_allowed_implicit_cast_from_to(
-        from_typeinfo, to_typeinfo, is_moose64=no,
+        from_typeinfo, to_typeinfo,
+        left_side_is_literal_none=no,
+        right_side_is_literal_none=no,
+        is_moose64=no,
         debug=no
         ) {
     if debug {
@@ -90,6 +93,22 @@ func check_if_allowed_implicit_cast_from_to(
     var right_hand_source_typeinfo = from_typeinfo
     var left_hand_target_typeinfo = to_typeinfo
     if from_typeinfo.is_equivalent(to_typeinfo) {
+        return yes
+    }
+
+    if (left_hand_target_typeinfo.ref_count(
+                include_c_arrays=no,
+                include_arrays=no,
+                include_implicit_refs=yes,
+                include_explicit_refs=no) > 0 or
+            left_hand_target_typeinfo.ref_count(
+                include_c_arrays=no,
+                include_arrays=yes,
+                include_implicit_refs=no,
+                include_explicit_refs=no) > 0) and
+            right_side_is_literal_none {
+        # Special case: assigning 'none' to implicit ref or
+        # to an array.
         return yes
     }
 
