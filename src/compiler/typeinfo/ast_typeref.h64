@@ -285,6 +285,35 @@ func TypeRefFuncExpr.init {
     self.type_path = none
 }
 
+func TypeRefFuncExpr.as_json_obj {
+    var output = base.as_json_obj()
+    if output.has("storage_ref") {
+        output.del("storage_ref")
+    }
+    output["arg_typeref_exprs"] = []
+    for arg_typeref in self.arg_typeref_exprs {
+        output["arg_typeref_exprs"].add(
+            arg_typeref.as_json_obj())
+    }
+    output["return_typeref_expr"] = none
+    if self.return_typeref_expr != none {
+        output["return_typeref_expr"] =
+            self.return_typeref_expr.copy()
+    }
+    output["func_storage_ref"] = none
+    if self.func_storage_ref != none {
+        output["func_storage_ref"] =
+            self.func_storage_ref.as_str()
+    }
+    output["is_failable"] =
+        self.is_failable.as_str()
+    output["is_autoprop_func"] =
+        self.is_autoprop_func.as_str()
+    output["is_func_attr"] =
+        self.is_func_attr.as_str()
+    return output
+}
+
 func TypeRefExpr.is_equivalent(
         other_type_expr, is_moose64=no
         ) {
@@ -818,6 +847,41 @@ func TypeRefExpr.init {
     self.kind = ast.N_EXPR_TYPEREF
 }
 
+func TypeRefExpr.as_json_obj {
+    var output = base.as_json_obj()
+    if self.is_func_ref {
+        output["is_func_ref"] = yes
+    } elseif self.is_multi_type {
+        output["is_multi_type"] = yes
+    } elseif self.is_list_arg {
+        output["is_list_arg"] = yes
+    } else {
+        output["storage_ref"] = none
+        if self.storage_ref != none {
+            output["storage_ref"] = self.storage_ref.as_str()
+        }
+    }
+    output["modifiers"] = []
+    for mod in self.modifiers {
+        output["modifiers"].add(mod.as_str())
+    }
+    output["name"] = self.name
+    output["type_path"] = none
+    if self.type_path != none {
+        output["type_path"] = self.type_path.copy()
+    }
+    if self.has_init_expr {
+        output["has_init_expr"] = yes
+    }
+    if self.is_special_madeup_builtin {
+        output["is_special_madeup_builtin"] = yes
+    }
+    if self.is_autoprop_func_result {
+        output["is_autoprop_func_result"] = yes
+    }
+    return output
+}
+
 type MultiTypeRefExpr base TypeRefExpr {
     var sub_type_refs = []
 }
@@ -826,6 +890,19 @@ func MultiTypeRefExpr.init {
     base.init()
     self.is_multi_type = yes
     self.name = "multi"
+}
+
+func MultiTypeRefExpr.as_json_obj {
+    var output = base.as_json_obj
+    if output.has("name") {
+        output.del("name")
+    }
+    output["sub_type_refs"] = []
+    for sub_type in self.sub_type_refs {
+        output["sub_type_refs"].add(
+            sub_type.as_json_obj())
+    }
+    return output
 }
 
 func MultiTypeRefExpr.is_equivalent(
