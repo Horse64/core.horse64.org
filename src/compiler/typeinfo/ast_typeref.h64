@@ -1704,6 +1704,7 @@ func resolve_st_ref_to_type_ref_and_expr(
         project_file, value_ref,
         node=none, node_parents=none,
         apply_func_override_for_args_node=none,
+        apply_func_override_for_func_type_expr=none,
         ignore_if_ref_none=no,
         msgs=none, is_moose64=no,
         debug=no,
@@ -1745,7 +1746,8 @@ func resolve_st_ref_to_type_ref_and_expr(
 
     var override_resolution_result = none
     func try_resolve_override_if_needed {
-        if apply_func_override_for_args_node == none {
+        if apply_func_override_for_args_node == none and
+                apply_func_override_for_func_type_expr == none {
             return later none
         }
         # In this case, delegate to get_called_or_assigned_func_types()
@@ -1754,6 +1756,10 @@ func resolve_st_ref_to_type_ref_and_expr(
             get_called_or_assigned_func_types(
                 project_file, node,
                 node_parents,
+                allow_noncall_ref=(
+                    apply_func_override_for_func_type_expr != none and
+                    apply_func_override_for_args_node == none
+                ),
                 allow_matching_func_override=(
                     node.kind ==
                         ast.N_EXPR_IDREF or
@@ -1761,6 +1767,8 @@ func resolve_st_ref_to_type_ref_and_expr(
                     node.optoken.str == "." and
                     node.subexprs[2].kind == ast.N_EXPR_IDREF)
                 ),
+                try_to_match_func_type=
+                    apply_func_override_for_func_type_expr,
                 msgs=msgs,
                 is_moose64=is_moose64,
                 debug=debug,

@@ -864,7 +864,7 @@ func transform_func_overrides_and_check_func_arg_sig_match(
         var detected_called_func_ref = none
         var detected_called_func_name = none
         var detected_called_func_type_name = none
-        var detected_called_func_module_import_name = none
+        var detected_called_func_mod_import_name = none
         var could_be_override = no
         func resolve_func_type_expr_if_needed {
             if not is_moose64 {
@@ -883,6 +883,8 @@ func transform_func_overrides_and_check_func_arg_sig_match(
                     node_parents=called_node_parents,
                     apply_func_override_for_args_node=
                         called_args_node,
+                    apply_func_override_for_func_type_expr=
+                        desired_override_func_type_expr,
                     msgs=msgs,
                     is_moose64=is_moose64,
                     debug=debug,
@@ -935,10 +937,10 @@ func transform_func_overrides_and_check_func_arg_sig_match(
                 }
                 if import_stmt != none {
                     if import_stmt.renamed_as != none {
-                        detected_called_func_module_import_name =
+                        detected_called_func_mod_import_name =
                             import_stmt.renamed_as
                     } elseif import_stmt.kind == ast.N_STMT_IMPORT {
-                        detected_called_func_module_import_name =
+                        detected_called_func_mod_import_name =
                             import_stmt.module_path.join(".")
                     }
                 }
@@ -959,17 +961,24 @@ func transform_func_overrides_and_check_func_arg_sig_match(
                         func_type_expr_result.storage_ref.copy()
                     name_access.label = detected_called_func_name
                 } else {
-                    var new_idref = new ast_expr.IdRefExpr()
-                    node.subexprs[1] = new_idref
+                    var new_idref = none
+                    if is_call_situation {
+                        new_idref = new ast_expr.IdRefExpr()
+                        node.subexprs[1] = new_idref
+                    } else {
+                        new_idref = called_node
+                    }
                     new_idref.scope = node.scope
                     new_idref.line = node.line
                     new_idref.col = node.col
-                    new_idref.ref = func_type_expr_result.storage_ref.copy()
+                    new_idref.ref =
+                        func_type_expr_result.storage_ref.copy()
                     new_idref.label = detected_called_func_name
-                    if detected_called_func_module_import_name != none and
-                            detected_called_func_module_import_name != "" {
+                    new_idref.type_path = none
+                    if detected_called_func_mod_import_name != none and
+                            detected_called_func_mod_import_name != "" {
                         new_idref.type_path =
-                            detected_called_func_module_import_name.split(".")
+                            detected_called_func_mod_import_name.split(".")
                     }
                     if detected_called_func_type_name != none {
                         if new_idref.type_path == none {
@@ -991,8 +1000,8 @@ func transform_func_overrides_and_check_func_arg_sig_match(
                         func_type_expr_result.as_str() + " "
                     "called_node=" + called_node.as_str() + " "
                     "called_ref=" + called_ref.as_str() + " "
-                    "detected_called_func_module_import_name=" +
-                        detected_called_func_module_import_name.as_str() + " "
+                    "detected_called_func_mod_import_name=" +
+                        detected_called_func_mod_import_name.as_str() + " "
                     "detected_called_func_type_name=" +
                         detected_called_func_type_name.as_str() + " "
                     "detected_called_func_name=" +
@@ -1006,7 +1015,6 @@ func transform_func_overrides_and_check_func_arg_sig_match(
         # Handling of assigns of non-func items:
         if not is_call_situation and
                 func_type_expr == none {
-            # No func overriding possibly relevant here.
             return later node
         }
                 

@@ -3523,6 +3523,16 @@ func node_to_c_string(project_file, node, parents,
                 } else {
                     if not node.damaged {
                         node.damaged = yes
+                        assigned_typeinfo = m64_ast_analyze.
+                        get_c_or_m64_type_of_node(
+                            project_file, assigned_expr,
+                            parents + [node],
+                            store_self_value_ref_for_funcs=no,
+                            msgs=msgs,
+                            debug=yes,
+                        ) later:
+
+                        await assigned_typeinfo
                         msgs.add(new msg.FileMsg(
                             "Unexpected initial value of "
                             "type " +

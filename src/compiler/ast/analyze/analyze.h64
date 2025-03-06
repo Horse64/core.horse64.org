@@ -455,6 +455,8 @@ func find_func_overrides_by_st_ref(
             if gnode != none and
                     gnode.kind == ast.N_STMT_FUNC {
                 func_name = gnode.label
+            } else {
+                gnode = none
             }
         }
     } else {
@@ -477,10 +479,14 @@ func find_func_overrides_by_st_ref(
         }
     }
 
-    var result = []
+    # A list of info we want to have:
+    var is_in_itself_override = gnode.is_override
+    var override_base_name = none
+    var all_nonoverridden_names = {}
+
+    # Collect various info:
     if is_func_attr {
         assert(anscope != none)
-        var all_nonoverridden_names = {}
         for alt_func_name in anscope.name_to_symbol_map {
             var sym = anscope.name_to_symbol_map[alt_func_name]
             if not {st_scope.SINFO_FUNCATTR,
@@ -495,45 +501,8 @@ func find_func_overrides_by_st_ref(
             }
             all_nonoverridden_names.add(gnode.label)
         }
-        for alt_func_name in anscope.name_to_symbol_map {
-            if not alt_func_name.starts(
-                    func_name + "_") {
-                continue
-            }
-            var sym = anscope.name_to_symbol_map[alt_func_name]
-            if not {st_scope.SINFO_FUNCATTR,
-                    st_scope.SINFO_FUNC}.has(sym.kind) {
-                continue
-            }
-            var gnode = anscope.get_funcattr_node(
-                sym.storage_id
-            )
-            if not gnode.is_override {
-                continue
-            }
-            var overridden_name = none
-            for name in all_nonoverridden_names {
-                if alt_func_name.starts(name + "_") and
-                        (overridden_name == none or
-                        overridden_name.len < name.len) {
-                    overridden_name = name
-                }
-            }
-            if overridden_name != func_name {
-                continue
-            }
-            result.add([
-                sym.typeref_expr.copy(),
-                new st_ref.StorageRef(
-                    st_ref.ST_GLOBALATTR, [
-                        anscope.storage_id, sym.storage_id
-                    ]
-                ), gnode
-            ])
-        }
     } else {
         assert(gscope != none)
-        var all_nonoverridden_names = {}
         for alt_func_name in gscope.name_to_stmt_map {
             var gnode = gscope.name_to_stmt_map[
                 alt_func_name
@@ -545,10 +514,77 @@ func find_func_overrides_by_st_ref(
             }
             all_nonoverridden_names.add(gnode.label)
         }
-        for alt_func_name in gscope.name_to_stmt_map {
+    }
+    if is_in_itself_override {
+        # We must find the proper override base name first.
+        var best_candidate_name = none
+        for base_name in all_nonoverridden_names {
+            if gnode.label.starts(base_name + "_") and
+                    (best_candidate_name == none or
+                    base_name.len > best_candidate_name) {
+                best_candidate_name = base_name
+            }
+        }
+        override_base_name = best_candidate_name
+    } else {
+        override_base_name = gnode.label
+    }
+
+    # Now collect the actual overrides:
+    var result = []
+    if is_func_attr {
+        for alt_func_name in anscope.name_to_symbol_map {
+            var expected_override_state = yes
             if not alt_func_name.starts(
-                    func_name + "_") {
+                    override_base_name + "_") {
+                if alt_func_name != override_base_name {
+                    continue
+                }
+                expected_override_state = no
+            }
+            var sym = anscope.name_to_symbol_map[alt_func_name]
+            if not {st_scope.SINFO_FUNCATTR,
+                    st_scope.SINFO_FUNC}.has(sym.kind) {
                 continue
+            }
+            var gnode = anscope.get_funcattr_node(
+                sym.storage_id
+            )
+            if gnode.kind != ast.N_STMT_FUNC or
+                    gnode.is_override != expected_override_state {
+                continue
+            }
+            if gnode.is_override {
+                var overridden_name = none
+                for name in all_nonoverridden_names {
+                    if alt_func_name.starts(name + "_") and
+                            (overridden_name == none or
+                            overridden_name.len < name.len) {
+                        overridden_name = name
+                    }
+                }
+                if overridden_name != override_base_name {
+                    continue
+                }
+            }
+            result.add([
+                sym.typeref_expr.copy(),
+                new st_ref.StorageRef(
+                    st_ref.ST_GLOBALATTR, [
+                        anscope.storage_id, sym.storage_id
+                    ]
+                ), gnode
+            ])
+        }
+    } else {
+        for alt_func_name in gscope.name_to_stmt_map {
+            var expected_override_state = yes
+            if not alt_func_name.starts(
+                    override_base_name + "_") {
+                if alt_func_name != override_base_name {
+                    continue
+                }
+                expected_override_state = no
             }
             var gnode = gscope.name_to_stmt_map[
                 alt_func_name]
@@ -556,19 +592,28 @@ func find_func_overrides_by_st_ref(
                     gnode.kind != ast.N_STMT_FUNC {
                 continue
             }
-            if not gnode.is_override {
+
+            var gnode = gscope.name_to_stmt_map[
+                alt_func_name]
+            if typename(gnode) == "list" or
+                    gnode.kind != ast.N_STMT_FUNC {
                 continue
             }
-            var overridden_name = none
-            for name in all_nonoverridden_names {
-                if alt_func_name.starts(name + "_") and
-                        (overridden_name == none or
-                        overridden_name.len < name.len) {
-                    overridden_name = name
+            if gnode.is_override != expected_override_state {
+                continue
+            }
+            if gnode.is_override {
+                var overridden_name = none
+                for name in all_nonoverridden_names {
+                    if alt_func_name.starts(name + "_") and
+                            (overridden_name == none or
+                            overridden_name.len < name.len) {
+                        overridden_name = name
+                    }
                 }
-            }
-            if overridden_name != func_name {
-                continue
+                if overridden_name != override_base_name {
+                    continue
+                }
             }
             result.add([
                 gnode.symbol_info.typeref_expr.copy(),
@@ -595,8 +640,8 @@ type CalledFuncTypesResult {
     var is_external = no
     var arg_var_type_exprs = []
     var arg_var_typeinfos = []
-    var self_var_type_expr = no
-    var self_var_typeinfo = no
+    var self_var_type_expr = none
+    var self_var_typeinfo = none
     var have_args_mismatch = no
 }
 
@@ -628,6 +673,7 @@ func get_called_or_assigned_func_types(
         _internal_override_called_func_name=none,
         _internal_override_called_func_st_ref=none,
         _internal_override_called_func_typerefexpr=none,
+        try_to_match_func_type=none,
         msgs=none, is_moose64=no, debug=no
         ) {
     var prog_name = if is_moose64 ("moosec") else ("horsec")
@@ -649,16 +695,180 @@ func get_called_or_assigned_func_types(
         }
         print(t)
     }
-    if allow_noncall_ref {
-        throw new RuntimeError("Option allow_noncall_ref=yes "
-            "isn't implemented yet.")
+    assert(typename(called_node_parents) == "list")
+    var called_node_parent = if called_node_parents.len > 0
+        (called_node_parents[called_node_parents.len]) else (none)
+
+    if allow_noncall_ref and
+            (called_node_parent == none or
+            called_node_parent.kind != ast.N_EXPR_BINOP or
+            called_node_parent.optoken.str != '(' or
+            called_node_parent.subexprs[2].kind !=
+                ast.N_EXPR_CALLARGS or
+            called_node_parent.subexprs[1] != called_node) {
+        # Okay, we need to simply directly look up what func
+        # this node refers to, and then if needed see about
+        # overrides.
+        if debug {
+            print(dbg_prefix + " "
+                "get_called_or_assigned_func_types(): "
+                "Examining a non-call node. " +
+                "node=" + called_node.as_str())
+        }
+
+        var func_ref = none
+        if called_node.kind == ast.N_EXPR_IDREF {
+            func_ref = called_node.ref
+        } elseif called_node.kind == ast.N_EXPR_BINOP and
+                called_node.optoken.str == "." and
+                called_node.subexprs.len >= 2 and
+                called_node.subexprs[2].kind == ast.N_EXPR_IDREF {
+            func_ref = called_node.subexprs[2].ref
+        }
+        if func_ref == none {
+            if debug {
+                print(dbg_prefix + " "
+                    "get_called_or_assigned_func_types(): "
+                    "Couldn't extract a usable func ref.")
+            }
+            return later none
+        }
+        if debug {
+            print(dbg_prefix + " "
+                "get_called_or_assigned_func_types(): "
+                "Will now resolve the func ref. "
+                "func_ref=" + func_ref.as_str())
+        }
+        var result = ast_typeref.
+            resolve_st_ref_to_type_ref_and_expr(
+                project_file, func_ref,
+                node=called_node,
+                node_parents=called_node_parents,
+                apply_func_override_for_args_node=none,
+                apply_func_override_for_func_type_expr=none,
+                ignore_if_ref_none=no,
+                msgs=msgs, is_moose64=is_moose64,
+            ) later:
+
+        await result
+        if result.storage_ref == none or
+                result.type_expr == none or
+                not result.type_expr.is_func_ref {
+            if debug {
+                print(dbg_prefix + " "
+                    "get_called_or_assigned_func_types(): "
+                    "Couldn't resolve the node, or it didn't "
+                    "point to a function.")
+            }
+            return later none
+        }
+
+        # Collect preliminary result:
+        var cft_result = new CalledFuncTypesResult()
+        cft_result.called_func_is_attr =
+            result.type_expr.is_func_attr
+        cft_result.func_var_type_expr =
+            result.type_expr.copy()
+        cft_result.func_var_typeinfo = none
+        cft_result.func_var_name = none
+        if called_node.kind == ast.N_EXPR_IDREF {
+            cft_result.func_var_name = called_node.label
+        } elseif called_node.kind == ast.N_EXPR_BINOP and
+                called_node.optoken.str == "." and
+                called_node.subexprs.len >= 2 and
+                called_node.subexprs[2].kind == ast.N_EXPR_IDREF {
+            cft_result.func_var_name = called_node.subexprs[2].label
+        }
+        cft_result.func_var_preoverridden_name =
+            cft_result.func_var_name
+        cft_result.func_was_overridden = no
+        cft_result.func_ref = result.storage_ref.copy()
+        cft_result.is_external =
+            {st_ref.ST_CEXT, st_ref.ST_MCREF}.has(
+                cft_result.func_ref.kind)
+        cft_result.arg_var_type_exprs = none
+        cft_result.arg_var_typeinfos = none
+        cft_result.self_var_type_expr = none
+        cft_result.self_var_typeinfo = none
+        cft_result.have_args_mismatch = no
+
+        var override_info_list =
+            find_func_overrides_by_st_ref(
+                cft_result.func_ref,
+                project_file.project,
+                msgs=msgs,
+                is_moose64=is_moose64
+            )
+        if override_info_list.len > 1 {
+            # Determine if currently, the node is already
+            # referring to an override:
+            var base_name
+            for entry in override_info_list {
+                if not entry[3].is_override {
+                    base_name = entry[3].label
+                }
+                if entry[3].label ==
+                        cft_result.func_var_name and
+                        entry[3].is_override {
+                    cft_result.func_was_overridden = yes
+                }
+            }
+            if cft_result.func_was_overridden {
+                assert(base_name != none)
+                cft_result.func_var_preoverridden_name =
+                    base_name
+            }
+        }
+
+        # Now pick better override if needed:
+        if try_to_match_func_type != none and
+                override_info_list.len > 1 and
+                not try_to_match_func_type.is_equivalent(
+                    result.type_expr, is_moose64=is_moose64) {
+            # Try to pick a better alternative in this situation.
+            for entry in override_info_list {
+                var func_type_expr = entry[1].copy()
+                if func_type_expr.is_equivalent(
+                        result.type_expr) {
+                    cft_result.func_was_overridden =
+                        entry[3].is_override
+                    cft_result.func_var_name = entry[3].label
+                    cft_result.func_ref = entry[2].copy()
+                    cft_result.is_external =
+                        {st_ref.ST_CEXT, st_ref.ST_MCREF}.has(
+                            cft_result.func_ref.kind)
+                    break
+                }
+            }
+        }
+
+        # At the end, collect the proper typeinfo too:
+        var tinfo = typeinfo.
+            create_typeinfo_from_typeexpr_and_verify(
+                cft_result.func_var_type_expr,
+                store_self_value_ref_for_funcs=yes,
+                base_node_if_known=called_node,
+                base_node_parents_if_known=called_node_parents,
+                project_file=project_file,
+                is_moose64=is_moose64,
+                debug=no,
+            ) later:
+
+        await tinfo
+        if tinfo == none {
+            if debug {
+                print(dbg_prefix + " "
+                    "get_called_or_assigned_func_types(): "
+                    "The func type seems invalid, bailing.")
+            }
+            return later none
+        }
+        cft_result.func_var_typeinfo = tinfo
+        return cft_result
     }
     if not is_moose64 {
         return later none
     }
-    assert(typename(called_node_parents) == "list")
-    var called_node_parent = if called_node_parents.len > 0
-        (called_node_parents[called_node_parents.len]) else (none)
     if called_node.damaged or called_node_parent.damaged {
         return later none
     }
@@ -1425,6 +1635,7 @@ func get_called_or_assigned_func_types(
         return later none
     }
 
+    var proper_func_base_name = none
     var override_success_result = none
     func try_finding_override(entry) {
         var typeref_expr = entry[1]
@@ -1465,9 +1676,11 @@ func get_called_or_assigned_func_types(
         }
         if inner_result != none {
             signature_mismatch = no
+            assert(proper_func_base_name != none)
             inner_result.func_var_preoverridden_name =
-                called_node_name
-            inner_result.func_was_overridden = yes
+                proper_func_base_name
+            inner_result.func_was_overridden =
+                entry[3].is_override
             override_success_result = inner_result
             return yes
         }
@@ -1497,8 +1710,13 @@ func get_called_or_assigned_func_types(
                 msgs=msgs,
                 is_moose64=is_moose64
             )
-        if override_info_list.len == 0 {
+        if override_info_list.len <= 1 {
             return
+        }
+        for entry in override_info_list {
+            if not entry[3].is_override {
+                proper_func_base_name = entry[3].label
+            }
         }
         var entry = override_info_list.pop()
         var result = try_finding_override(entry)

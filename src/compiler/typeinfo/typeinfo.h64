@@ -1328,8 +1328,10 @@ func add_self_ref_to_func_typeinfo(
         tinfo,
         self_ref_if_known=none,
         self_node_if_known=none,
+        base_symbol_info_if_known=none,
+        base_typeref_expr_if_known=none,
         ) {
-    if not tinfo.is_func_ref {
+    if tinfo.kind != TI_FUNCREF {
         return
     }
     if self_ref_if_known == none and self_node_if_known != none {
@@ -1346,8 +1348,7 @@ func add_self_ref_to_func_typeinfo(
                 self_node_if_known.subexprs[2].ref
         }
     }
-    if store_self_value_ref_for_funcs and
-            ((base_typeref_expr_if_known != none and
+    if ((base_typeref_expr_if_known != none and
                 base_typeref_expr_if_known.is_func_attr) or
                 (base_symbol_info_if_known != none and
                 base_symbol_info_if_known.kind ==
@@ -1487,6 +1488,10 @@ func create_typeinfo_from_global_ref(
                 tinfo,
                 self_ref_if_known=self_ref_if_known,
                 self_node_if_known=self_node_if_known,
+                base_typeref_expr_if_known=
+                    base_typeref_expr_if_known,
+                base_symbol_info_if_known=
+                    base_symbol_info_if_known,
             )
         }
         set_modifiers(tinfo)
