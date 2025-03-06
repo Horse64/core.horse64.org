@@ -699,34 +699,83 @@ func transform_func_overrides_and_check_func_arg_sig_match(
         if node.damaged {
             return node
         }
-        if node.kind != ast.N_EXPR_BINOP or
-                node.optoken.str != "(" or
-                node.subexprs.len < 2 or
-                not {ast.N_EXPR_BINOP, ast.N_EXPR_IDREF}.has(
-                    node.subexprs[1].kind
-                ) or
-                (node.subexprs[1].kind == ast.N_EXPR_BINOP and
-                 (node.subexprs[1].optoken.str != "." or
-                  node.subexprs[1].subexprs.len < 2 or
-                  node.subexprs[1].subexprs[2].kind !=
-                      ast.N_EXPR_IDREF
-                 )) {
-             return later node
+
+        # Figure out what type of func call override this could be:
+        var is_call_situation = no
+        var is_var_init_situation = no
+        var is_assign_situation = no
+        if node.kind == ast.N_EXPR_BINOP and
+                node.optoken.str == "(" {
+            is_call_situation = yes
+            if node.subexprs.len < 2 or
+                    not {ast.N_EXPR_BINOP, ast.N_EXPR_IDREF}.has(
+                        node.subexprs[1].kind
+                    ) or
+                    (node.subexprs[1].kind == ast.N_EXPR_BINOP and
+                    (node.subexprs[1].optoken.str != "." or
+                    node.subexprs[1].subexprs.len < 2 or
+                    node.subexprs[1].subexprs[2].kind !=
+                        ast.N_EXPR_IDREF
+                    )) {
+                return later node
+            }
+        } elseif node.kind == ast.N_EXPR_IDREF or
+                (node.kind == ast.N_EXPR_BINOP and
+                 node.optoken.str == "." and
+                 node.subexprs.len > 2 and
+                 node.subexprs[1].kind == ast.N_EXPR_IDREF) {
+            if parent != none and
+                    parent.kind == ast.N_STMT_VAR {
+                is_var_init_situation = yes
+                var assigned_exprs = parent.subexprs.copy()
+                if parent.has_type_expr {
+                    assigned_exprs = assigned_exprs.sub(
+                        1, assigned_exprs.len - 1
+                    )
+                }
+                if assigned_exprs.len == 0 or
+                        not assigned_exprs.has(node) {
+                    return later node
+                }
+            } elseif parent != none and
+                    parent.kind == ast.N_STMT_ASSIGN {
+                is_assign_situation = yes
+                var pairs_count = parent.subexprs.len / 2
+                var assigned_exprs = []
+                if pairs_count >= 1 {
+                    assigned_exprs =
+                        parent.subexprs.sub(
+                            pairs_count + 1)
+                }
+                if assigned_exprs.len == 0 or
+                        not assigned_exprs.has(node) {
+                    return later node
+                }
+            } else {
+                return later node
+            }
+        } else {
+            return later node
         }
+
+        # We identified a potential override situation.
+        # Gather all the info to examine if this is an override:
         var called_ref = none
         var called_node = none
         var called_node_parents = none
         var called_args_node = none
         var called_lbl_name = none
+        var desired_override_func_type_expr = none
         var is_func_attr_call = no
-        if node.subexprs[1].kind == ast.N_EXPR_IDREF {
+        if is_call_situation and
+                node.subexprs[1].kind == ast.N_EXPR_IDREF {
             called_ref = node.subexprs[1].ref
             called_lbl_name = node.subexprs[1].label
             called_node = node.subexprs[1]
             called_args_node = node.subexprs[2]
             called_node_parents = parents + [node]
             assert(typename(called_ref) != "list")
-        } else {
+        } elseif is_call_situation {
             assert(node.subexprs[1].kind == ast.N_EXPR_BINOP and
                 node.subexprs[1].optoken.str == "." and
                 node.subexprs[1].subexprs[2].
@@ -737,9 +786,44 @@ func transform_func_overrides_and_check_func_arg_sig_match(
             called_args_node = node.subexprs[2]
             called_node_parents = parents + [node]
             assert(typename(called_ref) != "list")
+        } elseif is_var_init_situation or is_assign_situation {
+            assert(node.kind == ast.N_EXPR_IDREF or
+                (node.kind == ast.N_EXPR_BINOP and
+                node.optoken.str == "."))
+            if node.kind == ast.N_EXPR_IDREF {
+                called_ref = node.ref
+                called_lbl_name = node.label
+                called_node = node
+                called_args_node = none
+                called_node_parents = parents
+            } else {
+                called_ref = node.subexprs[2].ref
+                called_lbl_name = node.subexprs[2].label
+                called_node = node
+                called_args_node = none
+                called_node_parents = parents
+            }
+            if is_var_init_situation {
+                assert(parent.kind == ast.N_STMT_VAR)
+                if parent.has_type_expr {
+                    desired_override_func_type_expr =
+                        parent.subexprs[parent.subexprs.len]
+                }
+            }
+        } else {
+            throw new RuntimeError("Internal error, "
+                "fell into unimplemented branch.")
         }
 
-        assert(called_args_node.kind == ast.N_EXPR_CALLARGS)
+        if called_args_node == none and
+                desired_override_func_type_expr == none {
+            # We didn't get enough info to know what override
+            # to look for. Leave things alone.
+            return later node
+        }
+
+        assert(called_args_node == none or
+            called_args_node.kind == ast.N_EXPR_CALLARGS)
         if not is_moose64 and (called_ref == none or
                 {st_ref.ST_LOCAL, st_ref.ST_ARG}.has(
                     called_ref.kind
@@ -755,6 +839,8 @@ func transform_func_overrides_and_check_func_arg_sig_match(
                 "called_lbl_name=" + textfmt.
                     as_escaped_code_string(called_lbl_name) + " "
                 "node=" + node.as_str() + " "
+                "called_args_node=" +
+                    called_args_node.as_str() + " "
                 "called_node=" + called_node.as_str() + " "
                 "called_ref=" + called_ref.as_str() + " "
                 "is_func_attr_call=" + is_func_attr_call.as_str())
@@ -803,6 +889,18 @@ func transform_func_overrides_and_check_func_arg_sig_match(
                 ) later:
 
             await func_type_expr_result
+            if func_type_expr_result.type_expr == none or
+                    not func_type_expr_result.type_expr.is_func_ref {
+                if not is_call_situation {
+                    if debug {
+                        print(dbg_prefix + " "
+                            "resolve_func_type_expr_if_needed(): "
+                            "Item at hand is not a func, hence "
+                            "no override to bother with.")
+                    }
+                    return later
+                }
+            }
             func_is_external =
                 func_type_expr_result.storage_ref != none and
                 {st_ref.ST_MCREF, st_ref.ST_CEXT}.has(
@@ -905,6 +1003,14 @@ func transform_func_overrides_and_check_func_arg_sig_match(
         resolve_func_type_expr_if_needed()
         later:
 
+        # Handling of assigns of non-func items:
+        if not is_call_situation and
+                func_type_expr == none {
+            # No func overriding possibly relevant here.
+            return later node
+        }
+                
+        # Handling of external funcs:
         if func_is_external and (not is_moose64 or
                 yes) {  # FIXME, Change once we can resolve this.
             return later node
