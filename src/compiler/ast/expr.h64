@@ -330,7 +330,7 @@ func LiteralExpr.as_json_obj {
     } elseif self.literal_kind == LK_CHARCODE {
         output["value"] = self.value
         output["literal-kind"] = "LK_CHARCODE"
-        return point
+        return output
     }
     assert(self.literal_kind == LK_NORMAL)
     output["literal-kind"] = "LK_NORMAL"
