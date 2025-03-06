@@ -675,7 +675,6 @@ func create_typeref_from_func_node(
     if node.damaged {
         return none
     }
-    assert(not debug)
     assert(node.extended_final_arg_count() >=
         node.arg_labels.len)
     assert(node.kind == ast.N_STMT_FUNC)
