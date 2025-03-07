@@ -572,7 +572,8 @@ func _get_c_or_m64_type_of_node_do(
         }
         return later result
     }
-    var parent = if parents.len > 0 (parents[parents.len]) else (none)
+    var parent = if parents.len > 0
+        (parents[parents.len]) else (none)
 
     var d_id = none
     var dbg_prefix = ""
@@ -769,9 +770,17 @@ func _get_c_or_m64_type_of_node_do(
     } elseif node.kind == ast.N_EXPR_TYPECAST {
         var typeref_expr = node.typeref_expr
         var result = typeinfo.
-            create_typeinfo_from_typeexpr(
-                typeref_expr, is_moose64=is_moose64,
-            )
+            create_typeinfo_from_typeexpr_and_verify(
+                typeref_expr,
+                store_self_value_ref_for_funcs=no,
+                self_node_if_known=none,
+                base_node_if_known=node,
+                base_node_parents_if_known=parents,
+                project_file=project_file,
+                is_moose64=is_moose64, debug=no,
+            ) later:
+
+        await result
         return result
     } elseif node.kind == ast.N_EXPR_LIT and
             typename(node.value) == "bool" {
