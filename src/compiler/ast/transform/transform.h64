@@ -834,8 +834,14 @@ func transform_func_overrides_and_check_func_arg_sig_match(
             return later node
         }
         if debug {
-            print(dbg_prefix + " Looking at call for potential "
+            print(dbg_prefix + " Looking at item for potential "
                 "func overrides: "
+                "is_call_situation=" +
+                    is_call_situation.as_str() + " "
+                "is_assign_situation=" +
+                    is_assign_situation.as_str() + " "
+                "is_var_init_situation=" +
+                    is_var_init_situation.as_str() + " "
                 "called_lbl_name=" + textfmt.
                     as_escaped_code_string(called_lbl_name) + " "
                 "node=" + node.as_str() + " "

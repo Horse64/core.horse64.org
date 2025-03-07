@@ -721,6 +721,11 @@ func get_called_or_assigned_func_types(
     if debug {
         var t = (dbg_prefix + " get_called_or_assigned_func_types(): "
             "Launched on called_node=" + called_node.as_str())
+        if try_to_match_func_type != none {
+            t += (", "
+                "with: try_to_match_func_type=" +
+                try_to_match_func_type.as_str())
+        }
         if _internal_override_called_func_typerefexpr != none {
             t += (", "
                 "with: _internal_override_called_func_typerefexpr=" +
@@ -787,6 +792,7 @@ func get_called_or_assigned_func_types(
                 apply_func_override_for_func_type_expr=none,
                 ignore_if_ref_none=no,
                 msgs=msgs, is_moose64=is_moose64,
+                debug=no,
             ) later:
 
         await result
@@ -830,6 +836,11 @@ func get_called_or_assigned_func_types(
         cft_result.self_var_type_expr = none
         cft_result.self_var_typeinfo = none
         cft_result.have_args_mismatch = no
+        if debug {
+            print(dbg_prefix + " "
+                "get_called_or_assigned_func_types(): "
+                "Preliminary result was assembled.")
+        }
 
         var override_info_list =
             find_func_overrides_by_st_ref(
@@ -839,6 +850,13 @@ func get_called_or_assigned_func_types(
                 is_moose64=is_moose64,
                 debug=debug,
             )
+        if debug {
+            print(dbg_prefix + " "
+                "get_called_or_assigned_func_types(): "
+                "Got override list. "
+                "override_info_list=" +
+                    override_info_list.as_str())
+        }
         if override_info_list.len > 1 {
             # Determine if currently, the node is already
             # referring to an override:
@@ -858,6 +876,16 @@ func get_called_or_assigned_func_types(
                 cft_result.func_var_preoverridden_name =
                     base_name
             }
+            if debug {
+                print(dbg_prefix + " "
+                    "get_called_or_assigned_func_types(): "
+                    "Determined that this is currently an "
+                    "overridden func being targeted. "
+                    "base_name=" +
+                    textfmt.as_escaped_code_string(
+                        base_name
+                    ))
+            }
         }
 
         # Now pick better override if needed:
@@ -866,18 +894,40 @@ func get_called_or_assigned_func_types(
                 not try_to_match_func_type.is_equivalent(
                     result.type_expr, is_moose64=is_moose64) {
             # Try to pick a better alternative in this situation.
+            if debug {
+                print(dbg_prefix + " "
+                    "get_called_or_assigned_func_types(): "
+                    "Trying to find better matching override...")
+            }
+            var found_override = no
             for entry in override_info_list {
                 var func_type_expr = entry[1].copy()
                 if func_type_expr.is_equivalent(
-                        result.type_expr) {
+                        try_to_match_func_type,
+                        require_same_storage=no) {
                     cft_result.func_was_overridden =
                         entry[3].is_override
                     cft_result.func_var_name = entry[3].label
                     cft_result.func_ref = entry[2].copy()
+                    cft_result.func_var_type_expr =
+                        func_type_expr.copy()
                     cft_result.is_external =
                         {st_ref.ST_CEXT, st_ref.ST_MCREF}.has(
                             cft_result.func_ref.kind)
+                    found_override = yes
+                    if debug {
+                        print(dbg_prefix + " "
+                            "get_called_or_assigned_func_types(): "
+                            "Found new override match.")
+                    }
                     break
+                }
+            }
+            if not found_override {
+                if debug {
+                    print(dbg_prefix + " "
+                        "get_called_or_assigned_func_types(): "
+                        "Couldn't find new override match.")
                 }
             }
         }

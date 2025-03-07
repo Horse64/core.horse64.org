@@ -1048,14 +1048,22 @@ func ListArgTypeRefExpr.try_resolve_to_user_type(
 }
 
 func TypeRefFuncExpr.is_equivalent(
-        other_expr, is_moose64=no
+        other_expr, require_same_storage=yes,
+        is_moose64=no,
         ) {
-    if other_expr.is_func_ref {
+    if not other_expr.is_func_ref {
         return no
     }
-    if other_expr.name != self.name {
-        return no
+
+    if require_same_storage {
+        if self.name != none and
+                other_expr.name != none {
+            if other_expr.name != self.name {
+                return no
+            }
+        }
     }
+
     if self.is_special_madeup_builtin !=
             other_expr.is_special_madeup_builtin {
         return no
@@ -1064,16 +1072,21 @@ func TypeRefFuncExpr.is_equivalent(
             other_expr.special_madeup_builtin_base_expr {
         return no
     }
-    if self.storage_ref != none {
-        if other_expr.storage_ref == none {
+
+    if require_same_storage {
+        if self.storage_ref != none {
+            if other_expr.storage_ref == none {
+                return no
+            }
+            if not other_expr.storage_ref.alike(
+                    self.storage_ref) {
+                return no
+            }
+        } elseif other_expr.storage_ref != none {
             return no
         }
-        if not other_expr.storage_ref.alike(self.storage_ref) {
-            return no
-        }
-    } elseif other_expr.storage_ref != none {
-        return no
     }
+
     if self.type_path == none or self.type_path.len == 0 {
         if other_expr.type_path != none and
                 other_expr.type_path.len != 0 {
@@ -1092,19 +1105,21 @@ func TypeRefFuncExpr.is_equivalent(
             type_path_idx += 1
         }
     }
-    if self.modifiers.len != other_func_expr.modifiers.len {
+
+    if self.modifiers.len != other_expr.modifiers.len {
         return no
     }
     var modidx = 1
     while modidx <= self.modifiers.len {
         if not self.modifiers[modidx].is_equivalent_mod(
-                other_func_expr.modifiers[modidx],
+                other_expr.modifiers[modidx],
                 is_moose64=is_moose64,
                 ) {
             return no
         }
         modidx += 1
     }
+
     return yes
 }
 
@@ -1725,6 +1740,8 @@ func resolve_st_ref_to_type_ref_and_expr(
             "called on: node=" + node.as_str() + " "
             "apply_func_override_for_args_node=" +
                 apply_func_override_for_args_node.as_str() + " "
+            "apply_func_override_for_func_type_expr=" +
+                apply_func_override_for_func_type_expr.as_str() + " "
             "value_ref=" + value_ref.as_str() + " "
             "node_parents.len=" + if node_parents != none
                 (node_parents.len.as_str())
