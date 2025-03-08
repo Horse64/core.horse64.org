@@ -3094,7 +3094,7 @@ func node_to_c_string(project_file, node, parents,
         var var_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
             project_file, node, parents,
             store_self_value_ref_for_funcs=no,
-            msgs=msgs
+            msgs=msgs,
         ) later:
 
         await var_tinfo
@@ -3104,7 +3104,8 @@ func node_to_c_string(project_file, node, parents,
                     "Got expression with invalid type."
                 )
             } elseif not msg.msgs_contain_error(msgs) {
-                print(program_name + ": error: Internal error, "
+                print(program_name + ": error: Internal error "
+                    "in node_to_c_string() handling an N_EXPR_IDREF, "
                     "failed to get type info in moose64 C code gen "
                     "for this identifier: node=" + node.as_str() + " "
                     "node.ref=" + node.ref.as_str())

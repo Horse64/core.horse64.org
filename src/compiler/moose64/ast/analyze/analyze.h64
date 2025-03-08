@@ -1197,6 +1197,10 @@ func _get_c_or_m64_type_of_node_do(
                      is_ast_node_referring_to_m64_list_arg_get(
                         project_file, node,
                         is_moose64=is_moose64)) {
+                if debug {
+                    print(dbg_prefix + " Got a match for one "
+                        "of the list arg built-ins...")
+                }
                 var list_arg_info = get_list_arg_node_info(
                     project_file, node, parents,
                     is_moose64=is_moose64, msgs=msgs,
@@ -1218,8 +1222,31 @@ func _get_c_or_m64_type_of_node_do(
                 } else {
                     # It must be a .get or a .forward,
                     # but those only can be type analyzed
-                    # ss the complete call and not the
+                    # as the complete call and not the
                     # inner call expression.
+                    if not node.damaged and (
+                            parents.len == 0 or
+                            parents[parents.len].
+                                kind != ast.N_EXPR_BINOP or
+                            parents[parents.len].
+                                optoken.str != "(" or
+                            parents[parents.len].
+                                subexprs.len < 2 or
+                            parents[parents.len].
+                                subexprs[1] != node) {
+                        node.damaged = yes
+                        msgs.add(new msg.FileMsg(
+                            "Unexpected reference "
+                            "to built-in special func \"" + node.label +
+                            "\" that can only be called, not referenced.",
+                            source_file=project_file,
+                            line=node.line, col=node.col,
+                        ))
+                    }
+                    if not node.damaged {
+                        throw new RuntimeError("Invalid analysis "
+                            "directly on internal list node.")
+                    }
                     return later none
                 }
             } elseif node.ref != none and
