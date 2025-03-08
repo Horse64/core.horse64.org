@@ -1320,8 +1320,8 @@ func node_conv_code_to_use_as_nested_expr(
                 is_eq_operand or
                 parents.len == 0 or
                 (not {ast.N_EXPR_BINOP,
-                ast.N_EXPR_UNOP,
-                ast.N_EXPR_TYPECAST,
+                    ast.N_EXPR_UNOP,
+                    ast.N_EXPR_TYPECAST,
                 }.has(relevant_parent.kind) or
                 (relevant_parent.kind == ast.N_EXPR_BINOP and
                  relevant_parent.optoken.str == ")") or
