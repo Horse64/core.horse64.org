@@ -412,6 +412,9 @@ func TypeInfo.is_equivalent(
             return no
         }
     } elseif self.kind == TI_USERTYPE {
+        if self.orig_type_name != other_typeinfo.orig_type_name {
+            return no
+        }
         if self.user_type_ref != none and
                 other_typeinfo.user_type_ref != none {
             if not self.user_type_ref.alike(
