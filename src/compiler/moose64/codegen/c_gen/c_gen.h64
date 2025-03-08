@@ -1611,6 +1611,8 @@ func node_conv_code_as_passed_around_c_val(
         is_explicit_cast=no,
         msgs=none, build_options=none,
         debug=no) {
+    assert(source_value_node != none and
+        has_attr(source_value_node, "line"))
     const is_moose64 = yes
     var program_name = "moosec"
     if build_options != none {
@@ -1648,7 +1650,8 @@ func node_conv_code_as_passed_around_c_val(
                 "Found expression with invalid type."
             )
         } elseif not msg.msgs_contain_error(msgs) {
-            print(program_name + ": error: Internal error, "
+            print(program_name + ": error: Internal error "
+                "in node_conv_code_as_passed_around_c_val(), "
                 "failed to determine type of inner "
                 "expression node for some reason: " +
                 source_value_node.as_str())
@@ -3042,7 +3045,8 @@ func node_to_c_string(project_file, node, parents,
             
             var right_hand_str =
                 node_conv_code_as_passed_around_c_val(
-                    project_file, left_hand_typeinfo,
+                    project_file,
+                    left_hand_typeinfo,
                     entry[2], parents + [node],
                     indent=indent,
                     add_to_header_callback=
@@ -3185,14 +3189,21 @@ func node_to_c_string(project_file, node, parents,
         }
         return label_str
     } elseif node.kind == ast.N_EXPR_TYPECAST {
-        var var_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
+        if debug {
+            print(program_name + ": debug: " +
+                "node_to_c_string(): Entering "
+                "a typecast expression... "
+                "node=" + node.as_str())
+        }
+
+        var inner_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
             project_file, node.subexprs[1], parents,
             store_self_value_ref_for_funcs=no,
             msgs=msgs
         ) later:
 
-        await var_tinfo
-        if var_tinfo == none {
+        await inner_tinfo
+        if inner_tinfo == none {
             if msgs == none {
                 throw new RuntimeError(
                     "Got expression with invalid type."
@@ -3240,11 +3251,14 @@ func node_to_c_string(project_file, node, parents,
         }
         t += inner_code + ")"
         var outer_tinfo =
-            typeinfo.create_typeinfo_from_typeexpr(
+            typeinfo.create_typeinfo_from_typeexpr_and_verify(
                 node.typeref_expr,
+                project_file=project_file,
                 is_moose64=is_moose64,
-            )
-        if var_tinfo.ref_count(
+            ) later:
+
+        await outer_tinfo
+        if inner_tinfo.ref_count(
                 include_c_arrays=yes,
                 include_arrays=yes,
                 include_implicit_refs=yes,
@@ -3265,7 +3279,7 @@ func node_to_c_string(project_file, node, parents,
                         msgs.add(new msg.FileMsg(
                             "Unexpected explicit cast of non-ref "
                             "type " +
-                            var_tinfo.describe_to_user(
+                            inner_tinfo.describe_to_user(
                                 project=project_file.project,
                                 is_moose64=is_moose64,
                             ) + " into an implicit ref type, "
@@ -3283,9 +3297,9 @@ func node_to_c_string(project_file, node, parents,
                     include_arrays=yes,
                     include_implicit_refs=no,
                     include_explicit_refs=yes) > 0 and
-                    (var_tinfo.kind != typeinfo.TI_C_TYPE or
+                    (inner_tinfo.kind != typeinfo.TI_C_TYPE or
                      not ast_typeref.builtin_moose64_num_types.has(
-                         var_tinfo.orig_type_name)) {
+                         inner_tinfo.orig_type_name)) {
                 if msg == none {
                     throw new RuntimeError(
                         "Can't treat this type in any "
@@ -3297,7 +3311,7 @@ func node_to_c_string(project_file, node, parents,
                             "Unexpected explicit cast of non-numeric "
                             "non-ref "
                             "type " +
-                            var_tinfo.describe_to_user(
+                            inner_tinfo.describe_to_user(
                                 project=project_file.project,
                                 is_moose64=is_moose64,
                             ) + " into an explicit ref, "
@@ -3313,8 +3327,8 @@ func node_to_c_string(project_file, node, parents,
         }
         var converted_code =
             node_conv_code_as_passed_around_c_val(
-                project_file, outer_tinfo,
-                var_tinfo,
+                project_file, inner_tinfo,
+                node.subexprs[1],
                 parents + [node],
                 source_value_known_code_str=t,
                 indent=indent,

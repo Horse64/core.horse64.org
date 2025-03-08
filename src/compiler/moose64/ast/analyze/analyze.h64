@@ -769,6 +769,10 @@ func _get_c_or_m64_type_of_node_do(
         return later result
     } elseif node.kind == ast.N_EXPR_TYPECAST {
         var typeref_expr = node.typeref_expr
+        if debug {
+            print(dbg_prefix + " Got an N_EXPR_TYPECAST. "
+                "typeref_expr=" + typeref_expr.as_str())
+        }
         var result = typeinfo.
             create_typeinfo_from_typeexpr_and_verify(
                 typeref_expr,
@@ -1854,13 +1858,27 @@ func _get_c_or_m64_type_of_node_do(
             if rhand.ref != none and
                     rhand.value_typeref_expr != none {
                 if debug {
-                    print(dbg_prefix + " (The rhand.ref "
+                    t = (dbg_prefix + " (The rhand.ref "
                         "value and rhand.value_typeref_expr "
                         "were already set before "
                         "we got to evaluate anything, with "
                         "rhand.value_typeref_expr=" +
-                            rhand.value_typeref_expr.as_str() +
-                        ".)")
+                            rhand.value_typeref_expr.as_str() + " "
+                        "rhand.ref=" + rhand.ref.as_str())
+                    if rhand.value_typeref_expr.is_user_type() and
+                            not rhand.value_typeref_expr.
+                                is_func_ref and
+                            not rhand.value_typeref_expr.
+                                is_multi_type and
+                            not rhand.value_typeref_expr.
+                                is_list_arg {
+                        t += (" rhand.value_typeref_expr."
+                            "storage_ref=" +
+                            rhand.value_typeref_expr.
+                            storage_ref.as_str())
+                    }
+                    t += ".)"
+                    print(t)
                 }
                 return later rhand.ref
             }
@@ -2014,10 +2032,15 @@ func _get_c_or_m64_type_of_node_do(
         }
         var is_autoprop_func = no
         var func_texpr = none
+        var fallback_value_texpr = none
         if sym_info.kind == st_scope.SINFO_FUNCATTR {
             func_texpr = sym_info.typeref_expr
             assert(func_texpr != none)
             is_autoprop_func = func_texpr.is_autoprop_func
+        } else {
+            if sym_info.typeref_expr != none {
+                fallback_value_texpr = sym_info.typeref_expr
+            }
         }
         if is_autoprop_func {
             var return_texpr = none
@@ -2078,12 +2101,26 @@ func _get_c_or_m64_type_of_node_do(
             return later return_typeinfo
         }
         var result_tinfo = none
-        if rhand.value_typeref_expr != none {
+        func compute_result_tinfo {
+            if rhand.value_typeref_expr == none and
+                    fallback_value_texpr == none {
+                return later
+            }
+            var evaluate_expr = rhand.value_typeref_expr
+            if evaluate_expr == none {
+                assert(fallback_value_texpr != none)
+                evaluate_expr = fallback_value_texpr
+            }
             result_tinfo =
-                typeinfo.create_typeinfo_from_typeexpr(
-                    rhand.value_typeref_expr,
+                typeinfo.create_typeinfo_from_typeexpr_and_verify(
+                    evaluate_expr,
+                    base_node_if_known=rhand,
+                    base_node_parents_if_known=parents + [node],
+                    project_file=project_file,
                     is_moose64=is_moose64,
-                )
+                ) later:
+
+            await result_tinfo
             if debug {
                 print(dbg_prefix + " "
                     "Taking rhand.value_typeref_expr to "
@@ -2091,6 +2128,8 @@ func _get_c_or_m64_type_of_node_do(
                     result_tinfo.as_str())
             }
         }
+        compute_result_tinfo() later:
+
         func get_result_tinfo_from_symbol_if_needed {
             if result_tinfo != none {
                 return later
