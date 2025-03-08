@@ -664,6 +664,12 @@ func get_math_binop_autocast(
                 (size == 64 and
                 left_hand_typeinfo.orig_type_name == "size") or
                 left_hand_typeinfo.orig_type_name == "i" + size_s {
+            if not ast_typeref.builtin_moose64_unsigned_num_types.has(
+                    right_hand_typeinfo.orig_type_name) and
+                    not ast_typeref.builtin_moose64_signed_num_types.has(
+                        right_hand_typeinfo.orig_type_name) {
+                continue
+            }
             if right_hand_typeinfo.orig_type_name == "f64" {
                 return cast_all_to("f64")
             } elseif right_hand_typeinfo.orig_type_name == "f32" {
@@ -673,27 +679,31 @@ func get_math_binop_autocast(
                     return cast_all_to("f32")
                 }
             }
+            var right_hand_bits = 64
+            if right_hand_typeinfo.orig_type_name == "byte" {
+                right_hand_bits = 8
+            } elseif not {"addr_diff", "addr", "size"}.has(
+                    right_hand_typeinfo.orig_type_name) {
+                if not right_hand_typeinfo.orig_type_name.
+                            starts("u") and
+                        not right_hand_typeinfo.orig_type_name.
+                            starts("i") and
+                        not right_hand_typeinfo.orig_type_name.
+                            starts("f") {
+                    continue
+                }
+                right_hand_bits = right_hand_typeinfo.
+                    orig_type_name.sub(2).to_num()
+            }
             if ast_typeref.builtin_moose64_signed_num_types.has(
                         right_hand_typeinfo.orig_type_name) or
                     ast_typeref.builtin_moose64_signed_num_types.has(
                         left_hand_typeinfo.orig_type_name
                     ) {
-                var right_hand_bits = 8
-                if right_hand_typeinfo.orig_type_name != "byte" {
-                    right_hand_bits = right_hand_typeinfo.
-                        orig_type_name.sub(2).to_num()
-                }
                 return cast_all_to("i" + math.max(
                     size, right_hand_bits
                 ).as_str())
             } else {
-                var right_hand_bits = 8
-                if right_hand_typeinfo.orig_type_name == "size" {
-                    right_hand_bits = 64
-                } elseif right_hand_typeinfo.orig_type_name != "byte" {
-                    right_hand_bits = right_hand_typeinfo.
-                        orig_type_name.sub(2).to_num()
-                }
                 return cast_all_to("u" + math.max(
                     size, right_hand_bits
                 ).as_str())
