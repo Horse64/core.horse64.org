@@ -103,8 +103,7 @@ func CImportInfo._process_c_include(project, ipath) {
         new_items["printf"] = new c_symbol.CFuncSymbol(
             "int printf(const char *fmt, ...);",
             _override_func_signature=
-                "(<-readonly byte ref, <-readonly byte ref)->empty"
-            # FIXME: The Moose64 signature is incorrect here.
+                "(<-readonly byte ref, <-c_vararg)->i32"
         )
     }
     var queue = []
