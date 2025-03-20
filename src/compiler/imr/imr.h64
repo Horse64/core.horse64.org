@@ -60,3 +60,26 @@ enum IMRNodeKind {
     IMR_INST_AWAIT,
 }
 
+type IMRForFile {
+    var project_file
+}
+
+func generate_imr_for_expr(node) {
+    
+}
+
+func generate_imr_for_stmt(node) {
+    
+}
+
+func generate_imr_for_file(node) {
+    var result = new IMRForFile()
+    return later result
+}
+
+func generate_imr_for_project(project,
+        build_options=none,
+        msgs=none, is_moose64=no) {
+    return later no
+}
+

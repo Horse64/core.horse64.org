@@ -38,6 +38,7 @@ import compiler.ast.transform as ast_transform
 import compiler.ast.analyze as analyze
 import compiler.build_options as build_options
 import compiler.compiler_log as clog
+import compiler.imr as imr
 import compiler.moose64.build.c_build as m64_c_build
 import compiler.moose64.codegen.c_gen as m64_c_gen
 import compiler.msg as msg
@@ -691,6 +692,36 @@ func action_compile_do(
             {"c"}.has(stage)) or
         {"binary", "run"}.has(stage)
     )
+    # First, go to intermediate representation:
+    print_stage_info("imr",
+        "Now generating IMR.")
+    var result = imr.generate_imr_for_project(
+        aresult.project_file.project,
+        msgs=aresult.msgs, build_options=boptions,
+    ) later:
+
+    await result
+    if not result or msg.msgs_contain_error(aresult.msgs) {
+        if not msg.msgs_contain_error(aresult.msgs) {
+            aresult.msgs.add(msg.FileMsg(
+                "Transformation to IMR failed "
+                "without any error message.",
+            ))
+        }
+        var finalresult =
+            show_intermediate_compile_result_to_terminal_or_file(
+                aresult.msgs,
+                build_options=boptions,
+                for_script=opt_for_script,
+                is_global_scope=no,
+                is_code_file=no,
+                omit_result=yes,
+            ) later:
+
+        await finalresult
+        return later 1
+    }
+    
     # If this is moose64, embark on our path toward C:
     if is_moose64 {
         print_stage_info("c",
