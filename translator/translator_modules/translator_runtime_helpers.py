@@ -3308,18 +3308,31 @@ class _ModuleObject:
         import horse_modules
         result = getattr(horse_modules,
             self._base_library.replace(".", "_"))
-        if hasattr(result, "_h64mod_" + self._base_module):
-            result = getattr(result,
-                ("_h64mod_" + self._base_module))
-        else:
-            result = getattr(result, self._base_module)
-        if self._rename_pair != None:
-            rename_parts = self._rename_pair[0].split(".")[1:]
-            for part in rename_parts:
-                result = getattr(result, "_h64mod_" + part)
+        base_mod_name = self._base_module + ""
+        def get_sub_attr(attr_name, is_last=False):
+            nonlocal result
+            if hasattr(result, "_h64mod_" + attr_name):
+                result = getattr(result,
+                    ("_h64mod_" + attr_name))
+            else:
+                result = getattr(result, attr_name)
+            if is_last and self._rename_pair != None:
+                rename_parts = self._rename_pair[0].split(".")[1:]
+                for part in rename_parts:
+                    #import inspect
+                    #try:
+                    #    result = inspect.getattr_static(result, part)
+                    #except AttributeError:
+                    result = getattr(result, "_h64mod_" + part)
+        while "." in base_mod_name:
+            get_sub_attr(base_mod_name.partition(".")[0],
+                is_last=False)
+            base_mod_name = base_mod_name.partition(".")[2]
+        get_sub_attr(base_mod_name, is_last=True)
         return result
 
     def __getattr__(self, name):
+        orig_name = name
         if (name == "" or "." in name or
                 name.startswith("__")):
             raise AttributeError("nope: " + str(name))
@@ -3327,7 +3340,13 @@ class _ModuleObject:
         if (not hasattr(basemod, name) and
                 not name.startswith("_h64mod_")):
             name = "_h64mod_" + name
-        return getattr(basemod, name)
+        result = getattr(basemod, name)
+        from types import ModuleType
+        if isinstance(result, ModuleType):
+            return _ModuleObject(
+                self._base_module + "." + orig_name,
+                self._base_library, renamed=None)
+        return result
 
 def _wildcard_match(pattern, value,
         doublestar_for_paths=False,
