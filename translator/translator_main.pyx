@@ -305,7 +305,13 @@ remapped_uses = {
     "random@core.horse64.org": {
         "random.gen_id":
             "(lambda: str(_remapped_uuid."
-                "uuid4()).replace('-', ''))"
+                "uuid4()).replace('-', ''))",
+        "random.unit":
+            "(lambda: float(_remapped_random."
+                "SystemRandom().random()))",
+        "random.choice":
+            "(lambda x: float(_remapped_random."
+                "SystemRandom().choice(x)))",
     },
     "system@core.horse64.org": {
         "system.exit" : "_remapped_sys.exit",
@@ -3590,6 +3596,7 @@ def translate_do_func(
                 "import os as _remapped_os;"
                 "import uuid as _remapped_uuid;"
                 "import enum as _remapped_enum;"
+                "import random as _remapped_random;"
                 "import tempfile as _remapped_tempfile;"
                 "_remapped_sys.path.insert(1, " +
                     as_escaped_code_string(os.path.join(
