@@ -3319,10 +3319,6 @@ class _ModuleObject:
             if is_last and self._rename_pair != None:
                 rename_parts = self._rename_pair[0].split(".")[1:]
                 for part in rename_parts:
-                    #import inspect
-                    #try:
-                    #    result = inspect.getattr_static(result, part)
-                    #except AttributeError:
                     result = getattr(result, "_h64mod_" + part)
         while "." in base_mod_name:
             get_sub_attr(base_mod_name.partition(".")[0],
