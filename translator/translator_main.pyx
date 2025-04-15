@@ -310,7 +310,7 @@ remapped_uses = {
             "(lambda: float(_remapped_random."
                 "SystemRandom().random()))",
         "random.choice":
-            "(lambda x: float(_remapped_random."
+            "(lambda x: (_remapped_random."
                 "SystemRandom().choice(x)))",
     },
     "system@core.horse64.org": {
