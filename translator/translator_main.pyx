@@ -309,9 +309,9 @@ remapped_uses = {
         "random.fac":
             "(lambda: float(_remapped_random."
                 "SystemRandom().random()))",
-        "random.randint":
+        "random.int":
             "(lambda x, y: int(_remapped_random."
-                "SystemRandom().int(x, y)))",
+                "SystemRandom().randint(x, y)))",
         "random.choice":
             "(lambda x: (_remapped_random."
                 "SystemRandom().choice(x)))",
