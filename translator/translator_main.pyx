@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Copyright (c) 2020-2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2020-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -306,9 +306,12 @@ remapped_uses = {
         "random.gen_id":
             "(lambda: str(_remapped_uuid."
                 "uuid4()).replace('-', ''))",
-        "random.unit":
+        "random.fac":
             "(lambda: float(_remapped_random."
                 "SystemRandom().random()))",
+        "random.randint":
+            "(lambda x, y: int(_remapped_random."
+                "SystemRandom().int(x, y)))",
         "random.choice":
             "(lambda x: (_remapped_random."
                 "SystemRandom().choice(x)))",
@@ -1362,36 +1365,81 @@ cpdef translate_expression_tokens(list s, sc,
         elif s[i] == "none":
             s[i] = "None"
         i += 1
-    # Translate {->} map constructor:
+
+    return translate_map_constructors(s)
+
+def translate_map_constructors(list s):
+    cdef int i, slen
     i = 0
-    while i < slen:
-        if s[i] != "{":
-            i += 1
-            continue
+    slen = len(s)
+
+    # Translate {->} map constructor:
+    def try_handle_as_map(i):
+        nonlocal s, slen
+        if i >= slen or s[i] != "{":
+            return 0
+        starti = i
+
         # Special case of empty map first:
         if nextnonblank(s, i) == "->":
             assert(nextnonblank(s, i, no=2) == "}")
-            s = (s[:i] +
+            s[:] = (s[:i] +
                 ["(", "dict", "(", ")", ")"] +
                 s[nextnonblankidx(s, i, no=2) + 1:])
             slen = len(s)
             i += 1
-            continue
+            return i - starti
+
         # Okay we're maybe in a map now. We'll see by checking
         # if we find any -> outside of brackets:
         start_idx = i
         bdepth = 0
-        i += 1
+        is_map = False
+        might_have_nestings = False
+        i += 1  # Go past '{'
         while i < slen and (s[i] != "}" or
                 bdepth > 0):
             if s[i] in {"(", "{", "["}:
+                if bdepth >= 0 and s[i] == "{":
+                    might_have_nestings = True
                 bdepth += 1
             elif s[i] in {")", "}", "]"}:
                 bdepth -= 1
             if bdepth == 0 and s[i] == "->":
                 # We're in a map!
+                is_map = True
                 s[i] = ":"  # Translate to python syntax.
             i += 1
+        if i < slen:
+            assert(s[i] == "}")
+            i += 1
+        if is_map and might_have_nestings:
+            k = starti
+            k += 1  # Go past '{'
+            bdepth = 0
+            while k < slen and (s[k] != "}" or
+                    bdepth > 0):
+                if s[k] in {"(", "{", "["}:
+                    if bdepth >= 0 and s[k] == "{":
+                        try_handle_as_map(k)
+                        slen = len(s)
+                    bdepth += 1
+                elif s[k] in {")", "}", "]"}:
+                    bdepth = max(0, bdepth - 1)
+                k += 1
+        if not is_map:
+            return 0
+        return i - starti
+        
+    # Map constructor loop:
+    i = 0
+    while i < slen:
+        handled_len = try_handle_as_map(i)
+        if handled_len == 0:
+            i += 1
+            continue
+        slen = len(s)
+        i += handled_len
     return s
 
 def queue_module_neighbors(

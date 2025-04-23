@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2020-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -559,7 +559,7 @@ def _io_tree_list_walker(s, relative=True,
             self.completed = False
             self.relative = (relative == True)
 
-        def walk(self, cb):
+        def walk(self, cb, allow_incremental=True):
             def async_walk_do(job):
                 import os
                 _self = job.userdata["v"]
