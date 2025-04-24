@@ -1,5 +1,5 @@
 
-![Horse64 Title Logo](logo/logo-readme.png)
+![Horse64 Title Logo](https://horse64.org/img/horse64logo.png)
 
 
 Horse64 Programming Language
