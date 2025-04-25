@@ -2344,6 +2344,7 @@ def translate(s, sc):
 
             # Check if this module is only used for remapped uses:
             found_nonremapped_use = False
+            nonremapped_use_example = None
             found_remapped_use = False
             if DEBUGV.ENABLE_REMAPPED_USES:
                 print("translator.py: debug: scanning \"" +
@@ -2383,6 +2384,9 @@ def translate(s, sc):
                             "): " + str(
                             tokens[i:i +
                             len(import_module_elements) + 10]))
+                    if nonremapped_use_example == None:
+                        nonremapped_use_example =\
+                            str(s[i:i + 5]) + "..."
                     found_nonremapped_use = True
                     break
                 remapped_uses_list = list(
@@ -2443,8 +2447,10 @@ def translate(s, sc):
                 "module " + str(sc.module_name) + (
                 "" if sc.package_name is None else
                     "@" + sc.package_name) +
-                    " with " + ("non-remapped uses" if
-                        found_nonremapped_use else "zero remapped uses"))
+                    " with " + (("non-remapped uses, like " +
+                        str(nonremapped_use_example)) if
+                        found_nonremapped_use else
+                        "zero remapped uses"))
             queue_file_if_not_queued(sc.translate_file_queue,
                 (target_path, target_filename,
                 import_module, os.path.dirname(target_path),
