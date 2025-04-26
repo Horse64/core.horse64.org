@@ -2386,7 +2386,7 @@ def translate(s, sc):
                             len(import_module_elements) + 10]))
                     if nonremapped_use_example == None:
                         nonremapped_use_example =\
-                            str(s[i:i + 5]) + "..."
+                            str(tokens[i:i + 5]) + "..."
                     found_nonremapped_use = True
                     break
                 remapped_uses_list = list(
@@ -2402,6 +2402,9 @@ def translate(s, sc):
                         break
                 if not matched_remap:
                     found_nonremapped_use = True
+                    if nonremapped_use_example == None:
+                        nonremapped_use_example =\
+                            str(tokens[i:i + 5]) + "..."
                     if DEBUGV.ENABLE_REMAPPED_USES:
                         print(
                             "translator.py: debug: found "
