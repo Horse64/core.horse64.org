@@ -77,9 +77,20 @@ func generate_imr_for_file(node) {
     return later result
 }
 
-func generate_imr_for_project(project,
+func generate_imr_for_project(
+        project,
         build_options=none,
-        msgs=none, is_moose64=no) {
+        msgs=none, is_moose64=no, debug=no,
+        ) {
+    const program_name =
+        if is_moose64 ("moosec") else ("horsec")
+    if debug {
+        print(program_name + ": debug: "
+            "generate_imr_for_project(): "
+            "Lauched on project=" + project.as_str() + " "
+            "with is_moose64=" +
+                is_moose64.as_str())
+    }
     return later no
 }
 

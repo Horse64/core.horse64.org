@@ -449,6 +449,9 @@ func action_compile_do(
             ) {
         return later 1
     }
+    var opt_debug_imr =
+        result.args.has("--debug-imr") and
+        result.args["--debug-imr"]
     var opt_is_single_file =
         result.args.has("--single-file") and
         result.args["--single-file"]
@@ -698,6 +701,7 @@ func action_compile_do(
     var result = imr.generate_imr_for_project(
         aresult.project_file.project,
         msgs=aresult.msgs, build_options=boptions,
+        debug=opt_debug_imr,
     ) later:
 
     await result
@@ -964,6 +968,10 @@ func actionparser_compile_or_run(
         description="Enable debug scope and storage computation. "
         "Be warned, this debugs all local scopes and will result "
         "in a lot of output.")
+    defs.add_switch(
+        "--debug-imr",
+        description="Enable debugging when generating the "
+        "intermediate representation.")
     if not is_run_cmd {
         defs.add_switch(
             "--stage", takes_arg=yes,
