@@ -261,7 +261,7 @@ remapped_uses = {
         "math.min": "_translator_runtime_helpers._math_min",
         "math.max": "_translator_runtime_helpers._math_max",
         "math.floor": "_translator_runtime_helpers._math_floor",
-        "math.ceil": "_translator_runtime_helpers.math_ceil",
+        "math.ceil": "_translator_runtime_helpers._math_ceil",
         "math.round": "_translator_runtime_helpers._math_round",
         "math.parse_hex":
             "_translator_runtime_helpers._math_parse_hex",
