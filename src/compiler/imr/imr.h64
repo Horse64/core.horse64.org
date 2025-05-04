@@ -25,6 +25,17 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import time from core.horse64.org
+
+import compiler.compiler_log as clog
+import compiler.msg as msg
+
+type IMRTranslationResult {
+    var project_file_to_imr_map = {->}
+
+    var msgs = []
+}
+
 type IMRNode {
     var line
     var col
@@ -72,7 +83,7 @@ func generate_imr_for_stmt(node) {
     
 }
 
-func generate_imr_for_file(node) {
+func generate_imr_for_file(pfile) {
     var result = new IMRForFile()
     return later result
 }
@@ -84,13 +95,59 @@ func generate_imr_for_project(
         ) {
     const program_name =
         if is_moose64 ("moosec") else ("horsec")
+    var boptions = build_options
+    var imrresult = new IMRTranslationResult()
+
+    if boptions.print_stages {
+        clog.log_or_print(
+            new msg.FileMsg(
+                "stage imr: " +
+                "Launched on project=" +
+                project.as_str() + " "
+                "[t=" + time.ticks().as_str() + "]",
+                kind=msg.M_INFO,
+            ),
+            msgs=imrresult.msgs, program_name=program_name,
+            force_print=not boptions.format_output_for_scripts,
+        )
+    }
     if debug {
         print(program_name + ": debug: "
             "generate_imr_for_project(): "
-            "Lauched on project=" + project.as_str() + " "
-            "with is_moose64=" +
+            "Starting per file loop for "
+            "project=" + project.as_str() + ", "
+            "is_moose64=" +
                 is_moose64.as_str())
     }
+
+    func process_file(pfile) {
+        if boptions.print_stages {
+            clog.log_or_print(
+                new msg.FileMsg(
+                    "stage imr: " +
+                    "Processing file pfile=" +
+                    pfile.as_str() + " "
+                    "[t=" + time.ticks().as_str() + "]",
+                    kind=msg.M_INFO,
+                ),
+                msgs=imrresult.msgs,
+                program_name=program_name,
+                force_print=not boptions.format_output_for_scripts,
+            )
+        }
+        var result = generate_imr_for_file(pfile)
+        later:
+
+        await result
+        return later yes
+    }
+    var result = project.do_for_all_files(
+        process_file
+    ) later:
+
+    await result
+    assert(result == yes or result == no)
+
     return later no
 }
 

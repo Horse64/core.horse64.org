@@ -979,8 +979,9 @@ func actionparser_compile_or_run(
                 "\"binary\" which means full compilation, other "
                 "available stages are: "
                 "tokens, ast, global-scope, checked-ast, "
-                "transformed-code, transformed-ast, " +
-                if is_moose64 ("c, binary") else ("bytecode") + ".")
+                "transformed-code, transformed-ast, imr, " +
+                if is_moose64 ("c, binary") else
+                    ("bytecode") + ".")
         defs.add_switch(
             "--output-file", takes_arg=yes,
             description="Where to write the resulting binary, or "
@@ -1013,7 +1014,8 @@ func actionparser_compile_or_run(
     if not is_run_cmd {
         defs.add_switch(
             "--for-script",
-            description="This switch formats horsec's terminal output "
+            description="This switch formats horsec's terminal "
+                "output "
                 "(like e.g. the errors when compiling) as JSON.")
     }
     defs.add_switch(
