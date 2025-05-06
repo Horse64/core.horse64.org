@@ -27,6 +27,7 @@
 
 import time from core.horse64.org
 
+import compiler.ast as ast
 import compiler.compiler_log as clog
 import compiler.msg as msg
 
@@ -37,16 +38,32 @@ type IMRTranslationResult {
 }
 
 type IMRNode {
+    var kind
     var line
     var col
 }
 
 type IMRInstruction base IMRNode {
-    var child_blocks
+    var is_block = no
+    var blocks = []
+}
+
+func IMRInstruction.init(kind) {
+    base.init(kind)
 }
 
 type IMRBlock base IMRNode {
-    var child_instructions
+    var is_block = yes
+    var instructions = []
+}
+
+func IMRBlock.as_str {
+    var t = "IMRBlock{" +
+        "kind=" + IMRNodeKind.num_label(
+            self.kind) +
+        ",instructions=" +
+        self.instructions.as_str()
+    return t + "}"
 }
 
 enum IMRNodeKind {
@@ -73,6 +90,8 @@ enum IMRNodeKind {
 
 type IMRForFile {
     var project_file
+
+    var blocks = []
 }
 
 func generate_imr_for_expr(node) {
@@ -85,6 +104,15 @@ func generate_imr_for_stmt(node) {
 
 func generate_imr_for_file(pfile) {
     var result = new IMRForFile()
+
+    pfile.ensure_ast() later:
+
+    for stmt in pfile.ast.stmts {
+        if stmt.kind == ast.N_STMT_FUNC {
+            var block = new IMRBlock(IMR_BLOCK_FUNC)
+            result.blocks.add(block)
+        }
+    }
     return later result
 }
 
