@@ -43,13 +43,13 @@ type IMRNode {
     var col
 }
 
+func IMRNode.init(kind) {
+    self.kind = kind
+}
+
 type IMRInstruction base IMRNode {
     var is_block = no
     var blocks = []
-}
-
-func IMRInstruction.init(kind) {
-    base.init(kind)
 }
 
 type IMRBlock base IMRNode {
