@@ -25,6 +25,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import textfmt from core.horse64.org
+
 import compiler.ast as ast
 import compiler.ast.analyze as ast_analyze
 import compiler.ast.analyze.eval as ast_eval
@@ -708,29 +710,62 @@ func project.ProjectFile.check_item_exists_by_modpkg(
 ## this works from any N_STMT_FUNC or N_STMT_FUNCEXTEND node of
 ## the given type.
 func project.ProjectFile.make_attr_names_scope_from_funcattr(
-        node, msgs=none, is_moose64=no, def_project_file=none
+        node, msgs=none, is_moose64=no, def_project_file=none,
+        debug_global_storage=no,
         ) {
+    func fix_storage_id(
+            anscope, msgs=none, is_moose64=no,
+            def_project_file=none, debug_global_storage=no,
+            ) {
+        if anscope.storage_id == none {
+            var info = self.get_gscope_type_node_info_from_funcattr(
+                node, msgs=msgs, is_moose64=is_moose64,
+                def_project_file=def_project_file,
+                _forbid_recursion=yes,
+                debug_global_storage=debug_global_storage,
+            )
+            anscope.ensure_storage_id(
+                info.type_project_file,
+                is_moose64=is_moose64,
+            )
+        }
+    }
     assert(node.kind == ast.N_STMT_FUNC or
         node.kind == ast.N_STMT_FUNCEXTEND)
     if node.kind == ast.N_STMT_FUNC and
             node.func_scope != none and
             node.func_scope.owning_type_scope != none {
-        return node.func_scope.owning_type_scope
+        var anscope = node.func_scope.owning_type_scope
+        fix_storage_id(anscope,
+            msgs=msgs, is_moose64=is_moose64,
+            def_project_file=def_project_file,
+            debug_global_storage=debug_global_storage,
+        )
+        return anscope
     }
     assert(node.type_path != none)
     var info = self.get_gscope_type_node_info_from_funcattr(
         node, msgs=msgs, is_moose64=is_moose64,
-        def_project_file=def_project_file
+        def_project_file=def_project_file,
+        _forbid_recursion=yes,
+        debug_global_storage=debug_global_storage,
     )
-    var type_node = info[1]
-    var type_file = info[2]
+    var type_node = info.global_node_for_type
+    var type_file = info.type_project_file
     if type_node == none {
         return none
     }
-    return self.make_attr_names_scope_from_node(
+    var anscope = self.make_attr_names_scope_from_node(
         type_node, msgs=msgs, is_moose64=is_moose64,
-        def_project_file=type_file
+        def_project_file=type_file,
+        debug_global_storage=debug_global_storage,
     )
+    fix_storage_id(anscope,
+        msgs=msgs, is_moose64=is_moose64,
+        def_project_file=def_project_file,
+        debug_global_storage=debug_global_storage,
+    )
+    return anscope
 }
 
 ## Like @{compiler.project.ProjectFile.make_attr_names_scope_from_node},
@@ -738,6 +773,7 @@ func project.ProjectFile.make_attr_names_scope_from_funcattr(
 ## the `type` or `struct` or `enum` definition in question.
 func project.ProjectFile.make_attr_names_scope_from_gid(
         storage_id, msgs=none, is_moose64=no,
+        debug_global_storage=no,
         ) {
     if not self.project.storage_id_to_global_scope_map.has(
             storage_id) {
@@ -754,8 +790,29 @@ func project.ProjectFile.make_attr_names_scope_from_gid(
     ]
     return self.make_attr_names_scope_from_node(
         gscope_node, msgs=msgs, is_moose64=is_moose64,
-        def_project_file=def_pfile
+        def_project_file=def_pfile,
+        debug_global_storage=debug_global_storage,
     )
+}
+
+type FuncAttrGScopeTypeNodeInfo {
+    var global_node_for_type
+    var type_name
+    var type_project_file
+    var type_storage_id
+}
+
+func FuncAttrGScopeTypeNodeInfo.as_str {
+    var t = "FuncAttrGScopeTypeNodeInfo{"
+    t += "global_node_for_type=" +
+        self.global_node_for_type.as_str()
+    t += ",type_name=" +
+        textfmt.as_escaped_code_string(self.type_name)
+    t += ",type_project_file=" +
+        self.type_project_file.as_str()
+    t += ",type_storage_id=" +
+        self.type_storage_id.as_str()
+    return t + "}"
 }
 
 ## Find the type underlying the given func attribute AST node,
@@ -763,8 +820,12 @@ func project.ProjectFile.make_attr_names_scope_from_gid(
 ## project file it actually is defined in.
 func project.ProjectFile.get_gscope_type_node_info_from_funcattr(
         func_attr_node, msgs=none, is_moose64=no,
-        def_project_file=none
+        def_project_file=none,
+        debug_global_storage=no,
+        _forbid_recursion=no,
         ) {
+    var debugfuck = func_attr_node.label == "init_as_copy"
+    var result = new FuncAttrGScopeTypeNodeInfo()
     var node = func_attr_node
     assert(node.kind == ast.N_STMT_FUNC or
         node.kind == ast.N_STMT_FUNCEXTEND)
@@ -772,6 +833,7 @@ func project.ProjectFile.get_gscope_type_node_info_from_funcattr(
     if node.kind == ast.N_STMT_FUNCEXTEND {
         action = "extended"
     }
+
     assert(node.type_path != none)
     if node.kind == ast.N_STMT_FUNC and
             node.func_scope != none and
@@ -788,12 +850,17 @@ func project.ProjectFile.get_gscope_type_node_info_from_funcattr(
         var type_file = pr.storage_id_to_project_file[
             node.func_scope.owning_type_storage_id
         ]
-        assert(node.kind == ast.N_STMT_TYPE or
-               node.kind == ast.N_STMT_STRUCT)
-        return [type_node, type_file]
+        assert(type_node.kind == ast.N_STMT_TYPE or
+               type_node.kind == ast.N_STMT_STRUCT)
+        result.global_node_for_type = type_node
+        result.type_name = type_node.label
+        result.type_project_file = type_file
+        result.type_storage_id =
+            node.func_scope.owning_type_storage_id
+        return result
     }
     if def_project_file == none or node.type_path.len <= 0 {
-        return [none, none]
+        return none
     }
     var global_entry_file = def_project_file
     var global_entry = none
@@ -848,9 +915,14 @@ func project.ProjectFile.get_gscope_type_node_info_from_funcattr(
         )
         if not pfile.global_scope.name_to_stmt_map.
                     has(type_name) or
-                pfile.global_scope.
+                ((is_moose64 or
+                  pfile.global_scope.
                     name_to_stmt_map[type_name].kind !=
-                    ast.N_STMT_TYPE {
+                    ast.N_STMT_TYPE) and
+                 (not is_moose64 or
+                  pfile.global_scope.
+                    name_to_stmt_map[type_name].kind !=
+                    ast.N_STMT_STRUCT)) {
             if msgs != none {
                 assert(typename(node.type_path) == "list")
                 var emsg =
@@ -860,8 +932,14 @@ func project.ProjectFile.get_gscope_type_node_info_from_funcattr(
                     " while referencing invalid "
                     "type, "
                     "module '" + type_module.join(".") +
-                    "' doesn't contain a type named '" +
-                    type_name + "'."
+                    "' doesn't contain a "
+                if is_moose64 {
+                    emsg += "struct "
+                } else {
+                    emsg += "type "
+                }
+                emsg += "named " + textfmt.as_escaped_code_string(
+                    type_name) + "."
                 if not func_attr_node.damaged {
                     msgs.add(new msg.FileMsg(
                         emsg,
@@ -874,12 +952,13 @@ func project.ProjectFile.get_gscope_type_node_info_from_funcattr(
                 throw new ValueError("Couldn't resolve func "
                     "attribute's type path.")
             }
-            return [none, none]
+            return none
         }
         global_entry =
             pfile.global_scope.name_to_stmt_map[type_name]
         global_entry_file = pfile
-    } elseif global_entry.kind != ast.N_STMT_TYPE and
+    } elseif (is_moose64 or
+            global_entry.kind != ast.N_STMT_TYPE) and
             (not is_moose64 or
             global_entry.kind != ast.N_STMT_STRUCT) {
         if msgs != none {
@@ -891,7 +970,12 @@ func project.ProjectFile.get_gscope_type_node_info_from_funcattr(
                 " while referencing invalid "
                 "type, "
                 "since '" + node.label + "' was found but "
-                "isn't a type."
+                "isn't a "
+            if is_moose64 {
+                emsg += "struct."
+            } else {
+                emsg += "type."
+            }
             if not func_attr_node.damaged {
                 msgs.add(new msg.FileMsg(
                     emsg,
@@ -905,10 +989,34 @@ func project.ProjectFile.get_gscope_type_node_info_from_funcattr(
                 "attribute's type path.")
         }
     }
+
     assert(global_entry != none and
-        (global_entry.kind == ast.N_STMT_TYPE or
+        ((not is_moose64 and
+         global_entry.kind == ast.N_STMT_TYPE) or
         (is_moose64 and global_entry.kind == ast.N_STMT_STRUCT)))
-    return [global_entry, global_entry_file]
+    result.global_node_for_type = global_entry
+    result.type_name = global_entry.label
+    result.type_project_file = global_entry_file
+    if global_entry.symbol_info != none and
+            global_entry.symbol_info.storage_id != none {
+        result.type_storage_id =
+            global_entry.symbol_info.storage_id
+    } else {
+        var anscope = none
+        if not _forbid_recursion {
+            anscope = def_project_file.
+                make_attr_names_scope_from_funcattr(
+                    func_attr_node, msgs=msgs,
+                    is_moose64=is_moose64,
+                    def_project_file=def_project_file,
+                    debug_global_storage=debug_global_storage,
+                )
+        }
+        if anscope != none {
+            result.type_storage_id = anscope.storage_id
+        }
+    }
+    return result
 }
 
 ## This function will obtain a project-wide, unique shared
@@ -921,7 +1029,8 @@ func project.ProjectFile.get_gscope_type_node_info_from_funcattr(
 ## @{compiler.project.Project.attr_names_scope_map} associated
 ## with a respective project.
 func project.ProjectFile.make_attr_names_scope_from_node(
-        node, msgs=none, is_moose64=no, def_project_file=none
+        node, msgs=none, is_moose64=no, def_project_file=none,
+        debug_global_storage=no,
         ) {
     assert(node.kind == ast.N_STMT_TYPE or
         node.kind == ast.N_STMT_TYPEEXTEND or
@@ -1262,8 +1371,13 @@ func project.ProjectFile.make_attr_names_scope_from_node(
         }
         return none
     }
+
+    result_scope.ensure_storage_id(
+        stmt_project_file, is_moose64=is_moose64,
+        debug_global_storage=debug_global_storage,
+    )
     return result_scope
-}
+}   
 
 func try_ensure_attr_ref(
         project_file, node_lefthand, node_righthand,

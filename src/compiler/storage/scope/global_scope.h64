@@ -47,6 +47,8 @@ type GlobalScope {
     var func_attr_nodes = {}
 
     var known_to_be_in_project_file = none
+
+    var _did_final_ensuring_of_storage_ids = no
 }
 
 func GlobalScope.as_str {
@@ -364,20 +366,9 @@ func project.Project.finalize_func_typerefs_all_files(
     return later success
 }
 
-func GlobalScope.ensure_assigned_storage(
-        msgs=none, project_file=none, is_moose64=no,
-        debug_global_storage=no) {
-    if self.storage_id_to_entry.len > 0 or
-            self.name_to_stmt_map.len == 0 {
-        return
-    }
-    assert(project_file == none or project_file.global_scope == self)
-
-    var ast_tree = none
-    if project_file != none and project_file.ast != none {
-        ast_tree = project_file.ast
-    }
-
+func GlobalScope.ensure_basic_assigned_storage(
+        msgs=none, project_file=none,
+        is_moose64=no, debug_global_storage=no) {
     # Compute global storage for all values that don't have it yet:
     var storage_num = 1
     if project_file != none and project_file.project != none {
@@ -389,7 +380,8 @@ func GlobalScope.ensure_assigned_storage(
         if typename(value) == "list" {
             # Import entries have no storage or symbol info.
             continue
-        } elseif not {ast.N_STMT_ENUMEXTEND, ast.N_STMT_STRUCTEXTEND,
+        } elseif value.symbol_info == none and
+                not {ast.N_STMT_ENUMEXTEND, ast.N_STMT_STRUCTEXTEND,
                 ast.N_STMT_TYPEEXTEND}.has(value.kind) {
             assert(not self.storage_id_to_entry.has(storage_num))
             self.storage_id_to_entry[storage_num] = value
@@ -397,7 +389,8 @@ func GlobalScope.ensure_assigned_storage(
                 var pr = project_file.project
                 assert(not pr.storage_id_to_entry.has(storage_num))
                 pr.storage_id_to_entry[storage_num] = value
-                pr.storage_id_to_project_file[storage_num] = project_file
+                pr.storage_id_to_project_file[storage_num] =
+                    project_file
             }
             var si = new st_scope.SymbolInfo(name)
             if value.kind == ast.N_STMT_FUNC {
@@ -445,6 +438,30 @@ func GlobalScope.ensure_assigned_storage(
         project_file.project.last_global_storage_id =
             storage_num - 1
     }
+}
+
+func GlobalScope.ensure_assigned_storage(
+        msgs=none, project_file=none, is_moose64=no,
+        debug_global_storage=no) {
+    if self._did_final_ensuring_of_storage_ids or
+            self.name_to_stmt_map.len == 0 {
+        return
+    }
+    self._did_final_ensuring_of_storage_ids = yes
+    assert(project_file == none or
+        project_file.global_scope == self)
+
+    var ast_tree = none
+    if project_file != none and project_file.ast != none {
+        ast_tree = project_file.ast
+    }
+
+    # First, ensure the basic storage being set:
+    self.ensure_basic_assigned_storage(
+        msgs=msgs, project_file=project_file,
+        is_moose64=is_moose64,
+        debug_global_storage=debug_global_storage,
+    )
 
     # Now register enum values in the global scope too:
     var names_unchanged = self.name_to_stmt_map.keys()

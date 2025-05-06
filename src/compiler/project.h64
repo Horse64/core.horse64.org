@@ -30,6 +30,7 @@ import io from core.horse64.org
 import net.fetch from core.horse64.org
 import path from core.horse64.org
 import text from core.horse64.org
+import textfmt as core.horse64.org
 import uri from core.horse64.org
 
 import compiler.ast as ast

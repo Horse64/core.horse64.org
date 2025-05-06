@@ -1113,19 +1113,39 @@ func project.Project.compute_all_scopes(
                     var gnode_info =
                         pfile.get_gscope_type_node_info_from_funcattr(
                             node, def_project_file=pfile,
-                            msgs=msgs, is_moose64=is_moose64
+                            msgs=msgs, is_moose64=is_moose64,
+                            debug_global_storage=
+                                debug_global_storage,
                         )
-                    var gnode = gnode_info[1]
+                    var gnode = none
+                    var type_pfile = none
+                    if gnode_info != none {
+                        gnode = gnode_info.global_node_for_type
+                        type_pfile = gnode_info.type_project_file
+                    }
                     if gnode == none {
                         node.damaged = yes
                     }
                     if gnode != none and
-                            gnode.symbol_info != none {
+                            gnode_info.type_storage_id != none {
                         # (In case of wrong code, this can be none.)
-                        assert(gnode.symbol_info.storage_id != none and
-                            gnode.symbol_info.storage_id > 0)
+                        assert(gnode_info.type_storage_id != none and
+                            gnode_info.type_storage_id > 0)
                         node.func_scope.owning_type_storage_id =
-                            gnode.symbol_info.storage_id
+                            gnode_info.type_storage_id
+                        assert(node.func_scope.
+                            owning_type_storage_id != none)
+                    } else {
+                        if not node.damaged and not gnode.damaged {
+                            msgs.add(new msg.FileMsg(
+                                "Unexpectedly found func attr "
+                                "node with missing type storage id.",
+                                source_file=pfile,
+                                line=node.line, col=node.col,
+                            ))
+                        }
+                        node.damaged = yes
+                        gnode.damaged = yes
                     }
                     in_anscope =
                         pfile.make_attr_names_scope_from_funcattr(

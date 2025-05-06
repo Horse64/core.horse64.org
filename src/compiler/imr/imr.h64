@@ -159,6 +159,9 @@ func generate_imr_for_file(pfile, is_moose64=no) {
 
     for stmt in pfile.ast.stmts {
         if stmt.kind == ast.N_STMT_FUNC {
+            if stmt.damaged {
+                continue
+            }
             var func_scope = stmt.func_scope
             assert(func_scope != none)
             var block = none

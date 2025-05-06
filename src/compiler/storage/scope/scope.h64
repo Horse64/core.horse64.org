@@ -25,6 +25,8 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import textfmt from core.horse64.org
+
 import compiler.ast as ast
 import compiler.ast.enum_stmt as enum_stmt
 import compiler.ast.func_stmt as func_stmt
@@ -328,6 +330,7 @@ type AttrNamesScope {
 func AttrNamesScope.as_str {
     var t = "AttrNamesScope{" +
         "is_enum=" + self.is_enum.as_str() + "," +
+        "is_type=" + self.is_type.as_str() + "," +
         "is_struct=" + self.is_struct.as_str() + "," +
         "damaged=" + self.damaged.as_str() + "," +
         "label=" + self.label.as_str() + "," +
@@ -360,6 +363,41 @@ func AttrNamesScope.get_funcattr_node(attr_id) {
     assert(gnode.kind == ast.N_STMT_FUNC)
     assert(gnode.func_scope != none)
     return gnode
+}
+
+func AttrNamesScope.ensure_storage_id(
+        stmt_file, is_moose64=no,
+        debug_global_storage=no,
+        ) {
+    if stmt_file == none or
+            (not self.is_type and
+             not self.is_struct) or
+            self.storage_id != none {
+        return
+    }
+
+    stmt_file.global_scope.
+        ensure_basic_assigned_storage(
+            project_file=stmt_file,
+            is_moose64=is_moose64,
+            debug_global_storage=debug_global_storage,
+        )
+
+    for st_id in stmt_file.global_scope.storage_id_to_entry {
+        var entry = stmt_file.global_scope.storage_id_to_entry[
+            st_id]
+        if typename(entry) == "list" or
+                not {ast.N_STMT_STRUCT, ast.N_STMT_TYPE}.has(
+                    entry.kind) {
+            continue
+        }
+        if entry.label != self.label {
+            continue
+        }
+
+        self.storage_id = st_id
+        break
+    }
 }
 
 func AttrNamesScope.get_funcattr_typeref_expr(attr_id) {
