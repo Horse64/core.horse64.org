@@ -25,10 +25,12 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import textfmt from core.horse64.org
 import time from core.horse64.org
 
 import compiler.ast as ast
 import compiler.compiler_log as clog
+import compiler.storage.ref as st_ref
 import compiler.msg as msg
 
 type IMRTranslationResult {
@@ -62,6 +64,52 @@ func IMRBlock.as_str {
         "kind=" + IMRNodeKind.num_label(
             self.kind) +
         ",instructions=" +
+        self.instructions.as_str()
+    return t + "}"
+}
+
+type IMRFuncBlock base IMRBlock {
+    var is_func_attr = no
+
+    var global_func_id = none
+    var global_type_id = none
+    var type_attr_id = none
+    var func_scope = none
+    var label = none
+    var storage_ref = none
+}
+
+func IMRFuncBlock.init(
+        func_scope, label,
+        storage_ref,
+        ) {
+    base.init(IMR_BLOCK_FUNC)
+    self.func_scope = func_scope
+    self.label = label + ""
+    if storage_ref == none or
+            not has_attr(storage_ref, "kind") or
+            (storage_ref.kind != st_ref.ST_GLOBAL and
+             storage_ref.kind != st_ref.ST_GLOBALATTR) {
+        throw new ValueError(
+            "No storage_ref was specified, or "
+            "it's not of kind ST_GLOBAL or "
+            "ST_GLOBALATTR."
+        )
+    }
+    self.is_func_attr =
+        storage_ref.kind == st_ref.ST_GLOBALATTR
+}
+
+func IMRFuncBlock.as_str {
+    var t = "IMRFuncBlock{" +
+        "kind=" + IMRNodeKind.num_label(
+            self.kind) +
+        ",label=" + textfmt.as_escaped_code_string(
+            self.label) + 
+        ",is_func_attr=" + self.is_func_attr.as_str()
+    t += ",storage_ref=" +
+        self.storage_ref.as_str()
+    t += ",instructions=" +
         self.instructions.as_str()
     return t + "}"
 }
@@ -102,14 +150,61 @@ func generate_imr_for_stmt(node) {
     
 }
 
-func generate_imr_for_file(pfile) {
+func generate_imr_for_file(pfile, is_moose64=no) {
+    const program_name =
+        if is_moose64 ("moosec") else ("horsec")
     var result = new IMRForFile()
 
     pfile.ensure_ast() later:
 
     for stmt in pfile.ast.stmts {
         if stmt.kind == ast.N_STMT_FUNC {
-            var block = new IMRBlock(IMR_BLOCK_FUNC)
+            var func_scope = stmt.func_scope
+            assert(func_scope != none)
+            var block = none
+            if stmt.type_path != none and
+                    stmt.type_path.len > 0 {
+                assert(func_scope.is_type_attr)
+                var type_id =
+                    func_scope.owning_type_storage_id
+                var attr_id =
+                    func_scope.owning_type_scope.
+                        name_to_symbol_map[
+                            stmt.label
+                        ].storage_id
+                if type_id == none or attr_id == none {
+                    var stmt_str = stmt.as_str()
+                    print(program_name + ": error: "
+                        "Found invalid func stmt with "
+                        "invalid storage. pfile=" +
+                        pfile.as_str() + " "
+                        "label=" + textfmt.as_escaped_code_string(
+                            stmt.label) + " "
+                        "stmt=" +
+                        stmt_str.sub(1, 100) +
+                        "... "
+                        "type_id=" + type_id.as_str() + " "
+                        "attr_id=" + attr_id.as_str())
+                    throw new RuntimeError(
+                        "Internal error, encountered func "
+                        "stmt with broken storage."
+                    )
+                }
+                block = new IMRFuncBlock(
+                    func_scope, stmt.label,
+                    new st_ref.StorageRef(
+                        st_ref.ST_GLOBALATTR,
+                        [type_id, attr_id])
+                )
+            } else {
+                block = new IMRFuncBlock(
+                    func_scope, stmt.label,
+                    new st_ref.StorageRef(
+                        st_ref.ST_GLOBAL,
+                        func_scope.storage_id
+                    ),
+                )
+            }
             result.blocks.add(block)
         }
     }
@@ -163,7 +258,8 @@ func generate_imr_for_project(
                 force_print=not boptions.format_output_for_scripts,
             )
         }
-        var result = generate_imr_for_file(pfile)
+        var result = generate_imr_for_file(
+            pfile, is_moose64=is_moose64)
         later:
 
         await result
