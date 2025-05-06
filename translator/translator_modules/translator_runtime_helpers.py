@@ -3869,6 +3869,14 @@ def _get_proper_init_cls(o, self_cls_name):
         check_cls = find_proper_cls(check_cls)
     return check_cls
 
+def _try_implicit_super_init_call_for_initless_cls(
+        o, self_cls_name, args=None, kwargs=None):
+    if o.__class__.__name__ != self_cls_name:
+        return
+    return _explicit_super_init_call(
+        o, self_cls_name, args=args, kwargs=kwargs
+    )
+
 def _explicit_super_init_call(o, self_cls_name,
         args=None, kwargs=None):
     if args == None:
@@ -3923,11 +3931,13 @@ def _explicit_super_init_call(o, self_cls_name,
         print("completed _explicit_super_init_call on: " + str(id(o)) +
             ", class: " + o.__class__.__name__)
 
-def _call_builtin_init_if_needed(o, self_cls_name):
+def _call_builtin_init_if_needed(
+        o, self_cls_name,
+        ):
     check_cls = _get_proper_init_cls(o, self_cls_name)
     bases = check_cls.__bases__
     debug = False
-    if False and "FuncStmt" in str(o.__class__):
+    if False and "IMRBlock" in str(o.__class__):
         debug = True
     if debug:
         print("_call_builtin_init_if_needed on: " + str(id(o)) +

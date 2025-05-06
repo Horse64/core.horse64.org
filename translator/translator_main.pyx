@@ -3813,7 +3813,14 @@ def translate_do_func(
                     if regtype.init_code != None:
                         # Now initialize all variables:
                         append_t += regtype.init_code + "\n"
-                    # Then return whatever super type constructor gave:
+                    # Then check if we're at the top of the parent chain,
+                    # in which case call user constructors on sub classes if
+                    # any:
+                    append_t += ("        _translator_runtime_helpers." +
+                        "_try_implicit_super_init_call_for_initless_cls(" +
+                        "self, \"" + gencode_nameprefix + regtype.name +
+                        "\", args=args, kwargs=kwargs)\n")
+                    # Nothing else to do:
                     append_t + (inner_indent + "pass\n")
                 for funcname in regtype.funcs:
                     if funcname == "init":
