@@ -259,10 +259,11 @@ func parse_ast_target_from_args(args, checked_ast=no,
 }
 
 func show_intermediate_compile_result_to_terminal_or_file(
-        msgs, ast_result=none,
-        literal_value_result=none,
+        msgs, abstract_result=none,
+        json_obj_value_result=none,
         build_options=none, for_script=no,
         is_global_scope=no, is_code_file=no,
+        is_imr=no,
         omit_result=no,
         fail_reason="Code compilation has failed."
         ) {
@@ -277,29 +278,29 @@ func show_intermediate_compile_result_to_terminal_or_file(
         if had_error or omit_result {
             return later
         }
-        if literal_value_result != none {
-            actual_result_contents = literal_value_result
+        if json_obj_value_result != none {
+            actual_result_contents = json_obj_value_result
             return later
         }
-        if ast_result == none {
+        if abstract_result == none {
             return later
         }
         if is_code_file and has_attr(
-                ast_result, "dump_as_code") {
-            var result = ast_result.dump_as_code()
+                abstract_result, "dump_as_code") {
+            var result = abstract_result.dump_as_code()
             actual_result_contents = result
             return later
         }
         if is_global_scope {
             if for_script {
-                actual_result_contents = ast_result.as_json_obj()
+                actual_result_contents = abstract_result.as_json_obj()
             } else {
-                actual_result_contents = ast_result.as_str()
+                actual_result_contents = abstract_result.as_str()
             }
             return later
         }
         var result = ""
-        for stmt in ast_result.stmts {
+        for stmt in abstract_result.stmts {
             if result.len > 0 {
                 result += ",\n"
             }
@@ -504,7 +505,7 @@ func action_compile_do(
         var finalresult =
             show_intermediate_compile_result_to_terminal_or_file(
                 aresult.msgs,
-                ast_result=aresult,
+                abstract_result=aresult,
                 build_options=boptions,
                 for_script=opt_for_script,
                 is_global_scope=no, is_code_file=no,
@@ -677,7 +678,7 @@ func action_compile_do(
         var finalresult =
             show_intermediate_compile_result_to_terminal_or_file(
                 aresult.msgs,
-                ast_result=aresult,
+                abstract_result=aresult,
                 build_options=boptions,
                 for_script=opt_for_script,
                 is_global_scope=no,
@@ -693,7 +694,7 @@ func action_compile_do(
             {"bytecode", "run"}.has(stage)) or
         (is_moose64 and
             {"c"}.has(stage)) or
-        {"binary", "run"}.has(stage)
+        {"binary", "imr"}.has(stage)
     )
     # First, go to intermediate representation:
     print_stage_info("imr",
@@ -705,8 +706,11 @@ func action_compile_do(
     ) later:
 
     await result
-    if not result or msg.msgs_contain_error(aresult.msgs) {
-        if not msg.msgs_contain_error(aresult.msgs) {
+    var imr_failed = not result or
+        msg.msgs_contain_error(aresult.msgs)
+    if stage == "imr" or imr_failed {
+        if imr_failed and
+                not msg.msgs_contain_error(aresult.msgs) {
             aresult.msgs.add(msg.FileMsg(
                 "Transformation to IMR failed "
                 "without any error message.",
@@ -719,7 +723,8 @@ func action_compile_do(
                 for_script=opt_for_script,
                 is_global_scope=no,
                 is_code_file=no,
-                omit_result=yes,
+                is_imr=yes,
+                omit_result=(imr_failed),
             ) later:
 
         await finalresult
@@ -769,7 +774,7 @@ func action_compile_do(
                 var finalresult =
                     show_intermediate_compile_result_to_terminal_or_file(
                         aresult.msgs,
-                        literal_value_result=export_result,
+                        json_obj_value_result=export_result,
                         build_options=boptions,
                         for_script=opt_for_script,
                         is_global_scope=no,
@@ -1032,12 +1037,12 @@ func actionparser_compile_or_run(
     }
     const possible_stages = if is_moose64 ([
         "tokens", "ast", "global-scope", "checked-ast",
-        "transformed-code", "transformed-ast", "c",
-        "binary"
+        "transformed-ast", "transformed-code", "imr",
+        "c", "binary"
     ]) else ([
         "tokens", "ast", "global-scope", "checked-ast",
-        "transformed-code", "transformed-ast", "bytecode",
-        "binary"
+        "transformed-ast", "transformed-code", "imr",
+        "bytecode", "binary"
     ])
 
     # Sanity check the provided options first:
@@ -1264,7 +1269,7 @@ func actionparser_compile_or_run(
         var finalresult =
             show_intermediate_compile_result_to_terminal_or_file(
                 aresult.msgs,
-                ast_result=to_be_printed_obj,
+                abstract_result=to_be_printed_obj,
                 build_options=boptions,
                 for_script=opt_for_script,
                 is_global_scope=is_global_scope
@@ -1277,6 +1282,7 @@ func actionparser_compile_or_run(
             result.args["--stage"] == "transformed-code" or
             result.args["--stage"] == "transformed-ast" or
             result.args["--stage"] == "c" or
+            result.args["--stage"] == "imr" or
             result.args["--stage"] == "bytecode" or
             result.args["--stage"] == "binary" {
         var stage = if is_run_cmd ("run")
