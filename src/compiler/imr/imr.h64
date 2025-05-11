@@ -29,6 +29,7 @@ import textfmt from core.horse64.org
 import time from core.horse64.org
 
 import compiler.ast as ast
+import compiler.ast.transform as ast_transform
 import compiler.compiler_log as clog
 import compiler.storage.ref as st_ref
 import compiler.msg as msg
@@ -157,51 +158,53 @@ func generate_imr_for_file(pfile, is_moose64=no) {
 
     pfile.ensure_ast() later:
 
-    for stmt in pfile.ast.stmts {
-        if stmt.kind == ast.N_STMT_FUNC {
-            if stmt.damaged {
-                continue
-            }
-            var func_scope = stmt.func_scope
+    func collect_funcs(node, parents) {
+        var parent = if parents.len > 0
+            (parents[parents.len]) else (none)
+        if node.damaged {
+            return later node
+        }
+        if node.kind == ast.N_STMT_FUNC {
+            var func_scope = node.func_scope
             assert(func_scope != none)
             var block = none
-            if stmt.type_path != none and
-                    stmt.type_path.len > 0 {
+            if node.type_path != none and
+                    node.type_path.len > 0 {
                 assert(func_scope.is_type_attr)
                 var type_id =
                     func_scope.owning_type_storage_id
                 var attr_id =
                     func_scope.owning_type_scope.
                         name_to_symbol_map[
-                            stmt.label
+                            node.label
                         ].storage_id
                 if type_id == none or attr_id == none {
-                    var stmt_str = stmt.as_str()
+                    var node_str = node.as_str()
                     print(program_name + ": error: "
-                        "Found invalid func stmt with "
+                        "Found invalid func node with "
                         "invalid storage. pfile=" +
                         pfile.as_str() + " "
                         "label=" + textfmt.as_escaped_code_string(
-                            stmt.label) + " "
-                        "stmt=" +
-                        stmt_str.sub(1, 100) +
+                            node.label) + " "
+                        "node=" +
+                        node_str.sub(1, 100) +
                         "... "
                         "type_id=" + type_id.as_str() + " "
                         "attr_id=" + attr_id.as_str())
                     throw new RuntimeError(
                         "Internal error, encountered func "
-                        "stmt with broken storage."
+                        "node with broken storage."
                     )
                 }
                 block = new IMRFuncBlock(
-                    func_scope, stmt.label,
+                    func_scope, node.label,
                     new st_ref.StorageRef(
                         st_ref.ST_GLOBALATTR,
                         [type_id, attr_id])
                 )
             } else {
                 block = new IMRFuncBlock(
-                    func_scope, stmt.label,
+                    func_scope, node.label,
                     new st_ref.StorageRef(
                         st_ref.ST_GLOBAL,
                         func_scope.storage_id
@@ -210,7 +213,16 @@ func generate_imr_for_file(pfile, is_moose64=no) {
             }
             result.blocks.add(block)
         }
+        return later node
     }
+    var success = ast_transform.visit_ast_tree(
+        pfile.ast, collect_funcs,
+        pass_func_boundaries=yes,
+        parent_chain=yes, backward=no,
+    ) later:
+
+    await success
+    assert(success == yes)
     return later result
 }
 
