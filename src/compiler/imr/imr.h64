@@ -25,6 +25,7 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
+import json from core.horse64.org
 import textfmt from core.horse64.org
 import time from core.horse64.org
 
@@ -62,11 +63,19 @@ type IMRBlock base IMRNode {
 
 func IMRBlock.as_str {
     var t = "IMRBlock{" +
-        "kind=" + IMRNodeKind.num_label(
-            self.kind) +
-        ",instructions=" +
-        self.instructions.as_str()
+        json.dump(self.as_json_obj())
     return t + "}"
+}
+
+func IMRBlock.as_json_obj {
+    var instl = []
+    for inst in self.instructions {
+        instl.add(inst.as_json_obj())
+    }
+    return {
+        "kind" -> IMRNodeKind.num_label(self.kind),
+        "instructions" -> instl,
+    }
 }
 
 type IMRFuncBlock base IMRBlock {
@@ -102,17 +111,17 @@ func IMRFuncBlock.init(
 }
 
 func IMRFuncBlock.as_str {
-    var t = "IMRFuncBlock{" +
-        "kind=" + IMRNodeKind.num_label(
-            self.kind) +
-        ",label=" + textfmt.as_escaped_code_string(
-            self.label) + 
-        ",is_func_attr=" + self.is_func_attr.as_str()
-    t += ",storage_ref=" +
-        self.storage_ref.as_str()
-    t += ",instructions=" +
-        self.instructions.as_str()
+    var t = "IMRFuncBlock" +
+        json.dump(self.as_json_obj())
     return t + "}"
+}
+
+func IMRFuncBlock.as_json_obj {
+    var obj = base.as_json_obj()
+    obj["label"] = self.label
+    obj["is_func_attr"] = self.is_func_attr.as_str()
+    obj["storage_ref"] = self.storage_ref.as_str()
+    return obj
 }
 
 enum IMRNodeKind {
@@ -141,6 +150,13 @@ type IMRForFile {
     var project_file
 
     var blocks = []
+}
+
+func IMRForFile.as_str {
+    var t = "IMRForFile{" +
+        "project_file=" + self.project_file.as_str()
+    t += ",blocks=" + self.blocks.as_str()
+    return t + "}"
 }
 
 func generate_imr_for_expr(node) {
@@ -223,6 +239,7 @@ func generate_imr_for_file(pfile, is_moose64=no) {
 
     await success
     assert(success == yes)
+
     return later result
 }
 
