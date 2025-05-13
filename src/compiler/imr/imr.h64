@@ -86,12 +86,14 @@ type IMRFuncBlock base IMRBlock {
     var type_attr_id = none
     var func_scope = none
     var label = none
+    var type_path = none
     var storage_ref = none
 }
 
 func IMRFuncBlock.init(
         func_scope, label,
         storage_ref,
+        type_path=none,
         ) {
     base.init(IMR_BLOCK_FUNC)
     self.func_scope = func_scope
@@ -108,6 +110,21 @@ func IMRFuncBlock.init(
     }
     self.is_func_attr =
         storage_ref.kind == st_ref.ST_GLOBALATTR
+    if self.is_func_attr {
+        if type_path == none or type_path.len == 0 {
+            throw new ValueError(
+                "Missing type_path for a func attr."
+            )
+        }
+        self.type_path = type_path.copy()
+    } else {
+        if type_path != none and type_path.len > 0 {
+            throw new ValueError(
+                "Unexpected type_path for a func that "
+                "isn't a func attr."
+            )
+        }
+    }
 }
 
 func IMRFuncBlock.as_str {
@@ -121,6 +138,13 @@ func IMRFuncBlock.as_json_obj {
     obj["label"] = self.label
     obj["is_func_attr"] = self.is_func_attr.as_str()
     obj["storage_ref"] = self.storage_ref.as_str()
+    if self.is_func_attr {
+        assert(self.type_path != none)
+        obj["type_path"] = self.type_path.copy()
+    } else {
+        assert(self.type_path == none or
+            self.type_path.len == 0)
+    }
     return obj
 }
 
@@ -159,6 +183,28 @@ func IMRForFile.as_str {
     return t + "}"
 }
 
+func IMRForFile.find_global_func_by_label(
+        label, type_path=none) {
+    for block in self.blocks {
+        if block.kind != IMR_BLOCK_FUNC {
+            continue
+        }
+        if type_path == none or type_path.len == 0 {
+            if block.is_func_attr {
+                continue
+            }
+            if block.label == label {
+                return block
+            }
+        } else {
+            if not block.is_func_attr {
+                continue
+            }
+        }
+    }
+    return none
+}
+
 func generate_imr_for_expr(node) {
     
 }
@@ -174,11 +220,43 @@ func generate_imr_for_file(pfile, is_moose64=no) {
 
     pfile.ensure_ast() later:
 
+    var _func_stmt_to_imr_func_map = {->}
+
     func collect_funcs(node, parents) {
         var parent = if parents.len > 0
             (parents[parents.len]) else (none)
         if node.damaged {
             return later node
+        }
+        func get_func_parent_imr {
+            var i = parents.len
+            while i >= 1 and
+                    not {ast.N_STMT_FUNC,
+                    ast.N_STMT_FUNCEXTEND}.has(
+                        parents[i].kind) {
+                i -= 1
+            }
+            if i < 1 {
+                return none
+            }
+            var parent_node = parents[i]
+            if parent_node == ast.N_STMT_FUNCEXTEND {
+                return none
+            }
+
+            if not _func_stmt_to_imr_func_map.has(
+                    parent_node) {
+                var item = result.find_global_func_by_label(
+                    parent_node.label,
+                    type_path=parent_node.type_path,
+                )
+                _func_stmt_to_imr_func_map[
+                    parent_node
+                ] = item
+            }
+            return _func_stmt_to_imr_func_map[
+                parent_node
+            ]
         }
         if node.kind == ast.N_STMT_FUNC {
             var func_scope = node.func_scope
@@ -216,7 +294,8 @@ func generate_imr_for_file(pfile, is_moose64=no) {
                     func_scope, node.label,
                     new st_ref.StorageRef(
                         st_ref.ST_GLOBALATTR,
-                        [type_id, attr_id])
+                        [type_id, attr_id]),
+                    type_path=node.type_path,
                 )
             } else {
                 block = new IMRFuncBlock(
@@ -227,6 +306,9 @@ func generate_imr_for_file(pfile, is_moose64=no) {
                     ),
                 )
             }
+            _func_stmt_to_imr_func_map[
+                node
+            ] = block
             result.blocks.add(block)
         }
         return later node

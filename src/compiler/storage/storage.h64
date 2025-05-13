@@ -978,7 +978,8 @@ func project.Project.compute_all_scopes(
                     assert(node.type_path == none)
                     is_toplevel = no
                 }
-                if node.type_path == none {
+                if node.type_path == none or
+                        node.type_path.len == 0 {
                     assert(node.kind == ast.N_STMT_FUNC)
                     var symbol_info =
                         try_register_symbol(inner_scope,

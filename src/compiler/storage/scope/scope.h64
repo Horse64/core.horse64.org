@@ -84,6 +84,7 @@ type FuncScope {
     var last_inner_ccapture_id = 0
     var base_func_scope = none
     var extended_by_scopes = []
+
     var arg_names = []
     var arg_symbol_info = []
     var arg_type_exprs = []
@@ -91,13 +92,16 @@ type FuncScope {
     var has_return_type = no
     var has_arg_types = no
     var return_type_expr = none
+
     var is_type_attr = no
     var is_type_extend_attr = no
+
     var is_later_func = no
     var is_override = no
     var is_closure = no
     var is_marked_readonly = no
     var has_failable = no
+
     var storage_id = 0
     var owning_type_storage_id
     var owning_type_scope
