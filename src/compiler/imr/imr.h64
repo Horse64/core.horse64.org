@@ -80,6 +80,7 @@ func IMRBlock.as_json_obj {
 
 type IMRFuncBlock base IMRBlock {
     var is_func_attr = no
+    var is_extend = no
 
     var global_func_id = none
     var global_type_id = none
@@ -94,10 +95,12 @@ func IMRFuncBlock.init(
         func_scope, label,
         storage_ref,
         type_path=none,
+        is_extend=no,
         ) {
     base.init(IMR_BLOCK_FUNC)
     self.func_scope = func_scope
     self.label = label + ""
+    self.is_extend = is_extend
     if storage_ref == none or
             not has_attr(storage_ref, "kind") or
             (storage_ref.kind != st_ref.ST_GLOBAL and
@@ -138,6 +141,7 @@ func IMRFuncBlock.as_json_obj {
     obj["label"] = self.label
     obj["is_func_attr"] = self.is_func_attr.as_str()
     obj["storage_ref"] = self.storage_ref.as_str()
+    obj["is_extend"] = self.is_extend == yes
     if self.is_func_attr {
         assert(self.type_path != none)
         obj["type_path"] = self.type_path.copy()
@@ -240,9 +244,6 @@ func generate_imr_for_file(pfile, is_moose64=no) {
                 return none
             }
             var parent_node = parents[i]
-            if parent_node == ast.N_STMT_FUNCEXTEND {
-                return none
-            }
 
             if not _func_stmt_to_imr_func_map.has(
                     parent_node) {
@@ -258,7 +259,10 @@ func generate_imr_for_file(pfile, is_moose64=no) {
                 parent_node
             ]
         }
-        if node.kind == ast.N_STMT_FUNC {
+        if node.kind == ast.N_STMT_FUNC or
+                node.kind == ast.N_STMT_FUNCEXTEND {
+            var is_extend =
+                node.kind == ast.N_STMT_FUNCEXTEND
             var func_scope = node.func_scope
             assert(func_scope != none)
             var block = none
@@ -296,6 +300,7 @@ func generate_imr_for_file(pfile, is_moose64=no) {
                         st_ref.ST_GLOBALATTR,
                         [type_id, attr_id]),
                     type_path=node.type_path,
+                    is_extend=is_extend,
                 )
             } else {
                 block = new IMRFuncBlock(
@@ -304,6 +309,7 @@ func generate_imr_for_file(pfile, is_moose64=no) {
                         st_ref.ST_GLOBAL,
                         func_scope.storage_id
                     ),
+                    is_extend=is_extend,
                 )
             }
             _func_stmt_to_imr_func_map[

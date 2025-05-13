@@ -105,7 +105,6 @@ type FuncScope {
     var storage_id = 0
     var owning_type_storage_id
     var owning_type_scope
-    var inner_scope
     var parent
 }
 
