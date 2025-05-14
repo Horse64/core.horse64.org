@@ -51,6 +51,44 @@ func IMRNode.init(kind) {
     self.kind = kind
 }
 
+type IMRVarInfo base IMRNode {
+    var label
+    var type_expr
+    var storage_id
+}
+
+func IMRVarInfo.init(var_label, var_type, storage_id) {
+    base.init(IMR_INST_VARINFO)
+    if typename(var_label) != "str" {
+        throw new TypeError("The var_label parameter "
+            "must be of type str.")
+    }
+    if typename(storage_id) != "num" {
+        throw new TypeError("The storage_id parameter "
+            "must be of type str.")
+    }
+    self.label = var_label
+    self.type_expr = var_type
+    self.storage_id = storage_id
+}
+
+func IMRVarInfo.as_str {
+    var t = "IMRVarInfo{" +
+        json.dump(self.as_json_obj())
+    return t + "}"
+}
+
+func IMRVarInfo.as_json_obj {
+    var obj = base.as_json_obj()
+    obj["label"] = self.label
+    obj["type_expr"] =
+        if self.type_expr != none
+            (self.type_expr.as_str())
+        else (none)
+    obj["storage_id"] = self.storage_id
+    return obj
+}
+
 type IMRInstruction base IMRNode {
     var is_block = no
     var blocks = []
@@ -164,6 +202,7 @@ enum IMRNodeKind {
     IMR_BLOCK_RESCUE,
     IMR_BLOCK_FINALLY,
     IMR_BLOCK_WITH,
+    IMR_INST_VARINFO,
     IMR_INST_MOVE,
     IMR_INST_MOVE_CAST,
     IMR_INST_BINOP,
@@ -258,6 +297,9 @@ func generate_imr_for_file(pfile, is_moose64=no) {
             return _func_stmt_to_imr_func_map[
                 parent_node
             ]
+        }
+        if node.kind == ast.N_STMT_VAR {
+            return node
         }
         if node.kind == ast.N_STMT_FUNC or
                 node.kind == ast.N_STMT_FUNCEXTEND {
