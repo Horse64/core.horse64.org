@@ -248,15 +248,71 @@ func IMRForFile.find_global_func_by_label(
     return none
 }
 
-func generate_imr_for_expr(node) {
+func generate_imr_for_expr(
+        node, imr_parents=[],
+        is_moose64=no, msgs=none,
+        ) {
     
 }
 
-func generate_imr_for_stmt(node) {
-    
+func generate_imr_for_stmt(
+        node, imr_parents=[],
+        is_moose64=no, msgs=none,
+        ) {
+    if node.kind == ast.N_STMT_VAR {
+        var result = []
+        var idx = 0
+        for label in node.labels {
+            idx += 1
+            var vinfo = new IMRVarInfo(label,
+                if node.has_type_expr
+                    (node.subexprs[node.subexprs.len])
+                    else (none),
+                node.symbol_info[pos].storage_id)
+            vinfo.line = node.line
+            vinfo.col = node.col
+            result.add(vinfo)
+        }
+        return later result
+    }
+    return later none
 }
 
-func generate_imr_for_file(pfile, is_moose64=no) {
+func generate_imr_for_stmts(
+        nodes, imr_parents=[],
+        is_moose64=no, msgs=none,
+        ) {
+    var result = []
+    var queue = nodes.copy()
+    if queue.len == 0 {
+        return later result
+    }
+    var item = queue.pop()
+    var inner_result = generate_imr_for_stmt(
+        item, imr_parents=imr_parents,
+        is_moose64=is_moose64, msgs=msgs,
+    ) later:
+
+    await inner_result
+    if inner_result != none {
+        if typename(inner_result) == "list" {
+            result += inner_result
+        } else {
+            result.add(inner_result)
+        }
+    }
+    if queue.len == 0 {
+        return later result
+    }
+    var item = queue.pop()
+    var inner_result = generate_imr_for_stmt(
+        item, imr_parents=imr_parents,
+        is_moose64=is_moose64, msgs=msgs,
+    ) later repeat
+}
+    
+
+func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
     const program_name =
         if is_moose64 ("moosec") else ("horsec")
     var result = new IMRForFile()
@@ -265,41 +321,33 @@ func generate_imr_for_file(pfile, is_moose64=no) {
 
     var _func_stmt_to_imr_func_map = {->}
 
+    func get_imr_node_for_func(node) {
+        if not {ast.N_STMT_FUNC,
+                ast.N_STMT_FUNCEXTEND}.has(
+                    node.kind) {
+            return none
+        }
+
+        if not _func_stmt_to_imr_func_map.has(
+                node) {
+            var item = result.find_global_func_by_label(
+                node.label,
+                type_path=node.type_path,
+            )
+            _func_stmt_to_imr_func_map[
+                node
+            ] = item
+        }
+        return _func_stmt_to_imr_func_map[
+            node
+        ]
+    }
+
     func collect_funcs(node, parents) {
         var parent = if parents.len > 0
             (parents[parents.len]) else (none)
         if node.damaged {
             return later node
-        }
-        func get_func_parent_imr {
-            var i = parents.len
-            while i >= 1 and
-                    not {ast.N_STMT_FUNC,
-                    ast.N_STMT_FUNCEXTEND}.has(
-                        parents[i].kind) {
-                i -= 1
-            }
-            if i < 1 {
-                return none
-            }
-            var parent_node = parents[i]
-
-            if not _func_stmt_to_imr_func_map.has(
-                    parent_node) {
-                var item = result.find_global_func_by_label(
-                    parent_node.label,
-                    type_path=parent_node.type_path,
-                )
-                _func_stmt_to_imr_func_map[
-                    parent_node
-                ] = item
-            }
-            return _func_stmt_to_imr_func_map[
-                parent_node
-            ]
-        }
-        if node.kind == ast.N_STMT_VAR {
-            return node
         }
         if node.kind == ast.N_STMT_FUNC or
                 node.kind == ast.N_STMT_FUNCEXTEND {
@@ -354,10 +402,8 @@ func generate_imr_for_file(pfile, is_moose64=no) {
                     is_extend=is_extend,
                 )
             }
-            _func_stmt_to_imr_func_map[
-                node
-            ] = block
             result.blocks.add(block)
+            _func_stmt_to_imr_func_map[node] = block
         }
         return later node
     }
@@ -368,6 +414,46 @@ func generate_imr_for_file(pfile, is_moose64=no) {
     ) later:
 
     await success
+    if not success {
+        assert(msg.msgs_contain_error(msgs))
+        return result
+    }
+    assert(success == yes)
+
+    func collect_func_contents(node, parents) {
+        var parent = if parents.len > 0
+            (parents[parents.len]) else (none)
+        if node.damaged {
+            return later node
+        }
+        if node.kind == ast.N_STMT_FUNC or
+                node.kind == ast.N_STMT_FUNCEXTEND {
+            var imr_node = get_imr_node_for_func(node)
+            assert(imr_node != none)
+
+            var stmts = generate_imr_for_stmts(
+                node.subblocks[1],
+                imr_parents=[imr_node],
+                is_moose64=is_moose64,
+                msgs=msgs,
+            ) later:
+
+            await stmts
+            imr_node.instructions += stmts
+        }
+        return later node
+    }
+    var success = ast_transform.visit_ast_tree(
+        pfile.ast, collect_func_contents,
+        pass_func_boundaries=yes,
+        parent_chain=yes, backward=no,
+    ) later:
+
+    await success
+    if not success {
+        assert(msg.msgs_contain_error(msgs))
+        return result
+    }
     assert(success == yes)
 
     return later result
