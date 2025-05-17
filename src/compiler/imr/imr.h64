@@ -79,7 +79,7 @@ func IMRVarInfo.as_str {
 }
 
 func IMRVarInfo.as_json_obj {
-    var obj = base.as_json_obj()
+    var obj = {->}
     obj["label"] = self.label
     obj["type_expr"] =
         if self.type_expr != none
@@ -262,13 +262,13 @@ func generate_imr_for_stmt(
     if node.kind == ast.N_STMT_VAR {
         var result = []
         var idx = 0
-        for label in node.labels {
+        for label in node.var_labels {
             idx += 1
             var vinfo = new IMRVarInfo(label,
                 if node.has_type_expr
                     (node.subexprs[node.subexprs.len])
                     else (none),
-                node.symbol_info[pos].storage_id)
+                node.symbol_info[idx].storage_id)
             vinfo.line = node.line
             vinfo.col = node.col
             result.add(vinfo)
