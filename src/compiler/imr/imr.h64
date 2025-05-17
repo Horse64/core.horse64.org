@@ -51,6 +51,12 @@ func IMRNode.init(kind) {
     self.kind = kind
 }
 
+func IMRNode.as_json_obj {
+    var obj = {->}
+    obj["kind"] = IMRNodeKind.num_label(self.kind)
+    return obj
+}
+
 type IMRVarInfo base IMRNode {
     var label
     var type_expr
@@ -79,7 +85,7 @@ func IMRVarInfo.as_str {
 }
 
 func IMRVarInfo.as_json_obj {
-    var obj = {->}
+    var obj = base.as_json_obj()
     obj["label"] = self.label
     obj["type_expr"] =
         if self.type_expr != none
@@ -106,14 +112,13 @@ func IMRBlock.as_str {
 }
 
 func IMRBlock.as_json_obj {
+    var obj = base.as_json_obj()
     var instl = []
     for inst in self.instructions {
         instl.add(inst.as_json_obj())
     }
-    return {
-        "kind" -> IMRNodeKind.num_label(self.kind),
-        "instructions" -> instl,
-    }
+    obj["instructions"] = instl
+    return obj
 }
 
 type IMRFuncBlock base IMRBlock {
@@ -171,7 +176,7 @@ func IMRFuncBlock.init(
 func IMRFuncBlock.as_str {
     var t = "IMRFuncBlock" +
         json.dump(self.as_json_obj())
-    return t + "}"
+    return t
 }
 
 func IMRFuncBlock.as_json_obj {
