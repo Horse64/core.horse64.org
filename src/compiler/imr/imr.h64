@@ -94,7 +94,6 @@ func IMRVarInfo.as_json_obj {
     return obj
 }
 
-
 type IMRMove base IMRNode {
     var source_storage_id
     var target_storage_id
@@ -115,15 +114,79 @@ func IMRMove.init(source_storage_id, target_storage_id) {
 }
 
 func IMRMove.as_str {
-    var t = "IMRMove{" +
+    var t = "IMRMove" +
         json.dump(self.as_json_obj())
-    return t + "}"
+    return t
 }
 
-func IMRMove.as_json_obj {
+type IMRAppyOp base IMRNode {
+    var is_binary = yes
+    var op_token
+    var target_storage_ref
+    var operand_1_storage_ref
+    var operand_1_storage_ref
+}
+
+func IMRApplyOp.init(op_token, target_storage_ref,
+        operand_1_storage_ref=none,
+        operand_2_storage_ref=none,
+        is_binary=no,
+        ) {
+    base.init(IMR_INST_APPLY_OP)
+    if typename(target_storage_ref) != "obj" or
+            not has_attr(target_storage_ref, "kind") or
+            not has_attr(target_storage_ref, "id") {
+        throw new TypeError("The target_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    if typename(operand_1_storage_ref) != "obj" or
+            not has_attr(operand_1_storage_ref, "kind") or
+            not has_attr(operand_1_storage_ref, "id") {
+        throw new TypeError("The operand_1_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    if operand_2_storage_ref != none and
+            typename(operand_2_storage_ref) != "obj" or
+            not has_attr(operand_2_storage_ref, "kind") or
+            not has_attr(operand_2_storage_ref, "id") {
+        throw new TypeError("The operand_2_storage_ref parameter "
+            "must be of type StorageRef or none.")
+    }
+    if self.is_binary and operand_2_storage_ref == none {
+        throw new TypeError("The operand_2_storage_ref parameter "
+            "must be specified when is_binary is set to yes.")
+    }
+    if not self.is_binary and operand_2_storage_ref != none {
+        throw new TypeError("The operand_2_storage_ref parameter "
+        "cannot be specified when is_binary is set to no.")
+    }
+    self.target_storage_ref = target_storage_ref.copy()
+    self.operand_1_storage_ref = operand_1_storage_ref.copy()
+    self.operand_2_storage_ref = none
+    if is_binary {
+        self.is_binary = yes
+        self.operand_2_storage_ref =
+            operand_2_storage_ref.copy
+    } else {
+        self.is_binary = no
+    }
+}
+
+func IMRApplyOp.as_str {
+    var t = "IMRApplyOp" +
+        json.dump(self.as_json_obj())
+    return t
+}
+
+func IMRApplyOp.as_json_obj {
     var obj = base.as_json_obj()
-    obj["source_storage_id"] = self.source_storage_id
-    obj["target_storage_id"] = self.target_storage_id
+    obj["target_storage_ref"] = self.target_storage_ref.as_str()
+    obj["operand_1_storage_ref"] = self.operand_1_storage_ref.as_str()
+    if self.is_binary {
+        obj["operand_2_storage_ref"] =
+            self.operand_2_storage_ref.as_str()
+    }
+    obj["is_binary"] = is_binary
     return obj
 }
 
@@ -242,7 +305,7 @@ enum IMRNodeKind {
     IMR_INST_VARINFO,
     IMR_INST_MOVE,
     IMR_INST_MOVE_CAST,
-    IMR_INST_BINOP,
+    IMR_INST_APPLY_OP,
     IMR_INST_CALL,
     IMR_INST_BREAK,
     IMR_INST_CONTINUE,
