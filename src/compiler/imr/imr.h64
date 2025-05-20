@@ -95,28 +95,39 @@ func IMRVarInfo.as_json_obj {
 }
 
 type IMRMove base IMRNode {
-    var source_storage_id
-    var target_storage_id
+    var source_storage_ref
+    var target_storage_ref
 }
 
-func IMRMove.init(source_storage_id, target_storage_id) {
+func IMRMove.init(source_storage_ref, target_storage_ref) {
     base.init(IMR_INST_MOVE)
-    if typename(source_storage_id) != "num" {
-        throw new TypeError("The source_storage_id parameter "
-            "must be of type str.")
+    if typename(source_storage_ref) != "obj" or
+            not has_attr(source_storage_ref, "kind") or
+            not has_attr(source_storage_ref, "id") {
+        throw new TypeError("The source_storage_ref parameter "
+            "must be of type StorageRef.")
     }
-    if typename(target_storage_id) != "num" {
-        throw new TypeError("The target_storage_id parameter "
-            "must be of type str.")
+    if typename(target_storage_ref) != "obj" or
+            not has_attr(target_storage_ref, "kind") or
+            not has_attr(target_storage_ref, "id") {
+        throw new TypeError("The target_storage_ref parameter "
+            "must be of type StorageRef.")
     }
-    self.source_storage_id = source_storage_id
-    self.target_storage_id = target_storage_id
+    self.source_storage_ref = source_storage_ref
+    self.target_storage_ref = target_storage_ref
 }
 
 func IMRMove.as_str {
     var t = "IMRMove" +
         json.dump(self.as_json_obj())
     return t
+}
+
+func IMRMove.as_json_obj {
+    var obj = base.as_json_obj()
+    obj["source_storage_ref"] = self.source_storage_ref.as_str()
+    obj["target_storage_ref"] = self.target_storage_ref.as_str()
+    return obj
 }
 
 type IMRAppyOp base IMRNode {
@@ -127,9 +138,10 @@ type IMRAppyOp base IMRNode {
     var operand_1_storage_ref
 }
 
-func IMRApplyOp.init(op_token, target_storage_ref,
+func IMRApplyOp.init(op_token,
         operand_1_storage_ref=none,
         operand_2_storage_ref=none,
+        target_storage_ref=none,
         is_binary=no,
         ) {
     base.init(IMR_INST_APPLY_OP)
@@ -348,11 +360,21 @@ func IMRForFile.find_global_func_by_label(
     return none
 }
 
+type ExprIMRResult {
+    var instructions = []
+    var storage_ref
+}
+
 func generate_imr_for_expr(
         node, imr_parents=[],
         is_moose64=no, msgs=none,
         ) {
-    
+    var result = new ExprIMRResult()
+    if node.kind == ast.N_EXPR_IDREF {
+        result.storage_ref = node.ref.copy()
+        return result
+    }
+    return later none
 }
 
 func generate_imr_for_stmt(
@@ -374,6 +396,51 @@ func generate_imr_for_stmt(
             result.add(vinfo)
         }
         return later result
+    }
+    if node.kind == ast.N_STMT_ASSIGN {
+        var result_insts = []
+        var queue = []
+        var i = 1
+        while i <= node.subexprs.len / 2 {
+            queue.add([node.subexprs[i * 2 - 1],
+                node.subexprs[i * 2]])
+            i += 1
+        }
+        func process_queue_item(item) {
+            var left_hand_result = generate_imr_for_expr(
+                item[1],
+                imr_parents=imr_parents + [node],
+                is_moose64=is_moose64, msgs=msgs,
+            ) later:
+
+            await left_hand_result
+            var right_hand_result = generate_imr_for_expr(
+                item[2],
+                imr_parents=imr_parents + [node],
+                is_moose64=is_moose64, msgs=msgs,
+            ) later:
+
+            await right_hand_result
+            if left_hand_result != none and
+                    right_hand_result != none {
+                result_insts += left_hand_result.instructions
+                result_insts += right_hand_result.instructions
+            } else {
+                result_insts = none
+            }
+        }
+        if queue.len == 0 or result_insts == none {
+            return later result_insts
+        }
+        var _unused = process_queue_item(queue.pop())
+        later:
+
+        await _unused
+        if queue.len == 0 or result_insts == none {
+            return later result_insts
+        }
+        _unused = process_queue_item(queue.pop())
+        later repeat
     }
     return later none
 }
@@ -410,7 +477,6 @@ func generate_imr_for_stmts(
         is_moose64=is_moose64, msgs=msgs,
     ) later repeat
 }
-    
 
 func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
     const program_name =
