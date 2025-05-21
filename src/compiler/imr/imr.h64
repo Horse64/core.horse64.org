@@ -30,6 +30,7 @@ import textfmt from core.horse64.org
 import time from core.horse64.org
 
 import compiler.ast as ast
+import compiler.ast.expr as ast_expr
 import compiler.ast.transform as ast_transform
 import compiler.compiler_log as clog
 import compiler.msg as msg
@@ -95,6 +96,40 @@ func IMRVarInfo.as_json_obj {
     return obj
 }
 
+type IMRSetLit base IMRNode {
+    var value
+    var target_storage_ref
+    var literal_kind
+}
+
+func IMRSetLit.init(value, target_storage_ref, literal_kind=none) {
+    base.init(IMR_INST_SETLIT)
+    if typename(target_storage_ref) != "obj" or
+            not has_attr(target_storage_ref, "kind") or
+            not has_attr(target_storage_ref, "id") {
+        throw new TypeError("The target_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    if literal_kind == none {
+        literal_kind = ast_expr.LK_NORMAL
+    }
+    self.value = value
+    self.target_storage_ref = target_storage_ref.copy()
+    self.literal_kind = literal_kind
+}
+
+func IMRSetLit.as_str {
+    var t = "IMRSetLit" +
+        json.dump(self.as_json_obj())
+    return t
+}
+
+func IMRSetLit.as_json_obj {
+    var obj = base.as_json_obj()
+    obj["value"] = self.value
+    return obj
+}
+
 type IMRMove base IMRNode {
     var source_storage_ref
     var target_storage_ref
@@ -114,8 +149,8 @@ func IMRMove.init(source_storage_ref, target_storage_ref) {
         throw new TypeError("The target_storage_ref parameter "
             "must be of type StorageRef.")
     }
-    self.source_storage_ref = source_storage_ref
-    self.target_storage_ref = target_storage_ref
+    self.source_storage_ref = source_storage_ref.copy()
+    self.target_storage_ref = target_storage_ref.copy()
 }
 
 func IMRMove.as_str {
@@ -203,11 +238,6 @@ func IMRApplyOp.as_json_obj {
     return obj
 }
 
-type IMRInstruction base IMRNode {
-    var is_block = no
-    var blocks = []
-}
-
 type IMRBlock base IMRNode {
     var is_block = yes
     var instructions = []
@@ -240,6 +270,8 @@ type IMRFuncBlock base IMRBlock {
     var label = none
     var type_path = none
     var storage_ref = none
+
+    var last_assigned_temp_storage_id = 0
 }
 
 func IMRFuncBlock.init(
@@ -324,12 +356,15 @@ enum IMRNodeKind {
     IMR_INST_CONTINUE,
     IMR_INST_RETURN,
     IMR_INST_AWAIT,
+    IMR_INST_SETLIT,
 }
 
 type IMRForFile {
     var project_file
 
     var blocks = []
+
+    var last_assigned_temp_storage_id = 0
 }
 
 func IMRForFile.as_str {
@@ -366,24 +401,70 @@ type ExprIMRResult {
     var storage_ref
 }
 
+func get_new_temp_storage_ref(
+        node, imr_parents=[],
+        func_imr_parent=none,
+        file_imr_parent=none,
+        is_moose64=no, msgs=none,
+        ) {
+    if func_imr_parent != none {
+        assert(func_imr_parent.last_assigned_temp_storage_id <= 0)
+        var new_value =
+            func_imr_parent.last_assigned_temp_storage_id - 1
+        func_imr_parent.last_assigned_temp_storage_id = new_value
+        return new st_ref.StorageRef(
+            st_ref.ST_LOCAL,
+            new_value
+        )
+    }
+    if file_imr_parent == none {
+        throw new RuntimeError("Cannot generate IMR "
+            "storage num without file_imr_parent being "
+            "set.")
+    }
+    assert(file_imr_parent.last_assigned_temp_storage_id <= 0)
+    var new_value =
+        file_imr_parent.last_assigned_temp_storage_id - 1
+    file_imr_parent.last_assigned_temp_storage_id = new_value
+    return new st_ref.StorageRef(
+        st_ref.ST_GLOBAL,
+        new_value
+    )
+}
+
 func generate_imr_for_expr(
         node, imr_parents=[],
+        func_imr_parent=none,
+        file_imr_parent=none,
         is_moose64=no, msgs=none,
         ) {
     var result = new ExprIMRResult()
     if node.kind == ast.N_EXPR_IDREF {
         result.storage_ref = node.ref.copy()
         return result
+    } elseif node.kind == ast.N_EXPR_LIT {
+        var target_ref = get_new_temp_storage_ref(
+            node, imr_parents=imr_parents,
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            is_moose64=is_moose64, msgs=msgs,
+        )
+        var literal = new IMRSetLit(
+            node.value, target_ref,
+            literal_kind=node.literal_kind,
+        )
     }
     return later none
 }
 
 func generate_imr_for_stmt(
         node, imr_parents=[],
+        func_imr_parent=none,
+        file_imr_parent=none,
         is_moose64=no, msgs=none,
         ) {
     if node.kind == ast.N_STMT_VAR {
-        var result = []
+        var result_insts = []
         var idx = 0
         for label in node.var_labels {
             idx += 1
@@ -394,9 +475,62 @@ func generate_imr_for_stmt(
                 node.symbol_info[idx].storage_id)
             vinfo.line = node.line
             vinfo.col = node.col
-            result.add(vinfo)
+            result_insts.add(vinfo)
         }
-        return later result
+        var assigned_exprs = node.subexprs.copy()
+        var type_expr = none
+        if node.has_type_expr and assigned_exprs.len > 0 {
+            type_expr = assigned_exprs[assigned_exprs.len]
+            assigned_exprs = assigned_exprs.sub(
+                1, assigned_exprs.len - 1
+            )
+        }
+        if assigned_exprs == 0 {
+            return later result_insts
+        }
+        var queue = []
+        var i = 1
+        while i <= assigned_exprs.len {
+            queue.add([i, assigned_exprs[i]])
+            i += 1
+        }
+        func process_queue_item(item) {
+            var left_hand_storage_id =
+                node.symbol_info[idx].storage_id
+            var right_hand_result = generate_imr_for_expr(
+                item[2],
+                imr_parents=imr_parents + [node],
+                func_imr_parent=func_imr_parent,
+                file_imr_parent=file_imr_parent,
+                is_moose64=is_moose64, msgs=msgs,
+            ) later:
+
+            await right_hand_result
+            if right_hand_result != none {
+                result_insts += right_hand_result.instructions
+                result_insts.add(new IMRMove(
+                    right_hand_result.storage_ref,
+                    new st_ref.StorageRef(
+                        st_ref.ST_LOCAL,
+                        left_hand_storage_id
+                    ),
+                ))
+            } else {
+                result_insts = none
+            }
+        }
+        if queue.len == 0 or result_insts == none {
+            return later result_insts
+        }
+        var _unused = process_queue_item(queue.pop())
+        later:
+
+        await _unused
+        if queue.len == 0 or result_insts == none {
+            return later result_insts
+        }
+        _unused = process_queue_item(queue.pop())
+        later repeat
     }
     if node.kind == ast.N_STMT_ASSIGN {
         var result_insts = []
@@ -411,6 +545,8 @@ func generate_imr_for_stmt(
             var left_hand_result = generate_imr_for_expr(
                 item[1],
                 imr_parents=imr_parents + [node],
+                func_imr_parent=func_imr_parent,
+                file_imr_parent=file_imr_parent,
                 is_moose64=is_moose64, msgs=msgs,
             ) later:
 
@@ -418,6 +554,8 @@ func generate_imr_for_stmt(
             var right_hand_result = generate_imr_for_expr(
                 item[2],
                 imr_parents=imr_parents + [node],
+                func_imr_parent=func_imr_parent,
+                file_imr_parent=file_imr_parent,
                 is_moose64=is_moose64, msgs=msgs,
             ) later:
 
@@ -479,6 +617,8 @@ func generate_imr_for_stmt(
 
 func generate_imr_for_stmts(
         nodes, imr_parents=[],
+        func_imr_parent=none,
+        file_imr_parent=none,
         is_moose64=no, msgs=none,
         ) {
     var result = []
@@ -489,6 +629,8 @@ func generate_imr_for_stmts(
     var item = queue.pop()
     var inner_result = generate_imr_for_stmt(
         item, imr_parents=imr_parents,
+        func_imr_parent=func_imr_parent,
+        file_imr_parent=file_imr_parent,
         is_moose64=is_moose64, msgs=msgs,
     ) later:
 
@@ -506,6 +648,8 @@ func generate_imr_for_stmts(
     var item = queue.pop()
     var inner_result = generate_imr_for_stmt(
         item, imr_parents=imr_parents,
+        func_imr_parent=func_imr_parent,
+        file_imr_parent=file_imr_parent,
         is_moose64=is_moose64, msgs=msgs,
     ) later repeat
 }
@@ -632,6 +776,8 @@ func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
             var stmts = generate_imr_for_stmts(
                 node.subblocks[1],
                 imr_parents=[imr_node],
+                func_imr_parent=imr_node,
+                file_imr_parent=result,
                 is_moose64=is_moose64,
                 msgs=msgs,
             ) later:
