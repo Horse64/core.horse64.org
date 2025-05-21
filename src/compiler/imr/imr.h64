@@ -32,8 +32,9 @@ import time from core.horse64.org
 import compiler.ast as ast
 import compiler.ast.transform as ast_transform
 import compiler.compiler_log as clog
-import compiler.storage.ref as st_ref
 import compiler.msg as msg
+import compiler.storage.ref as st_ref
+import compiler.token as token
 
 type IMRTranslationResult {
     var project_file_to_imr_map = {->}
@@ -425,6 +426,37 @@ func generate_imr_for_stmt(
                     right_hand_result != none {
                 result_insts += left_hand_result.instructions
                 result_insts += right_hand_result.instructions
+                if node.assign_token.kind == token.T_ASSIGN {
+                    result_insts.add(new IMRMove(
+                        right_hand_result.storage_ref,
+                        left_hand_result.storage_ref,
+                    ))
+                } elseif node.assign_token.kind == token.T_MATHASSIGN {
+                    var t_str = token.str
+                    if not t_str.ends("=") {
+                        throw new ValueError("Encountered unsupported "
+                            "type of math assign.")
+                    }
+                    var new_token = new token.Token(
+                        t_str.sub(1, t_str.len - 1),
+                        token.T_MATH,
+                        node.assign_token.line,
+                        node.assign_token.col,
+                    )
+                    result_insts.add(new IMRApplyOp(
+                        new_token,
+                        operand_1_storage_ref=
+                            left_hand_result.storage_ref,
+                        operand_2_storage_ref=
+                            right_hand_result.storage_ref,
+                        target_storage_ref=
+                            left_hand_result.storage_ref,
+                        is_binary=no,
+                    ))
+                } else {
+                    throw new ValueError("Encountered unsupported "
+                        "type of assign.")
+                }
             } else {
                 result_insts = none
             }
