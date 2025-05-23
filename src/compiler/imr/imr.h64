@@ -166,6 +166,205 @@ func IMRMove.as_json_obj {
     return obj
 }
 
+type IMRSetAttr base IMRNode {
+    var target_and_obj_storage_ref
+    var attr_name
+    var value_storage_ref
+}
+
+func IMRSetAttr.init(
+        target_and_obj_storage_ref=none,
+        attr_name=none,
+        value_storage_ref=none,
+        ) {
+    base.init(IMR_INST_SETATTR)
+    if typename(target_and_obj_storage_ref) != "obj" or
+            not has_attr(target_and_obj_storage_ref, "kind") or
+            not has_attr(target_and_obj_storage_ref, "id") {
+        throw new TypeError(
+            "The target_and_container_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    if typename(attr_name) != "str" {
+        throw new TypeError(
+            "The attr_name parameter must be of type str."
+        )
+    }
+    if typename(value_storage_ref) != "obj" or
+            not has_attr(value_storage_ref, "kind") or
+            not has_attr(value_storage_ref, "id") {
+        throw new TypeError("The value_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    self.target_and_obj_storage_ref =
+        target_and_obj_storage_ref.copy()
+    self.attr_name = attr_name
+    self.value_storage_ref = value_storage_ref.copy()
+}
+
+func IMRSetAttr.as_str {
+    var t = "IMRSetAttr" +
+        json.dump(self.as_json_obj())
+    return t
+}
+
+func IMRSetAttr.as_json_obj {
+    var obj = base.as_json_obj()
+    obj["target_and_obj_storage_ref"] =
+        self.target_and_obj_storage_ref.as_str()
+    obj["attr_name"] = self.attr_name
+    obj["value_storage_ref"] = self.value_storage_ref.as_str()
+    return obj
+}
+
+type IMRGetAttr base IMRNode {
+    var object_storage_ref
+    var attr_name
+    var target_storage_ref
+}
+
+func IMRGetAttr.init(
+        object_storage_ref=none,
+        attr_name=none,
+        target_storage_ref=none,
+        ) {
+    base.init(IMR_INST_GETATTR)
+    if typename(object_storage_ref) != "obj" or
+            not has_attr(object_storage_ref, "kind") or
+            not has_attr(object_storage_ref, "id") {
+        throw new TypeError("The object_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    if typename(attr_name) == "str" {
+        throw new TypeError("The attr_name parameter "
+            "must be of type str.")
+    }
+    if typename(index_storage_ref) != "obj" or
+            not has_attr(index_storage_ref, "kind") or
+            not has_attr(index_storage_ref, "id") {
+        throw new TypeError("The index_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    self.object_storage_ref = object_storage_ref.copy()
+    self.attr_name = attr_name
+    self.target_storage_ref = target_storage_ref.copy()
+}
+
+func IMRGetAttr.as_str {
+    var t = "IMRGetAttr" +
+        json.dump(self.as_json_obj())
+    return t
+}
+
+func IMRGetAttr.as_json_obj {
+    var obj = base.as_json_obj()
+    obj["object_storage_ref"] = self.object_storage_ref.as_str()
+    obj["attr_name"] = self.attr_name
+    obj["target_storage_ref"] = self.target_storage_ref.as_str()
+    return obj
+}
+
+type IMRSetIdx base IMRNode {
+    var target_and_container_storage_ref
+    var index_storage_ref
+    var value_storage_ref
+}
+
+func IMRSetIdx.init(
+        target_and_container_storage_ref=none,
+        index_storage_ref=none,
+        value_storage_ref=none,
+        ) {
+    base.init(IMR_INST_SETIDX)
+    if typename(target_and_container_storage_ref) != "obj" or
+            not has_attr(target_and_container_storage_ref, "kind") or
+            not has_attr(target_and_container_storage_ref, "id") {
+        throw new TypeError(
+            "The target_and_container_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    if typename(index_storage_ref) != "obj" or
+            not has_attr(index_storage_ref, "kind") or
+            not has_attr(index_storage_ref, "id") {
+        throw new TypeError("The index_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    if typename(value_storage_ref) != "obj" or
+            not has_attr(value_storage_ref, "kind") or
+            not has_attr(value_storage_ref, "id") {
+        throw new TypeError("The value_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    self.target_and_container_storage_ref =
+        target_and_container_storage_ref.copy()
+    self.index_storage_ref = index_storage_ref.copy()
+    self.value_storage_ref = value_storage_ref.copy()
+}
+
+func IMRSetIdx.as_str {
+    var t = "IMRSetIdx" +
+        json.dump(self.as_json_obj())
+    return t
+}
+
+func IMRSetIdx.as_json_obj {
+    var obj = base.as_json_obj()
+    obj["target_and_container_storage_ref"] =
+        self.target_and_container_storage_ref.as_str()
+    obj["index_storage_ref"] = self.index_storage_ref.as_str()
+    obj["value_storage_ref"] = self.value_storage_ref.as_str()
+    return obj
+}
+
+type IMRGetIdx base IMRNode {
+    var container_storage_ref
+    var index_storage_ref
+    var target_storage_ref
+}
+
+func IMRGetIdx.init(
+        container_storage_ref=none,
+        index_storage_ref=none,
+        target_storage_ref=none,
+        ) {
+    base.init(IMR_INST_GETIDX)
+    if typename(container_storage_ref) != "obj" or
+            not has_attr(container_storage_ref, "kind") or
+            not has_attr(container_storage_ref, "id") {
+        throw new TypeError("The container_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    if typename(index_storage_ref) != "obj" or
+            not has_attr(index_storage_ref, "kind") or
+            not has_attr(index_storage_ref, "id") {
+        throw new TypeError("The index_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    if typename(target_storage_ref) != "obj" or
+            not has_attr(target_storage_ref, "kind") or
+            not has_attr(target_storage_ref, "id") {
+        throw new TypeError("The target_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    self.container_storage_ref = container_storage_ref.copy()
+    self.index_storage_ref = index_storage_ref.copy()
+    self.target_storage_ref = target_storage_ref.copy()
+}
+
+func IMRGetIdx.as_str {
+    var t = "IMRGetIdx" +
+        json.dump(self.as_json_obj())
+    return t
+}
+
+func IMRGetIdx.as_json_obj {
+    var obj = base.as_json_obj()
+    obj["container_storage_ref"] = self.container_storage_ref.as_str()
+    obj["index_storage_ref"] = self.index_storage_ref.as_str()
+    obj["target_storage_ref"] = self.target_storage_ref.as_str()
+    return obj
+}
+
 type IMRAppyOp base IMRNode {
     var is_binary = yes
     var op_token
@@ -357,6 +556,10 @@ enum IMRNodeKind {
     IMR_INST_RETURN,
     IMR_INST_AWAIT,
     IMR_INST_SETLIT,
+    IMR_INST_SETIDX,
+    IMR_INST_SETATTR,
+    IMR_INST_GETIDX,
+    IMR_INST_GETATTR,
 }
 
 type IMRForFile {
@@ -542,15 +745,6 @@ func generate_imr_for_stmt(
             i += 1
         }
         func process_queue_item(item) {
-            var left_hand_result = generate_imr_for_expr(
-                item[1],
-                imr_parents=imr_parents + [node],
-                func_imr_parent=func_imr_parent,
-                file_imr_parent=file_imr_parent,
-                is_moose64=is_moose64, msgs=msgs,
-            ) later:
-
-            await left_hand_result
             var right_hand_result = generate_imr_for_expr(
                 item[2],
                 imr_parents=imr_parents + [node],
@@ -560,36 +754,207 @@ func generate_imr_for_stmt(
             ) later:
 
             await right_hand_result
-            if left_hand_result != none and
+            if right_hand_result == none {
+                result_insts = none
+                return later
+            }
+            var math_assign_token = none
+            if node.assign_token.kind == token.T_MATHASSIGN {
+                var t_str = token.str
+                if not t_str.ends("=") {
+                    throw new ValueError("Encountered unsupported "
+                        "type of math assign.")
+                }
+                math_assign_token = new token.Token(
+                    t_str.sub(1, t_str.len - 1),
+                    token.T_MATH,
+                    node.assign_token.line,
+                    node.assign_token.col,
+                )
+            }
+            var left_hand_node = item[1]
+            func try_handle_set_idx {
+                if left_hand_node.kind != ast.N_EXPR_BINOP or
+                        left_hand_node.optoken.str != "[" or
+                        left_hand_node.subexprs.len < 2 {
+                    return later no
+                }
+                var container_result = generate_imr_for_expr(
+                    left_hand_node.subexprs[1],
+                    imr_parents=imr_parents + [
+                        node, left_hand_node],
+                    func_imr_parent=func_imr_parent,
+                    file_imr_parent=file_imr_parent,
+                    is_moose64=is_moose64, msgs=msgs,
+                ) later:
+
+                await container_result
+                var idx_result = generate_imr_for_expr(
+                    left_hand_node.subexprs[2],
+                    imr_parents=imr_parents + [
+                        node, left_hand_node],
+                    func_imr_parent=func_imr_parent,
+                    file_imr_parent=file_imr_parent,
+                    is_moose64=is_moose64, msgs=msgs,
+                ) later:
+
+                await idx_result
+                if container_result == none or idx_result == none {
+                    result_insts = none
+                    return later yes
+                }
+                if node.assign_token.kind == token.T_ASSIGN {
+                    result_insts += right_hand_result.instructions
+                    result_insts.add(IMRSetIdx(
+                        target_and_container_storage_ref=
+                            container_result.storage_ref,
+                        index_storage_ref=
+                            idx_result.storage_ref,
+                        value_storage_ref=
+                            right_hand_result.storage_ref,
+                    ))
+                    return later yes
+                } elseif math_assign_token != none {
+                    var tmp_ref = get_new_temp_storage_ref(
+                        node, imr_parents=imr_parents,
+                        func_imr_parent=func_imr_parent,
+                        file_imr_parent=file_imr_parent,
+                        is_moose64=is_moose64, msgs=msgs,
+                    )
+                    result_insts.add(IMRGetIdx(
+                        container_storage_ref=
+                            container_result.storage_ref,
+                        index_storage_ref=
+                            idx_result.storage_ref,
+                        target_storage_ref=tmp_ref,
+                    ))
+                    result_insts.add(IMRApplyOp(
+                        math_assign_token,
+                        operand_1_storage_ref=tmp_ref,
+                        operand_2_storage_ref=
+                            right_hand_result.storage_ref,
+                        target_storage_ref=tmp_ref,
+                        is_binary=yes,
+                    ))
+                    result_insts.add(IMRSetIdx(
+                        target_and_container_storage_ref=
+                            container_result.storage_ref,
+                        index_storage_ref=
+                            idx_result.storage_ref,
+                        value_storage_ref=tmp_ref,
+                    ))
+                    return later yes
+                } else {
+                    throw new ValueError("Encountered unsupported "
+                        "type of assign.")
+                }
+            }
+            func try_handle_set_attr {
+                if left_hand_node.kind != ast.N_EXPR_BINOP or
+                        left_hand_node.optoken.str != "." or
+                        left_hand_node.subexprs.len < 2 or
+                        left_hand_node.subexprs[2].kind !=
+                            ast.N_EXPR_IDREF {
+                    return later no
+                }
+                var attr_name = left_hand_node.subexprs[2].label
+                var obj_result = generate_imr_for_expr(
+                    left_hand_node.subexprs[1],
+                    imr_parents=imr_parents + [
+                        node, left_hand_node],
+                    func_imr_parent=func_imr_parent,
+                    file_imr_parent=file_imr_parent,
+                    is_moose64=is_moose64, msgs=msgs,
+                ) later:
+
+                await obj_result
+                if obj_result == none {
+                    result_insts = none
+                    return later yes
+                }
+                if node.assign_token.kind == token.T_ASSIGN {
+                    result_insts += right_hand_result.instructions
+                    result_insts.add(IMRSetAttr(
+                        target_and_obj_storage_ref=
+                            obj_result.storage_ref,
+                        attr_name=attr_name,
+                        value_storage_ref=
+                            right_hand_result.storage_ref,
+                    ))
+                    return later yes
+                } elseif math_assign_token != none {
+                    var tmp_ref = get_new_temp_storage_ref(
+                        node, imr_parents=imr_parents,
+                        func_imr_parent=func_imr_parent,
+                        file_imr_parent=file_imr_parent,
+                        is_moose64=is_moose64, msgs=msgs,
+                    )
+                    result_insts.add(IMRGetAttr(
+                        obj_storage_ref=
+                            obj_result.storage_ref,
+                        attr_name=attr_name,
+                        target_storage_ref=tmp_ref,
+                    ))
+                    result_insts.add(IMRApplyOp(
+                        math_assign_token,
+                        operand_1_storage_ref=tmp_ref,
+                        operand_2_storage_ref=
+                            right_hand_result.storage_ref,
+                        target_storage_ref=tmp_ref,
+                        is_binary=yes,
+                    ))
+                    result_insts.add(IMRSetAttr(
+                        target_and_obj_storage_ref=
+                            container_result.storage_ref,
+                        attr_name=attr_name.storage_ref,
+                        value_storage_ref=tmp_ref,
+                    ))
+                    return later yes
+                } else {
+                    throw new ValueError("Encountered unsupported "
+                        "type of assign.")
+                }
+            }
+
+            # Try to handle the special set index case:
+            var success_idx = try_handle_set_idx() later:
+
+            await success_idx
+            if success_idx {
+                return later
+            }
+            # Try to handle the special set attr case:
+            var success_attr = try_handle_set_attr() later:
+
+            await success_attr
+            if success_attr {
+                return later
+            }
+
+            # If we arrive here, it must be a regular assign
+            # that isn't a set index or set attr:
+            if left_hand_node.kind != ast.N_EXPR_IDREF or
+                    left_hand_node.ref == none {
+                return later
+            }
+            if result_insts != none and
                     right_hand_result != none {
-                result_insts += left_hand_result.instructions
                 result_insts += right_hand_result.instructions
                 if node.assign_token.kind == token.T_ASSIGN {
                     result_insts.add(new IMRMove(
                         right_hand_result.storage_ref,
-                        left_hand_result.storage_ref,
+                        left_hand_node.ref,
                     ))
-                } elseif node.assign_token.kind == token.T_MATHASSIGN {
-                    var t_str = token.str
-                    if not t_str.ends("=") {
-                        throw new ValueError("Encountered unsupported "
-                            "type of math assign.")
-                    }
-                    var new_token = new token.Token(
-                        t_str.sub(1, t_str.len - 1),
-                        token.T_MATH,
-                        node.assign_token.line,
-                        node.assign_token.col,
-                    )
+                } elseif math_assign_token != none {
                     result_insts.add(new IMRApplyOp(
-                        new_token,
+                        math_assign_token,
                         operand_1_storage_ref=
-                            left_hand_result.storage_ref,
+                            left_hand_node.ref,
                         operand_2_storage_ref=
                             right_hand_result.storage_ref,
                         target_storage_ref=
-                            left_hand_result.storage_ref,
-                        is_binary=no,
+                            left_hand_node.ref,
+                        is_binary=yes,
                     ))
                 } else {
                     throw new ValueError("Encountered unsupported "
@@ -597,6 +962,7 @@ func generate_imr_for_stmt(
                 }
             } else {
                 result_insts = none
+                return later yes
             }
         }
         if queue.len == 0 or result_insts == none {
