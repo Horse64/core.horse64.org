@@ -235,14 +235,14 @@ func IMRGetAttr.init(
         throw new TypeError("The object_storage_ref parameter "
             "must be of type StorageRef.")
     }
-    if typename(attr_name) == "str" {
+    if typename(attr_name) != "str" {
         throw new TypeError("The attr_name parameter "
             "must be of type str.")
     }
-    if typename(index_storage_ref) != "obj" or
-            not has_attr(index_storage_ref, "kind") or
-            not has_attr(index_storage_ref, "id") {
-        throw new TypeError("The index_storage_ref parameter "
+    if typename(target_storage_ref) != "obj" or
+            not has_attr(target_storage_ref, "kind") or
+            not has_attr(target_storage_ref, "id") {
+        throw new TypeError("The target_storage_ref parameter "
             "must be of type StorageRef.")
     }
     self.object_storage_ref = object_storage_ref.copy()
@@ -656,6 +656,82 @@ func generate_imr_for_expr(
         result.instructions.add(new IMRSetLit(
             node.value, tmp_ref,
             literal_kind=node.literal_kind,
+        ))
+        result.storage_ref = tmp_ref
+        return later result
+    } elseif node.kind == ast.N_EXPR_BINOP and
+            node.optoken.str == "." and
+            node.subexprs.len >= 2 and
+            node.subexprs[2].kind == ast.N_EXPR_IDREF {
+        var tmp_ref = get_new_temp_storage_ref(
+            node, imr_parents=imr_parents,
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            is_moose64=is_moose64, msgs=msgs,
+        )
+        var attr_name = node.subexprs[2].label
+        assert(attr_name != none)
+        var left_hand_result = generate_imr_for_expr(
+            node.subexprs[1],
+            imr_parents=imr_parents + [node],
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            is_moose64=is_moose64,
+            msgs=msgs,
+        ) later:
+
+        await left_hand_result
+        if left_hand_result == none {
+            return later none
+        }
+        result.instructions += left_hand_result.instructions
+        result.instructions.add(new IMRGetAttr(
+            object_storage_ref=left_hand_result.storage_ref,
+            attr_name=attr_name,
+            target_storage_ref=tmp_ref,
+        ))
+        result.storage_ref = tmp_ref
+        return later result
+    } elseif node.kind == ast.N_EXPR_BINOP and
+            node.optoken.str == "[" and
+            node.subexprs.len >= 2 {
+        var tmp_ref = get_new_temp_storage_ref(
+            node, imr_parents=imr_parents,
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            is_moose64=is_moose64, msgs=msgs,
+        )
+        var left_hand_result = generate_imr_for_expr(
+            node.subexprs[1],
+            imr_parents=imr_parents + [node],
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            is_moose64=is_moose64,
+            msgs=msgs,
+        ) later:
+
+        await left_hand_result
+        var right_hand_result = generate_imr_for_expr(
+            node.subexprs[2],
+            imr_parents=imr_parents + [node],
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            is_moose64=is_moose64, msgs=msgs,
+        ) later:
+
+        await right_hand_result
+        if left_hand_result == none or
+                right_hand_result == none {
+            return later none
+        }
+        result.instructions += left_hand_result.instructions
+        result.instructions += right_hand_result.instructions
+        result.instructions.add(new IMRGetIdx(
+            container_storage_ref=
+                left_hand_result.storage_ref,
+            index_storage_ref=
+                right_hand_result.storage_ref,
+            target_storage_ref=tmp_ref,
         ))
         result.storage_ref = tmp_ref
         return later result
