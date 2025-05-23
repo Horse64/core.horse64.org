@@ -454,10 +454,27 @@ func IMRSetIdx.as_json_obj(
     var obj = base.as_json_obj(
         _passthrough_storage_refs=
             _passthrough_storage_refs)
-    obj["target_and_container_storage_ref"] =
-        self.target_and_container_storage_ref.as_str()
-    obj["index_storage_ref"] = self.index_storage_ref.as_str()
-    obj["value_storage_ref"] = self.value_storage_ref.as_str()
+    if _passthrough_storage_refs {
+        obj["target_and_container_storage_ref"] =
+            self.target_and_container_storage_ref
+    } else {
+        obj["target_and_container_storage_ref"] =
+            self.target_and_container_storage_ref.as_str()
+    }
+    if _passthrough_storage_refs {
+        obj["index_storage_ref"] =
+            self.index_storage_ref
+    } else {
+        obj["index_storage_ref"] =
+            self.index_storage_ref.as_str()
+    }
+    if _passthrough_storage_refs {
+        obj["value_storage_ref"] =
+            self.value_storage_ref
+    } else {
+        obj["value_storage_ref"] =
+            self.value_storage_ref.as_str()
+    }
     return obj
 }
 
@@ -509,12 +526,27 @@ func IMRGetIdx.as_json_obj(
         _passthrough_storage_refs=no,
         ) {
     var obj = base.as_json_obj()
-    obj["container_storage_ref"] =
-        self.container_storage_ref.as_str()
-    obj["index_storage_ref"] =
-        self.index_storage_ref.as_str()
-    obj["target_storage_ref"] =
-        self.target_storage_ref.as_str()
+    if _passthrough_storage_refs {
+        obj["container_storage_ref"] =
+            self.container_storage_ref
+    } else {
+        obj["container_storage_ref"] =
+            self.container_storage_ref.as_str()
+    }
+    if _passthrough_storage_refs {
+        obj["index_storage_ref"] =
+            self.index_storage_ref
+    } else {
+        obj["index_storage_ref"] =
+            self.index_storage_ref.as_str()
+    }
+    if _passthrough_storage_refs {
+        obj["target_storage_ref"] =
+            self.target_storage_ref
+    } else {
+        obj["target_storage_ref"] =
+            self.target_storage_ref.as_str()
+    }
     return obj
 }
 
@@ -599,12 +631,28 @@ func IMRApplyOp.as_json_obj(
     var obj = base.as_json_obj(
         _passthrough_storage_refs=
             _passthrough_storage_refs)
-    obj["target_storage_ref"] = self.target_storage_ref.as_str()
-    obj["operand_1_storage_ref"] =
-        self.operand_1_storage_ref.as_str()
+    if _passthrough_storage_refs {
+        obj["target_storage_ref"] =
+            self.target_storage_ref
+    } else {
+        obj["target_storage_ref"] =
+            self.target_storage_ref.as_str()
+    }
+    if _passthrough_storage_refs {
+        obj["operand_1_storage_ref"] =
+            self.operand_1_storage_ref
+    } else {
+        obj["operand_1_storage_ref"] =
+            self.operand_1_storage_ref.as_str()
+    }
     if self.is_binary {
-        obj["operand_2_storage_ref"] =
-            self.operand_2_storage_ref.as_str()
+        if _passthrough_storage_refs {
+            obj["operand_2_storage_ref"] =
+                self.operand_2_storage_ref
+        } else {
+            obj["operand_2_storage_ref"] =
+                self.operand_2_storage_ref.as_str()
+        }
     }
     obj["is_binary"] = self.is_binary
     return obj
@@ -629,7 +677,9 @@ func IMRBlock.as_json_obj(
             _passthrough_storage_refs)
     var instl = []
     for inst in self.instructions {
-        instl.add(inst.as_json_obj())
+        instl.add(inst.as_json_obj(
+            _passthrough_storage_refs=
+                _passthrough_storage_refs))
     }
     obj["instructions"] = instl
     return obj
