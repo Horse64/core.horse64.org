@@ -399,11 +399,11 @@ func IMRApplyOp.init(op_token,
         throw new TypeError("The operand_2_storage_ref parameter "
             "must be of type StorageRef or none.")
     }
-    if self.is_binary and operand_2_storage_ref == none {
+    if is_binary and operand_2_storage_ref == none {
         throw new TypeError("The operand_2_storage_ref parameter "
             "must be specified when is_binary is set to yes.")
     }
-    if not self.is_binary and operand_2_storage_ref != none {
+    if not is_binary and operand_2_storage_ref != none {
         throw new TypeError("The operand_2_storage_ref parameter "
         "cannot be specified when is_binary is set to no.")
     }
@@ -413,7 +413,7 @@ func IMRApplyOp.init(op_token,
     if is_binary {
         self.is_binary = yes
         self.operand_2_storage_ref =
-            operand_2_storage_ref.copy
+            operand_2_storage_ref.copy()
     } else {
         self.is_binary = no
     }
@@ -641,21 +641,69 @@ func generate_imr_for_expr(
         file_imr_parent=none,
         is_moose64=no, msgs=none,
         ) {
+    var irregular_binop_strs = {"[", "(", "."}
     var result = new ExprIMRResult()
     if node.kind == ast.N_EXPR_IDREF {
         result.storage_ref = node.ref.copy()
-        return result
+        return later result
     } elseif node.kind == ast.N_EXPR_LIT {
-        var target_ref = get_new_temp_storage_ref(
+        var tmp_ref = get_new_temp_storage_ref(
             node, imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             is_moose64=is_moose64, msgs=msgs,
         )
-        var literal = new IMRSetLit(
-            node.value, target_ref,
+        result.instructions.add(new IMRSetLit(
+            node.value, tmp_ref,
             literal_kind=node.literal_kind,
+        ))
+        result.storage_ref = tmp_ref
+        return later result
+    } elseif node.kind == ast.N_EXPR_BINOP and
+            not irregular_binop_strs.has(node.optoken.str) and
+            node.subexprs.len >= 2 {
+        var tmp_ref = get_new_temp_storage_ref(
+            node, imr_parents=imr_parents,
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            is_moose64=is_moose64, msgs=msgs,
         )
+        var left_hand_result = generate_imr_for_expr(
+            node.subexprs[1],
+            imr_parents=imr_parents + [node],
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            is_moose64=is_moose64,
+            msgs=msgs,
+        ) later:
+
+        await left_hand_result
+        var right_hand_result = generate_imr_for_expr(
+            node.subexprs[2],
+            imr_parents=imr_parents + [node],
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            is_moose64=is_moose64, msgs=msgs,
+        ) later:
+
+        await right_hand_result
+        if left_hand_result == none or
+                right_hand_result == none {
+            return later none
+        }
+        result.instructions += left_hand_result.instructions
+        result.instructions += right_hand_result.instructions
+        result.instructions.add(new IMRApplyOp(
+            node.optoken.copy(),
+            operand_1_storage_ref=tmp_ref,
+            operand_2_storage_ref=
+                left_hand_result.storage_ref,
+            target_storage_ref=
+                right_hand_result.storage_ref,
+            is_binary=yes,
+        ))
+        result.storage_ref = tmp_ref
+        return later result
     }
     return later none
 }
@@ -760,7 +808,7 @@ func generate_imr_for_stmt(
             }
             var math_assign_token = none
             if node.assign_token.kind == token.T_MATHASSIGN {
-                var t_str = token.str
+                var t_str = node.assign_token.str
                 if not t_str.ends("=") {
                     throw new ValueError("Encountered unsupported "
                         "type of math assign.")
