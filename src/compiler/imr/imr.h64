@@ -26,6 +26,7 @@
 # license, see accompanied LICENSE.md.
 
 import json from core.horse64.org
+import math from core.horse64.org
 import textfmt from core.horse64.org
 import time from core.horse64.org
 
@@ -53,10 +54,65 @@ func IMRNode.init(kind) {
     self.kind = kind
 }
 
-func IMRNode.as_json_obj {
+func IMRNode.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
     var obj = {->}
     obj["kind"] = IMRNodeKind.num_label(self.kind)
     return obj
+}
+
+func IMRNode.as_str(indent=0) {
+    return "IMRNode" + self.as_json_obj.as_str()
+}
+
+func IMRNode.format_inst(
+        name, pos_parameter_names=[],
+        skip_parameter_names=[], indent=0,
+        ) {
+    var spaces = " ".rep(math.max(0, indent))
+    var t = spaces + name
+    var data = self.as_json_obj(
+        _passthrough_storage_refs=yes,
+    )
+    for pname in pos_parameter_names {
+        if not data.has(pname) {
+            print("horsec: error: Internal error, " +
+                "got invalid format_inst() parameters in "
+                "imr.h64 during text render: " +
+                "name=" + textfmt.as_escaped_code_string(
+                    name
+                ) +
+                " pname=" + textfmt.as_escaped_code_string(
+                    pname
+                ))
+            throw new ValueError(
+                "Name given in pos_parameter_names "
+                "isn't part of JSON object data.")
+        }
+        if typename(data[pname]) == "str" {
+            t += " " + textfmt.as_escaped_code_string(
+                data[pname])
+        } else {
+            t += " " + data[pname].as_str()
+        }
+    }
+    for remaining_key in data {
+        if pos_parameter_names.has(remaining_key) {
+            continue
+        }
+        if skip_parameter_names.has(remaining_key) {
+            continue
+        }
+        t += " " + remaining_key.upper() + "="
+        if typename(data[pname]) == "str" {
+            t += textfmt.as_escaped_code_string(
+                data[pname])
+        } else {
+            t += data[pname].as_str()
+        }
+    }
+    return t
 }
 
 type IMRVarInfo base IMRNode {
@@ -80,14 +136,21 @@ func IMRVarInfo.init(var_label, var_type, storage_id) {
     self.storage_id = storage_id
 }
 
-func IMRVarInfo.as_str {
-    var t = "IMRVarInfo{" +
-        json.dump(self.as_json_obj())
-    return t + "}"
+func IMRVarInfo.as_str(indent=0) {
+    return self.format_inst(
+        "VARINFO", pos_parameter_names=[
+            "storage_id",
+            "label",
+        ], indent=indent,
+    )
 }
 
-func IMRVarInfo.as_json_obj {
-    var obj = base.as_json_obj()
+func IMRVarInfo.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
     obj["label"] = self.label
     if self.type_expr != none {
         obj["type_expr"] = self.type_expr.as_str()
@@ -118,15 +181,31 @@ func IMRSetLit.init(value, target_storage_ref, literal_kind=none) {
     self.literal_kind = literal_kind
 }
 
-func IMRSetLit.as_str {
-    var t = "IMRSetLit" +
-        json.dump(self.as_json_obj())
-    return t
+func IMRSetLit.as_str(indent=0) {
+    return self.format_inst(
+        "SETLIT", pos_parameter_names=[
+            "literal_kind",
+            "value",
+            "target_storage_ref",
+        ], indent=indent,
+    )
 }
 
-func IMRSetLit.as_json_obj {
-    var obj = base.as_json_obj()
+func IMRSetLit.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
     obj["value"] = self.value
+    if _passthrough_storage_refs {
+        obj["target_storage_ref"] =
+            self.target_storage_ref
+    } else {
+        obj["target_storage_ref"] =
+            self.target_storage_ref.as_str()
+    }
+    obj["literal_kind"] = self.literal_kind
     return obj
 }
 
@@ -153,16 +232,35 @@ func IMRMove.init(source_storage_ref, target_storage_ref) {
     self.target_storage_ref = target_storage_ref.copy()
 }
 
-func IMRMove.as_str {
-    var t = "IMRMove" +
-        json.dump(self.as_json_obj())
-    return t
+func IMRMove.as_str(indent=0) {
+    return self.format_inst(
+        "MOVE", pos_parameter_names=[
+            "source_storage_ref",
+            "target_storage_ref",
+        ], indent=indent,
+    )
 }
 
-func IMRMove.as_json_obj {
-    var obj = base.as_json_obj()
-    obj["source_storage_ref"] = self.source_storage_ref.as_str()
-    obj["target_storage_ref"] = self.target_storage_ref.as_str()
+func IMRMove.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
+    if _passthrough_storage_refs {
+        obj["source_storage_ref"] =
+            self.source_storage_ref
+    } else {
+        obj["source_storage_ref"] =
+            self.source_storage_ref.as_str()
+    }
+    if _passthrough_storage_refs {
+        obj["target_storage_ref"] =
+            self.target_storage_ref
+    } else {
+        obj["target_storage_ref"] =
+            self.target_storage_ref.as_str()
+    }
     return obj
 }
 
@@ -202,18 +300,37 @@ func IMRSetAttr.init(
     self.value_storage_ref = value_storage_ref.copy()
 }
 
-func IMRSetAttr.as_str {
-    var t = "IMRSetAttr" +
-        json.dump(self.as_json_obj())
-    return t
+func IMRSetAttr.as_str(indent=0) {
+    return self.format_inst(
+        "SETATTR", pos_parameter_names=[
+            "target_and_obj_storage_ref",
+            "attr_name",
+            "value_storage_ref",
+        ], indent=indent,
+    )
 }
 
-func IMRSetAttr.as_json_obj {
-    var obj = base.as_json_obj()
-    obj["target_and_obj_storage_ref"] =
-        self.target_and_obj_storage_ref.as_str()
+func IMRSetAttr.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
+    if _passthrough_storage_refs {
+        obj["target_and_obj_storage_ref"] =
+            self.target_and_obj_storage_ref
+    } else {
+        obj["target_and_obj_storage_ref"] =
+            self.target_and_obj_storage_ref.as_str()
+    }
     obj["attr_name"] = self.attr_name
-    obj["value_storage_ref"] = self.value_storage_ref.as_str()
+    if _passthrough_storage_refs {
+        obj["value_storage_ref"] =
+            self.value_storage_ref
+    } else {
+        obj["value_storage_ref"] =
+            self.value_storage_ref.as_str()
+    }
     return obj
 }
 
@@ -250,17 +367,37 @@ func IMRGetAttr.init(
     self.target_storage_ref = target_storage_ref.copy()
 }
 
-func IMRGetAttr.as_str {
-    var t = "IMRGetAttr" +
-        json.dump(self.as_json_obj())
-    return t
+func IMRGetAttr.as_str(indent=0) {
+    return self.format_inst(
+        "GETATTR", pos_parameter_names=[
+            "object_storage_ref",
+            "attr_name",
+            "target_storage_ref",
+        ], indent=indent,
+    )
 }
 
-func IMRGetAttr.as_json_obj {
-    var obj = base.as_json_obj()
-    obj["object_storage_ref"] = self.object_storage_ref.as_str()
+func IMRGetAttr.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
+    if _passthrough_storage_refs {
+        obj["object_storage_ref"] =
+            self.object_storage_ref
+    } else {
+        obj["object_storage_ref"] =
+            self.object_storage_ref.as_str()
+    }
     obj["attr_name"] = self.attr_name
-    obj["target_storage_ref"] = self.target_storage_ref.as_str()
+    if _passthrough_storage_refs {
+        obj["target_storage_ref"] =
+            self.target_storage_ref
+    } else {
+        obj["target_storage_ref"] =
+            self.target_storage_ref.as_str()
+    }
     return obj
 }
 
@@ -301,14 +438,22 @@ func IMRSetIdx.init(
     self.value_storage_ref = value_storage_ref.copy()
 }
 
-func IMRSetIdx.as_str {
-    var t = "IMRSetIdx" +
-        json.dump(self.as_json_obj())
-    return t
+func IMRSetIdx.as_str(indent=0) {
+    return self.format_inst(
+        "SETIDX", pos_parameter_names=[
+            "target_and_container_storage_ref",
+            "index_storage_ref",
+            "value_storage_ref",
+        ], indent=indent,
+    )
 }
 
-func IMRSetIdx.as_json_obj {
-    var obj = base.as_json_obj()
+func IMRSetIdx.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
     obj["target_and_container_storage_ref"] =
         self.target_and_container_storage_ref.as_str()
     obj["index_storage_ref"] = self.index_storage_ref.as_str()
@@ -351,21 +496,29 @@ func IMRGetIdx.init(
     self.target_storage_ref = target_storage_ref.copy()
 }
 
-func IMRGetIdx.as_str {
-    var t = "IMRGetIdx" +
-        json.dump(self.as_json_obj())
-    return t
+func IMRGetIdx.as_str(indent=0) {
+    return self.format_inst(
+        "GETIDX", pos_parameter_names=[
+            "container_storage_ref",
+            "index_storage_ref",
+            "target_storage_ref",
+        ], indent=indent,
+    )
 }
-
-func IMRGetIdx.as_json_obj {
+func IMRGetIdx.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
     var obj = base.as_json_obj()
-    obj["container_storage_ref"] = self.container_storage_ref.as_str()
-    obj["index_storage_ref"] = self.index_storage_ref.as_str()
-    obj["target_storage_ref"] = self.target_storage_ref.as_str()
+    obj["container_storage_ref"] =
+        self.container_storage_ref.as_str()
+    obj["index_storage_ref"] =
+        self.index_storage_ref.as_str()
+    obj["target_storage_ref"] =
+        self.target_storage_ref.as_str()
     return obj
 }
 
-type IMRAppyOp base IMRNode {
+type IMRApplyOp base IMRNode {
     var is_binary = yes
     var op_token
     var target_storage_ref
@@ -419,21 +572,41 @@ func IMRApplyOp.init(op_token,
     }
 }
 
-func IMRApplyOp.as_str {
-    var t = "IMRApplyOp" +
-        json.dump(self.as_json_obj())
-    return t
+func IMRApplyOp.as_str(indent=0) {
+    if self.is_binary {
+        return self.format_inst(
+            "APPLYOP", pos_parameter_names=[
+                "is_binary",
+                "operand_1_storage_ref",
+                "operand_2_storage_ref",
+                "target_storage_ref",
+            ], indent=indent,
+        )
+    } else {
+        return self.format_inst(
+            "APPLYOP", pos_parameter_names=[
+                "is_binary",
+                "operand_1_storagea_ref",
+                "target_storage_ref",
+            ], indent=indent,
+        )
+    }
 }
 
-func IMRApplyOp.as_json_obj {
-    var obj = base.as_json_obj()
+func IMRApplyOp.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
     obj["target_storage_ref"] = self.target_storage_ref.as_str()
-    obj["operand_1_storage_ref"] = self.operand_1_storage_ref.as_str()
+    obj["operand_1_storage_ref"] =
+        self.operand_1_storage_ref.as_str()
     if self.is_binary {
         obj["operand_2_storage_ref"] =
             self.operand_2_storage_ref.as_str()
     }
-    obj["is_binary"] = is_binary
+    obj["is_binary"] = self.is_binary
     return obj
 }
 
@@ -442,20 +615,33 @@ type IMRBlock base IMRNode {
     var instructions = []
 }
 
-func IMRBlock.as_str {
+func IMRBlock.as_str(indent=0) {
     var t = "IMRBlock{" +
         json.dump(self.as_json_obj())
     return t + "}"
 }
 
-func IMRBlock.as_json_obj {
-    var obj = base.as_json_obj()
+func IMRBlock.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
     var instl = []
     for inst in self.instructions {
         instl.add(inst.as_json_obj())
     }
     obj["instructions"] = instl
     return obj
+}
+
+func IMRBlock.fmt_block(indent=0) {
+    var indent_s = " ".rep(math.max(0, indent))
+    var t = "BEGIN\n"
+    for inst in self.instructions {
+        t += inst.as_str(indent=(indent + 4)) + "\n"
+    }
+    return t + indent_s + "END\n"
 }
 
 type IMRFuncBlock base IMRBlock {
@@ -512,17 +698,41 @@ func IMRFuncBlock.init(
     }
 }
 
-func IMRFuncBlock.as_str {
-    var t = "IMRFuncBlock" +
-        json.dump(self.as_json_obj())
-    return t
+func IMRFuncBlock.as_str(indent=0) {
+    if self.is_func_attr {
+        return self.format_inst(
+            "FUNCBLOCK", pos_parameter_names=[
+                "is_func_attr", "storage_ref",
+                "type_path", "label", "is_extend",
+            ], skip_parameter_names=[
+                "instructions",
+            ], indent=indent,
+        ) + " " + self.fmt_block(indent=indent)
+    } else {
+        return self.format_inst(
+            "FUNCBLOCK", pos_parameter_names=[
+                "is_func_attr", "storage_ref",
+                "label", "is_extend",
+            ], skip_parameter_names=[
+                "instructions",
+            ], indent=indent,
+        ) + " " + self.fmt_block(indent=indent)
+    }
 }
 
-func IMRFuncBlock.as_json_obj {
-    var obj = base.as_json_obj()
+func IMRFuncBlock.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
     obj["label"] = self.label
-    obj["is_func_attr"] = self.is_func_attr.as_str()
-    obj["storage_ref"] = self.storage_ref.as_str()
+    obj["is_func_attr"] = self.is_func_attr
+    if _passthrough_storage_refs {
+        obj["storage_ref"] = self.storage_ref
+    } else {
+        obj["storage_ref"] = self.storage_ref.as_str()
+    }
     obj["is_extend"] = self.is_extend == yes
     if self.is_func_attr {
         assert(self.type_path != none)
@@ -570,7 +780,7 @@ type IMRForFile {
     var last_assigned_temp_storage_id = 0
 }
 
-func IMRForFile.as_str {
+func IMRForFile.as_str(indent=0) {
     var t = "IMRForFile{" +
         "project_file=" + self.project_file.as_str()
     t += ",blocks=" + self.blocks.as_str()
