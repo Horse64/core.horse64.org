@@ -105,11 +105,11 @@ func IMRNode.format_inst(
             continue
         }
         t += " " + remaining_key.upper() + "="
-        if typename(data[pname]) == "str" {
+        if typename(data[remaining_key]) == "str" {
             t += textfmt.as_escaped_code_string(
-                data[pname])
+                data[remaining_key])
         } else {
-            t += data[pname].as_str()
+            t += data[remaining_key].as_str()
         }
     }
     return t
