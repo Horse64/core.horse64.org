@@ -98,10 +98,9 @@ func IMRNode.format_inst(
         }
     }
     for remaining_key in data {
-        if pos_parameter_names.has(remaining_key) {
-            continue
-        }
-        if skip_parameter_names.has(remaining_key) {
+        if pos_parameter_names.has(remaining_key) or
+                remaining_key == "kind" or
+                skip_parameter_names.has(remaining_key) {
             continue
         }
         t += " " + remaining_key.upper() + "="
