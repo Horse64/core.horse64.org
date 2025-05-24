@@ -557,13 +557,11 @@ func IMRGetIdx.as_json_obj(
 type IMRCallArg {
     var ref
     var name
-    var type_expr
 }
 
-func IMRCallArg.init(ref, name, type_expr) {
+func IMRCallArg.init(ref, name) {
     self.ref = ref
     self.name = name
-    self.type_expr = type_expr
 }
 
 type IMRCall base IMRNode {
@@ -574,19 +572,18 @@ type IMRCall base IMRNode {
     var pos_arg_count = 0
     var kw_arg_count = 0
     var args = []
-    var is_later = no
-    var is_later_ignore = no
-    var is_later_repeat = no
+    var has_later = no
+    var has_later_ignore = no
+    var has_later_repeat = no
 }
 
 func IMRCall.init(
         called_func_ref=none,
         arg_refs=[],
         arg_names_if_any=[],
-        arg_types_if_any=[],
-        is_later=no,
-        is_later_ignore=no,
-        is_later_repeat=no,
+        has_later=no,
+        has_later_ignore=no,
+        has_later_repeat=no,
         return_value_ref=none,
         ) {
     base.init(IMR_INST_CALL)
@@ -594,12 +591,6 @@ func IMRCall.init(
         throw new RuntimeError(
             "The arg_refs list len and "
             "arg_names_if_any list len must match."
-        )
-    }
-    if arg_refs.len != arg_types_if_any.len {
-        throw new RuntimeError(
-            "The arg_refs list len and "
-            "arg_types_if_any list len must match."
         )
     }
     if typename(called_func_ref) != "obj" or
@@ -614,9 +605,9 @@ func IMRCall.init(
         throw new TypeError("The return_value_ref parameter "
             "must be of type StorageRef.")
     }
-    self.is_later = is_later
-    self.is_later_ignore = is_later_ignore
-    self.is_later_repeat = is_later_repeat
+    self.has_later = has_later
+    self.has_later_ignore = has_later_ignore
+    self.has_later_repeat = has_later_repeat
     self.called_func_ref = called_func_ref.copy()
     self.return_value_ref = return_value_ref.copy()
     var pos_args = []
@@ -634,12 +625,10 @@ func IMRCall.init(
         if arg_names_if_any[i] != none {
             name = arg_names_if_any[i] + ""
             self.kw_arg_count += 1
-            kw_args.add([ref, name,
-                arg_types_if_any[i]])
+            kw_args.add([ref, name])
         } else {
             self.pos_arg_count += 1
-            pos_args.add([ref,
-                arg_types_if_any[i]])
+            pos_args.add(ref)
         }
         self.arg_count += 1
         i += 1
@@ -647,13 +636,13 @@ func IMRCall.init(
     i = 1
     while i <= pos_args.len {
         self.args.add(new IMRCallArg(
-            pos_args[i][1], none, pos_args[i][2]))
+            pos_args[i], none))
         i += 1
     }
     i = 1
     while i <= kw_args.len {
         self.args.add(new IMRCallArg(
-            kw_args[i][1], kw_args[i][2], kw_args[i][3]
+            kw_args[i][1], kw_args[i][2]
         ))
         i += 1
     }
@@ -699,9 +688,9 @@ func IMRCall.as_json_obj(
         obj["called_func_ref"] =
             self.called_func_ref.as_str()
     }
-    obj["is_later"] = self.is_later
-    obj["is_later_ignore"] = self.is_later_ignore
-    obj["is_later_repeat"] = self.is_later_repeat
+    obj["has_later"] = self.has_later
+    obj["has_later_ignore"] = self.has_later_ignore
+    obj["has_later_repeat"] = self.has_later_repeat
     obj["arg_count"] = self.arg_count
     obj["kw_arg_count"] = self.kw_arg_count
     if _passthrough_storage_refs {
@@ -712,17 +701,19 @@ func IMRCall.as_json_obj(
             self.return_value_ref.as_str()
     }
 
-    obj["parameter_refs"] = []
-    if _passthrough_storage_refs {
-        for ref in self.parameter_refs {
-            obj["parameter_refs"].add(ref)
+    obj["args"] = []
+    for arg in self.args {
+        var argobj = {->}
+        if _passthrough_storage_refs {
+            argobj["ref"] = arg.ref
+        } else {
+            argobj["ref"] = arg.ref.as_str()
         }
-    } else {
-        for ref in self.parameter_refs {
-            obj["parameter_refs"].add(ref.as_str())
+        if arg.name != none {
+            argobj["name"] = arg.name
         }
+        obj["args"].add(argobj)
     }
-    obj["parameter_names"] = self.parameter_names.copy()
     return obj
 }
 
@@ -1101,19 +1092,30 @@ func generate_imr_for_expr(
         return later result
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "(" and
-            node.subexprs.len >= 2 and
-            node.subexprs[2].kind == ast.N_EXPR_IDREF {
+            node.subexprs.len >= 2 {
         var tmp_ref = get_new_temp_storage_ref(
             node, imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             is_moose64=is_moose64, msgs=msgs,
         )
+        var left_hand_result = generate_imr_for_expr(
+            node.subexprs[1],
+            imr_parents=imr_parents + [node],
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            is_moose64=is_moose64,
+            msgs=msgs,
+        ) later:
+
+        await left_hand_result
+        if left_hand_result == none {
+            return later none
+        }
+        result.instructions += left_hand_result.instructions
+
         var arg_refs = []
         var arg_names_if_any = []
-        var arg_types_if_any = []
-        
-        throw new RuntimeError("fix me")
         var args_node = node.subexprs[2]
         if args_node.kind != ast.N_EXPR_CALLARGS {
             throw new RuntimeError("Encountered "
@@ -1121,27 +1123,15 @@ func generate_imr_for_expr(
                 "isn't of type N_EXPR_CALLARGS.")
         }
         var orig_arg_exprs = args_node.subexprs
-        var orig_arg_type_exprs = []
-        if args_node.has_types {
-            orig_arg_exprs = args_node.subexprs.sub(
-                1, args_node.subexprs.len / 2
-            )
-            orig_arg_type_exprs = args_node.subexprs.sub(
-                args_node.subexprs.len / 2 + 1
-            )
-        }
+        assert(not args_node.has_types)
         var queue = []
         var i = 1
         while i <= orig_arg_exprs.len {
-            queue.add([
-                orig_arg_exprs[i],
-                orig_arg_type_exprs[i],
-            ])
+            queue.add(orig_arg_exprs[i])
             i += 1
         }
         func process_item(item) {
-            var value_expr = item[1]
-            var value_type_expr = item[2]
+            var value_expr = item
             var value_name = none
             if value_expr.kind == ast.N_EXPR_CALLKWARG {
                 value_name = value_expr.label
@@ -1160,12 +1150,10 @@ func generate_imr_for_expr(
             if arg_expr_result == none {
                 return later
             }
+            result.instructions += arg_expr_result.instructions
             arg_refs.add(arg_expr_result.storage_ref)
             arg_names_if_any.add(
                 value_name
-            )
-            arg_types_if_any.add(
-                value_type_expr
             )
         }
         func process_full_queue {
@@ -1185,13 +1173,12 @@ func generate_imr_for_expr(
         process_full_queue() later:
 
         result.instructions.add(new IMRCall(
-            called_func_ref=none,
+            called_func_ref=left_hand_result.storage_ref,
             arg_refs=arg_refs,
             arg_names_if_any=arg_names_if_any,
-            arg_types_if_any=arg_types_if_any,
-            is_later=no,
-            is_later_ignore=no,
-            is_later_repeat=no,
+            has_later=no,
+            has_later_ignore=no,
+            has_later_repeat=no,
             return_value_ref=tmp_ref,
         ))
         result.storage_ref = tmp_ref
