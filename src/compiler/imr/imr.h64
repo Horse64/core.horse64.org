@@ -68,7 +68,9 @@ func IMRNode.as_str(indent=0) {
 
 func IMRNode.format_inst(
         name, pos_parameter_names=[],
-        skip_parameter_names=[], indent=0,
+        skip_parameter_names=[],
+        extra_text=none,
+        indent=0,
         ) {
     var spaces = " ".rep(math.max(0, indent))
     var t = spaces + name
@@ -96,6 +98,9 @@ func IMRNode.format_inst(
         } else {
             t += " " + data[pname].as_str()
         }
+    }
+    if extra_text != none {
+        t += " " + extra_text.trim()
     }
     for remaining_key in data {
         if pos_parameter_names.has(remaining_key) or
@@ -549,6 +554,178 @@ func IMRGetIdx.as_json_obj(
     return obj
 }
 
+type IMRCallArg {
+    var ref
+    var name
+    var type_expr
+}
+
+func IMRCallArg.init(ref, name, type_expr) {
+    self.ref = ref
+    self.name = name
+    self.type_expr = type_expr
+}
+
+type IMRCall base IMRNode {
+    var called_func_ref = none
+    var return_value_ref = none
+
+    var arg_count = 0
+    var pos_arg_count = 0
+    var kw_arg_count = 0
+    var args = []
+    var is_later = no
+    var is_later_ignore = no
+    var is_later_repeat = no
+}
+
+func IMRCall.init(
+        called_func_ref=none,
+        arg_refs=[],
+        arg_names_if_any=[],
+        arg_types_if_any=[],
+        is_later=no,
+        is_later_ignore=no,
+        is_later_repeat=no,
+        return_value_ref=none,
+        ) {
+    base.init(IMR_INST_CALL)
+    if arg_refs.len != arg_names_if_any.len {
+        throw new RuntimeError(
+            "The arg_refs list len and "
+            "arg_names_if_any list len must match."
+        )
+    }
+    if arg_refs.len != arg_types_if_any.len {
+        throw new RuntimeError(
+            "The arg_refs list len and "
+            "arg_types_if_any list len must match."
+        )
+    }
+    if typename(called_func_ref) != "obj" or
+            not has_attr(called_func_ref, "kind") or
+            not has_attr(called_func_ref, "id") {
+        throw new TypeError("The called_func_ref parameter "
+            "must be of type StorageRef.")
+    }
+    if typename(return_value_ref) != "obj" or
+            not has_attr(return_value_ref, "kind") or
+            not has_attr(return_value_ref, "id") {
+        throw new TypeError("The return_value_ref parameter "
+            "must be of type StorageRef.")
+    }
+    self.is_later = is_later
+    self.is_later_ignore = is_later_ignore
+    self.is_later_repeat = is_later_repeat
+    self.called_func_ref = called_func_ref.copy()
+    self.return_value_ref = return_value_ref.copy()
+    var pos_args = []
+    var kw_args = []
+    var i = 1
+    while i <= arg_refs.len {
+        var ref = arg_refs[i]
+        if typename(ref) != "obj" or
+                not has_attr(ref, "kind") or
+                not has_attr(ref, "id") {
+            throw new TypeError("The arg_refs values "
+                "must all be of type StorageRef.")
+        }
+        var name = none
+        if arg_names_if_any[i] != none {
+            name = arg_names_if_any[i] + ""
+            self.kw_arg_count += 1
+            kw_args.add([ref, name,
+                arg_types_if_any[i]])
+        } else {
+            self.pos_arg_count += 1
+            pos_args.add([ref,
+                arg_types_if_any[i]])
+        }
+        self.arg_count += 1
+        i += 1
+    }
+    i = 1
+    while i <= pos_args.len {
+        self.args.add(new IMRCallArg(
+            pos_args[i][1], none, pos_args[i][2]))
+        i += 1
+    }
+    i = 1
+    while i <= kw_args.len {
+        self.args.add(new IMRCallArg(
+            kw_args[i][1], kw_args[i][2], kw_args[i][3]
+        ))
+        i += 1
+    }
+}
+
+func IMRCall.as_str(indent=0) {
+    var t = ""
+    var i = 1
+    var k = 1
+    while i <= self.arg_count {
+        if self.args[i].name != none {
+            t += " "
+            t += textfmt.as_escaped_code_string(
+                self.args[i].name)
+            k += 1
+        }
+        t += " "
+        t += self.args[i].ref.as_str()
+        i += 1
+    }
+    return self.format_inst(
+        "CALL", pos_parameter_names=[
+            "called_func_ref",
+            "return_value_ref",
+            "arg_count",
+        ], skip_parameter_names=[
+            "args",
+            "kw_arg_count",
+        ], extra_text=t, indent=indent,
+    )
+}
+
+func IMRCall.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
+    if _passthrough_storage_refs {
+        obj["called_func_ref"] =
+            self.called_func_ref
+    } else {
+        obj["called_func_ref"] =
+            self.called_func_ref.as_str()
+    }
+    obj["is_later"] = self.is_later
+    obj["is_later_ignore"] = self.is_later_ignore
+    obj["is_later_repeat"] = self.is_later_repeat
+    obj["arg_count"] = self.arg_count
+    obj["kw_arg_count"] = self.kw_arg_count
+    if _passthrough_storage_refs {
+        obj["return_value_ref"] =
+            self.return_value_ref
+    } else {
+        obj["return_value_ref"] =
+            self.return_value_ref.as_str()
+    }
+
+    obj["parameter_refs"] = []
+    if _passthrough_storage_refs {
+        for ref in self.parameter_refs {
+            obj["parameter_refs"].add(ref)
+        }
+    } else {
+        for ref in self.parameter_refs {
+            obj["parameter_refs"].add(ref.as_str())
+        }
+    }
+    obj["parameter_names"] = self.parameter_names.copy()
+    return obj
+}
+
 type IMRApplyOp base IMRNode {
     var is_binary = yes
     var op_token
@@ -601,12 +778,14 @@ func IMRApplyOp.init(op_token,
     } else {
         self.is_binary = no
     }
+    self.op_token = op_token.copy()
 }
 
 func IMRApplyOp.as_str(indent=0) {
     if self.is_binary {
         return self.format_inst(
             "APPLYOP", pos_parameter_names=[
+                "operand",
                 "is_binary",
                 "operand_1_storage_ref",
                 "operand_2_storage_ref",
@@ -616,6 +795,7 @@ func IMRApplyOp.as_str(indent=0) {
     } else {
         return self.format_inst(
             "APPLYOP", pos_parameter_names=[
+                "operand",
                 "is_binary",
                 "operand_1_storagea_ref",
                 "target_storage_ref",
@@ -654,6 +834,7 @@ func IMRApplyOp.as_json_obj(
         }
     }
     obj["is_binary"] = self.is_binary
+    obj["operand"] = self.op_token.str
     return obj
 }
 
@@ -915,6 +1096,103 @@ func generate_imr_for_expr(
         result.instructions.add(new IMRSetLit(
             node.value, tmp_ref,
             literal_kind=node.literal_kind,
+        ))
+        result.storage_ref = tmp_ref
+        return later result
+    } elseif node.kind == ast.N_EXPR_BINOP and
+            node.optoken.str == "(" and
+            node.subexprs.len >= 2 and
+            node.subexprs[2].kind == ast.N_EXPR_IDREF {
+        var tmp_ref = get_new_temp_storage_ref(
+            node, imr_parents=imr_parents,
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            is_moose64=is_moose64, msgs=msgs,
+        )
+        var arg_refs = []
+        var arg_names_if_any = []
+        var arg_types_if_any = []
+        
+        throw new RuntimeError("fix me")
+        var args_node = node.subexprs[2]
+        if args_node.kind != ast.N_EXPR_CALLARGS {
+            throw new RuntimeError("Encountered "
+                "broken call where args sub expression "
+                "isn't of type N_EXPR_CALLARGS.")
+        }
+        var orig_arg_exprs = args_node.subexprs
+        var orig_arg_type_exprs = []
+        if args_node.has_types {
+            orig_arg_exprs = args_node.subexprs.sub(
+                1, args_node.subexprs.len / 2
+            )
+            orig_arg_type_exprs = args_node.subexprs.sub(
+                args_node.subexprs.len / 2 + 1
+            )
+        }
+        var queue = []
+        var i = 1
+        while i <= orig_arg_exprs.len {
+            queue.add([
+                orig_arg_exprs[i],
+                orig_arg_type_exprs[i],
+            ])
+            i += 1
+        }
+        func process_item(item) {
+            var value_expr = item[1]
+            var value_type_expr = item[2]
+            var value_name = none
+            if value_expr.kind == ast.N_EXPR_CALLKWARG {
+                value_name = value_expr.label
+                value_expr = value_expr.subexprs[1]
+            }
+            var arg_expr_result = generate_imr_for_expr(
+                value_expr,
+                imr_parents=imr_parents + [node],
+                func_imr_parent=func_imr_parent,
+                file_imr_parent=file_imr_parent,
+                is_moose64=is_moose64,
+                msgs=msgs,
+            ) later:
+
+            await arg_expr_result
+            if arg_expr_result == none {
+                return later
+            }
+            arg_refs.add(arg_expr_result.storage_ref)
+            arg_names_if_any.add(
+                value_name
+            )
+            arg_types_if_any.add(
+                value_type_expr
+            )
+        }
+        func process_full_queue {
+            if queue.len == 0 {
+                return later
+            }
+            var result = process_item(queue.pop())
+            later:
+
+            await result
+            if queue.len == 0 {
+                return later
+            }
+            result = process_item(queue.pop())
+            later repeat
+        }
+        process_full_queue() later:
+
+        result.instructions.add(new IMRCall(
+            called_func_ref=none,
+            arg_refs=arg_refs,
+            arg_names_if_any=arg_names_if_any,
+            arg_types_if_any=arg_types_if_any,
+            is_later=no,
+            is_later_ignore=no,
+            is_later_repeat=no,
+            return_value_ref=tmp_ref,
         ))
         result.storage_ref = tmp_ref
         return later result
