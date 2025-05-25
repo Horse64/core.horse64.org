@@ -1432,15 +1432,13 @@ func generate_imr_for_stmt(
 
         var previous_clauses_unentered_ref = none
 
-        var conditionals_count = 0
+        var branches_count = 0
         var queue = []
         for clause in node.subexprs {
-            if not clause.is_else {
-                conditionals_count += 1
-            }
+            branches_count += 1
             queue.add(clause)
         }
-        if conditionals_count > 1 {
+        if branches_count > 1 {
             previous_clauses_unentered_ref =
                 get_new_temp_storage_ref(
                     node, imr_parents=imr_parents,
@@ -1455,21 +1453,27 @@ func generate_imr_for_stmt(
         }
 
         var first_clause = yes
-        var clause_conditional_idx = 0
+        var clause_idx = 0
         var clauses_insts = []
         var clauses_refs = []
         var clauses_childinsts = []
         func process_item(item) {
+            clause_idx += 1
             if result_insts == none {
                 return later none
             }
             func extract_clause {
                 if item.is_else {
-                    clauses_refs.add(none)
+                    var else_tmp_rf = get_new_temp_storage_ref(
+                        item, imr_parents=imr_parents,
+                        func_imr_parent=func_imr_parent,
+                        file_imr_parent=file_imr_parent,
+                        is_moose64=is_moose64, msgs=msgs,
+                    )
+                    clauses_refs.add(else_tmp_rf)
                     clauses_insts.add([])
                     return later
                 }
-                clause_conditional_idx += 1
                 var cls_result = generate_imr_for_expr(
                     item.subexprs[1],
                     imr_parents=imr_parents + [node],
@@ -1512,22 +1516,34 @@ func generate_imr_for_stmt(
             }
             assert(typename(insts) == "list")
             if not first_clause {
-                assert(conditionals_count > 1)
+                assert(branches_count > 1)
                 assert(clauses_childinsts.len >= 1)
                 var currentidx = clauses_insts.len
                 old_clause_cond = clauses_insts[currentidx]
                 new_clause_precond = new IMRCond(
                     evaluated_cond_ref=previous_clauses_unentered_ref
                 )
-                new_clause_precond.instructions =
-                    clauses_insts[currentidx]
+                if item.is_else {
+                    assert(old_clause_cond == none)
+                    var tmp_ref = clauses_refs[currentidx]
+                    new_clause_precond.instructions = [
+                        new IMRSetLit(
+                            yes, clauses_refs[currentidx],
+                            literal_kind=ast_expr.LK_NORMAL
+                        )
+                    ]
+                } else {
+                    new_clause_precond.instructions =
+                        old_clause_cond
+                }
                 clauses_insts[currentidx] = [new IMRSetLit(
                     no, clauses_refs[currentidx],
                     literal_kind=ast_expr.LK_NORMAL
                 ), new_clause_precond]
             }
             first_clause = no
-            if clause_conditional_idx < conditionals_count {
+            if clause_idx < branches_count and
+                    branches_count > 1 {
                 clauses_childinsts.add([new IMRSetLit(
                     no, previous_clauses_unentered_ref,
                     literal_kind=ast_expr.LK_NORMAL
@@ -1553,7 +1569,16 @@ func generate_imr_for_stmt(
         process_queue()
         later:
 
-        throw new RuntimeError("fixme")
+        var i = 1
+        while i <= clauses_insts.len {
+            result_insts += clauses_insts[i]
+            var cond = new IMRCond(
+                evaluated_cond_ref=clauses_refs[i]
+            )
+            cond.instructions = clauses_childinsts[i]
+            result_insts.add(cond)
+            i += 1
+        }
         return result_insts
     }
     if node.kind == ast.N_STMT_ASSIGN {
