@@ -339,21 +339,21 @@ func IMRSetAttr.as_json_obj(
 }
 
 type IMRGetAttr base IMRNode {
-    var object_storage_ref
+    var obj_storage_ref
     var attr_name
     var target_storage_ref
 }
 
 func IMRGetAttr.init(
-        object_storage_ref=none,
+        obj_storage_ref=none,
         attr_name=none,
         target_storage_ref=none,
         ) {
     base.init(IMR_INST_GETATTR)
-    if typename(object_storage_ref) != "obj" or
-            not has_attr(object_storage_ref, "kind") or
-            not has_attr(object_storage_ref, "id") {
-        throw new TypeError("The object_storage_ref parameter "
+    if typename(obj_storage_ref) != "obj" or
+            not has_attr(obj_storage_ref, "kind") or
+            not has_attr(obj_storage_ref, "id") {
+        throw new TypeError("The obj_storage_ref parameter "
             "must be of type StorageRef.")
     }
     if typename(attr_name) != "str" {
@@ -366,7 +366,7 @@ func IMRGetAttr.init(
         throw new TypeError("The target_storage_ref parameter "
             "must be of type StorageRef.")
     }
-    self.object_storage_ref = object_storage_ref.copy()
+    self.obj_storage_ref = obj_storage_ref.copy()
     self.attr_name = attr_name
     self.target_storage_ref = target_storage_ref.copy()
 }
@@ -374,7 +374,7 @@ func IMRGetAttr.init(
 func IMRGetAttr.as_str(indent=0) {
     return self.format_inst(
         "GETATTR", pos_parameter_names=[
-            "object_storage_ref",
+            "obj_storage_ref",
             "attr_name",
             "target_storage_ref",
         ], indent=indent,
@@ -388,11 +388,11 @@ func IMRGetAttr.as_json_obj(
         _passthrough_storage_refs=
             _passthrough_storage_refs)
     if _passthrough_storage_refs {
-        obj["object_storage_ref"] =
-            self.object_storage_ref
+        obj["obj_storage_ref"] =
+            self.obj_storage_ref
     } else {
-        obj["object_storage_ref"] =
-            self.object_storage_ref.as_str()
+        obj["obj_storage_ref"] =
+            self.obj_storage_ref.as_str()
     }
     obj["attr_name"] = self.attr_name
     if _passthrough_storage_refs {
@@ -1254,7 +1254,7 @@ func generate_imr_for_expr(
         }
         result.instructions += left_hand_result.instructions
         result.instructions.add(new IMRGetAttr(
-            object_storage_ref=left_hand_result.storage_ref,
+            obj_storage_ref=left_hand_result.storage_ref,
             attr_name=attr_name,
             target_storage_ref=tmp_ref,
         ))
@@ -1498,6 +1498,9 @@ func generate_imr_for_stmt(
             }
             extract_clause() later:
 
+            if result_insts == none {
+                return later
+            }
             var insts = generate_imr_for_stmts(
                 item.subblocks[1],
                 imr_parents=imr_parents + [
@@ -1751,8 +1754,8 @@ func generate_imr_for_stmt(
                     ))
                     result_insts.add(IMRSetAttr(
                         target_and_obj_storage_ref=
-                            container_result.storage_ref,
-                        attr_name=attr_name.storage_ref,
+                            obj_result.storage_ref,
+                        attr_name=attr_name,
                         value_storage_ref=tmp_ref,
                     ))
                     return later yes
