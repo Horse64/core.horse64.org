@@ -119,6 +119,42 @@ func IMRNode.format_inst(
     return t
 }
 
+type IMRBlock base IMRNode {
+    var is_block = yes
+    var instructions = []
+}
+
+func IMRBlock.as_str(indent=0) {
+    var t = "IMRBlock{" +
+        json.dump(self.as_json_obj())
+    return t + "}"
+}
+
+func IMRBlock.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
+    var instl = []
+    for inst in self.instructions {
+        instl.add(inst.as_json_obj(
+            _passthrough_storage_refs=
+                _passthrough_storage_refs))
+    }
+    obj["instructions"] = instl
+    return obj
+}
+
+func IMRBlock.fmt_block(indent=0) {
+    var indent_s = " ".rep(math.max(0, indent))
+    var t = "BEGIN\n"
+    for inst in self.instructions {
+        t += inst.as_str(indent=(indent + 4)) + "\n"
+    }
+    return t + indent_s + "END\n"
+}
+
 type IMRVarInfo base IMRNode {
     var label
     var type_expr
@@ -762,6 +798,147 @@ func IMRCond.as_json_obj(
     return obj
 }
 
+type IMRLoop base IMRBlock {
+}
+
+func IMRLoop.init {
+    base.init(IMR_BLOCK_LOOP)
+}
+
+func IMRLoop.as_str(indent=0) {
+    return self.format_inst(
+        "LOOP", pos_parameter_names=[
+        ],
+        skip_parameter_names=[
+            "instructions",
+        ],
+        indent=indent,
+    ) + " " + self.fmt_block(indent=indent)
+}
+
+func IMRLoop.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
+    return obj
+}
+
+type IMRBreak base IMRBlock {
+}
+
+func IMRBreak.init {
+    base.init(IMR_INST_BREAK)
+}
+
+func IMRBreak.as_str(indent=0) {
+    return self.format_inst(
+        "BREAK", pos_parameter_names=[
+        ],
+        skip_parameter_names=[
+        ],
+        indent=indent,
+    )
+}
+
+func IMRBreak.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
+    return obj
+}
+
+type IMRContinue base IMRBlock {
+}
+
+func IMRContinue.init {
+    base.init(IMR_INST_CONTINUE)
+}
+
+func IMRContinue.as_str(indent=0) {
+    return self.format_inst(
+        "CONTINUE", pos_parameter_names=[
+        ],
+        skip_parameter_names=[
+        ],
+        indent=indent,
+    )
+}
+
+func IMRContinue.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
+    return obj
+}
+
+type IMRIterLoop base IMRBlock {
+    var iterated_container_ref = none
+    var iterator_store_ref = none
+}
+
+func IMRIterLoop.init(
+        iterated_container_ref=none,
+        iterator_store_ref=none,
+        ) {
+    base.init(IMR_BLOCK_ITERLOOP)
+    if typename(iterated_container_ref) != "obj" or
+            not has_attr(iterated_container_ref, "kind") or
+            not has_attr(iterated_container_ref, "id") {
+        throw new TypeError("The iterated_container_ref parameter "
+            "must be of type StorageRef.")
+    }
+    if typename(iterator_store_ref) != "obj" or
+            not has_attr(iterator_store_ref, "kind") or
+            not has_attr(iterator_store_ref, "id") {
+        throw new TypeError("The iterator_store_ref parameter "
+            "must be of type StorageRef.")
+    }
+    self.iterator_store_ref = iterator_store_ref.copy()
+    self.iterated_container_ref = iterated_container_ref.copy()
+}
+
+func IMRIterLoop.as_str(indent=0) {
+    return self.format_inst(
+        "ITERLOOP", pos_parameter_names=[
+            "iterated_container_ref",
+            "iterator_store_ref",
+        ],
+        skip_parameter_names=[
+            "instructions",
+        ],
+        indent=indent,
+    ) + " " + self.fmt_block(indent=indent)
+}
+
+func IMRIterLoop.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
+    if _passthrough_storage_refs {
+        obj["iterator_store_ref"] =
+            self.iterator_store_ref
+    } else {
+        obj["iterator_store_ref"] =
+            self.iterator_store_ref.as_str()
+    }
+    if _passthrough_storage_refs {
+        obj["iterated_container_ref"] =
+            self.iterated_container_ref
+    } else {
+        obj["iterated_container_ref"] =
+            self.iterated_container_ref.as_str()
+    }
+    return obj
+}
+
 type IMRApplyOp base IMRNode {
     var is_binary = yes
     var op_token
@@ -790,9 +967,9 @@ func IMRApplyOp.init(op_token,
             "must be of type StorageRef.")
     }
     if operand_2_storage_ref != none and
-            typename(operand_2_storage_ref) != "obj" or
-            not has_attr(operand_2_storage_ref, "kind") or
-            not has_attr(operand_2_storage_ref, "id") {
+            (typename(operand_2_storage_ref) != "obj" or
+             not has_attr(operand_2_storage_ref, "kind") or
+             not has_attr(operand_2_storage_ref, "id")) {
         throw new TypeError("The operand_2_storage_ref parameter "
             "must be of type StorageRef or none.")
     }
@@ -872,42 +1049,6 @@ func IMRApplyOp.as_json_obj(
     obj["is_binary"] = self.is_binary
     obj["operand"] = self.op_token.str
     return obj
-}
-
-type IMRBlock base IMRNode {
-    var is_block = yes
-    var instructions = []
-}
-
-func IMRBlock.as_str(indent=0) {
-    var t = "IMRBlock{" +
-        json.dump(self.as_json_obj())
-    return t + "}"
-}
-
-func IMRBlock.as_json_obj(
-        _passthrough_storage_refs=no,
-        ) {
-    var obj = base.as_json_obj(
-        _passthrough_storage_refs=
-            _passthrough_storage_refs)
-    var instl = []
-    for inst in self.instructions {
-        instl.add(inst.as_json_obj(
-            _passthrough_storage_refs=
-                _passthrough_storage_refs))
-    }
-    obj["instructions"] = instl
-    return obj
-}
-
-func IMRBlock.fmt_block(indent=0) {
-    var indent_s = " ".rep(math.max(0, indent))
-    var t = "BEGIN\n"
-    for inst in self.instructions {
-        t += inst.as_str(indent=(indent + 4)) + "\n"
-    }
-    return t + indent_s + "END\n"
 }
 
 type IMRFuncBlock base IMRBlock {
@@ -1427,6 +1568,74 @@ func generate_imr_for_stmt(
         }
         _unused = process_queue_item(queue.pop())
         later repeat
+    }
+    if node.kind == ast.N_STMT_BREAK {
+        var breakst = new IMRBreak()
+        breakst.line = node.line
+        breakst.col = node.col
+        return breakst
+    }
+    if node.kind == ast.N_STMT_CONTINUE {
+        var continuest = new IMRContinue()
+        continuest.line = node.line
+        continuest.col = node.col
+        return continuest
+    }
+    if node.kind == ast.N_STMT_WHILE {
+        var result_insts = []
+
+        var clause = node.subexprs[1]
+        var inner_insts = generate_imr_for_stmts(
+            node.subblocks[1],
+            imr_parents=imr_parents + [node],
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            is_moose64=is_moose64, msgs=msgs,
+        ) later:
+
+        await inner_insts
+        if inner_insts == none {
+            result_insts = none
+            return later
+        }
+        var cls_result = generate_imr_for_expr(
+            node.subexprs[1],
+            imr_parents=imr_parents + [node],
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            is_moose64=is_moose64, msgs=msgs,
+        ) later:
+
+        await cls_result
+        if cls_result == none {
+            result_insts = none
+            return later
+        }
+        var loop_block = new IMRLoop()
+        loop_block.line = node.line
+        loop_block.col = node.col
+        loop_block.instructions = []
+        loop_block.instructions += cls_result.instructions
+        var inverse_op_token = new token.Token(
+            "not",
+            token.T_BOOLCOMP,
+            node.line,
+            node.col,
+        )
+        loop_block.instructions.add(IMRApplyOp(
+            inverse_op_token,
+            operand_1_storage_ref=cls_result.storage_ref,
+            target_storage_ref=cls_result.storage_ref,
+            is_binary=no,
+        ))
+        var cond_block = new IMRCond(
+            evaluated_cond_ref=cls_result.storage_ref,
+        )
+        cond_block.line = node.line
+        cond_block.col = node.col
+        cond_block.instructions.add(new IMRBreak())
+        loop_block.instructions += inner_insts
+        return [loop_block]
     }
     if node.kind == ast.N_STMT_IF {
         var result_insts = []
