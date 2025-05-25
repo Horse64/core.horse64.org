@@ -1010,7 +1010,7 @@ func IMRApplyOp.as_str(indent=0) {
             "APPLYOP", pos_parameter_names=[
                 "operand",
                 "is_binary",
-                "operand_1_storagea_ref",
+                "operand_1_storage_ref",
                 "target_storage_ref",
             ], indent=indent,
         )
@@ -1481,11 +1481,11 @@ func generate_imr_for_expr(
         result.instructions += right_hand_result.instructions
         result.instructions.add(new IMRApplyOp(
             node.optoken.copy(),
-            operand_1_storage_ref=tmp_ref,
-            operand_2_storage_ref=
+            operand_1_storage_ref=
                 left_hand_result.storage_ref,
-            target_storage_ref=
+            operand_2_storage_ref=
                 right_hand_result.storage_ref,
+            target_storage_ref=tmp_ref,
             is_binary=yes,
         ))
         result.storage_ref = tmp_ref
@@ -1634,6 +1634,7 @@ func generate_imr_for_stmt(
         cond_block.line = node.line
         cond_block.col = node.col
         cond_block.instructions.add(new IMRBreak())
+        loop_block.instructions.add(cond_block)
         loop_block.instructions += inner_insts
         return [loop_block]
     }
