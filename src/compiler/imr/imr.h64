@@ -717,6 +717,50 @@ func IMRCall.as_json_obj(
     return obj
 }
 
+type IMRCond base IMRBlock {
+    var evaluated_cond_ref = none
+}
+
+func IMRCond.init(
+        evaluated_cond_ref=none,
+        ) {
+    base.init(IMR_BLOCK_COND)
+    if typename(evaluated_cond_ref) != "obj" or
+            not has_attr(evaluated_cond_ref, "kind") or
+            not has_attr(evaluated_cond_ref, "id") {
+        throw new TypeError("The evaluated_cond_ref parameter "
+            "must be of type StorageRef.")
+    }
+    self.evaluated_cond_ref = evaluated_cond_ref.copy()
+}
+
+func IMRCond.as_str(indent=0) {
+    return self.format_inst(
+        "COND", pos_parameter_names=[
+            "evaluated_cond_ref",
+        ],
+        skip_parameter_names=[
+        ],
+        indent=indent,
+    ) + " " + self.fmt_block(indent=indent)
+}
+
+func IMRCond.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
+    if _passthrough_storage_refs {
+        obj["evaluated_cond_ref"] =
+            self.evaluated_cond_ref
+    } else {
+        obj["evaluated_cond_ref"] =
+            self.evaluated_cond_ref.as_str()
+    }
+    return obj
+}
+
 type IMRApplyOp base IMRNode {
     var is_binary = yes
     var op_token
@@ -968,7 +1012,7 @@ func IMRFuncBlock.as_json_obj(
 enum IMRNodeKind {
     IMR_BLOCK_FUNC,
     IMR_BLOCK_COND,
-    IMR_BLOCK_CONDLOOP,
+    IMR_BLOCK_LOOP,
     IMR_BLOCK_ITERLOOP,
     IMR_BLOCK_STRUCT,
     IMR_BLOCK_TYPE,
@@ -1382,6 +1426,135 @@ func generate_imr_for_stmt(
         }
         _unused = process_queue_item(queue.pop())
         later repeat
+    }
+    if node.kind == ast.N_STMT_IF {
+        var result_insts = []
+
+        var previous_clauses_unentered_ref = none
+
+        var conditionals_count = 0
+        var queue = []
+        for clause in node.subexprs {
+            if not clause.is_else {
+                conditionals_count += 1
+            }
+            queue.add(clause)
+        }
+        if conditionals_count > 1 {
+            previous_clauses_unentered_ref =
+                get_new_temp_storage_ref(
+                    node, imr_parents=imr_parents,
+                    func_imr_parent=func_imr_parent,
+                    file_imr_parent=file_imr_parent,
+                    is_moose64=is_moose64, msgs=msgs,
+                )
+            result_insts.add(new IMRSetLit(
+                yes, previous_clauses_unentered_ref,
+                literal_kind=ast_expr.LK_NORMAL
+            ))
+        }
+
+        var first_clause = yes
+        var clause_conditional_idx = 0
+        var clauses_insts = []
+        var clauses_refs = []
+        var clauses_childinsts = []
+        func process_item(item) {
+            if result_insts == none {
+                return later none
+            }
+            func extract_clause {
+                if item.is_else {
+                    clauses_refs.add(none)
+                    clauses_insts.add([])
+                    return later
+                }
+                clause_conditional_idx += 1
+                var cls_result = generate_imr_for_expr(
+                    item.subexprs[1],
+                    imr_parents=imr_parents + [node],
+                    func_imr_parent=func_imr_parent,
+                    file_imr_parent=file_imr_parent,
+                    is_moose64=is_moose64, msgs=msgs,
+                ) later:
+
+                await cls_result
+                if cls_result == none {
+                    result_insts = none
+                    first_clause = no
+                    return later
+                }
+                clauses_refs.add(
+                    cls_result.storage_ref
+                )
+                clauses_insts.add(
+                    cls_result.instructions
+                )
+                return later
+            }
+            extract_clause() later:
+
+            var insts = generate_imr_for_stmts(
+                item.subblocks[1],
+                imr_parents=imr_parents + [
+                    node, item
+                ],
+                func_imr_parent=func_imr_parent,
+                file_imr_parent=file_imr_parent,
+                is_moose64=is_moose64, msgs=msgs,
+            ) later:
+
+            await insts
+            if insts == none {
+                result_insts = none
+                first_clause = no
+                return later
+            }
+            assert(typename(insts) == "list")
+            if not first_clause {
+                assert(conditionals_count > 1)
+                assert(clauses_childinsts.len >= 1)
+                var currentidx = clauses_insts.len
+                old_clause_cond = clauses_insts[currentidx]
+                new_clause_precond = new IMRCond(
+                    evaluated_cond_ref=previous_clauses_unentered_ref
+                )
+                new_clause_precond.instructions =
+                    clauses_insts[currentidx]
+                clauses_insts[currentidx] = [new IMRSetLit(
+                    no, clauses_refs[currentidx],
+                    literal_kind=ast_expr.LK_NORMAL
+                ), new_clause_precond]
+            }
+            first_clause = no
+            if clause_conditional_idx < conditionals_count {
+                clauses_childinsts.add([new IMRSetLit(
+                    no, previous_clauses_unentered_ref,
+                    literal_kind=ast_expr.LK_NORMAL
+                )] + insts)
+            } else {
+                clauses_childinsts.add(insts)
+            }
+        }
+        func process_queue {
+            if queue.len == 0 {
+                return later
+            }
+            var result = process_item(queue.pop())
+            later:
+
+            await result
+            if queue.len == 0 {
+                return later
+            }
+            result = process_item(queue.pop())
+            later repeat
+        }
+        process_queue()
+        later:
+
+        throw new RuntimeError("fixme")
+        return result_insts
     }
     if node.kind == ast.N_STMT_ASSIGN {
         var result_insts = []
