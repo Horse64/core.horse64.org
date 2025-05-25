@@ -825,7 +825,7 @@ func IMRLoop.as_json_obj(
     return obj
 }
 
-type IMRBreak base IMRBlock {
+type IMRBreak base IMRNode {
 }
 
 func IMRBreak.init {
@@ -851,7 +851,7 @@ func IMRBreak.as_json_obj(
     return obj
 }
 
-type IMRContinue base IMRBlock {
+type IMRContinue base IMRNode {
 }
 
 func IMRContinue.init {
