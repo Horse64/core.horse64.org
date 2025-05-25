@@ -740,6 +740,7 @@ func IMRCond.as_str(indent=0) {
             "evaluated_cond_ref",
         ],
         skip_parameter_names=[
+            "instructions",
         ],
         indent=indent,
     ) + " " + self.fmt_block(indent=indent)
