@@ -1581,6 +1581,138 @@ func generate_imr_for_stmt(
         continuest.col = node.col
         return continuest
     }
+    if node.kind == ast.N_STMT_DO {
+        var result_insts = []
+
+        var queue = [node]
+        for clause in self.subexprs {
+            queue.add(clause)
+        }
+        func process_item(item) {
+            if result_insts == none {
+                return later
+            }
+
+            var error_item_storage_refs = []
+            func handle_rescue_clause_item(item) {
+                # FIXME: extract class storage ids that
+                # are referenced by rescue clause.
+            }
+            func handle_rescue_clause_if_needed {
+                if item.kind != ast.N_EXPR_RESCUECLAUSE {
+                    return later
+                }
+                var queue2 = []
+                var idx = 0
+                for elabel in self.error_labels {
+                    idx += 1
+                    if self.subexprs[idx] != none {
+                        queue2.add([elabel, self.subexprs[idx]])
+                    } else {
+                        queue2.add([elabel, "any"])
+                    }
+                }
+                if queue2.len == 0 {
+                    return later
+                }
+                var result = handle_rescue_clause_item(
+                    queue2.pop()) later:
+
+                await result
+                if queue2.len == 0 {
+                    return lataer
+                }
+                result = handle_rescue_clause_item(
+                    queue2.pop()) later repeat
+            }
+            handle_rescue_clause_if_needed() later:
+
+            var inner_insts = generate_imr_for_stmts(
+                node.subblocks[1],
+                imr_parents=imr_parents + [node],
+                func_imr_parent=func_imr_parent,
+                file_imr_parent=file_imr_parent,
+                is_moose64=is_moose64, msgs=msgs,
+            ) later:
+
+            await inner_insts
+            if inner_insts == none or result_insts == none {
+                result_insts = none
+                return later
+            }
+            var block_item = none
+            if item.kind == ast.N_STMT_DO {
+                block_item = new IMRDo()
+            } elseif item.kind == ast.N_EXPR_RESCUECLAUSE {
+                block_item = new IMRRescue()
+            } else {
+                block_item = new IMRFinally()
+            }
+            block_item.line = node.line
+            block_item.col = node.col
+            block_item.instructions = []
+            block_item.instructions += inner_insts
+            result_insts.add(block_item)
+        }
+        if queue.len == 0 {
+            return result_insts
+        }
+        var result = process_item(
+            queue.pop()) later:
+
+        await result
+        if queue.len == 0 {
+            return result_insts
+        }
+        result = process_item(
+            queue.pop()) later repeat
+    }
+    if node.kind == ast.N_STMT_WITH {
+        var result_insts = []
+
+        var with_expr = node.subexprs[1]
+        var inner_insts = generate_imr_for_stmts(
+            node.subblocks[1],
+            imr_parents=imr_parents + [node],
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            is_moose64=is_moose64, msgs=msgs,
+        ) later:
+
+        await inner_insts
+        if inner_insts == none {
+            result_insts = none
+            return later
+        }
+        var with_result = generate_imr_for_expr(
+            with_expr,
+            imr_parents=imr_parents + [node],
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            is_moose64=is_moose64, msgs=msgs,
+        ) later:
+
+        await with_result
+        if with_result == none {
+            result_insts = none
+            return later
+        }
+        var do_block = new IMRDo()
+        do_block.line = node.line
+        do_block.col = node.col
+        do_block.instructions = []
+        do_block.instructions += with_result.instructions
+        # FIXME: see what the storage for the with label is,
+        # and copy over the expression into that storage.
+        do_block.instructions += inner_insts
+        var finally_block = new IMRFinally()
+        finally_block.line = node.line
+        finally_block.col = node.col
+        finally_block.instructions = []
+        # FIXME: insert has_attr() calls here to check
+        # if item has ".close()" and call it if it does.
+        return [do_block, finally_block]
+    }
     if node.kind == ast.N_STMT_WHILE {
         var result_insts = []
 
