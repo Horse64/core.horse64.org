@@ -1346,14 +1346,14 @@ func generate_imr_for_expr(
             if queue.len == 0 {
                 return later
             }
-            var result = process_item(queue.pop())
+            var result = process_item(queue.pop_at(1))
             later:
 
             await result
             if queue.len == 0 {
                 return later
             }
-            result = process_item(queue.pop())
+            result = process_item(queue.pop_at(1))
             later repeat
         }
         process_full_queue() later:
@@ -1559,14 +1559,14 @@ func generate_imr_for_stmt(
         if queue.len == 0 or result_insts == none {
             return later result_insts
         }
-        var _unused = process_queue_item(queue.pop())
+        var _unused = process_queue_item(queue.pop_at(1))
         later:
 
         await _unused
         if queue.len == 0 or result_insts == none {
             return later result_insts
         }
-        _unused = process_queue_item(queue.pop())
+        _unused = process_queue_item(queue.pop_at(1))
         later repeat
     }
     if node.kind == ast.N_STMT_BREAK {
@@ -1658,14 +1658,14 @@ func generate_imr_for_stmt(
             return result_insts
         }
         var result = process_item(
-            queue.pop()) later:
+            queue.pop_at(1)) later:
 
         await result
         if queue.len == 0 {
             return result_insts
         }
         result = process_item(
-            queue.pop()) later repeat
+            queue.pop_at(1)) later repeat
     }
     if node.kind == ast.N_STMT_WITH {
         var result_insts = []
@@ -1806,6 +1806,7 @@ func generate_imr_for_stmt(
                 return later none
             }
             func extract_clause {
+                assert(clauses_insts.len == clause_idx - 1)
                 if item.is_else {
                     var else_tmp_rf = get_new_temp_storage_ref(
                         item, imr_parents=imr_parents,
@@ -1865,12 +1866,16 @@ func generate_imr_for_stmt(
                 assert(branches_count > 1)
                 assert(clauses_childinsts.len >= 1)
                 var currentidx = clauses_insts.len
-                old_clause_cond = clauses_insts[currentidx]
+                var old_clause_cond_clauses = clauses_insts[currentidx]
                 new_clause_precond = new IMRCond(
                     evaluated_cond_ref=previous_clauses_unentered_ref
                 )
+                print("ok, now looking at not first clause, with "
+                    "old_clause_cond_clauses=" +
+                    old_clause_cond_clauses.as_str())
                 if item.is_else {
-                    assert(old_clause_cond == none)
+                    assert(old_clause_cond_clauses == none or
+                        old_clause_cond_clauses.len == 0)
                     var tmp_ref = clauses_refs[currentidx]
                     new_clause_precond.instructions = [
                         new IMRSetLit(
@@ -1880,7 +1885,7 @@ func generate_imr_for_stmt(
                     ]
                 } else {
                     new_clause_precond.instructions =
-                        old_clause_cond
+                        old_clause_cond_clauses
                 }
                 clauses_insts[currentidx] = [new IMRSetLit(
                     no, clauses_refs[currentidx],
@@ -1902,14 +1907,14 @@ func generate_imr_for_stmt(
             if queue.len == 0 {
                 return later
             }
-            var result = process_item(queue.pop())
+            var result = process_item(queue.pop_at(1))
             later:
 
             await result
             if queue.len == 0 {
                 return later
             }
-            result = process_item(queue.pop())
+            result = process_item(queue.pop_at(1))
             later repeat
         }
         process_queue()
@@ -2160,14 +2165,14 @@ func generate_imr_for_stmt(
         if queue.len == 0 or result_insts == none {
             return later result_insts
         }
-        var _unused = process_queue_item(queue.pop())
+        var _unused = process_queue_item(queue.pop_at(1))
         later:
 
         await _unused
         if queue.len == 0 or result_insts == none {
             return later result_insts
         }
-        _unused = process_queue_item(queue.pop())
+        _unused = process_queue_item(queue.pop_at(1))
         later repeat
     }
     return later none
@@ -2184,7 +2189,7 @@ func generate_imr_for_stmts(
     if queue.len == 0 {
         return later result
     }
-    var item = queue.pop()
+    var item = queue.pop_at(1)
     var inner_result = generate_imr_for_stmt(
         item, imr_parents=imr_parents,
         func_imr_parent=func_imr_parent,
@@ -2203,7 +2208,7 @@ func generate_imr_for_stmts(
     if queue.len == 0 {
         return later result
     }
-    var item = queue.pop()
+    var item = queue.pop_at(1)
     var inner_result = generate_imr_for_stmt(
         item, imr_parents=imr_parents,
         func_imr_parent=func_imr_parent,
