@@ -199,6 +199,45 @@ func IMRVarInfo.as_json_obj(
     return obj
 }
 
+type IMRClrZero base IMRNode {
+    var target_storage_ref
+}
+
+func IMRClrZero.init(target_storage_ref) {
+    base.init(IMR_INST_CLRZERO)
+    if typename(target_storage_ref) != "obj" or
+            not has_attr(target_storage_ref, "kind") or
+            not has_attr(target_storage_ref, "id") {
+        throw new TypeError("The target_storage_ref parameter "
+        "must be of type StorageRef.")
+    }
+    self.target_storage_ref = target_storage_ref.copy()
+}
+
+func IMRClrZero.as_str(indent=0) {
+    return self.format_inst(
+        "CLRZERO", pos_parameter_names=[
+            "target_storage_ref",
+        ], indent=indent,
+    )
+}
+
+func IMRClrZero.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+        _passthrough_storage_refs)
+    if _passthrough_storage_refs {
+        obj["target_storage_ref"] =
+        self.target_storage_ref
+    } else {
+        obj["target_storage_ref"] =
+        self.target_storage_ref.as_str()
+    }
+    return obj
+}
+
 type IMRSetLit base IMRNode {
     var value
     var target_storage_ref
@@ -1174,6 +1213,7 @@ enum IMRNodeKind {
     IMR_INST_CONTINUE,
     IMR_INST_RETURN,
     IMR_INST_AWAIT,
+    IMR_INST_CLRZERO,
     IMR_INST_SETLIT,
     IMR_INST_SETIDX,
     IMR_INST_SETATTR,
@@ -1258,6 +1298,7 @@ func generate_imr_for_expr(
         node, imr_parents=[],
         func_imr_parent=none,
         file_imr_parent=none,
+        try_target_storage_ref=none,
         is_moose64=no, msgs=none,
         ) {
     var irregular_binop_strs = {"[", "(", "."}
@@ -1266,12 +1307,15 @@ func generate_imr_for_expr(
         result.storage_ref = node.ref.copy()
         return later result
     } elseif node.kind == ast.N_EXPR_LIT {
-        var tmp_ref = get_new_temp_storage_ref(
-            node, imr_parents=imr_parents,
-            func_imr_parent=func_imr_parent,
-            file_imr_parent=file_imr_parent,
-            is_moose64=is_moose64, msgs=msgs,
-        )
+        var tmp_ref = try_target_storage_ref
+        if tmp_ref == none {
+            tmp_ref = get_new_temp_storage_ref(
+                node, imr_parents=imr_parents,
+                func_imr_parent=func_imr_parent,
+                file_imr_parent=file_imr_parent,
+                is_moose64=is_moose64, msgs=msgs,
+            )
+        }
         result.instructions.add(new IMRSetLit(
             node.value, tmp_ref,
             literal_kind=node.literal_kind,
@@ -1281,12 +1325,15 @@ func generate_imr_for_expr(
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "(" and
             node.subexprs.len >= 2 {
-        var tmp_ref = get_new_temp_storage_ref(
-            node, imr_parents=imr_parents,
-            func_imr_parent=func_imr_parent,
-            file_imr_parent=file_imr_parent,
-            is_moose64=is_moose64, msgs=msgs,
-        )
+        var tmp_ref = try_target_storage_ref
+        if tmp_ref == none {
+            tmp_ref = get_new_temp_storage_ref(
+                node, imr_parents=imr_parents,
+                func_imr_parent=func_imr_parent,
+                file_imr_parent=file_imr_parent,
+                is_moose64=is_moose64, msgs=msgs,
+            )
+        }
         var left_hand_result = generate_imr_for_expr(
             node.subexprs[1],
             imr_parents=imr_parents + [node],
@@ -1534,26 +1581,44 @@ func generate_imr_for_stmt(
             i += 1
         }
         func process_queue_item(item) {
+            if result_insts == none {
+                return later
+            }
             var left_hand_storage_id =
                 node.symbol_info[idx].storage_id
+            if (item[2] == none or
+                    (item[2].kind == ast.N_EXPR_LIT and
+                     item[2].literal_kind == ast_expr.LK_NORMAL and
+                     item[2].value == none)) and
+                    is_moose64 {
+                result_insts.add(new IMRClrZero(
+                    right_hand_result.storage_ref,
+                ))
+                return later
+            }
+            var var_ref = new st_ref.StorageRef(
+                st_ref.ST_LOCAL,
+                left_hand_storage_id
+            )
             var right_hand_result = generate_imr_for_expr(
                 item[2],
                 imr_parents=imr_parents + [node],
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
+                try_target_storage_ref=var_ref,
                 is_moose64=is_moose64, msgs=msgs,
             ) later:
 
             await right_hand_result
             if right_hand_result != none {
                 result_insts += right_hand_result.instructions
-                result_insts.add(new IMRMove(
-                    right_hand_result.storage_ref,
-                    new st_ref.StorageRef(
-                        st_ref.ST_LOCAL,
-                        left_hand_storage_id
-                    ),
-                ))
+                if not right_hand_result.storage_ref.alike(
+                        var_ref) {
+                    result_insts.add(new IMRMove(
+                        right_hand_result.storage_ref,
+                        var_ref,
+                    ))
+                }
             } else {
                 result_insts = none
             }
@@ -1872,9 +1937,6 @@ func generate_imr_for_stmt(
                 new_clause_precond = new IMRCond(
                     evaluated_cond_ref=previous_clauses_unentered_ref
                 )
-                print("ok, now looking at not first clause, with "
-                    "old_clause_cond_clauses=" +
-                    old_clause_cond_clauses.as_str())
                 if item.is_else {
                     assert(old_clause_cond_clauses == none or
                         old_clause_cond_clauses.len == 0)
@@ -2373,6 +2435,9 @@ func generate_imr_for_project(
         build_options=none,
         msgs=none, is_moose64=no, debug=no,
         ) {
+    is_moose64 =
+        is_moose64 or (build_options != none and
+            build_options.is_moose64)
     const program_name =
         if is_moose64 ("moosec") else ("horsec")
     var boptions = build_options
