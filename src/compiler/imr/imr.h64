@@ -245,7 +245,9 @@ func IMRSetLit.as_json_obj(
         obj["target_storage_ref"] =
             self.target_storage_ref.as_str()
     }
-    obj["literal_kind"] = self.literal_kind
+    obj["literal_kind"] = ast_expr.LiteralKind.num_label(
+        self.literal_kind
+    )
     return obj
 }
 
