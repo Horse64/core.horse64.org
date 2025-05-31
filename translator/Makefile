@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2024-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -25,7 +25,9 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-.PHONY: .test-translator ensure-hvm rebuild-hvm ensure-hvm-built
+.PHONY: intro-message bootstrap .test-translator ensure-hvm ensure-horp rebuild-hvm ensure-hvm-built ensure-spew3d ensure-devtools ensure-moose64 ensure-cython-built reset-deps test test-translator test-translated-horsec get-deps
+
+.NOTPARALLEL:
 
 intro-message:
 	@echo -e "\033[95;40mWelcome to core.horse64.org bootstrap.\033[0m"
