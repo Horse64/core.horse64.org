@@ -152,7 +152,7 @@ func IMRBlock.fmt_block(indent=0) {
     for inst in self.instructions {
         t += inst.as_str(indent=(indent + 4)) + "\n"
     }
-    return t + indent_s + "END\n"
+    return t + indent_s + "END"
 }
 
 type IMRVarInfo base IMRNode {
