@@ -1586,20 +1586,20 @@ func generate_imr_for_stmt(
             }
             var left_hand_storage_id =
                 node.symbol_info[idx].storage_id
+            var var_ref = new st_ref.StorageRef(
+                st_ref.ST_LOCAL,
+                left_hand_storage_id
+            )
             if (item[2] == none or
                     (item[2].kind == ast.N_EXPR_LIT and
                      item[2].literal_kind == ast_expr.LK_NORMAL and
                      item[2].value == none)) and
                     is_moose64 {
                 result_insts.add(new IMRClrZero(
-                    right_hand_result.storage_ref,
+                    var_ref,
                 ))
                 return later
             }
-            var var_ref = new st_ref.StorageRef(
-                st_ref.ST_LOCAL,
-                left_hand_storage_id
-            )
             var right_hand_result = generate_imr_for_expr(
                 item[2],
                 imr_parents=imr_parents + [node],
