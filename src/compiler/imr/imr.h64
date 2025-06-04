@@ -1092,6 +1092,85 @@ func IMRApplyOp.as_json_obj(
     return obj
 }
 
+type IMRStructOrTypeBlock base IMRBlock {
+    var is_union = no
+    var is_type = no
+
+    var global_type_id = none
+    var label = none
+    var base_type_id = none
+}
+
+func IMRStructOrTypeBlock.init(
+        global_type_id, label,
+        base_type_id=none,
+        is_union=no,
+        is_type=no,
+        ) {
+    base.init(IMR_BLOCK_STRUCTORTYPE)
+    self.label = label + ""
+    if typename(is_union) != "num" {
+        throw new TypeError(
+            "The is_union parameter must "
+            "be a bool."
+        )
+    }
+    self.is_union = is_union
+    if typename(is_type) != "num" {
+        throw new TypeError(
+            "The is_type parameter must "
+            "be a bool."
+        )
+    }
+    self.is_type = is_type
+    if typename(global_type_id) != "num" {
+        throw new TypeError(
+            "The global_type_id parameter must "
+            "be a num."
+        )
+    }
+    self.global_type_id = global_type_id
+    if base_type_id != none or
+            typename(global_type_id) != "num" {
+        throw new TypeError(
+            "The global_type_id parameter must "
+            "be a num or none."
+        )
+    }
+    self.base_type_id = base_type_id
+}
+
+func IMRStructOrTypeBlock.as_str(indent=0) {
+    var name = "FUNCBLOCK"
+    if self.is_union {
+        name = "UNIONBLOCK"
+    } elseif self.is_struct {
+        name = "STRUCTBLOCK"
+    }
+    return self.format_inst(
+        name, pos_parameter_names=[
+            "global_type_id",
+            "label",
+        ], skip_parameter_names=[
+            "instructions",
+        ], indent=indent,
+    ) + " " + self.fmt_block(indent=indent)
+}
+
+func IMRStructOrTypeBlock.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
+    obj["label"] = self.label
+    obj["global_type_id"] = self.global_type_id
+    obj["base_type_id"] = self.base_type_id
+    obj["is_union"] = self.is_union
+    obj["is_struct"] = self.is_struct
+    return obj
+}
+
 type IMRFuncBlock base IMRBlock {
     var is_func_attr = no
     var is_extend = no
@@ -1197,7 +1276,7 @@ enum IMRNodeKind {
     IMR_BLOCK_COND,
     IMR_BLOCK_LOOP,
     IMR_BLOCK_ITERLOOP,
-    IMR_BLOCK_STRUCT,
+    IMR_BLOCK_STRUCTORTYPE,
     IMR_BLOCK_TYPE,
     IMR_BLOCK_DO,
     IMR_BLOCK_DO_C,
