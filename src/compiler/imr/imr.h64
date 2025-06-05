@@ -1108,7 +1108,9 @@ func IMRStructOrTypeBlock.init(
         is_type=no,
         ) {
     base.init(IMR_BLOCK_STRUCTORTYPE)
-    self.label = label + ""
+    if label != none {
+        self.label = label + ""
+    }
     if typename(is_union) != "num" {
         throw new TypeError(
             "The is_union parameter must "
@@ -1915,6 +1917,25 @@ func generate_imr_for_stmt(
         loop_block.instructions.add(cond_block)
         loop_block.instructions += inner_insts
         return [loop_block]
+    }
+    if node.kind == ast.N_STMT_TYPE or
+            node.kind == ast.N_STMT_STRUCT or
+            node.kind == ast.N_STMT_UNION {
+        var is_type = (node.kind == ast.N_STMT_TYPE)
+        var is_union = (node.kind == ast.N_STMT_UNION)
+        var storage_id = none
+        var base_type_storage_id = none
+        var label = none
+        var result_insts = []
+        var block_item = new IMRStructOrTypeBlock(
+            storage_id, label,
+            base_type_id=base_type_storage_id,
+            is_union=is_union,
+            is_type=is_type
+        )
+        print("OOPSIE: " + block_item.as_str())
+        result_insts.add(block_item)
+        return result_insts
     }
     if node.kind == ast.N_STMT_IF {
         var result_insts = []
