@@ -313,8 +313,7 @@ remapped_uses = {
             "(lambda x, y: int(_remapped_random."
                 "SystemRandom().randint(x, y)))",
         "random.choice":
-            "(lambda x: (_remapped_random."
-                "SystemRandom().choice(x)))",
+            "_translator_runtime_helpers._random_choice",
     },
     "system@core.horse64.org": {
         "system.exit" : "_remapped_sys.exit",

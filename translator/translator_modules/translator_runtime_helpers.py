@@ -4012,6 +4012,11 @@ def _path_join(*args):
         result += item.replace("/", path_sep)
     return result
 
+def _random_choice(c):
+    c = list(c)
+    import random
+    return random.SystemRandom().choice(c)
+
 def preprocess_file_in_translator(*args, **kwargs):
     import translator_runtime_helpers_preprocessor
     return translator_runtime_helpers_preprocessor.\
