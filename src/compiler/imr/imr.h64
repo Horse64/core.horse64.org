@@ -1095,6 +1095,8 @@ func IMRApplyOp.as_json_obj(
 type IMRStructOrTypeBlock base IMRBlock {
     var is_union = no
     var is_type = no
+    var is_struct = no
+    var is_nested = no
 
     var global_type_id = none
     var label = none
@@ -1106,40 +1108,58 @@ func IMRStructOrTypeBlock.init(
         base_type_id=none,
         is_union=no,
         is_type=no,
+        is_nested=no,
         ) {
     base.init(IMR_BLOCK_STRUCTORTYPE)
     if label != none {
         self.label = label + ""
+    } elseif not is_nested {
+        throw new ValueError(
+            "Any top-level struct or type must "
+            "have a name."
+        )
     }
-    if typename(is_union) != "num" {
+    if typename(is_union) != "bool" {
         throw new TypeError(
             "The is_union parameter must "
             "be a bool."
         )
     }
     self.is_union = is_union
-    if typename(is_type) != "num" {
+    if typename(is_type) != "bool" {
         throw new TypeError(
             "The is_type parameter must "
             "be a bool."
         )
     }
     self.is_type = is_type
-    if typename(global_type_id) != "num" {
-        throw new TypeError(
-            "The global_type_id parameter must "
-            "be a num."
-        )
+    self.is_struct = (not is_union and not is_type)
+    if is_nested {
+        if global_type_id != none or
+                base_type_id != none {
+            throw new ValueError(
+                "Cannot have any storage ids "
+                "for nested struct or union."
+            )
+        }
+        self.is_nested = yes
+    } else {
+        if typename(global_type_id) != "num" {
+            throw new TypeError(
+                "The global_type_id parameter must "
+                "be a num."
+            )
+        }
+        self.global_type_id = global_type_id
+        if base_type_id != none and
+                typename(base_type_id) != "num" {
+            throw new TypeError(
+                "The base_type_id parameter must "
+                "be a num or none."
+            )
+        }
+        self.base_type_id = base_type_id
     }
-    self.global_type_id = global_type_id
-    if base_type_id != none or
-            typename(global_type_id) != "num" {
-        throw new TypeError(
-            "The global_type_id parameter must "
-            "be a num or none."
-        )
-    }
-    self.base_type_id = base_type_id
 }
 
 func IMRStructOrTypeBlock.as_str(indent=0) {
@@ -1348,6 +1368,7 @@ func get_new_temp_storage_ref(
         node, imr_parents=[],
         func_imr_parent=none,
         file_imr_parent=none,
+        project_file=none,
         is_moose64=no, msgs=none,
         ) {
     if func_imr_parent != none {
@@ -1379,6 +1400,7 @@ func generate_imr_for_expr(
         node, imr_parents=[],
         func_imr_parent=none,
         file_imr_parent=none,
+        project_file=none,
         try_target_storage_ref=none,
         is_moose64=no, msgs=none,
         ) {
@@ -1394,6 +1416,7 @@ func generate_imr_for_expr(
                 node, imr_parents=imr_parents,
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
+                project_file=project_file,
                 is_moose64=is_moose64, msgs=msgs,
             )
         }
@@ -1412,6 +1435,7 @@ func generate_imr_for_expr(
                 node, imr_parents=imr_parents,
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
+                project_file=project_file,
                 is_moose64=is_moose64, msgs=msgs,
             )
         }
@@ -1420,6 +1444,7 @@ func generate_imr_for_expr(
             imr_parents=imr_parents + [node],
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
+            project_file=project_file,
             is_moose64=is_moose64,
             msgs=msgs,
         ) later:
@@ -1458,6 +1483,7 @@ func generate_imr_for_expr(
                 imr_parents=imr_parents + [node],
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
+                project_file=project_file,
                 is_moose64=is_moose64,
                 msgs=msgs,
             ) later:
@@ -1507,6 +1533,7 @@ func generate_imr_for_expr(
             node, imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
+            project_file=project_file,
             is_moose64=is_moose64, msgs=msgs,
         )
         var attr_name = node.subexprs[2].label
@@ -1516,6 +1543,7 @@ func generate_imr_for_expr(
             imr_parents=imr_parents + [node],
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
+            project_file=project_file,
             is_moose64=is_moose64,
             msgs=msgs,
         ) later:
@@ -1539,6 +1567,7 @@ func generate_imr_for_expr(
             node, imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
+            project_file=project_file,
             is_moose64=is_moose64, msgs=msgs,
         )
         var left_hand_result = generate_imr_for_expr(
@@ -1546,6 +1575,7 @@ func generate_imr_for_expr(
             imr_parents=imr_parents + [node],
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
+            project_file=project_file,
             is_moose64=is_moose64,
             msgs=msgs,
         ) later:
@@ -1556,6 +1586,7 @@ func generate_imr_for_expr(
             imr_parents=imr_parents + [node],
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
+            project_file=project_file,
             is_moose64=is_moose64, msgs=msgs,
         ) later:
 
@@ -1582,6 +1613,7 @@ func generate_imr_for_expr(
             node, imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
+            project_file=project_file,
             is_moose64=is_moose64, msgs=msgs,
         )
         var left_hand_result = generate_imr_for_expr(
@@ -1589,6 +1621,7 @@ func generate_imr_for_expr(
             imr_parents=imr_parents + [node],
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
+            project_file=project_file,
             is_moose64=is_moose64,
             msgs=msgs,
         ) later:
@@ -1599,6 +1632,7 @@ func generate_imr_for_expr(
             imr_parents=imr_parents + [node],
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
+            project_file=project_file,
             is_moose64=is_moose64, msgs=msgs,
         ) later:
 
@@ -1628,6 +1662,7 @@ func generate_imr_for_stmt(
         node, imr_parents=[],
         func_imr_parent=none,
         file_imr_parent=none,
+        project_file=none,
         is_moose64=no, msgs=none,
         ) {
     if node.kind == ast.N_STMT_VAR {
@@ -1686,6 +1721,7 @@ func generate_imr_for_stmt(
                 imr_parents=imr_parents + [node],
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
+                project_file=project_file,
                 try_target_storage_ref=var_ref,
                 is_moose64=is_moose64, msgs=msgs,
             ) later:
@@ -1780,6 +1816,7 @@ func generate_imr_for_stmt(
                 imr_parents=imr_parents + [node],
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
+                project_file=project_file,
                 is_moose64=is_moose64, msgs=msgs,
             ) later:
 
@@ -1824,6 +1861,7 @@ func generate_imr_for_stmt(
             imr_parents=imr_parents + [node],
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
+            project_file=project_file,
             is_moose64=is_moose64, msgs=msgs,
         ) later:
 
@@ -1837,6 +1875,7 @@ func generate_imr_for_stmt(
             imr_parents=imr_parents + [node],
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
+            project_file=project_file,
             is_moose64=is_moose64, msgs=msgs,
         ) later:
 
@@ -1870,6 +1909,7 @@ func generate_imr_for_stmt(
             imr_parents=imr_parents + [node],
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
+            project_file=project_file,
             is_moose64=is_moose64, msgs=msgs,
         ) later:
 
@@ -1883,6 +1923,7 @@ func generate_imr_for_stmt(
             imr_parents=imr_parents + [node],
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
+            project_file=project_file,
             is_moose64=is_moose64, msgs=msgs,
         ) later:
 
@@ -1920,20 +1961,41 @@ func generate_imr_for_stmt(
     }
     if node.kind == ast.N_STMT_TYPE or
             node.kind == ast.N_STMT_STRUCT or
-            node.kind == ast.N_STMT_UNION {
+            (node.kind == ast.N_STMT_UNION and
+             imr_parents.len > 0) {
+        var anscope = none
+        if imr_parents.len == 0 {
+            anscope = project_file.make_attr_names_scope_from_node(
+                node, msgs=msgs, is_moose64=is_moose64,
+                def_project_file=project_file,
+            )
+            if anscope == none {
+                throw new RuntimeError(
+                    "Failed to get attribute names scope "
+                    "for top-level struct or type."
+                )
+            }
+        }
         var is_type = (node.kind == ast.N_STMT_TYPE)
         var is_union = (node.kind == ast.N_STMT_UNION)
         var storage_id = none
         var base_type_storage_id = none
-        var label = none
+        if anscope != none {
+            storage_id = anscope.storage_id
+            if is_type {
+                base_type_storage_id =
+                    anscope.base_global_id
+            }
+        }
+        var label = node.label
         var result_insts = []
         var block_item = new IMRStructOrTypeBlock(
             storage_id, label,
             base_type_id=base_type_storage_id,
             is_union=is_union,
+            is_nested=imr_parents.len > 0,
             is_type=is_type
         )
-        print("OOPSIE: " + block_item.as_str())
         result_insts.add(block_item)
         return result_insts
     }
@@ -1954,6 +2016,7 @@ func generate_imr_for_stmt(
                     node, imr_parents=imr_parents,
                     func_imr_parent=func_imr_parent,
                     file_imr_parent=file_imr_parent,
+                    project_file=project_file,
                     is_moose64=is_moose64, msgs=msgs,
                 )
             result_insts.add(new IMRSetLit(
@@ -1990,6 +2053,7 @@ func generate_imr_for_stmt(
                     imr_parents=imr_parents + [node],
                     func_imr_parent=func_imr_parent,
                     file_imr_parent=file_imr_parent,
+                    project_file=project_file,
                     is_moose64=is_moose64, msgs=msgs,
                 ) later:
 
@@ -2019,6 +2083,7 @@ func generate_imr_for_stmt(
                 ],
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
+                project_file=project_file,
                 is_moose64=is_moose64, msgs=msgs,
             ) later:
 
@@ -2111,6 +2176,7 @@ func generate_imr_for_stmt(
                 imr_parents=imr_parents + [node],
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
+                project_file=project_file,
                 is_moose64=is_moose64, msgs=msgs,
             ) later:
 
@@ -2146,6 +2212,7 @@ func generate_imr_for_stmt(
                         node, left_hand_node],
                     func_imr_parent=func_imr_parent,
                     file_imr_parent=file_imr_parent,
+                    project_file=project_file,
                     is_moose64=is_moose64, msgs=msgs,
                 ) later:
 
@@ -2156,6 +2223,7 @@ func generate_imr_for_stmt(
                         node, left_hand_node],
                     func_imr_parent=func_imr_parent,
                     file_imr_parent=file_imr_parent,
+                    project_file=project_file,
                     is_moose64=is_moose64, msgs=msgs,
                 ) later:
 
@@ -2180,6 +2248,7 @@ func generate_imr_for_stmt(
                         node, imr_parents=imr_parents,
                         func_imr_parent=func_imr_parent,
                         file_imr_parent=file_imr_parent,
+                        project_file=project_file,
                         is_moose64=is_moose64, msgs=msgs,
                     )
                     result_insts.add(IMRGetIdx(
@@ -2225,6 +2294,7 @@ func generate_imr_for_stmt(
                         node, left_hand_node],
                     func_imr_parent=func_imr_parent,
                     file_imr_parent=file_imr_parent,
+                    project_file=project_file,
                     is_moose64=is_moose64, msgs=msgs,
                 ) later:
 
@@ -2346,6 +2416,7 @@ func generate_imr_for_stmts(
         nodes, imr_parents=[],
         func_imr_parent=none,
         file_imr_parent=none,
+        project_file=none,
         is_moose64=no, msgs=none,
         ) {
     var result = []
@@ -2358,6 +2429,7 @@ func generate_imr_for_stmts(
         item, imr_parents=imr_parents,
         func_imr_parent=func_imr_parent,
         file_imr_parent=file_imr_parent,
+        project_file=project_file,
         is_moose64=is_moose64, msgs=msgs,
     ) later:
 
@@ -2377,6 +2449,7 @@ func generate_imr_for_stmts(
         item, imr_parents=imr_parents,
         func_imr_parent=func_imr_parent,
         file_imr_parent=file_imr_parent,
+        project_file=project_file,
         is_moose64=is_moose64, msgs=msgs,
     ) later repeat
 }
@@ -2489,10 +2562,36 @@ func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
     }
     assert(success == yes)
 
-    func collect_func_contents(node, parents) {
+    func collect_func_and_type_contents(node, parents) {
         var parent = if parents.len > 0
             (parents[parents.len]) else (none)
         if node.damaged {
+            return later node
+        }
+        if (node.kind == ast.N_STMT_TYPE or
+                node.kind == ast.N_STMT_STRUCT) and
+                parent == none {
+            var stmts = generate_imr_for_stmt(
+                node,
+                imr_parents=[],
+                func_imr_parent=none,
+                file_imr_parent=result,
+                project_file=pfile,
+                is_moose64=is_moose64,
+                msgs=msgs,
+            ) later:
+
+            await stmts
+            if stmts.len != 1 or
+                    stmts[1].kind != IMR_BLOCK_STRUCTORTYPE {
+                throw new RuntimeError(
+                    "Unexpectedly didn't get a single "
+                    "IMR_BLOCK_STRUCTORTYPE when processing "
+                    "type or struct."
+                )
+            }
+            result.blocks += stmts
+
             return later node
         }
         if node.kind == ast.N_STMT_FUNC or
@@ -2505,17 +2604,19 @@ func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
                 imr_parents=[imr_node],
                 func_imr_parent=imr_node,
                 file_imr_parent=result,
+                project_file=pfile,
                 is_moose64=is_moose64,
                 msgs=msgs,
             ) later:
 
             await stmts
             imr_node.instructions += stmts
+            return later node
         }
         return later node
     }
     var success = ast_transform.visit_ast_tree(
-        pfile.ast, collect_func_contents,
+        pfile.ast, collect_func_and_type_contents,
         pass_func_boundaries=yes,
         parent_chain=yes, backward=no,
     ) later:
