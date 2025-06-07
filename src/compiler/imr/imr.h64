@@ -1093,10 +1093,16 @@ func IMRApplyOp.as_json_obj(
 }
 
 type IMRStructOrTypeBlock base IMRBlock {
+    var parent_imr_node = none
     var is_union = no
     var is_type = no
     var is_struct = no
     var is_nested = no
+
+    var label_to_st_id_map = {->}
+    var st_id_to_inst_offset_map = {->}
+
+    var init_instructions = []
 
     var global_type_id = none
     var label = none
@@ -1109,8 +1115,16 @@ func IMRStructOrTypeBlock.init(
         is_union=no,
         is_type=no,
         is_nested=no,
+        parent_imr_node=none,
         ) {
     base.init(IMR_BLOCK_STRUCTORTYPE)
+    if is_nested and parent_imr_node == none {
+        throw new ValueError("For nested structs or types, "
+            "the parent IMR node must be specified.")
+    } elseif not is_nested {
+        parent_imr_node = none
+    }
+    self.parent_imr_node = parent_imr_node
     if label != none {
         self.label = label + ""
     } elseif not is_nested {
@@ -1160,6 +1174,46 @@ func IMRStructOrTypeBlock.init(
         }
         self.base_type_id = base_type_id
     }
+}
+
+func IMRStructOrTypeBlock.register_var_attr(
+        storage_id, label, init_insts=[],
+        type_expr=none,
+        ) {
+    if storage_id == none {
+        throw new ValueError("The storage_id "
+            "for a var attr cannot be none.")
+    }
+    if label == none {
+        throw new ValueError("The label for "
+            "a var attr cannot be none.")
+    }
+    self.label_to_st_id_map[label] = storage_id
+    var new_inst = new IMRVarInfo.init(label, type_expr, storage_id)
+    var new_offset = self.instructions.len + 1
+    self.instructions.add(new_inst)
+    self.st_id_to_inst_offset_map[storage_id] = new_offset
+    if init_insts != none and init_insts.len > 0 {
+        self.init_instructions += init_insts
+    }
+}
+
+func IMRStructOrTypeBlock.register_struct_or_union_attr(
+        storage_id, label, block_item,
+        ) {
+    if storage_id == none {
+        throw new ValueError("The storage_id "
+            "for a var attr cannot be none.")
+    }
+    if not has_attr(block_item, "kind") or
+            block_item.kind != IMR_BLOCK_STRUCTORTYPE {
+        throw new ValueError("The item registered must "
+            "be an IMR node of kind IMR_BLOCK_STRUCTORTYPE.")
+    }
+    self.label_to_st_id_map[label] = storage_id
+    var new_offset = self.instructions.len + 1
+    self.instructions.add(block_item)
+    self.st_id_to_inst_offset_map[storage_id] = new_offset
 }
 
 func IMRStructOrTypeBlock.as_str(indent=0) {
@@ -1988,6 +2042,10 @@ func generate_imr_for_stmt(
             }
         }
         var label = node.label
+        var unnested_ids = {}
+        if anscope != none {
+            unnested_ids = anscope.unnested_ids_set
+        }
         var result_insts = []
         var block_item = new IMRStructOrTypeBlock(
             storage_id, label,
@@ -1996,6 +2054,91 @@ func generate_imr_for_stmt(
             is_nested=imr_parents.len > 0,
             is_type=is_type
         )
+        func handle_var(storage_id, var_label, imr_parent) {
+            imr_parent.register_var_attr(
+                storage_id, var_label,
+                init_insts=[],
+            )
+            return later
+        }
+        func handle_container(
+                anscope_container=none, outer_imr_parent=none) {
+            var inner_is_union = is_union
+            var inner_is_type = is_type
+            var inner_is_nested = no
+            if anscope_container != none {
+                search_in = anscope_container
+                inner_is_union = anscope_container.is_union
+                inner_is_type = no
+                inner_is_nested = yes
+            } else {
+                if anscope == none {
+                    throw new RuntimeError(
+                        "Must either have an IMRNode parent, "
+                        "or an attribute names scope."
+                    )
+                }
+                search_in = anscope
+            }
+            var imr_parent = block_item
+            if is_nested {
+                if outer_imr_parent == none {
+                    outer_imr_parent = block_item
+                }
+                assert(anscope_container.storage_id != none)
+                imr_parent = new IMRStructOrTypeBlock(
+                    anscope_container.storage_id,
+                    anscope_container.label,
+                    base_type_id=none,
+                    is_union=inner_is_union,
+                    is_nested=inner_is_nested,
+                    is_type=inner_is_type,
+                )
+                outer_imr_parent.register_struct_or_union_attr(
+                    anscope_container.storage_id,
+                    anscope_container.label,
+                    imr_parent,
+                )
+            }
+            var var_attr_queue = []
+            for id in search_in.id_to_symbol_map {
+                if outer_imr_parent == none and
+                        not unnested_ids.has(id) {
+                    continue
+                }
+                var item = search_in.id_to_symbol_map[id]
+                if has_attr(item, "is_nested_struct_or_union_item") and
+                        item.is_nested_struct_or_union_item == yes {
+                    continue
+                }
+                var symbol_info = search_in.id_to_symbol_map[id]
+                var_attr_queue.add([symbol_info.storage_id,
+                    symbol_info.name, imr_parent])
+            }
+            var nested_items_queue = []
+            for item in search_in.nested_structs_unions_list {
+                assert(has_attr(item, "is_nested_struct_or_union_item") and
+                    item.is_nested_struct_or_union_item == yes)
+                assert(item.storage_id != none)
+                nested_items_queue.add([imr_parent, item])
+            }
+
+            if var_attr_queue.len == 0 {
+                return later
+            }
+            var item = var_attr_queue.pop()
+            var _unused = handle_var(item[1], item[2], item[3])
+            later:
+
+            await _unused
+            if var_attr_queue.len == 0 {
+                return later
+            }
+            var item = var_attr_queue.pop()
+            var _unused = handle_var(item[1], item[2], item[3])
+            later repeat
+        }
+
         result_insts.add(block_item)
         return result_insts
     }

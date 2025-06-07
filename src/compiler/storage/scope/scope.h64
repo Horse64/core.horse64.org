@@ -321,6 +321,7 @@ extend type func_stmt.FuncStmt {
 }
 
 type AttrNamesScope {
+    var is_nested_struct_or_union_item = no
     var is_enum = no
     var is_struct = no
     var is_type = no
@@ -502,8 +503,10 @@ func TypeNamesScope.get_item_if_present(
 type NestedStructOrUnionInfo {
     var is_union = no
     var is_anonymous = no
+    var is_nested_struct_or_union_item = yes
     var label = none
     var parent = none
+    var storage_id
 
     var name_to_symbol_map = {->}
     var id_to_symbol_map = {->}
