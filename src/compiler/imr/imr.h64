@@ -1189,7 +1189,7 @@ func IMRStructOrTypeBlock.register_var_attr(
             "a var attr cannot be none.")
     }
     self.label_to_st_id_map[label] = storage_id
-    var new_inst = new IMRVarInfo.init(label, type_expr, storage_id)
+    var new_inst = new IMRVarInfo(label, type_expr, storage_id)
     var new_offset = self.instructions.len + 1
     self.instructions.add(new_inst)
     self.st_id_to_inst_offset_map[storage_id] = new_offset
@@ -2081,7 +2081,7 @@ func generate_imr_for_stmt(
                 search_in = anscope
             }
             var imr_parent = block_item
-            if is_nested {
+            if inner_is_nested {
                 if outer_imr_parent == none {
                     outer_imr_parent = block_item
                 }
@@ -2140,6 +2140,8 @@ func generate_imr_for_stmt(
         }
 
         result_insts.add(block_item)
+        handle_container() later:
+
         return result_insts
     }
     if node.kind == ast.N_STMT_IF {
