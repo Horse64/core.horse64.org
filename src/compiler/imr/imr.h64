@@ -2601,6 +2601,7 @@ func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
     const program_name =
         if is_moose64 ("moosec") else ("horsec")
     var result = new IMRForFile()
+    result.project_file = pfile
 
     pfile.ensure_ast() later:
 
