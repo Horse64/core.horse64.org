@@ -64,7 +64,10 @@ func SymbolInfo.init(name) {
 
 func SymbolInfo.as_str {
     var t = "SymbolInfo{"
-        "name=" + token.as_escaped_code_string(self.name) + ", "
+        "name=" +
+            if self.name != none
+                (token.as_escaped_code_string(self.name))
+            else ("unset") + ", "
         "kind=" + SymbolInfoKind.num_label(
             self.kind).as_str() + ", "
         "is_closure_captured=" +
@@ -426,6 +429,7 @@ type TypeNamesScope base AttrNamesScope {
     var id_to_origin_gscope_map = {->}
     var nested_structs_unions_list = []
     var unnested_ids_set = {}
+    var last_used_varattr_id = 0
 
     var base_global_id = none
     var base_cext_id = none
@@ -506,6 +510,7 @@ type NestedStructOrUnionInfo {
     var is_nested_struct_or_union_item = yes
     var label = none
     var parent = none
+    var symbol_info
     var storage_id
 
     var name_to_symbol_map = {->}
@@ -550,6 +555,7 @@ type StructNamesScope base AttrNamesScope {
     var id_to_origin_gscope_map = {->}
     var nested_structs_unions_list = []
     var unnested_ids_set = {}
+    var last_used_varattr_id = 0
 
     var struct_inner_ids_in_order = []
 

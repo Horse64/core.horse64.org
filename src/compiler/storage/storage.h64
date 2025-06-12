@@ -681,7 +681,11 @@ func project.Project.compute_all_scopes(
                                         vardef_stmt.col
                                     symbol_info.def_file = pfile
                                     symbol_info.storage_id =
-                                        anscope.name_to_symbol_map.len + 1
+                                        anscope.last_used_varattr_id + 1
+                                    assert(anscope.last_used_varattr_id <
+                                        symbol_info.storage_id)
+                                    anscope.last_used_varattr_id =
+                                        symbol_info.storage_id
                                     if idx <= stmt.subexprs.len {
                                         symbol_info.value_node =
                                             stmt.subexprs[idx]
@@ -765,20 +769,48 @@ func project.Project.compute_all_scopes(
                                     parent_struct_or_union=none,
                                     ) {
                                 var name_path = name_path.copy()
+                                var label = none
                                 if stmt.kind == ast.N_STMT_STRUCT and
                                         stmt.label != none {
+                                    label = stmt.label
                                     name_path.add(stmt.label)
                                 }
 
                                 var struct_or_union_nest_info =
                                     new st_scope.NestedStructOrUnionInfo()
+                                var symbol_info =
+                                    new st_scope.SymbolInfo(label)
+                                symbol_info.kind =
+                                    st_scope.SINFO_VARATTR
+                                symbol_info.def_line = stmt.line
+                                symbol_info.def_col = stmt.col
+                                symbol_info.def_file = pfile
+                                symbol_info.storage_id =
+                                    anscope.last_used_varattr_id + 1
+                                if label != none {
+                                    var full_name = name_path.join(".")
+                                    if not anscope.name_to_symbol_map.
+                                            has(full_name) {
+                                        anscope.name_to_symbol_map
+                                            [name_path.join(".")] =
+                                            full_name
+                                    }
+                                }
+                                assert(anscope.last_used_varattr_id <
+                                    symbol_info.storage_id)
+                                anscope.last_used_varattr_id =
+                                    symbol_info.storage_id
+                                struct_or_union_nest_info.symbol_info =
+                                    symbol_info
+                                struct_or_union_nest_info.storage_id =
+                                    symbol_info.storage_id
                                 struct_or_union_nest_info.is_anonymous =
                                     (stmt.kind == ast.N_STMT_UNION or
-                                     stmt.label == none)
+                                     label == none)
                                 if not struct_or_union_nest_info.
                                         is_anonymous {
                                     struct_or_union_nest_info.label =
-                                        stmt.label
+                                        label
                                 }
                                 struct_or_union_nest_info.is_union =
                                     (stmt.kind == ast.N_STMT_UNION)
