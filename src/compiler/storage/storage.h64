@@ -680,6 +680,10 @@ func project.Project.compute_all_scopes(
                                     symbol_info.def_col =
                                         vardef_stmt.col
                                     symbol_info.def_file = pfile
+                                    if anscope.name_to_symbol_map.len == 0 and
+                                            anscope.id_to_symbol_map.len == 0 {
+                                        assert(anscope.last_used_varattr_id == 0)
+                                    }
                                     symbol_info.storage_id =
                                         anscope.last_used_varattr_id + 1
                                     assert(anscope.last_used_varattr_id <
@@ -796,6 +800,9 @@ func project.Project.compute_all_scopes(
                                             full_name
                                     }
                                 }
+                                anscope.id_to_symbol_map[
+                                    symbol_info.storage_id
+                                ] = symbol_info
                                 assert(anscope.last_used_varattr_id <
                                     symbol_info.storage_id)
                                 anscope.last_used_varattr_id =

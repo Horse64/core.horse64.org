@@ -442,6 +442,7 @@ func TypeNamesScope.init {
     self.is_enum = no
     self.is_struct = no
     self.is_type = yes
+    self.last_used_varattr_id = 0
 }
 
 func find_nested_structs_unions_parent(
@@ -568,6 +569,7 @@ func StructNamesScope.init {
     self.is_enum = no
     self.is_struct = yes
     self.is_type = no
+    self.last_used_varattr_id = 0
 }
 
 func StructNamesScope.get_item_if_present(
