@@ -1,5 +1,5 @@
 ## @module compiler.storage.scope.global_scope
-# Copyright (c) 2023-2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2023-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -625,8 +625,9 @@ func GlobalScope.finalize_gscope_with_ast_tree_info(
                 symbol_info.def_line = stmt.line
                 symbol_info.def_col = stmt.col
                 symbol_info.def_file = project_file
-                symbol_info.storage_id =
-                    anscope.name_to_symbol_map.len + 1
+                var next_id = anscope.last_used_varattr_id + 1
+                symbol_info.storage_id = next_id
+                anscope.last_used_varattr_id = next_id
 
                 stmt.symbol_info = symbol_info
                 anscope.name_to_symbol_map[lbl] = symbol_info

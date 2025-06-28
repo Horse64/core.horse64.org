@@ -1,5 +1,5 @@
 ## @module compiler.storage.scope.manage
-# Copyright (c) 2023-2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2023-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -1823,12 +1823,12 @@ func visit_to_resolve_known_attrs(
         var our_type_expr = none
         func resolve_usertype_attr_from_global_storage(
                 storage_id, associated_type_expr_if_known=none,
-                is_attr=no
+                base_is_attr=no
                 ) {
             if storage_id == none {
                 return later no
             }
-            if is_attr {
+            if base_is_attr {
                 assert(typename(storage_id) == "list")
                 assert(storage_id.len == 2)
                 var attr_type_ast_ref = none
@@ -1895,11 +1895,17 @@ func visit_to_resolve_known_attrs(
                         "Got a global attr we're indexing, "
                         "with: "
                         "storage_id=" + storage_id.as_str() + " "
+                        "attr_symbol=" +
+                            attr_symbol.as_str() + " "
                         "anscope=" + anscope.as_str() + " "
                         "attr_type_ast_ref=" +
                             attr_type_ast_ref.as_str() + " "
                         "attr_type_st_ref=" +
-                            attr_type_st_ref.as_str())
+                            attr_type_st_ref.as_str() + " "
+                        "node.label=" +
+                            textfmt.as_escaped_code_string(
+                                node.label
+                            ))
                 }
                 if attr_type_st_ref != none and
                         attr_type_st_ref.kind == st_ref.ST_GLOBAL {
@@ -1908,6 +1914,7 @@ func visit_to_resolve_known_attrs(
                             attr_type_st_ref.id,
                             associated_type_expr_if_known=
                                 attr_type_ast_ref,
+                            base_is_attr=no,
                         ) later:
 
                     await inner_result
@@ -1988,12 +1995,14 @@ func visit_to_resolve_known_attrs(
                 left_type_global_ref.kind ==
                             st_ref.ST_GLOBALATTR)
         }
-        # Try resolve this as indexing a global:
+        # Try indexing it using purely the global scope first:
+        # (This will fail if this isn't indexing a global var,
+        # in which case it's a local var we'll handle below.)
         indexing_worked =
             resolve_usertype_attr_from_global_storage(
                 try_index_storage_id,
                 associated_type_expr_if_known=left_type_expr,
-                is_attr=try_index_as_attr,
+                base_is_attr=try_index_as_attr,
             ) later:
 
         await indexing_worked
@@ -2011,10 +2020,12 @@ func visit_to_resolve_known_attrs(
                 "indexing_makes_it_readonly=" +
                     indexing_makes_it_readonly.as_str())
         }
+        # If we end up here with indexing_worked set to no,
+        # this means we're looking at some sort of local var.
         if not indexing_worked and is_moose64 {
+            # In Moose64, we can deeply analyze the type of local vars:
             if left_type_expr != none and
-                    (not left_type_expr.is_user_type() or
-                     left_type_global_ref != none) {
+                    not left_type_expr.is_user_type() {
                 if (node.label != "len" or
                          not left_type_expr.may_have_len_attr()) and
                         (node.label != "data" or
