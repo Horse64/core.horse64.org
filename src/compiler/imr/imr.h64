@@ -1105,13 +1105,13 @@ type IMRStructOrTypeBlock base IMRBlock {
 
     var init_instructions = []
 
-    var global_type_id = none
+    var storage_id = none
     var label = none
     var base_type_id = none
 }
 
 func IMRStructOrTypeBlock.init(
-        global_type_id, label,
+        global_type_or_storage_id, label,
         base_type_id=none,
         is_union=no,
         is_type=no,
@@ -1149,9 +1149,14 @@ func IMRStructOrTypeBlock.init(
     }
     self.is_type = is_type
     self.is_struct = (not is_union and not is_type)
+    if typename(global_type_or_storage_id) != "num" {
+        throw new TypeError(
+            "The global_type_or_storage_id parameter must "
+            "be a num."
+        )
+    }
     if is_nested {
-        if global_type_id != none or
-                base_type_id != none {
+        if base_type_id != none {
             throw new ValueError(
                 "Cannot have any storage ids "
                 "for nested struct or union."
@@ -1159,13 +1164,7 @@ func IMRStructOrTypeBlock.init(
         }
         self.is_nested = yes
     } else {
-        if typename(global_type_id) != "num" {
-            throw new TypeError(
-                "The global_type_id parameter must "
-                "be a num."
-            )
-        }
-        self.global_type_id = global_type_id
+        self.storage_id = global_type_or_storage_id
         if base_type_id != none and
                 typename(base_type_id) != "num" {
             throw new TypeError(
@@ -1226,7 +1225,7 @@ func IMRStructOrTypeBlock.as_str(indent=0) {
     }
     return self.format_inst(
         name, pos_parameter_names=[
-            "global_type_id",
+            "storage_id",
             "label",
         ], skip_parameter_names=[
             "instructions",
@@ -1241,7 +1240,7 @@ func IMRStructOrTypeBlock.as_json_obj(
         _passthrough_storage_refs=
             _passthrough_storage_refs)
     obj["label"] = self.label
-    obj["global_type_id"] = self.global_type_id
+    obj["storage_id"] = self.storage_id
     obj["base_type_id"] = self.base_type_id
     obj["is_union"] = self.is_union
     obj["is_struct"] = self.is_struct
@@ -2073,6 +2072,15 @@ func generate_imr_for_stmt(
                 await result
                 return later result
             }
+            if imr_parent == none {
+                imr_parent = block_item
+            }
+            assert(imr_parent != none)
+            handle_container(
+                anscope_container=nestediteminfo,
+                outer_imr_parent=imr_parent
+            ) later:
+
             return later none
         }
         func handle_container(
@@ -2108,6 +2116,7 @@ func generate_imr_for_stmt(
                     is_union=inner_is_union,
                     is_nested=inner_is_nested,
                     is_type=inner_is_type,
+                    parent_imr_node=outer_imr_parent,
                 )
                 outer_imr_parent.register_struct_or_union_attr(
                     anscope_container.storage_id,
