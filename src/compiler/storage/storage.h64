@@ -796,8 +796,8 @@ func project.Project.compute_all_scopes(
                                     if not anscope.name_to_symbol_map.
                                             has(full_name) {
                                         anscope.name_to_symbol_map
-                                            [name_path.join(".")] =
-                                            full_name
+                                            [full_name] =
+                                            symbol_info
                                     }
                                 }
                                 anscope.id_to_symbol_map[

@@ -519,6 +519,22 @@ type NestedStructOrUnionInfo {
     var nested_structs_unions_list = []
 }
 
+func NestedStructOrUnionInfo.contains_storage_id(
+        id, check_nested=yes) {
+    if self.id_to_symbol_map.has(id) {
+        return yes
+    }
+    for nested_item in self.nested_structs_unions_list {
+        if nested_item.storage_id == id {
+            return yes
+        }
+        if nested_item.contains_storage_id(id) {
+            return yes
+        }
+    }
+    return no
+}
+
 func NestedStructOrUnionInfo.get_name_path {
     var npath = ""
     var look_at = self

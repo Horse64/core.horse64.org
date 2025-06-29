@@ -36,6 +36,7 @@ import compiler.ast.transform as ast_transform
 import compiler.compiler_log as clog
 import compiler.msg as msg
 import compiler.storage.ref as st_ref
+import compiler.storage.scope as st_scope
 import compiler.token as token
 
 type IMRTranslationResult {
@@ -2061,8 +2062,22 @@ func generate_imr_for_stmt(
             )
             return later
         }
+        func handle_item(
+                storage_id, var_label, imr_parent, nestediteminfo
+                ) {
+            if nestediteminfo == none {
+                var result = handle_var(
+                    storage_id, var_label, imr_parent
+                ) later:
+
+                await result
+                return later result
+            }
+            return later none
+        }
         func handle_container(
-                anscope_container=none, outer_imr_parent=none) {
+                anscope_container=none,
+                outer_imr_parent=none) {
             var inner_is_union = is_union
             var inner_is_type = is_type
             var inner_is_nested = no
@@ -2102,41 +2117,55 @@ func generate_imr_for_stmt(
             }
             var var_attr_queue = []
             for id in search_in.id_to_symbol_map {
-                if outer_imr_parent == none and
-                        not unnested_ids.has(id) {
-                    continue
+                var nestiteminfo = none
+                for entry in search_in.nested_structs_unions_list {
+                    if has_attr(entry,
+                            "is_nested_struct_or_union_item") and
+                            entry.is_nested_struct_or_union_item == yes and
+                            entry.symbol_info != none and
+                            entry.symbol_info.storage_id == id {
+                        nestiteminfo = entry
+                        break
+                    }
                 }
-                var item = search_in.id_to_symbol_map[id]
-                if has_attr(item, "is_nested_struct_or_union_item") and
-                        item.is_nested_struct_or_union_item == yes {
+                var is_nested_multiple_layers = no
+                for entry in search_in.nested_structs_unions_list {
+                    if entry == nestiteminfo {
+                        continue
+                    }
+                    if entry.contains_storage_id(id) {
+                        is_nested_multiple_layers = yes
+                        break
+                    }
+                }
+                if is_nested_multiple_layers {
                     continue
                 }
                 var symbol_info = search_in.id_to_symbol_map[id]
+                if symbol_info.kind == st_scope.SINFO_FUNCATTR {
+                    continue
+                }
                 var_attr_queue.add([symbol_info.storage_id,
-                    symbol_info.name, imr_parent])
+                    symbol_info.name, imr_parent, nestiteminfo])
             }
-            var nested_items_queue = []
-            for item in search_in.nested_structs_unions_list {
-                assert(has_attr(item, "is_nested_struct_or_union_item") and
-                    item.is_nested_struct_or_union_item == yes)
-                assert(item.storage_id != none)
-                nested_items_queue.add([imr_parent, item])
-            }
+            var_attr_queue.sort(by=1)
 
             if var_attr_queue.len == 0 {
                 return later
             }
-            var item = var_attr_queue.pop()
-            var _unused = handle_var(item[1], item[2], item[3])
-            later:
+            var item = var_attr_queue.pop_at(1)
+            var _unused = handle_item(
+                item[1], item[2], item[3], item[4]
+            ) later:
 
             await _unused
             if var_attr_queue.len == 0 {
                 return later
             }
-            var item = var_attr_queue.pop()
-            var _unused = handle_var(item[1], item[2], item[3])
-            later repeat
+            var item = var_attr_queue.pop_at(1)
+            var _unused = handle_item(
+                item[1], item[2], item[3], item[4]
+            ) later repeat
         }
 
         result_insts.add(block_item)
