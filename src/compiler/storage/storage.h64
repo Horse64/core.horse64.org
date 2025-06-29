@@ -825,6 +825,10 @@ func project.Project.compute_all_scopes(
                                     parent_struct_or_union.
                                         nested_structs_unions_list.add(
                                             struct_or_union_nest_info)
+                                    parent_struct_or_union.
+                                        id_to_symbol_map[
+                                            symbol_info.storage_id
+                                        ] = symbol_info
                                     struct_or_union_nest_info.parent =
                                         parent_struct_or_union
                                 } else {
