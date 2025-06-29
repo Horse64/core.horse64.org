@@ -2054,19 +2054,19 @@ func generate_imr_for_stmt(
             is_nested=imr_parents.len > 0,
             is_type=is_type
         )
-        func handle_var(storage_id, var_label, imr_parent) {
+        func handle_var(storage_id, var_label, type_expr, imr_parent) {
             imr_parent.register_var_attr(
                 storage_id, var_label,
                 init_insts=[],
+                type_expr=type_expr,
             )
             return later
         }
-        func handle_item(
-                storage_id, var_label, imr_parent, nestediteminfo
-                ) {
+        func handle_item(storage_id, var_label, type_expr,
+                imr_parent, nestediteminfo) {
             if nestediteminfo == none {
                 var result = handle_var(
-                    storage_id, var_label, imr_parent
+                    storage_id, var_label, type_expr, imr_parent
                 ) later:
 
                 await result
@@ -2154,8 +2154,13 @@ func generate_imr_for_stmt(
                 if symbol_info.kind == st_scope.SINFO_FUNCATTR {
                     continue
                 }
-                var_attr_queue.add([symbol_info.storage_id,
-                    symbol_info.name, imr_parent, nestiteminfo])
+                var_attr_queue.add([
+                    symbol_info.storage_id,
+                    symbol_info.name,
+                    if nestiteminfo == none (symbol_info.typeref_expr)
+                        else (none),
+                    imr_parent, nestiteminfo,
+                ])
             }
             var_attr_queue.sort(by=1)
 
@@ -2164,7 +2169,7 @@ func generate_imr_for_stmt(
             }
             var item = var_attr_queue.pop_at(1)
             var _unused = handle_item(
-                item[1], item[2], item[3], item[4]
+                item[1], item[2], item[3], item[4], item[5]
             ) later:
 
             await _unused
@@ -2173,7 +2178,7 @@ func generate_imr_for_stmt(
             }
             var item = var_attr_queue.pop_at(1)
             var _unused = handle_item(
-                item[1], item[2], item[3], item[4]
+                item[1], item[2], item[3], item[4], item[5]
             ) later repeat
         }
 
