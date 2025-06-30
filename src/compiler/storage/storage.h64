@@ -705,6 +705,12 @@ func project.Project.compute_all_scopes(
                                     anscope.id_to_symbol_map[
                                         symbol_info.storage_id
                                     ] = symbol_info
+                                    anscope.id_to_def_file_map[
+                                        symbol_info.storage_id
+                                    ] = pfile
+                                    anscope.id_to_origin_gscope_map[
+                                        symbol_info.storage_id
+                                    ] = pfile.global_scope
                                     if node.symbol_info == none {
                                         node.symbol_info = []
                                     }
@@ -803,6 +809,12 @@ func project.Project.compute_all_scopes(
                                 anscope.id_to_symbol_map[
                                     symbol_info.storage_id
                                 ] = symbol_info
+                                anscope.id_to_def_file_map[
+                                    symbol_info.storage_id
+                                ] = pfile
+                                anscope.id_to_origin_gscope_map[
+                                    symbol_info.storage_id
+                                ] = pfile.global_scope
                                 assert(anscope.last_used_varattr_id <
                                     symbol_info.storage_id)
                                 anscope.last_used_varattr_id =
@@ -829,6 +841,14 @@ func project.Project.compute_all_scopes(
                                         id_to_symbol_map[
                                             symbol_info.storage_id
                                         ] = symbol_info
+                                    parent_struct_or_union.
+                                        id_to_def_file_map[
+                                            symbol_info.storage_id
+                                        ] = pfile
+                                    parent_struct_or_union.
+                                        id_to_origin_gscope_map[
+                                            symbol_info.storage_id
+                                        ] = pfile.global_scope
                                     struct_or_union_nest_info.parent =
                                         parent_struct_or_union
                                 } else {
@@ -877,6 +897,14 @@ func project.Project.compute_all_scopes(
                                             name_to_symbol_map[
                                                 lbl
                                             ] = root_sinfo[idx]
+                                        struct_or_union_nest_info.
+                                            id_to_def_file_map[
+                                                root_sinfo[idx].storage_id
+                                            ] = pfile
+                                        struct_or_union_nest_info.
+                                            id_to_origin_gscope_map[
+                                                root_sinfo[idx].storage_id
+                                            ] = pfile.global_scope
                                         struct_or_union_nest_info.
                                             id_to_symbol_map[
                                                 root_sinfo[idx].storage_id

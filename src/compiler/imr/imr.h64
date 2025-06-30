@@ -160,12 +160,14 @@ type IMRVarInfo base IMRNode {
     var label
     var type_expr
     var type_expr_storage_ref
+    var def_project_file
     var storage_id
 }
 
 func IMRVarInfo.init(
         var_label, var_type,
         storage_id, var_type_storage_ref,
+        var_def_project_file,
         ) {
     base.init(IMR_INST_VARINFO)
     if typename(var_label) != "str" {
@@ -193,6 +195,7 @@ func IMRVarInfo.init(
         }
     }
     self.type_expr_storage_ref = var_type_storage_ref
+    self.def_project_file = var_def_project_file
     self.storage_id = storage_id
 }
 
@@ -211,6 +214,8 @@ func IMRVarInfo.as_json_obj(
     var obj = base.as_json_obj(
         _passthrough_storage_refs=
             _passthrough_storage_refs)
+    obj["def_project_file"] =
+        self.def_project_file.as_str()
     obj["label"] = self.label
     if self.type_expr != none {
         obj["type_expr"] = self.type_expr.as_str()
@@ -1198,8 +1203,9 @@ func IMRStructOrTypeBlock.init(
 }
 
 func IMRStructOrTypeBlock.register_var_attr(
-        storage_id, label, init_insts=[],
-        type_expr=none,
+        storage_id, label, def_project_file,
+        init_insts=[], type_expr=none,
+        is_moose64=no,
         ) {
     if storage_id == none {
         throw new ValueError("The storage_id "
@@ -1216,7 +1222,7 @@ func IMRStructOrTypeBlock.register_var_attr(
             return later yes
         }
         var success = type_expr.try_resolve_to_user_type(
-            project_file, is_moose64=is_moose64
+            def_project_file, is_moose64=is_moose64
         ) later:
 
         await success
@@ -1236,7 +1242,8 @@ func IMRStructOrTypeBlock.register_var_attr(
     }
 
     var new_inst = new IMRVarInfo(
-        label, type_expr, storage_id, var_type_storage_ref
+        label, type_expr, storage_id, var_type_storage_ref,
+        def_project_file,
     )
     var new_offset = self.instructions.len + 1
     self.instructions.add(new_inst)
@@ -1814,10 +1821,13 @@ func generate_imr_for_stmt(
             assert(var_type_expr == none or
                 not var_type_expr.is_user_type() or
                 var_type_storage_ref != none)
-            var vinfo = new IMRVarInfo(label,
+            var vinfo = new IMRVarInfo(
+                label,
                 var_type_expr,
                 node.symbol_info[idx].storage_id,
-                var_type_storage_ref)
+                var_type_storage_ref,
+                project_file,
+            )
             vinfo.line = node.line
             vinfo.col = node.col
             result_insts.add(vinfo)
@@ -2143,20 +2153,25 @@ func generate_imr_for_stmt(
             is_nested=imr_parents.len > 0,
             is_type=is_type
         )
-        func handle_var(storage_id, var_label, type_expr, imr_parent) {
+        func handle_var(
+                storage_id, var_label, type_expr, imr_parent,
+                def_project_file) {
             imr_parent.register_var_attr(
                 storage_id, var_label,
+                def_project_file,
                 init_insts=[],
                 type_expr=type_expr,
+                is_moose64=is_moose64,
             ) later:
 
             return later
         }
         func handle_item(storage_id, var_label, type_expr,
-                imr_parent, nestediteminfo) {
+                imr_parent, def_project_file, nestediteminfo) {
             if nestediteminfo == none {
                 var result = handle_var(
-                    storage_id, var_label, type_expr, imr_parent
+                    storage_id, var_label, type_expr, imr_parent,
+                    def_project_file
                 ) later:
 
                 await result
@@ -2249,7 +2264,9 @@ func generate_imr_for_stmt(
                     symbol_info.name,
                     if nestiteminfo == none (symbol_info.typeref_expr)
                         else (none),
-                    imr_parent, nestiteminfo,
+                    imr_parent,
+                    search_in.id_to_def_file_map[id],
+                    nestiteminfo,
                 ])
             }
             var_attr_queue.sort(by=1)
@@ -2259,7 +2276,7 @@ func generate_imr_for_stmt(
             }
             var item = var_attr_queue.pop_at(1)
             var _unused = handle_item(
-                item[1], item[2], item[3], item[4], item[5]
+                item[1], item[2], item[3], item[4], item[5], item[6]
             ) later:
 
             await _unused
@@ -2268,7 +2285,7 @@ func generate_imr_for_stmt(
             }
             var item = var_attr_queue.pop_at(1)
             var _unused = handle_item(
-                item[1], item[2], item[3], item[4], item[5]
+                item[1], item[2], item[3], item[4], item[5], item[6]
             ) later repeat
         }
 

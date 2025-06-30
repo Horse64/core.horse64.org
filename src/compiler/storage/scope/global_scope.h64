@@ -633,6 +633,8 @@ func GlobalScope.finalize_gscope_with_ast_tree_info(
                 anscope.name_to_symbol_map[lbl] = symbol_info
                 anscope.id_to_symbol_map[
                     symbol_info.storage_id] = symbol_info
+                anscope.id_to_def_file_map[
+                    symbol_info.storage_id] = self
                 anscope.id_to_origin_gscope_map[
                     symbol_info.storage_id] = self
                 continue

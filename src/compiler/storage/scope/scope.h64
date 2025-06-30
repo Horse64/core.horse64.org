@@ -426,6 +426,7 @@ type TypeNamesScope base AttrNamesScope {
 
     var name_to_symbol_map = {->}
     var id_to_symbol_map = {->}
+    var id_to_def_file_map = {->}
     var id_to_origin_gscope_map = {->}
     var nested_structs_unions_list = []
     var unnested_ids_set = {}
@@ -516,6 +517,7 @@ type NestedStructOrUnionInfo {
 
     var name_to_symbol_map = {->}
     var id_to_symbol_map = {->}
+    var id_to_def_file_map = {->}
     var nested_structs_unions_list = []
 }
 
@@ -588,6 +590,7 @@ type StructNamesScope base AttrNamesScope {
 
     var name_to_symbol_map = {->}
     var id_to_symbol_map = {->}
+    var id_to_def_file_map = {->}
     var id_to_origin_gscope_map = {->}
     var nested_structs_unions_list = []
     var unnested_ids_set = {}
