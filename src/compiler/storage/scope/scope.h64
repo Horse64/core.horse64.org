@@ -518,6 +518,7 @@ type NestedStructOrUnionInfo {
     var name_to_symbol_map = {->}
     var id_to_symbol_map = {->}
     var id_to_def_file_map = {->}
+    var id_to_origin_gscope_map = {->}
     var nested_structs_unions_list = []
 }
 
