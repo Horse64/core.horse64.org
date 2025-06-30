@@ -159,10 +159,14 @@ func IMRBlock.fmt_block(indent=0) {
 type IMRVarInfo base IMRNode {
     var label
     var type_expr
+    var type_expr_storage_ref
     var storage_id
 }
 
-func IMRVarInfo.init(var_label, var_type, storage_id) {
+func IMRVarInfo.init(
+        var_label, var_type,
+        storage_id, var_type_storage_ref,
+        ) {
     base.init(IMR_INST_VARINFO)
     if typename(var_label) != "str" {
         throw new TypeError("The var_label parameter "
@@ -174,6 +178,21 @@ func IMRVarInfo.init(var_label, var_type, storage_id) {
     }
     self.label = var_label
     self.type_expr = var_type
+    if self.type_expr.is_user_type() {
+        if typename(var_type_storage_ref) != "obj" or
+                not has_attr(var_type_storage_ref, "id") or
+                not has_attr(var_type_storage_ref, "kind") {
+            throw new RuntimeError("For a user type, "
+                "the var_type_storage_ref must be set "
+                "to a storage ref.")
+        }
+    } else {
+        if var_type_storage_ref != none {
+            throw new RuntimeError("For a non-user type, "
+                "the var_type_storage_ref mustn't be set.")
+        }
+    }
+    self.type_expr_storage_ref = var_type_storage_ref
     self.storage_id = storage_id
 }
 
@@ -195,6 +214,8 @@ func IMRVarInfo.as_json_obj(
     obj["label"] = self.label
     if self.type_expr != none {
         obj["type_expr"] = self.type_expr.as_str()
+        obj["type_expr_storage_ref"] =
+            self.type_expr_storage_ref.as_str()
     }
     obj["storage_id"] = self.storage_id
     return obj
@@ -1189,13 +1210,41 @@ func IMRStructOrTypeBlock.register_var_attr(
             "a var attr cannot be none.")
     }
     self.label_to_st_id_map[label] = storage_id
-    var new_inst = new IMRVarInfo(label, type_expr, storage_id)
+    var var_type_storage_ref = none
+    func resolve_var_type {
+        if type_expr == none {
+            return later yes
+        }
+        var success = type_expr.try_resolve_to_user_type(
+            project_file, is_moose64=is_moose64
+        ) later:
+
+        await success
+        return success
+    }
+    var type_is_resolved = resolve_var_type()
+    later:
+
+    await type_is_resolved
+    if not type_is_resolved {
+        throw new RuntimeError("Internal error, "
+            "unexpectedly failed to resolve var type.")
+    }
+    var var_type_storage_ref = none
+    if type_expr != none and type_expr.is_user_type() {
+        var_type_storage_ref = type_expr.storage_ref
+    }
+
+    var new_inst = new IMRVarInfo(
+        label, type_expr, storage_id, var_type_storage_ref
+    )
     var new_offset = self.instructions.len + 1
     self.instructions.add(new_inst)
     self.st_id_to_inst_offset_map[storage_id] = new_offset
     if init_insts != none and init_insts.len > 0 {
         self.init_instructions += init_insts
     }
+    return later
 }
 
 func IMRStructOrTypeBlock.register_struct_or_union_attr(
@@ -1721,14 +1770,54 @@ func generate_imr_for_stmt(
         ) {
     if node.kind == ast.N_STMT_VAR {
         var result_insts = []
+
+        var var_type_expr = none
+        func resolve_var_type {
+            if not node.has_type_expr {
+                return later yes
+            }
+            var_type_expr = node.subexprs[node.subexprs.len]
+            var success = var_type_expr.try_resolve_to_user_type(
+                project_file, is_moose64=is_moose64
+            ) later:
+
+            await success
+            return success
+        }
+        var type_is_resolved = resolve_var_type()
+        later:
+
+        await type_is_resolved
+        if not type_is_resolved {
+            throw new RuntimeError("Internal error, "
+                "unexpectedly failed to resolve var type.")
+        }
+        var var_type_storage_ref = none
+        if var_type_expr != none and
+                var_type_expr.is_user_type() {
+            var ref = var_type_expr.storage_ref
+            if ref == none or
+                    not {st_ref.ST_GLOBAL,
+                        st_ref.ST_GLOBALATTR,
+                        st_ref.ST_CEXT,
+                        st_ref.ST_MCREF}.has(ref.kind) {
+                throw new RuntimeError("Internal error, "
+                    "unexpectedly had missing or invalid "
+                    "storage ref for variable declaration.")
+            }
+            var_type_storage_ref = ref
+        }
         var idx = 0
         for label in node.var_labels {
             idx += 1
+            var type_expr_storage_id = none
+            assert(var_type_expr == none or
+                not var_type_expr.is_user_type() or
+                var_type_storage_ref != none)
             var vinfo = new IMRVarInfo(label,
-                if node.has_type_expr
-                    (node.subexprs[node.subexprs.len])
-                    else (none),
-                node.symbol_info[idx].storage_id)
+                var_type_expr,
+                node.symbol_info[idx].storage_id,
+                var_type_storage_ref)
             vinfo.line = node.line
             vinfo.col = node.col
             result_insts.add(vinfo)
@@ -2059,7 +2148,8 @@ func generate_imr_for_stmt(
                 storage_id, var_label,
                 init_insts=[],
                 type_expr=type_expr,
-            )
+            ) later:
+
             return later
         }
         func handle_item(storage_id, var_label, type_expr,
