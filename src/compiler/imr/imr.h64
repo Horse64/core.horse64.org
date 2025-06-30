@@ -209,12 +209,23 @@ func IMRVarInfo.init(
 }
 
 func IMRVarInfo.as_str(indent=0) {
-    return self.format_inst(
+    var t = self.format_inst(
         "VARINFO", pos_parameter_names=[
             "storage_id",
             "label",
+        ], skip_parameter_names=[
+            "type_expr_storage_ref"
         ], indent=indent,
     )
+    if self.type_expr != none {
+        t += " TYPE_EXPR_STORAGE_REF="
+        if self.type_expr_storage_ref != none {
+            t += self.type_expr_storage_ref.as_str()
+        } else {
+            t += "none"
+        }
+    }
+    return t
 }
 
 func IMRVarInfo.as_json_obj(
