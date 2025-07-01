@@ -2469,8 +2469,10 @@ func tokenize_from_fileobj (
 ##     (when set to @{yes})
 ##     or whether to discard them (set to @{no}, the default).
 ## @param project_file (none, project.ProjectFile) If the string
-##   originates from a known @{project file|project.ProjectFile},
-##   specify it here to be set in the resulting diagnostic messages.
+##     originates from a known @{project file|project.ProjectFile},
+##     specify it here to be set in the resulting diagnostic messages.
+##     However, this parameter is optional and you can leave it away
+##     as well.
 ## @param default_to_diskpath bool If set to @{no} (default), a string
 ##   that isn't clearly an URI like `"example.com:443"` will be smartly
 ##   guessed as either remote or disk path and converted to a full URI.
