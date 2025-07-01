@@ -82,6 +82,7 @@ type Project {
 
     var module_uri_to_file_map = {->}
     var no_uri_files = {}
+    var last_used_file_id = 0
 
     var builtin_cexts = none
     var package_name_to_cext = {->}
@@ -1029,6 +1030,8 @@ func find_fallback_horse_modules_dir_if_any() {
 }
 
 type ProjectFile {
+    var file_id
+
     ## @types (str, none)
     var source_uri protect = none
 
@@ -1354,6 +1357,9 @@ func Project.ensure_builtin_cexts(
 func ProjectFile.ensure_project(msgs=none) {
     if self.project == none {
         self.project = new Project()
+        assert(self.file_id == none)
+        self.file_id = self.project.last_used_file_id + 1
+        self.project.last_used_file_id = self.file_id
         if self.wants_debug_modules {
             self.project.debug_modules = yes
         }
@@ -1725,6 +1731,9 @@ func add_neighbor_modules_to_result(
                 is_moose64=is_moose64,
                 request_debug_modules=debug
             )
+            pfile.file_id =
+                result.project_file.project.last_used_file_id + 1
+            result.project_file.project.last_used_file_id = pfile.file_id
             project.module_uri_to_file_map[neighbor_uri] = pfile
             result.neighbor_project_files.add(pfile)
         } else {
@@ -1807,6 +1816,8 @@ func ProjectFile.process_first_working_module_file(
                     file_uri, is_moose64=self.is_moose64
                 )
                 pfile.project = self.project
+                pfile.file_id = self.project.last_used_file_id + 1
+                self.project.last_used_file_id = pfile.file_id
                 self.project.module_uri_to_file_map[key] = pfile
             } else {
                 pfile = self.project.module_uri_to_file_map[key]
