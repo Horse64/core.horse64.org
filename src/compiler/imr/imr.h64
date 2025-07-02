@@ -2989,6 +2989,7 @@ func generate_imr_for_project(
     }
 
     func process_file(pfile) {
+        assert(pfile.file_id != none)
         if boptions.print_stages {
             clog.log_or_print(
                 new msg.FileMsg(
