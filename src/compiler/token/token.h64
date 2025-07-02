@@ -2470,16 +2470,18 @@ func tokenize_from_fileobj (
 ##     or whether to discard them (set to @{no}, the default).
 ## @param project_file (none, project.ProjectFile) If the string
 ##     originates from a known @{project file|project.ProjectFile},
-##     specify it here to be set in the resulting diagnostic messages.
-##     However, this parameter is optional and you can leave it away
-##     as well.
-## @param default_to_diskpath bool If set to @{no} (default), a string
-##   that isn't clearly an URI like `"example.com:443"` will be smartly
-##   guessed as either remote or disk path and converted to a full URI.
-##   If set to @{yes}, anything not clearly an URI will always be
-##   considered a disk path and converted to a `file://` URI.
-## @returns TokensResult The resulting tokens and diagnostic messages,
-##   like parse errors or warnings.
+##     specify it here to be set in the resulting diagnostic
+##     messages. However, this parameter is optional and you can
+##     leave it away as well.
+## @param default_to_diskpath bool If set to @{no} (default), a
+##     stringthat isn't clearly an URI like `"example.com:443"`
+##     will be smartly guessed as either remote or disk path and
+##     converted to a full URI.
+##     If set to @{yes}, anything not clearly an URI will always
+##     be considered a disk path and converted to a `file://`
+##     URI.
+## @returns TokensResult The resulting tokens and diagnostic
+##     messages, like parse errors or warnings.
 func tokenize_from_uri(
         source_uri, project_file=none, keep_whitespace=no,
         keep_comments=no, allow_remote=yes,
@@ -2553,11 +2555,12 @@ func tokenize_from_uri(
     }
 }
 
-## Helper function to get the line pos of a token in a given list.
-## It is used in token lists by the AST parser to not need
-## to use as many boundary checks.
+## Helper function to get the line pos of a token in a given
+## list. It is used in token lists by the AST parser to not
+## need to use as many boundary checks.
 ## @returns (num, none) The token's line number if the position
-##   is inside the list, @{none} if the position is outside of it.
+##     is inside the list, @{none} if the position is outside
+##     of it.
 func get_line(tokens, pos) {
     if pos < 1 {
         return 1
@@ -2575,7 +2578,7 @@ func get_line(tokens, pos) {
 ## It is used in token lists by the AST parser to not need
 ## to use as many boundary checks.
 ## @returns (num, none) The token's column number if the position
-##   is inside the list, @{none} if the position is outside of it.
+##     is inside the list, @{none} if the position is outside of it.
 func get_col(tokens, pos) {
     if pos < 1 {
         return 1
