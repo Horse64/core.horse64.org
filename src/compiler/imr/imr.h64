@@ -392,18 +392,88 @@ func IMRMove.as_json_obj(
     return obj
 }
 
-type IMRSetAttr base IMRNode {
+type IMRSetAttrById base IMRNode {
+    var target_and_obj_storage_ref
+    var attr_id
+    var value_storage_ref
+}
+
+func IMRSetAttrById.init(
+        target_and_obj_storage_ref=none,
+        attr_id=none,
+        value_storage_ref=none,
+        ) {
+    base.init(IMR_INST_SETATTRBYID)
+    if typename(target_and_obj_storage_ref) != "obj" or
+            not has_attr(target_and_obj_storage_ref, "kind") or
+            not has_attr(target_and_obj_storage_ref, "id") {
+        throw new TypeError(
+            "The target_and_container_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    if typename(attr_id) != "num" {
+        throw new TypeError(
+            "The attr_id parameter must be of type num."
+        )
+    }
+    if typename(value_storage_ref) != "obj" or
+            not has_attr(value_storage_ref, "kind") or
+            not has_attr(value_storage_ref, "id") {
+        throw new TypeError("The value_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    self.target_and_obj_storage_ref =
+    target_and_obj_storage_ref.copy()
+    self.attr_id = attr_id
+    self.value_storage_ref = value_storage_ref.copy()
+}
+
+func IMRSetAttrById.as_str(indent=0) {
+    return self.format_inst(
+        "SETATTRBYID", pos_parameter_names=[
+            "target_and_obj_storage_ref",
+            "attr_id",
+            "value_storage_ref",
+        ], indent=indent,
+    )
+}
+
+func IMRSetAttrById.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+        _passthrough_storage_refs)
+    if _passthrough_storage_refs {
+        obj["target_and_obj_storage_ref"] =
+        self.target_and_obj_storage_ref
+    } else {
+        obj["target_and_obj_storage_ref"] =
+        self.target_and_obj_storage_ref.as_str()
+    }
+    obj["attr_id"] = self.attr_id
+    if _passthrough_storage_refs {
+        obj["value_storage_ref"] =
+        self.value_storage_ref
+    } else {
+        obj["value_storage_ref"] =
+        self.value_storage_ref.as_str()
+    }
+    return obj
+}
+
+type IMRSetAttrByName base IMRNode {
     var target_and_obj_storage_ref
     var attr_name
     var value_storage_ref
 }
 
-func IMRSetAttr.init(
+func IMRSetAttrByName.init(
         target_and_obj_storage_ref=none,
         attr_name=none,
         value_storage_ref=none,
         ) {
-    base.init(IMR_INST_SETATTR)
+    base.init(IMR_INST_SETATTRBYNAME)
     if typename(target_and_obj_storage_ref) != "obj" or
             not has_attr(target_and_obj_storage_ref, "kind") or
             not has_attr(target_and_obj_storage_ref, "id") {
@@ -428,9 +498,9 @@ func IMRSetAttr.init(
     self.value_storage_ref = value_storage_ref.copy()
 }
 
-func IMRSetAttr.as_str(indent=0) {
+func IMRSetAttrByName.as_str(indent=0) {
     return self.format_inst(
-        "SETATTR", pos_parameter_names=[
+        "SETATTRBYNAME", pos_parameter_names=[
             "target_and_obj_storage_ref",
             "attr_name",
             "value_storage_ref",
@@ -438,7 +508,7 @@ func IMRSetAttr.as_str(indent=0) {
     )
 }
 
-func IMRSetAttr.as_json_obj(
+func IMRSetAttrByName.as_json_obj(
         _passthrough_storage_refs=no,
         ) {
     var obj = base.as_json_obj(
@@ -462,18 +532,18 @@ func IMRSetAttr.as_json_obj(
     return obj
 }
 
-type IMRGetAttr base IMRNode {
+type IMRGetAttrByName base IMRNode {
     var obj_storage_ref
     var attr_name
     var target_storage_ref
 }
 
-func IMRGetAttr.init(
+func IMRGetAttrByName.init(
         obj_storage_ref=none,
         attr_name=none,
         target_storage_ref=none,
         ) {
-    base.init(IMR_INST_GETATTR)
+    base.init(IMR_INST_GETATTRBYNAME)
     if typename(obj_storage_ref) != "obj" or
             not has_attr(obj_storage_ref, "kind") or
             not has_attr(obj_storage_ref, "id") {
@@ -495,9 +565,9 @@ func IMRGetAttr.init(
     self.target_storage_ref = target_storage_ref.copy()
 }
 
-func IMRGetAttr.as_str(indent=0) {
+func IMRGetAttrByName.as_str(indent=0) {
     return self.format_inst(
-        "GETATTR", pos_parameter_names=[
+        "GETATTRBYNAME", pos_parameter_names=[
             "obj_storage_ref",
             "attr_name",
             "target_storage_ref",
@@ -505,7 +575,7 @@ func IMRGetAttr.as_str(indent=0) {
     )
 }
 
-func IMRGetAttr.as_json_obj(
+func IMRGetAttrByName.as_json_obj(
         _passthrough_storage_refs=no,
         ) {
     var obj = base.as_json_obj(
@@ -525,6 +595,73 @@ func IMRGetAttr.as_json_obj(
     } else {
         obj["target_storage_ref"] =
             self.target_storage_ref.as_str()
+    }
+    return obj
+}
+
+type IMRGetAttrById base IMRNode {
+    var obj_storage_ref
+    var attr_id
+    var target_storage_ref
+}
+
+func IMRGetAttrById.init(
+        obj_storage_ref=none,
+        attr_id=none,
+        target_storage_ref=none,
+        ) {
+    base.init(IMR_INST_GETATTRBYID)
+    if typename(obj_storage_ref) != "obj" or
+            not has_attr(obj_storage_ref, "kind") or
+            not has_attr(obj_storage_ref, "id") {
+        throw new TypeError("The obj_storage_ref parameter "
+        "must be of type StorageRef.")
+    }
+    if typename(attr_id) != "num" {
+        throw new TypeError("The attr_id parameter "
+            "must be of type num.")
+    }
+    if typename(target_storage_ref) != "obj" or
+            not has_attr(target_storage_ref, "kind") or
+            not has_attr(target_storage_ref, "id") {
+        throw new TypeError("The target_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    self.obj_storage_ref = obj_storage_ref.copy()
+    self.attr_id = attr_id
+    self.target_storage_ref = target_storage_ref.copy()
+}
+
+func IMRGetAttrById.as_str(indent=0) {
+    return self.format_inst(
+        "GETATTRBYID", pos_parameter_names=[
+            "obj_storage_ref",
+            "attr_id",
+            "target_storage_ref",
+        ], indent=indent,
+    )
+}
+
+func IMRGetAttrById.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+        _passthrough_storage_refs)
+    if _passthrough_storage_refs {
+        obj["obj_storage_ref"] =
+        self.obj_storage_ref
+    } else {
+        obj["obj_storage_ref"] =
+        self.obj_storage_ref.as_str()
+    }
+    obj["attr_id"] = self.attr_id
+    if _passthrough_storage_refs {
+        obj["target_storage_ref"] =
+        self.target_storage_ref
+    } else {
+        obj["target_storage_ref"] =
+        self.target_storage_ref.as_str()
     }
     return obj
 }
@@ -1222,6 +1359,11 @@ func IMRStructOrTypeBlock.init(
     }
 }
 
+func IMRStructOrTypeBlock.get_internal_init_func_attr_id {
+    # FIXME: implement this properly.
+    return -999
+}
+
 func IMRStructOrTypeBlock.register_var_attr(
         storage_id, label, def_project_file,
         init_insts=[], type_expr=none,
@@ -1358,6 +1500,7 @@ func IMRFuncBlock.init(
             "ST_GLOBALATTR."
         )
     }
+    self.storage_ref = storage_ref.copy()
     self.is_func_attr =
         storage_ref.kind == st_ref.ST_GLOBALATTR
     if self.is_func_attr {
@@ -1447,9 +1590,11 @@ enum IMRNodeKind {
     IMR_INST_CLRZERO,
     IMR_INST_SETLIT,
     IMR_INST_SETIDX,
-    IMR_INST_SETATTR,
+    IMR_INST_SETATTRBYNAME,
+    IMR_INST_SETATTRBYID,
     IMR_INST_GETIDX,
-    IMR_INST_GETATTR,
+    IMR_INST_GETATTRBYNAME,
+    IMR_INST_GETATTRBYID,
 }
 
 type IMRForFile {
@@ -1683,7 +1828,7 @@ func generate_imr_for_expr(
             return later none
         }
         result.instructions += left_hand_result.instructions
-        result.instructions.add(new IMRGetAttr(
+        result.instructions.add(new IMRGetAttrByName(
             obj_storage_ref=left_hand_result.storage_ref,
             attr_name=attr_name,
             target_storage_ref=tmp_ref,
@@ -2122,7 +2267,7 @@ func generate_imr_for_stmt(
             node.line,
             node.col,
         )
-        loop_block.instructions.add(IMRApplyOp(
+        loop_block.instructions.add(new IMRApplyOp(
             inverse_op_token,
             operand_1_storage_ref=cls_result.storage_ref,
             target_storage_ref=cls_result.storage_ref,
@@ -2143,34 +2288,31 @@ func generate_imr_for_stmt(
             (node.kind == ast.N_STMT_UNION and
              imr_parents.len > 0) {
         var anscope = none
-        if imr_parents.len == 0 {
-            anscope = project_file.make_attr_names_scope_from_node(
-                node, msgs=msgs, is_moose64=is_moose64,
-                def_project_file=project_file,
+        assert(imr_parents.len == 0)
+        anscope = project_file.make_attr_names_scope_from_node(
+            node, msgs=msgs, is_moose64=is_moose64,
+            def_project_file=project_file,
+        )
+        if anscope == none {
+            throw new RuntimeError(
+                "Failed to get attribute names scope "
+                "for top-level struct or type."
             )
-            if anscope == none {
-                throw new RuntimeError(
-                    "Failed to get attribute names scope "
-                    "for top-level struct or type."
-                )
-            }
         }
         var is_type = (node.kind == ast.N_STMT_TYPE)
         var is_union = (node.kind == ast.N_STMT_UNION)
         var storage_id = none
         var base_type_storage_id = none
-        if anscope != none {
-            storage_id = anscope.storage_id
-            if is_type {
-                base_type_storage_id =
-                    anscope.base_global_id
-            }
+        storage_id = anscope.storage_id
+        if is_type {
+            base_type_storage_id =
+                anscope.base_global_id
         }
+
         var label = node.label
         var unnested_ids = {}
-        if anscope != none {
-            unnested_ids = anscope.unnested_ids_set
-        }
+        unnested_ids = anscope.unnested_ids_set
+
         var result_insts = []
         var block_item = new IMRStructOrTypeBlock(
             storage_id, label,
@@ -2179,11 +2321,13 @@ func generate_imr_for_stmt(
             is_nested=imr_parents.len > 0,
             is_type=is_type
         )
+        var processing_history_for_var_attrs = []
         func handle_var(
-                storage_id, var_label, type_expr, imr_parent,
+                var_storage_id, var_label, type_expr, imr_parent,
                 def_project_file) {
+            processing_history_for_var_attrs.add(var_storage_id)
             imr_parent.register_var_attr(
-                storage_id, var_label,
+                var_storage_id, var_label,
                 def_project_file,
                 init_insts=[],
                 type_expr=type_expr,
@@ -2318,6 +2462,91 @@ func generate_imr_for_stmt(
         result_insts.add(block_item)
         handle_container() later:
 
+        var var_init_insts = []
+        var last_handled_pfile = project_file
+
+        var init_func_imr_block = new IMRFuncBlock(
+            none, "$varinit",
+            new st_ref.StorageRef(
+                st_ref.ST_GLOBALATTR,
+                [storage_id,
+                block_item.get_internal_init_func_attr_id()]),
+            type_path=[node.label],
+            is_extend=no,
+        )
+        result_insts.add(init_func_imr_block)
+
+        func generate_var_init_insts_for_var(child_storage_id) {
+            assert(typename(child_storage_id) == "num")
+            var tmp_ref = get_new_temp_storage_ref(
+                node, imr_parents=imr_parents,
+                func_imr_parent=init_func_imr_block,
+                file_imr_parent=file_imr_parent,
+                project_file=project_file,
+                is_moose64=is_moose64, msgs=msgs,
+            )
+            var source_pfile = anscope.id_to_def_file_map[
+                child_storage_id
+            ]
+            if source_pfile == none {
+                throw new RuntimeError("The source file "
+                    "for attribute was unexpectedly not found.")
+            }
+            func load_source_file_if_needed {
+                if last_handled_pfile == source_pfile {
+                    return later
+                }
+                source_pfile.ensure_ast()
+                later:
+
+                last_handled_pfile = source_pfile
+            }
+            load_source_file_if_needed() later:
+
+            # FIXME: insert the actual value generation code here.
+            var_init_insts.add(new IMRSetAttrById(
+                target_and_obj_storage_ref=new st_ref.StorageRef(
+                    st_ref.ST_SELF, 0),
+                attr_id=child_storage_id,
+                value_storage_ref=tmp_ref,
+            ))
+            return later
+        }
+
+        func generate_var_init_insts {
+            var result = []
+            var queue = processing_history_for_var_attrs.copy()
+            if queue.len == 0 {
+                return result
+            }
+            var item = queue.pop_at(1)
+            var inner_result = generate_var_init_insts_for_var(
+                item) later:
+
+            await inner_result
+            result.add(inner_result)
+            if queue.len == 0 {
+                return result
+            }
+            var item = queue.pop_at(1)
+            inner_result = generate_var_init_insts_for_var(
+                item) later repeat
+        }
+        generate_var_init_insts() later:
+
+        func load_source_file_if_needed {
+            if last_handled_pfile == project_file {
+                return later
+            }
+
+            project_file.ensure_ast()
+            later:
+
+            last_handled_pfile = project_file
+        }
+        load_source_file_if_needed() later:
+
+        init_func_imr_block.instructions += var_init_insts
         return result_insts
     }
     if node.kind == ast.N_STMT_IF {
@@ -2555,7 +2784,7 @@ func generate_imr_for_stmt(
                 }
                 if node.assign_token.kind == token.T_ASSIGN {
                     result_insts += right_hand_result.instructions
-                    result_insts.add(IMRSetIdx(
+                    result_insts.add(new IMRSetIdx(
                         target_and_container_storage_ref=
                             container_result.storage_ref,
                         index_storage_ref=
@@ -2572,14 +2801,14 @@ func generate_imr_for_stmt(
                         project_file=project_file,
                         is_moose64=is_moose64, msgs=msgs,
                     )
-                    result_insts.add(IMRGetIdx(
+                    result_insts.add(new IMRGetIdx(
                         container_storage_ref=
                             container_result.storage_ref,
                         index_storage_ref=
                             idx_result.storage_ref,
                         target_storage_ref=tmp_ref,
                     ))
-                    result_insts.add(IMRApplyOp(
+                    result_insts.add(new IMRApplyOp(
                         math_assign_token,
                         operand_1_storage_ref=tmp_ref,
                         operand_2_storage_ref=
@@ -2587,7 +2816,7 @@ func generate_imr_for_stmt(
                         target_storage_ref=tmp_ref,
                         is_binary=yes,
                     ))
-                    result_insts.add(IMRSetIdx(
+                    result_insts.add(new IMRSetIdx(
                         target_and_container_storage_ref=
                             container_result.storage_ref,
                         index_storage_ref=
@@ -2626,7 +2855,7 @@ func generate_imr_for_stmt(
                 }
                 if node.assign_token.kind == token.T_ASSIGN {
                     result_insts += right_hand_result.instructions
-                    result_insts.add(IMRSetAttr(
+                    result_insts.add(new IMRSetAttrByName(
                         target_and_obj_storage_ref=
                             obj_result.storage_ref,
                         attr_name=attr_name,
@@ -2641,13 +2870,13 @@ func generate_imr_for_stmt(
                         file_imr_parent=file_imr_parent,
                         is_moose64=is_moose64, msgs=msgs,
                     )
-                    result_insts.add(IMRGetAttr(
+                    result_insts.add(new IMRGetAttrByName(
                         obj_storage_ref=
                             obj_result.storage_ref,
                         attr_name=attr_name,
                         target_storage_ref=tmp_ref,
                     ))
-                    result_insts.add(IMRApplyOp(
+                    result_insts.add(new IMRApplyOp(
                         math_assign_token,
                         operand_1_storage_ref=tmp_ref,
                         operand_2_storage_ref=
@@ -2655,7 +2884,7 @@ func generate_imr_for_stmt(
                         target_storage_ref=tmp_ref,
                         is_binary=yes,
                     ))
-                    result_insts.add(IMRSetAttr(
+                    result_insts.add(new IMRSetAttrByName(
                         target_and_obj_storage_ref=
                             obj_result.storage_ref,
                         attr_name=attr_name,
@@ -2904,10 +3133,17 @@ func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
             ) later:
 
             await stmts
-            if stmts.len != 1 or
-                    stmts[1].kind != IMR_BLOCK_STRUCTORTYPE {
+            func have_struct_or_type_entry(l) {
+                for entry in l {
+                    if entry.kind == IMR_BLOCK_STRUCTORTYPE {
+                        return yes
+                    }
+                }
+                return no
+            }
+            if stmts.len < 1 or not have_struct_or_type_entry(stmts) {
                 throw new RuntimeError(
-                    "Unexpectedly didn't get a single "
+                    "Unexpectedly didn't get any "
                     "IMR_BLOCK_STRUCTORTYPE when processing "
                     "type or struct."
                 )
