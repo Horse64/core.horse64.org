@@ -2533,8 +2533,9 @@ func generate_imr_for_stmt(
                             var inner_result = find_assign_expr_in_item(
                                 innerstmt
                             )
-                            if inner_result != none {
-                                return [yes, inner_result]
+                            if inner_result != none and
+                                    inner_result[1] {
+                                return inner_result
                             }
                         }
                     }
@@ -2543,6 +2544,8 @@ func generate_imr_for_stmt(
                 var result = find_assign_expr_in_item(stmt)
                 if result[1] {
                     assigned_ast_expr = result[2]
+                    assert(assigned_ast_expr == none or
+                        has_attr(assigned_ast_expr, "kind"))
                     assigning_stmt_found = yes
                     break
                 }
@@ -2555,24 +2558,38 @@ func generate_imr_for_stmt(
                     "struct. This shouldn't be possible, please "
                     "report this error to the compiler makers.",
                     source_file=project_file,
-                    line=node,line,
+                    line=node.line,
                     col=node.col,
                 ))
                 return later
             }
-            var tmp_ref = get_new_temp_storage_ref(
-                node, imr_parents=imr_parents,
+            if assigning_stmt_found and
+                    (assigned_ast_expr == none or
+                     (not is_moose64 and
+                      assigned_ast_expr.kind == ast.N_EXPR_LIT and
+                      assigned_ast_expr.value == none)) {
+                return later
+            }
+            var cls_result = generate_imr_for_expr(
+                assigned_ast_expr,
+                imr_parents=imr_parents + [node],
                 func_imr_parent=init_func_imr_block,
                 file_imr_parent=file_imr_parent,
-                project_file=project_file,
+                project_file=source_pfile,
                 is_moose64=is_moose64, msgs=msgs,
-            )
-            # FIXME: insert the actual value generation code here.
+            ) later:
+
+            await cls_result
+            if cls_result == none {
+                result_insts = none
+                return later
+            }
+            var_init_insts += cls_result.instructions
             var_init_insts.add(new IMRSetAttrById(
                 target_and_obj_storage_ref=new st_ref.StorageRef(
                     st_ref.ST_SELF, 0),
                 attr_id=child_storage_id,
-                value_storage_ref=tmp_ref,
+                value_storage_ref=cls_result.storage_ref,
             ))
             return later
         }
