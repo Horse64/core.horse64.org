@@ -214,7 +214,8 @@ func IMRVarInfo.as_str(indent=0) {
             "storage_id",
             "label",
         ], skip_parameter_names=[
-            "type_expr_storage_ref"
+            "type_expr_storage_ref",
+            "def_project_file",
         ], indent=indent,
     )
     if self.type_expr != none {
@@ -225,6 +226,8 @@ func IMRVarInfo.as_str(indent=0) {
             t += "none"
         }
     }
+    t += " DEF_PROJECT_FILE=FILE" +
+        self.def_project_file.file_id.as_str()
     return t
 }
 
