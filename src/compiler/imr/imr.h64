@@ -34,6 +34,7 @@ import compiler.ast as ast
 import compiler.ast.expr as ast_expr
 import compiler.ast.transform as ast_transform
 import compiler.compiler_log as clog
+import compiler.globals_order as globals_order
 import compiler.msg as msg
 import compiler.storage.ref as st_ref
 import compiler.storage.scope as st_scope
@@ -3197,6 +3198,15 @@ func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
     }
     assert(success == yes)
 
+    var init_func_info = globals_order.
+        generate_init_funcs_for_file(
+            pfile
+        ) later:
+
+    await init_func_info
+    pfile.ensure_ast()
+    later:
+
     func collect_func_and_type_contents(node, parents) {
         var parent = if parents.len > 0
             (parents[parents.len]) else (none)
@@ -3269,6 +3279,38 @@ func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
         return result
     }
     assert(success == yes)
+    func handle_global_init_func(info) {
+        # FIXME: emit actual func here to assign global funcs.
+        return later yes
+    }
+    func handle_global_init_funcs {
+        var queue = init_func_info.copy()
+        if queue.len == 0 {
+            return later yes
+        }
+        var inner_result = handle_global_init_func(
+            queue.pop_at(1)
+        ) later:
+
+        await inner_result
+        if not inner_result {
+            return later no
+        }
+        if queue.len == 0 {
+            return later yes
+        }
+        inner_result = handle_global_init_func(
+            queue.pop_at(1)
+        ) later repeat
+    }
+    var globals_result = handle_global_init_funcs()
+    later:
+
+    await globals_result
+    if not globals_result {
+        assert(msg.msgs_contain_error(msgs))
+        return result
+    }
 
     return later result
 }
@@ -3336,6 +3378,9 @@ func generate_imr_for_project(
     ) later:
 
     await result
+    if msg.msgs_contain_error(imrresult.msgs) {
+        result = no
+    }
     assert(result == yes or result == no)
 
     return later no

@@ -275,7 +275,7 @@ func register_globals_for_project(
             # we want to extract as much from a single file as
             # possible, per file, until everything at this
             # depth is ordered.
-            # (The idea is that the C code gen wants to group
+            # (The idea is that the final code gen wants to group
             # as much as possible into one function. Grouping
             # can only be done with statements from the same
             # depth in the same file.)
