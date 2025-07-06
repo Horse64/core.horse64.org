@@ -2547,7 +2547,7 @@ func generate_imr_for_stmt(
                     break
                 }
             }
-            if not assigned_ast_expr_found {
+            if not assigning_stmt_found {
                 msgs.add(new msg.FileMsg(
                     "Internal error, unexpectedly failed to "
                     "find originating assign statement for "
