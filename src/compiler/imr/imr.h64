@@ -2478,13 +2478,6 @@ func generate_imr_for_stmt(
 
         func generate_var_init_insts_for_var(child_storage_id) {
             assert(typename(child_storage_id) == "num")
-            var tmp_ref = get_new_temp_storage_ref(
-                node, imr_parents=imr_parents,
-                func_imr_parent=init_func_imr_block,
-                file_imr_parent=file_imr_parent,
-                project_file=project_file,
-                is_moose64=is_moose64, msgs=msgs,
-            )
             var source_pfile = anscope.id_to_def_file_map[
                 child_storage_id
             ]
@@ -2503,6 +2496,77 @@ func generate_imr_for_stmt(
             }
             load_source_file_if_needed() later:
 
+            var assigned_ast_expr = none
+            var assigning_stmt_found = no
+            for stmt in source_pfile.ast.stmts {
+                if (stmt.kind != ast.N_STMT_TYPE and
+                        stmt.kind != ast.N_STMT_TYPEEXTEND) or
+                        not is_type {
+                    if (stmt.kind != ast.N_STMT_STRUCT and
+                            stmt.kind != ast.N_STMT_STRUCTEXTEND) or
+                            is_type {
+                        continue
+                    }
+                }
+                if stmt.label != node.label {
+                    continue
+                }
+                func find_assign_expr_in_item(stmt) {
+                    assert(stmt.subblocks.len == 1)
+                    for innerstmt in stmt.subblocks[1] {
+                        if innerstmt.kind == ast.N_STMT_VAR {
+                            if innerstmt.symbol_info == none or
+                                    innerstmt.symbol_info.len == 0 {
+                                continue
+                            }
+                            var idx = 0
+                            for sinfo in innerstmt.symbol_info {
+                                idx += 1
+                                if sinfo.storage_id == child_storage_id {
+                                    return [yes, innerstmt.subexprs[idx]]
+                                }
+                            }
+                        }
+                        if innerstmt.kind == ast.N_STMT_STRUCT or
+                                innerstmt.kind == ast.N_STMT_TYPE or
+                                innerstmt.kind == ast.N_STMT_UNION {
+                            var inner_result = find_assign_expr_in_item(
+                                innerstmt
+                            )
+                            if inner_result != none {
+                                return [yes, inner_result]
+                            }
+                        }
+                    }
+                    return [no, none]
+                }
+                var result = find_assign_expr_in_item(stmt)
+                if result[1] {
+                    assigned_ast_expr = result[2]
+                    assigning_stmt_found = yes
+                    break
+                }
+            }
+            if not assigned_ast_expr_found {
+                msgs.add(new msg.FileMsg(
+                    "Internal error, unexpectedly failed to "
+                    "find originating assign statement for "
+                    "one of the attributes of this type or "
+                    "struct. This shouldn't be possible, please "
+                    "report this error to the compiler makers.",
+                    source_file=project_file,
+                    line=node,line,
+                    col=node.col,
+                ))
+                return later
+            }
+            var tmp_ref = get_new_temp_storage_ref(
+                node, imr_parents=imr_parents,
+                func_imr_parent=init_func_imr_block,
+                file_imr_parent=file_imr_parent,
+                project_file=project_file,
+                is_moose64=is_moose64, msgs=msgs,
+            )
             # FIXME: insert the actual value generation code here.
             var_init_insts.add(new IMRSetAttrById(
                 target_and_obj_storage_ref=new st_ref.StorageRef(
