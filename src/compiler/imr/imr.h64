@@ -1387,12 +1387,18 @@ func IMRStructOrTypeBlock.register_var_attr(
         if type_expr == none {
             return later yes
         }
-        var success = type_expr.try_resolve_to_user_type(
+        var result = type_expr.try_resolve_to_user_type(
             def_project_file, is_moose64=is_moose64
         ) later:
 
-        await success
-        return success
+        await result
+        if result != none and
+                not result.had_error and
+                not result.resolved_to_nonuser_type {
+            var_type_storage_ref = result.resolved_storage_ref
+            return later yes
+        }
+        return later not result.had_error
     }
     var type_is_resolved = resolve_var_type()
     later:
@@ -1401,10 +1407,6 @@ func IMRStructOrTypeBlock.register_var_attr(
     if not type_is_resolved {
         throw new RuntimeError("Internal error, "
             "unexpectedly failed to resolve var type.")
-    }
-    var var_type_storage_ref = none
-    if type_expr != none and type_expr.is_user_type() {
-        var_type_storage_ref = type_expr.storage_ref
     }
 
     var new_inst = new IMRVarInfo(
@@ -2044,6 +2046,9 @@ func generate_imr_for_stmt(
                 ))
                 return later
             }
+            if item[2] and is_moose64 {
+                return later
+            }
             var right_hand_result = generate_imr_for_expr(
                 item[2],
                 imr_parents=imr_parents + [node],
@@ -2571,6 +2576,8 @@ func generate_imr_for_stmt(
                     (assigned_ast_expr == none or
                      (not is_moose64 and
                       assigned_ast_expr.kind == ast.N_EXPR_LIT and
+                      assigned_ast_expr.literal_kind ==
+                          ast_expr.LK_NORMAL and
                       assigned_ast_expr.value == none)) {
                 return later
             }
@@ -3280,8 +3287,156 @@ func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
     }
     assert(success == yes)
     func handle_global_init_func(info) {
-        # FIXME: emit actual func here to assign global funcs.
-        return later yes
+        var name = info.suggested_name
+        if not name.starts("$") {
+            name = "$" + name
+        }
+        var new_global_id = pfile.project.last_global_storage_id + 1
+        pfile.project.last_global_storage_id = new_global_id
+        var init_func_imr_block = new IMRFuncBlock(
+            none, name,
+            new st_ref.StorageRef(
+                st_ref.ST_GLOBAL,
+                new_global_id),
+            type_path=none,
+            is_extend=no,
+        )
+        result.blocks.add(init_func_imr_block)
+        var queue = []
+        for init_id in info.storage_ids_for_init {
+            queue.add(init_id)
+        }
+        func handle_global_var_init(varid) {
+            # XXX: We're not using the global scope here,
+            # since we don't want the drop-in node copy but
+            # the original AST node.
+            var stmt = none
+            var idx = 0
+            for teststmt in pfile.ast.stmts {
+                if teststmt.kind != ast.N_STMT_VAR {
+                    continue
+                }
+                var found = no
+                idx = 0
+                for sym_info in teststmt.symbol_info {
+                    idx += 1
+                    if sym_info.storage_id == varid {
+                        found = yes
+                        break
+                    }
+                }
+                if not found {
+                    continue
+                } else {
+                    stmt = teststmt
+                    break
+                }
+            }
+            assert(idx >= 1 and idx <= stmt.var_labels.len)
+            var var_label = stmt.var_labels[idx]
+            var var_type_expr = none
+            var var_type_storage_ref = none
+            if stmt.has_type_expr {
+                var_type_expr = stmt.subexprs[stmt.subexprs.len]
+            }
+            var var_assigned_expr = stmt.subexprs[idx]
+            if not is_moose64 and
+                    (var_assigned_expr != none and
+                     var_assigned_expr.kind == ast.N_EXPR_LIT and
+                     var_assigned_expr.literal_kind ==
+                         ast_expr.LK_NORMAL and
+                     var_assigned_expr.value == none) {
+                var_assigned_expr = none
+            }
+            func resolve_var_type_expr_if_needed {
+                if var_type_expr == none {
+                    return
+                }
+                var result = var_type_expr.try_resolve_to_user_type(
+                    pfile, is_moose64=is_moose64
+                ) later:
+
+                await result
+                if result != none and
+                        not result.had_error and
+                        not result.resolved_to_nonuser_type {
+                    var_type_storage_ref = result.storage_ref
+                }
+            }
+            resolve_var_type_expr_if_needed()
+            later:
+
+            var new_inst = new IMRVarInfo(
+                var_label, var_type_expr,
+                varid, var_type_storage_ref,
+                pfile,
+            )
+            result.blocks = [new_inst] + result.blocks
+
+            var left_hand_storage_id = varid
+            var var_ref = new st_ref.StorageRef(
+                st_ref.ST_LOCAL, left_hand_storage_id
+            )
+            if is_moose64 and (var_assigned_expr == none or
+                    (var_assigned_expr == ast.N_EXPR_LIT and
+                     var_assigned_expr.literal_kind ==
+                         ast_expr.LK_NORMAL and
+                     var_assigned_expr.value == none)) {
+                result_insts.add(new IMRClrZero(
+                    var_ref,
+                ))
+                return later yes
+            }
+            if not is_moose64 and var_assigned_expr == none {
+                return later yes
+            }
+            var right_hand_result = generate_imr_for_expr(
+                var_assigned_expr,
+                imr_parents=[init_func_imr_block],
+                func_imr_parent=init_func_imr_block,
+                file_imr_parent=result,
+                project_file=pfile,
+                try_target_storage_ref=var_ref,
+                is_moose64=is_moose64, msgs=msgs,
+            ) later:
+
+            await right_hand_result
+            if right_hand_result == none {
+                return later no
+            }
+            if right_hand_result.instructions.len == 0 {
+                throw new RuntimeError("Internal error, "
+                    "unexpectedly failed to get "
+                    "instructions for assigned global "
+                    "var init expr.")
+            }
+            init_func_imr_block.instructions +=
+                right_hand_result.instructions
+            if not right_hand_result.storage_ref.alike(
+                    var_ref) {
+                init_func_imr_block.instructions.add(new IMRMove(
+                    right_hand_result.storage_ref,
+                    var_ref,
+                ))
+            }
+            return later yes
+        }
+        if queue.len == 0 {
+            return later yes
+        }
+        var inner_result = handle_global_var_init(
+            queue.pop_at(1))
+        later:
+
+        await inner_result
+        if not inner_result {
+            return later no
+        }
+        if queue.len == 0 {
+            return later yes
+        }
+        inner_result = handle_global_var_init(
+            queue.pop_at(1)) later repeat
     }
     func handle_global_init_funcs {
         var queue = init_func_info.copy()
