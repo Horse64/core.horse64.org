@@ -864,17 +864,20 @@ func IMRCall.init(
         throw new TypeError("The called_func_ref parameter "
             "must be of type StorageRef.")
     }
-    if typename(return_value_ref) != "obj" or
+    if return_value_ref != none and (
+            typename(return_value_ref) != "obj" or
             not has_attr(return_value_ref, "kind") or
-            not has_attr(return_value_ref, "id") {
+            not has_attr(return_value_ref, "id")) {
         throw new TypeError("The return_value_ref parameter "
-            "must be of type StorageRef.")
+            "must be either none or of type StorageRef.")
     }
     self.has_later = has_later
     self.has_later_ignore = has_later_ignore
     self.has_later_repeat = has_later_repeat
     self.called_func_ref = called_func_ref.copy()
-    self.return_value_ref = return_value_ref.copy()
+    if return_value_ref != none {
+        self.return_value_ref = return_value_ref.copy()
+    }
     var pos_args = []
     var kw_args = []
     var i = 1
@@ -1618,6 +1621,13 @@ func IMRForFile.as_str(indent=0) {
     return t + "}"
 }
 
+func IMRForFile.ensure_loaded {
+    # FIXME: Eventually, we want to support swapping
+    # all the inner contents to disk, and this will
+    # restore them again into memory.
+    return later
+}
+
 func IMRForFile.find_global_func_by_label(
         label, type_path=none) {
     for block in self.blocks {
@@ -1689,6 +1699,7 @@ func generate_imr_for_expr(
         func_imr_parent=none,
         file_imr_parent=none,
         project_file=none,
+        imr_build_tracker=none,
         try_target_storage_ref=none,
         is_moose64=no, msgs=none,
         debug=no,
@@ -1955,11 +1966,53 @@ func generate_imr_for_expr(
     return later none
 }
 
+func generate_imr_for_entrypoint_func(
+        imr_parents=[],
+        func_imr_parent=none,
+        file_imr_parent=none,
+        project_file=none,
+        imr_build_tracker=none,
+        is_moose64=no, msgs=none,
+        ) {
+    var insts = []
+
+    var init_func_info = globals_order.
+        generate_init_funcs_globally(
+            project_file.project
+        ) later:
+
+    await init_func_info
+    project_file.ensure_ast()
+    later:
+
+    for func_info in init_func_info {
+        var name = func_info.suggested_name
+        if not name.starts("$") {
+            name = "$" + name
+        }
+        var storage_id = imr_build_tracker.
+            global_init_func_name_to_id_map[name]
+        insts.add(new IMRCall(
+            called_func_ref=new st_ref.StorageRef(
+                st_ref.ST_GLOBAL, storage_id),
+            arg_refs=[],
+            arg_names_if_any=[],
+            has_later=no,
+            has_later_ignore=no,
+            has_later_repeat=no,
+            return_value_ref=none,
+        ))
+    }
+
+    return later insts
+}
+
 func generate_imr_for_stmt(
         node, imr_parents=[],
         func_imr_parent=none,
         file_imr_parent=none,
         project_file=none,
+        imr_build_tracker=none,
         is_moose64=no, msgs=none,
         ) {
     if node.kind == ast.N_STMT_VAR {
@@ -2071,6 +2124,7 @@ func generate_imr_for_stmt(
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
                 project_file=project_file,
+                imr_build_tracker=imr_build_tracker,
                 try_target_storage_ref=var_ref,
                 is_moose64=is_moose64, msgs=msgs,
             ) later:
@@ -2166,6 +2220,7 @@ func generate_imr_for_stmt(
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
                 project_file=project_file,
+                imr_build_tracker=imr_build_tracker,
                 is_moose64=is_moose64, msgs=msgs,
             ) later:
 
@@ -2211,6 +2266,7 @@ func generate_imr_for_stmt(
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             project_file=project_file,
+            imr_build_tracker=imr_build_tracker,
             is_moose64=is_moose64, msgs=msgs,
         ) later:
 
@@ -2225,6 +2281,7 @@ func generate_imr_for_stmt(
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             project_file=project_file,
+            imr_build_tracker=imr_build_tracker,
             is_moose64=is_moose64, msgs=msgs,
         ) later:
 
@@ -2259,6 +2316,7 @@ func generate_imr_for_stmt(
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             project_file=project_file,
+            imr_build_tracker=imr_build_tracker,
             is_moose64=is_moose64, msgs=msgs,
         ) later:
 
@@ -2273,6 +2331,7 @@ func generate_imr_for_stmt(
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             project_file=project_file,
+            imr_build_tracker=imr_build_tracker,
             is_moose64=is_moose64, msgs=msgs,
         ) later:
 
@@ -2603,6 +2662,7 @@ func generate_imr_for_stmt(
                 func_imr_parent=init_func_imr_block,
                 file_imr_parent=file_imr_parent,
                 project_file=source_pfile,
+                imr_build_tracker=imr_build_tracker,
                 is_moose64=is_moose64, msgs=msgs,
             ) later:
 
@@ -2712,6 +2772,7 @@ func generate_imr_for_stmt(
                     func_imr_parent=func_imr_parent,
                     file_imr_parent=file_imr_parent,
                     project_file=project_file,
+                    imr_build_tracker=imr_build_tracker,
                     is_moose64=is_moose64, msgs=msgs,
                 ) later:
 
@@ -2742,6 +2803,7 @@ func generate_imr_for_stmt(
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
                 project_file=project_file,
+                imr_build_tracker=imr_build_tracker,
                 is_moose64=is_moose64, msgs=msgs,
             ) later:
 
@@ -2835,6 +2897,7 @@ func generate_imr_for_stmt(
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
                 project_file=project_file,
+                imr_build_tracker=imr_build_tracker,
                 is_moose64=is_moose64, msgs=msgs,
             ) later:
 
@@ -2871,6 +2934,7 @@ func generate_imr_for_stmt(
                     func_imr_parent=func_imr_parent,
                     file_imr_parent=file_imr_parent,
                     project_file=project_file,
+                    imr_build_tracker=imr_build_tracker,
                     is_moose64=is_moose64, msgs=msgs,
                 ) later:
 
@@ -2882,6 +2946,7 @@ func generate_imr_for_stmt(
                     func_imr_parent=func_imr_parent,
                     file_imr_parent=file_imr_parent,
                     project_file=project_file,
+                    imr_build_tracker=imr_build_tracker,
                     is_moose64=is_moose64, msgs=msgs,
                 ) later:
 
@@ -2953,6 +3018,7 @@ func generate_imr_for_stmt(
                     func_imr_parent=func_imr_parent,
                     file_imr_parent=file_imr_parent,
                     project_file=project_file,
+                    imr_build_tracker=imr_build_tracker,
                     is_moose64=is_moose64, msgs=msgs,
                 ) later:
 
@@ -3075,6 +3141,7 @@ func generate_imr_for_stmts(
         func_imr_parent=none,
         file_imr_parent=none,
         project_file=none,
+        imr_build_tracker=none,
         is_moose64=no, msgs=none,
         ) {
     var result = []
@@ -3088,6 +3155,7 @@ func generate_imr_for_stmts(
         func_imr_parent=func_imr_parent,
         file_imr_parent=file_imr_parent,
         project_file=project_file,
+        imr_build_tracker=imr_build_tracker,
         is_moose64=is_moose64, msgs=msgs,
     ) later:
 
@@ -3108,11 +3176,31 @@ func generate_imr_for_stmts(
         func_imr_parent=func_imr_parent,
         file_imr_parent=file_imr_parent,
         project_file=project_file,
+        imr_build_tracker=imr_build_tracker,
         is_moose64=is_moose64, msgs=msgs,
     ) later repeat
 }
 
-func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
+func is_func_stmt_entry_point_func(
+        pfile, stmt, build_options=none,
+        is_moose64=no,
+        ) {
+    if not pfile.is_entrypoint {
+        return no
+    }
+    if stmt == none or stmt.kind != ast.N_STMT_FUNC {
+        return no
+    }
+    return stmt.label == "main"
+}
+
+func generate_imr_for_file(
+        pfile,
+        imr_build_tracker=none,
+        build_options=none,
+        is_moose64=no,
+        msgs=none,
+        ) {
     const program_name =
         if is_moose64 ("moosec") else ("horsec")
 
@@ -3272,21 +3360,27 @@ func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
         }
         if node.kind == ast.N_STMT_FUNC or
                 node.kind == ast.N_STMT_FUNCEXTEND {
+            var is_entrypoint = is_func_stmt_entry_point_func(
+                pfile, node,
+                build_options=build_options,
+                is_moose64=is_moose64,
+            )
             var imr_node = get_imr_node_for_func(node)
             assert(imr_node != none)
 
-            var stmts = generate_imr_for_stmts(
+            var inner_code_stmts = generate_imr_for_stmts(
                 node.subblocks[1],
                 imr_parents=[imr_node],
                 func_imr_parent=imr_node,
                 file_imr_parent=result,
                 project_file=pfile,
+                imr_build_tracker=imr_build_tracker,
                 is_moose64=is_moose64,
                 msgs=msgs,
             ) later:
 
-            await stmts
-            imr_node.instructions += stmts
+            await inner_code_stmts
+            imr_node.instructions += inner_code_stmts
             return later node
         }
         return later node
@@ -3319,6 +3413,9 @@ func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
             type_path=none,
             is_extend=no,
         )
+        imr_build_tracker.global_init_func_name_to_id_map[
+            name
+        ] = new_global_id
         result.blocks.add(init_func_imr_block)
         var queue = []
         for init_id in info.storage_ids_for_init {
@@ -3502,6 +3599,116 @@ func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
     return later result
 }
 
+func expand_imr_for_entrypoint_by_file(
+        pfile,
+        imr_for_file=none,
+        imr_build_tracker=none,
+        build_options=none,
+        is_moose64=no,
+        msgs=none,
+        ) {
+    const program_name =
+        if is_moose64 ("moosec") else ("horsec")
+    var result = imr_for_file
+
+    if not pfile.is_entrypoint {
+        return later yes
+    }
+
+    pfile.ensure_ast()
+    later:
+
+    var _func_stmt_to_imr_func_map = {->}
+
+    func get_imr_node_for_func(node) {
+        if not {ast.N_STMT_FUNC,
+                ast.N_STMT_FUNCEXTEND}.has(
+                node.kind) {
+            return none
+        }
+
+        if not _func_stmt_to_imr_func_map.has(
+                node) {
+            var item = result.find_global_func_by_label(
+                node.label, type_path=node.type_path,
+            )
+            _func_stmt_to_imr_func_map[
+                node
+            ] = item
+        }
+        return _func_stmt_to_imr_func_map[
+            node
+        ]
+    }
+
+    func add_entrypoint_contents(node, parents) {
+        var parent = if parents.len > 0
+            (parents[parents.len]) else (none)
+        if node.damaged {
+            return later node
+        }
+        if node.kind != ast.N_STMT_FUNC {
+            return later node
+        }
+
+        var is_entrypoint = is_func_stmt_entry_point_func(
+            pfile, node,
+            build_options=build_options,
+            is_moose64=is_moose64,
+        )
+        if not is_entrypoint {
+            return later node
+        }
+
+        var imr_node = get_imr_node_for_func(node)
+        assert(imr_node != none)
+
+        var entrypoint_stmts = []
+        func get_entrypoint_stmts {
+            if not is_entrypoint {
+                return later
+            }
+            entrypoint_stmts = generate_imr_for_entrypoint_func(
+                imr_parents=[imr_node],
+                func_imr_parent=imr_node,
+                file_imr_parent=result,
+                project_file=pfile,
+                imr_build_tracker=imr_build_tracker,
+                is_moose64=is_moose64,
+                msgs=msgs,
+            ) later:
+
+            await entrypoint_stmts
+        }
+        get_entrypoint_stmts() later:
+
+        imr_node.instructions = entrypoint_stmts +
+            imr_node.instructions
+        return later node
+    }
+    var entrypoint_success = ast_transform.visit_ast_tree(
+        pfile.ast, add_entrypoint_contents,
+        pass_func_boundaries=yes,
+        parent_chain=yes, backward=no,
+    ) later:
+
+    await entrypoint_success
+    if not entrypoint_success {
+        assert(msgs == none or
+            msg.msgs_contain_error(msgs))
+        return later no
+    }
+    assert(entrypoint_success == yes)
+
+    return later yes
+}
+
+type IMRBuildTracker {
+    var file_id_to_imr_result_map = {->}
+
+    var global_init_func_name_to_id_map = {->}
+}
+
 func generate_imr_for_project(
         project,
         build_options=none,
@@ -3514,6 +3721,7 @@ func generate_imr_for_project(
         if is_moose64 ("moosec") else ("horsec")
     var boptions = build_options
     var imrresult = new IMRTranslationResult()
+    var imr_build_tracker = new IMRBuildTracker()
 
     if boptions.print_stages {
         clog.log_or_print(
@@ -3554,10 +3762,15 @@ func generate_imr_for_project(
             )
         }
         var result = generate_imr_for_file(
-            pfile, is_moose64=is_moose64)
+            pfile, imr_build_tracker=imr_build_tracker,
+            build_options=build_options,
+            is_moose64=is_moose64)
         later:
 
         await result
+        imr_build_tracker.file_id_to_imr_result_map[
+            pfile.file_id
+        ] = result
         return later yes
     }
     var result = project.do_for_all_files(
@@ -3570,6 +3783,83 @@ func generate_imr_for_project(
     }
     assert(result == yes or result == no)
 
-    return later no
+    if debug {
+        print(program_name + ": debug: "
+            "generate_imr_for_project(): "
+            "Starting entry point finalization for "
+            "project=" + project.as_str() + ", "
+            "is_moose64=" +
+            is_moose64.as_str())
+    }
+    if boptions.print_stages {
+        clog.log_or_print(
+            new msg.FileMsg(
+                "stage imr: " +
+                "Processing finalizing entrypoint... "
+                "[t=" + time.ticks().as_str() + "]",
+                kind=msg.M_INFO,
+            ),
+            msgs=imrresult.msgs,
+            program_name=program_name,
+            force_print=not boptions.format_output_for_scripts,
+        )
+    }
+    func process_file_2(pfile) {
+        var imr_for_file = imr_build_tracker.
+            file_id_to_imr_result_map[
+                pfile.file_id
+            ]
+        imr_for_file.ensure_loaded()
+        later:
+
+        var success = expand_imr_for_entrypoint_by_file(
+            pfile,
+            imr_for_file=imr_for_file,
+            imr_build_tracker=imr_build_tracker,
+            build_options=build_options,
+            is_moose64=is_moose64,
+            msgs=msgs,
+        ) later:
+
+        await success
+        if not success {
+            return later no
+        }
+
+        return later yes
+    }
+    var result = project.do_for_all_files(
+        process_file_2
+    ) later:
+
+    await result
+    if msg.msgs_contain_error(imrresult.msgs) {
+        result = no
+    }
+
+    if debug {
+        print(program_name + ": debug: "
+            "generate_imr_for_project(): "
+            "Completed IMR generation. "
+            "project=" + project.as_str() + ", "
+            "is_moose64=" +
+            is_moose64.as_str() + " "
+            "successful=" + result.as_str())
+    }
+    if boptions.print_stages {
+        clog.log_or_print(
+            new msg.FileMsg(
+                "stage imr: " +
+                "IMR completed. "
+                "[t=" + time.ticks().as_str() + "]",
+                            kind=msg.M_INFO,
+            ),
+            msgs=imrresult.msgs,
+            program_name=program_name,
+            force_print=not boptions.format_output_for_scripts,
+        )
+    }
+    assert(result == yes or result == no)
+    return later no  # FIXME
 }
 
