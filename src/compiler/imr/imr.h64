@@ -1645,6 +1645,13 @@ type ExprIMRResult {
     var storage_ref
 }
 
+func ExprIMRResult.as_str {
+    var t = "ExprIMRResult{"
+    t += "instructions=" + self.instructions.as_str()
+    t += ",storage_ref=" + self.storage_ref.as_str()
+    return t + "}"
+}
+
 func get_new_temp_storage_ref(
         node, imr_parents=[],
         func_imr_parent=none,
@@ -1684,8 +1691,17 @@ func generate_imr_for_expr(
         project_file=none,
         try_target_storage_ref=none,
         is_moose64=no, msgs=none,
+        debug=no,
         ) {
+    const program_name = if is_moose64 ("moosec") else ("horsec")
     var irregular_binop_strs = {"[", "(", "."}
+
+    if debug {
+        print(program_name + ": debug: " +
+            "generate_imr_for_expr(): Called on node: " +
+            node.as_str().sub(1, 150))
+    }
+
     var result = new ExprIMRResult()
     if node.kind == ast.N_EXPR_IDREF {
         result.storage_ref = node.ref.copy()
@@ -3099,6 +3115,7 @@ func generate_imr_for_stmts(
 func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
     const program_name =
         if is_moose64 ("moosec") else ("horsec")
+
     var result = new IMRForFile()
     result.project_file = pfile
 
@@ -3116,8 +3133,7 @@ func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
         if not _func_stmt_to_imr_func_map.has(
                 node) {
             var item = result.find_global_func_by_label(
-                node.label,
-                type_path=node.type_path,
+                node.label, type_path=node.type_path,
             )
             _func_stmt_to_imr_func_map[
                 node
@@ -3200,7 +3216,8 @@ func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
 
     await success
     if not success {
-        assert(msg.msgs_contain_error(msgs))
+        assert(msgs == none or
+            msg.msgs_contain_error(msgs))
         return result
     }
     assert(success == yes)
@@ -3282,7 +3299,8 @@ func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
 
     await success
     if not success {
-        assert(msg.msgs_contain_error(msgs))
+        assert(msgs == none or
+            msg.msgs_contain_error(msgs))
         return result
     }
     assert(success == yes)
@@ -3375,7 +3393,7 @@ func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
 
             var left_hand_storage_id = varid
             var var_ref = new st_ref.StorageRef(
-                st_ref.ST_LOCAL, left_hand_storage_id
+                st_ref.ST_GLOBAL, left_hand_storage_id
             )
             if is_moose64 and (var_assigned_expr == none or
                     (var_assigned_expr == ast.N_EXPR_LIT and
@@ -3401,14 +3419,27 @@ func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
             ) later:
 
             await right_hand_result
-            if right_hand_result == none {
+            if right_hand_result == none or
+                    right_hand_result.storage_ref == none or
+                    (right_hand_result.storage_ref.kind ==
+                        st_ref.ST_LOCAL and
+                     right_hand_result.instructions.len == 0) {
+                if msgs == none {
+                    print(program_name + ": warning: Internal error, "
+                        "unexpectedly failed to generate right-hand "
+                        "init side for this global var statement: " +
+                        stmt.as_str())
+                } else {
+                    msgs.add(new msg.FileMsg(
+                        "Internal error, "
+                        "unexpectedly failed to generate right-hand "
+                        "init side for this global var statement.",
+                        source_file=project_file,
+                        line=stmt.line,
+                        col=stmt.col,
+                    ))
+                }
                 return later no
-            }
-            if right_hand_result.instructions.len == 0 {
-                throw new RuntimeError("Internal error, "
-                    "unexpectedly failed to get "
-                    "instructions for assigned global "
-                    "var init expr.")
             }
             init_func_imr_block.instructions +=
                 right_hand_result.instructions
@@ -3463,7 +3494,8 @@ func generate_imr_for_file(pfile, is_moose64=no, msgs=none) {
 
     await globals_result
     if not globals_result {
-        assert(msg.msgs_contain_error(msgs))
+        assert(msgs == none or
+            msg.msgs_contain_error(msgs))
         return result
     }
 
