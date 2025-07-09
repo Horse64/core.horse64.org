@@ -2047,9 +2047,22 @@ func generate_imr_for_stmt(
                 "unexpectedly failed to resolve var type.")
         }
         var var_type_storage_ref = none
-        if var_type_expr != none and
-                var_type_expr.is_user_type() {
-            var ref = var_type_expr.storage_ref
+        func resolve_var_type_if_needed {
+            if var_type_expr == none or
+                    not var_type_expr.is_user_type() {
+                return later
+            }
+            var ref = none
+            var result = var_type_expr.try_resolve_to_user_type(
+                project_file, is_moose64=is_moose64
+            ) later:
+
+            await result
+            if result != none and
+                    not result.had_error and
+                    not result.resolved_to_nonuser_type {
+                ref = result.resolved_storage_ref
+            }
             if (ref == none and
                      # Note: The func types are always user types,
                      # but can be 'bodyless' func signatures without
@@ -2066,6 +2079,8 @@ func generate_imr_for_stmt(
             }
             var_type_storage_ref = ref
         }
+        resolve_var_type_if_needed() later:
+
         var idx = 0
         for label in node.var_labels {
             idx += 1
@@ -3261,12 +3276,12 @@ func generate_imr_for_file(
             var known_return_type_expr = none
             var known_return_type_storage_ref = none
 
-            pos_arg_count = fscope.extended_final_arg_count(
-                include_outer_extends=no
-            )
             kw_arg_count = fscope.extended_final_kw_arg_count(
                 include_outer_extends=no
             )
+            pos_arg_count = fscope.extended_final_arg_count(
+                include_outer_extends=no
+            ) - kw_arg_count
             has_return_value = (
                 not is_moose64 or
                 (fscope.extended_final_has_return_type() and
@@ -3284,7 +3299,7 @@ func generate_imr_for_file(
                         not result.had_error and
                         not result.resolved_to_nonuser_type {
                     known_arg_type_storage_refs.add(
-                        result.storage_ref
+                        result.resolved_storage_ref
                     )
                 } else {
                     known_arg_type_storage_refs.add(none)
@@ -3311,7 +3326,7 @@ func generate_imr_for_file(
                         not result.had_error and
                         not result.resolved_to_nonuser_type {
                     known_return_type_storage_ref =
-                        result.storage_ref
+                        result.resolved_storage_ref
                 }
             }
             func fetch_arg_types_if_needed {
@@ -3608,7 +3623,7 @@ func generate_imr_for_file(
                 if result != none and
                         not result.had_error and
                         not result.resolved_to_nonuser_type {
-                    var_type_storage_ref = result.storage_ref
+                    var_type_storage_ref = result.resolved_storage_ref
                 }
             }
             resolve_var_type_expr_if_needed()
