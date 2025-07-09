@@ -1492,6 +1492,13 @@ type IMRFuncBlock base IMRBlock {
 func IMRFuncBlock.init(
         func_scope, label,
         storage_ref,
+        pos_arg_count=0,
+        kw_arg_count=0,
+        has_return_value=yes,
+        known_arg_type_exprs=[],
+        known_arg_type_storage_refs=[],
+        known_return_type_expr=none,
+        known_return_type_storage_ref=none,
         type_path=none,
         is_extend=no,
         ) {
@@ -2555,6 +2562,7 @@ func generate_imr_for_stmt(
                 st_ref.ST_GLOBALATTR,
                 [storage_id,
                 block_item.get_internal_init_func_attr_id()]),
+            has_return_value=no,
             type_path=[node.label],
             is_extend=no,
         )
@@ -3242,16 +3250,118 @@ func generate_imr_for_file(
                 node.kind == ast.N_STMT_FUNCEXTEND {
             var is_extend =
                 node.kind == ast.N_STMT_FUNCEXTEND
-            var func_scope = node.func_scope
-            assert(func_scope != none)
+            var fscope = node.func_scope
+            assert(fscope != none)
+
+            var pos_arg_count = 0
+            var kw_arg_count = 0
+            var known_arg_type_exprs = none
+            var known_arg_type_storage_refs = none
+            var has_return_value = no
+            var known_return_type_expr = none
+            var known_return_type_storage_ref = none
+
+            pos_arg_count = fscope.extended_final_arg_count(
+                include_outer_extends=no
+            )
+            kw_arg_count = fscope.extended_final_kw_arg_count(
+                include_outer_extends=no
+            )
+            has_return_value = (
+                not is_moose64 or
+                (fscope.extended_final_has_return_type() and
+                 fscope.extended_final_return_type_expr() != none and
+                 (fscope.extended_final_return_type_expr().is_user_type() or
+                  fscope.extended_final_return_type_expr().name != "empty"))
+            )
+            func resolve_arg_type(type_expr) {
+                var result = type_expr.try_resolve_to_user_type(
+                    pfile, is_moose64=is_moose64
+                ) later:
+
+                await result
+                if result != none and
+                        not result.had_error and
+                        not result.resolved_to_nonuser_type {
+                    known_arg_type_storage_refs.add(
+                        result.storage_ref
+                    )
+                } else {
+                    known_arg_type_storage_refs.add(none)
+                }
+                return later
+            }
+            func fetch_return_type_if_needed {
+                if not has_return_value or
+                        (not is_moose64 and
+                         not fscope.
+                            extended_final_has_return_type()) {
+                    return later
+                }
+                known_return_type_expr = fscope.
+                    extended_final_return_type_expr()
+                known_return_type_storage_ref = none
+                var result = known_return_type_expr.
+                    try_resolve_to_user_type(
+                        pfile, is_moose64=is_moose64
+                    ) later:
+
+                await result
+                if result != none and
+                        not result.had_error and
+                        not result.resolved_to_nonuser_type {
+                    known_return_type_storage_ref =
+                        result.storage_ref
+                }
+            }
+            func fetch_arg_types_if_needed {
+                if not is_moose64 {
+                    return later
+                }
+                known_arg_type_exprs =
+                    fscope.extended_final_arg_type_exprs(
+                        include_outer_extends=no
+                    )
+                known_arg_type_storage_refs = []
+                var queue = known_arg_type_exprs.copy()
+                if queue.len == 0 {
+                    return later
+                }
+                var _unused = resolve_arg_type(queue.pop_at(1))
+                later:
+
+                await _unused
+                if queue.len == 0 {
+                    return later
+                }
+                _unused = resolve_arg_type(queue.pop_at(1))
+                later repeat
+            }
+            fetch_arg_types_if_needed() later:
+            fetch_return_type_if_needed() later:
+
+            if is_moose64 and
+                    known_arg_type_storage_refs.len !=
+                    pos_arg_count + kw_arg_count {
+                throw new RuntimeError("Internal error, "
+                    "unexpectedly failed to "
+                    "analyze argument types.")
+            }
+            if is_moose64 and
+                    has_return_value and
+                    known_return_type_expr == none {
+                throw new RuntimeError("Internal error, "
+                    "unexpectedly failed to analyze "
+                    "return type.")
+            }
             var block = none
             if node.type_path != none and
                     node.type_path.len > 0 {
-                assert(func_scope.is_type_attr)
+                assert(fscope.is_type_attr)
                 var type_id =
-                    func_scope.owning_type_storage_id
+                    fscope.owning_type_storage_id
                 var attr_id =
-                    func_scope.owning_type_scope.
+                    fscope.owning_type_scope.
                         name_to_symbol_map[
                             node.label
                         ].storage_id
@@ -3274,20 +3384,42 @@ func generate_imr_for_file(
                     )
                 }
                 block = new IMRFuncBlock(
-                    func_scope, node.label,
+                    fscope, node.label,
                     new st_ref.StorageRef(
                         st_ref.ST_GLOBALATTR,
                         [type_id, attr_id]),
+                    pos_arg_count=pos_arg_count,
+                    kw_arg_count=kw_arg_count,
+                    has_return_value=has_return_value,
+                    known_arg_type_exprs=
+                        known_arg_type_exprs,
+                    known_arg_type_storage_refs=
+                        known_arg_type_storage_refs,
+                    known_return_type_expr=
+                        known_return_type_expr,
+                    known_return_type_storage_ref=
+                        known_return_type_storage_ref,
                     type_path=node.type_path,
                     is_extend=is_extend,
                 )
             } else {
                 block = new IMRFuncBlock(
-                    func_scope, node.label,
+                    fscope, node.label,
                     new st_ref.StorageRef(
                         st_ref.ST_GLOBAL,
-                        func_scope.storage_id
+                        fscope.storage_id
                     ),
+                    pos_arg_count=pos_arg_count,
+                    kw_arg_count=kw_arg_count,
+                    has_return_value=has_return_value,
+                    known_arg_type_exprs=
+                        known_arg_type_exprs,
+                    known_arg_type_storage_refs=
+                        known_arg_type_storage_refs,
+                    known_return_type_expr=
+                        known_return_type_expr,
+                    known_return_type_storage_ref=
+                        known_return_type_storage_ref,
                     is_extend=is_extend,
                 )
             }
@@ -3410,6 +3542,7 @@ func generate_imr_for_file(
             new st_ref.StorageRef(
                 st_ref.ST_GLOBAL,
                 new_global_id),
+            has_return_value=no,
             type_path=none,
             is_extend=no,
         )

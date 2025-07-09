@@ -120,27 +120,43 @@ func is_pos_inside_possible_func_prop_list(
 
 ## Returns the real, final argument count when considering
 ## all 'extend func' statements that apply to this function.
-func FuncStmtFuncExtendStmtShared.extended_final_arg_count {
-    return self.func_scope.extended_final_arg_count()
+func FuncStmtFuncExtendStmtShared.extended_final_arg_count(
+        include_outer_extends=yes
+        ) {
+    return self.func_scope.extended_final_arg_count(
+        include_outer_extends=include_outer_extends
+    )
 }
 
 ## Returns the real, final keyword argument count when considering
 ## all 'extend func' statements that apply to this function.
-func FuncStmtFuncExtendStmtShared.extended_final_kw_arg_count {
-    return self.func_scope.extended_final_kw_arg_count()
+func FuncStmtFuncExtendStmtShared.extended_final_kw_arg_count(
+        include_outer_extends=yes
+        ) {
+    return self.func_scope.extended_final_kw_arg_count(
+        include_outer_extends=include_outer_extends
+    )
 }
 
 ## Returns the real, final list of argument names when considering
 ## all 'extend func' statements that apply to this function.
-func FuncStmtFuncExtendStmtShared.extended_final_arg_names {
-    return self.func_scope.extended_final_arg_names()
+func FuncStmtFuncExtendStmtShared.extended_final_arg_names(
+        include_outer_extends=yes
+        ) {
+    return self.func_scope.extended_final_arg_names(
+        include_outer_extends=include_outer_extends
+    )
 }
 
 ## Returns the real, final list of arg @{compiler.type_info.
 ## ast_typeref.TypeRefExpr}s when considering all
 ## 'extend func' statements that apply to this function.
-func FuncStmtFuncExtendStmtShared.extended_final_arg_type_exprs {
-    return self.func_scope.extended_final_arg_type_exprs()
+func FuncStmtFuncExtendStmtShared.extended_final_arg_type_exprs(
+        include_outer_extends=yes
+        ) {
+    return self.func_scope.extended_final_arg_type_exprs(
+        include_outer_extends=include_outer_extends
+    )
 }
 
 ### Returns whether the final assembled func is marked as

@@ -115,7 +115,10 @@ extend type project.Project {
     var key_to_func_scope_map = {->}
 }
 
-func FuncScope._extended_final_arg_names_split {
+func FuncScope._extended_final_arg_names_split(
+        include_outer_extends=yes
+        ) {
+    var max_outer_scope = self
     var base_func_scope = self.base_func_scope
     if base_func_scope == none {
         base_func_scope = self
@@ -141,9 +144,16 @@ func FuncScope._extended_final_arg_names_split {
         }
     }
     add_names_of_func_scope(base_func_scope)
-    for extend_scope in base_func_scope.extended_by_scopes {
-        assert(extend_scope != base_func_scope)
-        add_names_of_func_scope(extend_scope)
+    if max_outer_scope != base_func_scope or
+            not include_outer_extends {
+        for extend_scope in base_func_scope.extended_by_scopes {
+            assert(extend_scope != base_func_scope)
+            add_names_of_func_scope(extend_scope)
+            if extend_scope == max_outer_scope and
+                    not include_outer_extends {
+                break
+            }
+        }
     }
     return [pos_arg_names, pos_arg_type_exprs,
         kw_arg_names, kw_arg_type_exprs]
@@ -157,22 +167,38 @@ func FuncScope.extended_final_is_readonly {
     return base_func_scope.is_marked_readonly
 }
 
-func FuncScope.extended_final_arg_names {
-    var result = self._extended_final_arg_names_split()
+func FuncScope.extended_final_arg_names(
+        include_outer_extends=yes
+        ) {
+    var result = self._extended_final_arg_names_split(
+        include_outer_extends=include_outer_extends
+    )
     return result[1] + result[3]
 }
 
-func FuncScope.extended_final_arg_count {
-    return self.extended_final_arg_names().len
+func FuncScope.extended_final_arg_count(
+        include_outer_extends=yes
+        ) {
+    return self.extended_final_arg_names(
+        include_outer_extends=include_outer_extends
+    ).len
 }
 
-func FuncScope.extended_final_kw_arg_count {
-    var result = self._extended_final_arg_names_split()
+func FuncScope.extended_final_kw_arg_count(
+        include_outer_extends=yes
+        ) {
+    var result = self._extended_final_arg_names_split(
+        include_outer_extends=include_outer_extends
+    )
     return result[3].len
 }
 
-func FuncScope.extended_final_arg_type_exprs {
-    var result = self._extended_final_arg_names_split()
+func FuncScope.extended_final_arg_type_exprs(
+        include_outer_extends=yes
+        ) {
+    var result = self._extended_final_arg_names_split(
+        include_outer_extends=include_outer_extends
+    )
     return result[2] + result[4]
 }
 
@@ -182,6 +208,22 @@ func FuncScope.extended_final_symbol_info_list {
         base_func_scope = self
     }
     return base_func_scope.arg_symbol_info.copy()
+}
+
+func FuncScope.extended_final_has_return_type {
+    var base_func_scope = self.base_func_scope
+    if base_func_scope == none {
+        base_func_scope = self
+    }
+    return base_func_scope.has_return_type
+}
+
+func FuncScope.extended_final_return_type_expr {
+    var base_func_scope = self.base_func_scope
+    if base_func_scope == none {
+        base_func_scope = self
+    }
+    return base_func_scope.return_type_expr
 }
 
 func FuncScope.add_arg(
