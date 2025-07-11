@@ -35,6 +35,7 @@ import compiler.ast.expr as ast_expr
 import compiler.ast.transform as ast_transform
 import compiler.compiler_log as clog
 import compiler.globals_order as globals_order
+import compiler.moose64.ast.analyze as m64_ast_analyze
 import compiler.msg as msg
 import compiler.storage.ref as st_ref
 import compiler.storage.scope as st_scope
@@ -50,6 +51,7 @@ type IMRNode {
     var kind
     var line
     var col
+    var known_type_info = none
 }
 
 func IMRNode.init(kind) {
@@ -61,6 +63,11 @@ func IMRNode.as_json_obj(
         ) {
     var obj = {->}
     obj["kind"] = IMRNodeKind.num_label(self.kind)
+    obj["known_type_info"] = none
+    if self.known_type_info != none {
+        obj["known_type_info"] =
+            self.known_type_info.as_str()
+    }
     return obj
 }
 
@@ -1660,12 +1667,14 @@ func IMRForFile.find_global_func_by_label(
 type ExprIMRResult {
     var instructions = []
     var storage_ref
+    var known_type_info
 }
 
 func ExprIMRResult.as_str {
     var t = "ExprIMRResult{"
     t += "instructions=" + self.instructions.as_str()
     t += ",storage_ref=" + self.storage_ref.as_str()
+    t += ",known_type_info=" + self.known_type_info.as_str()
     return t + "}"
 }
 
@@ -1702,7 +1711,58 @@ func get_new_temp_storage_ref(
 }
 
 func generate_imr_for_expr(
-        node, imr_parents=[],
+        node,
+        node_parents=[],
+        imr_parents=[],
+        func_imr_parent=none,
+        file_imr_parent=none,
+        project_file=none,
+        imr_build_tracker=none,
+        try_target_storage_ref=none,
+        is_moose64=no, msgs=none,
+        debug=no,
+        ) {
+    var result = _generate_imr_for_expr_untyped(
+        node,
+        node_parents=node_parents,
+        imr_parents=imr_parents,
+        func_imr_parent=func_imr_parent,
+        file_imr_parent=file_imr_parent,
+        project_file=project_file,
+        imr_build_tracker=imr_build_tracker,
+        try_target_storage_ref=try_target_storage_ref,
+        is_moose64=is_moose64,
+        msgs=msgs,
+        debug=debug,
+    ) later:
+
+    await result
+    if result == none or result.storage_ref == none {
+        return later result
+    }
+
+    var value_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
+        project_file, node, node_parents,
+        store_self_value_ref_for_funcs=yes,
+        msgs=msgs,
+    ) later:
+
+    await value_tinfo
+    if value_tinfo == none {
+        throw new RuntimeError("Internal error, "
+            "unexpectedly failed to analyze type of "
+            "node. Please report this to the compiler "
+            "makers.")
+    }
+    result.known_type_info = value_tinfo
+
+    return result
+}
+
+func _generate_imr_for_expr_untyped(
+        node,
+        node_parents=[],
+        imr_parents=[],
         func_imr_parent=none,
         file_imr_parent=none,
         project_file=none,
@@ -1756,6 +1816,7 @@ func generate_imr_for_expr(
         }
         var left_hand_result = generate_imr_for_expr(
             node.subexprs[1],
+            node_parents=node_parents,
             imr_parents=imr_parents + [node],
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
@@ -1795,7 +1856,8 @@ func generate_imr_for_expr(
             }
             var arg_expr_result = generate_imr_for_expr(
                 value_expr,
-                imr_parents=imr_parents + [node],
+                node_parents=node_parents + [node],
+                imr_parents=imr_parents,
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
                 project_file=project_file,
@@ -1845,7 +1907,8 @@ func generate_imr_for_expr(
             node.subexprs.len >= 2 and
             node.subexprs[2].kind == ast.N_EXPR_IDREF {
         var tmp_ref = get_new_temp_storage_ref(
-            node, imr_parents=imr_parents,
+            node,
+            imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             project_file=project_file,
@@ -1855,7 +1918,8 @@ func generate_imr_for_expr(
         assert(attr_name != none)
         var left_hand_result = generate_imr_for_expr(
             node.subexprs[1],
-            imr_parents=imr_parents + [node],
+            node_parents=node_parents + [node],
+            imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             project_file=project_file,
@@ -1887,7 +1951,8 @@ func generate_imr_for_expr(
         )
         var left_hand_result = generate_imr_for_expr(
             node.subexprs[1],
-            imr_parents=imr_parents + [node],
+            node_parents=node_parents + [node],
+            imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             project_file=project_file,
@@ -1898,7 +1963,8 @@ func generate_imr_for_expr(
         await left_hand_result
         var right_hand_result = generate_imr_for_expr(
             node.subexprs[2],
-            imr_parents=imr_parents + [node],
+            node_parents=node_parents + [node],
+            imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             project_file=project_file,
@@ -1933,7 +1999,8 @@ func generate_imr_for_expr(
         )
         var left_hand_result = generate_imr_for_expr(
             node.subexprs[1],
-            imr_parents=imr_parents + [node],
+            node_parents=node_parents + [node],
+            imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             project_file=project_file,
@@ -1944,7 +2011,8 @@ func generate_imr_for_expr(
         await left_hand_result
         var right_hand_result = generate_imr_for_expr(
             node.subexprs[2],
-            imr_parents=imr_parents + [node],
+            node_parents=node_parents + [node],
+            imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             project_file=project_file,
@@ -2015,7 +2083,9 @@ func generate_imr_for_entrypoint_func(
 }
 
 func generate_imr_for_stmt(
-        node, imr_parents=[],
+        node,
+        node_parents=[],
+        imr_parents=[],
         func_imr_parent=none,
         file_imr_parent=none,
         project_file=none,
@@ -2142,7 +2212,8 @@ func generate_imr_for_stmt(
             }
             var right_hand_result = generate_imr_for_expr(
                 item[2],
-                imr_parents=imr_parents + [node],
+                node_parents=node_parents + [node],
+                imr_parents=imr_parents,
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
                 project_file=project_file,
@@ -2238,7 +2309,8 @@ func generate_imr_for_stmt(
 
             var inner_insts = generate_imr_for_stmts(
                 node.subblocks[1],
-                imr_parents=imr_parents + [node],
+                node_parents=node_parents + [node],
+                imr_parents=imr_parents,
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
                 project_file=project_file,
@@ -2284,7 +2356,8 @@ func generate_imr_for_stmt(
         var with_expr = node.subexprs[1]
         var inner_insts = generate_imr_for_stmts(
             node.subblocks[1],
-            imr_parents=imr_parents + [node],
+            node_parents=node_parents + [node],
+            imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             project_file=project_file,
@@ -2299,7 +2372,8 @@ func generate_imr_for_stmt(
         }
         var with_result = generate_imr_for_expr(
             with_expr,
-            imr_parents=imr_parents + [node],
+            node_parents=node_parents + [node],
+            imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             project_file=project_file,
@@ -2334,7 +2408,8 @@ func generate_imr_for_stmt(
         var clause = node.subexprs[1]
         var inner_insts = generate_imr_for_stmts(
             node.subblocks[1],
-            imr_parents=imr_parents + [node],
+            node_parents=node_parents + [node],
+            imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             project_file=project_file,
@@ -2349,7 +2424,8 @@ func generate_imr_for_stmt(
         }
         var cls_result = generate_imr_for_expr(
             node.subexprs[1],
-            imr_parents=imr_parents + [node],
+            node_parents=node_parents + [node],
+            imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             project_file=project_file,
@@ -2681,7 +2757,8 @@ func generate_imr_for_stmt(
             }
             var cls_result = generate_imr_for_expr(
                 assigned_ast_expr,
-                imr_parents=imr_parents + [node],
+                node_parents=node_parents + [node],
+                imr_parents=imr_parents,
                 func_imr_parent=init_func_imr_block,
                 file_imr_parent=file_imr_parent,
                 project_file=source_pfile,
@@ -2791,7 +2868,8 @@ func generate_imr_for_stmt(
                 }
                 var cls_result = generate_imr_for_expr(
                     item.subexprs[1],
-                    imr_parents=imr_parents + [node],
+                    node_parents=node_parents + [node],
+                    imr_parents=imr_parents,
                     func_imr_parent=func_imr_parent,
                     file_imr_parent=file_imr_parent,
                     project_file=project_file,
@@ -2820,9 +2898,10 @@ func generate_imr_for_stmt(
             }
             var insts = generate_imr_for_stmts(
                 item.subblocks[1],
-                imr_parents=imr_parents + [
+                node_parents=node_parents + [
                     node, item
                 ],
+                imr_parents=imr_parents,
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
                 project_file=project_file,
@@ -2916,7 +2995,8 @@ func generate_imr_for_stmt(
         func process_queue_item(item) {
             var right_hand_result = generate_imr_for_expr(
                 item[2],
-                imr_parents=imr_parents + [node],
+                node_parents=node_parents + [node],
+                imr_parents=imr_parents,
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
                 project_file=project_file,
@@ -2952,8 +3032,9 @@ func generate_imr_for_stmt(
                 }
                 var container_result = generate_imr_for_expr(
                     left_hand_node.subexprs[1],
-                    imr_parents=imr_parents + [
+                    node_parents=node_parents + [
                         node, left_hand_node],
+                    imr_parents=imr_parents,
                     func_imr_parent=func_imr_parent,
                     file_imr_parent=file_imr_parent,
                     project_file=project_file,
@@ -2964,8 +3045,9 @@ func generate_imr_for_stmt(
                 await container_result
                 var idx_result = generate_imr_for_expr(
                     left_hand_node.subexprs[2],
-                    imr_parents=imr_parents + [
+                    node_parents=node_parents + [
                         node, left_hand_node],
+                    imr_parents=imr_parents,
                     func_imr_parent=func_imr_parent,
                     file_imr_parent=file_imr_parent,
                     project_file=project_file,
@@ -3036,8 +3118,9 @@ func generate_imr_for_stmt(
                 var attr_name = left_hand_node.subexprs[2].label
                 var obj_result = generate_imr_for_expr(
                     left_hand_node.subexprs[1],
-                    imr_parents=imr_parents + [
+                    node_parents=node_parents + [
                         node, left_hand_node],
+                    imr_parents=imr_parents,
                     func_imr_parent=func_imr_parent,
                     file_imr_parent=file_imr_parent,
                     project_file=project_file,
@@ -3160,7 +3243,9 @@ func generate_imr_for_stmt(
 }
 
 func generate_imr_for_stmts(
-        nodes, imr_parents=[],
+        nodes,
+        node_parents=[],
+        imr_parents=[],
         func_imr_parent=none,
         file_imr_parent=none,
         project_file=none,
@@ -3174,7 +3259,9 @@ func generate_imr_for_stmts(
     }
     var item = queue.pop_at(1)
     var inner_result = generate_imr_for_stmt(
-        item, imr_parents=imr_parents,
+        item,
+        node_parents=node_parents,
+        imr_parents=imr_parents,
         func_imr_parent=func_imr_parent,
         file_imr_parent=file_imr_parent,
         project_file=project_file,
@@ -3195,7 +3282,9 @@ func generate_imr_for_stmts(
     }
     var item = queue.pop_at(1)
     var inner_result = generate_imr_for_stmt(
-        item, imr_parents=imr_parents,
+        item,
+        node_parents=node_parents,
+        imr_parents=imr_parents,
         func_imr_parent=func_imr_parent,
         file_imr_parent=file_imr_parent,
         project_file=project_file,
@@ -3477,6 +3566,7 @@ func generate_imr_for_file(
                 parent == none {
             var stmts = generate_imr_for_stmt(
                 node,
+                node_parents=[],
                 imr_parents=[],
                 func_imr_parent=none,
                 file_imr_parent=result,
@@ -3517,6 +3607,7 @@ func generate_imr_for_file(
 
             var inner_code_stmts = generate_imr_for_stmts(
                 node.subblocks[1],
+                node_parents=[node],
                 imr_parents=[imr_node],
                 func_imr_parent=imr_node,
                 file_imr_parent=result,
@@ -3655,6 +3746,7 @@ func generate_imr_for_file(
             }
             var right_hand_result = generate_imr_for_expr(
                 var_assigned_expr,
+                node_parents=[],
                 imr_parents=[init_func_imr_block],
                 func_imr_parent=init_func_imr_block,
                 file_imr_parent=result,
