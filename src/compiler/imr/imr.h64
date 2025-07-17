@@ -35,6 +35,7 @@ import compiler.ast.expr as ast_expr
 import compiler.ast.transform as ast_transform
 import compiler.compiler_log as clog
 import compiler.globals_order as globals_order
+import compiler.moose64.builtins as m64_builtins
 import compiler.moose64.ast.analyze as m64_ast_analyze
 import compiler.msg as msg
 import compiler.storage.ref as st_ref
@@ -1710,6 +1711,56 @@ func get_new_temp_storage_ref(
     )
 }
 
+func _is_node_a_compiler_builtin(
+        pfile, node, is_moose64=no) {
+    if not is_moose64 {
+        return no
+    }
+
+    var known_inner_storage_ref = none
+    if node.kind == ast.N_EXPR_IDREF {
+        known_inner_storage_ref = node.ref
+    } elseif node.kind == ast.N_EXPR_BINOP and
+            node.optoken.str == "." and
+            node.subexprs.len >= 2 and
+            node.subexprs[2].kind == ast.N_EXPR_IDREF {
+        known_inner_storage_ref = node.subexprs[2].ref
+    }
+    if known_inner_storage_ref == none {
+        return no
+    }
+    if known_inner_storage_ref.kind != st_ref.ST_MCREF {
+        return no
+    }
+
+    if m64_builtins.is_ast_node_referring_to_m64_builtin_assert(
+            pfile, node, is_moose64=is_moose64) {
+        return yes
+    }
+    if m64_builtins.is_ast_node_referring_to_m64_memory_size_of(
+            pfile, node, is_moose64=is_moose64) {
+        return yes
+    }
+    if m64_builtins.is_ast_node_referring_to_m64_memory_as_ref(
+            pfile, node, is_moose64=is_moose64) {
+        return yes
+    }
+    if m64_builtins.is_ast_node_referring_to_m64_list_arg_forward(
+            pfile, node, is_moose64=is_moose64) {
+        return yes
+    }
+    if m64_builtins.is_ast_node_referring_to_m64_list_arg_len(
+            pfile, node, is_moose64=is_moose64) {
+        return yes
+    }
+    if m64_builtins.is_ast_node_referring_to_m64_list_arg_get(
+            pfile, node, is_moose64=is_moose64) {
+        return yes
+    }
+
+    return no
+}
+
 func generate_imr_for_expr(
         node,
         node_parents=[],
@@ -1741,19 +1792,31 @@ func generate_imr_for_expr(
         return later result
     }
 
-    var value_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
-        project_file, node, node_parents,
-        store_self_value_ref_for_funcs=yes,
-        msgs=msgs,
-    ) later:
+    var value_tinfo = none
+    func analyze_type_if_needed {
+        if not is_moose64 {
+            return later
+        }
+        if _is_node_a_compiler_builtin(
+                project_file, node, is_moose64=is_moose64) {
+            return later
+        }
+        value_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
+            project_file, node, node_parents,
+            store_self_value_ref_for_funcs=yes,
+            msgs=msgs,
+        ) later:
 
-    await value_tinfo
-    if value_tinfo == none {
-        throw new RuntimeError("Internal error, "
-            "unexpectedly failed to analyze type of "
-            "node. Please report this to the compiler "
-            "makers.")
+        await value_tinfo
+        if value_tinfo == none {
+            throw new RuntimeError("Internal error, "
+                "unexpectedly failed to analyze type of "
+                "node. Please report this to the compiler "
+                "makers.")
+        }
     }
+    analyze_type_if_needed() later:
+
     result.known_type_info = value_tinfo
 
     return result
