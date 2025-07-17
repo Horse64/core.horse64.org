@@ -1809,10 +1809,14 @@ func generate_imr_for_expr(
 
         await value_tinfo
         if value_tinfo == none {
-            throw new RuntimeError("Internal error, "
-                "unexpectedly failed to analyze type of "
-                "node. Please report this to the compiler "
-                "makers.")
+            node.damaged = yes
+            if msgs == none or
+                    not msg.msgs_contain_error(msgs) {
+                throw new RuntimeError("Internal error, "
+                    "unexpectedly failed to analyze type of "
+                    "node. Please report this to the compiler "
+                    "makers.")
+            }
         }
     }
     analyze_type_if_needed() later:
@@ -4067,6 +4071,7 @@ func generate_imr_for_project(
         var result = generate_imr_for_file(
             pfile, imr_build_tracker=imr_build_tracker,
             build_options=build_options,
+            msgs=msgs,
             is_moose64=is_moose64)
         later:
 
