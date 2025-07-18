@@ -132,6 +132,9 @@ func compute_and_verify_regular_m64_binop_types(
                 "node.optoken=" +
                     node.optoken.as_str())
         }
+        if node.subexprs[1].damaged or node.subexprs[2].damaged {
+            binop_node.damaged = yes
+        }
         return later none
     }
     if debug {
@@ -1021,12 +1024,13 @@ func _get_c_or_m64_type_of_node_do(
                 "node=" + node.as_str())
         }
         if binop_type_result == none {
-            assert(node.damaged)
+            assert(node.has_damage())
             return later none
         }
         return later binop_type_result.result_type
     } elseif node.kind == ast.N_EXPR_IDREF {
-        if parent.kind == ast.N_EXPR_BINOP and
+        if parent != none and
+                parent.kind == ast.N_EXPR_BINOP and
                 parent.optoken.str == "." and
                 parent.subexprs.len >= 2 and
                 parent.subexprs[2] == node and

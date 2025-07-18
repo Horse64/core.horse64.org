@@ -1883,8 +1883,8 @@ func _generate_imr_for_expr_untyped(
         }
         var left_hand_result = generate_imr_for_expr(
             node.subexprs[1],
-            node_parents=node_parents,
-            imr_parents=imr_parents + [node],
+            node_parents=node_parents + [node],
+            imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             project_file=project_file,
@@ -3813,7 +3813,7 @@ func generate_imr_for_file(
             }
             var right_hand_result = generate_imr_for_expr(
                 var_assigned_expr,
-                node_parents=[],
+                node_parents=[stmt],
                 imr_parents=[init_func_imr_block],
                 func_imr_parent=init_func_imr_block,
                 file_imr_parent=result,
