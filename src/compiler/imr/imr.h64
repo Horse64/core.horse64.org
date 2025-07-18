@@ -251,8 +251,13 @@ func IMRVarInfo.as_json_obj(
     obj["label"] = self.label
     if self.type_expr != none {
         obj["type_expr"] = self.type_expr.as_str()
-        obj["type_expr_storage_ref"] =
-            self.type_expr_storage_ref.as_str()
+        if _passthrough_storage_refs {
+            obj["type_expr_storage_ref"] =
+                self.type_expr_storage_ref
+        } else {
+            obj["type_expr_storage_ref"] =
+                self.type_expr_storage_ref.as_str()
+        }
     }
     obj["storage_id"] = self.storage_id
     return obj
@@ -289,10 +294,10 @@ func IMRClrZero.as_json_obj(
         _passthrough_storage_refs)
     if _passthrough_storage_refs {
         obj["target_storage_ref"] =
-        self.target_storage_ref
+            self.target_storage_ref
     } else {
         obj["target_storage_ref"] =
-        self.target_storage_ref.as_str()
+            self.target_storage_ref.as_str()
     }
     return obj
 }
@@ -458,18 +463,18 @@ func IMRSetAttrById.as_json_obj(
         _passthrough_storage_refs)
     if _passthrough_storage_refs {
         obj["target_and_obj_storage_ref"] =
-        self.target_and_obj_storage_ref
+            self.target_and_obj_storage_ref
     } else {
         obj["target_and_obj_storage_ref"] =
-        self.target_and_obj_storage_ref.as_str()
+            self.target_and_obj_storage_ref.as_str()
     }
     obj["attr_id"] = self.attr_id
     if _passthrough_storage_refs {
         obj["value_storage_ref"] =
-        self.value_storage_ref
+            self.value_storage_ref
     } else {
         obj["value_storage_ref"] =
-        self.value_storage_ref.as_str()
+            self.value_storage_ref.as_str()
     }
     return obj
 }
@@ -662,18 +667,18 @@ func IMRGetAttrById.as_json_obj(
         _passthrough_storage_refs)
     if _passthrough_storage_refs {
         obj["obj_storage_ref"] =
-        self.obj_storage_ref
+            self.obj_storage_ref
     } else {
         obj["obj_storage_ref"] =
-        self.obj_storage_ref.as_str()
+            self.obj_storage_ref.as_str()
     }
     obj["attr_id"] = self.attr_id
     if _passthrough_storage_refs {
         obj["target_storage_ref"] =
-        self.target_storage_ref
+            self.target_storage_ref
     } else {
         obj["target_storage_ref"] =
-        self.target_storage_ref.as_str()
+            self.target_storage_ref.as_str()
     }
     return obj
 }
