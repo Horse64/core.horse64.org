@@ -1817,6 +1817,10 @@ func generate_imr_for_expr(
             node.damaged = yes
             if msgs == none or
                     not msg.msgs_contain_error(msgs) {
+                print("horsec: error: Internal error, "
+                    "got no error of any kind, yet couldn't "
+                    "get the type of this node: " +
+                    node.as_str().sub(1, 500))
                 throw new RuntimeError("Internal error, "
                     "unexpectedly failed to analyze type of "
                     "node. Please report this to the compiler "
