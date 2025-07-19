@@ -1,5 +1,5 @@
 ## @module compiler.moose64.autocast
-# Copyright (c) 2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2024-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -426,6 +426,14 @@ func get_math_binop_autocast(
         right_hand_typeinfo.kind == typeinfo.TI_C_TYPE and
         right_hand_typeinfo.orig_type_name == "any"
     )
+    if debug {
+        print(program_name + ": debug: "
+            "get_math_binop_autocast(): "
+            "refs_left=" + refs_left.as_str() + " "
+            "refs_right=" + refs_right.as_str() + " "
+            "left_is_any=" + left_is_any.as_str() + " "
+            "right_is_any=" + right_is_any.as_str())
+    }
     if refs_left > 0 and refs_right == 0 and
             right_hand_typeinfo.kind == typeinfo.TI_C_TYPE and
             get_mods_that_arent_regular_for_nums(right_hand_typeinfo).len == 0 {
@@ -435,21 +443,21 @@ func get_math_binop_autocast(
             result = cast_all_to("addr")
             result.result_type =
                 left_hand_typeinfo.copy()
-            if debug {
-                print(program_name + ": debug: "
-                    "get_math_binop_autocast(): "
-                    "Done, result=" + result.as_str())
-            }
-            return result
         } elseif ast_typeref.builtin_moose64_signed_num_types.has(
                 right_hand_typeinfo.orig_type_name
                 ) {
             result = cast_all_to("addr_diff")
             result.result_type =
                 left_hand_typeinfo.copy()
+        } else {
+            result.incompatible = yes
             return result
         }
-        result.incompatible = yes
+        if debug {
+            print(program_name + ": debug: "
+                "get_math_binop_autocast(): "
+                "Done, result=" + result.as_str())
+        }
         return result
     } elseif refs_right > 0 and refs_left == 0 and
             left_hand_typeinfo.kind == typeinfo.TI_C_TYPE and
@@ -457,21 +465,28 @@ func get_math_binop_autocast(
                 left_hand_typeinfo
             ).len == 0 {
         if left_hand_typeinfo.orig_type_name == "addr" {
-            return cast_all_to("addr")
+            result = cast_all_to("addr")
         } elseif left_hand_typeinfo.orig_type_name == "addr_diff" {
-            return cast_all_to("addr_diff")
+            result = cast_all_to("addr_diff")
         } elseif is_cmp_op and
                 ast_typeref.builtin_moose64_signed_num_types.has(
                     left_hand_typeinfo.orig_type_name
                 ) {
-            return cast_all_to("addr_diff")
+            result = cast_all_to("addr_diff")
         } elseif is_cmp_op and
                 ast_typeref.builtin_moose64_unsigned_num_types.has(
                     left_hand_typeinfo.orig_type_name
                 ) {
-            return cast_all_to("addr")
+            result = cast_all_to("addr")
+        } else {
+            result.incompatible = yes
+            return result
         }
-        result.incompatible = yes
+        if debug {
+            print(program_name + ": debug: "
+                "get_math_binop_autocast(): "
+                "Done, result=" + result.as_str())
+        }
         return result
     } elseif is_cmp_op and refs_right > 0 and refs_left > 0 {
         if debug {
@@ -537,20 +552,33 @@ func get_math_binop_autocast(
 
     # Below is the section for non-ref-types:
 
-    if left_hand_typeinfo.ref_count(
+    if debug {
+        print(program_name + ": debug: "
+            "get_math_binop_autocast(): "
+            "We're comparing two non-ref types "
+            "that aren't arrays.")
+    }
+    if (left_hand_typeinfo.ref_count(
             include_c_arrays=no,
             include_arrays=no,
             include_implicit_refs=yes,
             include_explicit_refs=no) > 0 and
-            right_side_is_literal_none {
-        return cast_all_to("addr")
-    } elseif right_hand_typeinfo.ref_count(
-            include_c_arrays=no,
-            include_arrays=no,
-            include_implicit_refs=yes,
-            include_explicit_refs=no) > 0 and
-            left_side_is_literal_none {
-        return cast_all_to("addr")
+            right_side_is_literal_none) or
+            (right_hand_typeinfo.ref_count(
+             include_c_arrays=no,
+             include_arrays=no,
+             include_implicit_refs=yes,
+             include_explicit_refs=no) > 0 and
+             left_side_is_literal_none) {
+        result = cast_all_to("addr")
+        if debug {
+            print(program_name + ": debug: "
+                "get_math_binop_autocast(): "
+                "Done, it's comparing none to an "
+                "implicit ref which is allowed. "
+                "result=" + result.as_str())
+        }
+        return result
     }
     var right_hand_num_filtered_mods = []
     var left_hand_num_filtered_mods = []
@@ -570,17 +598,29 @@ func get_math_binop_autocast(
             right_hand_num_filtered_mods.len > 0 or
             left_hand_typeinfo.kind != typeinfo.TI_C_TYPE or
             right_hand_typeinfo.kind != typeinfo.TI_C_TYPE {
+        if debug {
+            print(program_name + ": debug: "
+                "get_math_binop_autocast(): "
+                "Found incompatible due to either incompatible "
+                "mods or since one isn't a basic C type.")
+        }
         result.incompatible = yes
         return result
     }
     if left_hand_typeinfo.orig_type_name != none and
             (right_hand_typeinfo.orig_type_name ==
                 left_hand_typeinfo.orig_type_name or
-             {"u8", "byte", "i8"}.has(
+             ({"u8", "byte", "i8"}.has(
                 right_hand_typeinfo.orig_type_name
              ) and {"u8", "byte", "i8"}.has(
                 left_hand_typeinfo.orig_type_name
-             )) {
+             ))) {
+        if debug {
+            print(program_name + ": debug: "
+                "get_math_binop_autocast(): "
+                "This is either some 8-bit situation, or "
+                "both numeric types are exactly the same.")
+        }
         if {"empty", "any", "bool"}.has(
                 left_hand_typeinfo.orig_type_name) {
             result.incompatible = yes
@@ -592,6 +632,11 @@ func get_math_binop_autocast(
                 allow_autoadd_mods=yes,
                 is_moose64=is_moose64,
                 ) {
+            if debug {
+                print(program_name + ": debug: "
+                    "get_math_binop_autocast(): "
+                    "Have incompatible modifiers.")
+            }
             result.incompatible = yes
             return result
         }
@@ -607,6 +652,11 @@ func get_math_binop_autocast(
         result.result_type = left_hand_typeinfo.copy()
         return result
     }
+    if debug {
+        print(program_name + ": debug: "
+            "get_math_binop_autocast(): "
+            "This is some non-8-bit situation.")
+    }
     var addr_types = {"addr", "addr_diff"}
     var addr_compatible_nums = {"i8", "u8",
         "byte", "size", "i16", "u16", "i32", "u32",
@@ -620,6 +670,11 @@ func get_math_binop_autocast(
             ) and addr_compatible_nums.has(
                 left_hand_typeinfo.orig_type_name
             )) {
+        if debug {
+            print(program_name + ": debug: "
+                "get_math_binop_autocast(): "
+                "Left-hand is an addr type.")
+        }
         if ast_typeref.builtin_moose64_unsigned_num_types.has(
                 left_hand_typeinfo.orig_type_name
                 ) and ast_typref.builtin_moose64_unsigned_num_types.has(
@@ -632,6 +687,11 @@ func get_math_binop_autocast(
         } else {
             return cast_all_to("addr_diff")
         }
+    }
+    if debug {
+        print(program_name + ": debug: "
+            "get_math_binop_autocast(): "
+            "Left-hand isn't an addr type.")
     }
     if left_hand_typeinfo.orig_type_name == "f64" {
         if {"f32", "f64", "byte", "u8", "i8", "size",
@@ -655,15 +715,22 @@ func get_math_binop_autocast(
             return cast_all_to("f32")
         }
     }
-    var sizes = [64, 32, 16]
+    if debug {
+        print(program_name + ": debug: "
+            "get_math_binop_autocast(): "
+            "Entering general integer part.")
+    }
+    var sizes = [64, 32, 16, 8]
     var i = 1
     while i <= sizes.len {
         var size = sizes[i]
         var size_s = size.as_str()
         if left_hand_typeinfo.orig_type_name == "u" + size_s or
+                (size == 8 and
+                 left_hand_typeinfo.orig_type_name == "byte") or
                 (size == 64 and
-                left_hand_typeinfo.orig_type_name == "size") or
-                left_hand_typeinfo.orig_type_name == "i" + size_s {
+                 left_hand_typeinfo.orig_type_name == "size") or
+                 left_hand_typeinfo.orig_type_name == "i" + size_s {
             if not ast_typeref.builtin_moose64_unsigned_num_types.has(
                     right_hand_typeinfo.orig_type_name) and
                     not ast_typeref.builtin_moose64_signed_num_types.has(
