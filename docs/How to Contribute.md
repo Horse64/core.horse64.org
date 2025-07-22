@@ -214,7 +214,7 @@ the [core.horse64.org main repository](
    if any are new!
 
 
-Why are AI contributions not allowed
+Why AI contributions are not allowed
 ------------------------------------
 
 For legal reasons, **we absolutely cannot accept any AI
