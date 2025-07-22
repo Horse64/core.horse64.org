@@ -1707,7 +1707,10 @@ func _get_c_or_m64_type_of_node_do(
         }
         var func_type_expr =
             if result != none (result.func_var_type_expr) else (none)
-        if func_type_expr == none {
+        func obtain_func_type_expr_if_needed {
+            if func_type_expr != none {
+                return later yes
+            }
             if called_node.ref != none and
                     called_node.ref.kind == st_ref.ST_MCREF {
                 if debug {
@@ -1732,14 +1735,18 @@ func _get_c_or_m64_type_of_node_do(
                         "func_typeinfo=" + func_typeinfo.as_str())
                 }
                 if func_typeinfo == none {
-                    return none
+                    if debug {
+                        print(dbg_prefix + " Bail returning none.")
+                    }
+                    return later no
                 }
-                func_typeref_expr =
+                func_type_expr =
                     func_typeinfo.convert_to_typeref_expr(
                         project=project_file.project,
                         is_moose64=is_moose64,
                     )
-                assert(func_typeref_expr != none)
+                assert(func_type_expr != none)
+                return later yes
             } else {
                 if debug {
                     print(dbg_prefix + " No result from "
@@ -1748,9 +1755,18 @@ func _get_c_or_m64_type_of_node_do(
                         "called_node=" + called_node.as_str()
                     )
                 }
-                return later none
+                return later no
             }
         }
+        var was_successful = obtain_func_type_expr_if_needed()
+        later:
+
+        await was_successful
+        if not was_successful {
+            return later none
+        }
+        assert(func_type_expr != none)
+
         if debug {
             print(dbg_prefix + " Obtained func_type_expr=" +
                 func_type_expr.as_str())
