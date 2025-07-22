@@ -28,8 +28,9 @@ If you want to contribute code to core tooling, please read:
 
 2. [Read the licensing carefully](/docs/Resources.md#license)
    and agree to contribute your code under the given terms.
-   ⚠️ **We currently ask you don't use AI-based code generation
-   or completion, like "Co-Pilot" etc.** ⚠️
+   ⚠️ **We cannot accept any code that used AI-based code generation
+   or code completion, like "Co-Pilot" etc., [see
+   here](#why-ai-contributions-are-not-allowed)** ⚠️
 
 3. Changes are done via **pull requests** in the
    [respective repositories](/docs/Resources.md).
@@ -126,8 +127,9 @@ You can find the documentation, including this file itself,
 in the [main repository of the core.horse64.org package](
 /docs/Resources.md#standard-library), it's inside the `docs`
 folder. Feel free to suggest improvements.
-⚠️ **We currently ask you don't use AI-based texts or
-suggestions, like ChatGPT etc.** ⚠️
+⚠️ **We cannot accept any text that used AI-based text generation
+or suggestions, like "ChatGPT" etc., [see
+here](#why-ai-contributions-are-not-allowed).** ⚠️
 
 
 Contribute funding
@@ -210,4 +212,25 @@ the [core.horse64.org main repository](
    `make test`, and for the others that would usually be via
    `horp test`. If there are any errors, make sure to investigate
    if any are new!
+
+
+Why are AI contributions not allowed
+------------------------------------
+
+For legal reasons, **we absolutely cannot accept any AI
+contributions** since it would put the Horse64 ecosystem
+into untenable uncertainty.
+
+To avoid legal risks, Horse64's **DCO*** requires you to state
+you made the contribution and can guarantee it's not plagiarized
+whenever you contribute. But with the legal situation around AI,
+many industry analysists are convinced this isn't possible with
+AI output. [See this article for a more in-depth
+explanation, including other reasons like quality
+control](https://www.theregister.com/2024/04/16/gentoo_linux_ai_ban/).
+
+Until this situation is more cleared up, we therefore cannot
+risk any AI contributions. Please **don't under any circumstances**
+submit code or text that was in full or even in part written by AI.
+
 

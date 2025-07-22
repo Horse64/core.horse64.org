@@ -89,7 +89,10 @@ of the core projects are almost the same.
 - Read about the [**Developer Certificate of Origin** here](
   https://codeberg.org/Horse64/core.horse64.org/src/branch/main/LICENSE.md#contributions).
 
-  Please note we currently want to avoid AI code contributions.
+  Please note **we cannot accept any code that used AI-based
+  code generation or code completion, like "Co-Pilot" etc.,**
+  [see details here](
+  /docs/How%20to%20Contribute.md#why-ai-contributions-are-not-allowed).
 
 - For the respective other projects, check the
   `LICENSE.md` file for each. It's part of each
