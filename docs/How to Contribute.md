@@ -221,7 +221,7 @@ For legal reasons, **we absolutely cannot accept any AI
 contributions** since it would put the Horse64 ecosystem
 into untenable uncertainty.
 
-To avoid legal risks, Horse64's **DCO*** requires you to state
+To avoid legal risks, Horse64's **DCO** requires you to state
 you made the contribution and can guarantee it's not plagiarized
 whenever you contribute. But with the legal situation around AI,
 many industry analysists are convinced this isn't possible with
