@@ -52,7 +52,6 @@ type IMRNode {
     var kind
     var line
     var col
-    var known_type_info = none
 }
 
 func IMRNode.init(kind) {
@@ -64,11 +63,6 @@ func IMRNode.as_json_obj(
         ) {
     var obj = {->}
     obj["kind"] = IMRNodeKind.num_label(self.kind)
-    obj["known_type_info"] = none
-    if self.known_type_info != none {
-        obj["known_type_info"] =
-            self.known_type_info.as_str()
-    }
     return obj
 }
 
