@@ -711,7 +711,7 @@ func get_called_or_assigned_func_types(
         _internal_override_called_func_name=none,
         _internal_override_called_func_st_ref=none,
         _internal_override_called_func_typerefexpr=none,
-        try_to_match_func_type=none,  # FIXME: RENAME WITH _EXPR
+        try_to_match_func_type_expr=none,
         msgs=none, is_moose64=no, debug=no
         ) {
     var prog_name = if is_moose64 ("moosec") else ("horsec")
@@ -721,10 +721,10 @@ func get_called_or_assigned_func_types(
     if debug {
         var t = (dbg_prefix + " get_called_or_assigned_func_types(): "
             "Launched on called_node=" + called_node.as_str())
-        if try_to_match_func_type != none {
+        if try_to_match_func_type_expr != none {
             t += (", "
-                "with: try_to_match_func_type=" +
-                try_to_match_func_type.as_str())
+                "with: try_to_match_func_type_expr=" +
+                try_to_match_func_type_expr.as_str())
         }
         if _internal_override_called_func_typerefexpr != none {
             t += (", "
@@ -889,9 +889,9 @@ func get_called_or_assigned_func_types(
         }
 
         # Now pick better override if needed:
-        if try_to_match_func_type != none and
+        if try_to_match_func_type_expr != none and
                 override_info_list.len > 1 and
-                not try_to_match_func_type.is_equivalent(
+                not try_to_match_func_type_expr.is_equivalent(
                     result.type_expr, is_moose64=is_moose64) {
             # Try to pick a better alternative in this situation.
             if debug {
@@ -903,7 +903,7 @@ func get_called_or_assigned_func_types(
             for entry in override_info_list {
                 var func_type_expr = entry[1].copy()
                 if func_type_expr.is_equivalent(
-                        try_to_match_func_type,
+                        try_to_match_func_type_expr,
                         require_same_storage=no) {
                     cft_result.func_was_overridden =
                         entry[3].is_override

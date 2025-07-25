@@ -427,13 +427,13 @@ func TypeInfo.is_equivalent(
         if self.orig_type_name != other_typeinfo.orig_type_name {
             return no
         }
-        if self.user_type_ref != none and
-                other_typeinfo.user_type_ref != none {
-            if not self.user_type_ref.alike(
-                    other_typeinfo.user_type_ref) {
-                return no
-            }
-        } else {  # FIXME
+        assert(self.user_type_ref != none and
+            other_typeinfo.user_type_ref != none)
+        if not self.user_type_ref.alike(
+                other_typeinfo.user_type_ref) {
+            return no
+        }
+        if no {  # FIXME
             assert(self.func_typeexpr != none and
                 self.func_typeexpr.is_func_ref)
             assert(other_typeinfo.func_typeexpr != none and
