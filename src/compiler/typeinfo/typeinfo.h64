@@ -433,16 +433,6 @@ func TypeInfo.is_equivalent(
                 other_typeinfo.user_type_ref) {
             return no
         }
-        if no {  # FIXME
-            assert(self.func_typeexpr != none and
-                self.func_typeexpr.is_func_ref)
-            assert(other_typeinfo.func_typeexpr != none and
-                other_typeinfo.func_typeexpr.is_func_ref)
-            if not self.func_typeexpr.is_equivalent(
-                    other_typeinfo.func_typeexpr) {
-                return no
-            }
-        }
     } elseif self.kind == TI_FUNCREF and
             self.func_typeexpr != none and
             other_typeinfo.func_typeexpr != none {
