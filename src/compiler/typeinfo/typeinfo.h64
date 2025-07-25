@@ -83,8 +83,18 @@ enum TypeInfoKind {
 ## This is a concrete type info instance based on what was
 ## previously described on a syntactical level by
 ## @{compiler.typeinfo.ast_typeref.TypeRefExpr}.
+##
 ## The main dfference is that the concrete type info can
-## be bound to closure values like the self value.
+## have a bound closure value like the self value. This means
+## the @{compiler.typeinfo.ast_typeref.TypeRefExpr} is usually
+## interchangeable between funcs with different signature
+## (other than sometimes knowingly pointing to a specific
+## originating global func) while the type info usually isn't.
+##
+## For example `.is_equivalent()` on a TypeRefExpr will default
+## to @{yes} for funcs with the same signature, while
+## `.is_equivalent()` on a TypeInfo won't, unless the bound
+## self value is the same too.
 type TypeInfo {
     var kind
     var c_type_name
@@ -330,7 +340,7 @@ func TypeInfo.has_outer_implicit_ref {
 
 func TypeInfo.is_equivalent(
         other_typeinfo, ignore_autoprop=no,
-        ignore_self_ref=yes,
+        ignore_self_ref=no,
         is_moose64=no,
         ) {
     if self.modifiers.len != other_typeinfo.modifiers.len {
@@ -348,7 +358,8 @@ func TypeInfo.is_equivalent(
             return (other_typeinfo.sub_types[1] == none)
         }
         return self.sub_types[1].is_equivalent(
-            other_typeinfo.sub_types[1]
+            other_typeinfo.sub_types[1],
+            ignore_self_ref=ignore_self_ref,
         )
     }
     if self.kind == TI_MULTITYPE {
@@ -362,7 +373,8 @@ func TypeInfo.is_equivalent(
         for sub_type in self.sub_types {
             idx += 1
             if not sub_type.is_equivalent(
-                    other_typeinfo.sub_types[idx]) {
+                    other_typeinfo.sub_types[idx],
+                    ignore_self_ref=ignore_self_ref) {
                 return no
             }
         }
@@ -421,7 +433,7 @@ func TypeInfo.is_equivalent(
                     other_typeinfo.user_type_ref) {
                 return no
             }
-        } else {
+        } else {  # FIXME
             assert(self.func_typeexpr != none and
                 self.func_typeexpr.is_func_ref)
             assert(other_typeinfo.func_typeexpr != none and

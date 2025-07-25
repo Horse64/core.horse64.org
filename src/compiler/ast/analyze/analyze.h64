@@ -711,7 +711,7 @@ func get_called_or_assigned_func_types(
         _internal_override_called_func_name=none,
         _internal_override_called_func_st_ref=none,
         _internal_override_called_func_typerefexpr=none,
-        try_to_match_func_type=none,
+        try_to_match_func_type=none,  # FIXME: RENAME WITH _EXPR
         msgs=none, is_moose64=no, debug=no
         ) {
     var prog_name = if is_moose64 ("moosec") else ("horsec")

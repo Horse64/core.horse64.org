@@ -35,6 +35,7 @@ import compiler.ast.expr as ast_expr
 import compiler.ast.transform as ast_transform
 import compiler.compiler_log as clog
 import compiler.globals_order as globals_order
+import compiler.moose64.autocast as m64_autocast
 import compiler.moose64.builtins as m64_builtins
 import compiler.moose64.ast.analyze as m64_ast_analyze
 import compiler.msg as msg
@@ -1494,6 +1495,7 @@ type IMRFuncBlock base IMRBlock {
     var storage_ref = none
 
     var last_assigned_temp_storage_id = 0
+    var storage_id_to_known_type_info = {->}
 }
 
 func IMRFuncBlock.init(
@@ -1682,6 +1684,7 @@ func get_new_temp_storage_ref(
         node, imr_parents=[],
         func_imr_parent=none,
         file_imr_parent=none,
+        optional_type_info=none,
         project_file=none,
         is_moose64=no, msgs=none,
         ) {
@@ -1704,6 +1707,9 @@ func get_new_temp_storage_ref(
     var new_value =
         file_imr_parent.last_assigned_temp_storage_id - 1
     file_imr_parent.last_assigned_temp_storage_id = new_value
+    file_imr_parent.storage_id_to_known_type_info[
+        new_value
+    ] = optional_type_info
     return new st_ref.StorageRef(
         st_ref.ST_GLOBAL,
         new_value
@@ -1791,6 +1797,38 @@ func generate_imr_for_expr(
         return later result
     }
 
+    update_typing_for_imr_expr(
+        result, node,
+        node_parents=node_parents,
+        imr_parents=imr_parents,
+        func_imr_parent=func_imr_parent,
+        file_imr_parent=file_imr_parent,
+        project_file=project_file,
+        imr_build_tracker=imr_build_tracker,
+        is_moose64=is_moose64,
+        msgs=msgs,
+        debug=debug,
+    ) later:
+
+    return result
+}
+func update_typing_for_imr_expr(
+        result, node,
+        node_parents=[],
+        imr_parents=[],
+        func_imr_parent=none,
+        file_imr_parent=none,
+        project_file=none,
+        imr_build_tracker=none,
+        is_moose64=no, msgs=none,
+        debug=no,
+        ) {
+    if result == none or result.storage_ref == none or
+            result.known_type_info != none or
+            node.damaged {
+        return later result
+    }
+
     var value_tinfo = none
     func analyze_type_if_needed {
         if not is_moose64 {
@@ -1825,8 +1863,7 @@ func generate_imr_for_expr(
     analyze_type_if_needed() later:
 
     result.known_type_info = value_tinfo
-
-    return result
+    return later
 }
 
 func _generate_imr_for_expr_untyped(
@@ -1861,6 +1898,10 @@ func _generate_imr_for_expr_untyped(
                 node, imr_parents=imr_parents,
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
+                optional_type_info=
+                    m64_autocast.ast_literal_node_to_suggested_m64_type(
+                        node, parents=node_parents,
+                    ),
                 project_file=project_file,
                 is_moose64=is_moose64, msgs=msgs,
             )
@@ -1874,14 +1915,18 @@ func _generate_imr_for_expr_untyped(
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "(" and
             node.subexprs.len >= 2 {
+        var we_own_the_tmp_ref = no
         var tmp_ref = try_target_storage_ref
         if tmp_ref == none {
+            we_own_the_tmp_ref = yes
             tmp_ref = get_new_temp_storage_ref(
                 node, imr_parents=imr_parents,
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
+                optional_type_info=none,
                 project_file=project_file,
-                is_moose64=is_moose64, msgs=msgs,
+                is_moose64=is_moose64,
+                msgs=msgs,
             )
         }
         var left_hand_result = generate_imr_for_expr(
@@ -1961,6 +2006,23 @@ func _generate_imr_for_expr_untyped(
         }
         process_full_queue() later:
 
+        result.storage_ref = tmp_ref
+        update_typing_for_imr_expr(
+            result, node,
+            node_parents=node_parents,
+            imr_parents=imr_parents,
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            project_file=project_file,
+            imr_build_tracker=imr_build_tracker,
+            is_moose64=is_moose64,
+            msgs=msgs,
+        ) later:
+
+        if we_own_the_tmp_ref {
+            print("fix me")
+        }
+
         result.instructions.add(new IMRCall(
             called_func_ref=left_hand_result.storage_ref,
             arg_refs=arg_refs,
@@ -1970,7 +2032,6 @@ func _generate_imr_for_expr_untyped(
             has_later_repeat=no,
             return_value_ref=tmp_ref,
         ))
-        result.storage_ref = tmp_ref
         return later result
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "." and
@@ -2241,6 +2302,7 @@ func generate_imr_for_stmt(
             result_insts.add(vinfo)
         }
         var assigned_exprs = node.subexprs.copy()
+        var type_info = none
         var type_expr = none
         if node.has_type_expr and assigned_exprs.len > 0 {
             type_expr = assigned_exprs[assigned_exprs.len]
@@ -2255,6 +2317,11 @@ func generate_imr_for_stmt(
         var i = 1
         while i <= assigned_exprs.len {
             queue.add([i, assigned_exprs[i]])
+            if func_imr_parent != none {
+                func_imr_parent.storage_id_to_known_type_info[
+                    node.symbol_info[i].storage_id
+                ] = type_info
+            }
             i += 1
         }
         func process_queue_item(item) {

@@ -27,6 +27,7 @@
 
 import math from core.horse64.org
 
+import compiler.ast.expr as ast_expr
 import compiler.token as token
 import compiler.typeinfo as typeinfo
 import compiler.typeinfo.ast_typeref as ast_typeref
@@ -92,7 +93,8 @@ func check_if_allowed_implicit_cast_from_to(
     }
     var right_hand_source_typeinfo = from_typeinfo
     var left_hand_target_typeinfo = to_typeinfo
-    if from_typeinfo.is_equivalent(to_typeinfo) {
+    if from_typeinfo.is_equivalent(
+            to_typeinfo, ignore_self_ref=yes) {
         return yes
     }
 
@@ -781,5 +783,26 @@ func get_math_binop_autocast(
 
     result.incompatible = yes
     return result
+}
+
+func ast_literal_node_to_suggested_m64_type(
+        literal_node, parents=[],
+        ) {
+    if literal_node.kind == ast_expr.LK_NORMAL {
+        return typeinfo.create_from_simple_m64_type("u32")
+    } elseif literal_node.kind == ast_expr.LK_BIGNUM {
+        assert(typename(literal_node.value) == "str")
+        var i = 1
+        while i <= literal_node.value.len {
+            if literal_node.value[i] == "." {
+                return typeinfo.create_from_simple_m64_type("f64")
+            }
+            i += 1
+        }
+        return typeinfo.create_from_simple_m64_type("i64")
+    } elseif literal_node.kind == ast_expr.LK_CHARCODE {
+        return typeinfo.create_from_simple_m64_type("u32")
+    }
+    return typeinfo.create_from_simple_m64_type("i64")
 }
 

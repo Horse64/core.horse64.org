@@ -563,6 +563,7 @@ func CExportTracker.create_null_size_struct_name(
     for old_struct_typeinfo in pfile_info.null_size_structs_name_map {
         if not struct_typeinfo.is_equivalent(
                 old_struct_typeinfo,
+                ignore_self_ref=yes,
                 is_moose64=is_moose64,
                 ) {
             continue
@@ -1710,6 +1711,7 @@ func node_conv_code_as_passed_around_c_val(
             ) and
             not inner_typeinfo.is_equivalent(
                 target_typeinfo,
+                ignore_self_ref=yes,
                 is_moose64=is_moose64,
             ) {
         var outer_typeref_expr =
