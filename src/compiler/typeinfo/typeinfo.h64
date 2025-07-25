@@ -428,7 +428,8 @@ func TypeInfo.is_equivalent(
             return no
         }
         assert(self.user_type_ref != none and
-            other_typeinfo.user_type_ref != none)
+            other_typeinfo.user_type_ref != none and
+            self.func_typeexpr == none)
         if not self.user_type_ref.alike(
                 other_typeinfo.user_type_ref) {
             return no
