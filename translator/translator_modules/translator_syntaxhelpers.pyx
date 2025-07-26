@@ -1072,7 +1072,7 @@ cpdef tokenize(str s):
     cdef set one_char_toks
     cdef str first_c
     cdef list tokens
-    cdef int len_s, offset_s
+    cdef int len_s, offset_s, offset_s2
 
     one_char_toks = {".", ",",
         "{",  "[", "(", ")", "]", "}"}
@@ -1086,7 +1086,35 @@ cpdef tokenize(str s):
     len_s = len(s)
     while len_s > offset_s:
         first_c = s[offset_s]
-        if s[offset_s] in one_char_toks:  # Perf tweak.
+        if first_c in one_char_toks:
+            # This conditional is a perf tweak.
+            # We avoid calling the get_next_token() when it's
+            # already obvious that the token is a trivial one
+            # character item.
+            if first_c == ",":
+                # HACK XXX: Too much buggy code in 'later' call
+                # parsing in our translator breaks when there's
+                # a comma at the end of a func argument list.
+                # Such a comma is valid, but there are too many
+                # bugs and the code isn't worth fixing properly
+                # given we just use it for bootstrapping.
+                # Therefore, simply don't return such commas
+                # at all as potential tokens.
+                offset_s2 = offset_s + 1
+                while offset_s2 < len_s:
+                    if s[offset_s2] == " " or \
+                            s[offset_s2] == "\n" or \
+                            s[offset_s2] == "\t" or \
+                            s[offset_s2] == "\r":
+                        offset_s2 += 1
+                        continue
+                    break
+                if offset_s2 < len_s and \
+                        s[offset_s2] == ")":
+                    # We need to skip this comma without
+                    # returning it.
+                    offset_s += 1
+                    continue
             tokens.append(s[offset_s])
             offset_s += 1
             continue
