@@ -42,6 +42,7 @@ import compiler.msg as msg
 import compiler.storage.ref as st_ref
 import compiler.storage.scope as st_scope
 import compiler.token as token
+import compiler.typeinfo as typeinfo
 
 type IMRTranslationResult {
     var project_file_to_imr_map = {->}
@@ -1708,6 +1709,9 @@ func get_new_temp_storage_ref(
         var new_value =
             func_tracker.last_assigned_temp_storage_id - 1
         func_tracker.last_assigned_temp_storage_id = new_value
+        func_tracker.storage_id_to_known_type_info[
+            new_value
+        ] = none
         return new st_ref.StorageRef(
             st_ref.ST_LOCAL,
             new_value
@@ -2260,7 +2264,7 @@ func generate_imr_for_stmt(
         var var_type_expr = none
         func resolve_var_type {
             if not node.has_type_expr {
-                return later yes
+                return later not is_moose64
             }
             var_type_expr = node.subexprs[node.subexprs.len]
             var success = var_type_expr.try_resolve_to_user_type(
@@ -2268,7 +2272,31 @@ func generate_imr_for_stmt(
             ) later:
 
             await success
-            return success
+            if not is_moose64 or not success or
+                    func_imr_parent == none {
+                return later success
+            }
+            var tinfo = typeinfo.
+                create_typeinfo_from_typeexpr_and_verify(
+                    var_type_expr,
+                    self_node_if_known=node,
+                    base_node_parents_if_known=node_parents,
+                    project_file=project_file,
+                    is_moose64=is_moose64,
+                ) later:
+
+            await tinfo
+            if tinfo == none {
+                return later no
+            }
+            assert(typename(node.symbol_info) == "list")
+            for si in node.symbol_info {
+                assert(si.kind == st_scope.SINFO_VAR)
+                func_tracker.storage_id_to_known_type_info[
+                    si.storage_id
+                ] = tinfo
+            }
+            return later yes
         }
         var type_is_resolved = resolve_var_type()
         later:
@@ -4130,6 +4158,87 @@ type IMRBuildTracker {
     var global_init_func_name_to_id_map = {->}
 
     var imr_func_id_to_tracker_info_map = {->}
+}
+
+func get_var_typeinfo(
+        ref,
+        func_parent_node=none,
+        imr_func_parent=none,
+        project_file=none,
+        imr_build_tracker=none,
+        msgs=none, is_moose64=no,
+        ) {
+    assert(project_file != none)
+    if ref.kind == st_ref.ST_LOCAL {
+        if imr_func_parent == none or
+                func_parent_node == none {
+            throw new ValueError(
+                "Cannot examine local var without a func."
+            )
+        }
+        var func_tracker = func_imr_parent.get_func_tracker(
+            imr_build_tracker
+        )
+        if func_tracker == none {
+            throw new ValueError(
+                "Cannot find func tracker."
+            )
+        }
+        if not func_tracker.storage_id_to_known_type_info.has(
+                ref.id) {
+            throw new ValueError(
+                "Cannot find local var in func registry."
+            )
+        }
+        var tinfo = func_tracker.storage_id_to_known_type_info[
+            ref.id
+        ]
+        if tinfo != none {
+            tinfo = tinfo.copy()
+        }
+        return later tinfo
+    } elseif {st_ref.ST_GLOBAL, st_ref.ST_ARG,
+            st_ref.ST_GLOBALATTR}.has(ref.kind) {
+        if st_ref.ST_ARG and (
+                imr_func_parent == none or
+                func_parent_node == none) {
+            throw new ValueError(
+                "Cannot examine arg var without a func."
+            )
+        }
+        var sinfo = st_ref.ref_to_symbol_info(
+            ref, node=func_parent_node,
+            project=project_file.project,
+            is_moose64=is_moose64,
+        )
+        if sinfo == none {
+            throw new ValueError(
+                "Cannot find var's symbol info."
+            )
+        }
+        if sinfo.type_expr == none {
+            throw new ValueError(
+                "Var's symbol info is invalid and lacks type."
+            )
+        }
+        var base_node =
+            if ref.kind == st_ref.ST_ARG
+                (func_parent_node) else (none)
+        var tinfo = typeinfo.
+            create_typeinfo_from_typeexpr_and_verify(
+                sinfo.type_expr,
+                base_node_if_known=base_node,
+                project_file=project_file,
+                is_moose64=is_moose64,
+            ) later:
+
+        await tinfo
+        return later tinfo
+    } else {
+        throw new ValueError(
+            "Cannot find type info for this var type."
+        )
+    }
 }
 
 func generate_imr_for_project(
