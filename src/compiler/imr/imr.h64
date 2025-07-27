@@ -1929,7 +1929,7 @@ func generate_imr_for_expr(
         assert(try_target_storage_ref != none and
             not try_target_storage_ref.alike(
                 result.storage_ref))
-        var inst = new IMRConv.init(
+        var inst = new IMRConv(
             result.storage_ref,
             try_target_storage_ref,
             result.need_conversion_from,
@@ -2024,6 +2024,10 @@ func _generate_imr_for_expr_untyped(
             }
             i -= 1
         }
+    } else {
+        throw new RuntimeError(
+            "Cannot evaluate expression outside of func."
+        )
     }
 
     if debug {
@@ -2086,7 +2090,8 @@ func _generate_imr_for_expr_untyped(
             literal_kind=node.literal_kind,
         ))
         result.storage_ref = tmp_ref
-        
+
+        assert(func_imr_parent != none)
         var target_tmp_typeinfo = get_var_typeinfo(
             tmp_ref,
             func_parent_node=func_parent_node,
@@ -4392,8 +4397,7 @@ func get_var_typeinfo(
         ) {
     assert(project_file != none)
     if ref.kind == st_ref.ST_LOCAL {
-        if func_imr_parent == none or
-                func_parent_node == none {
+        if func_imr_parent == none {
             throw new ValueError(
                 "Cannot examine local var without a func."
             )
@@ -4421,11 +4425,12 @@ func get_var_typeinfo(
         return later tinfo
     } elseif {st_ref.ST_GLOBAL, st_ref.ST_ARG,
             st_ref.ST_GLOBALATTR}.has(ref.kind) {
-        if st_ref.ST_ARG and (
+        if ref.kind == st_ref.ST_ARG and (
                 func_imr_parent == none or
                 func_parent_node == none) {
             throw new ValueError(
-                "Cannot examine arg var without a func."
+                "Cannot examine arg var without a func and "
+                "a func node."
             )
         }
         var sinfo = st_ref.ref_to_symbol_info(
@@ -4438,7 +4443,7 @@ func get_var_typeinfo(
                 "Cannot find var's symbol info."
             )
         }
-        if sinfo.type_expr == none {
+        if sinfo.typeref_expr == none {
             throw new ValueError(
                 "Var's symbol info is invalid and lacks type."
             )
@@ -4448,7 +4453,7 @@ func get_var_typeinfo(
                 (func_parent_node) else (none)
         var tinfo = typeinfo.
             create_typeinfo_from_typeexpr_and_verify(
-                sinfo.type_expr,
+                sinfo.typeref_expr,
                 base_node_if_known=base_node,
                 project_file=project_file,
                 is_moose64=is_moose64,

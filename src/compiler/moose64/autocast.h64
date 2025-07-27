@@ -815,6 +815,7 @@ func ast_literal_node_to_suggested_m64_type(
     } elseif literal_node.literal_kind == ast_expr.LK_BIGNUM {
         assert(typename(literal_node.value) == "str")
 
+        var num_as_str = literal_node.value
         if num_as_str.find(".") != none {
             return typeinfo.create_from_simple_m64_type("f64")
         }
