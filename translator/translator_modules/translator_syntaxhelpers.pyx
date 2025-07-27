@@ -114,6 +114,8 @@ cdef is_whitespace_token(str s):
 cdef str get_next_token(str s):
     cdef int i
     cdef int len_s
+    cdef int next_is_escaped
+    cdef str end_marker
     if s == "":
         return ""
     len_s = len(s)
@@ -140,21 +142,21 @@ cdef str get_next_token(str s):
         if end_marker == "b":
             end_marker = s[1]
             i = 2
-        next_escaped = False
+        next_is_escaped = False
         while i < len_s:
             if s[i] == '\\':
-                if next_escaped:
-                    next_escaped = False
+                if next_is_escaped:
+                    next_is_escaped = False
                     i += 1
                     continue
-                next_escaped = True
+                next_is_escaped = True
                 i += 1
                 continue
-            if s[i] == end_marker and not next_escaped:
-                next_escaped = False
+            if s[i] == end_marker and not next_is_escaped:
+                next_is_escaped = False
                 i += 1
                 break
-            next_escaped = False
+            next_is_escaped = False
             i += 1
         return s[:i]
     if s[0] == "#":
