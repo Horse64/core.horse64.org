@@ -25,7 +25,6 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-import bignum from core.horse64.org
 import random from core.horse64.org
 import textfmt from core.horse64.org
 
@@ -789,58 +788,11 @@ func _get_c_or_m64_type_of_node_do(
 
         await result
         return result
-    } elseif node.kind == ast.N_EXPR_LIT and
-            typename(node.value) == "bool" {
-        var result = typeinfo.
-            create_from_simple_m64_type("bool")
-        return result
-    } elseif node.kind == ast.N_EXPR_LIT and
-            node.value == none {
-        var result = typeinfo.
-            create_from_simple_m64_type("any")
-        result.modifiers.add(new ast_typeref.TypeRefMod(
-            "ref"
-        ))
-        return result
-    } elseif node.kind == ast.N_EXPR_LIT and
-            node.literal_kind == ast_expr.LK_CHARCODE {
-        var result = typeinfo.
-            create_from_simple_m64_type("u32")
-        return result
-    } elseif node.kind == ast.N_EXPR_LIT and
-            node.literal_kind == ast_expr.LK_NORMAL and
-            typename(node.value) == "str" {
-        var result = typeinfo.
-            create_from_simple_m64_type("byte")
-        result.modifiers.add(new ast_typeref.TypeRefMod(
-            "readonly"
-        ))
-        result.modifiers.add(new ast_typeref.TypeRefMod(
-            "c_array"
-        ))
-        return result
-    } elseif node.kind == ast.N_EXPR_LIT and ((
-            node.literal_kind == ast_expr.LK_NORMAL and
-            typename(node.value) == "num") or (
-            node.literal_kind == ast_expr.LK_BIGNUM and
-            typename(node.value) == "str")) {
-        var num_as_str = node.value.as_str()
-        if num_as_str.find(".") == none {
-            if bignum.compare_nums(
-                    num_as_str, "2147483647") > 0 or
-                    bignum.compare_nums(
-                    num_as_str, "-2147483648") < 0 {
-                var result = typeinfo.
-                    create_from_simple_m64_type("i64")
-                return result
-            }
-            var result = typeinfo.
-                create_from_simple_m64_type("i32")
-            return result
-        }
-        var result = typeinfo.
-            create_from_simple_m64_type("f64")
-        return result
+    } elseif node.kind == ast.N_EXPR_LIT {
+        return later m64_autocast.
+            ast_literal_node_to_suggested_m64_type(
+                node, parents=parents,
+            )
     } elseif node.kind == ast.N_EXPR_UNOP and
             node.subexprs.len >= 1 and
             node.optoken.str == 'not' {

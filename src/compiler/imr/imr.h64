@@ -350,6 +350,110 @@ func IMRSetLit.as_json_obj(
     return obj
 }
 
+type IMRConv base IMRNode {
+    var source_storage_ref
+    var target_storage_ref
+    var source_type_expr
+    var target_type_expr
+}
+
+func IMRConv.init(
+        source_storage_ref, target_storage_ref,
+        source_type_expr_or_typeinfo,
+        target_type_expr_or_typeinfo,
+        in_project_file=none,
+        is_moose64=no,
+        ) {
+    base.init(IMR_INST_CONV)
+    if in_project_file == none {
+        throw new RuntimeError("The project file must be "
+            "specified for initialization.")
+    }
+    if typename(source_storage_ref) != "obj" or
+            not has_attr(source_storage_ref, "kind") or
+            not has_attr(source_storage_ref, "id") {
+        throw new TypeError("The source_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    if typename(target_storage_ref) != "obj" or
+            not has_attr(target_storage_ref, "kind") or
+            not has_attr(target_storage_ref, "id") {
+        throw new TypeError("The target_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    self.source_storage_ref = source_storage_ref.copy()
+    self.target_storage_ref = target_storage_ref.copy()
+    if source_type_expr_or_typeinfo == none {
+        throw new ValueError("The "
+            "source_type_expr_or_typeinfo parameter "
+            "must be specified.")
+    }
+    if target_type_expr_or_typeinfo == none {
+        throw new ValueError("The "
+            "target_type_expr_or_typeinfo parameter "
+            "must be specified.")
+    }
+    if has_attr(source_type_expr_or_typeinfo,
+            "_orig_typeexpr") {
+        source_type_expr_or_typeinfo =
+            source_type_expr_or_typeinfo.convert_to_typeref_expr(
+                project=in_project_file.project,
+                in_local_scope=none,
+                in_project_file=in_project_file,
+                is_moose64=is_moose64
+            )
+    }
+    if has_attr(target_type_expr_or_typeinfo,
+            "_orig_typeexpr") {
+        target_type_expr_or_typeinfo =
+            target_type_expr_or_typeinfo.convert_to_typeref_expr(
+                project=in_project_file.project,
+                in_local_scope=none,
+                in_project_file=in_project_file,
+                is_moose64=is_moose64
+            )
+    }
+    self.source_type_expr = source_type_expr_or_typeinfo.copy()
+    self.target_type_expr = target_type_expr_or_typeinfo.copy()
+}
+
+func IMRConv.as_str(indent=0) {
+    return self.format_inst(
+        "CONV", pos_parameter_names=[
+            "source_storage_ref",
+            "target_storage_ref",
+            "source_type_expr",
+            "target_type_expr",
+        ], indent=indent,
+    )
+}
+
+func IMRConv.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
+    if _passthrough_storage_refs {
+        obj["source_storage_ref"] =
+            self.source_storage_ref
+    } else {
+        obj["source_storage_ref"] =
+            self.source_storage_ref.as_str()
+    }
+    if _passthrough_storage_refs {
+        obj["target_storage_ref"] =
+            self.target_storage_ref
+    } else {
+        obj["target_storage_ref"] =
+            self.target_storage_ref.as_str()
+    }
+
+    obj["source_type_expr"] = self.source_type_expr.as_str()
+    obj["target_type_expr"] = self.target_type_expr.as_str()
+    return obj
+}
+
 type IMRMove base IMRNode {
     var source_storage_ref
     var target_storage_ref
@@ -1617,8 +1721,8 @@ enum IMRNodeKind {
     IMR_BLOCK_FINALLY,
     IMR_BLOCK_WITH,
     IMR_INST_VARINFO,
+    IMR_INST_CONV,
     IMR_INST_MOVE,
-    IMR_INST_MOVE_CAST,
     IMR_INST_APPLY_OP,
     IMR_INST_CALL,
     IMR_INST_BREAK,
@@ -1681,6 +1785,10 @@ type ExprIMRResult {
     var instructions = []
     var storage_ref
     var known_type_info
+
+    var need_conversion = no
+    var need_conversion_from = none
+    var need_conversion_to = none
 }
 
 func ExprIMRResult.as_str {
@@ -1817,6 +1925,20 @@ func generate_imr_for_expr(
         debug=debug,
     ) later:
 
+    if result.need_conversion {
+        assert(try_target_storage_ref != none and
+            not try_target_storage_ref.alike(
+                result.storage_ref))
+        var inst = new IMRConv.init(
+            result.storage_ref,
+            try_target_storage_ref,
+            result.need_conversion_from,
+            result.need_conversion_to,
+            in_project_file=project_file,
+            is_moose64=is_moose64,
+        )
+        result.instructions.add(inst)
+    }
     return result
 }
 func update_typing_for_imr_expr(
@@ -1945,16 +2067,15 @@ func _generate_imr_for_expr_untyped(
         result.storage_ref = node.ref.copy()
         return later result
     } elseif node.kind == ast.N_EXPR_LIT {
+        var we_own_the_tmp_ref = no
         var tmp_ref = try_target_storage_ref
         if tmp_ref == none {
+            we_own_the_tmp_ref = yes
             tmp_ref = get_new_temp_storage_ref(
                 node, imr_parents=imr_parents,
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
-                optional_type_info=
-                    m64_autocast.ast_literal_node_to_suggested_m64_type(
-                        node, parents=node_parents,
-                    ),
+                optional_type_info=our_node_typeinfo,
                 project_file=project_file,
                 imr_build_tracker=imr_build_tracker,
                 is_moose64=is_moose64, msgs=msgs,
@@ -1965,19 +2086,57 @@ func _generate_imr_for_expr_untyped(
             literal_kind=node.literal_kind,
         ))
         result.storage_ref = tmp_ref
+        
+        var target_tmp_typeinfo = get_var_typeinfo(
+            tmp_ref,
+            func_parent_node=func_parent_node,
+            func_imr_parent=func_imr_parent,
+            project_file=project_file,
+            imr_build_tracker=imr_build_tracker,
+            msgs=msgs, is_moose64=is_moose64,
+        ) later:
+
+        await target_tmp_typeinfo
+
+        if is_moose64 and
+                not we_own_the_tmp_ref and
+                not our_node_typeinfo.is_equivalent(
+                    target_tmp_typeinfo,
+                    ignore_self_ref=yes,
+                    is_moose64=is_moose64,
+                ) {
+            var inner_tmp_ref = get_new_temp_storage_ref(
+                node, imr_parents=imr_parents,
+                func_imr_parent=func_imr_parent,
+                file_imr_parent=file_imr_parent,
+                optional_type_info=our_node_typeinfo,
+                project_file=project_file,
+                imr_build_tracker=imr_build_tracker,
+                is_moose64=is_moose64,
+                msgs=msgs,
+            )
+            write_op_result_to_tmp_ref = inner_tmp_ref
+            result.need_conversion = yes
+            result.need_conversion_from = our_node_typeinfo
+            result.need_conversion_to = target_tmp_typeinfo
+            result.storage_ref = inner_tmp_ref
+        }
+
         return later result
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "(" and
             node.subexprs.len >= 2 {
         var we_own_the_tmp_ref = no
         var tmp_ref = try_target_storage_ref
-        if tmp_ref == none {
+        if tmp_ref == none or
+                (our_node_typeinfo == none and
+                is_moose64) {
             we_own_the_tmp_ref = yes
             tmp_ref = get_new_temp_storage_ref(
                 node, imr_parents=imr_parents,
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
-                optional_type_info=none,
+                optional_type_info=our_node_typeinfo,
                 project_file=project_file,
                 imr_build_tracker=imr_build_tracker,
                 is_moose64=is_moose64,
@@ -2001,13 +2160,6 @@ func _generate_imr_for_expr_untyped(
             return later none
         }
         result.instructions += left_hand_result.instructions
-
-        if our_node_typeinfo != none and we_own_the_tmp_ref {
-            assert(tmp_ref.kind == st_ref.ST_LOCAL)
-            func_tracker.storage_id_to_known_type_info[
-                tmp_ref.id
-            ] = our_node_typeinfo
-        }
 
         var arg_refs = []
         var arg_names_if_any = []
@@ -2081,16 +2233,35 @@ func _generate_imr_for_expr_untyped(
         ) later:
 
         await target_tmp_typeinfo
+        var write_op_result_to_tmp_ref = tmp_ref
         var conversion_taken_care_of = no
-        if we_own_the_tmp_ref and is_moose64 and
-                our_node_typeinfo != none {
-            assert(tmp_ref.kind == st_ref.ST_LOCAL)
-            print("fix me: origin type: " +
-                our_node_typeinfo.as_str() + " "
-                "target_type: " +
-                target_tmp_typeinfo.as_str() + " "
-                "we_own_the_tmp_ref: " +
-                we_own_the_tmp_ref.as_str())
+        assert(not we_own_the_tmp_ref or not is_moose64 or
+            our_node_typeinfo != none or
+            msgs == none or not msg.msgs_contain_error(msgs))
+        assert(not we_own_the_tmp_ref or
+            tmp_ref.kind == st_ref.ST_LOCAL)
+        if is_moose64 and
+                not we_own_the_tmp_ref and
+                not our_node_typeinfo.is_equivalent(
+                    target_tmp_typeinfo,
+                    ignore_self_ref=yes,
+                    is_moose64=is_moose64,
+                ) {
+            var inner_tmp_ref = get_new_temp_storage_ref(
+                node, imr_parents=imr_parents,
+                func_imr_parent=func_imr_parent,
+                file_imr_parent=file_imr_parent,
+                optional_type_info=our_node_typeinfo,
+                project_file=project_file,
+                imr_build_tracker=imr_build_tracker,
+                is_moose64=is_moose64,
+                msgs=msgs,
+            )
+            write_op_result_to_tmp_ref = inner_tmp_ref
+            result.need_conversion = yes
+            result.need_conversion_from = our_node_typeinfo
+            result.need_conversion_to = target_tmp_typeinfo
+            result.storage_ref = inner_tmp_ref
         }
 
         result.instructions.add(new IMRCall(
@@ -2100,7 +2271,7 @@ func _generate_imr_for_expr_untyped(
             has_later=no,
             has_later_ignore=no,
             has_later_repeat=no,
-            return_value_ref=tmp_ref,
+            return_value_ref=write_op_result_to_tmp_ref,
         ))
         return later result
     } elseif node.kind == ast.N_EXPR_BINOP and
