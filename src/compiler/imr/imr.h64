@@ -1830,7 +1830,7 @@ func update_typing_for_imr_expr(
         is_moose64=no, msgs=none,
         debug=no,
         ) {
-    if result == none or result.storage_ref == none or
+    if result == none or
             result.known_type_info != none or
             node.damaged {
         return later result
@@ -1932,9 +1932,13 @@ func _generate_imr_for_expr_untyped(
                 project_file, node,
                 is_moose64=is_moose64
             ) {
+        print(program_name + ": error: Internal error, "
+            "failed to get type for this node: " +
+            node.as_str().sub(1, 200))
         throw new RuntimeError("Internal error, "
             "failed to get type for expr node "
-            "unexpectedly.")
+            "unexpectedly. Please report this to "
+            "the compiler makers.")
     }
 
     if node.kind == ast.N_EXPR_IDREF {
@@ -1998,7 +2002,7 @@ func _generate_imr_for_expr_untyped(
         }
         result.instructions += left_hand_result.instructions
 
-        if our_node_typeinfo != none and we_own_tmp_ref {
+        if our_node_typeinfo != none and we_own_the_tmp_ref {
             assert(tmp_ref.kind == st_ref.ST_LOCAL)
             func_tracker.storage_id_to_known_type_info[
                 tmp_ref.id
