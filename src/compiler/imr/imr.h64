@@ -1887,6 +1887,22 @@ func _generate_imr_for_expr_untyped(
         ) {
     const program_name = if is_moose64 ("moosec") else ("horsec")
     var irregular_binop_strs = {"[", "(", "."}
+    var func_parent_node = none
+    var func_tracker = none
+    if func_imr_parent != none {
+        func_tracker = func_imr_parent.get_func_tracker(
+            imr_build_tracker
+        )
+        var i = node_parents.len
+        while i >= 1 {
+            if {ast.N_STMT_FUNC, ast.N_STMT_FUNCEXTEND}.has(
+                    node_parents[i].kind) {
+                func_parent_node = node_parents[i]
+                break
+            }
+            i -= 1
+        }
+    }
 
     if debug {
         print(program_name + ": debug: " +
@@ -1895,6 +1911,32 @@ func _generate_imr_for_expr_untyped(
     }
 
     var result = new ExprIMRResult()
+    update_typing_for_imr_expr(
+        result, node,
+        node_parents=node_parents,
+        imr_parents=imr_parents,
+        func_imr_parent=func_imr_parent,
+        file_imr_parent=file_imr_parent,
+        project_file=project_file,
+        imr_build_tracker=imr_build_tracker,
+        is_moose64=is_moose64,
+        msgs=msgs,
+    ) later:
+
+    var our_node_typeinfo = result.known_type_info
+    if is_moose64 and
+            our_node_typeinfo == none and
+            msgs != none and
+            not msg.msgs_contain_error(msgs) and
+            not _is_node_a_compiler_builtin(
+                project_file, node,
+                is_moose64=is_moose64
+            ) {
+        throw new RuntimeError("Internal error, "
+            "failed to get type for expr node "
+            "unexpectedly.")
+    }
+
     if node.kind == ast.N_EXPR_IDREF {
         result.storage_ref = node.ref.copy()
         return later result
@@ -1955,6 +1997,13 @@ func _generate_imr_for_expr_untyped(
             return later none
         }
         result.instructions += left_hand_result.instructions
+
+        if our_node_typeinfo != none and we_own_tmp_ref {
+            assert(tmp_ref.kind == st_ref.ST_LOCAL)
+            func_tracker.storage_id_to_known_type_info[
+                tmp_ref.id
+            ] = our_node_typeinfo
+        }
 
         var arg_refs = []
         var arg_names_if_any = []
@@ -2018,20 +2067,16 @@ func _generate_imr_for_expr_untyped(
         process_full_queue() later:
 
         result.storage_ref = tmp_ref
-        update_typing_for_imr_expr(
-            result, node,
-            node_parents=node_parents,
-            imr_parents=imr_parents,
+        var target_tmp_typeinfo = get_var_typeinfo(
+            tmp_ref,
+            func_parent_node=func_parent_node,
             func_imr_parent=func_imr_parent,
-            file_imr_parent=file_imr_parent,
             project_file=project_file,
             imr_build_tracker=imr_build_tracker,
-            is_moose64=is_moose64,
-            msgs=msgs,
+            msgs=msgs, is_moose64=is_moose64,
         ) later:
 
-        var our_node_typeinfo = result.known_type_info
-        var target_tmp_typeinfo = none
+        await target_tmp_typeinfo
         var conversion_taken_care_of = no
         if we_own_the_tmp_ref and is_moose64 and
                 our_node_typeinfo != none {
@@ -2039,7 +2084,9 @@ func _generate_imr_for_expr_untyped(
             print("fix me: origin type: " +
                 our_node_typeinfo.as_str() + " "
                 "target_type: " +
-                target_tmp_typeinfo.as_str())
+                target_tmp_typeinfo.as_str() + " "
+                "we_own_the_tmp_ref: " +
+                we_own_the_tmp_ref.as_str())
         }
 
         result.instructions.add(new IMRCall(
@@ -4163,14 +4210,14 @@ type IMRBuildTracker {
 func get_var_typeinfo(
         ref,
         func_parent_node=none,
-        imr_func_parent=none,
+        func_imr_parent=none,
         project_file=none,
         imr_build_tracker=none,
         msgs=none, is_moose64=no,
         ) {
     assert(project_file != none)
     if ref.kind == st_ref.ST_LOCAL {
-        if imr_func_parent == none or
+        if func_imr_parent == none or
                 func_parent_node == none {
             throw new ValueError(
                 "Cannot examine local var without a func."
@@ -4200,7 +4247,7 @@ func get_var_typeinfo(
     } elseif {st_ref.ST_GLOBAL, st_ref.ST_ARG,
             st_ref.ST_GLOBALATTR}.has(ref.kind) {
         if st_ref.ST_ARG and (
-                imr_func_parent == none or
+                func_imr_parent == none or
                 func_parent_node == none) {
             throw new ValueError(
                 "Cannot examine arg var without a func."
