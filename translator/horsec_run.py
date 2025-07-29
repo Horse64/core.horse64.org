@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Copyright (c) 2020-2024, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+# Copyright (c) 2020-2025, ellie/@ell1e & Horse64's contributors
+# (see AUTHORS.md).
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
