@@ -15,7 +15,8 @@ Files outside of the `vendor` directories are, unless indicated
 otherwise, licensed under the following **BSD-2-Clause license**:
 
 ```
-Copyright (c) 2020-2025, ellie/@ell1e & Horse64 authors (see AUTHORS.md).
+Copyright (c) 2020-2025, ellie/@ell1e & Horse64's contributors
+(see AUTHORS.md).
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -247,20 +248,40 @@ following **Apache 2 License**:
    limitations under the License.
 ```
 
+...with the following copyright notice:
+
+```
+Copyright (c) 2020-2025, ellie/@ell1e & Horse64's contributors
+(see AUTHORS.md).
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
+
 
 Contributions
 -------------
 
 If you contribute to the Horse64 project, you **permit licensing as
 described in the respective files** and agree to the
-[DCO](#developer-certificate-of-origin) below. Using AI tools might
-potentially interfere with this, so we ask that you **don't contribute
-code made with involvement of AI code generation like Co-Pilot**
-for now.
+[DCO](#developer-certificate-of-origin) below. For various reasons,
+we think **using AI tools is incompatible** with this, [see here for
+why](/docs/How%20to%20Contribute.md#why-ai-contributions-are-not-allowed).
 
-For this, sign your commit messages:
+Therefore, we ask you sign your commit messages:
 
 `DCO-1.1-Signed-off-by: Your Name <your@email>`
+
+See the details of the [DCO](#developer-certificate-of-origin) below.
 
 
 Developer Certificate of Origin

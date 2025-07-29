@@ -1,6 +1,6 @@
 
-Horse64 Authors
-===============
+Horse64's Contributors
+======================
 
 Those are the Horse64 core package contributors who created this project,
 in alphabetical order:
