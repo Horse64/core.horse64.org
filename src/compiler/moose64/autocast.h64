@@ -651,10 +651,7 @@ func get_math_binop_autocast(
                     right_hand_typeinfo.orig_type_name {
             return cast_all_to("i8")
         }
-        result.cast_lefthand_to = left_hand_typeinfo.copy()
-        result.cast_righthand_to = right_hand_typeinfo.copy()
-        result.result_type = left_hand_typeinfo.copy()
-        return result
+        return cast_all_to("u8")
     }
     if debug {
         print(program_name + ": debug: "
@@ -684,7 +681,9 @@ func get_math_binop_autocast(
                 ) and ast_typref.builtin_moose64_unsigned_num_types.has(
                     right_hand_typeinfo.orig_type_name
                 ) {
-            return cast_all_to("u64", "addr")
+            return cast_all_to(
+                "u64", override_rsult="addr"
+            )
         } elseif left_hand_typeinfo.orig_type_name == "addr" or
                 right_hand_typeinfo.orig_type_name == "addr" {
             return cast_all_to("i64", override_result="addr")
@@ -745,7 +744,9 @@ func get_math_binop_autocast(
                 return cast_all_to("f64")
             } elseif right_hand_typeinfo.orig_type_name == "f32" {
                 if size >= 64 {
-                    return cast_all_to("f64", override_result="f32")
+                    return cast_all_to(
+                        "f64", override_result="f32"
+                    )
                 } else {
                     return cast_all_to("f32")
                 }

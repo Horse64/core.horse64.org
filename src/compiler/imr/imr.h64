@@ -44,6 +44,7 @@ import compiler.storage.ref as st_ref
 import compiler.storage.scope as st_scope
 import compiler.token as token
 import compiler.typeinfo as typeinfo
+import compiler.typeinfo.ast_typeref as ast_typeref
 
 type IMRTranslationResult {
     var project_file_to_imr_map = {->}
@@ -1890,6 +1891,7 @@ func generate_imr_for_expr(
         project_file=none,
         imr_build_tracker=none,
         try_target_storage_ref=none,
+        convert_to_target_type=none,
         is_moose64=no, msgs=none,
         debug=no,
         ) {
@@ -1926,10 +1928,40 @@ func generate_imr_for_expr(
         debug=debug,
     ) later:
 
+    if not result.need_conversion and
+            convert_to_target_type != none and
+            result.known_type_info != none and
+            not convert_to_target_type.is_equivalent(
+                result.known_type_info,
+                ignore_self_ref=yes,
+            ) {
+        result.need_conversion = yes
+        result.need_conversion_from = result.known_type_info
+        result.need_conversion_to = convert_to_target_type
+    }
     if result.need_conversion {
-        assert(try_target_storage_ref != none and
+        assert((try_target_storage_ref != none and
             not try_target_storage_ref.alike(
-                result.storage_ref))
+                result.storage_ref)) or
+            convert_to_target_type != none)
+        assert(convert_to_target_type == none or
+            convert_to_target_type.is_equivalent(
+                result.need_conversion_to,
+                ignore_self_ref=yes,
+            ))
+        if try_target_storage_ref == none {
+            try_target_storage_ref = get_new_temp_storage_ref(
+                node, imr_parents=imr_parents,
+                func_imr_parent=func_imr_parent,
+                file_imr_parent=file_imr_parent,
+                optional_type_info=result.need_conversion_to,
+                project_file=project_file,
+                imr_build_tracker=imr_build_tracker,
+                is_moose64=is_moose64,
+                msgs=msgs,
+            )
+            assert(try_target_storage_ref != none)
+        }
         var inst = new IMRConv(
             result.storage_ref,
             try_target_storage_ref,
@@ -2149,6 +2181,7 @@ func _generate_imr_for_expr_untyped(
                 msgs=msgs,
             )
         }
+
         var left_hand_result = generate_imr_for_expr(
             node.subexprs[1],
             node_parents=node_parents + [node],
@@ -2384,12 +2417,115 @@ func _generate_imr_for_expr_untyped(
             imr_build_tracker=imr_build_tracker,
             is_moose64=is_moose64, msgs=msgs,
         )
+
+        var is_cmp_op =
+            token.compare_ops.has(node.optoken.str)
+        var is_bool_cmp_op =
+            token.bool_compare_ops.has(node.optoken.str)
+        var left_hand_type = none
+        var right_hand_type = none
+        var left_hand_convert_to = none
+        var right_hand_convert_to = none
+
+        func determine_operand_types_if_needed {
+            if not is_moose64 {
+                return later
+            }
+
+            func determine_left_hand {
+                if _is_node_a_compiler_builtin(
+                        project_file, node.subexprs[1],
+                        is_moose64=is_moose64) {
+                    left_hand_type = typeinfo.
+                        create_from_simple_m64_type("any")
+                    result.modifiers.add(
+                        new ast_typeref.TypeRefMod(
+                            "ref"
+                        )
+                    )
+                    return later
+                }
+                left_hand_type = m64_ast_analyze.
+                    get_c_or_m64_type_of_node(
+                        project_file, node.subexprs[1],
+                        node_parents + [node],
+                        store_self_value_ref_for_funcs=yes,
+                        msgs=msgs,
+                    ) later:
+
+                await left_hand_type
+            }
+            determine_left_hand() later:
+
+            func determine_right_hand {
+                if _is_node_a_compiler_builtin(
+                        project_file, node.subexprs[2],
+                        is_moose64=is_moose64) {
+                    right_hand_type = typeinfo.
+                        create_from_simple_m64_type("any")
+                    right_hand_type.modifiers.add(
+                        new ast_typeref.TypeRefMod(
+                            "ref"
+                        )
+                    )
+                    return later
+                }
+                right_hand_type = m64_ast_analyze.
+                    get_c_or_m64_type_of_node(
+                        project_file, node.subexprs[2],
+                        node_parents + [node],
+                        store_self_value_ref_for_funcs=yes,
+                        msgs=msgs,
+                    ) later:
+
+                await right_hand_type
+            }
+            determine_right_hand() later:
+
+            if left_hand_type == none or right_hand_type == none {
+                return later
+            }
+            if is_bool_cmp_op {
+                left_hand_convert_to = typeinfo.
+                    create_from_simple_m64_type("bool")
+                right_hand_convert_to = typeinfo.
+                    create_from_simple_m64_type("bool")
+                return later
+            }
+            var result = m64_autocast.get_math_binop_autocast(
+                left_hand_type, right_hand_type,
+                left_side_is_literal_none=
+                    node.subexprs[1].kind == ast.N_EXPR_LIT and
+                    node.subexprs[1].literal_kind ==
+                        ast_expr.LK_NORMAL and
+                    node.subexprs[1].value == none,
+                right_side_is_literal_none=
+                    node.subexprs[2].kind == ast.N_EXPR_LIT and
+                    node.subexprs[2].literal_kind ==
+                        ast_expr.LK_NORMAL and
+                    node.subexprs[2].value == none,
+                is_cmp_op=is_cmp_op,
+                is_moose64=is_moose64,
+            )
+            if result.incompatible {
+                return later
+            }
+            assert(result.cast_lefthand_to != none and
+                result.cast_righthand_to != none)
+            assert(result.cast_lefthand_to.is_equivalent(
+                result.cast_righthand_to, ignore_self_ref=yes))
+            left_hand_convert_to = result.cast_lefthand_to
+            right_hand_convert_to = result.cast_righthand_to
+        }
+        determine_operand_types_if_needed() later:
+
         var left_hand_result = generate_imr_for_expr(
             node.subexprs[1],
             node_parents=node_parents + [node],
             imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
+            convert_to_target_type=left_hand_convert_to,
             project_file=project_file,
             imr_build_tracker=imr_build_tracker,
             is_moose64=is_moose64,
@@ -2403,6 +2539,7 @@ func _generate_imr_for_expr_untyped(
             imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
+            convert_to_target_type=right_hand_convert_to,
             project_file=project_file,
             imr_build_tracker=imr_build_tracker,
             is_moose64=is_moose64, msgs=msgs,
@@ -4590,6 +4727,7 @@ func generate_imr_for_project(
             return later no
         }
 
+        print("RESULT: " + imr_for_file.as_str())
         return later yes
     }
     var result = project.do_for_all_files(
