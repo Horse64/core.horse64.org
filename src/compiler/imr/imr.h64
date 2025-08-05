@@ -4727,7 +4727,6 @@ func generate_imr_for_project(
             return later no
         }
 
-        print("RESULT: " + imr_for_file.as_str())
         return later yes
     }
     var result = project.do_for_all_files(
