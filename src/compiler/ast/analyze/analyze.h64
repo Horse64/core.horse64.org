@@ -746,11 +746,11 @@ func get_called_or_assigned_func_types(
 
     if allow_noncall_ref and
             (called_node_parent == none or
-            called_node_parent.kind != ast.N_EXPR_BINOP or
-            called_node_parent.optoken.str != '(' or
-            called_node_parent.subexprs[2].kind !=
+             called_node_parent.kind != ast.N_EXPR_BINOP or
+             called_node_parent.optoken.str != '(' or
+             called_node_parent.subexprs[2].kind !=
                 ast.N_EXPR_CALLARGS or
-            called_node_parent.subexprs[1] != called_node) {
+             called_node_parent.subexprs[1] != called_node) {
         # Okay, we need to simply directly look up what func
         # this node refers to, and then if needed see about
         # overrides.
@@ -1020,7 +1020,8 @@ func get_called_or_assigned_func_types(
                 m64_ast_analyze.get_c_or_m64_type_of_node(
                     project_file, called_node, called_node_parents,
                     store_self_value_ref_for_funcs=yes,
-                    msgs=msgs, debug=debug
+                    msgs=msgs, debug=debug,
+                    _allow_recursing_into_func_override_analysis=no,
                 ) later:  # (What we originally would have called.)
 
             await unaltered_typeinfo
@@ -1058,7 +1059,8 @@ func get_called_or_assigned_func_types(
             m64_ast_analyze.get_c_or_m64_type_of_node(
                 project_file, called_node, called_node_parents,
                 store_self_value_ref_for_funcs=yes,
-                msgs=msgs, debug=debug
+                msgs=msgs, debug=debug,
+                _allow_recursing_into_func_override_analysis=no,
             ) later:  # Get type info from our call node.
 
         await func_typeinfo
@@ -1346,6 +1348,7 @@ func get_called_or_assigned_func_types(
                 ], called_node_parents + [call_args_expr],
                 store_self_value_ref_for_funcs=no,
                 msgs=msgs, debug=no,
+                _allow_recursing_into_func_override_analysis=yes,
             ) later:
 
         await last_param_m64_typeinfo
@@ -1444,6 +1447,7 @@ func get_called_or_assigned_func_types(
                 ], called_node_parents + [call_args_expr],
                 store_self_value_ref_for_funcs=no,
                 msgs=msgs,
+                _allow_recursing_into_func_override_analysis=yes,
             ) later:
 
         await arg_type
@@ -2022,6 +2026,7 @@ func get_called_or_assigned_func_types(
                         ], called_node_parents + [call_args_expr],
                         store_self_value_ref_for_funcs=no,
                         msgs=msgs, debug=yes,
+                        _allow_recursing_into_func_override_analysis=yes,
                     ) later:
 
                 await arg_type

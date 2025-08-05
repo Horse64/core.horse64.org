@@ -1789,8 +1789,8 @@ func resolve_st_ref_to_type_ref_and_expr(
                     node.kind ==
                         ast.N_EXPR_IDREF or
                     (node.kind == ast.N_EXPR_BINOP and
-                    node.optoken.str == "." and
-                    node.subexprs[2].kind == ast.N_EXPR_IDREF)
+                     node.optoken.str == "." and
+                     node.subexprs[2].kind == ast.N_EXPR_IDREF)
                 ),
                 try_to_match_func_type_expr=
                     apply_func_override_for_func_type_expr,

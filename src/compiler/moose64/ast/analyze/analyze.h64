@@ -559,7 +559,8 @@ func _get_c_or_m64_type_of_node_do(
         _known_typeinfo_map=none,
         store_self_value_ref_for_funcs=no,
         disable_binop_parent_fallback=no,
-        msgs=none, debug=no
+        msgs=none, debug=no,
+        _allow_recursing_into_func_override_analysis=yes,
         ) {
     var is_moose64 = yes
     if _known_typeinfo_map == none {
@@ -1014,6 +1015,28 @@ func _get_c_or_m64_type_of_node_do(
                 _known_typeinfo_map[node].func_self_ref = none
             }
             return inner_result
+        }
+        if _allow_recursing_into_func_override_analysis and
+                parent != none and
+                parent.kind == ast.N_EXPR_BINOP and
+                parent.optoken.str == "(" and
+                parent.subexprs.len >= 2 and
+                parent.subexprs[1] == node {
+            # We're analyzing which func is being called.
+            # Do the advanced analysis that takes into account
+            # func overrides.
+            var result = ast_analyze.get_called_or_assigned_func_types(
+                project_file, node, parents,
+                allow_matching_func_override=yes,
+                msgs=msgs, is_moose64=is_moose64,
+                debug=no
+            ) later:
+
+            await result
+            if result == none or result.func_var_typeinfo == none {
+                return later none
+            }
+            return later result.func_var_typeinfo.copy()
         }
 
         var return_type_with_ref_modifier = no
@@ -2180,7 +2203,8 @@ func _get_c_or_m64_type_of_node_do(
 func get_c_or_m64_type_of_node(
         project_file, node, parents,
         store_self_value_ref_for_funcs=no,
-        msgs=none, debug=no
+        msgs=none, debug=no,
+        _allow_recursing_into_func_override_analysis=yes,
         ) {
     assert(typename(parents) == "list")
     var result = _get_c_or_m64_type_of_node_do(
@@ -2189,7 +2213,9 @@ func get_c_or_m64_type_of_node(
         store_self_value_ref_for_funcs=
             store_self_value_ref_for_funcs,
         msgs=msgs,
-        debug=debug
+        debug=debug,
+        _allow_recursing_into_func_override_analysis=
+            _allow_recursing_into_func_override_analysis,
     ) later:
 
     await result

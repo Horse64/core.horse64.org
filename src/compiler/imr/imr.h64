@@ -1833,7 +1833,9 @@ func get_new_temp_storage_ref(
 }
 
 func _is_node_a_compiler_builtin(
-        pfile, node, is_moose64=no) {
+        pfile, node,
+        only_check_for_non_callable_builtins=no,
+        is_moose64=no) {
     if not is_moose64 {
         return no
     }
@@ -1855,7 +1857,8 @@ func _is_node_a_compiler_builtin(
     }
 
     if m64_builtins.is_ast_node_referring_to_m64_builtin_assert(
-            pfile, node, is_moose64=is_moose64) {
+            pfile, node, is_moose64=is_moose64) and
+            not only_check_for_non_callable_builtins {
         return yes
     }
     if m64_builtins.is_ast_node_referring_to_m64_memory_size_of(
@@ -1997,7 +2000,9 @@ func update_typing_for_imr_expr(
             return later
         }
         if _is_node_a_compiler_builtin(
-                project_file, node, is_moose64=is_moose64) {
+                project_file, node,
+                only_check_for_non_callable_builtins=yes,
+                is_moose64=is_moose64) {
             return later
         }
         value_tinfo = m64_ast_analyze.get_c_or_m64_type_of_node(
@@ -2200,8 +2205,11 @@ func _generate_imr_for_expr_untyped(
         }
         result.instructions += left_hand_result.instructions
 
+        var called_func_type_info_if_known =
+            left_hand_result.known_type_info
         var arg_refs = []
         var arg_names_if_any = []
+        var arg_types_if_known = []
         var args_node = node.subexprs[2]
         if args_node.kind != ast.N_EXPR_CALLARGS {
             throw new RuntimeError("Encountered "
@@ -2240,10 +2248,29 @@ func _generate_imr_for_expr_untyped(
                 return later
             }
             result.instructions += arg_expr_result.instructions
+            assert(not is_moose64 or
+                arg_expr_result.known_type_info != none or
+                _is_node_a_compiler_builtin(
+                    project_file, value_expr,
+                    is_moose64=is_moose64
+                ) or
+                msgs == none or
+                msg.msgs_contain_error(msgs))
             arg_refs.add(arg_expr_result.storage_ref)
             arg_names_if_any.add(
                 value_name
             )
+
+            func determine_type_conversion_if_any {
+                if arg_expr_result.known_type_info == none or
+                        not is_moose64 or
+                        called_func_type_info_if_known == none {
+                    return later
+                }
+            }
+            determine_type_conversion_if_any() later:
+
+            arg_types_if_known.add(arg_expr_result.known_type_info)
         }
         func process_full_queue {
             if queue.len == 0 {
