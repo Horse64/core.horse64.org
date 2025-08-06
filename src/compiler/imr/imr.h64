@@ -2020,6 +2020,15 @@ func update_typing_for_imr_expr(
                     "got no error of any kind, yet couldn't "
                     "get the type of this node: " +
                     node.as_str().sub(1, 500))
+                print("horsec: error: Now replaying debug info...")
+                var _unused = m64_ast_analyze.get_c_or_m64_type_of_node(
+                    project_file, node, node_parents,
+                    store_self_value_ref_for_funcs=yes,
+                    msgs=msgs,
+                    debug=yes,
+                ) later:
+
+                await _unused
                 throw new RuntimeError("Internal error, "
                     "unexpectedly failed to analyze type of "
                     "node. Please report this to the compiler "
