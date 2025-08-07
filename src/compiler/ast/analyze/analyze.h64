@@ -721,22 +721,19 @@ func get_called_or_assigned_func_types(
 
     if debug {
         var t = (dbg_prefix + " get_called_or_assigned_func_types(): "
-            "Launched on called_node=" + called_node.as_str())
+            "Launched on called_node=" + called_node.as_str() + " "
+            "with: is_moose64=" + is_moose64.as_str())
         if try_to_match_func_type_expr != none {
-            t += (", "
-                "with: try_to_match_func_type_expr=" +
+            t += (" try_to_match_func_type_expr=" +
                 try_to_match_func_type_expr.as_str())
         }
         if _internal_override_called_func_typerefexpr != none {
-            t += (", "
-                "with: _internal_override_called_func_typerefexpr=" +
+            t += (" _internal_override_called_func_typerefexpr=" +
                     _internal_override_called_func_typerefexpr.as_str() + " "
                 "_internal_override_called_func_st_ref=" +
                     _internal_override_called_func_st_ref.as_str() + " "
                 "_internal_override_called_func_typerefexpr=" +
                     _internal_override_called_func_typerefexpr.as_str())
-        } else {
-            t += "."
         }
         print(t)
     }
@@ -958,10 +955,36 @@ func get_called_or_assigned_func_types(
         return cft_result
     }
     if not is_moose64 {
+        # XXX: We might support some basic Horse64 handling here
+        # one day, but for now we don't.
+        if debug {
+            print(dbg_prefix + " "
+                "get_called_or_assigned_func_types(): "
+                "Bail since we're in best-effort horse64 mode, and "
+                "we exceeded all our capabilities to detect "
+                "something of use here.")
+        }
         return later none
     }
     if called_node.damaged or called_node_parent.damaged {
+        if debug {
+            var t = (dbg_prefix + " "
+                "get_called_or_assigned_func_types(): "
+                "Bail since node is damaged: ")
+            if called_node.damaged {
+                t += called_node.as_str()
+            } else {
+                t += called_node_parent.as_str()
+            }
+            print(t)
+        }
+        assert(msgs == none or msg.msgs_contain_error(msgs))
         return later none
+    }
+    if debug {
+        print(dbg_prefix + " "
+            "get_called_or_assigned_func_types(): "
+            "Analyzing call node in-detail now.")
     }
     var is_call = no
     if called_node_parent.kind != ast.N_EXPR_BINOP or

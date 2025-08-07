@@ -562,7 +562,7 @@ func _get_c_or_m64_type_of_node_do(
         msgs=none, debug=no,
         _allow_recursing_into_func_override_analysis=yes,
         ) {
-    var is_moose64 = yes
+    const is_moose64 = yes
     if _known_typeinfo_map == none {
         _known_typeinfo_map = {->}
     }
@@ -1025,11 +1025,16 @@ func _get_c_or_m64_type_of_node_do(
             # We're analyzing which func is being called.
             # Do the advanced analysis that takes into account
             # func overrides.
+            if debug {
+                print(dbg_prefix + " Will call "
+                    "get_called_or_assigned_func_types() since "
+                    "this N_EXPR_IDREF is part of a call.")
+            }
             var result = ast_analyze.get_called_or_assigned_func_types(
                 project_file, node, parents,
                 allow_matching_func_override=yes,
                 msgs=msgs, is_moose64=is_moose64,
-                debug=no
+                debug=debug,
             ) later:
 
             await result
@@ -1701,7 +1706,7 @@ func _get_c_or_m64_type_of_node_do(
                     _known_typeinfo_map=_known_typeinfo_map,
                     store_self_value_ref_for_funcs=
                         store_self_value_ref_for_funcs,
-                    msgs=msgs, debug=debug
+                    msgs=msgs, debug=debug,
                 ) later:
 
                 await func_typeinfo
