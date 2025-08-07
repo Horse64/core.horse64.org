@@ -2021,6 +2021,7 @@ func update_typing_for_imr_expr(
                     "get the type of this node: " +
                     node.as_str().sub(1, 500))
                 print("horsec: error: Now replaying debug info...")
+                node.damaged = no  # XXX: Needed for replay to work.
                 var _unused = m64_ast_analyze.get_c_or_m64_type_of_node(
                     project_file, node, node_parents,
                     store_self_value_ref_for_funcs=yes,
@@ -2029,6 +2030,7 @@ func update_typing_for_imr_expr(
                 ) later:
 
                 await _unused
+                node.damaged = yes  # XXX: Restore old state.
                 throw new RuntimeError("Internal error, "
                     "unexpectedly failed to analyze type of "
                     "node. Please report this to the compiler "

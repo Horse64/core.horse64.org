@@ -1680,6 +1680,7 @@ func _get_c_or_m64_type_of_node_do(
             allow_noncall_ref=no,
             ignore_arg_mismatch=no,
             msgs=msgs, is_moose64=is_moose64,
+            debug=debug,
         ) later:
 
         await result
