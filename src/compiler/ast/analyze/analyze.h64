@@ -1010,7 +1010,9 @@ func get_called_or_assigned_func_types(
         called_node_ref = _internal_override_called_func_st_ref
     }
     if called_node_ref != none and
-            called_node_ref.kind == st_ref.ST_MCREF {
+            {st_ref.ST_MCREF, st_ref.ST_CEXT}.has(
+                called_node_ref.kind
+            ) {
         is_external = yes
     }
 
@@ -1022,11 +1024,36 @@ func get_called_or_assigned_func_types(
     var func_typeinfo = none
     func obtain_func_info_if_possible {
         if is_external {
-            # This might be allowed later in some cases when
-            # C header parsing works, but for now, it isn't.
+            # We need to look this up in our C stuff registry to
+            # get the type info:
+
+            var external_func_typeinfo = none
+            func try_determine_external_type {
+                if called_node_ref == none {
+                    return later
+                }
+                var builtin_symbol_item = builtin_syms.
+                    get_item_by_storage_ref(
+                        project_file.project, called_node_ref
+                    )
+                if builtin_symbol_item == none {
+                    return later
+                }
+                if builtin_symbol_item.is_csymbol {
+                    func_typeinfo = builtin_symbol_item.
+                        create_typeinfo(project_file.project) later:
+
+                    await func_typeinfo
+                    return later
+                }
+                return later
+            }
+            try_determine_external_type() later:
+
             if debug {
                 print(dbg_prefix + " "
-                    "This is an external func, don't return a type.")
+                    "This is an external func, and we can't determine "
+                    "the type.")
             }
             return later
         }

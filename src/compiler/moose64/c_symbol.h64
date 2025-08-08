@@ -29,6 +29,7 @@
 import text from core.horse64.org
 
 import compiler.moose64.c_importer as m64_c_importer
+import compiler.typeinfo as typeinfo
 
 type CFuncSymbol {
     var c_func_signature_str protect
@@ -44,36 +45,6 @@ type CFuncSymbol {
     var c_import_path
 
     var is_csymbol = yes
-}
-
-func is_idlike_char(c) {
-    return (text.code(c) >= text.code("0") and
-        text.code(c) <= text.code("9")) or
-        (text.code(c) >= text.code("A") and
-        text.code(c) <= text.code("Z")) or
-        (text.code(c) >= text.code("a") and
-        text.code(c) <= text.code("z")) or
-        text.code(c) > 127 or
-        c == "_"
-}
-
-func get_ident_ending_at(s, idx) {
-    if idx < 1 or idx > s.len or
-            not is_idlike_char(s[idx]) {
-        return none
-    }
-    var end_idx = idx
-    while idx >= 1 and is_idlike_char(s[idx]) {
-        idx -= 1
-    }
-    var start_idx = idx + 1
-    assert(start_idx <= end_idx)
-    assert(is_idlike_char(s[start_idx]))
-    if text.code(s[start_idx]) >= text.code("0") and
-            text.code(s[start_idx]) <= text.code("9") {
-        return none
-    }
-    return s.sub(start_idx, end_idx)
 }
 
 func CFuncSymbol.init(c_signature, _override_func_signature=none) {
@@ -120,6 +91,52 @@ func CFuncSymbol.init(c_signature, _override_func_signature=none) {
     }
     self.symbol_name = symbol_name
 }
+
+func CFuncSymbol.create_typeinfo(project) {
+    assert(typename(self.func_signature_expr) == "obj" and
+        has_attr(self.func_signature_expr, "is_func_ref") and
+        self.func_signature_expr.is_func_ref)
+    var tinfo = typeinfo.create_typeinfo_from_typeexpr_and_verify(
+        self.func_signature_expr,
+        project=project,
+        is_moose64=yes,
+        debug=no,
+    ) later:
+
+    await tinfo
+    return tinfo
+}
+
+func is_idlike_char(c) {
+    return (text.code(c) >= text.code("0") and
+        text.code(c) <= text.code("9")) or
+        (text.code(c) >= text.code("A") and
+        text.code(c) <= text.code("Z")) or
+        (text.code(c) >= text.code("a") and
+        text.code(c) <= text.code("z")) or
+        text.code(c) > 127 or
+        c == "_"
+}
+
+func get_ident_ending_at(s, idx) {
+    if idx < 1 or idx > s.len or
+            not is_idlike_char(s[idx]) {
+        return none
+    }
+    var end_idx = idx
+    while idx >= 1 and is_idlike_char(s[idx]) {
+        idx -= 1
+    }
+    var start_idx = idx + 1
+    assert(start_idx <= end_idx)
+    assert(is_idlike_char(s[start_idx]))
+    if text.code(s[start_idx]) >= text.code("0") and
+            text.code(s[start_idx]) <= text.code("9") {
+        return none
+    }
+    return s.sub(start_idx, end_idx)
+}
+
 
 func CFuncSymbol.auto_assign_id(project) {
     if self.storage_id != none {
