@@ -1837,6 +1837,11 @@ func get_called_or_assigned_func_types(
                 not allow_matching_func_override {
             return later
         }
+        if is_external {
+            # FIXME: We might allow overrides at some point for
+            # external funcs. But for now, this isn't implemented.
+            return later
+        }
         if debug {
             print(dbg_prefix + " "
                 "The signature doesn't match and overrides are "
