@@ -718,9 +718,13 @@ func get_called_or_assigned_func_types(
     var prog_name = if is_moose64 ("moosec") else ("horsec")
     var dbg_prefix = if is_moose64 ("moosec: debug:")
         else ("horsec: debug:")
+    if debug {
+        dbg_prefix += " get_called_or_assigned_func_types " +
+            "#" + random.gen_id() + ""
+    }
 
     if debug {
-        var t = (dbg_prefix + " get_called_or_assigned_func_types(): "
+        var t = (dbg_prefix + " "
             "Launched on called_node=" + called_node.as_str() + " "
             "with: is_moose64=" + is_moose64.as_str())
         if try_to_match_func_type_expr != none {
@@ -753,7 +757,6 @@ func get_called_or_assigned_func_types(
         # overrides.
         if debug {
             print(dbg_prefix + " "
-                "get_called_or_assigned_func_types(): "
                 "Examining a non-call node. " +
                 "node=" + called_node.as_str())
         }
@@ -770,14 +773,12 @@ func get_called_or_assigned_func_types(
         if func_ref == none {
             if debug {
                 print(dbg_prefix + " "
-                    "get_called_or_assigned_func_types(): "
                     "Couldn't extract a usable func ref.")
             }
             return later none
         }
         if debug {
             print(dbg_prefix + " "
-                "get_called_or_assigned_func_types(): "
                 "Will now resolve the func ref. "
                 "func_ref=" + func_ref.as_str())
         }
@@ -799,7 +800,6 @@ func get_called_or_assigned_func_types(
                 not result.type_expr.is_func_ref {
             if debug {
                 print(dbg_prefix + " "
-                    "get_called_or_assigned_func_types(): "
                     "Couldn't resolve the node, or it didn't "
                     "point to a function.")
             }
@@ -836,7 +836,6 @@ func get_called_or_assigned_func_types(
         cft_result.have_args_mismatch = no
         if debug {
             print(dbg_prefix + " "
-                "get_called_or_assigned_func_types(): "
                 "Preliminary result was assembled.")
         }
 
@@ -850,7 +849,6 @@ func get_called_or_assigned_func_types(
             )
         if debug {
             print(dbg_prefix + " "
-                "get_called_or_assigned_func_types(): "
                 "Got override list. "
                 "override_info_list=" +
                     override_info_list.as_str())
@@ -876,7 +874,6 @@ func get_called_or_assigned_func_types(
             }
             if debug {
                 print(dbg_prefix + " "
-                    "get_called_or_assigned_func_types(): "
                     "Determined that this is currently an "
                     "overridden func being targeted. "
                     "base_name=" +
@@ -894,7 +891,6 @@ func get_called_or_assigned_func_types(
             # Try to pick a better alternative in this situation.
             if debug {
                 print(dbg_prefix + " "
-                    "get_called_or_assigned_func_types(): "
                     "Trying to find better matching override...")
             }
             var found_override = no
@@ -915,7 +911,6 @@ func get_called_or_assigned_func_types(
                     found_override = yes
                     if debug {
                         print(dbg_prefix + " "
-                            "get_called_or_assigned_func_types(): "
                             "Found new override match.")
                     }
                     break
@@ -924,7 +919,6 @@ func get_called_or_assigned_func_types(
             if not found_override {
                 if debug {
                     print(dbg_prefix + " "
-                        "get_called_or_assigned_func_types(): "
                         "Couldn't find new override match.")
                 }
             }
@@ -946,7 +940,6 @@ func get_called_or_assigned_func_types(
         if tinfo == none {
             if debug {
                 print(dbg_prefix + " "
-                    "get_called_or_assigned_func_types(): "
                     "The func type seems invalid, bailing.")
             }
             return later none
@@ -959,7 +952,6 @@ func get_called_or_assigned_func_types(
         # one day, but for now we don't.
         if debug {
             print(dbg_prefix + " "
-                "get_called_or_assigned_func_types(): "
                 "Bail since we're in best-effort horse64 mode, and "
                 "we exceeded all our capabilities to detect "
                 "something of use here.")
@@ -969,7 +961,6 @@ func get_called_or_assigned_func_types(
     if called_node.damaged or called_node_parent.damaged {
         if debug {
             var t = (dbg_prefix + " "
-                "get_called_or_assigned_func_types(): "
                 "Bail since node is damaged: ")
             if called_node.damaged {
                 t += called_node.as_str()
@@ -983,7 +974,6 @@ func get_called_or_assigned_func_types(
     }
     if debug {
         print(dbg_prefix + " "
-            "get_called_or_assigned_func_types(): "
             "Analyzing call node in-detail now.")
     }
     var is_call = no
@@ -1026,7 +1016,7 @@ func get_called_or_assigned_func_types(
 
     var call_args_expr = called_node_parent.subexprs[2]
     if debug {
-        print(dbg_prefix + " get_called_or_assigned_func_types(): "
+        print(dbg_prefix + " "
             "Found call_args_expr=" + call_args_expr.as_str())
     }
     var func_typeinfo = none
@@ -1034,6 +1024,10 @@ func get_called_or_assigned_func_types(
         if is_external {
             # This might be allowed later in some cases when
             # C header parsing works, but for now, it isn't.
+            if debug {
+                print(dbg_prefix + " "
+                    "This is an external func, don't return a type.")
+            }
             return later
         }
         if _internal_override_called_func_typerefexpr != none {
@@ -1048,19 +1042,23 @@ func get_called_or_assigned_func_types(
                 ) later:  # (What we originally would have called.)
 
             await unaltered_typeinfo
+            if debug {
+                print(dbg_prefix + " "
+                    "Now invoking type checker on base func node...")
+            }
             func_typeinfo = typeinfo.
                 create_typeinfo_from_typeexpr_and_verify(
                     _internal_override_called_func_typerefexpr,
                     project_file=project_file, 
                     store_self_value_ref_for_funcs=no,
                     is_moose64=is_moose64,
+                    debug=debug,
                 ) later:  # (The override.)
 
             await func_typeinfo
             if debug {
                 print(dbg_prefix + " "
-                    "get_called_or_assigned_func_types(): "
-                    "Examining override with overriden typeref "
+                    "Examining override with overridden typeref "
                     "expr. Details: " +
                     "unaltered_typeinfo=" +
                         unaltered_typeinfo.as_str() + " "
@@ -1078,6 +1076,10 @@ func get_called_or_assigned_func_types(
             }
             return later
         }
+        if debug {
+            print(dbg_prefix + " "
+                "Now invoking type checker on base func node...")
+        }
         func_typeinfo =
             m64_ast_analyze.get_c_or_m64_type_of_node(
                 project_file, called_node, called_node_parents,
@@ -1094,7 +1096,6 @@ func get_called_or_assigned_func_types(
 
     if debug {
         print(dbg_prefix + " "
-            "get_called_or_assigned_func_types(): "
             "Got a node type result. func_typeinfo=" +
             func_typeinfo.as_str() + " "
             "func_typeinfo.func_typeexpr.name=" +
@@ -1124,8 +1125,7 @@ func get_called_or_assigned_func_types(
             return later result
         }
         if debug {
-            print(dbg_prefix +
-                " get_called_or_assigned_func_types(): "
+            print(dbg_prefix + " "
                 "Unexpectedly don't have func_typeinfo, while "
                 "looking at: " +
                 "called_node=" +
@@ -1507,7 +1507,6 @@ func get_called_or_assigned_func_types(
             is_called_with_adhoc_self = yes
             if debug {
                 print(dbg_prefix + " "
-                    "get_called_or_assigned_func_types(): "
                     "determine_adhoc_self_call(): "
                     "Self refs are the same.")
             }
@@ -1526,7 +1525,6 @@ func get_called_or_assigned_func_types(
         } else {
             if debug {
                 print(dbg_prefix + " "
-                    "get_called_or_assigned_func_types(): "
                     "determine_adhoc_self_call(): "
                     "Self refs differ: "
                     "potential_self_ref=" +
@@ -1692,7 +1690,6 @@ func get_called_or_assigned_func_types(
                 )
             if debug {
                 print(dbg_prefix + " "
-                    "get_called_or_assigned_func_types(): "
                     "Testing arg #" + idx.as_str() + " ("
                     "user-facing #" +
                     user_facing_idx.as_str() + ") which " +
@@ -1767,7 +1764,6 @@ func get_called_or_assigned_func_types(
         var name = entry[3].label
         if debug {
             print(dbg_prefix + " "
-                "get_called_or_assigned_func_types(): "
                 "Will now test entry=" + entry.as_str() + " "
                 "as an override...")
         }
@@ -1792,7 +1788,6 @@ func get_called_or_assigned_func_types(
         }
         if debug {
             print(dbg_prefix + " "
-                "get_called_or_assigned_func_types(): "
                 "Override test returned result=" +
                 inner_result.as_str() + " (" +
                 "success: " +
@@ -1817,7 +1812,6 @@ func get_called_or_assigned_func_types(
         }
         if debug {
             print(dbg_prefix + " "
-                "get_called_or_assigned_func_types(): "
                 "The signature doesn't match and overrides are "
                 "allowed. Let's go looking for one. "
                 "func_var_typeinfo=" +
@@ -1837,7 +1831,6 @@ func get_called_or_assigned_func_types(
             )
         if debug {
             print(dbg_prefix + " "
-                "get_called_or_assigned_func_types(): "
                 "We got the override list to look at. "
                 "override_info_list=" +
                     override_info_list.as_str())
@@ -1845,7 +1838,6 @@ func get_called_or_assigned_func_types(
         if override_info_list.len <= 1 {
             if debug {
                 print(dbg_prefix + " "
-                    "get_called_or_assigned_func_types(): "
                     "There are no overrides, so we bail.")
             }
             return
@@ -1920,8 +1912,7 @@ func get_called_or_assigned_func_types(
                 if user_facing_called_args_len != 1
                     ("s") else ("")
             if debug {
-                print(dbg_prefix +
-                    " get_called_or_assigned_func_types(): "
+                print(dbg_prefix + " "
                     "Got args mismatch, debug info: "
                     "called_actual_arg_user_indexes=" +
                         called_actual_arg_user_indexes.as_str() + " "
@@ -2038,8 +2029,7 @@ func get_called_or_assigned_func_types(
             called_node.damaged = yes
             if debug and signature_arg_mismatch_info != none and
                     is_moose64 and called_args_exprs.len > 0 {
-                print(dbg_prefix +
-                    " get_called_or_assigned_func_types(): "
+                print(dbg_prefix + " "
                     "Re-tracing first mismatching type "
                     "for debug info...")
                 var arg_type = m64_ast_analyze.
