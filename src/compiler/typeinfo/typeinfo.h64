@@ -79,6 +79,7 @@ enum TypeInfoKind {
     TI_FUNCREF,
     TI_MULTITYPE,
     TI_LISTARG,
+    TI_LISTARG_UNDEFINEDTYPE,
 }
 
 ## This is a concrete type info instance based on what was
@@ -162,7 +163,7 @@ func TypeInfo.is_readonly {
 }
 
 func TypeInfo.is_regular_bool_type {
-    if typeinfo.kind != typeinfo.TI_C_TYPE {
+    if typeinfo.kind != TI_C_TYPE {
         return no
     }
     if typeinfo.orig_type_name != "bool" {
@@ -180,6 +181,11 @@ func TypeInfo.is_plain_num_type {
 }
 
 func TypeInfo.is_array {
+    if {TI_LISTARG_UNDEFINEDTYPE,
+            TI_LISTARG}.has(self.kind) {
+        # We don't allow those as arrays.
+        return no
+    }
     var array_idx = none
     var idx = 0
     for mod in self.modifiers {
@@ -203,6 +209,9 @@ func TypeInfo.is_array {
 }
 
 func TypeInfo.is_array_with_readonly_data {
+    if not self.is_array() {
+        return no
+    }
     var found_array = no
     var idx = self.modifiers.len
     while idx >= 1 {
@@ -219,6 +228,11 @@ func TypeInfo.is_array_with_readonly_data {
 }
 
 func TypeInfo.is_readonly {
+    if {TI_LISTARG_UNDEFINEDTYPE,
+            TI_LISTARG}.has(self.kind) {
+        # We don't allow those to have readonly attributes.
+        return no
+    }
     var has_outer_readonly = no
     for mod in self.modifiers {
         if {"array"}.has(mod.name) {
@@ -254,7 +268,8 @@ func TypeInfo.get_c_zeroing_code {
             idx -= 1
         }
         return "((void*)0)"
-    } elseif self.kind == TI_USERTYPE {
+    } elseif self.kind == TI_USERTYPE or
+            self.kind == TI_MULTITYPE {
         return "{0}"
     } elseif self.kind == TI_FUNCREF {
         return "((void*)0)"
@@ -266,6 +281,11 @@ func TypeInfo.get_c_zeroing_code {
 func TypeInfo.ref_count(include_c_arrays=yes, include_arrays=no,
         include_implicit_refs=no,
         include_explicit_refs=yes) {
+    if {TI_LISTARG_UNDEFINEDTYPE,
+            TI_LISTARG}.has(self.kind) {
+        # We don't allow those to have any sort of ref count.
+        return 0
+    }
     const mod_len = self.modifiers.len
     var count = 0
 
@@ -325,6 +345,11 @@ func get_known_type_size(tinfo) {
 }
 
 func TypeInfo.has_outer_implicit_ref {
+    if {TI_LISTARG_UNDEFINEDTYPE,
+            TI_LISTARG}.has(self.kind) {
+        # We don't allow those to have any sort of refs, for now.
+        return no
+    }
     var idx = self.modifiers.len + 1
     while idx > 1 {
         idx -= 1
@@ -344,6 +369,11 @@ func TypeInfo.is_equivalent(
         ignore_self_ref=no,
         is_moose64=no,
         ) {
+    if self.kind == TI_LISTARG_UNDEFINEDTYPE {
+        # This is a special incomplete type that shouldn't be
+        # treated as automatically equivalent with anything ever.
+        return no
+    }
     if self.modifiers.len != other_typeinfo.modifiers.len {
         return no
     }
@@ -855,6 +885,10 @@ func TypeInfo._set_orig_type_expr(texpr) {
 func TypeInfo.describe_to_user(
         project=none, add_quotes_where_useful=no,
         is_moose64=no) {
+    if self.kind == TI_LISTARG_UNDEFINEDTYPE {
+        return "<incomplete not fully determined "
+            "list arg type>"
+    }
     var texpr = self.convert_to_typeref_expr(
         project=project, is_moose64=is_moose64
     )
