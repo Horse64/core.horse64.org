@@ -65,7 +65,7 @@ func CImportInfo._process_c_include(project, ipath) {
         )
         new_items["free"] = new c_symbol.CFuncSymbol(
             "void free(void *ptr);",
-            _override_func_signature="(<-size)->empty"
+            _override_func_signature="(<-any ref)->empty"
         )
         new_items["exit"] = new c_symbol.CFuncSymbol(
             "void exit(int value);",
