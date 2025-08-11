@@ -100,6 +100,16 @@ func check_if_allowed_implicit_cast_from_to(
         return yes
     }
 
+    # Special case for list arguments:
+    if from_typeinfo.kind == typeinfo.TI_LISTARG_UNDEFINEDTYPE and
+            to_typeinfo.kind == typeinfo.TI_C_TYPE and
+            to_typeinfo.orig_type_name == "c_vararg" {
+        return yes
+    }
+    if from_typeinfo.kind == typeinfo.TI_LISTARG_UNDEFINEDTYPE and
+            to_typeinfo.kind == typeinfo.TI_LISTARG {
+        return yes
+    }
     if (left_hand_target_typeinfo.ref_count(
                 include_c_arrays=no,
                 include_arrays=no,
