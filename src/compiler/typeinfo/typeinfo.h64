@@ -737,6 +737,15 @@ func create_typeinfo_from_typeexpr(
     if not is_moose64 {
         throw new RuntimeError("Not implemented for Horse64.")
     }
+
+    if not type_expr.is_func_ref and
+            not type_expr.is_user_type() and
+            type_expr.name == "c_vararg" {
+        var result = new TypeInfo(TI_C_TYPE)
+        result.c_type_name = "..."
+        result.orig_type_name = "c_vararg"
+        return result
+    }
     if not type_expr.is_func_ref and
             not type_expr.is_user_type() and
             ast_typeref._m64_to_c_name_map.has(

@@ -1697,13 +1697,20 @@ func get_called_or_assigned_func_types(
                         }
                     }
                 }
-                print(if is_moose64 ("horsec")
+                print(
+                    if is_moose64 ("horsec")
                         else ("moosec") + ": "
                     "error: Internal error, "
                     "failed to determine type of this "
                     "func signature arg expr: "
-                    "arg_expr=" + arg_signature_expr.as_str() +
-                    " (got msgs=" + msgs.as_str() + ")")
+                    "arg_expr=" + arg_signature_expr.as_str() + " "
+                    "with msgs=" + msgs.as_str() + ", "
+                    "project_file=" + project_file.as_str() + " "
+                    "called_node.line=" +
+                        if called_node != none
+                            (called_node.line.as_str())
+                            else ("none")
+                )
                 throw new RuntimeError(
                     "Internal error: Failed to determine "
                     "type of arg in func signature. Please "
