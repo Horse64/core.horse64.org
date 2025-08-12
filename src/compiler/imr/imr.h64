@@ -355,17 +355,18 @@ func IMRSetLit.as_json_obj(
 type IMRConv base IMRNode {
     var source_storage_ref
     var target_storage_ref
-    var source_type_expr
-    var target_type_expr
+    var source_type_info
+    var target_type_info
 }
 
 func IMRConv.init(
         source_storage_ref, target_storage_ref,
-        source_type_expr_or_typeinfo,
-        target_type_expr_or_typeinfo,
+        source_type_typeinfo,
+        target_type_typeinfo,
         in_project_file=none,
         is_moose64=no,
         ) {
+    const program_name = if is_moose64 ("moosec") else ("horsec")
     base.init(IMR_INST_CONV)
     if in_project_file == none {
         throw new RuntimeError("The project file must be "
@@ -385,38 +386,67 @@ func IMRConv.init(
     }
     self.source_storage_ref = source_storage_ref.copy()
     self.target_storage_ref = target_storage_ref.copy()
-    if source_type_expr_or_typeinfo == none {
+    if source_type_typeinfo == none {
         throw new ValueError("The "
-            "source_type_expr_or_typeinfo parameter "
+            "source_type_typeinfo parameter "
             "must be specified.")
     }
-    if target_type_expr_or_typeinfo == none {
+    if target_type_typeinfo == none {
         throw new ValueError("The "
-            "target_type_expr_or_typeinfo parameter "
+            "target_type_typeinfo parameter "
             "must be specified.")
     }
-    if has_attr(source_type_expr_or_typeinfo,
+    if not has_attr(source_type_typeinfo,
             "_orig_typeexpr") {
-        source_type_expr_or_typeinfo =
-            source_type_expr_or_typeinfo.convert_to_typeref_expr(
-                project=in_project_file.project,
-                in_local_scope=none,
-                in_project_file=in_project_file,
-                is_moose64=is_moose64
-            )
+        throw new ValueError("The "
+            "source_type_typeinfo parameter "
+            "doesn't seem to be a TypeInfo instance.")
     }
-    if has_attr(target_type_expr_or_typeinfo,
+    if not has_attr(target_type_typeinfo,
             "_orig_typeexpr") {
-        target_type_expr_or_typeinfo =
-            target_type_expr_or_typeinfo.convert_to_typeref_expr(
-                project=in_project_file.project,
-                in_local_scope=none,
-                in_project_file=in_project_file,
-                is_moose64=is_moose64
-            )
+        throw new ValueError("The "
+            "target_type_typeinfo parameter "
+            "doesn't seem to be a TypeInfo instance.")
     }
-    self.source_type_expr = source_type_expr_or_typeinfo.copy()
-    self.target_type_expr = target_type_expr_or_typeinfo.copy()
+    var source_type_expr =
+        source_type_typeinfo.convert_to_typeref_expr(
+            project=in_project_file.project,
+            in_local_scope=none,
+            in_project_file=in_project_file,
+            is_moose64=is_moose64
+        )
+    if source_type_expr == none {
+        print(program_name + ": error: Internal error, "
+            "unexpectedly failed to convert TypeInfo "
+            "given to IMRConv to AST type expr for "
+            "printing. typeinfo=" + source_type_typeinfo.as_str())
+        throw new RuntimeError("Internal error, "
+            "unexpectedly failed to convert TypeInfo "
+            "given to IMRConv to AST type expr for "
+            "printing.")
+    }
+    var target_type_expr =
+        target_type_typeinfo.convert_to_typeref_expr(
+            project=in_project_file.project,
+            in_local_scope=none,
+            in_project_file=in_project_file,
+            is_moose64=is_moose64
+        )
+    if target_type_expr == none {
+        print(program_name + ": error: Internal error, "
+            "unexpectedly failed to convert TypeInfo "
+            "given to IMRConv to AST type expr for "
+            "printing. typeinfo=" + target_type_typeinfo.as_str())
+        throw new RuntimeError("Internal error, "
+            "unexpectedly failed to convert TypeInfo "
+            "given to IMRConv to AST type expr for "
+            "printing.")
+    }
+    self.source_type_info = source_type_typeinfo.copy()
+    self.target_type_info = target_type_typeinfo.copy()
+    
+    self.source_type_expr = source_type_expr.copy()
+    self.target_type_expr = target_type_expr.copy()
 }
 
 func IMRConv.as_str(indent=0) {
