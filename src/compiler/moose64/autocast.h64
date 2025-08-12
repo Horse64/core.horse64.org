@@ -624,9 +624,9 @@ func get_math_binop_autocast(
     if left_hand_typeinfo.orig_type_name != none and
             (right_hand_typeinfo.orig_type_name ==
                 left_hand_typeinfo.orig_type_name or
-             ({"u8", "byte", "i8"}.has(
+             ({"byte", "i8"}.has(
                 right_hand_typeinfo.orig_type_name
-             ) and {"u8", "byte", "i8"}.has(
+             ) and {"byte", "i8"}.has(
                 left_hand_typeinfo.orig_type_name
              ))) {
         if debug {
@@ -661,7 +661,7 @@ func get_math_binop_autocast(
                     right_hand_typeinfo.orig_type_name {
             return cast_all_to("i8")
         }
-        return cast_all_to("u8")
+        return cast_all_to("byte")
     }
     if debug {
         print(program_name + ": debug: "
@@ -669,7 +669,7 @@ func get_math_binop_autocast(
             "This is some non-8-bit situation.")
     }
     var addr_types = {"addr", "addr_diff"}
-    var addr_compatible_nums = {"i8", "u8",
+    var addr_compatible_nums = {"i8",
         "byte", "size", "i16", "u16", "i32", "u32",
         "i64", "u64", "addr", "addr_diff"}
     if (addr_types.has(
@@ -707,7 +707,7 @@ func get_math_binop_autocast(
             "Left-hand isn't an addr type.")
     }
     if left_hand_typeinfo.orig_type_name == "f64" {
-        if {"f32", "f64", "byte", "u8", "i8", "size",
+        if {"f32", "f64", "byte", "i8", "size",
                 "u16", "i16", "u32", "i32", "u64", "i64"
                 }.has(
                     right_hand_typeinfo.orig_type_name
@@ -722,7 +722,7 @@ func get_math_binop_autocast(
             } else {
                 return cast_all_to("f64", override_result="f32")
             }
-        } elseif {"f32", "byte", "u8", "i8",
+        } elseif {"f32", "byte", "i8",
                 "u16", "i16", "u32", "i32"}.has(
                 right_hand_typeinfo.orig_type_name) {
             return cast_all_to("f32")

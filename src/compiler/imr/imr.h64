@@ -413,7 +413,7 @@ func IMRConv.init(
             project=in_project_file.project,
             in_local_scope=none,
             in_project_file=in_project_file,
-            is_moose64=is_moose64
+            is_moose64=is_moose64,
         )
     if source_type_expr == none {
         print(program_name + ": error: Internal error, "
@@ -430,7 +430,7 @@ func IMRConv.init(
             project=in_project_file.project,
             in_local_scope=none,
             in_project_file=in_project_file,
-            is_moose64=is_moose64
+            is_moose64=is_moose64,
         )
     if target_type_expr == none {
         print(program_name + ": error: Internal error, "

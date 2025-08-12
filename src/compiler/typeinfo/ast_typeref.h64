@@ -55,7 +55,7 @@ const builtin_moose64_type_modifiers = {
     "ref", "array", "c_array", "readonly"
 }
 const builtin_moose64_unsigned_num_types = {
-    "byte", "u8", "u16", "u32", "u64", "size",
+    "byte", "u16", "u32", "u64", "size",
     "addr"
 }
 const builtin_moose64_signed_num_types = {
@@ -64,7 +64,7 @@ const builtin_moose64_signed_num_types = {
 }
 const builtin_moose64_integer_num_types = {
     "i8", "i16", "i32", "i64", "addr_diff",
-    "addr", "size", "byte", "u8", "u16",
+    "addr", "size", "byte", "u16",
     "u32", "u64",
 }
 
@@ -1544,7 +1544,6 @@ const _m64_to_c_name_map = {
     "i32"-> "int32_t",
     "i64"-> "int64_t",
     "bool"-> "signed char",
-    "u8"-> "unsigned char",
     "byte"-> "unsigned char",
     "u16"-> "uint16_t",
     "u32"-> "uint32_t",

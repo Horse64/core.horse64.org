@@ -985,8 +985,25 @@ func TypeInfo.convert_array_type_to_data_type {
 func TypeInfo.convert_to_typeref_expr(
         project=none, in_local_scope=none,
         in_project_file=none,
-        is_moose64=no
+        is_moose64=no,
+        debug=no,
         ) {
+    const program_name =
+        if is_moose64 ("moosec") else ("horsec")
+    if debug {
+        print(program_name + ": debug: "
+            "convert_to_typeref_expr() called on: " +
+            "typeinfo=" + self.as_str() + ", " +
+            "is_moose64=" + is_moose64.as_str() + ", "
+            "typeinfo.fun_typeexpr=" +
+                self.func_typeexpr.as_str() + ", "
+            "typeinfo._orig_typeexpr=" +
+                self._orig_typeexpr.as_str() + ", "
+            "typeinfo.orig_type_name=" +
+                textfmt.as_escaped_code_string(
+                    self.orig_type_name
+                ))
+    }
     if self.func_typeexpr != none {
         var result = self.func_typeexpr.copy()
         result.modifiers = []
@@ -1012,7 +1029,6 @@ func TypeInfo.convert_to_typeref_expr(
             expr.modifiers.add(mod.copy())
         }
         return expr
-
     } elseif self.user_type_ref != none and
             (project != none or in_project_file != none) and
             self.user_type_ref.kind == st_ref.ST_GLOBALATTR {
