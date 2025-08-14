@@ -154,9 +154,12 @@ func IMRBlock.as_json_obj(
     return obj
 }
 
-func IMRBlock.fmt_block(indent=0) {
+func IMRBlock.fmt_block(indent=0, prepend_stmts=[]) {
     var indent_s = " ".rep(math.max(0, indent))
     var t = "BEGIN\n"
+    for inst in prepend_stmts {
+        t += inst.as_str(indent=(indent + 4)) + "\n"
+    }
     for inst in self.instructions {
         t += inst.as_str(indent=(indent + 4)) + "\n"
     }
@@ -1630,6 +1633,10 @@ type IMRFuncBlock base IMRBlock {
     var label = none
     var type_path = none
     var storage_ref = none
+
+    var storage_id_to_known_type_info = {->}
+    var storage_id_to_known_type_expr = {->}
+    var var_info_stmts_list = []
 }
 
 func IMRFuncBlock.init(
@@ -1679,6 +1686,76 @@ func IMRFuncBlock.init(
     }
 }
 
+func IMRFuncBlock.update_var_type_exprs(
+        project_file, is_moose64=no
+        ) {
+    self.var_info_stmts_list = []
+
+    var resolve_expr_queue = []
+    for st_id in self.storage_id_to_known_type_info {
+        var typeinfo_value = self.storage_id_to_known_type_info[
+            st_id
+        ]
+        if typeinfo_value == none {
+            continue
+        }
+        if not self.storage_id_to_known_type_expr.has(st_id) {
+            var var_type_expr = typeinfo_value.convert_to_typeref_expr(
+                project=project_file.project,
+                in_local_scope=none,
+                in_project_file=project_file,
+                is_moose64=is_moose64,
+            )
+            self.storage_id_to_known_type_expr[st_id] =
+                var_type_expr
+        }
+    }
+    for st_id in self.storage_id_to_known_type_expr {
+        resolve_expr_queue.add(
+            [st_id, self.storage_id_to_known_type_expr[st_id]]
+        )
+    }
+
+    func handle_queue_item(item) {
+        var st_id = item[1]
+        var var_type_expr = item[2]
+
+        var_type_expr.try_resolve_to_user_type(
+            project_file,
+            is_moose64=is_moose64,
+        ) later:
+        
+        var var_type_storage_ref = none
+        if var_type_expr.is_user_type() and
+                var_type_expr.storage_ref != none {
+            var_type_storage_ref = var_type_expr.storage_ref.copy()
+        }
+        var vinfo = new IMRVarInfo(
+            "tmp" + st_id.as_str(),
+            var_type_expr,
+            st_id,
+            var_type_storage_ref,
+            project_file,
+        )
+        self.var_info_stmts_list.add(vinfo)
+    }
+
+    if queue.len == 0 {
+        return later
+    }
+    var next_item = queue.pop()
+    var result = handle_queue_item(next_item)
+    later:
+
+    await result
+    if queue.len == 0 {
+        return later
+    }
+    next_item = queue.pop()
+    result = handle_queue_item(next_item)
+    later repeat
+}
+
 func IMRFuncBlock.get_func_tracker(tracker) {
     assert(self.storage_ref != none)
     assert(self.storage_ref.kind == st_ref.ST_GLOBALATTR or
@@ -1695,17 +1772,18 @@ func IMRFuncBlock.get_func_tracker(tracker) {
 }
 
 func IMRFuncBlock.as_str(indent=0) {
+    var t = ""
     if self.is_func_attr {
-        return self.format_inst(
+        t +=  self.format_inst(
             "FUNCBLOCK", pos_parameter_names=[
                 "is_func_attr", "storage_ref",
                 "type_path", "label", "is_extend",
             ], skip_parameter_names=[
                 "instructions",
             ], indent=indent,
-        ) + " " + self.fmt_block(indent=indent)
+        )
     } else {
-        return self.format_inst(
+        t += self.format_inst(
             "FUNCBLOCK", pos_parameter_names=[
                 "is_func_attr", "storage_ref",
                 "label", "is_extend",
@@ -1714,6 +1792,11 @@ func IMRFuncBlock.as_str(indent=0) {
             ], indent=indent,
         ) + " " + self.fmt_block(indent=indent)
     }
+    t += " " + self.fmt_block(
+        indent=indent,
+        prepend_stmts=self.var_info_stmt_list,
+    )
+    return t
 }
 
 func IMRFuncBlock.as_json_obj(
@@ -1849,10 +1932,20 @@ func get_new_temp_storage_ref(
         var new_value =
             func_tracker.last_assigned_temp_storage_id - 1
         func_tracker.last_assigned_temp_storage_id = new_value
-        func_tracker.storage_id_to_known_type_info[
+        func_imr_parent.storage_id_to_known_type_info[
             new_value
         ] = none
-        return new st_ref.StorageRef(
+        if optional_type_info != none {
+            func_imr_parent.storage_id_to_known_type_info[
+                new_value
+            ] = optional_type_info.copy()
+        }
+        func_imr_parent.update_var_type_exprs(
+            project_file,
+            is_moose64=is_moose64,
+        ) later:
+
+        return later new st_ref.StorageRef(
             st_ref.ST_LOCAL,
             new_value
         )
@@ -1982,7 +2075,10 @@ func generate_imr_for_expr(
                 result.need_conversion_to,
                 ignore_self_ref=yes,
             ))
-        if try_target_storage_ref == none {
+        func get_new_tmp_target_if_needed {
+            if try_target_storage_ref != none {
+                return later
+            }
             try_target_storage_ref = get_new_temp_storage_ref(
                 node, imr_parents=imr_parents,
                 func_imr_parent=func_imr_parent,
@@ -1992,9 +2088,13 @@ func generate_imr_for_expr(
                 imr_build_tracker=imr_build_tracker,
                 is_moose64=is_moose64,
                 msgs=msgs,
-            )
+            ) later:
+
+            await try_target_storage_ref
             assert(try_target_storage_ref != none)
         }
+        get_new_tmp_target_if_needed() later:
+
         var inst = new IMRConv(
             result.storage_ref,
             try_target_storage_ref,
@@ -2152,7 +2252,10 @@ func _generate_imr_for_expr_untyped(
     } elseif node.kind == ast.N_EXPR_LIT {
         var we_own_the_tmp_ref = no
         var tmp_ref = try_target_storage_ref
-        if tmp_ref == none {
+        func get_new_tmp_target_if_needed {
+            if tmp_ref != none {
+                return later
+            }
             we_own_the_tmp_ref = yes
             tmp_ref = get_new_temp_storage_ref(
                 node, imr_parents=imr_parents,
@@ -2162,8 +2265,12 @@ func _generate_imr_for_expr_untyped(
                 project_file=project_file,
                 imr_build_tracker=imr_build_tracker,
                 is_moose64=is_moose64, msgs=msgs,
-            )
+            ) later:
+
+            await tmp_ref
         }
+        get_new_tmp_target_if_needed() later:
+
         result.instructions.add(new IMRSetLit(
             node.value, tmp_ref,
             literal_kind=node.literal_kind,
@@ -2182,29 +2289,36 @@ func _generate_imr_for_expr_untyped(
 
         await target_tmp_typeinfo
 
-        if is_moose64 and
-                not we_own_the_tmp_ref and
-                not our_node_typeinfo.is_equivalent(
-                    target_tmp_typeinfo,
-                    ignore_self_ref=yes,
+        func get_inner_conversion_if_needed {
+            if is_moose64 and
+                    not we_own_the_tmp_ref and
+                    not our_node_typeinfo.is_equivalent(
+                        target_tmp_typeinfo,
+                        ignore_self_ref=yes,
+                        is_moose64=is_moose64,
+                    ) {
+                var inner_tmp_ref = get_new_temp_storage_ref(
+                    node, imr_parents=imr_parents,
+                    func_imr_parent=func_imr_parent,
+                    file_imr_parent=file_imr_parent,
+                    optional_type_info=our_node_typeinfo,
+                    project_file=project_file,
+                    imr_build_tracker=imr_build_tracker,
                     is_moose64=is_moose64,
-                ) {
-            var inner_tmp_ref = get_new_temp_storage_ref(
-                node, imr_parents=imr_parents,
-                func_imr_parent=func_imr_parent,
-                file_imr_parent=file_imr_parent,
-                optional_type_info=our_node_typeinfo,
-                project_file=project_file,
-                imr_build_tracker=imr_build_tracker,
-                is_moose64=is_moose64,
-                msgs=msgs,
-            )
-            write_op_result_to_tmp_ref = inner_tmp_ref
-            result.need_conversion = yes
-            result.need_conversion_from = our_node_typeinfo
-            result.need_conversion_to = target_tmp_typeinfo
-            result.storage_ref = inner_tmp_ref
+                    msgs=msgs,
+                ) later:
+
+                await inner_tmp_ref
+                write_op_result_to_tmp_ref = inner_tmp_ref
+                result.need_conversion = yes
+                result.need_conversion_from = our_node_typeinfo
+                result.need_conversion_to = target_tmp_typeinfo
+                result.storage_ref = inner_tmp_ref
+                return later
+            }
+            return later
         }
+        get_inner_conversion_if_needed() later:
 
         return later result
     } elseif node.kind == ast.N_EXPR_BINOP and
@@ -2212,9 +2326,12 @@ func _generate_imr_for_expr_untyped(
             node.subexprs.len >= 2 {
         var we_own_the_tmp_ref = no
         var tmp_ref = try_target_storage_ref
-        if tmp_ref == none or
-                (our_node_typeinfo == none and
-                is_moose64) {
+        func get_own_tmp_ref_if_needed {
+            if tmp_ref != none and
+                    (our_node_typeinfo != none or
+                    not is_moose64) {
+                return later
+            }
             we_own_the_tmp_ref = yes
             tmp_ref = get_new_temp_storage_ref(
                 node, imr_parents=imr_parents,
@@ -2225,8 +2342,11 @@ func _generate_imr_for_expr_untyped(
                 imr_build_tracker=imr_build_tracker,
                 is_moose64=is_moose64,
                 msgs=msgs,
-            )
+            ) later:
+
+            await tmp_ref
         }
+        get_own_tmp_ref_if_needed() later:
 
         var left_hand_result = generate_imr_for_expr(
             node.subexprs[1],
@@ -2347,29 +2467,37 @@ func _generate_imr_for_expr_untyped(
             msgs == none or not msg.msgs_contain_error(msgs))
         assert(not we_own_the_tmp_ref or
             tmp_ref.kind == st_ref.ST_LOCAL)
-        if is_moose64 and
-                not we_own_the_tmp_ref and
-                not our_node_typeinfo.is_equivalent(
-                    target_tmp_typeinfo,
-                    ignore_self_ref=yes,
+
+        func insert_type_conversion_if_needed {
+            if is_moose64 and
+                    not we_own_the_tmp_ref and
+                    not our_node_typeinfo.is_equivalent(
+                        target_tmp_typeinfo,
+                        ignore_self_ref=yes,
+                        is_moose64=is_moose64,
+                    ) {
+                var inner_tmp_ref = get_new_temp_storage_ref(
+                    node, imr_parents=imr_parents,
+                    func_imr_parent=func_imr_parent,
+                    file_imr_parent=file_imr_parent,
+                    optional_type_info=our_node_typeinfo,
+                    project_file=project_file,
+                    imr_build_tracker=imr_build_tracker,
                     is_moose64=is_moose64,
-                ) {
-            var inner_tmp_ref = get_new_temp_storage_ref(
-                node, imr_parents=imr_parents,
-                func_imr_parent=func_imr_parent,
-                file_imr_parent=file_imr_parent,
-                optional_type_info=our_node_typeinfo,
-                project_file=project_file,
-                imr_build_tracker=imr_build_tracker,
-                is_moose64=is_moose64,
-                msgs=msgs,
-            )
-            write_op_result_to_tmp_ref = inner_tmp_ref
-            result.need_conversion = yes
-            result.need_conversion_from = our_node_typeinfo
-            result.need_conversion_to = target_tmp_typeinfo
-            result.storage_ref = inner_tmp_ref
+                    msgs=msgs,
+                ) later:
+
+                await inner_tmp_ref
+                write_op_result_to_tmp_ref = inner_tmp_ref
+                result.need_conversion = yes
+                result.need_conversion_from = our_node_typeinfo
+                result.need_conversion_to = target_tmp_typeinfo
+                result.storage_ref = inner_tmp_ref
+                return later
+            }
+            return later
         }
+        insert_type_conversion_if_needed() later:
 
         result.instructions.add(new IMRCall(
             called_func_ref=left_hand_result.storage_ref,
@@ -2394,7 +2522,9 @@ func _generate_imr_for_expr_untyped(
             project_file=project_file,
             imr_build_tracker=imr_build_tracker,
             is_moose64=is_moose64, msgs=msgs,
-        )
+        ) later:
+
+        await tmp_ref
         var attr_name = node.subexprs[2].label
         assert(attr_name != none)
         var left_hand_result = generate_imr_for_expr(
@@ -2432,7 +2562,9 @@ func _generate_imr_for_expr_untyped(
             project_file=project_file,
             imr_build_tracker=imr_build_tracker,
             is_moose64=is_moose64, msgs=msgs,
-        )
+        ) later:
+
+        await tmp_ref
         var left_hand_result = generate_imr_for_expr(
             node.subexprs[1],
             node_parents=node_parents + [node],
@@ -2484,8 +2616,9 @@ func _generate_imr_for_expr_untyped(
             project_file=project_file,
             imr_build_tracker=imr_build_tracker,
             is_moose64=is_moose64, msgs=msgs,
-        )
+        ) later:
 
+        await tmp_ref
         var is_cmp_op =
             token.compare_ops.has(node.optoken.str)
         var is_bool_cmp_op =
@@ -2728,10 +2861,15 @@ func generate_imr_for_stmt(
             assert(typename(node.symbol_info) == "list")
             for si in node.symbol_info {
                 assert(si.kind == st_scope.SINFO_VAR)
-                func_tracker.storage_id_to_known_type_info[
+                func_imr_parent.storage_id_to_known_type_info[
                     si.storage_id
                 ] = tinfo
             }
+            func_imr_parent.update_var_type_exprs(
+                project_file,
+                is_moose64=is_moose64,
+            ) later:
+
             return later yes
         }
         var type_is_resolved = resolve_var_type()
@@ -2813,12 +2951,17 @@ func generate_imr_for_stmt(
         while i <= assigned_exprs.len {
             queue.add([i, assigned_exprs[i]])
             if func_imr_parent != none {
-                func_tracker.storage_id_to_known_type_info[
+                func_imr_parent.storage_id_to_known_type_info[
                     node.symbol_info[i].storage_id
                 ] = type_info
             }
             i += 1
         }
+        func_imr_tracker.update_var_type_exprs(
+            project_file,
+            is_moose64=is_moose64,
+        ) later:
+
         func process_queue_item(item) {
             if result_insts == none {
                 return later
@@ -3460,7 +3603,10 @@ func generate_imr_for_stmt(
             branches_count += 1
             queue.add(clause)
         }
-        if branches_count > 1 {
+        func create_unentered_ref_if_needed {
+            if branches_count <= 1 {
+                return later
+            }
             previous_clauses_unentered_ref =
                 get_new_temp_storage_ref(
                     node, imr_parents=imr_parents,
@@ -3469,12 +3615,15 @@ func generate_imr_for_stmt(
                     project_file=project_file,
                     imr_build_tracker=imr_build_tracker,
                     is_moose64=is_moose64, msgs=msgs,
-                )
+                ) later:
+
+            await previous_clauses_unentered_ref
             result_insts.add(new IMRSetLit(
                 yes, previous_clauses_unentered_ref,
                 literal_kind=ast_expr.LK_NORMAL
             ))
         }
+        create_unentered_ref_if_needed() later:
 
         var first_clause = yes
         var clause_idx = 0
@@ -3489,15 +3638,17 @@ func generate_imr_for_stmt(
             func extract_clause {
                 assert(clauses_insts.len == clause_idx - 1)
                 if item.is_else {
-                    var else_tmp_rf = get_new_temp_storage_ref(
+                    var else_tmp_ref = get_new_temp_storage_ref(
                         item, imr_parents=imr_parents,
                         func_imr_parent=func_imr_parent,
                         file_imr_parent=file_imr_parent,
                         project_file=project_file,
                         imr_build_tracker=imr_build_tracker,
                         is_moose64=is_moose64, msgs=msgs,
-                    )
-                    clauses_refs.add(else_tmp_rf)
+                    ) later:
+
+                    await else_tmp_ref
+                    clauses_refs.add(else_tmp_ref)
                     clauses_insts.add([])
                     return later
                 }
@@ -3714,7 +3865,9 @@ func generate_imr_for_stmt(
                         project_file=project_file,
                         imr_build_tracker=imr_build_tracker,
                         is_moose64=is_moose64, msgs=msgs,
-                    )
+                    ) later:
+
+                    await tmp_ref
                     result_insts.add(new IMRGetIdx(
                         container_storage_ref=
                             container_result.storage_ref,
@@ -3787,7 +3940,9 @@ func generate_imr_for_stmt(
                         project_file=project_file,
                         imr_build_tracker=imr_build_tracker,
                         is_moose64=is_moose64, msgs=msgs,
-                    )
+                    ) later:
+
+                    await tmp_ref
                     result_insts.add(new IMRGetAttrByName(
                         obj_storage_ref=
                             obj_result.storage_ref,
@@ -4585,7 +4740,6 @@ func expand_imr_for_entrypoint_by_file(
 
 type IMRBuildTrackerFunc {
     var last_assigned_temp_storage_id = 0
-    var storage_id_to_known_type_info = {->}
 }
 
 type IMRBuildTracker {
@@ -4619,13 +4773,13 @@ func get_var_typeinfo(
                 "Cannot find func tracker."
             )
         }
-        if not func_tracker.storage_id_to_known_type_info.has(
+        if not func_imr_parent.storage_id_to_known_type_info.has(
                 ref.id) {
             throw new ValueError(
                 "Cannot find local var in func registry."
             )
         }
-        var tinfo = func_tracker.storage_id_to_known_type_info[
+        var tinfo = func_imr_parent.storage_id_to_known_type_info[
             ref.id
         ]
         if tinfo != none {
@@ -4794,6 +4948,7 @@ func generate_imr_for_project(
         if not success {
             return later no
         }
+        print("RESULT: " + imr_for_file.as_str())
 
         return later yes
     }
