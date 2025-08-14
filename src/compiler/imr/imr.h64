@@ -1740,18 +1740,18 @@ func IMRFuncBlock.update_var_type_exprs(
         self.var_info_stmts_list.add(vinfo)
     }
 
-    if queue.len == 0 {
+    if resolve_expr_queue.len == 0 {
         return later
     }
-    var next_item = queue.pop()
+    var next_item = resolve_expr_queue.pop()
     var result = handle_queue_item(next_item)
     later:
 
     await result
-    if queue.len == 0 {
+    if resolve_expr_queue.len == 0 {
         return later
     }
-    next_item = queue.pop()
+    next_item = resolve_expr_queue.pop()
     result = handle_queue_item(next_item)
     later repeat
 }
@@ -2957,7 +2957,7 @@ func generate_imr_for_stmt(
             }
             i += 1
         }
-        func_imr_tracker.update_var_type_exprs(
+        func_imr_parent.update_var_type_exprs(
             project_file,
             is_moose64=is_moose64,
         ) later:
