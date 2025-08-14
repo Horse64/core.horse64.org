@@ -1636,7 +1636,7 @@ type IMRFuncBlock base IMRBlock {
 
     var storage_id_to_known_type_info = {->}
     var storage_id_to_known_type_expr = {->}
-    var var_info_stmts_list = []
+    var var_info_stmts = []
 }
 
 func IMRFuncBlock.init(
@@ -1689,7 +1689,7 @@ func IMRFuncBlock.init(
 func IMRFuncBlock.update_var_type_exprs(
         project_file, is_moose64=no
         ) {
-    self.var_info_stmts_list = []
+    self.var_info_stmts = []
 
     var resolve_expr_queue = []
     for st_id in self.storage_id_to_known_type_info {
@@ -1737,7 +1737,7 @@ func IMRFuncBlock.update_var_type_exprs(
             var_type_storage_ref,
             project_file,
         )
-        self.var_info_stmts_list.add(vinfo)
+        self.var_info_stmts.add(vinfo)
     }
 
     if resolve_expr_queue.len == 0 {
@@ -1794,7 +1794,7 @@ func IMRFuncBlock.as_str(indent=0) {
     }
     t += " " + self.fmt_block(
         indent=indent,
-        prepend_stmts=self.var_info_stmt_list,
+        prepend_stmts=self.var_info_stmts,
     )
     return t
 }
@@ -4501,7 +4501,7 @@ func generate_imr_for_file(
                     return
                 }
                 var result = var_type_expr.try_resolve_to_user_type(
-                    pfile, is_moose64=is_moose64
+                    pfile, is_moose64=is_moose64,
                 ) later:
 
                 await result
@@ -4566,7 +4566,7 @@ func generate_imr_for_file(
                         "Internal error, "
                         "unexpectedly failed to generate right-hand "
                         "init side for this global var statement.",
-                        source_file=project_file,
+                        source_file=pfile,
                         line=stmt.line,
                         col=stmt.col,
                     ))
