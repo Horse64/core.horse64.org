@@ -1710,10 +1710,28 @@ func IMRFuncBlock.update_var_type_exprs(
                 var_type_expr
         }
     }
-    for st_id in self.storage_id_to_known_type_expr {
-        resolve_expr_queue.add(
-            [st_id, self.storage_id_to_known_type_expr[st_id]]
-        )
+    if is_moose64 {
+        # We should have type exprs guaranteed, unless the
+        # code has user error and won't finish compiling.
+        # Let's rely on the type expressions:
+        for st_id in self.storage_id_to_known_type_expr {
+            resolve_expr_queue.add(
+                [st_id, self.storage_id_to_known_type_expr[st_id]]
+            )
+        }
+    } else {
+        # We probably won't have type exprs for most things:
+        for st_id in self.storage_id_to_known_type_info {
+            if self.storage_id_to_known_type_expr.has(st_id) {
+                resolve_expr_queue.add(
+                    [st_id, self.storage_id_to_known_type_expr[st_id]]
+                )
+            } else {
+                resolve_expr_queue.add(
+                    [st_id, none]
+                )
+            }
+        }
     }
 
     func handle_queue_item(item) {
@@ -2932,7 +2950,11 @@ func generate_imr_for_stmt(
             )
             vinfo.line = node.line
             vinfo.col = node.col
-            result_insts.add(vinfo)
+            if node.symbol_info[idx].kind != st_ref.ST_LOCAL {
+                # Locals are already handled by
+                # the IMRFuncBlock's registry of vars.
+                result_insts.add(vinfo)
+            }
         }
         var assigned_exprs = node.subexprs.copy()
         var type_info = none
