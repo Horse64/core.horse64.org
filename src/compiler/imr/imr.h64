@@ -1790,7 +1790,7 @@ func IMRFuncBlock.as_str(indent=0) {
             ], skip_parameter_names=[
                 "instructions",
             ], indent=indent,
-        ) + " " + self.fmt_block(indent=indent)
+        )
     }
     t += " " + self.fmt_block(
         indent=indent,
@@ -4948,7 +4948,6 @@ func generate_imr_for_project(
         if not success {
             return later no
         }
-        print("RESULT: " + imr_for_file.as_str())
 
         return later yes
     }
