@@ -2039,6 +2039,8 @@ func generate_imr_for_expr(
         is_moose64=no, msgs=none,
         debug=no,
         ) {
+    const program_name =
+        if is_moose64 ("moosec") else ("horsec")
     assert(imr_build_tracker != none)
     var result = _generate_imr_for_expr_untyped(
         node,
@@ -2055,6 +2057,12 @@ func generate_imr_for_expr(
     ) later:
 
     await result
+    if debug {
+        print(program_name + ": debug: " +
+            "generate_imr_for_expr(): "
+            "Got result before evaluating "
+            "type: result=" + result.as_str())
+    }
     if result == none or result.storage_ref == none {
         return later result
     }
@@ -2083,7 +2091,10 @@ func generate_imr_for_expr(
         result.need_conversion_from = result.known_type_info
         result.need_conversion_to = convert_to_target_type
     }
-    if result.need_conversion {
+    func do_conversion_if_needed {
+        if not result.need_conversion {
+            return later
+        }
         assert((try_target_storage_ref != none and
             not try_target_storage_ref.alike(
                 result.storage_ref)) or
@@ -2123,6 +2134,8 @@ func generate_imr_for_expr(
         )
         result.instructions.add(inst)
     }
+    do_conversion_if_needed() later:
+
     return result
 }
 func update_typing_for_imr_expr(
@@ -2268,6 +2281,11 @@ func _generate_imr_for_expr_untyped(
         result.storage_ref = node.ref.copy()
         return later result
     } elseif node.kind == ast.N_EXPR_LIT {
+        if debug {
+            print(program_name + ": debug: " +
+                "generate_imr_for_expr(): "
+                "Handling literal...")
+        }
         var we_own_the_tmp_ref = no
         var tmp_ref = try_target_storage_ref
         func get_new_tmp_target_if_needed {
@@ -4587,7 +4605,13 @@ func generate_imr_for_file(
                     msgs.add(new msg.FileMsg(
                         "Internal error, "
                         "unexpectedly failed to generate right-hand "
-                        "init side for this global var statement.",
+                        "init side for this global var statement. " +
+                        "right_hand_result=" +
+                            right_hand_result.as_str() + " "
+                        "right_hand_result.storage_ref=" +
+                            if right_hand_result != none
+                                (right_hand_result.storage_ref.as_str())
+                                else ("none"),
                         source_file=pfile,
                         line=stmt.line,
                         col=stmt.col,
