@@ -2218,7 +2218,7 @@ func _generate_imr_for_expr_untyped(
         debug=no,
         ) {
     const program_name = if is_moose64 ("moosec") else ("horsec")
-    var irregular_binop_strs = {"[", "(", "."}
+    var irregular_binop_strs = {"[", "(", ".", "new"}
     var func_parent_node = none
     var func_tracker = none
     if func_imr_parent != none {
@@ -2641,9 +2641,12 @@ func _generate_imr_for_expr_untyped(
         ))
         result.storage_ref = tmp_ref
         return later result
-    } elseif node.kind == ast.N_EXPR_BINOP and
-            not irregular_binop_strs.has(node.optoken.str) and
-            node.subexprs.len >= 2 {
+    } elseif (node.kind == ast.N_EXPR_BINOP and
+             not irregular_binop_strs.has(node.optoken.str) and
+             node.subexprs.len >= 2) or
+            (node.kind == ast.N_EXPR_UNOP and
+             node.subexprs.len >= 1) {
+        var is_binop = node.kind == ast.N_EXPR_BINOP
         var tmp_ref = get_new_temp_storage_ref(
             node, imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
@@ -2694,6 +2697,37 @@ func _generate_imr_for_expr_untyped(
             }
             determine_left_hand() later:
 
+            if not is_binop {
+                if left_hand_type == none {
+                    return later
+                }
+                if is_bool_cmp_op {
+                    left_hand_convert_to = typeinfo.
+                        create_from_simple_m64_type("bool")
+                } elseif node.optoken.str == "-" {
+                    var result = m64_autocat.get_math_unop_autocast(
+                        operand_typeinfo,
+                        operand_is_literal_none=
+                            node.subexprs[1].kind == ast.N_EXPR_LIT and
+                            node.subexprs[1].literal_kind ==
+                                ast_expr.LK_NORMAL and
+                            node.subexprs[1].value == none,
+                        is_moose64=is_moose64,
+                        debug=yes,
+                    )
+                    if result.incompatible {
+                        return later
+                    }
+                    assert(result.cast_operand_to != none)
+                    left_hand_convert_to = result.cast_operand_to
+                    return later
+                } else {
+                    throw new RuntimeError(
+                        "Unhandled kind of unop operator."
+                    )
+                }
+                return later
+            }
             func determine_right_hand {
                 if _is_node_a_compiler_builtin(
                         project_file, node.subexprs[2],
@@ -2770,34 +2804,52 @@ func _generate_imr_for_expr_untyped(
         ) later:
 
         await left_hand_result
-        var right_hand_result = generate_imr_for_expr(
-            node.subexprs[2],
-            node_parents=node_parents + [node],
-            imr_parents=imr_parents,
-            func_imr_parent=func_imr_parent,
-            file_imr_parent=file_imr_parent,
-            convert_to_target_type=right_hand_convert_to,
-            project_file=project_file,
-            imr_build_tracker=imr_build_tracker,
-            is_moose64=is_moose64, msgs=msgs,
-        ) later:
+        var right_hand_result = none
+        func get_righthand_result_if_binop {
+            if not is_binop {
+                return later
+            }
+            right_hand_result = generate_imr_for_expr(
+                node.subexprs[2],
+                node_parents=node_parents + [node],
+                imr_parents=imr_parents,
+                func_imr_parent=func_imr_parent,
+                file_imr_parent=file_imr_parent,
+                convert_to_target_type=right_hand_convert_to,
+                project_file=project_file,
+                imr_build_tracker=imr_build_tracker,
+                is_moose64=is_moose64, msgs=msgs,
+            ) later:
 
-        await right_hand_result
+            await right_hand_result
+        }
+        get_righthand_result_if_binop() later:
+
         if left_hand_result == none or
-                right_hand_result == none {
+                (is_binop and right_hand_result == none) {
             return later none
         }
         result.instructions += left_hand_result.instructions
-        result.instructions += right_hand_result.instructions
-        result.instructions.add(new IMRApplyOp(
-            node.optoken.copy(),
-            operand_1_storage_ref=
-                left_hand_result.storage_ref,
-            operand_2_storage_ref=
-                right_hand_result.storage_ref,
-            target_storage_ref=tmp_ref,
-            is_binary=yes,
-        ))
+        if is_binop {
+            result.instructions += right_hand_result.instructions
+            result.instructions.add(new IMRApplyOp(
+                node.optoken.copy(),
+                operand_1_storage_ref=
+                    left_hand_result.storage_ref,
+                operand_2_storage_ref=
+                    right_hand_result.storage_ref,
+                target_storage_ref=tmp_ref,
+                is_binary=yes,
+            ))
+        } else {
+            result.instructions.add(new IMRApplyOp(
+                node.optoken.copy(),
+                operand_1_storage_ref=
+                    left_hand_result.storage_ref,
+                target_storage_ref=tmp_ref,
+                is_binary=no,
+            ))
+        }
         result.storage_ref = tmp_ref
         return later result
     }

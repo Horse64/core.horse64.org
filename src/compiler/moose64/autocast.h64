@@ -42,6 +42,13 @@ type BinopAutocastResult {
     var incompatible = no
 }
 
+type UnopAutocastResult {
+    var cast_operand_to
+    var result_type
+
+    var incompatible = no
+}
+
 func BinopAutocastResult.as_str {
     var t = "BinopAutocastResult{" +
         "cast_lefthand_to=" +
@@ -383,6 +390,76 @@ func is_plain_num_type(typeinfo_value) {
             ) {
         return yes
     }
+}
+
+func get_math_unop_autocast(
+        operand_typeinfo,
+        operand_is_literal_none=no,
+        is_moose64=no, debug=no,
+        ) {
+    const program_name = if is_moose64 ("moosec") else ("horsec")
+    var result = new UnopAutocastResult()
+
+    if debug {
+        print(program_name + ": debug: "
+            "get_math_unop_autocast(): "
+            "Called on operand_typeinfo=" +
+                operand_typeinfo.as_str() + " "
+            "is_moose64=" + is_moose64.as_str())
+    }
+
+    if operand_typeinfo.kind != typeinfo.TI_C_TYPE or
+            not builtin_moose64_num_types.has(
+                operand_typeinfo.orig_type_name) or
+            {"addr"}.has(operand_typeinfo.orig_type_name) {
+        result.incompatible = yes
+        return result
+    }
+
+    var refs_count = left_hand_typeinfo.ref_count(
+        include_c_arrays=yes, include_arrays=no,
+        include_implicit_refs=no,
+    )
+    if refs_count > 0 {
+        result.incompatible = yes
+        return result
+    }
+    var tname = operand_typeinfo.orig_type_name
+    var sizes = [8, 16, 32, 64]
+    var i = 1
+    while i <= sizes.len {
+        var s = sizes[i]
+        if tname == "u" + s.as_str() or
+                tname == "i" + s.as_str() or
+                (s == 64 and
+                 tname == "addr_diff") or
+                (s == 8 and
+                 tname == "byte") {
+            if s == 8 {
+                result.result_type =
+                    typeinfo.create_from_simple_m64_type(
+                        "byte"
+                    )
+            } else {
+                result.result_type =
+                    typeinfo.create_from_simple_m64_type(
+                        "i" + i.as_str()
+                    )
+            }
+            result.cast_operand_to = result.result_type.copy()
+            return result
+        } elseif tname == "f" + s.as_str() {
+            result.result_type =
+                typeinfo.create_from_simple_m64_type(
+                    "f" + s.as_str()
+                )
+            result.cast_operand_to = result.result_type.copy()
+            return result
+        }
+        i += 1
+    }
+    result.incompatible = yes
+    return result
 }
 
 func get_math_binop_autocast(
