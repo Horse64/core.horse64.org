@@ -36,6 +36,7 @@ import compiler.ast.expr as ast_expr
 import compiler.ast.transform as ast_transform
 import compiler.compiler_log as clog
 import compiler.globals_order as globals_order
+import compiler.imr.transform as imr_transform
 import compiler.moose64.autocast as m64_autocast
 import compiler.moose64.builtins as m64_builtins
 import compiler.moose64.ast.analyze as m64_ast_analyze
@@ -5058,6 +5059,36 @@ func generate_imr_for_project(
         result = no
     }
 
+    if boptions.print_stages {
+        clog.log_or_print(
+            new msg.FileMsg(
+                "stage imr: " +
+                "Starting IMR transformations... "
+                "[t=" + time.ticks().as_str() + "]",
+                kind=msg.M_INFO,
+            ),
+            msgs=imrresult.msgs,
+            program_name=program_name,
+            force_print=not boptions.format_output_for_scripts,
+        )
+    }
+    if debug {
+        print(program_name + ": debug: "
+            "generate_imr_for_project(): "
+            "Will now do IMR transformations, like "
+            "reassigning "
+            "locals and computing lifetimes...")
+    }
+    result = imr_transform.reassign_locals_and_do_lifetime_for_imr(
+        project=project,
+        imr_build_tracker=imr_build_tracker,
+        build_options=build_options,
+        is_moose64=is_moose64,
+        msgs=msgs,
+        debug=debug,
+    ) later:
+
+    await result
     if debug {
         print(program_name + ": debug: "
             "generate_imr_for_project(): "
