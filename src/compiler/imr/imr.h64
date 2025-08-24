@@ -193,26 +193,28 @@ func IMRVarInfo.init(
     self.type_expr = var_type
     var must_have_var_storage_ref = no
     var mustnt_have_var_storage_ref = no
-    if self.type_expr.is_user_type() and
-            not self.type_expr.is_func_ref {
-        must_have_var_storage_ref = yes
-    } elseif not self.type_expr.is_user_type() {
-        mustnt_have_var_storage_ref = yes
-    }
-    if (must_have_var_storage_ref and
-            var_type_storage_ref == none) or
-            (var_type_storage_ref != none and
-             (typename(var_type_storage_ref) != "obj" or
-              not has_attr(var_type_storage_ref, "id") or
-              not has_attr(var_type_storage_ref, "kind"))) {
-        throw new RuntimeError(
-            "The var_type_storage_ref must be set "
-            "to a storage ref.")
-    }
-    if mustnt_have_var_storage_ref and
-            var_type_storage_ref != none {
-        throw new RuntimeError(
-            "The var_type_storage_ref mustn't be set.")
+    if self.type_expr != none {
+        if self.type_expr.is_user_type() and
+                not self.type_expr.is_func_ref {
+            must_have_var_storage_ref = yes
+        } elseif not self.type_expr.is_user_type() {
+            mustnt_have_var_storage_ref = yes
+        }
+        if (must_have_var_storage_ref and
+                var_type_storage_ref == none) or
+                (var_type_storage_ref != none and
+                (typename(var_type_storage_ref) != "obj" or
+                not has_attr(var_type_storage_ref, "id") or
+                not has_attr(var_type_storage_ref, "kind"))) {
+            throw new RuntimeError(
+                "The var_type_storage_ref must be set "
+                "to a storage ref.")
+        }
+        if mustnt_have_var_storage_ref and
+                var_type_storage_ref != none {
+            throw new RuntimeError(
+                "The var_type_storage_ref mustn't be set.")
+        }
     }
     self.type_expr_storage_ref = var_type_storage_ref
     self.def_project_file = var_def_project_file
@@ -1688,7 +1690,7 @@ func IMRFuncBlock.init(
 }
 
 func IMRFuncBlock.update_var_type_exprs(
-        project_file, is_moose64=no
+        project_file, is_moose64=no, msgs=none,
         ) {
     self.var_info_stmts = []
 
@@ -1698,6 +1700,7 @@ func IMRFuncBlock.update_var_type_exprs(
             st_id
         ]
         if typeinfo_value == none {
+            self.storage_id_to_known_type_expr[st_id] = none
             continue
         }
         if not self.storage_id_to_known_type_expr.has(st_id) {
@@ -1707,45 +1710,53 @@ func IMRFuncBlock.update_var_type_exprs(
                 in_project_file=project_file,
                 is_moose64=is_moose64,
             )
-            self.storage_id_to_known_type_expr[st_id] =
-                var_type_expr
+            self.storage_id_to_known_type_expr[
+                st_id
+            ] = var_type_expr
         }
     }
-    if is_moose64 {
-        # We should have type exprs guaranteed, unless the
-        # code has user error and won't finish compiling.
-        # Let's rely on the type expressions:
-        for st_id in self.storage_id_to_known_type_expr {
-            resolve_expr_queue.add(
-                [st_id, self.storage_id_to_known_type_expr[st_id]]
-            )
-        }
-    } else {
-        # We probably won't have type exprs for most things:
-        for st_id in self.storage_id_to_known_type_info {
-            if self.storage_id_to_known_type_expr.has(st_id) {
-                resolve_expr_queue.add(
-                    [st_id, self.storage_id_to_known_type_expr[st_id]]
-                )
-            } else {
-                resolve_expr_queue.add(
-                    [st_id, none]
-                )
+    for st_id in self.storage_id_to_known_type_expr {
+        var texpr = self.storage_id_to_known_type_expr[st_id]
+        if is_moose64 and texpr == none {
+            if msgs == none {
+                throw new ValueError("Failed to get type "
+                    "for value expression, this is likely "
+                    "a follow-up to a previous code error.")
+            } elseif not msg.msgs_contain_error(msgs) {
+                msgs.add(new msg.FileMsg(
+                    "Internal error, failed to "
+                    "get type expr for local var despite "
+                    "there not being a previous error. This "
+                    "shouldn't happen. Please contact the "
+                    "compiler makers about this error. "
+                    "Details: st_id=" + st_id.as_str(),
+                    source_file=project_file,
+                ))
             }
         }
+        resolve_expr_queue.add(
+            [st_id, texpr]
+        )
     }
 
     func handle_queue_item(item) {
         var st_id = item[1]
         var var_type_expr = item[2]
 
-        var_type_expr.try_resolve_to_user_type(
-            project_file,
-            is_moose64=is_moose64,
-        ) later:
-        
+        func resolve_type_if_any {
+            if var_type_expr == none {
+                return later
+            }
+            var_type_expr.try_resolve_to_user_type(
+                project_file,
+                is_moose64=is_moose64,
+            ) later:
+        }
+        resolve_type_if_any() later:
+
         var var_type_storage_ref = none
-        if var_type_expr.is_user_type() and
+        if var_type_expr != none and
+                var_type_expr.is_user_type() and
                 var_type_expr.storage_ref != none {
             var_type_storage_ref = var_type_expr.storage_ref.copy()
         }
@@ -1962,6 +1973,7 @@ func get_new_temp_storage_ref(
         func_imr_parent.update_var_type_exprs(
             project_file,
             is_moose64=is_moose64,
+            msgs=msgs,
         ) later:
 
         return later new st_ref.StorageRef(
@@ -2957,6 +2969,7 @@ func generate_imr_for_stmt(
             func_imr_parent.update_var_type_exprs(
                 project_file,
                 is_moose64=is_moose64,
+                msgs=msgs,
             ) later:
 
             return later yes
@@ -3053,6 +3066,7 @@ func generate_imr_for_stmt(
         func_imr_parent.update_var_type_exprs(
             project_file,
             is_moose64=is_moose64,
+            msgs=msgs,
         ) later:
 
         func process_queue_item(item) {
@@ -5057,6 +5071,9 @@ func generate_imr_for_project(
     await result
     if msg.msgs_contain_error(imrresult.msgs) {
         result = no
+    }
+    if not result {
+        return later no
     }
 
     if boptions.print_stages {

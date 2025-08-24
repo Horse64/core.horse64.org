@@ -26,10 +26,16 @@
 # Alternatively, at your option, this file is offered under the Apache 2
 # license, see accompanied LICENSE.md.
 
-func reassign_locals_and_do_lifetime_for_imr(
+import math from core.horse64.org
+
+import compiler.imr
+import compiler.storage.ref as st_ref
+
+func replace_locals_in_func(
+        func_imr_node,
+        old_local_id, new_local_id,
         project=none,
         imr_build_tracker=none,
-        build_options=none,
         is_moose64=no,
         msgs=none,
         debug=no,
@@ -42,10 +48,108 @@ func reassign_locals_and_do_lifetime_for_imr(
         throw new ValueError("The imr_build_tracker parameter "
             "has to be specified.")
     }
+    func replace_locals_in_list(l) {
+        for item in l {
+            if has_attr(item, "instructions") {
+                replace_locals_in_list(item.instructions)
+            }
+            # FIXME: This will break closure captures for
+            # Horse64. Figure out later what we'll do about that.
+            if item.kind == compiler.imr.IMR_INST_VARINFO {
+                if item.storage_id == old_local_id {
+                    item.storage_id = new_local_id
+                }
+            } elseif item.kind == compiler.imr.IMR_INST_CONV {
+                if item.source_storage_ref.kind == st_ref.ST_LOCAL and
+                        item.source_storage_ref.id == old_local_id {
+                    item.source_storage_ref.id = new_local_id
+                }
+                if item.target_storage_ref.kind == st_ref.ST_LOCAL and
+                        item.target_storage_ref.id == old_local_id {
+                    item.target_storage_ref.id = new_local_id
+                }
+            } elseif item.kind == compiler.imr.IMR_INST_MOVE {
+                if item.source_storage_ref.kind == st_ref.ST_LOCAL and
+                        item.source_storage_ref.id == old_local_id {
+                    item.source_storage_ref.id = new_local_id
+                }
+                if item.target_storage_ref.kind == st_ref.ST_LOCAL and
+                        item.target_storage_ref.id == old_local_id {
+                    item.target_storage_ref.id = new_local_id
+                }
+            }
+        }
+    }
+    replace_locals_in_list(func_imr_node.instructions)
+}
+
+func reassign_locals_and_do_lifetime_for_imr(
+        project=none,
+        imr_build_tracker=none,
+        build_options=none,
+        is_moose64=no,
+        msgs=none,
+        debug=no,
+        ) {
+    const program_name = if is_moose64 ("mosoec") else ("horsec")
+    if project == none {
+        throw new ValueError("The project parameter "
+            "has to be specified.")
+    }
+    if imr_build_tracker == none {
+        throw new ValueError("The imr_build_tracker parameter "
+            "has to be specified.")
+    }
     if build_options == none {
         throw new ValueError("The build_options parameter "
             "has to be specified.")
     }
-    return later
+    func process_file(pfile) {
+        var imr_for_file = imr_build_tracker.
+            file_id_to_imr_result_map[
+                pfile.file_id
+            ]
+        imr_for_file.ensure_loaded()
+        later:
+
+        func go_through_funcs(block_list) {
+            for block in block_list {
+                if has_attr(block, "instructions") {
+                    go_through_funcs(block.instructions)
+                }
+                if block.kind != compiler.imr.IMR_BLOCK_FUNC {
+                    continue
+                }
+                var highest_st_id_used = 1
+                var amount_of_ids_used = 0
+                for st_id in block.storage_id_to_known_type_expr {
+                    highest_st_id_used = math.max(
+                        highest_st_id_used, st_id
+                    )
+                    amount_of_ids_used += 1
+                }
+                if debug {
+                    print(program_name + ": debug: " +
+                        "reassign_locals_and_do_lifetime_for_imr(): " +
+                        "Looking at function: " +
+                        "label=" + block.label.as_str() + " "
+                        "highest_st_id_used=" +
+                            highest_st_id_used.as_str() + " "
+                        "amount_of_ids_used=" +
+                            amount_of_ids_used.as_str())
+                }
+            }
+        }
+        go_through_funcs(imr_for_file.blocks)
+
+        #print("RESULT: " + imr_for_file.as_str())
+        return later yes
+    }
+    var result = project.do_for_all_files(
+        process_file
+    ) later:
+
+    await result
+    return later yes
 }
 
