@@ -4956,6 +4956,11 @@ func generate_imr_for_project(
         if is_moose64 ("moosec") else ("horsec")
     var boptions = build_options
     var imrresult = new IMRTranslationResult()
+    if msgs != none {
+        imrresult.msgs = msgs
+    } else {
+        imrresult.msgs = none
+    }
     var imr_build_tracker = new IMRBuildTracker()
 
     if boptions.print_stages {
@@ -4999,7 +5004,7 @@ func generate_imr_for_project(
         var result = generate_imr_for_file(
             pfile, imr_build_tracker=imr_build_tracker,
             build_options=build_options,
-            msgs=msgs,
+            msgs=imrresult.msgs,
             is_moose64=is_moose64)
         later:
 
@@ -5018,6 +5023,9 @@ func generate_imr_for_project(
         result = no
     }
     assert(result == yes or result == no)
+    if not result {
+        return later no
+    }
 
     if debug {
         print(program_name + ": debug: "
@@ -5101,7 +5109,7 @@ func generate_imr_for_project(
         imr_build_tracker=imr_build_tracker,
         build_options=build_options,
         is_moose64=is_moose64,
-        msgs=msgs,
+        msgs=imrresult.msgs,
         debug=debug,
     ) later:
 
