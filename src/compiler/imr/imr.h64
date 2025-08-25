@@ -1723,13 +1723,19 @@ func IMRFuncBlock.update_var_type_exprs(
                     "for value expression, this is likely "
                     "a follow-up to a previous code error.")
             } elseif not msg.msgs_contain_error(msgs) {
+                var tinfo = self.storage_id_to_known_type_info[
+                    st_id
+                ]
                 msgs.add(new msg.FileMsg(
                     "Internal error, failed to "
                     "get type expr for local var despite "
                     "there not being a previous error. This "
                     "shouldn't happen. Please contact the "
                     "compiler makers about this error. "
-                    "Details: st_id=" + st_id.as_str(),
+                    "Details: st_id=" + st_id.as_str() + " "
+                    "IMRFuncBlock.label=" +
+                        textfmt.as_escaped_code_string(self.label) + " "
+                    "tinfo=" + tinfo.as_str(),
                     source_file=project_file,
                 ))
             }
