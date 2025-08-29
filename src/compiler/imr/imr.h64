@@ -2459,6 +2459,40 @@ func _generate_imr_for_expr_untyped(
                 value_name = value_expr.label
                 value_expr = value_expr.subexprs[1]
             }
+
+            var add_conv_to_type = none
+            func determine_type_conversion_if_any {
+                if not is_moose64 or
+                        called_func_type_info_if_known == none {
+                    return later
+                }
+                var implicit_self_arg = no
+                var call_args_len = args_node.subexprs.len
+                if called_func_type_info_if_known.is_func_attr() and
+                        called_func_type_info_if_known.arg_count() ==
+                            args_node.subexprs.len + 1 {
+                    implicit_self_arg = yes
+                }
+                var intended_arg_no =
+                    arg_no + if implicit_self_arg (1) else (0)
+                var arg_intended_type =
+                    called_func_type_info_if_known.construct_arg_type(
+                        intended_arg_no,
+                        project_file=project_file,
+                        is_moose64=is_moose64, debug=no,
+                    ) later:
+
+                await arg_intended_type
+                if debug {
+                    print(program_name + ": debug: " +
+                        "generate_imr_for_expr(): "
+                        "Requiring type conversion for arg #" +
+                        arg_no.as_str() + " to " +
+                        arg_intended_type.as_str() + "...")
+                }
+                add_conv_to_type = arg_intended_type
+            }
+
             var arg_expr_result = generate_imr_for_expr(
                 value_expr,
                 node_parents=node_parents + [node],
@@ -2467,6 +2501,7 @@ func _generate_imr_for_expr_untyped(
                 file_imr_parent=file_imr_parent,
                 project_file=project_file,
                 imr_build_tracker=imr_build_tracker,
+                convert_to_target_type=add_conv_to_type,
                 is_moose64=is_moose64,
                 msgs=msgs,
             ) later:
@@ -2489,68 +2524,6 @@ func _generate_imr_for_expr_untyped(
                 value_name
             )
 
-            func determine_type_conversion_if_any {
-                if arg_expr_result.known_type_info == none or
-                        not is_moose64 or
-                        called_func_type_info_if_known == none {
-                    return later
-                }
-                var implicit_self_arg = no
-                var call_args_len = args_node.subexprs.len
-                if called_func_type_info_if_known.is_func_attr() and
-                        called_func_type_info_if_known.arg_count() ==
-                            args_node.subexprs.len + 1 {
-                    implicit_self_arg = yes
-                }
-                var intended_arg_no =
-                    arg_no + if implicit_self_arg (1) else (0)
-                var arg_intended_type =
-                    called_func_type_info_if_known.construct_arg_type(
-                        intended_arg_no,
-                        project_file=project_file,
-                        is_moose64=is_moose64, debug=no,
-                    ) later:
-
-                await arg_intended_type
-                if arg_intended_type.is_equivalent(
-                        arg_expr_result.known_type_info,
-                        is_moose64=is_moose64,
-                        ) {
-                    return later
-                }
-                if debug {
-                    print(program_name + ": debug: " +
-                        "generate_imr_for_expr(): "
-                        "Inserting conversion for arg " +
-                        arg_no.as_str() + " from type " +
-                        arg_expr_result.known_type_info.as_str() + " "
-                        "to " +
-                        arg_intended_type.as_str())
-                }
-                var conv_tmp_ref = get_new_temp_storage_ref(
-                    node, imr_parents=imr_parents,
-                    func_imr_parent=func_imr_parent,
-                    file_imr_parent=file_imr_parent,
-                    optional_type_info=arg_intended_type,
-                    project_file=project_file,
-                    imr_build_tracker=imr_build_tracker,
-                    is_moose64=is_moose64,
-                    msgs=msgs,
-                ) later:
-
-                await conv_tmp_ref
-                var inst = new IMRConv(
-                    arg_expr_result.storage_ref,
-                    conv_tmp_ref,
-                    arg_expr_result.known_type_info,
-                    arg_intended_type,
-                    in_project_file=project_file,
-                    is_moose64=is_moose64,
-                )
-                arg_refs = arg_refs.sub(1, arg_refs.len - 1)
-                arg_refs.add(conv_tmp_ref)
-                result.instructions.add(inst)
-            }
             determine_type_conversion_if_any() later:
 
             arg_types_if_known.add(arg_expr_result.known_type_info)
