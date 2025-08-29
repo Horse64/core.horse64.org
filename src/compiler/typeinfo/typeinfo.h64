@@ -153,6 +153,48 @@ func TypeInfo.init(ti_kind) {
     self.kind = ti_kind
 }
 
+func TypeInfo.arg_count {
+    if self.kind != TI_FUNCREF {
+        throw new TypeError("This isn't a func ref type.")
+    }
+    return self.func_typeexpr.arg_typeref_exprs.len
+}
+
+func TypeInfo.is_func_attr {
+    if self.kind != TI_FUNCREF {
+        throw new TypeError("This isn't a func ref type.")
+    }
+    return self.func_typeexpr.is_func_attr
+}
+
+func TypeInfo.construct_arg_type(
+        num, project_file=none, is_moose64=no, debug=no,
+        ) {
+    if self.kind != TI_FUNCREF {
+        throw new TypeError("This isn't a func ref type.")
+    }
+    var project = project_file.project
+    var def_file_if_known = none
+    var base_node_if_known = none
+    if num < 1 or num > self.func_typeexpr.arg_typeref_exprs.len {
+        return later none
+    }
+    var texpr = self.func_typeexpr.arg_typeref_exprs[num]
+    var tinfo = create_typeinfo_from_typeexpr_and_verify(
+        texpr,
+        base_node_if_known=base_node_if_known,
+        base_node_parents_if_known=none,
+        project_file=def_file_if_known,
+        project=project,
+        is_moose64=is_moose64, debug=debug,
+    ) later:
+
+    await tinfo
+    project_file.ensure_ast() later:
+
+    return tinfo
+}
+
 func TypeInfo.is_readonly {
     for mod in self.modifiers {
         if {"readonly"}.has(mod.name) {
