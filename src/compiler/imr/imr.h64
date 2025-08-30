@@ -2130,7 +2130,7 @@ func generate_imr_for_expr(
         imr_build_tracker=none,
         try_target_storage_ref=none,
         convert_to_target_type=none,
-        conversion_can_be_non_implicit=no,
+        conversion_not_limited_to_regular_implicit=no,
         is_moose64=no, msgs=none,
         debug=no,
         ) {
@@ -2220,7 +2220,7 @@ func generate_imr_for_expr(
         }
         get_new_tmp_target_if_needed() later:
 
-        if not conversion_can_be_non_implicit and is_moose64 and
+        if not conversion_not_limited_to_regular_implicit and is_moose64 and
                 not node.damaged {
             var inner_result = m64_autocast.
                 check_if_allowed_implicit_cast_from_to(
@@ -2970,6 +2970,7 @@ func _generate_imr_for_expr_untyped(
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             convert_to_target_type=left_hand_convert_to,
+            conversion_not_limited_to_regular_implicit=yes,
             project_file=project_file,
             imr_build_tracker=imr_build_tracker,
             is_moose64=is_moose64,
@@ -2989,6 +2990,7 @@ func _generate_imr_for_expr_untyped(
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
                 convert_to_target_type=right_hand_convert_to,
+                conversion_not_limited_to_regular_implicit=yes,
                 project_file=project_file,
                 imr_build_tracker=imr_build_tracker,
                 is_moose64=is_moose64, msgs=msgs,
