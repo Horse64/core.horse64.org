@@ -168,6 +168,14 @@ func FuncScope.extended_final_is_readonly {
     return base_func_scope.is_marked_readonly
 }
 
+func FuncScope.extended_final_has_failable {
+    var base_func_scope = self.base_func_scope
+    if base_func_scope == none {
+        base_func_scope = self
+    }
+    return base_func_scope.has_failable
+}
+
 func FuncScope.extended_final_arg_names(
         include_outer_extends=yes
         ) {

@@ -166,6 +166,12 @@ func FuncStmtFuncExtendStmtShared.extended_final_is_readonly {
     return self.func_scope.extended_final_is_readonly()
 }
 
+### Returns whether the final assembled func is marked as
+### "failable" or not.
+func FuncStmtFuncExtendStmtShared.extended_final_has_failable {
+    return self.func_scope.extended_final_has_failable()
+}
+
 ## Returns the real, final return type, which when queried
 ## on an 'extend func' statement will get you the base func's
 ## return type.

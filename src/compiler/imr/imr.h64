@@ -1367,6 +1367,32 @@ func IMRReturn.as_str(indent=0) {
     )
 }
 
+
+type IMRReturnFail base IMRNode {
+    var return_value_storage_ref = none
+}
+
+func IMRReturnFail.init(
+        return_value_storage_ref=none,
+        ) {
+    base.init(IMR_INST_RETURNFAIL)
+}
+
+func IMRReturnFail.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
+    return obj
+}
+
+func IMRReturnFail.as_str(indent=0) {
+    return self.format_inst(
+        "RETURNFAIL", indent=indent,
+    )
+}
+
 type IMRApplyOp base IMRNode {
     var is_binary = yes
     var op_token
@@ -1927,6 +1953,7 @@ enum IMRNodeKind {
     IMR_INST_BREAK,
     IMR_INST_CONTINUE,
     IMR_INST_RETURN,
+    IMR_INST_RETURNFAIL,
     IMR_INST_AWAIT,
     IMR_INST_CLRZERO,
     IMR_INST_SETLIT,
@@ -3062,6 +3089,7 @@ func generate_imr_for_stmt(
     }
 
     if node.kind == ast.N_STMT_RETURN {
+        var result_insts = []
         var returned_expr_result = none
         var expected_return_value_tinfo = none
         var fnode_parent = none
@@ -3081,6 +3109,28 @@ func generate_imr_for_stmt(
         if fnode_parent == none {
             throw new RuntimeError("Unexpectedly couldn't "
                 "find the func parent node.")
+        }
+
+        if node.has_failed {
+            if not fnode_parent.extended_final_has_failable() {
+                if msgs == none {
+                    throw new RuntimeError("Unexpected return "
+                        "of failed state.")
+                }
+                if not node.damaged {
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected return failed statement in "
+                        "func that isn't failable.",
+                        source_file=project_file,
+                        line=node.line,
+                        col=node.col,
+                    ))
+                }
+                node.damaged = yes
+                return []
+            }
+            result_insts.add(new IMRReturnFail())
+            return result_insts
         }
 
         func determine_return_value_typeinfo {
@@ -3114,8 +3164,8 @@ func generate_imr_for_stmt(
                 node.subexprs.len >= 1 and
                 node.subexprs[1] != none {
             if msgs == none {
-                throw new RuntimeError("Internal error, "
-                    "unexpectedly failed to find assign.")
+                throw new RuntimeError("Unexpected return "
+                    "with expression.")
             }
             if not node.damaged {
                 msgs.add(new msg.FileMsg(
@@ -3135,8 +3185,8 @@ func generate_imr_for_stmt(
                 (node.subexprs.len < 1 or
                  node.subexprs[1] == none) {
             if msgs == none {
-                throw new RuntimeError("Internal error, "
-                    "unexpectedly failed to find assign.")
+                throw new RuntimeError("Unexpected return "
+                    "without expression.")
             }
             if not node.damaged {
                 msgs.add(new msg.FileMsg(
@@ -3181,7 +3231,6 @@ func generate_imr_for_stmt(
         }
         obtain_return_expr_result_if_needed() later:
 
-        var result_insts = []
         var return_expr_st_ref = none
         if returned_expr_result != none {
             return_expr_st_ref = returned_expr_result.storage_ref
