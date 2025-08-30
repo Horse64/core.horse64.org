@@ -998,6 +998,73 @@ func TypeInfo.add_implicit_ref_modifier {
     }
 }
 
+func TypeInfo.get_after_de_ref_operation {
+    var type_result = self.copy()
+    var old_deref_counter = 0
+    var new_modifiers = []
+    for mod in type_result.modifiers {
+        if {"c_array", "ref"}.has(mod.name) {
+            old_deref_counter += 1
+            if old_deref_counter > 1 {
+                new_modifiers.add(mod)
+            }
+        }
+    }
+    if old_deref_counter <= 0 {
+        # This isn't allowed.
+        return later none
+    }
+    type_result.modifiers = new_modifiers
+    if type_result.kind == TI_USERTYPE and
+            type_result._orig_typeexpr != none {
+        type_result._orig_typeexpr.modifiers = []
+        for mod in new_modifiers {
+            type_result._orig_typeexpr.
+                modifiers.add(mod.copy())
+        }
+    }
+    return type_result
+}
+
+func TypeInfo.get_after_as_ref_operation {
+    var inner_result = self.copy()
+    var stripped_implicit_ref = no
+    if inner_result.modifiers.len > 0 and
+            inner_result.modifiers[
+                inner_result.modifiers.len
+            ].name == "implicit ref" {
+        stripped_implicit_ref = yes
+        inner_result.modifiers =
+            inner_result.modifiers.sub(
+                1,
+                inner_result.modifiers.len - 1
+            )
+    }
+    inner_result.modifiers.add(
+        new ast_typeref.TypeRefMod("ref")
+    )
+        
+    if inner_result.kind == TI_USERTYPE and
+            inner_result._orig_typeexpr != none {
+        if stripped_implicit_ref {
+            assert(inner_result._orig_typeexpr.
+                modifiers.len > 0)
+            assert(inner_result._orig_typeexpr.
+                modifiers[inner_result._orig_typeexpr.
+                    modifiers.len].name == "implicit ref")
+            inner_result._orig_typeexpr.modifiers =
+            inner_result._orig_typeexpr.modifiers.sub(
+                1,
+                inner_result.modifiers.len - 1
+            )
+        }
+        inner_result._orig_typeexpr.modifiers.add(
+            new ast_typeref.TypeRefMod("ref")
+        )
+    }
+    return inner_result
+}
+
 func TypeInfo.add_ref_modifier {
     var mod = new ast_typeref.TypeRefMod("ref")
     self.modifiers.add(mod)

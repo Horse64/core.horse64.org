@@ -1933,6 +1933,186 @@ func IMRFuncBlock.as_json_obj(
     return obj
 }
 
+type IMRAsref base IMRNode {
+    var asref_source_storage_ref = none
+    var target_storage_ref = none
+}
+
+func IMRAsref.init(
+        asref_source_storage_ref=none,
+        target_storage_ref=none,
+        ) {
+    base.init(IMR_INST_ASREF)
+    if typename(asref_source_storage_ref) != "obj" or
+             not has_attr(asref_source_storage_ref, "kind") or
+             not has_attr(asref_source_storage_ref, "id") {
+        throw new TypeError("The asref_source_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    self.asref_source_storage_ref =
+        asref_source_storage_ref.copy()
+    if typename(target_storage_ref) != "obj" or
+             not has_attr(target_storage_ref, "kind") or
+             not has_attr(target_storage_ref, "id") {
+        throw new TypeError("The target_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    self.target_storage_ref =
+        target_storage_ref.copy()
+}
+
+func IMRAsref.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
+    if _passthrough_storage_refs {
+        obj["asref_source_storage_ref"] =
+            self.asref_source_storage_ref.copy()
+    } else {
+        obj["asref_source_storage_ref"] =
+            self.asref_source_storage_ref.as_str()
+    }
+    if _passthrough_storage_refs {
+        obj["target_storage_ref"] =
+            self.target_storage_ref.copy()
+    } else {
+        obj["target_storage_ref"] =
+            self.target_storage_ref.as_str()
+    }
+    return obj
+}
+
+func IMRAsref.as_str(indent=0) {
+    return self.format_inst(
+        "ASREF", pos_parameter_names=[
+            "asref_source_storage_ref",
+            "target_storage_ref",
+        ], indent=indent,
+    )
+}
+
+type IMRSizeof base IMRNode {
+    var sizeof_source_storage_ref = none
+    var target_storage_ref = none
+}
+
+func IMRSizeof.init(
+        sizeof_source_storage_ref=none,
+        target_storage_ref=none,
+        ) {
+    base.init(IMR_INST_SIZEOF)
+    if typename(sizeof_source_storage_ref) != "obj" or
+             not has_attr(sizeof_source_storage_ref, "kind") or
+             not has_attr(sizeof_source_storage_ref, "id") {
+        throw new TypeError("The sizeof_source_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    self.sizeof_source_storage_ref =
+        sizeof_source_storage_ref.copy()
+    if typename(target_storage_ref) != "obj" or
+             not has_attr(target_storage_ref, "kind") or
+             not has_attr(target_storage_ref, "id") {
+        throw new TypeError("The target_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    self.target_storage_ref =
+        target_storage_ref.copy()
+}
+
+func IMRSizeof.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
+    if _passthrough_storage_refs {
+        obj["sizeof_source_storage_ref"] =
+            self.sizeof_source_storage_ref.copy()
+    } else {
+        obj["sizeof_source_storage_ref"] =
+            self.sizeof_source_storage_ref.as_str()
+    }
+    if _passthrough_storage_refs {
+        obj["target_storage_ref"] =
+            self.target_storage_ref.copy()
+    } else {
+        obj["target_storage_ref"] =
+            self.target_storage_ref.as_str()
+    }
+    return obj
+}
+
+func IMRSizeof.as_str(indent=0) {
+    return self.format_inst(
+        "SIZEOF", pos_parameter_names=[
+            "sizeof_source_storage_ref",
+            "target_storage_ref",
+        ], indent=indent,
+    )
+}
+
+type IMRDeref base IMRNode {
+    var deref_source_storage_ref = none
+    var target_storage_ref = none
+}
+
+func IMRDeref.init(
+        deref_source_storage_ref=none,
+        target_storage_ref=none,
+        ) {
+    base.init(IMR_INST_DEREF)
+    if typename(deref_source_storage_ref) != "obj" or
+             not has_attr(deref_source_storage_ref, "kind") or
+             not has_attr(deref_source_storage_ref, "id") {
+        throw new TypeError("The deref_source_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    self.deref_source_storage_ref =
+        deref_source_storage_ref.copy()
+    if typename(target_storage_ref) != "obj" or
+             not has_attr(target_storage_ref, "kind") or
+             not has_attr(target_storage_ref, "id") {
+        throw new TypeError("The target_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    self.target_storage_ref =
+        target_storage_ref.copy()
+}
+
+func IMRDeref.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
+    if _passthrough_storage_refs {
+        obj["deref_source_storage_ref"] =
+            self.deref_source_storage_ref.copy()
+    } else {
+        obj["deref_source_storage_ref"] =
+            self.deref_source_storage_ref.as_str()
+    }
+    if _passthrough_storage_refs {
+        obj["target_storage_ref"] =
+            self.target_storage_ref.copy()
+    } else {
+        obj["target_storage_ref"] =
+            self.target_storage_ref.as_str()
+    }
+    return obj
+}
+
+func IMRDeref.as_str(indent=0) {
+    return self.format_inst(
+        "DEREF", pos_parameter_names=[
+            "deref_source_storage_ref",
+            "target_storage_ref",
+        ], indent=indent,
+    )
+}
+
 enum IMRNodeKind {
     IMR_BLOCK_FUNC,
     IMR_BLOCK_COND,
@@ -1948,6 +2128,9 @@ enum IMRNodeKind {
     IMR_INST_VARINFO,
     IMR_INST_CONV,
     IMR_INST_MOVE,
+    IMR_INST_ASREF,
+    IMR_INST_DEREF,
+    IMR_INST_SIZEOF,
     IMR_INST_APPLY_OP,
     IMR_INST_CALL,
     IMR_INST_BREAK,
@@ -2544,6 +2727,144 @@ func _generate_imr_for_expr_untyped(
         if left_hand_result == none {
             return later none
         }
+
+        var is_as_ref = no
+        var is_de_ref = no
+        var is_size_of = no
+        if is_moose64 and
+                left_hand_result.known_type_info != none and
+                m64_builtins.
+                    is_ast_node_referring_to_m64_memory_as_ref(
+                        project_file, node.subexprs[1],
+                        is_moose64=is_moose64,
+                    ) {
+            is_as_ref = yes
+        } elseif is_moose64 and
+                left_hand_result.known_type_info != none and
+                m64_builtins.
+                    is_ast_node_referring_to_m64_memory_deref(
+                        project_file, node.subexprs[1],
+                        is_moose64=is_moose64,
+                    ) {
+            is_de_ref = yes
+        } elseif is_moose64 and
+                left_hand_result.known_type_info != none and
+                m64_builtins.
+                    is_ast_node_referring_to_m64_memory_size_of(
+                        project_file, node.subexprs[1],
+                        is_moose64=is_moose64,
+                    ) {
+            is_as_ref = yes
+        }
+        if is_moose64 and (is_as_ref or is_de_ref or is_size_of) {
+            # If we enter this code block, then it's a moose64 special
+            # builtin and not an actual call.
+
+            var arg_expr_result = generate_imr_for_expr(
+                node.subexprs[1],
+                node_parents=node_parents + [node],
+                imr_parents=imr_parents,
+                func_imr_parent=func_imr_parent,
+                file_imr_parent=file_imr_parent,
+                project_file=project_file,
+                imr_build_tracker=imr_build_tracker,
+                convert_to_target_type=add_conv_to_type,
+                is_moose64=is_moose64,
+                msgs=msgs,
+            ) later:
+
+            await arg_expr_result
+            if arg_expr_result == none or
+                    arg_expr_result.known_type_info == none {
+                return later none
+            }
+            var target_tmp_typeinfo = get_var_typeinfo(
+                tmp_ref,
+                func_parent_node=func_parent_node,
+                func_imr_parent=func_imr_parent,
+                project_file=project_file,
+                imr_build_tracker=imr_build_tracker,
+                msgs=msgs, is_moose64=is_moose64,
+            ) later:
+
+            await target_tmp_typeinfo
+            if target_tmp_typeinfo == none {
+                return later none
+            }
+            var our_node_typeinfo =
+                arg_expr_result.known_type_info.copy()
+            if is_as_ref {
+                our_node_typeinfo =
+                    our_node_typeinfo.get_after_as_ref_operation()
+            } elseif is_del_ref {
+                our_node_typeinfo =
+                    our_node_typeinfo.get_after_de_ref_operation()
+            } elseif is_size_of {
+                our_node_typeinfo = typeinfo.
+                    create_from_simple_m64_type("size")
+            } else {
+                throw new RuntimeError("Unimplemented code "
+                    "path was reached.")
+            }
+            if our_node_typeinfo == none {
+                return later none
+            }
+
+            var write_op_result_to_tmp_ref = tmp_ref
+            var conversion_taken_care_of = no
+
+            func insert_type_conversion_if_needed {
+                if is_moose64 and
+                        not we_own_the_tmp_ref and
+                        not our_node_typeinfo.is_equivalent(
+                            target_tmp_typeinfo,
+                            ignore_self_ref=yes,
+                            is_moose64=is_moose64,
+                        ) {
+                    var inner_tmp_ref = get_new_temp_storage_ref(
+                        node, imr_parents=imr_parents,
+                        func_imr_parent=func_imr_parent,
+                        file_imr_parent=file_imr_parent,
+                        optional_type_info=our_node_typeinfo,
+                        project_file=project_file,
+                        imr_build_tracker=imr_build_tracker,
+                        is_moose64=is_moose64,
+                        msgs=msgs,
+                    ) later:
+
+                    await inner_tmp_ref
+                    write_op_result_to_tmp_ref = inner_tmp_ref
+                    result.need_conversion = yes
+                    result.need_conversion_from = target_tmp_typeinfo
+                    result.need_conversion_to = our_node_typeinfo
+                    result.storage_ref = inner_tmp_ref
+                    return later
+                }
+                return later
+            }
+
+            if is_as_ref {
+                result.instructions.add(new IMRAsref(
+                    asref_source_storage_ref=arg_expr_result.storage_ref,
+                    target_storage_ref=tmp_ref,
+                ))
+            } elseif is_de_ref {
+                result.instructions.add(new IMRDeref(
+                    asref_source_storage_ref=arg_expr_result.storage_ref,
+                    target_storage_ref=tmp_ref,
+                ))
+            } elseif is_size_of {
+                result.instructions.add(new IMRSizeof(
+                    sizeof_source_storage_ref=arg_expr_result.storage_ref,
+                    target_storage_ref=tmp_ref,
+                ))
+            } else {
+                throw new RuntimeError("Unimplemented code "
+                    "path was reached.")
+            }
+            return result
+        }
+        # If we arrive here, then this is a regular func call.
         result.instructions += left_hand_result.instructions
 
         var called_func_type_info_if_known =

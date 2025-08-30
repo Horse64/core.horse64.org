@@ -1377,40 +1377,7 @@ func _get_c_or_m64_type_of_node_do(
                 return later none
             }
 
-            var stripped_implicit_ref = no
-            if inner_result.modifiers.len > 0 and
-                    inner_result.modifiers[
-                        inner_result.modifiers.len
-                    ].name == "implicit ref" {
-                stripped_implicit_ref = yes
-                inner_result.modifiers =
-                    inner_result.modifiers.sub(
-                        1,
-                        inner_result.modifiers.len - 1
-                    )
-            }
-            inner_result.modifiers.add(
-                new ast_typeref.TypeRefMod("ref")
-            )
-                
-            if inner_result.kind == typeinfo.TI_USERTYPE and
-                    inner_result._orig_typeexpr != none {
-                if stripped_implicit_ref {
-                    assert(inner_result._orig_typeexpr.
-                        modifiers.len > 0)
-                    assert(inner_result._orig_typeexpr.
-                        modifiers[inner_result._orig_typeexpr.
-                            modifiers.len].name == "implicit ref")
-                    inner_result._orig_typeexpr.modifiers =
-                    inner_result._orig_typeexpr.modifiers.sub(
-                        1,
-                        inner_result.modifiers.len - 1
-                    )
-                }
-                inner_result._orig_typeexpr.modifiers.add(
-                    new ast_typeref.TypeRefMod("ref")
-                )
-            }
+            inner_result = inner_result.get_after_as_ref_operation()
             if debug {
                 print(dbg_prefix + " Returning final ref type "
                     "typeinfo=" + inner_result.as_str())
@@ -1482,18 +1449,9 @@ func _get_c_or_m64_type_of_node_do(
                 }
                 return later none
             }
-            var type_result = inner_result.copy()
-            var old_deref_counter = 0
-            var new_modifiers = []
-            for mod in type_result.modifiers {
-                if {"c_array", "ref"}.has(mod.name) {
-                    old_deref_counter += 1
-                    if old_deref_counter > 1 {
-                        new_modifiers.add(mod)
-                    }
-                }
-            }
-            if old_deref_counter <= 0 {
+            var type_result =
+                inner_result.get_after_de_ref_operation()
+            if type_result == none {
                 if msgs == none {
                     print(if is_moose64 ("horsec")
                         else ("moosec") + ": "
@@ -1501,8 +1459,8 @@ func _get_c_or_m64_type_of_node_do(
                             "deref called on item that isn't "
                             "a ref.")
                     throw new RuntimeError(
-                        "Call has wrong number of "
-                        "arguments.")
+                        "Deref was called on item that isn't "
+                        "a ref.")
                 }
                 if not node.damaged and
                         not node.subexprs[2].damaged {
@@ -1527,15 +1485,6 @@ func _get_c_or_m64_type_of_node_do(
                 node.subexprs[1].damaged = yes
                 node.subexprs[2].damaged = yes
                 return later none
-            }
-            type_result.modifiers = new_modifiers
-            if type_result.kind == typeinfo.TI_USERTYPE and
-                    type_result._orig_typeexpr != none {
-                type_result._orig_typeexpr.modifiers = []
-                for mod in new_modifiers {
-                    type_result._orig_typeexpr.
-                        modifiers.add(mod.copy())
-                }
             }
             return later type_result
         } elseif m64_builtins.
