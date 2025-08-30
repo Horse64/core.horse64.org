@@ -4178,6 +4178,27 @@ func generate_imr_for_stmt(
         }
         return result_insts
     }
+    if node.kind == ast.N_STMT_CALL and
+            node.subexprs.len >= 1 {
+        var call_result = generate_imr_for_expr(
+            node.subexprs[1],
+            node_parents=node_parents + [node],
+            imr_parents=imr_parents,
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            project_file=project_file,
+            imr_build_tracker=imr_build_tracker,
+            is_moose64=is_moose64, msgs=msgs,
+        ) later:
+
+        await call_result
+        if call_result == none {
+            result_insts = none
+            return later
+        }
+        result_insts = call_result.instructions.copy()
+        return result_insts
+    }
     if node.kind == ast.N_STMT_ASSIGN {
         var result_insts = []
         var queue = []

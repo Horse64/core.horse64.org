@@ -1133,7 +1133,7 @@ func TypeInfo.convert_to_typeref_expr(
                             in_project_file,
                             self.user_type_ref.id
                         )
-                    if import_type_path != none and
+                    if import_typepath != none and
                             import_typepath.len > 0 {
                         texpr.type_path = import_typepath
                     }
