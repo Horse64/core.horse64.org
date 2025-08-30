@@ -1700,6 +1700,9 @@ func IMRFuncBlock.update_var_type_exprs(
             st_id
         ]
         if typeinfo_value == none {
+            assert(self.label != "init_as_copy" or st_id != 1 or
+                not self.storage_id_to_known_type_expr.has(st_id) or
+                self.storage_id_to_known_type_expr[st_id] == none)
             self.storage_id_to_known_type_expr[st_id] = none
             continue
         }
@@ -3011,6 +3014,9 @@ func generate_imr_for_stmt(
                 func_imr_parent.storage_id_to_known_type_info[
                     si.storage_id
                 ] = tinfo
+                func_imr_parent.storage_id_to_known_type_expr[
+                    si.storage_id
+                ] = var_type_expr
             }
             func_imr_parent.update_var_type_exprs(
                 project_file,
@@ -3067,27 +3073,12 @@ func generate_imr_for_stmt(
         for label in node.var_labels {
             idx += 1
             var type_expr_storage_id = none
-            assert(var_type_expr == none or
+            assert((not is_moose64 and var_type_expr == none) or
                 not var_type_expr.is_user_type() or
                 var_type_expr.is_func_ref or
                 var_type_storage_ref != none)
-            var vinfo = new IMRVarInfo(
-                label,
-                var_type_expr,
-                node.symbol_info[idx].storage_id,
-                var_type_storage_ref,
-                project_file,
-            )
-            vinfo.line = node.line
-            vinfo.col = node.col
-            if node.symbol_info[idx].kind != st_ref.ST_LOCAL {
-                # Locals are already handled by
-                # the IMRFuncBlock's registry of vars.
-                result_insts.add(vinfo)
-            }
         }
         var assigned_exprs = node.subexprs.copy()
-        var type_info = none
         var type_expr = none
         if node.has_type_expr and assigned_exprs.len > 0 {
             type_expr = assigned_exprs[assigned_exprs.len]
@@ -3102,11 +3093,6 @@ func generate_imr_for_stmt(
         var i = 1
         while i <= assigned_exprs.len {
             queue.add([i, assigned_exprs[i]])
-            if func_imr_parent != none {
-                func_imr_parent.storage_id_to_known_type_info[
-                    node.symbol_info[i].storage_id
-                ] = type_info
-            }
             i += 1
         }
         func_imr_parent.update_var_type_exprs(
