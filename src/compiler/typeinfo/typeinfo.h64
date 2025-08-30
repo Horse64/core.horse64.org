@@ -931,7 +931,7 @@ func TypeInfo.as_str {
 
 func TypeInfo.is_empty_type {
     if self.kind == TI_C_TYPE and
-            self.name == "empty" {
+            self.orig_type_name == "empty" {
         return yes
     }
     return no

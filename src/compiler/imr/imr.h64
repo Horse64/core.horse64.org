@@ -2103,6 +2103,7 @@ func generate_imr_for_expr(
         imr_build_tracker=none,
         try_target_storage_ref=none,
         convert_to_target_type=none,
+        conversion_can_be_non_implicit=no,
         is_moose64=no, msgs=none,
         debug=no,
         ) {
@@ -2147,7 +2148,8 @@ func generate_imr_for_expr(
         debug=debug,
     ) later:
 
-    if not result.need_conversion and
+    if is_moose64 and
+            not result.need_conversion and
             convert_to_target_type != none and
             result.known_type_info != none and
             not convert_to_target_type.is_equivalent(
@@ -2191,6 +2193,44 @@ func generate_imr_for_expr(
         }
         get_new_tmp_target_if_needed() later:
 
+        if not conversion_can_be_non_implicit and is_moose64 and
+                not node.damaged {
+            var inner_result = m64_autocast.
+                check_if_allowed_implicit_cast_from_to(
+                    result.need_conversion_from,
+                    result.need_conversion_to,
+                    left_side_is_literal_none=
+                        node == none or
+                        (node.kind == ast.N_EXPR_LIT and
+                         node.literal_kind == ast_expr.LK_NORMAL and
+                         node.value == none),
+                    right_side_is_literal_none=no,
+                    is_moose64=no,
+                    debug=no
+                )
+            if not inner_result {
+                if msgs == none {
+                    throw new RuntimeError("Encountered incompatible "
+                        "type use.")
+                }
+                if not node.damaged {
+                    msgs.add(new msg.FileMsg(
+                        "Unexpected value of type " +
+                        result.need_conversion_from.describe_to_user(
+                            project=project_file.project,
+                            is_moose64=is_moose64) + ", "
+                        "expected a value of type " +
+                        result.need_conversion_to.describe_to_user(
+                            project=project_file.project,
+                            is_moose64=is_moose64) + ".",
+                        source_file=project_file,
+                        line=node.line,
+                        col=node.col,
+                    ))
+                }
+                node.damaged = yes
+            }
+        }
         var inst = new IMRConv(
             result.storage_ref,
             try_target_storage_ref,
@@ -2812,15 +2852,14 @@ func _generate_imr_for_expr_untyped(
                     left_hand_convert_to = typeinfo.
                         create_from_simple_m64_type("bool")
                 } elseif node.optoken.str == "-" {
-                    var result = m64_autocat.get_math_unop_autocast(
-                        operand_typeinfo,
+                    var result = m64_autocast.get_math_unop_autocast(
+                        left_hand_type,
                         operand_is_literal_none=
                             node.subexprs[1].kind == ast.N_EXPR_LIT and
                             node.subexprs[1].literal_kind ==
                                 ast_expr.LK_NORMAL and
                             node.subexprs[1].value == none,
                         is_moose64=is_moose64,
-                        debug=yes,
                     )
                     if result.incompatible {
                         return later
@@ -3025,43 +3064,45 @@ func generate_imr_for_stmt(
     if node.kind == ast.N_STMT_RETURN {
         var returned_expr_result = none
         var expected_return_value_tinfo = none
+        var fnode_parent = none
+        if node_parents.len > 0 {
+            var idx = node_parents.len
+            while idx >= 1 {
+                fnode_parent = node_parents[idx]
+                if {ast.N_STMT_FUNC,
+                        ast.N_STMT_FUNCEXTEND}.has(
+                        fnode_parent.kind) {
+                    break
+                }
+                fnode_parent = none
+                idx -= 1
+            }
+        }
+        if fnode_parent == none {
+            throw new RuntimeError("Unexpectedly couldn't "
+                "find the func parent node.")
+        }
 
         func determine_return_value_typeinfo {
-            var fnode_parent = none
-            if node_parents.len > 0 {
-                var idx = node_parents.len
-                while idx >= 1 {
-                    fnode_parent = node_parents[idx]
-                    if {ast.N_STMT_FUNC,
-                            ast.N_STMT_FUNCEXTEND}.has(
-                            fnode_parent.kind) {
-                        break
-                    }
-                    fnode_parent = none
-                    idx -= 1
-                }
-            }
-            if fnode_parent == none {
-                throw new RuntimeError("Unexpectedly couldn't "
-                    "find the func parent node.")
-            }
             var return_type_expr = none
             if fnode_parent != none and
                     fnode_parent.extended_final_has_return_type() {
-                texpr = fnode_parent.extended_final_return_type_expr()
+                return_type_expr = fnode_parent.
+                    extended_final_return_type_expr()
             }
             if return_type_expr != none {
-                returned_value_result =
+                var result =
                     typeinfo.create_typeinfo_from_typeexpr_and_verify(
-                        texpr,
+                        return_type_expr,
                         project=project_file.project,
                         is_moose64=is_moose64,
                     ) later:
 
-                await returned_value_result
+                await result
+                expected_return_value_tinfo = result
                 return later
             }
-            returned_value_result = none
+            expected_return_value_tinfo = none
             return later
         }
         determine_return_value_typeinfo() later:
@@ -3103,7 +3144,7 @@ func generate_imr_for_stmt(
                     "be returned, this func expects return "
                     "value of type " +
                     expected_return_value_tinfo.
-                        dexpected_return_value.describe_to_user(
+                        describe_to_user(
                         project=project_file.project,
                         is_moose64=is_moose64) + ".",
                     source_file=project_file,
@@ -3118,7 +3159,9 @@ func generate_imr_for_stmt(
         func obtain_return_expr_result_if_needed {
             if node.subexprs.len < 1 or
                     node.subexprs[1] == none or
-                    node.is_empty_type() {
+                    (is_moose64 and (
+                     expected_return_value_tinfo == none or
+                     expected_return_value_tinfo.is_empty_type())) {
                 return later
             }
 
@@ -3134,7 +3177,7 @@ func generate_imr_for_stmt(
                 is_moose64=is_moose64, msgs=msgs,
             ) later:
 
-            await right_hand_result
+            await returned_expr_result
         }
         obtain_return_expr_result_if_needed() later:
 
@@ -3145,7 +3188,6 @@ func generate_imr_for_stmt(
             result_insts += returned_expr_result.instructions
         }
 
-        print("return_expr_st_ref=" + return_expr_st_ref.as_str())
         result_insts.add(new IMRReturn(
             return_value_storage_ref=return_expr_st_ref,
         ))

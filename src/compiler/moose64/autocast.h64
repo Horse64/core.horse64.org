@@ -329,14 +329,14 @@ func check_if_allowed_implicit_cast_from_to(
         if {"addr", "addr_diff"}.has(
                 left_hand_target_typeinfo.orig_type_name
                 ) and {"f32", "f64"}.has(
-                right_hand_source.typeinfo.orig_type_name
+                right_hand_source_typeinfo.orig_type_name
                 ) {
             return no
         }
         if {"f32", "f64"}.has(
                 left_hand_target_typeinfo.orig_type_name
                 ) and {"addr", "addr_diff"}.has(
-                right_hand_source.typeinfo.orig_type_name
+                right_hand_source_typeinfo.orig_type_name
                 ) {
             return no
         }
@@ -409,14 +409,14 @@ func get_math_unop_autocast(
     }
 
     if operand_typeinfo.kind != typeinfo.TI_C_TYPE or
-            not builtin_moose64_num_types.has(
+            not ast_typeref.builtin_moose64_num_types.has(
                 operand_typeinfo.orig_type_name) or
             {"addr"}.has(operand_typeinfo.orig_type_name) {
         result.incompatible = yes
         return result
     }
 
-    var refs_count = left_hand_typeinfo.ref_count(
+    var refs_count = operand_typeinfo.ref_count(
         include_c_arrays=yes, include_arrays=no,
         include_implicit_refs=no,
     )
@@ -443,7 +443,7 @@ func get_math_unop_autocast(
             } else {
                 result.result_type =
                     typeinfo.create_from_simple_m64_type(
-                        "i" + i.as_str()
+                        "i" + s.as_str()
                     )
             }
             result.cast_operand_to = result.result_type.copy()
