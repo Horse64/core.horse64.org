@@ -72,7 +72,7 @@ func IMRNode.as_json_obj(
 }
 
 func IMRNode.as_str(indent=0) {
-    return "IMRNode" + self.as_json_obj.as_str()
+    return "IMRNode" + self.as_json_obj().as_str()
 }
 
 func IMRNode.format_inst(
@@ -1320,6 +1320,51 @@ func IMRIterLoop.as_json_obj(
             self.iterated_container_ref.as_str()
     }
     return obj
+}
+
+type IMRReturn base IMRNode {
+    var return_value_storage_ref = none
+}
+
+func IMRReturn.init(
+        return_value_storage_ref=none,
+        ) {
+    base.init(IMR_INST_RETURN)
+    if return_value_storage_ref != none and
+            (typename(return_value_storage_ref) != "obj" or
+             not has_attr(return_value_storage_ref, "kind") or
+             not has_attr(return_value_storage_ref, "id")) {
+        throw new TypeError("The return_value_storage_ref parameter "
+            "must be none or of type StorageRef.")
+    }
+    if return_value_storage_ref != none {
+        self.return_value_storage_ref =
+            return_value_storage_ref.copy()
+    }
+}
+
+func IMRReturn.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
+    if _passthrough_storage_refs {
+        obj["return_value_storage_ref"] =
+            self.return_value_storage_ref.copy()
+    } else {
+        obj["return_value_storage_ref"] =
+            self.return_value_storage_ref.as_str()
+    }
+    return obj
+}
+
+func IMRReturn.as_str(indent=0) {
+    return self.format_inst(
+        "RETURN", pos_parameter_names=[
+            "return_value_storage_ref",
+        ], indent=indent,
+    )
 }
 
 type IMRApplyOp base IMRNode {
@@ -2977,7 +3022,135 @@ func generate_imr_for_stmt(
         )
     }
 
-    if node.kind == ast.N_STMT_VAR {
+    if node.kind == ast.N_STMT_RETURN {
+        var returned_expr_result = none
+        var expected_return_value_tinfo = none
+
+        func determine_return_value_typeinfo {
+            var fnode_parent = none
+            if node_parents.len > 0 {
+                var idx = node_parents.len
+                while idx >= 1 {
+                    fnode_parent = node_parents[idx]
+                    if {ast.N_STMT_FUNC,
+                            ast.N_STMT_FUNCEXTEND}.has(
+                            fnode_parent.kind) {
+                        break
+                    }
+                    fnode_parent = none
+                    idx -= 1
+                }
+            }
+            if fnode_parent == none {
+                throw new RuntimeError("Unexpectedly couldn't "
+                    "find the func parent node.")
+            }
+            var return_type_expr = none
+            if fnode_parent != none and
+                    fnode_parent.extended_final_has_return_type() {
+                texpr = fnode_parent.extended_final_return_type_expr()
+            }
+            if return_type_expr != none {
+                returned_value_result =
+                    typeinfo.create_typeinfo_from_typeexpr_and_verify(
+                        texpr,
+                        project=project_file.project,
+                        is_moose64=is_moose64,
+                    ) later:
+
+                await returned_value_result
+                return later
+            }
+            returned_value_result = none
+            return later
+        }
+        determine_return_value_typeinfo() later:
+
+        if is_moose64 and
+                (expected_return_value_tinfo == none or
+                 expected_return_value_tinfo.is_empty_type()
+                ) and
+                node.subexprs.len >= 1 and
+                node.subexprs[1] != none {
+            if msgs == none {
+                throw new RuntimeError("Internal error, "
+                    "unexpectedly failed to find assign.")
+            }
+            if not node.damaged {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected return with an expression to "
+                    "be returned, this func doesn't return "
+                    "any value.",
+                    source_file=project_file,
+                    line=node.line,
+                    col=node.col,
+                ))
+            }
+            node.damaged = yes
+            return later []
+        } elseif is_moose64 and
+                expected_return_value_tinfo != none and
+                not expected_return_value_tinfo.is_empty_type() and
+                (node.subexprs.len < 1 or
+                 node.subexprs[1] == none) {
+            if msgs == none {
+                throw new RuntimeError("Internal error, "
+                    "unexpectedly failed to find assign.")
+            }
+            if not node.damaged {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected return without an expression to "
+                    "be returned, this func expects return "
+                    "value of type " +
+                    expected_return_value_tinfo.
+                        dexpected_return_value.describe_to_user(
+                        project=project_file.project,
+                        is_moose64=is_moose64) + ".",
+                    source_file=project_file,
+                    line=node.line,
+                    col=node.col,
+                ))
+            }
+            node.damaged = yes
+            return later []
+        }
+
+        func obtain_return_expr_result_if_needed {
+            if node.subexprs.len < 1 or
+                    node.subexprs[1] == none or
+                    node.is_empty_type() {
+                return later
+            }
+
+            returned_expr_result = generate_imr_for_expr(
+                node.subexprs[1],
+                node_parents=node_parents + [node],
+                imr_parents=imr_parents,
+                func_imr_parent=func_imr_parent,
+                file_imr_parent=file_imr_parent,
+                project_file=project_file,
+                convert_to_target_type=expected_return_value_tinfo,
+                imr_build_tracker=imr_build_tracker,
+                is_moose64=is_moose64, msgs=msgs,
+            ) later:
+
+            await right_hand_result
+        }
+        obtain_return_expr_result_if_needed() later:
+
+        var result_insts = []
+        var return_expr_st_ref = none
+        if returned_expr_result != none {
+            return_expr_st_ref = returned_expr_result.storage_ref
+            result_insts += returned_expr_result.instructions
+        }
+
+        print("return_expr_st_ref=" + return_expr_st_ref.as_str())
+        result_insts.add(new IMRReturn(
+            return_value_storage_ref=return_expr_st_ref,
+        ))
+        return result_insts
+    } elseif node.kind == ast.N_STMT_VAR {
         var result_insts = []
 
         var var_type_expr = none
@@ -3167,13 +3340,13 @@ func generate_imr_for_stmt(
         var breakst = new IMRBreak()
         breakst.line = node.line
         breakst.col = node.col
-        return breakst
+        return [breakst]
     }
     if node.kind == ast.N_STMT_CONTINUE {
         var continuest = new IMRContinue()
         continuest.line = node.line
         continuest.col = node.col
-        return continuest
+        return [continuest]
     }
     if node.kind == ast.N_STMT_DO {
         var result_insts = []
@@ -3305,14 +3478,14 @@ func generate_imr_for_stmt(
         do_block.col = node.col
         do_block.instructions = []
         do_block.instructions += with_result.instructions
-        # FIXME: see what the storage for the with label is,
+        # FIXME: See what the storage for the with label is,
         # and copy over the expression into that storage.
         do_block.instructions += inner_insts
         var finally_block = new IMRFinally()
         finally_block.line = node.line
         finally_block.col = node.col
         finally_block.instructions = []
-        # FIXME: insert has_attr() calls here to check
+        # FIXME: Insert has_attr() calls here to check
         # if item has ".close()" and call it if it does.
         return [do_block, finally_block]
     }
@@ -3648,6 +3821,10 @@ func generate_imr_for_stmt(
                 }
             }
             if not assigning_stmt_found {
+                if msgs == none {
+                    throw new RuntimeError("Internal error, "
+                        "unexpectedly failed to find assign.")
+                }
                 msgs.add(new msg.FileMsg(
                     "Internal error, unexpectedly failed to "
                     "find originating assign statement for "

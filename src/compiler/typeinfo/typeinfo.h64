@@ -929,6 +929,14 @@ func TypeInfo.as_str {
     return t
 }
 
+func TypeInfo.is_empty_type {
+    if self.kind == TI_C_TYPE and
+            self.name == "empty" {
+        return yes
+    }
+    return no
+}
+
 func TypeInfo._set_orig_type_expr(texpr) {
     self._orig_typeexpr = texpr.copy()
 }
