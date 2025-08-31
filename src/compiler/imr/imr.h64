@@ -2732,7 +2732,6 @@ func _generate_imr_for_expr_untyped(
         var is_de_ref = no
         var is_size_of = no
         if is_moose64 and
-                left_hand_result.known_type_info != none and
                 m64_builtins.
                     is_ast_node_referring_to_m64_memory_as_ref(
                         project_file, node.subexprs[1],
@@ -2740,7 +2739,6 @@ func _generate_imr_for_expr_untyped(
                     ) {
             is_as_ref = yes
         } elseif is_moose64 and
-                left_hand_result.known_type_info != none and
                 m64_builtins.
                     is_ast_node_referring_to_m64_memory_deref(
                         project_file, node.subexprs[1],
@@ -2748,34 +2746,34 @@ func _generate_imr_for_expr_untyped(
                     ) {
             is_de_ref = yes
         } elseif is_moose64 and
-                left_hand_result.known_type_info != none and
                 m64_builtins.
                     is_ast_node_referring_to_m64_memory_size_of(
                         project_file, node.subexprs[1],
                         is_moose64=is_moose64,
                     ) {
-            is_as_ref = yes
+            is_size_of = yes
         }
-        if is_moose64 and (is_as_ref or is_de_ref or is_size_of) {
+        if is_moose64 and (is_as_ref or is_de_ref or is_size_of) and
+                node.subexprs[2].kind == ast.N_EXPR_CALLARGS and
+                node.subexprs[2].subexprs.len > 0 {
             # If we enter this code block, then it's a moose64 special
             # builtin and not an actual call.
 
             var arg_expr_result = generate_imr_for_expr(
-                node.subexprs[1],
-                node_parents=node_parents + [node],
+                node.subexprs[2].subexprs[1],
+                node_parents=node_parents + [node, node.subexprs[2]],
                 imr_parents=imr_parents,
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
                 project_file=project_file,
                 imr_build_tracker=imr_build_tracker,
-                convert_to_target_type=add_conv_to_type,
                 is_moose64=is_moose64,
                 msgs=msgs,
             ) later:
 
             await arg_expr_result
             if arg_expr_result == none or
-                    arg_expr_result.known_type_info == none {
+                    arg_expr_result.storage_ref == none {
                 return later none
             }
             var target_tmp_typeinfo = get_var_typeinfo(
@@ -2796,7 +2794,7 @@ func _generate_imr_for_expr_untyped(
             if is_as_ref {
                 our_node_typeinfo =
                     our_node_typeinfo.get_after_as_ref_operation()
-            } elseif is_del_ref {
+            } elseif is_de_ref {
                 our_node_typeinfo =
                     our_node_typeinfo.get_after_de_ref_operation()
             } elseif is_size_of {
@@ -2813,6 +2811,7 @@ func _generate_imr_for_expr_untyped(
             var write_op_result_to_tmp_ref = tmp_ref
             var conversion_taken_care_of = no
 
+            result.storage_ref = tmp_ref
             func insert_type_conversion_if_needed {
                 if is_moose64 and
                         not we_own_the_tmp_ref and
@@ -2842,6 +2841,7 @@ func _generate_imr_for_expr_untyped(
                 }
                 return later
             }
+            insert_type_conversion_if_needed() later:
 
             if is_as_ref {
                 result.instructions.add(new IMRAsref(
