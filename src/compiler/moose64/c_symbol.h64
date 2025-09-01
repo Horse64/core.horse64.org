@@ -109,11 +109,11 @@ func CFuncSymbol.create_typeinfo(project) {
 
 func is_idlike_char(c) {
     return (text.code(c) >= text.code("0") and
-        text.code(c) <= text.code("9")) or
+         text.code(c) <= text.code("9")) or
         (text.code(c) >= text.code("A") and
-        text.code(c) <= text.code("Z")) or
+         text.code(c) <= text.code("Z")) or
         (text.code(c) >= text.code("a") and
-        text.code(c) <= text.code("z")) or
+         text.code(c) <= text.code("z")) or
         text.code(c) > 127 or
         c == "_"
 }

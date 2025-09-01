@@ -167,6 +167,16 @@ func TypeInfo.is_func_attr {
     return self.func_typeexpr.is_func_attr
 }
 
+func TypeInfo.can_return_value {
+    if self.kind != TI_FUNCREF {
+        throw new TypeError("This isn't a func ref type.")
+    }
+    var fexpr = self.func_typeexpr
+    return fexpr.return_typeref_expr != none and
+        (fexpr.return_typeref_expr.kind != TI_C_TYPE or
+         fexpr.return_typeref_expr.orig_type_name != "empty")
+}
+
 func TypeInfo.construct_arg_type(
         num, project_file=none, is_moose64=no, debug=no,
         ) {

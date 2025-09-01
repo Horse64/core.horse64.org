@@ -2315,6 +2315,7 @@ func generate_imr_for_expr(
         try_target_storage_ref=none,
         convert_to_target_type=none,
         conversion_not_limited_to_regular_implicit=no,
+        return_value_is_ignored=no,
         is_moose64=no, msgs=none,
         debug=no,
         ) {
@@ -2330,6 +2331,7 @@ func generate_imr_for_expr(
         project_file=project_file,
         imr_build_tracker=imr_build_tracker,
         try_target_storage_ref=try_target_storage_ref,
+        return_value_is_ignored=return_value_is_ignored,
         is_moose64=is_moose64,
         msgs=msgs,
         debug=debug,
@@ -2532,6 +2534,7 @@ func _generate_imr_for_expr_untyped(
         project_file=none,
         imr_build_tracker=none,
         try_target_storage_ref=none,
+        return_value_is_ignored=no,
         is_moose64=no, msgs=none,
         debug=no,
         ) {
@@ -2688,12 +2691,16 @@ func _generate_imr_for_expr_untyped(
                 "Handling call expression...")
         }
 
+        var expect_return_value = not return_value_is_ignored
         var we_own_the_tmp_ref = no
         var tmp_ref = try_target_storage_ref
         func get_own_tmp_ref_if_needed {
             if tmp_ref != none and
                     (our_node_typeinfo != none or
                     not is_moose64) {
+                return later
+            }
+            if not expect_return_value {
                 return later
             }
             we_own_the_tmp_ref = yes
@@ -2754,6 +2761,46 @@ func _generate_imr_for_expr_untyped(
                     ) {
             is_size_of = yes
         }
+        if expect_return_value and
+                left_hand_result.known_type_info != none and
+                left_hand_result.known_type_info.kind ==
+                    typeinfo.TI_FUNCREF and
+                not left_hand_result.known_type_info.can_return_value() {
+            if msgs == none {
+                throw new RuntimeError("Unexpected attempt to use "
+                    "call return value, "
+                    "but called func doesn't return any value.")
+            }
+            if not node.damaged {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected attempt to use "
+                    "call return value, "
+                    "but called func doesn't return any value.",
+                    source_file=project_file,
+                    line=node.line,
+                    col=node.col,
+                ))
+            }
+            node.damaged = yes
+            return later none
+        } elseif not expect_return_value and
+                left_hand_result.known_type_info != none and
+                left_hand_result.known_type_info.kind ==
+                    typeinfo.TI_FUNCREF and
+                left_hand_result.known_type_info.can_return_value() {
+            if msgs == none {
+                throw new RuntimeError("Unexpected attempt to use "
+                    "call return value, "
+                    "but called func doesn't return any value.")
+            }
+            msgs.add(new msg.FileMsg(
+                "Return value of call was ignored.",
+                kind=msg.M_WARNING,
+                source_file=project_file,
+                line=node.line,
+                col=node.col,
+            ))
+        }
         if is_moose64 and (is_as_ref or is_de_ref or is_size_of) and
                 node.subexprs[2].kind == ast.N_EXPR_CALLARGS and
                 node.subexprs[2].subexprs.len > 0 {
@@ -2776,6 +2823,13 @@ func _generate_imr_for_expr_untyped(
             if arg_expr_result == none or
                     arg_expr_result.storage_ref == none {
                 return later none
+            }
+            if not expect_return_value {
+                # Proceeding past here is kind of useless,
+                # since these built-ins have no state altering effect.
+                result.storage_ref = none
+                result.instructions = arg_expr_result.instructions
+                return result
             }
             var target_tmp_typeinfo = get_var_typeinfo(
                 tmp_ref,
@@ -2981,6 +3035,21 @@ func _generate_imr_for_expr_untyped(
         }
         process_full_queue() later:
 
+        if not expect_return_value {
+            # We want to call this but ignore the return value.
+            result.storage_ref = none
+            result.instructions.add(new IMRCall(
+                called_func_ref=left_hand_result.storage_ref,
+                arg_refs=arg_refs,
+                arg_names_if_any=arg_names_if_any,
+                has_later=no,
+                has_later_ignore=no,
+                has_later_repeat=no,
+                return_value_ref=none,
+            ))
+            return result
+        }
+        # We want to call and keep the return value:
         result.storage_ref = tmp_ref
         var target_tmp_typeinfo = get_var_typeinfo(
             tmp_ref,
@@ -3001,6 +3070,7 @@ func _generate_imr_for_expr_untyped(
             tmp_ref.kind == st_ref.ST_LOCAL)
 
         func insert_type_conversion_if_needed {
+            # Check if the return value needs to be converted.
             if is_moose64 and
                     not we_own_the_tmp_ref and
                     not our_node_typeinfo.is_equivalent(
@@ -4508,6 +4578,7 @@ func generate_imr_for_stmt(
             imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
+            return_value_is_ignored=yes,
             project_file=project_file,
             imr_build_tracker=imr_build_tracker,
             is_moose64=is_moose64, msgs=msgs,
