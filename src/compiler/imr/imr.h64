@@ -1666,7 +1666,7 @@ func IMRStructOrTypeBlock.register_struct_or_union_attr(
 }
 
 func IMRStructOrTypeBlock.as_str(indent=0) {
-    var name = "FUNCBLOCK"
+    var name = "STRUCTBLOCK"
     if self.is_union {
         name = "UNIONBLOCK"
     } elseif self.is_struct {
@@ -1707,6 +1707,9 @@ type IMRFuncBlock base IMRBlock {
     var label = none
     var type_path = none
     var storage_ref = none
+
+    var pos_arg_count = 0
+    var kw_arg_count = 0
 
     var storage_id_to_known_type_info = {->}
     var storage_id_to_known_type_expr = {->}
@@ -1758,6 +1761,8 @@ func IMRFuncBlock.init(
             )
         }
     }
+    self.pos_arg_count = pos_arg_count
+    self.kw_arg_count = kw_arg_count
 }
 
 func IMRFuncBlock.update_var_type_exprs(
@@ -1883,25 +1888,21 @@ func IMRFuncBlock.get_func_tracker(tracker) {
 
 func IMRFuncBlock.as_str(indent=0) {
     var t = ""
+    t += self.format_inst(
+        "FUNCBLOCK", pos_parameter_names=[
+            "storage_ref", "label",
+        ], skip_parameter_names=[
+            "instructions",
+            "is_func_attr",
+            "is_extend",
+        ], indent=indent,
+    )
+    t += " " + self.pos_arg_count.as_str()
+    t += " " + self.kw_arg_count.as_str()
     if self.is_func_attr {
-        t +=  self.format_inst(
-            "FUNCBLOCK", pos_parameter_names=[
-                "is_func_attr", "storage_ref",
-                "type_path", "label", "is_extend",
-            ], skip_parameter_names=[
-                "instructions",
-            ], indent=indent,
-        )
-    } else {
-        t += self.format_inst(
-            "FUNCBLOCK", pos_parameter_names=[
-                "is_func_attr", "storage_ref",
-                "label", "is_extend",
-            ], skip_parameter_names=[
-                "instructions",
-            ], indent=indent,
-        )
+        " TYPE_PATH=" + self.type_path.join(".")
     }
+    t += " IS_EXTEND=" + if self.is_extend ("yes") else ("no")
     t += " " + self.fmt_block(
         indent=indent,
         prepend_stmts=self.var_info_stmts,
