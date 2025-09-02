@@ -1710,6 +1710,10 @@ type IMRFuncBlock base IMRBlock {
 
     var pos_arg_count = 0
     var kw_arg_count = 0
+    var known_arg_type_exprs = []
+    var known_arg_type_storage_refs = []
+    var known_return_type_expr = none
+    var known_return_type_storage_ref = none
 
     var storage_id_to_known_type_info = {->}
     var storage_id_to_known_type_expr = {->}
@@ -1763,6 +1767,19 @@ func IMRFuncBlock.init(
     }
     self.pos_arg_count = pos_arg_count
     self.kw_arg_count = kw_arg_count
+    var i = 1
+    while i <= self.pos_arg_count + self.kw_arg_count {
+        self.known_arg_type_exprs.add(
+            known_arg_type_exprs[i]
+        )
+        self.known_arg_type_storage_refs.add(
+            known_arg_type_storage_refs[i]
+        )
+        i += 1
+    }
+    self.known_return_type_expr = known_return_type_expr
+    self.known_return_type_storage_ref =
+        known_return_type_storage_ref
 }
 
 func IMRFuncBlock.update_var_type_exprs(
@@ -1901,6 +1918,43 @@ func IMRFuncBlock.as_str(indent=0) {
     t += " " + self.kw_arg_count.as_str()
     if self.is_func_attr {
         " TYPE_PATH=" + self.type_path.join(".")
+    }
+    var i = 1
+    while i <= self.pos_arg_count {
+        var value = none
+        if i <= self.known_arg_type_exprs.len {
+            value = self.known_arg_type_exprs[i]
+        }
+        t += " ARG_" + i.as_str() + "_TYPE_EXPR="
+        if value == none {
+            t += "none"
+        } else {
+            t += textfmt.as_escaped_code_string(value.as_str())
+            t += " ARG_" + i.as_str() + "_TYPE_EXPR_STORAGE_REF=" +
+                self.known_arg_type_storage_refs[i].as_str()
+        }
+        i += 1
+    }
+    while i <= self.pos_arg_count + self.kw_arg_count {
+        var value = none
+        if i <= self.known_arg_type_exprs.len {
+            value = self.known_arg_type_exprs[i]
+        }
+        t += " ARG_" + i.as_str() + "_TYPE_EXPR="
+        if value == none {
+            t += "none"
+        } else {
+            t += textfmt.as_escaped_code_string(value.as_str())
+            t += " ARG_" + i.as_str() + "_TYPE_EXPR_STORAGE_REF=" +
+                self.known_arg_type_storage_refs[i].as_str()
+        }
+        i += 1
+    }
+    if self.known_return_type_expr != none {
+        t += " RETURN_TYPE_EXPR=" +
+            self.known_return_type_expr.as_str()
+        t += " RETURN_TYPE_EXPR_STORAGE_REF=" +
+            self.known_return_type_storage_ref.as_str()
     }
     t += " IS_EXTEND=" + if self.is_extend ("yes") else ("no")
     t += " " + self.fmt_block(
