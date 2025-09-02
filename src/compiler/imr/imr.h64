@@ -30,6 +30,7 @@ import json from core.horse64.org
 import math from core.horse64.org
 import textfmt from core.horse64.org
 import time from core.horse64.org
+import wildcard from core.horse64.org
 
 import compiler.ast as ast
 import compiler.ast.expr as ast_expr
@@ -111,10 +112,34 @@ func IMRNode.format_inst(
     if extra_text != none {
         t += " " + extra_text.trim()
     }
+    var skip_parameter_wildcards = []
+    var skip_parameter_names_new = []
+    for skip_name in skip_parameter_names {
+        if skip_name.has("*") {
+            skip_parameter_wildcards.add(
+                skip_name
+            )
+        } else {
+            skip_parameter_names_new.add(skip_name)
+        }
+    }
+    skip_parameter_names = skip_parameter_names_new
+    func should_skip(key) {
+        if skip_parameter_names.has(key) {
+            return yes
+        }
+        for wildcard_entry in skip_parameter_wildcards {
+            if wildcard.match(wildcard_entry, key) {
+                return yes
+            }
+        }
+        return no
+    }
+
     for remaining_key in data {
         if pos_parameter_names.has(remaining_key) or
                 remaining_key == "kind" or
-                skip_parameter_names.has(remaining_key) {
+                should_skip(remaining_key) {
             continue
         }
         t += " " + remaining_key.upper() + "="
@@ -1710,6 +1735,7 @@ type IMRFuncBlock base IMRBlock {
 
     var pos_arg_count = 0
     var kw_arg_count = 0
+    var kw_arg_names = []
     var known_arg_type_exprs = []
     var known_arg_type_storage_refs = []
     var known_return_type_expr = none
@@ -1726,6 +1752,7 @@ func IMRFuncBlock.init(
         pos_arg_count=0,
         kw_arg_count=0,
         has_return_value=yes,
+        kw_arg_names=[],
         known_arg_type_exprs=[],
         known_arg_type_storage_refs=[],
         known_return_type_expr=none,
@@ -1745,6 +1772,12 @@ func IMRFuncBlock.init(
             "No storage_ref was specified, or "
             "it's not of kind ST_GLOBAL or "
             "ST_GLOBALATTR."
+        )
+    }
+    if kw_arg_count != kw_arg_names.len {
+        throw new ValueError(
+            "The given kw_arg_count must match "
+            "the length of the given kw_arg_names list."
         )
     }
     self.storage_ref = storage_ref.copy()
@@ -1780,6 +1813,9 @@ func IMRFuncBlock.init(
     self.known_return_type_expr = known_return_type_expr
     self.known_return_type_storage_ref =
         known_return_type_storage_ref
+    for name in kw_arg_names {
+        self.kw_arg_names.add(name + "")
+    }
 }
 
 func IMRFuncBlock.update_var_type_exprs(
@@ -1912,12 +1948,16 @@ func IMRFuncBlock.as_str(indent=0) {
             "instructions",
             "is_func_attr",
             "is_extend",
+            "type_path",
+            "arg_*_type_expr",
+            "arg_*_type_expr_storage_ref",
+            "arg_*_kw_name",
         ], indent=indent,
     )
     t += " " + self.pos_arg_count.as_str()
     t += " " + self.kw_arg_count.as_str()
     if self.is_func_attr {
-        " TYPE_PATH=" + self.type_path.join(".")
+        t += " TYPE_PATH=" + self.type_path.join(".")
     }
     var i = 1
     while i <= self.pos_arg_count {
@@ -1949,6 +1989,13 @@ func IMRFuncBlock.as_str(indent=0) {
                 self.known_arg_type_storage_refs[i].as_str()
         }
         i += 1
+    }
+    var k = 1
+    while k <= self.kw_arg_count {
+        i = self.pos_arg_count + k
+        t += " ARG_" + i.as_str() + "_KW_NAME=" +
+            textfmt.as_escaped_code_string(self.kw_arg_names[k])
+        k += 1
     }
     if self.known_return_type_expr != none {
         t += " RETURN_TYPE_EXPR=" +
@@ -1984,6 +2031,33 @@ func IMRFuncBlock.as_json_obj(
     } else {
         assert(self.type_path == none or
             self.type_path.len == 0)
+    }
+    var i = 1
+    while i <= self.pos_arg_count + self.kw_arg_count {
+        var value = none
+        if i <= self.known_arg_type_exprs.len {
+            value = self.known_arg_type_exprs[i]
+        }
+        obj["arg_" + i.as_str() + "_type_expr"] = none
+        obj["arg_" + i.as_str() + "_type_expr_storage_ref"] = none
+        if value != none {
+            obj["arg_" + i.as_str() + "_type_expr"] = value.as_str()
+            if _passthrough_storage_refs {
+                obj["arg_" + i.as_str() + "_type_expr_storage_ref"] =
+                    self.known_arg_type_storage_refs[i]
+            } else {
+                obj["arg_" + i.as_str() + "_type_expr_storage_ref"] =
+                    self.known_arg_type_storage_refs[i].as_str()
+            }
+        }
+        i += 1
+    }
+    var k = 1
+    while k <= self.kw_arg_count {
+        i = self.pos_arg_count + k
+        obj["arg_" + i.as_str() + "_kw_name"] =
+            self.kw_arg_names[k]
+        k += 1
     }
     return obj
 }
@@ -5034,6 +5108,8 @@ func generate_imr_for_file(
             var has_return_value = no
             var known_return_type_expr = none
             var known_return_type_storage_ref = none
+            var kw_arg_names = []
+            var full_arg_names = []
 
             kw_arg_count = fscope.extended_final_kw_arg_count(
                 include_outer_extends=no
@@ -5041,6 +5117,15 @@ func generate_imr_for_file(
             pos_arg_count = fscope.extended_final_arg_count(
                 include_outer_extends=no
             ) - kw_arg_count
+            full_arg_names = fscope.extended_final_arg_names(
+                include_outer_extends=no
+            )
+            var i = pos_arg_count + 1
+            while i <= pos_arg_count + kw_arg_count {
+                kw_arg_names.add(full_arg_names[i])
+                i += 1
+            }
+
             has_return_value = (
                 not is_moose64 or
                 (fscope.extended_final_has_return_type() and
@@ -5165,6 +5250,7 @@ func generate_imr_for_file(
                     pos_arg_count=pos_arg_count,
                     kw_arg_count=kw_arg_count,
                     has_return_value=has_return_value,
+                    kw_arg_names=kw_arg_names,
                     known_arg_type_exprs=
                         known_arg_type_exprs,
                     known_arg_type_storage_refs=
@@ -5186,6 +5272,7 @@ func generate_imr_for_file(
                     pos_arg_count=pos_arg_count,
                     kw_arg_count=kw_arg_count,
                     has_return_value=has_return_value,
+                    kw_arg_names=kw_arg_names,
                     known_arg_type_exprs=
                         known_arg_type_exprs,
                     known_arg_type_storage_refs=

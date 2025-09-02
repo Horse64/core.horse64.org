@@ -1328,7 +1328,7 @@ func project.Project.compute_all_scopes(
                                     node.kw_arg_count + idx
                                 ])
                                 else (none),
-                            is_kw_arg=(idx <=
+                            is_kw_arg=(idx >
                                 node.arg_labels.len -
                                 node.kw_arg_count)
                         )
