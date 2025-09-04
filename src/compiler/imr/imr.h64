@@ -4542,6 +4542,10 @@ func generate_imr_for_stmt(
                     func_imr_parent=func_imr_parent,
                     file_imr_parent=file_imr_parent,
                     project_file=project_file,
+                    optional_type_info=
+                        new typeinfo.create_from_simple_m64_type(
+                            "bool"
+                        ),
                     imr_build_tracker=imr_build_tracker,
                     is_moose64=is_moose64, msgs=msgs,
                 ) later:
@@ -4571,6 +4575,10 @@ func generate_imr_for_stmt(
                         item, imr_parents=imr_parents,
                         func_imr_parent=func_imr_parent,
                         file_imr_parent=file_imr_parent,
+                        optional_type_info=
+                            new typeinfo.create_from_simple_m64_type(
+                                "bool"
+                            ),
                         project_file=project_file,
                         imr_build_tracker=imr_build_tracker,
                         is_moose64=is_moose64, msgs=msgs,
