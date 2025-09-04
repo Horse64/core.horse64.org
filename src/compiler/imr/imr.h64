@@ -5986,7 +5986,7 @@ func generate_imr_for_project(
                 "stage imr: " +
                 "IMR completed. "
                 "[t=" + time.ticks().as_str() + "]",
-                            kind=msg.M_INFO,
+                kind=msg.M_INFO,
             ),
             msgs=imrresult.msgs,
             program_name=program_name,

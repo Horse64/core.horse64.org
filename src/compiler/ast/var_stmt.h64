@@ -421,6 +421,7 @@ func parse(tokens, pos, msgs, project_file=none,
 
     # If we had any major errors so far, bail if necessary:
     if not had_error_unexpected and
+            pos <= tokens_len and
             not token.can_stmt_or_expr_end_before_token(
             tokens, pos, for_expr=no, is_moose64=is_moose64
             ) and (tokens[pos].kind != token.T_ASSIGN or
@@ -462,11 +463,20 @@ func parse(tokens, pos, msgs, project_file=none,
     }
 
     # Bail if the statement ends here:
-    if tokens[pos].kind != token.T_ASSIGN {
+    if pos > tokens_len or
+            tokens[pos].kind != token.T_ASSIGN {
+        var token_line = tokens[pos - 1].line
+        var token_col = tokens[pos - 1].col
+        if pos <= tokens_len {
+            token_line = tokens[pos].line
+            token_col = tokens[pos].col
+        }
         var i = 1
         while i <= varcount {
             var lexpr = new ast_expr.LiteralExpr()
             lexpr.literal_kind = ast_expr.LK_NORMAL
+            lexpr.line = token_line
+            lexpr.col = token_col
             lexpr.value = none
             if not stmt.has_type_expr {
                 stmt.subexprs.add(lexpr)
@@ -522,6 +532,8 @@ func parse(tokens, pos, msgs, project_file=none,
         while remaining_count > 0 {
             var lexpr = new ast_expr.LiteralExpr()
             lexpr.literal_kind = ast_expr.LK_NORMAL
+            lexpr.line = stmt.line
+            lexpr.col = stmt.col
             lexpr.value = none
             if not stmt.has_type_expr {
                 stmt.subexprs.add(lexpr)
@@ -616,6 +628,8 @@ func parse(tokens, pos, msgs, project_file=none,
         while remaining_count > 0 {
             var lexpr = new ast_expr.LiteralExpr()
             lexpr.literal_kind = ast_expr.LK_NORMAL
+            lexpr.line = stmt.line
+            lexpr.col = stmt.col
             lexpr.value = none
             if not stmt.has_type_expr {
                 stmt.subexprs.add(lexpr)
