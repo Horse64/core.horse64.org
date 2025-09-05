@@ -5331,9 +5331,13 @@ func generate_imr_for_stmt(
                     ))
                 } elseif math_assign_token != none {
                     var adjust_op_result_preconv = no
+                    var adjust_op_result_conv = no
                     var adjust_left_operand_conv = no
                     if op_result_preconv_tmp == left_operand_conv_tmp {
                         adjust_op_result_preconv = yes
+                    }
+                    if op_result_conv_tmp == left_operand_conv_tmp {
+                        adjust_op_result_conv = yes
                     }
                     if left_operand_preconv_tmp ==
                             left_operand_conv_tmp {
@@ -5341,6 +5345,9 @@ func generate_imr_for_stmt(
                     }
                     if adjust_op_result_preconv {
                         op_result_preconv_tmp = left_hand_node.ref
+                    }
+                    if adjust_op_result_conv {
+                        op_result_conv_tmp = left_hand_node.ref
                     }
                     if adjust_left_operand_conv {
                         left_operand_conv_tmp = left_hand_node.ref
@@ -5382,7 +5389,7 @@ func generate_imr_for_stmt(
                             is_moose64=is_moose64,
                         ))
                     } else {
-                        assert(op_result_preconv_tmp == op_result_conv_tmp)
+                        assert(op_result_preconv_tmp == op_result_conv_tmp and 999)
                     }
                     if not op_result_conv_tmp.alike(
                             left_hand_node.ref) {

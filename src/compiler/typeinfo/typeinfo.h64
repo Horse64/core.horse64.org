@@ -1022,7 +1022,7 @@ func TypeInfo.get_after_de_ref_operation {
     }
     if old_deref_counter <= 0 {
         # This isn't allowed.
-        return later none
+        return none
     }
     type_result.modifiers = new_modifiers
     if type_result.kind == TI_USERTYPE and
