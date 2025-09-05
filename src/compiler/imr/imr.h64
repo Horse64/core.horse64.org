@@ -5054,6 +5054,8 @@ func generate_imr_for_stmt(
                     ) later:
 
                     await op_result_conv_tmp
+                } else {
+                    op_result_conv_tmp = op_result_preconv_tmp
                 }
             }
             check_opresult_conversion() later:
@@ -5169,6 +5171,9 @@ func generate_imr_for_stmt(
                             in_project_file=project_file,
                             is_moose64=is_moose64,
                         ))
+                    } else {
+                        assert(left_operand_preconv_tmp ==
+                            left_operand_conv_tmp)
                     }
                     result_insts.add(new IMRApplyOp(
                         math_assign_token,
@@ -5257,6 +5262,9 @@ func generate_imr_for_stmt(
                             in_project_file=project_file,
                             is_moose64=is_moose64,
                         ))
+                    } else {
+                        assert(left_operand_preconv_tmp ==
+                            left_operand_conv_tmp)
                     }
                     result_insts.add(new IMRApplyOp(
                         math_assign_token,
@@ -5348,6 +5356,9 @@ func generate_imr_for_stmt(
                             in_project_file=project_file,
                             is_moose64=is_moose64,
                         ))
+                    } else {
+                        assert(left_operand_preconv_tmp ==
+                            left_operand_conv_tmp)
                     }
                     result_insts.add(new IMRApplyOp(
                         math_assign_token,
