@@ -260,6 +260,16 @@ func TypeInfo.is_array {
     return yes
 }
 
+func get_addr_type_size_for_platform(
+        build_options,
+        is_moose64=no,
+        ) {
+    if build_options == none {
+        return 8
+    }
+    return build_options.get_build_target_cpu_bit_size() / 8
+}
+
 func TypeInfo.is_array_with_readonly_data {
     if not self.is_array() {
         return no

@@ -3498,6 +3498,7 @@ func _generate_imr_for_expr_untyped(
         ) later:
 
         await left_hand_result
+
         var right_hand_result = none
         func get_righthand_result_if_binop {
             if not is_binop {
@@ -3525,9 +3526,95 @@ func _generate_imr_for_expr_untyped(
             return later none
         }
         result.instructions += left_hand_result.instructions
+
         if is_binop {
-            result.instructions += right_hand_result.instructions
-            result.instructions.add(new IMRApplyOp(
+            var nest_in_cond_block = none
+            var enter_else_tmp_ref = none
+            func add_nesting_cond_if_needed  {
+                if node.optoken.str != "or" and
+                        node.optoken.str != "and" {
+                    return later
+                }
+                enter_else_tmp_ref = get_new_temp_storage_ref(
+                    node, imr_parents=imr_parents,
+                    func_imr_parent=func_imr_parent,
+                    file_imr_parent=file_imr_parent,
+                    optional_type_info=
+                        typeinfo.create_from_simple_m64_type("bool"),
+                    project_file=project_file,
+                    imr_build_tracker=imr_build_tracker,
+                    is_moose64=is_moose64, msgs=msgs,
+                ) later:
+
+                await enter_else_tmp_ref
+                result.instructions.add(new IMRSetLit(
+                    yes, enter_else_tmp_ref,
+                    literal_kind=ast_expr.LK_NORMAL
+                ))
+                if node.optoken.str == "or" {
+                    assert(not is_moose64 or
+                        left_hand_convert_to.is_equivalent(
+                            typeinfo.create_from_simple_m64_type("bool")))
+                    var cond_tmp = get_new_temp_storage_ref(
+                        node, imr_parents=imr_parents,
+                        func_imr_parent=func_imr_parent,
+                        file_imr_parent=file_imr_parent,
+                        optional_type_info=
+                            typeinfo.create_from_simple_m64_type("bool"),
+                        project_file=project_file,
+                        imr_build_tracker=imr_build_tracker,
+                        is_moose64=is_moose64, msgs=msgs,
+                    ) later:
+
+                    await nest_in_cond_tmp
+                    result.instructions.add(new IMRApplyOp(
+                        new token.Token(
+                             "not", token.T_BOOLCOMP,
+                             node.line, node.col,
+                        ),
+                        operand_1_storage_ref=left_hand_result.storage_ref,
+                        target_storage_ref=cond_tmp,
+                        is_binary=no,
+                    ))
+                    nest_in_cond_block = new IMRCond(
+                        evaluated_cond_ref=cond_tmp,
+                    )
+                    cond_block.line = node.line
+                    cond_block.col = node.col
+                    result.instructions.add(nest_in_cond_block)
+                } else {
+                    assert(node.optoken.str == "and")
+                    assert(not is_moose64 or
+                        left_hand_convert_to.is_equivalent(
+                            typeinfo.create_from_simple_m64_type("bool")))
+                    nest_in_cond_tmp = get_new_temp_storage_ref(
+                        node, imr_parents=imr_parents,
+                        func_imr_parent=func_imr_parent,
+                        file_imr_parent=file_imr_parent,
+                        optional_type_info=
+                            typeinfo.create_from_simple_m64_type("bool"),
+                        project_file=project_file,
+                        imr_build_tracker=imr_build_tracker,
+                        is_moose64=is_moose64, msgs=msgs,
+                    ) later:
+
+                    await nest_in_cond_tmp
+                    nest_in_cond_block = new IMRCond(
+                        evaluated_cond_ref=left_hand_result.storage_ref,
+                    )
+                    cond_block.line = node.line
+                    cond_block.col = node.col
+                    result.instructions.add(nest_in_cond_block)
+                }
+            }
+            add_nesting_cond_if_needed() later:
+
+            var add_insts_into = result
+            if nest_in_cond_block != none {
+                add_insts_into = nest_in_cond_block
+            }
+            add_insts_into.instructions += right_hand_result.instructions
+            add_insts_into.instructions.add(new IMRApplyOp(
                 node.optoken.copy(),
                 operand_1_storage_ref=
                     left_hand_result.storage_ref,
@@ -3536,6 +3623,30 @@ func _generate_imr_for_expr_untyped(
                 target_storage_ref=tmp_ref,
                 is_binary=yes,
             ))
+            if nest_in_cond_block != none {
+                nest_in_cond_block.instructions.add(new IMRSetLit(
+                    no, enter_else_tmp_ref,
+                    literal_kind=ast_expr.LK_NORMAL
+                ))
+            }
+            if enter_else_tmp_ref != none {
+                var else_cond_block = new IMRCond(
+                    evaluated_cond_ref=enter_else_tmp_ref,
+                )
+                if node.optoken.str == "or" {
+                    else_cond_block.instructions.add(new IMRSetLit(
+                        yes, tmp_ref,
+                        literal_kind=ast_expr.LK_NORMAL
+                    ))
+                } else {
+                    assert(node.optoken.str == "and")
+                    else_cond_block.instructions.add(new IMRSetLit(
+                        no, tmp_ref,
+                        literal_kind=ast_expr.LK_NORMAL
+                    ))
+                }
+                result.instructions.add(else_cond_block)
+            }
         } else {
             result.instructions.add(new IMRApplyOp(
                 node.optoken.copy(),
@@ -5137,13 +5248,97 @@ func generate_imr_for_stmt(
                 ) later:
 
                 await idx_result
-                # FIXME: We probably want to convert the index to
-                # an unsigned integer that matches the size of the
-                # target system's native pointer size.
+                var addr_size = typeinfo.
+                    get_addr_type_size_for_platform(
+                        imr_build_tracker.build_options,
+                        is_moose64=is_moose64,
+                    )
+                var attr_type_name = "u8"
+                if addr_size == 2 {
+                    attr_type_name = "u16"
+                } elseif addr_size == 4 {
+                    attr_type_name = "u32"
+                } elseif addr_size == 8 {
+                    attr_type_name = "u64"
+                } else {
+                    throw new RuntimeError(
+                        "Unimplemented code path."
+                    )
+                }
+                var idx_tmp_ref = none
                 if container_result == none or idx_result == none {
                     result_insts = none
                     return later yes
                 }
+                idx_tmp_ref = idx_result.storage_ref
+
+                func handle_idx_conversion {
+                    if is_moose64 {
+                        return later
+                    }
+                    if idx_result.known_type_info == none {
+                        if msgs == none or
+                                not msg.msgs_contain_error(msgs) {
+                            throw new RuntimeError("Failed to "
+                                "get index type.")
+                        }
+                    }
+                    if idx_result.known_type_info.is_equivalent(
+                            typeinfo.create_from_simple_m64_type(
+                                attr_type_name
+                            ),
+                            is_moose64=is_moose64,
+                            ) {
+                        return later
+                    }
+                    idx_tmp_ref = get_new_temp_storage_ref(
+                        node, imr_parents=imr_parents,
+                        func_imr_parent=func_imr_parent,
+                        file_imr_parent=file_imr_parent,
+                        project_file=project_file,
+                        optional_type_info=
+                            typeinfo.create_from_simple_m64_type(
+                                attr_type_name
+                            ),
+                        imr_build_tracker=imr_build_tracker,
+                        is_moose64=is_moose64, msgs=msgs,
+                    ) later:
+
+                    await idx_tmp_ref
+                    if idx_result.known_type_info.kind == TI_C_TYPE and
+                            ast_typeref.
+                            builtin_moose64_address_indexing_types.has(
+                                idx_result.known_type_info.orig_orig_type_name
+                            ) {
+                        result_insts.add(new IMRConv(
+                            idx_result.storage_ref,
+                            idx_tmp_ref,
+                            idx_result.known_type_info,
+                            typeinfo.create_from_simple_m64_type(
+                                attr_type_name
+                            ),
+                            in_project_file=project_file,
+                            is_moose64=is_moose64,
+                        ))
+                    } else {
+                        msgs.add(new msg.FileMsg(
+                            "Unexpected assignment of value of "
+                            "type " + idx_result.known_type_info.
+                                describe_to_user(
+                                    project=project_file.project,
+                                    add_quotes_where_useful=yes,
+                                    is_moose64=is_moose64,
+                                ) + ", "
+                            "cannot be converted to an index "
+                            "value implicitly.",
+                            source_file=project_file,
+                            line=right_hand_result.line,
+                            col=right_hand_result.col,
+                        ))
+                    }
+                }
+                handle_idx_conversion() later:
+
                 if node.assign_token.kind == token.T_ASSIGN {
                     result_insts.add(new IMRSetIdx(
                         target_and_container_storage_ref=
@@ -5158,8 +5353,7 @@ func generate_imr_for_stmt(
                     result_insts.add(new IMRGetIdx(
                         container_storage_ref=
                             container_result.storage_ref,
-                        index_storage_ref=
-                            idx_result.storage_ref,
+                        index_storage_ref=idx_tmp_ref,
                         target_storage_ref=left_operand_preconv_tmp,
                     ))
                     if convert_lefthand_from != convert_lefthand_to {
@@ -6155,6 +6349,8 @@ type IMRBuildTracker {
     var global_init_func_name_to_id_map = {->}
 
     var imr_func_id_to_tracker_info_map = {->}
+
+    var build_options
 }
 
 func get_var_typeinfo(
@@ -6256,6 +6452,7 @@ func generate_imr_for_project(
         imrresult.msgs = none
     }
     var imr_build_tracker = new IMRBuildTracker()
+    imr_build_tracker.build_options = build_options
 
     if boptions.print_stages {
         clog.log_or_print(

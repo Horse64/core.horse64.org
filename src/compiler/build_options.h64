@@ -59,3 +59,7 @@ func BuildOptions.add_asserts {
     return self.optimize_level != OPTIMIZE_ALL
 }
 
+func BuildOptions.get_build_target_cpu_bit_size {
+    return 64
+}
+

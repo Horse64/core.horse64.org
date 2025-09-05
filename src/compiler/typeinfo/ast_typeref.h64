@@ -68,6 +68,12 @@ const builtin_moose64_integer_num_types = {
     "u32", "u64",
 }
 
+const builtin_moose64_address_indexing_types = {
+    "i8", "i16", "i32", "i64",
+    "size", "byte", "u16",
+    "u32", "u64",
+}
+
 const builtin_moose64_num_types =
     builtin_moose64_unsigned_num_types +
     builtin_moose64_signed_num_types
