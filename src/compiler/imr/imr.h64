@@ -5135,6 +5135,9 @@ func generate_imr_for_stmt(
                 ) later:
 
                 await idx_result
+                # FIXME: We probably want to convert the index to
+                # an unsigned integer that matches the size of the
+                # target system's native pointer size.
                 if container_result == none or idx_result == none {
                     result_insts = none
                     return later yes
