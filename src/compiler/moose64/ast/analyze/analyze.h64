@@ -188,7 +188,8 @@ func compute_and_verify_regular_m64_binop_types(
                         is_moose64=yes
                     ) + " which isn't a bool.",
                     source_file=project_file,
-                    line=node.line, col=node.col,
+                    line=node.optoken.line,
+                    col=node.optoken.col,
                 ))
             }
             node.damaged = yes
@@ -240,15 +241,16 @@ func compute_and_verify_regular_m64_binop_types(
                 left_side_type.describe_to_user(
                     project=project_file.project,
                     add_quotes_where_useful=yes,
-                    is_moose64=yes
+                    is_moose64=yes,
                 ) + " "
                 "and " + right_side_type.describe_to_user(
                     project=project_file.project,
                     add_quotes_where_useful=yes,
-                    is_moose64=yes
+                    is_moose64=yes,
                 ) + ".",
                 source_file=project_file,
-                line=node.line, col=node.col,
+                line=node.optoken.line,
+                col=node.optoken.col,
             ))
         }
         node.damaged = yes
@@ -844,7 +846,8 @@ func _get_c_or_m64_type_of_node_do(
                         is_moose64=yes
                     ) + " which isn't a bool.",
                     source_file=project_file,
-                    line=node.line, col=node.col,
+                    line=node.optoken.line,
+                    col=node.optoken.col,
                 ))
             }
             node.damaged = yes
@@ -951,7 +954,8 @@ func _get_c_or_m64_type_of_node_do(
                     is_moose64=yes
                 ) + ", which cannot be indexed.",
                 source_file=project_file,
-                line=node.line, col=node.col,
+                line=node.optoken.line,
+                col=node.optoken.col,
             ))
             node.damaged = yes
             return later none
