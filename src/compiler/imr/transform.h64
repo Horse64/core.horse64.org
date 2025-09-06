@@ -31,85 +31,211 @@ import math from core.horse64.org
 import compiler.imr
 import compiler.storage.ref as st_ref
 
-func replace_locals_in_func(
+func replace_refs_in_func(
         func_imr_node,
-        old_local_id, new_local_id,
-        project=none,
+        old_ref, new_ref,
+        project_file=none,
         imr_build_tracker=none,
         is_moose64=no,
         msgs=none,
         debug=no,
         ) {
-    if project == none {
-        throw new ValueError("The project parameter "
+    if project_file == none {
+        throw new ValueError("The project_file parameter "
             "has to be specified.")
     }
     if imr_build_tracker == none {
         throw new ValueError("The imr_build_tracker parameter "
             "has to be specified.")
     }
-    func replace_locals_in_list(l) {
+
+    var project = project_file.project
+    assert(func_imr_node.kind == compiler.imr.IMR_BLOCK_FUNC)
+
+    func replace_refs_in_list(l) {
+        var nested_queue = []
         for item in l {
+            if item.kind == compiler.imr.IMR_BLOCK_FUNC {
+                # We don't want to descend into nested funcs,
+                # in case we ever allow those.
+                # FIXME: However, we might need to revisit this for
+                # closures later. Perhaps we should un-nest those
+                # before we even run into this code path...?
+                continue
+            }
             if has_attr(item, "instructions") {
-                replace_locals_in_list(item.instructions)
+                nested_queue.add(item.instructions)
             }
             # FIXME: This will break closure captures for
             # Horse64. Figure out later what we'll do about that.
             if item.kind == compiler.imr.IMR_INST_VARINFO {
-                if item.storage_id == old_local_id {
-                    item.storage_id = new_local_id
+                if old_ref.kind == st_ref.ST_LOCAL and
+                        new_ref.kind == st_ref.ST_LOCAL and
+                        item.storage_id == old_ref.id {
+                    item.storage_id = new_ref.id
                 }
             } elseif item.kind == compiler.imr.IMR_INST_SETLIT {
-                if item.target_storage_ref.kind == st_ref.ST_LOCAL and
-                        item.target_storage_ref.id == old_local_id {
-                    item.target_storage_ref.id = new_local_id
+                if item.target_storage_ref.alike(old_ref) {
+                    item.target_storage_ref = new_ref.copy()
+                }
+            } elseif item.kind == compiler.imr.IMR_INST_SETATTRBYID {
+                if item.target_and_obj_storage_ref.alike(old_ref) {
+                    item.target_and_obj_storage_ref = new_ref.copy()
+                }
+                if item.value_storage_ref.alike(old_ref) {
+                    item.value_storage_ref = new_ref.copy()
+                }
+            } elseif item.kind == compiler.imr.IMR_INST_SETATTRBYNAME {
+                if item.target_and_obj_storage_ref.alike(old_ref) {
+                    item.target_and_obj_storage_ref = new_ref.copy()
+                }
+                if item.value_storage_ref.alike(old_ref) {
+                    item.value_storage_ref = new_ref.copy()
+                }
+            } elseif item.kind == compiler.imr.IMR_INST_GETATTRBYNAME {
+                if item.obj_storage_ref.alike(old_ref) {
+                    item.obj_storage_ref = new_ref.copy()
+                }
+                if item.target_storage_ref.alike(old_ref) {
+                    item.target_storage_ref = new_ref.copy()
+                }
+            } elseif item.kind == compiler.imr.IMR_INST_GETATTRBYID {
+                if item.obj_storage_ref.alike(old_ref) {
+                    item.obj_storage_ref = new_ref.copy()
+                }
+                if item.target_storage_ref.alike(old_ref) {
+                    item.target_storage_ref = new_ref.copy()
+                }
+            } elseif item.kind == compiler.imr.IMR_INST_SETIDX {
+                if item.target_and_container_storage_ref.alike(old_ref) {
+                    item.target_and_container_storage_ref = new_ref.copy()
+                }
+                if item.index_storage_ref.alike(old_ref) {
+                    item.index_storage_ref = new_ref.copy()
+                }
+                if item.value_storage_ref.alike(old_ref) {
+                    item.value_storage_ref = new_ref.copy()
+                }
+            } elseif item.kind == compiler.imr.IMR_INST_GETIDX {
+                if item.container_storage_ref.alike(old_ref) {
+                    item.container_storage_ref = new_ref.copy()
+                }
+                if item.index_storage_ref.alike(old_ref) {
+                    item.index_storage_ref = new_ref.copy()
+                }
+                if item.target_storage_ref.alike(old_ref) {
+                    item.target_storage_ref = new_ref.copy()
                 }
             } elseif item.kind == compiler.imr.IMR_INST_CLRZERO {
-                if item.target_storage_ref.kind == st_ref.ST_LOCAL and
-                        item.target_storage_ref.id == old_local_id {
-                    item.target_storage_ref.id = new_local_id
+                if item.target_storage_ref.alike(old_ref) {
+                    item.target_storage_ref = new_ref.copy()
                 }
             } elseif item.kind == compiler.imr.IMR_INST_CONV {
-                if item.source_storage_ref.kind == st_ref.ST_LOCAL and
-                        item.source_storage_ref.id == old_local_id {
-                    item.source_storage_ref.id = new_local_id
+                if item.source_storage_ref.alike(old_ref) {
+                    item.source_storage_ref = new_ref.copy()
                 }
-                if item.target_storage_ref.kind == st_ref.ST_LOCAL and
-                        item.target_storage_ref.id == old_local_id {
-                    item.target_storage_ref.id = new_local_id
+                if item.target_storage_ref.alike(old_ref) {
+                    item.target_storage_ref = new_ref.copy()
                 }
             } elseif item.kind == compiler.imr.IMR_INST_MOVE {
-                if item.source_storage_ref.kind == st_ref.ST_LOCAL and
-                        item.source_storage_ref.id == old_local_id {
-                    item.source_storage_ref.id = new_local_id
+                if item.source_storage_ref.alike(old_ref) {
+                    item.source_storage_ref = new_ref.copy()
                 }
-                if item.target_storage_ref.kind == st_ref.ST_LOCAL and
-                        item.target_storage_ref.id == old_local_id {
-                    item.target_storage_ref.id = new_local_id
+                if item.target_storage_ref.alike(old_ref) {
+                    item.target_storage_ref = new_ref.copy()
                 }
             } elseif item.kind == compiler.imr.IMR_INST_APPLY_OP {
-                if item.operand_1_storage_ref.kind == st_ref.ST_LOCAL and
-                        item.operand_1_storage_ref.id == old_local_id {
-                    item.operand_1_storage_ref.id = new_local_id
+                if item.operand_1_storage_ref.alike(old_ref) {
+                    item.operand_1_storage_ref = new_ref.copy()
                 }
                 if item.is_binary and
-                        item.operand_2_storage_ref.kind == st_ref.ST_LOCAL and
-                        item.operand_2_storage_ref.id == old_local_id {
-                    item.operand_2_storage_ref.id = new_local_id
+                        item.operand_2_storage_ref.alike(old_ref) {
+                    item.operand_2_storage_ref = new_ref.copy()
+                }
+                if item.target_storage_ref.alike(old_ref) {
+                    item.target_storage_ref = new_ref.copy()
+                }
+            } elseif item.kind == compiler.imr.IMR_INST_CALL {
+                if item.called_func_ref.alike(old_ref) {
+                    item.called_func_ref = new_ref.copy()
+                }
+                if item.return_value_ref != none and
+                        item.return_value_ref.alike(old_ref) {
+                    item.return_value_ref = new_ref.copy()
+                }
+                for arg in item.args {
+                    if arg.ref.alike(old_ref) {
+                        arg.ref = new_ref.copy()
+                    }
                 }
             } elseif item.kind == compiler.imr.IMR_BLOCK_ITERLOOP {
-                if item.iterated_container_ref.kind == st_ref.ST_LOCAL and
-                        item.iterated_container_ref.id == old_local_id {
-                    item.iterated_container_ref.id = new_local_id
+                if item.iterated_container_ref.alike(old_ref) {
+                    item.iterated_container_ref = new_ref.copy()
                 }
-                if item.iterator_store_ref.kind == st_ref.ST_LOCAL and
-                        item.iterator_store_ref.id == old_local_id {
-                    item.iterator_store_ref.id = new_local_id
+                if item.iterator_store_ref.alike(old_ref) {
+                    item.iterator_store_ref = new_ref.copy()
                 }
-            }  
+            } elseif item.kind == compiler.imr.IMR_INST_ASREF {
+                if item.asref_source_storage_ref.alike(old_ref) {
+                    item.asref_source_storage_ref = new_ref.copy()
+                }
+                if item.target_storage_ref.alike(old_ref) {
+                    item.target_storage_ref = new_ref.copy()
+                }
+            } elseif item.kind == compiler.imr.IMR_INST_DEREF {
+                if item.deref_source_storage_ref.alike(old_ref) {
+                    item.deref_source_storage_ref = new_ref.copy()
+                }
+                if item.target_storage_ref.alike(old_ref) {
+                    item.target_storage_ref = new_ref.copy()
+                }
+            } elseif item.kind == compiler.imr.IMR_INST_RETURN {
+                if item.return_value_storage_ref != none and
+                        item.return_value_storage_ref.alike(old_ref) {
+                    item.return_value_storage_ref = new_ref.copy()
+                }
+            } elseif item.kind == compiler.imr.IMR_BLOCK_COND {
+                if item.evaluated_cond_ref.alike(old_ref) {
+                    item.evaluated_cond_ref = new_ref.copy()
+                }
+            }
+        }
+        if nested_queue.len == 0 {
+            return later
+        }
+        var item = nested_queue.pop_at(1)
+        var result = replace_refs_in_list(item)
+        later:
+
+        await result
+        if nested_queue.len == 0 {
+            return later
+        }
+        item = nested_queue.pop_at(1)
+        result = replace_refs_in_list(item)
+        later repeat
+    }
+    if old_ref.kind == st_ref.ST_LOCAL {
+        var n = func_imr_node
+        if n.storage_id_to_known_type_info.has(old_ref.id) {
+            n.storage_id_to_known_type_info[new_ref.id] =
+                n.storage_id_to_known_type_info[old_ref.id]
+            n.storage_id_to_known_type_info.del(old_ref.id)
+        }
+        if n.storage_id_to_known_type_expr.has(old_ref.id) {
+            n.storage_id_to_known_type_expr[new_ref.id] =
+                n.storage_id_to_known_type_expr[old_ref.id]
+            n.storage_id_to_known_type_expr.del(old_ref.id)
         }
     }
-    replace_locals_in_list(func_imr_node.instructions)
+    replace_refs_in_list(func_imr_node.instructions)
+    later:
+
+    func_imr_node.update_var_type_exprs(
+        project_file, is_moose64=is_moose64, msgs=msgs,
+    ) later:
+
+    return later
 }
 
 func reassign_locals_and_do_lifetime_for_imr(
@@ -142,11 +268,16 @@ func reassign_locals_and_do_lifetime_for_imr(
         later:
 
         func go_through_funcs(block_list) {
-            for block in block_list {
+            var replace_queue = []
+            var block_queue = block_list.copy()
+            var idx = 1
+            while idx <= block_queue.len {
+                var block = block_queue[idx]
                 if has_attr(block, "instructions") {
-                    go_through_funcs(block.instructions)
+                    block_queue += block.instructions
                 }
                 if block.kind != compiler.imr.IMR_BLOCK_FUNC {
+                    idx += 1
                     continue
                 }
                 var highest_st_id_used = 1
@@ -174,20 +305,46 @@ func reassign_locals_and_do_lifetime_for_imr(
                     assert(i >= 1 and i <= ids_list.len)
                     var old_local_id = ids_list[i]
                     var new_local_id = i
-                    replace_locals_in_func(
+                    replace_queue.add([
                         block,
-                        old_local_id, new_local_id,
-                        project=project,
-                        imr_build_tracker=imr_build_tracker,
-                        is_moose64=is_moose64,
-                        msgs=msgs,
-                        debug=no,
-                    )
+                        new st_ref.StorageRef(
+                            st_ref.ST_LOCAL, old_local_id,
+                        ),
+                        new st_ref.StorageRef(
+                            st_ref.ST_LOCAL, new_local_id,
+                        ),
+                    ])
                     i += 1
                 }
+                idx += 1
             }
+            func handle_queue_item(item) {
+                replace_refs_in_func(
+                    item[1], item[2], item[3],
+                    project_file=pfile,
+                    imr_build_tracker=imr_build_tracker,
+                    is_moose64=is_moose64,
+                    msgs=msgs,
+                    debug=no,
+                ) later:
+            }
+            if replace_queue.len == 0 {
+                return later
+            }
+            var item = replace_queue.pop_at(1)
+            var result = handle_queue_item(item)
+            later:
+
+            await result
+            if replace_queue.len == 0 {
+                return later
+            }
+            item = replace_queue.pop_at(1)
+            result = handle_queue_item(item)
+            later repeat
         }
         go_through_funcs(imr_for_file.blocks)
+        later:
 
         #print("RESULT: " + imr_for_file.as_str())
         return later yes

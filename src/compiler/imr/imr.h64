@@ -78,6 +78,7 @@ func IMRNode.as_str(indent=0) {
 
 func IMRNode.format_inst(
         name, pos_parameter_names=[],
+        no_quotes_for_parameters=[],
         skip_parameter_names=[],
         extra_text=none,
         indent=0,
@@ -102,7 +103,8 @@ func IMRNode.format_inst(
                 "Name given in pos_parameter_names "
                 "isn't part of JSON object data.")
         }
-        if typename(data[pname]) == "str" {
+        if typename(data[pname]) == "str" and
+                not no_quotes_for_parameters.has(pname) {
             t += " " + textfmt.as_escaped_code_string(
                 data[pname])
         } else {
@@ -143,7 +145,8 @@ func IMRNode.format_inst(
             continue
         }
         t += " " + remaining_key.upper() + "="
-        if typename(data[remaining_key]) == "str" {
+        if typename(data[remaining_key]) == "str" and
+                not no_quotes_for_parameters.has(remaining_key) {
             t += textfmt.as_escaped_code_string(
                 data[remaining_key])
         } else {
@@ -251,7 +254,9 @@ func IMRVarInfo.as_str(indent=0) {
         "VARINFO", pos_parameter_names=[
             "storage_id",
             "label",
-        ], skip_parameter_names=[
+        ],
+        no_quotes_for_parameters=["type_expr"],
+        skip_parameter_names=[
             "type_expr_storage_ref",
             "def_project_file",
         ], indent=indent,
@@ -359,7 +364,9 @@ func IMRSetLit.as_str(indent=0) {
             "literal_kind",
             "value",
             "target_storage_ref",
-        ], indent=indent,
+        ],
+        no_quotes_for_parameters=["literal_kind"],
+        indent=indent,
     )
 }
 
@@ -487,7 +494,12 @@ func IMRConv.as_str(indent=0) {
             "target_storage_ref",
             "source_type_expr",
             "target_type_expr",
-        ], indent=indent,
+        ],
+        no_quotes_for_parameters=[
+            "source_type_expr",
+            "target_type_expr",
+        ],
+        indent=indent,
     )
 }
 
@@ -1394,12 +1406,9 @@ func IMRReturn.as_str(indent=0) {
 
 
 type IMRReturnFail base IMRNode {
-    var return_value_storage_ref = none
 }
 
-func IMRReturnFail.init(
-        return_value_storage_ref=none,
-        ) {
+func IMRReturnFail.init {
     base.init(IMR_INST_RETURNFAIL)
 }
 
@@ -1423,7 +1432,7 @@ type IMRApplyOp base IMRNode {
     var op_token
     var target_storage_ref
     var operand_1_storage_ref
-    var operand_1_storage_ref
+    var operand_2_storage_ref
 }
 
 func IMRApplyOp.init(op_token,
@@ -1969,7 +1978,7 @@ func IMRFuncBlock.as_str(indent=0) {
         if value == none {
             t += "none"
         } else {
-            t += textfmt.as_escaped_code_string(value.as_str())
+            t += value.as_str()
             t += " ARG_" + i.as_str() + "_TYPE_EXPR_STORAGE_REF=" +
                 self.known_arg_type_storage_refs[i].as_str()
         }
@@ -1984,7 +1993,7 @@ func IMRFuncBlock.as_str(indent=0) {
         if value == none {
             t += "none"
         } else {
-            t += textfmt.as_escaped_code_string(value.as_str())
+            t += vvalue.as_str()
             t += " ARG_" + i.as_str() + "_TYPE_EXPR_STORAGE_REF=" +
                 self.known_arg_type_storage_refs[i].as_str()
         }
