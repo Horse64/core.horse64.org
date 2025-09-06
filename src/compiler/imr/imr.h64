@@ -2469,10 +2469,26 @@ func generate_imr_for_expr(
     if debug {
         print(program_name + ": debug: " +
             "generate_imr_for_expr(): "
-            "Got result before evaluating "
+            "Got inner expression result for node "
+            "and now we're evaluating the "
             "type: result=" + result.as_str())
     }
     if result == none or result.storage_ref == none {
+        if msgs == none {
+            throw new RuntimeError(
+                "Unexpectedly failed to generate IMR "
+                "for expresson.")
+        } elseif msg.msgs_contain_error(msgs) {
+            msgs.add(new msg.FileMsg(
+                "Internal error, unexpectedly failed to "
+                "generate IMR for expression node. Please "
+                "report this to the compiler makers. "
+                "node=" + node.as_str().sub(1, 200) + "...",
+                source_file=project_file,
+                line=node.line,
+                col=node.col,
+            ))
+        }
         return later result
     }
 
@@ -3284,6 +3300,12 @@ func _generate_imr_for_expr_untyped(
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "[" and
             node.subexprs.len >= 2 {
+        if debug {
+            print(program_name + ": debug: "
+                "generate_imr_for_expr(): "
+                "Looking at indexing node. node=" +
+                    node.as_str().sub(1, 200))
+        }
         var tmp_ref = get_new_temp_storage_ref(
             node, imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
@@ -3340,7 +3362,16 @@ func _generate_imr_for_expr_untyped(
              node.subexprs.len >= 2) or
             (node.kind == ast.N_EXPR_UNOP and
              node.subexprs.len >= 1) {
+
         var is_binop = node.kind == ast.N_EXPR_BINOP
+        if debug {
+            print(program_name + ": debug: "
+                "generate_imr_for_expr(): "
+                "Looking at generic operator node. node=" +
+                    node.as_str().sub(1, 200) + "... " +
+                "is_binop=" + is_binop.as_str())
+        }
+
         var tmp_ref = get_new_temp_storage_ref(
             node, imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
@@ -3456,7 +3487,7 @@ func _generate_imr_for_expr_untyped(
                     create_from_simple_m64_type("bool")
                 return later
             }
-            var result = m64_autocast.get_math_binop_autocast(
+            var inner_cast_result = m64_autocast.get_math_binop_autocast(
                 left_hand_type, right_hand_type,
                 left_side_is_literal_none=
                     node.subexprs[1].kind == ast.N_EXPR_LIT and
@@ -3471,17 +3502,27 @@ func _generate_imr_for_expr_untyped(
                 is_cmp_op=is_cmp_op,
                 is_moose64=is_moose64,
             )
-            if result.incompatible {
+            if inner_cast_result.incompatible {
                 return later
             }
-            assert(result.cast_lefthand_to != none and
-                result.cast_righthand_to != none)
-            assert(result.cast_lefthand_to.is_equivalent(
-                result.cast_righthand_to, ignore_self_ref=yes))
-            left_hand_convert_to = result.cast_lefthand_to
-            right_hand_convert_to = result.cast_righthand_to
+            assert(inner_cast_result.cast_lefthand_to != none and
+                inner_cast_result.cast_righthand_to != none)
+            assert(inner_cast_result.cast_lefthand_to.is_equivalent(
+                inner_cast_result.cast_righthand_to, ignore_self_ref=yes))
+            left_hand_convert_to = inner_cast_result.cast_lefthand_to
+            right_hand_convert_to = inner_cast_result.cast_righthand_to
         }
         determine_operand_types_if_needed() later:
+
+        if debug {
+            print(program_name + ": debug: "
+                "generate_imr_for_expr(): "
+                "Determined operand types. "
+                "left_hand_type=" +
+                    left_hand_type.as_str() + " "
+                "right_hand_type=" +
+                    right_hand_type.as_str())
+        }
 
         var left_hand_result = generate_imr_for_expr(
             node.subexprs[1],
@@ -3521,6 +3562,16 @@ func _generate_imr_for_expr_untyped(
         }
         get_righthand_result_if_binop() later:
 
+        if debug {
+            print(program_name + ": debug: "
+                "generate_imr_for_expr(): "
+                "Determined operand inner results. "
+                "left_hand_result=" +
+                    left_hand_result.as_str() + " "
+                "right_hand_result=" +
+                    right_hand_result.as_str() + " "
+                "is_binop=" + is_binop.as_str())
+        }
         if left_hand_result == none or
                 (is_binop and right_hand_result == none) {
             return later none
@@ -3530,7 +3581,7 @@ func _generate_imr_for_expr_untyped(
         if is_binop {
             var nest_in_cond_block = none
             var enter_else_tmp_ref = none
-            func add_nesting_cond_if_needed  {
+            func add_nesting_cond_if_needed {
                 if node.optoken.str != "or" and
                         node.optoken.str != "and" {
                     return later
@@ -3579,8 +3630,8 @@ func _generate_imr_for_expr_untyped(
                     nest_in_cond_block = new IMRCond(
                         evaluated_cond_ref=cond_tmp,
                     )
-                    cond_block.line = node.line
-                    cond_block.col = node.col
+                    nest_in_cond_block.line = node.optoken.line
+                    nest_in_cond_block.col = node.optoken.col
                     result.instructions.add(nest_in_cond_block)
                 } else {
                     assert(node.optoken.str == "and")
@@ -3602,8 +3653,8 @@ func _generate_imr_for_expr_untyped(
                     nest_in_cond_block = new IMRCond(
                         evaluated_cond_ref=left_hand_result.storage_ref,
                     )
-                    cond_block.line = node.line
-                    cond_block.col = node.col
+                    nest_in_cond_block.line = node.optoken.line
+                    nest_in_cond_block.col = node.optoken.col
                     result.instructions.add(nest_in_cond_block)
                 }
             }
@@ -3633,6 +3684,8 @@ func _generate_imr_for_expr_untyped(
                 var else_cond_block = new IMRCond(
                     evaluated_cond_ref=enter_else_tmp_ref,
                 )
+                else_cond_block.line = node.optoken.line
+                else_cond_block.col = node.optoken.col
                 if node.optoken.str == "or" {
                     else_cond_block.instructions.add(new IMRSetLit(
                         yes, tmp_ref,
@@ -3647,16 +3700,34 @@ func _generate_imr_for_expr_untyped(
                 }
                 result.instructions.add(else_cond_block)
             }
-        } else {
-            result.instructions.add(new IMRApplyOp(
-                node.optoken.copy(),
-                operand_1_storage_ref=
-                    left_hand_result.storage_ref,
-                target_storage_ref=tmp_ref,
-                is_binary=no,
-            ))
+
+            result.storage_ref = tmp_ref
+
+            if debug {
+                print(program_name + ": debug: "
+                    "generate_imr_for_expr(): "
+                    "Got binop final result ready. "
+                    "result=" + result.as_str())
+            }
+            return later result
         }
+        # If we arrive here, it's a unary operator:
+        result.instructions.add(new IMRApplyOp(
+            node.optoken.copy(),
+            operand_1_storage_ref=
+                left_hand_result.storage_ref,
+            target_storage_ref=tmp_ref,
+            is_binary=no,
+        ))
+
         result.storage_ref = tmp_ref
+
+        if debug {
+            print(program_name + ": debug: "
+                "generate_imr_for_expr(): "
+                "Got unop final result ready. "
+                "result=" + result.as_str())
+        }
         return later result
     }
     return later none
@@ -3712,7 +3783,10 @@ func generate_imr_for_stmt(
         project_file=none,
         imr_build_tracker=none,
         is_moose64=no, msgs=none,
+        debug=no,
         ) {
+    const program_name = if is_moose64 ("moosec") else ("horsec")
+
     assert(imr_build_tracker != none)
     var func_tracker = none
     if func_imr_parent != none {
@@ -4840,6 +4914,12 @@ func generate_imr_for_stmt(
         return result_insts
     }
     if node.kind == ast.N_STMT_ASSIGN {
+        if debug {
+            print(program_name + ": debug: "
+                "generate_imr_for_expr(): "
+                "Looking at assign statement. node=" +
+                    node.as_str().sub(1, 200))
+        }
         var result_insts = []
         var queue = []
         var i = 1
@@ -4925,6 +5005,19 @@ func generate_imr_for_stmt(
                     node.assign_token.col,
                 )
             }
+
+            if debug {
+                print(program_name + ": debug: "
+                    "generate_imr_for_expr(): "
+                    "Looking at inner assigned item. "
+                    "right_hand_result=" +
+                        right_hand_result.as_str() + " "
+                    "left_hand_type_info=" +
+                        left_hand_type_info.as_str() + " "
+                    "math_assign_token=" +
+                        math_assign_token.as_str())
+            }
+
             var moose64_cast_info = none
             func determine_mathassign_cast_info_if_any {
                 if not is_moose64 {
@@ -5248,6 +5341,12 @@ func generate_imr_for_stmt(
                 ) later:
 
                 await idx_result
+                if debug {
+                    print(program_name + ": debug: "
+                        "generate_imr_for_expr(): "
+                        "For assign, we got an indexing result. "
+                        "idx_result=" + idx_result.as_str())
+                }
                 var addr_size = typeinfo.
                     get_addr_type_size_for_platform(
                         imr_build_tracker.build_options,
@@ -5308,7 +5407,8 @@ func generate_imr_for_stmt(
                     if idx_result.known_type_info.kind == TI_C_TYPE and
                             ast_typeref.
                             builtin_moose64_address_indexing_types.has(
-                                idx_result.known_type_info.orig_orig_type_name
+                                idx_result.known_type_info.
+                                orig_orig_type_name
                             ) {
                         result_insts.add(new IMRConv(
                             idx_result.storage_ref,
@@ -5583,7 +5683,7 @@ func generate_imr_for_stmt(
                             is_moose64=is_moose64,
                         ))
                     } else {
-                        assert(op_result_preconv_tmp == op_result_conv_tmp and 999)
+                        assert(op_result_preconv_tmp == op_result_conv_tmp)
                     }
                     if not op_result_conv_tmp.alike(
                             left_hand_node.ref) {
