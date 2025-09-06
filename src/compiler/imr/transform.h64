@@ -238,6 +238,110 @@ func replace_refs_in_func(
     return later
 }
 
+func add_self_parameters_to_funcs(
+        project=none,
+        imr_build_tracker=none,
+        build_options=none,
+        is_moose64=no,
+        msgs=none,
+        debug=no,
+        ) {
+    const program_name = if is_moose64 ("moosec") else ("horsec")
+    if project == none {
+        throw new ValueError("The project parameter "
+            "has to be specified.")
+    }
+    if imr_build_tracker == none {
+        throw new ValueError("The imr_build_tracker parameter "
+            "has to be specified.")
+    }
+    if build_options == none {
+        throw new ValueError("The build_options parameter "
+            "has to be specified.")
+    }
+    func process_file(pfile) {
+        var imr_for_file = imr_build_tracker.
+            file_id_to_imr_result_map[
+                pfile.file_id
+            ]
+        imr_for_file.ensure_loaded()
+        later:
+
+        func go_through_funcs(block_list) {
+            var replace_queue = []
+            var block_queue = block_list.copy()
+            var idx = 1
+            while idx <= block_queue.len {
+                var block = block_queue[idx]
+                if has_attr(block, "instructions") {
+                    block_queue += block.instructions
+                }
+                if block.kind != compiler.imr.IMR_BLOCK_FUNC {
+                    idx += 1
+                    continue
+                }
+                var amount_of_args_used = 0
+                if debug {
+                    print(program_name + ": debug: " +
+                        "add_self_parameters_to_funcs(): " +
+                        "Looking at function: " +
+                        "label=" + block.label.as_str())
+                }
+                var i = 1
+                while i <= amount_of_args_used {
+                    #var old_local_id = ids_list[i]
+                    #var new_local_id = i
+                    #replace_queue.add([
+                    #    block,
+                    #    new st_ref.StorageRef(
+                    #        st_ref.ST_LOCAL, old_local_id,
+                    #    ),
+                    #    new st_ref.StorageRef(
+                    #        st_ref.ST_LOCAL, new_local_id,
+                    #    ),
+                    #])
+                    i += 1
+                }
+                idx += 1
+            }
+            func handle_queue_item(item) {
+                replace_refs_in_func(
+                    item[1], item[2], item[3],
+                    project_file=pfile,
+                    imr_build_tracker=imr_build_tracker,
+                    is_moose64=is_moose64,
+                    msgs=msgs,
+                    debug=no,
+                ) later:
+            }
+            if replace_queue.len == 0 {
+                return later
+            }
+            var item = replace_queue.pop_at(1)
+            var result = handle_queue_item(item)
+            later:
+
+            await result
+            if replace_queue.len == 0 {
+                return later
+            }
+            item = replace_queue.pop_at(1)
+            result = handle_queue_item(item)
+            later repeat
+        }
+        go_through_funcs(imr_for_file.blocks)
+        later:
+
+        return later yes
+    }
+    var result = project.do_for_all_files(
+        process_file
+    ) later:
+
+    await result
+    return later yes
+}
+
 func reassign_locals_and_do_lifetime_for_imr(
         project=none,
         imr_build_tracker=none,
@@ -246,7 +350,7 @@ func reassign_locals_and_do_lifetime_for_imr(
         msgs=none,
         debug=no,
         ) {
-    const program_name = if is_moose64 ("mosoec") else ("horsec")
+    const program_name = if is_moose64 ("moosec") else ("horsec")
     if project == none {
         throw new ValueError("The project parameter "
             "has to be specified.")

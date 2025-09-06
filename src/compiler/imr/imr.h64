@@ -6697,10 +6697,37 @@ func generate_imr_for_project(
             force_print=not boptions.format_output_for_scripts,
         )
     }
+    func do_self_parameter_if_moose64 {
+        if not is_moose64 {
+            return later
+        }
+        if debug {
+            print(program_name + ": debug: "
+                "generate_imr_for_project(): "
+                "Will now do IMR transformation "
+                "to add self parameters to funcs...")
+        }
+        result = imr_transform.add_self_parameters_to_funcs(
+            project=project,
+            imr_build_tracker=imr_build_tracker,
+            build_options=build_options,
+            is_moose64=is_moose64,
+            msgs=imrresult.msgs,
+            debug=debug,
+        ) later:
+
+        await result
+    }
+    do_self_parameter_if_moose64()
+    later:
+
+    if not result {
+        return later no
+    }
     if debug {
         print(program_name + ": debug: "
             "generate_imr_for_project(): "
-            "Will now do IMR transformations, like "
+            "Will now do IMR transformation of "
             "reassigning "
             "locals and computing lifetimes...")
     }
@@ -6714,6 +6741,9 @@ func generate_imr_for_project(
     ) later:
 
     await result
+    if not result {
+        return later no
+    }
     if debug {
         print(program_name + ": debug: "
             "generate_imr_for_project(): "
