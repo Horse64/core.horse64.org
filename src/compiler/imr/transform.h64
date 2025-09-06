@@ -238,7 +238,8 @@ func replace_refs_in_func(
     return later
 }
 
-func add_self_parameters_to_funcs(
+func do_per_func_imr_block(
+        callback,
         project=none,
         imr_build_tracker=none,
         build_options=none,
@@ -259,6 +260,7 @@ func add_self_parameters_to_funcs(
         throw new ValueError("The build_options parameter "
             "has to be specified.")
     }
+    var had_abort = no
     func process_file(pfile) {
         var imr_for_file = imr_build_tracker.
             file_id_to_imr_result_map[
@@ -285,90 +287,32 @@ func add_self_parameters_to_funcs(
                 idx += 1
             }
             func handle_func_block(block) {
-                var replace_queue = []
-                var amount_of_args_used =
-                    block.pos_arg_count +
-                    block.kw_arg_count
-                if debug {
-                    print(program_name + ": debug: " +
-                        "add_self_parameters_to_funcs(): " +
-                        "Looking at function: " +
-                        "label=" + block.label.as_str())
-                }
-                var i = 1
-                while i <= amount_of_args_used {
-                    replace_queue.add([
-                        block,
-                        new st_ref.StorageRef(
-                            st_ref.ST_ARG, i,
-                        ),
-                        new st_ref.StorageRef(
-                            st_ref.ST_ARG, i + 1,
-                        ),
-                    ])
-                    i += 1
-                }
-                replace_queue.add([
-                    block,
-                    st_ref.StorageRef(
-                        st_ref.ST_SELF, 0,
-                    ),
-                    st_ref.StorageRef(
-                        st_ref.ST_ARG, 1,
-                    ),
-                ])
-                block.pos_arg_count += 1
-                block.known_arg_type_exprs = [
-                    none
-                ] + block.known_arg_type_exprs
-                block.known_arg_type_storage_refs = [
-                    none
-                ] + block.known_arg_type_storage_refs
-                idx += 1
-
-                func handle_queue_item(item) {
-                    replace_refs_in_func(
-                        item[1], item[2], item[3],
-                        project_file=pfile,
-                        imr_build_tracker=imr_build_tracker,
-                        is_moose64=is_moose64,
-                        msgs=msgs,
-                        debug=no,
-                    ) later:
-                }
-                if replace_queue.len == 0 {
-                    return later
-                }
-                var item = replace_queue.pop_at(1)
-                var result = handle_queue_item(item)
-                later:
+                var result = callback(
+                    pfile, block,
+                ) later:
 
                 await result
-                if replace_queue.len == 0 {
-                    return later
+                if not result {
+                    had_abort = yes
                 }
-                item = replace_queue.pop_at(1)
-                result = handle_queue_item(item)
-                later repeat
-            }
-            func handle_queue_item(item) {
-                handle_func_block(
-                    item
-                ) later:
+                return result
             }
             if func_queue.len == 0 {
                 return later
             }
             var item = func_queue.pop_at(1)
-            var result = handle_queue_item(item)
+            var result = handle_func_block(item)
             later:
 
             await result
+            if result == no {
+                return later
+            }
             if func_queue.len == 0 {
                 return later
             }
             item = func_queue.pop_at(1)
-            result = handle_queue_item(item)
+            result = handle_func_block(item)
             later repeat
         }
         go_through_funcs(imr_for_file.blocks)
@@ -381,7 +325,111 @@ func add_self_parameters_to_funcs(
     ) later:
 
     await result
-    return later yes
+    return later not had_abort
+}
+
+
+func add_self_parameters_to_funcs(
+        project=none,
+        imr_build_tracker=none,
+        build_options=none,
+        is_moose64=no,
+        msgs=none,
+        debug=no,
+        ) {
+    const program_name = if is_moose64 ("moosec") else ("horsec")
+    if project == none {
+        throw new ValueError("The project parameter "
+            "has to be specified.")
+    }
+    if imr_build_tracker == none {
+        throw new ValueError("The imr_build_tracker parameter "
+            "has to be specified.")
+    }
+    if build_options == none {
+        throw new ValueError("The build_options parameter "
+            "has to be specified.")
+    }
+
+    func handle_func_block(pfile, block) {
+        var replace_queue = []
+        var amount_of_args_used =
+            block.pos_arg_count +
+            block.kw_arg_count
+        if debug {
+            print(program_name + ": debug: " +
+                "add_self_parameters_to_funcs(): " +
+                "Looking at function: " +
+                "label=" + block.label.as_str())
+        }
+        var i = 1
+        while i <= amount_of_args_used {
+            replace_queue.add([
+                block,
+                new st_ref.StorageRef(
+                    st_ref.ST_ARG, i,
+                ),
+                new st_ref.StorageRef(
+                    st_ref.ST_ARG, i + 1,
+                ),
+            ])
+            i += 1
+        }
+        replace_queue.add([
+            block,
+            st_ref.StorageRef(
+                st_ref.ST_SELF, 0,
+            ),
+            st_ref.StorageRef(
+                st_ref.ST_ARG, 1,
+            ),
+        ])
+        block.pos_arg_count += 1
+        block.known_arg_type_exprs = [
+            none
+        ] + block.known_arg_type_exprs
+        block.known_arg_type_storage_refs = [
+            none
+        ] + block.known_arg_type_storage_refs
+
+        func handle_queue_item(item) {
+            replace_refs_in_func(
+                item[1], item[2], item[3],
+                project_file=pfile,
+                imr_build_tracker=imr_build_tracker,
+                is_moose64=is_moose64,
+                msgs=msgs,
+                debug=no,
+            ) later:
+        }
+        if replace_queue.len == 0 {
+            return later yes
+        }
+        var item = replace_queue.pop_at(1)
+        var result = handle_queue_item(item)
+        later:
+
+        await result
+        if replace_queue.len == 0 {
+            return later yes
+        }
+        item = replace_queue.pop_at(1)
+        result = handle_queue_item(item)
+        later repeat
+    }
+
+    var result = do_per_func_imr_block(
+        handle_func_block,
+        project=project,
+        imr_build_tracker=imr_build_tracker,
+        build_options=build_options,
+        is_moose64=is_moose64,
+        msgs=msgs,
+        debug=no,
+    ) later:
+
+    await result
+    return later (result == yes)
 }
 
 func reassign_locals_and_do_lifetime_for_imr(
@@ -405,101 +453,82 @@ func reassign_locals_and_do_lifetime_for_imr(
         throw new ValueError("The build_options parameter "
             "has to be specified.")
     }
-    func process_file(pfile) {
-        var imr_for_file = imr_build_tracker.
-            file_id_to_imr_result_map[
-                pfile.file_id
-            ]
-        imr_for_file.ensure_loaded()
-        later:
-
-        func go_through_funcs(block_list) {
-            var replace_queue = []
-            var block_queue = block_list.copy()
-            var idx = 1
-            while idx <= block_queue.len {
-                var block = block_queue[idx]
-                if has_attr(block, "instructions") {
-                    block_queue += block.instructions
-                }
-                if block.kind != compiler.imr.IMR_BLOCK_FUNC {
-                    idx += 1
-                    continue
-                }
-                var highest_st_id_used = 1
-                var amount_of_ids_used = 0
-                var ids_list = []
-                for st_id in block.storage_id_to_known_type_expr {
-                    highest_st_id_used = math.max(
-                        highest_st_id_used, st_id
-                    )
-                    amount_of_ids_used += 1
-                    ids_list.add(st_id)
-                }
-                if debug {
-                    print(program_name + ": debug: " +
-                        "reassign_locals_and_do_lifetime_for_imr(): " +
-                        "Looking at function: " +
-                        "label=" + block.label.as_str() + " "
-                        "highest_st_id_used=" +
-                            highest_st_id_used.as_str() + " "
-                        "amount_of_ids_used=" +
-                            amount_of_ids_used.as_str())
-                }
-                var i = 1
-                while i <= amount_of_ids_used {
-                    assert(i >= 1 and i <= ids_list.len)
-                    var old_local_id = ids_list[i]
-                    var new_local_id = i
-                    replace_queue.add([
-                        block,
-                        new st_ref.StorageRef(
-                            st_ref.ST_LOCAL, old_local_id,
-                        ),
-                        new st_ref.StorageRef(
-                            st_ref.ST_LOCAL, new_local_id,
-                        ),
-                    ])
-                    i += 1
-                }
-                idx += 1
-            }
-            func handle_queue_item(item) {
-                replace_refs_in_func(
-                    item[1], item[2], item[3],
-                    project_file=pfile,
-                    imr_build_tracker=imr_build_tracker,
-                    is_moose64=is_moose64,
-                    msgs=msgs,
-                    debug=no,
-                ) later:
-            }
-            if replace_queue.len == 0 {
-                return later
-            }
-            var item = replace_queue.pop_at(1)
-            var result = handle_queue_item(item)
-            later:
-
-            await result
-            if replace_queue.len == 0 {
-                return later
-            }
-            item = replace_queue.pop_at(1)
-            result = handle_queue_item(item)
-            later repeat
+    func handle_func_block(pfile, block) {
+        var replace_queue = []
+        var highest_st_id_used = 1
+        var amount_of_ids_used = 0
+        var ids_list = []
+        for st_id in block.storage_id_to_known_type_expr {
+            highest_st_id_used = math.max(
+                highest_st_id_used, st_id
+            )
+            amount_of_ids_used += 1
+            ids_list.add(st_id)
         }
-        go_through_funcs(imr_for_file.blocks)
+        if debug {
+            print(program_name + ": debug: " +
+                "reassign_locals_and_do_lifetime_for_imr(): " +
+                "Looking at function: " +
+                "label=" + block.label.as_str() + " "
+                "highest_st_id_used=" +
+                    highest_st_id_used.as_str() + " "
+                "amount_of_ids_used=" +
+                    amount_of_ids_used.as_str())
+        }
+        var i = 1
+        while i <= amount_of_ids_used {
+            assert(i >= 1 and i <= ids_list.len)
+            var old_local_id = ids_list[i]
+            var new_local_id = i
+            replace_queue.add([
+                block,
+                new st_ref.StorageRef(
+                    st_ref.ST_LOCAL, old_local_id,
+                ),
+                new st_ref.StorageRef(
+                    st_ref.ST_LOCAL, new_local_id,
+                ),
+            ])
+            i += 1
+        }
+
+        func handle_queue_item(item) {
+            replace_refs_in_func(
+                item[1], item[2], item[3],
+                project_file=pfile,
+                imr_build_tracker=imr_build_tracker,
+                is_moose64=is_moose64,
+                msgs=msgs,
+                debug=no,
+            ) later:
+        }
+        if replace_queue.len == 0 {
+            return later yes
+        }
+        var item = replace_queue.pop_at(1)
+        var result = handle_queue_item(item)
         later:
 
-        #print("RESULT: " + imr_for_file.as_str())
-        return later yes
+        await result
+        if replace_queue.len == 0 {
+            return later yes
+        }
+        item = replace_queue.pop_at(1)
+        result = handle_queue_item(item)
+        later repeat
     }
-    var result = project.do_for_all_files(
-        process_file
+
+    var result = do_per_func_imr_block(
+        handle_func_block,
+        project=project,
+        imr_build_tracker=imr_build_tracker,
+        build_options=build_options,
+        is_moose64=is_moose64,
+        msgs=msgs,
+        debug=no,
     ) later:
 
     await result
-    return later yes
+    return later (result == yes)
 }
 
