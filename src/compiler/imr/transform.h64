@@ -268,7 +268,7 @@ func add_self_parameters_to_funcs(
         later:
 
         func go_through_funcs(block_list) {
-            var replace_queue = []
+            var func_queue = []
             var block_queue = block_list.copy()
             var idx = 1
             while idx <= block_queue.len {
@@ -276,11 +276,19 @@ func add_self_parameters_to_funcs(
                 if has_attr(block, "instructions") {
                     block_queue += block.instructions
                 }
-                if block.kind != compiler.imr.IMR_BLOCK_FUNC {
+                if block.kind != compiler.imr.IMR_BLOCK_FUNC or
+                        not block.is_func_attr {
                     idx += 1
                     continue
                 }
-                var amount_of_args_used = 0
+                func_queue.add(block)
+                idx += 1
+            }
+            func handle_func_block(block) {
+                var replace_queue = []
+                var amount_of_args_used =
+                    block.pos_arg_count +
+                    block.kw_arg_count
                 if debug {
                     print(program_name + ": debug: " +
                         "add_self_parameters_to_funcs(): " +
@@ -289,43 +297,77 @@ func add_self_parameters_to_funcs(
                 }
                 var i = 1
                 while i <= amount_of_args_used {
-                    #var old_local_id = ids_list[i]
-                    #var new_local_id = i
-                    #replace_queue.add([
-                    #    block,
-                    #    new st_ref.StorageRef(
-                    #        st_ref.ST_LOCAL, old_local_id,
-                    #    ),
-                    #    new st_ref.StorageRef(
-                    #        st_ref.ST_LOCAL, new_local_id,
-                    #    ),
-                    #])
+                    replace_queue.add([
+                        block,
+                        new st_ref.StorageRef(
+                            st_ref.ST_ARG, i,
+                        ),
+                        new st_ref.StorageRef(
+                            st_ref.ST_ARG, i + 1,
+                        ),
+                    ])
                     i += 1
                 }
+                replace_queue.add([
+                    block,
+                    st_ref.StorageRef(
+                        st_ref.ST_SELF, 0,
+                    ),
+                    st_ref.StorageRef(
+                        st_ref.ST_ARG, 1,
+                    ),
+                ])
+                block.pos_arg_count += 1
+                block.known_arg_type_exprs = [
+                    none
+                ] + block.known_arg_type_exprs
+                block.known_arg_type_storage_refs = [
+                    none
+                ] + block.known_arg_type_storage_refs
                 idx += 1
+
+                func handle_queue_item(item) {
+                    replace_refs_in_func(
+                        item[1], item[2], item[3],
+                        project_file=pfile,
+                        imr_build_tracker=imr_build_tracker,
+                        is_moose64=is_moose64,
+                        msgs=msgs,
+                        debug=no,
+                    ) later:
+                }
+                if replace_queue.len == 0 {
+                    return later
+                }
+                var item = replace_queue.pop_at(1)
+                var result = handle_queue_item(item)
+                later:
+
+                await result
+                if replace_queue.len == 0 {
+                    return later
+                }
+                item = replace_queue.pop_at(1)
+                result = handle_queue_item(item)
+                later repeat
             }
             func handle_queue_item(item) {
-                replace_refs_in_func(
-                    item[1], item[2], item[3],
-                    project_file=pfile,
-                    imr_build_tracker=imr_build_tracker,
-                    is_moose64=is_moose64,
-                    msgs=msgs,
-                    debug=no,
+                handle_func_block(
+                    item
                 ) later:
             }
-            if replace_queue.len == 0 {
+            if func_queue.len == 0 {
                 return later
             }
-            var item = replace_queue.pop_at(1)
+            var item = func_queue.pop_at(1)
             var result = handle_queue_item(item)
             later:
 
             await result
-            if replace_queue.len == 0 {
+            if func_queue.len == 0 {
                 return later
             }
-            item = replace_queue.pop_at(1)
+            item = func_queue.pop_at(1)
             result = handle_queue_item(item)
             later repeat
         }
