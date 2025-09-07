@@ -167,6 +167,13 @@ func TypeInfo.is_func_attr {
     return self.func_typeexpr.is_func_attr
 }
 
+func TypeInfo.is_failable {
+    if self.kind != TI_FUNCREF {
+        throw new TypeError("This isn't a func ref type.")
+    }
+    return self.func_typeexpr.is_failable
+}
+
 func TypeInfo.can_return_value {
     if self.kind != TI_FUNCREF {
         throw new TypeError("This isn't a func ref type.")

@@ -3335,6 +3335,63 @@ func _generate_imr_for_expr_untyped(
         }
         process_full_queue() later:
 
+        func handle_implicit_self_arg_in_m64 {
+            if not is_moose64 or
+                    called_func_type_info_if_known == none {
+                return later
+            }
+            var have_explicit_self_arg = yes
+            var texpr = called_func_type_info_if_known.
+                convert_to_typeref_expr(
+                    project=project_file.project,
+                    is_moose64=is_moose64,
+                )
+            var full_args_count =
+                called_func_type_info_if_known.arg_count()
+            var could_have_implicit_self = no
+            if called_func_type_info_if_known.is_func_attr {
+                could_have_implicit_self = yes
+            }
+            if debug {
+                print(program_name + ": debug: " +
+                    "generate_imr_for_expr(): "
+                    "Determining if we need to make the "
+                    "self arg explicit. "
+                    "texpr=" + texpr.as_str() + " "
+                    "full_args_count=" +
+                        full_args_count.as_str() + " "
+                    "is_failable=" +
+                        texpr.is_failable.as_str() + " "
+                    "could_have_implicit_self=" +
+                        could_have_implicit_self.as_str() + " "
+                    "arg_refs=" + arg_refs.as_str())
+            }
+            if full_args_count != arg_refs.len + 1 or
+                    texpr.arg_typeref_exprs.len < 1 or
+                    texpr.arg_typeref_exprs[1].is_func_ref or
+                    texpr.arg_typeref_exprs[1].is_multi_type or
+                    texpr.arg_typeref_exprs[1].is_list_arg or
+                    not texpr.arg_typeref_exprs[1].is_user_type() {
+                return later
+            }
+            if called_func_type_info_if_known.func_self_ref == none {
+                return later
+            }
+            var self_ref = called_func_type_info_if_known.func_self_ref
+
+            var self_arg_expr = texpr.arg_typeref_exprs[1]
+            if debug {
+                print(program_name + ": debug: " +
+                    "generate_imr_for_expr(): "
+                    "Adding explicit self arg... " +
+                    "self_arg_expr=" + self_arg_expr.as_str() + " "
+                    "self_ref " + self_ref.as_str())
+            }
+            arg_refs = [self_ref.copy()] + arg_refs
+            arg_names_if_any = [none] + arg_names_if_any
+        }
+        handle_implicit_self_arg_in_m64() later:
+
         if not expect_return_value {
             # We want to call this but ignore the return value.
             result.storage_ref = none
