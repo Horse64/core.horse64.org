@@ -49,9 +49,18 @@ import compiler.typeinfo as typeinfo
 import compiler.typeinfo.ast_typeref as ast_typeref
 
 type IMRTranslationResult {
-    var project_file_to_imr_map = {->}
+    var file_id_to_imr_result_map = {->}
 
     var msgs = []
+}
+
+func IMRTranslationResult.as_str {
+    var t = ""
+    for f_id in self.file_id_to_imr_result_map {
+        t += "\n"
+        t += self.file_id_to_imr_result_map[f_id].as_str()
+    }
+    return "IMRTranslationResult{" + t + "\n}"
 }
 
 type IMRNode {
@@ -165,6 +174,15 @@ func IMRBlock.as_str(indent=0) {
     var t = "IMRBlock{" +
         json.dump(self.as_json_obj())
     return t + "}"
+}
+
+func IMRBlock.copy {
+    var self_copy = base.copy()
+    self_copy.instructions = []
+    for inst in self.instructions {
+        self_copy.instructions.add(inst.copy())
+    }
+    return self_copy
 }
 
 func IMRBlock.as_json_obj(
@@ -6767,6 +6785,10 @@ func generate_imr_for_project(
         )
     }
     assert(result == yes or result == no)
+    for f_id in imr_build_tracker.file_id_to_imr_result_map {
+        imrresult.file_id_to_imr_result_map[f_id] =
+            imr_build_tracker.file_id_to_imr_result_map[f_id].copy()
+    }
     return later no  # FIXME
 }
 
