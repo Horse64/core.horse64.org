@@ -3484,6 +3484,18 @@ func _generate_imr_for_expr_untyped(
         ) later:
 
         await tmp_ref
+        if is_moose64 and our_node_typeinfo != none and
+                our_node_typeinfo.kind == typeinfo.TI_FUNCREF and
+                our_node_typeinfo.user_type_ref != none and
+                {st_ref.ST_GLOBAL, st_ref.ST_GLOBALATTR}.has(
+                    our_node_typeinfo.user_type_ref.kind) {
+            result.instructions.add(new IMRMove(
+                our_node_typeinfo.user_type_ref,
+                tmp_ref,
+            ))
+            result.storage_ref = tmp_ref
+            return later result
+        }
         var attr_name = node.subexprs[2].label
         assert(attr_name != none)
         var left_hand_result = generate_imr_for_expr(
