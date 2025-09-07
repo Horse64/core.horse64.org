@@ -278,8 +278,7 @@ func do_per_func_imr_block(
                 if has_attr(block, "instructions") {
                     block_queue += block.instructions
                 }
-                if block.kind != compiler.imr.IMR_BLOCK_FUNC or
-                        not block.is_func_attr {
+                if block.kind != compiler.imr.IMR_BLOCK_FUNC {
                     idx += 1
                     continue
                 }
@@ -352,6 +351,10 @@ func add_self_parameters_to_funcs(
     }
 
     func handle_func_block(pfile, block) {
+        if not block.is_func_attr {
+            return later yes
+        }
+
         var replace_queue = []
         var amount_of_args_used =
             block.pos_arg_count +
@@ -493,6 +496,12 @@ func reassign_locals_and_do_lifetime_for_imr(
         }
 
         func handle_queue_item(item) {
+            if debug {
+                print(program_name + ": debug: " +
+                    "reassign_locals_and_do_lifetime_for_imr(): " +
+                    "Reassigning " + item[2].as_str() + " "
+                    "to " + item[3].as_str())
+            }
             replace_refs_in_func(
                 item[1], item[2], item[3],
                 project_file=pfile,
