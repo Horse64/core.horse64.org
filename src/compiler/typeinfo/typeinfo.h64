@@ -270,6 +270,29 @@ func get_addr_type_size_for_platform(
     return build_options.get_build_target_cpu_bit_size() / 8
 }
 
+func get_addr_type_name_for_platform(
+        build_options,
+        is_moose64=no,
+        ) {
+    var addr_size = get_addr_type_size_for_platform(
+        build_options,
+        is_moose64=is_moose64,
+    )
+    var attr_type_name = "u8"
+    if addr_size == 2 {
+        attr_type_name = "u16"
+    } elseif addr_size == 4 {
+        attr_type_name = "u32"
+    } elseif addr_size == 8 {
+        attr_type_name = "u64"
+    } else {
+        throw new RuntimeError(
+            "Unimplemented code path."
+        )
+    }
+    return attr_type_name
+}
+
 func TypeInfo.is_array_with_readonly_data {
     if not self.is_array() {
         return no
@@ -681,7 +704,7 @@ func TypeInfo.copy {
     if self.sub_types != none {
         copied.sub_types = []
         for sub_type in self.sub_types {
-            copied.add(sub_type.copy())
+            copied.sub_types.add(sub_type.copy())
         }
     }
     return copied

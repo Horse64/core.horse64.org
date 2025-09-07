@@ -2459,6 +2459,135 @@ func _is_node_a_compiler_builtin(
     return no
 }
 
+func generate_imr_for_indexing_expr(
+        node,
+        node_parents=[],
+        imr_parents=[],
+        func_imr_parent=none,
+        file_imr_parent=none,
+        project_file=none,
+        imr_build_tracker=none,
+        is_moose64=no, msgs=none,
+        debug=no,
+        ) {
+    var result_insts = []
+    var idx_result = generate_imr_for_expr(
+        node,
+        node_parents=node_parents,
+        imr_parents=imr_parents,
+        func_imr_parent=func_imr_parent,
+        file_imr_parent=file_imr_parent,
+        project_file=project_file,
+        imr_build_tracker=imr_build_tracker,
+        is_moose64=is_moose64, msgs=msgs,
+    ) later:
+
+    await idx_result
+    if debug {
+        print(program_name + ": debug: "
+            "generate_imr_for_indexing_expr(): "
+            "We got an indexing result. "
+            "idx_result=" + idx_result.as_str())
+    }
+    var attr_type_name = none
+    if is_moose64 {
+        attr_type_name = typeinfo.
+            get_addr_type_name_for_platform(
+                imr_build_tracker.build_options,
+                is_moose64=is_moose64,
+            )
+    }
+    var idx_tmp_ref = none
+    if idx_result == none {
+        result_insts = none
+        return later none
+    }
+    idx_tmp_ref = idx_result.storage_ref
+
+    func handle_idx_conversion {
+        if not is_moose64 {
+            return later
+        }
+        if idx_result.known_type_info == none {
+            if msgs == none or
+                    not msg.msgs_contain_error(msgs) {
+                throw new RuntimeError("Failed to "
+                    "get index type.")
+            }
+        }
+        if idx_result.known_type_info.is_equivalent(
+                typeinfo.create_from_simple_m64_type(
+                    attr_type_name
+                ),
+                is_moose64=is_moose64,
+                ) {
+            return later
+        }
+        idx_tmp_ref = get_new_temp_storage_ref(
+            node, imr_parents=imr_parents,
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            project_file=project_file,
+            optional_type_info=
+                typeinfo.create_from_simple_m64_type(
+                    attr_type_name
+                ),
+            imr_build_tracker=imr_build_tracker,
+            is_moose64=is_moose64, msgs=msgs,
+        ) later:
+
+        await idx_tmp_ref
+        if idx_result.known_type_info.kind == typeinfo.TI_C_TYPE and
+                ast_typeref.
+                builtin_moose64_address_indexing_types.has(
+                    idx_result.known_type_info.
+                        orig_type_name
+                ) {
+            result_insts.add(new IMRConv(
+                idx_result.storage_ref,
+                idx_tmp_ref,
+                idx_result.known_type_info,
+                typeinfo.create_from_simple_m64_type(
+                    attr_type_name
+                ),
+                in_project_file=project_file,
+                is_moose64=is_moose64,
+            ))
+        } else {
+            msgs.add(new msg.FileMsg(
+                "Unexpected assignment of value of "
+                "type " + idx_result.known_type_info.
+                    describe_to_user(
+                        project=project_file.project,
+                        add_quotes_where_useful=yes,
+                        is_moose64=is_moose64,
+                    ) + ", "
+                "cannot be converted to an index "
+                "value implicitly.",
+                source_file=project_file,
+                line=right_hand_result.line,
+                col=right_hand_result.col,
+            ))
+        }
+    }
+    handle_idx_conversion() later:
+
+    if result_insts == none {
+        return later none
+    }
+    var final_result = new ExprIMRResult()
+    final_result.instructions =
+        idx_result.instructions + result_insts
+    final_result.storage_ref = idx_tmp_ref
+    if is_moose64 {
+        final_result.known_type_info =
+            typeinfo.create_from_simple_m64_type(
+                attr_type_name
+            )
+    }
+    return final_result
+}
+
 func generate_imr_for_expr(
         node,
         node_parents=[],
@@ -3357,7 +3486,7 @@ func _generate_imr_for_expr_untyped(
         ) later:
 
         await left_hand_result
-        var right_hand_result = generate_imr_for_expr(
+        var right_hand_result = generate_imr_for_indexing_expr(
             node.subexprs[2],
             node_parents=node_parents + [node],
             imr_parents=imr_parents,
@@ -4032,7 +4161,9 @@ func generate_imr_for_stmt(
             throw new RuntimeError("Internal error, "
                 "unexpectedly failed to resolve var type.")
         }
+
         var var_type_storage_ref = none
+        var var_type_info = none
         func resolve_var_type_if_needed {
             if var_type_expr == none or
                     not var_type_expr.is_user_type() {
@@ -4064,6 +4195,16 @@ func generate_imr_for_stmt(
                     "storage ref for variable declaration.")
             }
             var_type_storage_ref = ref
+            var_type_info =
+                typeinfo.create_typeinfo_from_typeexpr_and_verify(
+                    var_type_expr,
+                    base_node_if_known=node,
+                    base_node_parents_if_known=node_parents,
+                    project_file=project_file,
+                    is_moose64=is_moose64,
+                ) later:
+
+            await var_type_info
         }
         resolve_var_type_if_needed() later:
 
@@ -4119,9 +4260,6 @@ func generate_imr_for_stmt(
                 ))
                 return later
             }
-            if item[2] and is_moose64 {
-                return later
-            }
             var right_hand_result = generate_imr_for_expr(
                 item[2],
                 node_parents=node_parents + [node],
@@ -4129,6 +4267,7 @@ func generate_imr_for_stmt(
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
                 project_file=project_file,
+                convert_to_target_type=var_type_info,
                 imr_build_tracker=imr_build_tracker,
                 try_target_storage_ref=var_ref,
                 is_moose64=is_moose64, msgs=msgs,
@@ -5355,7 +5494,7 @@ func generate_imr_for_stmt(
                 ) later:
 
                 await container_result
-                var idx_result = generate_imr_for_expr(
+                var idx_result = generate_imr_for_indexing_expr(
                     left_hand_node.subexprs[2],
                     node_parents=node_parents + [
                         node, left_hand_node],
@@ -5374,97 +5513,12 @@ func generate_imr_for_stmt(
                         "For assign, we got an indexing result. "
                         "idx_result=" + idx_result.as_str())
                 }
-                var addr_size = typeinfo.
-                    get_addr_type_size_for_platform(
-                        imr_build_tracker.build_options,
-                        is_moose64=is_moose64,
-                    )
-                var attr_type_name = "u8"
-                if addr_size == 2 {
-                    attr_type_name = "u16"
-                } elseif addr_size == 4 {
-                    attr_type_name = "u32"
-                } elseif addr_size == 8 {
-                    attr_type_name = "u64"
-                } else {
-                    throw new RuntimeError(
-                        "Unimplemented code path."
-                    )
-                }
                 var idx_tmp_ref = none
                 if container_result == none or idx_result == none {
                     result_insts = none
                     return later yes
                 }
                 idx_tmp_ref = idx_result.storage_ref
-
-                func handle_idx_conversion {
-                    if is_moose64 {
-                        return later
-                    }
-                    if idx_result.known_type_info == none {
-                        if msgs == none or
-                                not msg.msgs_contain_error(msgs) {
-                            throw new RuntimeError("Failed to "
-                                "get index type.")
-                        }
-                    }
-                    if idx_result.known_type_info.is_equivalent(
-                            typeinfo.create_from_simple_m64_type(
-                                attr_type_name
-                            ),
-                            is_moose64=is_moose64,
-                            ) {
-                        return later
-                    }
-                    idx_tmp_ref = get_new_temp_storage_ref(
-                        node, imr_parents=imr_parents,
-                        func_imr_parent=func_imr_parent,
-                        file_imr_parent=file_imr_parent,
-                        project_file=project_file,
-                        optional_type_info=
-                            typeinfo.create_from_simple_m64_type(
-                                attr_type_name
-                            ),
-                        imr_build_tracker=imr_build_tracker,
-                        is_moose64=is_moose64, msgs=msgs,
-                    ) later:
-
-                    await idx_tmp_ref
-                    if idx_result.known_type_info.kind == TI_C_TYPE and
-                            ast_typeref.
-                            builtin_moose64_address_indexing_types.has(
-                                idx_result.known_type_info.
-                                orig_orig_type_name
-                            ) {
-                        result_insts.add(new IMRConv(
-                            idx_result.storage_ref,
-                            idx_tmp_ref,
-                            idx_result.known_type_info,
-                            typeinfo.create_from_simple_m64_type(
-                                attr_type_name
-                            ),
-                            in_project_file=project_file,
-                            is_moose64=is_moose64,
-                        ))
-                    } else {
-                        msgs.add(new msg.FileMsg(
-                            "Unexpected assignment of value of "
-                            "type " + idx_result.known_type_info.
-                                describe_to_user(
-                                    project=project_file.project,
-                                    add_quotes_where_useful=yes,
-                                    is_moose64=is_moose64,
-                                ) + ", "
-                            "cannot be converted to an index "
-                            "value implicitly.",
-                            source_file=project_file,
-                            line=right_hand_result.line,
-                            col=right_hand_result.col,
-                        ))
-                    }
-                }
-                handle_idx_conversion() later:
 
                 if node.assign_token.kind == token.T_ASSIGN {
                     result_insts.add(new IMRSetIdx(
