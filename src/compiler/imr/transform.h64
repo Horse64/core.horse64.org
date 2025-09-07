@@ -27,9 +27,12 @@
 # license, see accompanied LICENSE.md.
 
 import math from core.horse64.org
+import textfmt from core.horse64.org
 
 import compiler.imr
+import compiler.msg as msg
 import compiler.storage.ref as st_ref
+import compiler.typeinfo.ast_typeref as ast_typeref
 
 func replace_refs_in_func(
         func_imr_node,
@@ -388,11 +391,124 @@ func add_self_parameters_to_funcs(
             ),
         ])
         block.pos_arg_count += 1
+        
+        var func_storage_ref = block.storage_ref
+        var func_type_expr = none
+        var user_type_expr = none
+        var user_type_storage_ref = none
+        func try_get_func_type {
+            if func_storage_ref == none {
+                return later
+            }
+            if debug {
+                print(program_name + ": debug: " +
+                    "add_self_parameters_to_funcs(): " +
+                    "Trying to resolve func storage "
+                    "ref to type expr: " +
+                    "func_storage_ref=" + func_storage_ref.as_str())
+            }
+            var resolve_result =
+                ast_typeref.resolve_st_ref_to_type_ref_and_expr(
+                    pfile, func_storage_ref,
+                    ignore_if_ref_none=yes,
+                    msgs=msgs, is_moose64=is_moose64,
+                    debug=no,
+                ) later:
+
+            await resolve_result
+            if resolve_result.type_expr != none and
+                    resolve_result.type_expr.is_func_ref {
+                func_type_expr = resolve_result.type_expr
+            }
+            # XXX: This code path can still fail for made-up
+            # funcs like $varinit that don't have a properly
+            # registered func type expression.
+            # In that case, func_type_expr will remain unset.
+        }
+        try_get_func_type() later:
+
+        if func_storage_ref != none and
+                func_storage_ref.kind == st_ref.ST_GLOBALATTR {
+            assert(func_storage_ref.id.len == 2)
+            user_type_storage_ref = new st_ref.StorageRef(
+                st_ref.ST_GLOBAL, func_storage_ref.id[1]
+            )
+        }
+
+        func try_get_user_type_directly {
+            if func_type_expr != none or user_type_expr != none {
+                return later
+            }
+            if user_type_storage_ref == none {
+                return later
+            }
+            if debug {
+                print(program_name + ": debug: " +
+                    "add_self_parameters_to_funcs(): " +
+                    "Try to resolve user type directly. "
+                    "Type ref is: user_type_storage_ref=" +
+                        user_type_storage_ref.as_str())
+            }
+            var scope = pfile.make_attr_names_scope_from_gid(
+                user_type_storage_ref.id,
+                msgs=msgs, is_moose64=is_moose64,
+            )
+            if scope == none {
+                return later
+            }
+            user_type_expr =
+                ast_typeref.resolve_st_ref_to_type_ref_and_expr(
+                    pfile, user_type_storage_ref,
+                    msgs=msgs, is_moose64=is_moose64,
+                ) later:
+
+            await user_type_expr
+        }
+        try_get_user_type_directly() later:
+
+        if func_type_expr == none and user_type_expr == none {
+            if msgs == none {
+                throw new RuntimeError(
+                    "Unexpectedly failed to get "
+                    "func type for IMR func block."
+                )
+            } elseif not msg.msgs_contain_error(msgs) {
+                msgs.add(new msg.FileMsg(
+                    "Internal error, unexpectedly failed to "
+                    "get func type expr for IMR func block despite "
+                    "there not being a previous error. This "
+                    "shouldn't happen. Please contact the "
+                    "compiler makers about this error. "
+                    "Details: "
+                    "IMRFuncBlock.label=" +
+                        textfmt.as_escaped_code_string(block.label),
+                    source_file=pfile,
+                    line=block.line,
+                    col=block.col,
+                ))
+            }
+        }
+
+        if user_type_expr == none and
+                func_type_expr != none {
+            var arg_exprs = func_type_expr.arg_typeref_exprs
+            if arg_exprs.len < 1 or
+                    arg_exprs[1].is_func_ref or
+                    not arg_exprs[1].is_user_type() {
+                throw new RuntimeError(
+                    "Func expr is damaged, self param missing."
+                )
+            }
+            user_type_expr = arg_exprs[1].copy()
+        }
+        assert(user_type_expr != none)
+        assert(user_type_storage_ref != none)
+                    
         block.known_arg_type_exprs = [
-            none
+            user_type_expr
         ] + block.known_arg_type_exprs
         block.known_arg_type_storage_refs = [
-            none
+            user_type_storage_ref
         ] + block.known_arg_type_storage_refs
 
         func handle_queue_item(item) {

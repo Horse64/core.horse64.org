@@ -1722,6 +1722,17 @@ type TypeRefAndExprResult {
     var has_self_expr = no
 }
 
+func TypeRefAndExprResult.as_str {
+    var t = "TypeRefAndExprResult" + {
+        "storage_ref"-> self.storage_ref.as_str(),
+        "type_expr"-> self.type_expr.as_str(),
+        "resolved_func_is_override"->
+            self.resolved_func_is_override.as_str(),
+        "has_self_expr"-> self.has_self_expr.as_str(),
+    }.as_str()
+    return t
+}
+
 ## Based on a node that is some identifier ref AST node,
 ## and a maybe already known reference for its origin,
 ## this returns the AST typeref expression and the
@@ -1782,7 +1793,7 @@ func resolve_st_ref_to_type_ref_and_expr(
         }
         # In this case, delegate to get_called_or_assigned_func_types()
         # which can resolve func overrides.
-        var result = ast_analyze.
+        var called_type_result = ast_analyze.
             get_called_or_assigned_func_types(
                 project_file, node,
                 node_parents,
@@ -1804,7 +1815,7 @@ func resolve_st_ref_to_type_ref_and_expr(
                 debug=debug,
             ) later:
 
-        await result
+        await called_type_result
         if debug {
             var have_known_error_msg = no
             if msgs != none {
@@ -1818,17 +1829,17 @@ func resolve_st_ref_to_type_ref_and_expr(
             print(dbg_header +
                 "resolve_st_ref_to_type_ref_and_expr(): "
                 "Got get_called_or_assigned_func_types result, "
-                "result=" + result.as_str() +
+                "called_type_result=" + called_type_result.as_str() +
                 " (is msgs set: " +
                     (msgs != none).as_str() + ", "
                 "node.damaged: " + node.damaged.as_str() + ", "
                 "have_known_error_msg=" +
                     have_known_error_msg.as_str() + ")")
         }
-        if result == none or
-                result.func_var_name == none or
-                result.func_ref == none or
-                result.func_var_type_expr == none {
+        if called_type_result == none or
+                called_type_result.func_var_name == none or
+                called_type_result.func_ref == none or
+                called_type_result.func_var_type_expr == none {
             # Couldn't be resolved to exact known function
             # and therefore also guaranteed not identified as
             # any override.
@@ -1836,30 +1847,41 @@ func resolve_st_ref_to_type_ref_and_expr(
         }
         # This function may be an override, so update
         # our info from what we obtained above:
-        var result_ref = result.func_ref
-        var result_type_expr = result.func_var_type_expr
+        var result_ref = called_type_result.func_ref
+        var result_type_expr = called_type_result.func_var_type_expr
         override_resolution_result = new TypeRefAndExprResult()
         override_resolution_result.storage_ref =
             result_ref.copy()
         override_resolution_result.type_expr =
             result_type_expr.copy()
-        if result.func_was_overridden {
+        if called_type_result.func_was_overridden {
             override_resolution_result.
                 resolved_func_is_override = yes
         }
-        if result.self_var_type_expr != none {
+        if called_type_result.self_var_type_expr != none {
             override_resolution_result.has_self_expr = yes
         }
     }
     try_resolve_override_if_needed() later:
 
     if override_resolution_result != none {
+        if debug {
+            print(dbg_header +
+                "resolve_st_ref_to_type_ref_and_expr(): "
+                "Returning override resolution...")
+        }
         return later override_resolution_result
     }
     if value_ref == none and node != none and
             node.kind == ast.N_EXPR_IDREF and
             node.ref != none {
         value_ref = node.ref
+    }
+    if debug {
+        print(dbg_header +
+            "resolve_st_ref_to_type_ref_and_expr(): "
+            "Continuing without early override "
+            "resolution... value_ref=" + value_ref.as_str())
     }
     if value_ref == none {
         if not ignore_if_ref_none {
@@ -1965,6 +1987,12 @@ func resolve_st_ref_to_type_ref_and_expr(
             value_ref.kind == st_ref.ST_GLOBALATTR {
         result_ref = value_ref.copy()
     }
+    if debug {
+        print(dbg_header +
+            "resolve_st_ref_to_type_ref_and_expr(): "
+            "Passed resolution of storage ref, with "
+            "result: result_ref=" + result_ref.as_str())
+    }
     if result_expr == none and
             result_ref != none and
             result_ref.kind == st_ref.ST_GLOBAL {
@@ -1995,8 +2023,7 @@ func resolve_st_ref_to_type_ref_and_expr(
         }
     } elseif result_expr == none and
             result_ref != none and
-            result_ref.kind == st_ref.ST_GLOBALATTR and
-            lookup_label != none {
+            result_ref.kind == st_ref.ST_GLOBALATTR {
         var anscope =
             project_file.project.storage_id_to_anscope_map[
                 result_ref.id[1]
@@ -2007,18 +2034,37 @@ func resolve_st_ref_to_type_ref_and_expr(
             "type scope obtained: anscope=" + anscope.as_str())
         }
         if anscope.is_struct or anscope.is_type {
-            if not anscope.name_to_symbol_map.has(
-                lookup_label) {
-                if debug {
-                    print(dbg_header +
-                    "resolve_st_ref_to_type_ref_and_expr() "
-                    "result: Nothing, since global attribute "
-                    "member lookup failed.")
+            var sinfo
+            if lookup_label == none {
+                assert(result_ref.id.len == 2)
+                if not anscope.id_to_symbol_map.has(
+                        result_ref.id[2]) {
+                    if debug {
+                        print(dbg_header +
+                            "resolve_st_ref_to_type_ref_and_expr() "
+                            "result: Nothing, since global attr "
+                            "member lookup by id failed.")
+                    }
+                    var result = new TypeRefAndExprResult()
+                    return later result
                 }
-                return later [none, none]
+                sinfo = anscope.
+                    id_to_symbol_map[result_ref.id[2]]
+            } else {
+                if not anscope.name_to_symbol_map.has(
+                        lookup_label) {
+                    if debug {
+                        print(dbg_header +
+                            "resolve_st_ref_to_type_ref_and_expr() "
+                            "result: Nothing, since global attr "
+                            "member lookup by name failed.")
+                    }
+                    var result = new TypeRefAndExprResult()
+                    return later result
+                }
+                sinfo = anscope.
+                    name_to_symbol_map[lookup_label]
             }
-            var sinfo = anscope.
-            name_to_symbol_map[lookup_label]
             if debug {
                 print(dbg_header +
                 "resolve_st_ref_to_type_ref_and_expr() "

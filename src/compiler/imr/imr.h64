@@ -4765,6 +4765,8 @@ func generate_imr_for_stmt(
             type_path=[node.label],
             is_extend=no,
         )
+        init_func_imr_block.line = node.line
+        init_func_imr_block.col = node.col
         result_insts.add(init_func_imr_block)
 
         func generate_var_init_insts_for_var(child_storage_id) {
@@ -6131,6 +6133,8 @@ func generate_imr_for_file(
                     type_path=node.type_path,
                     is_extend=is_extend,
                 )
+                block.line = node.line
+                block.col = node.col
             } else {
                 block = new IMRFuncBlock(
                     fscope, node.label,
@@ -6152,6 +6156,8 @@ func generate_imr_for_file(
                         known_return_type_storage_ref,
                     is_extend=is_extend,
                 )
+                block.line = node.line
+                block.col = node.col
             }
             result.blocks.add(block)
             _func_stmt_to_imr_func_map[node] = block
