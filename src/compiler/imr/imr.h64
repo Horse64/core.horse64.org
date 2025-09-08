@@ -2708,7 +2708,7 @@ func generate_imr_for_expr(
             throw new RuntimeError(
                 "Unexpectedly failed to generate IMR "
                 "for expresson.")
-        } elseif msg.msgs_contain_error(msgs) {
+        } elseif not msg.msgs_contain_error(msgs) {
             msgs.add(new msg.FileMsg(
                 "Internal error, unexpectedly failed to "
                 "generate IMR for expression node. Please "
@@ -2975,7 +2975,7 @@ func _generate_imr_for_expr_untyped(
 
     if is_moose64 and
             {ast.N_EXPR_BINOP, ast.N_EXPR_IDREF}.has(node.kind) and
-            our_node_typeinfo != none and (
+            (
                 m64_builtins.is_ast_node_referring_to_m64_list_arg_len(
                     project_file, node, is_moose64=is_moose64,
                 )
@@ -3040,11 +3040,13 @@ func _generate_imr_for_expr_untyped(
                 node.damaged = yes
                 return none
             }
+            var our_type =
+                typeinfo.create_from_simple_m64_type("size")
             var tmp_ref = get_new_temp_storage_ref(
                 node, imr_parents=imr_parents,
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
-                optional_type_info=our_node_typeinfo,
+                optional_type_info=our_type,
                 project_file=project_file,
                 imr_build_tracker=imr_build_tracker,
                 is_moose64=is_moose64, msgs=msgs,
@@ -3058,6 +3060,7 @@ func _generate_imr_for_expr_untyped(
                 ),
                 tmp_ref,
             ))
+            result.known_type_info = our_type
             result.storage_ref = tmp_ref
             if debug {
                 print(program_name + ": debug: " +
@@ -3170,6 +3173,9 @@ func _generate_imr_for_expr_untyped(
         assert(our_node_typeinfo != none or
             not is_moose64 or (msgs != none and
             msg.msgs_contain_error(msgs)))
+        if is_moose64 and our_node_typeinfo == none {
+            return later none
+        }
 
         if debug {
             print(program_name + ": debug: " +
@@ -3607,8 +3613,7 @@ func _generate_imr_for_expr_untyped(
         var write_op_result_to_tmp_ref = tmp_ref
         var conversion_taken_care_of = no
         assert(not we_own_the_tmp_ref or not is_moose64 or
-            our_node_typeinfo != none or
-            msgs == none or not msg.msgs_contain_error(msgs))
+            our_node_typeinfo != none)
         assert(not we_own_the_tmp_ref or
             tmp_ref.kind == st_ref.ST_LOCAL)
 
