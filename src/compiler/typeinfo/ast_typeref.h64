@@ -2909,6 +2909,7 @@ func _parse_typeref_notlater(
                 tokens[pos].kind == token.T_KEYWORD) and
                 tokens[pos].str == "multi" {
             typeref_expr = new MultiTypeRefExpr()
+            assert(typeref_expr.is_multi_type)
             typeref_expr.name = tokens[pos].str
             typeref_expr.line = token.get_line(tokens, pos)
             typeref_expr.col = token.get_col(tokens, pos)
