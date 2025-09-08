@@ -77,6 +77,13 @@ func replace_refs_in_func(
                         item.storage_id == old_ref.id {
                     item.storage_id = new_ref.id
                 }
+            } elseif item.kind == compiler.imr.IMR_INST_GETMULTIARGLEN {
+                if item.multi_arg_storage_ref.alike(old_ref) {
+                    item.multi_arg_storage_ref = new_ref.copy()
+                }
+                if item.target_storage_ref.alike(old_ref) {
+                    item.target_storage_ref = new_ref.copy()
+                }
             } elseif item.kind == compiler.imr.IMR_INST_SETLIT {
                 if item.target_storage_ref.alike(old_ref) {
                     item.target_storage_ref = new_ref.copy()

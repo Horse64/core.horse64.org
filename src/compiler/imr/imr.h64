@@ -602,6 +602,77 @@ func IMRMove.as_json_obj(
     return obj
 }
 
+type IMRGetMultiargLen base IMRNode {
+    var multi_arg_storage_ref
+    var target_storage_ref
+}
+
+func IMRGetMultiargLen.init(
+        multi_arg_storage_ref,
+        target_storage_ref,
+        ) {
+    base.init(IMR_INST_GETMULTIARGLEN)
+    if typename(multi_arg_storage_ref) != "obj" or
+            not has_attr(multi_arg_storage_ref, "kind") or
+            not has_attr(multi_arg_storage_ref, "id") {
+        throw new TypeError(
+            "The multi_arg_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    if typename(target_storage_ref) != "obj" or
+            not has_attr(target_storage_ref, "kind") or
+            not has_attr(target_storage_ref, "id") {
+        throw new TypeError(
+            "The target_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    self.multi_arg_storage_ref =
+        multi_arg_storage_ref.copy()
+    self.target_storage_ref =
+        target_storage_ref.copy()
+}
+
+func IMRGetMultiargLen.as_str(indent=0) {
+    return self.format_inst(
+        "GETMULTIARGLEN", pos_parameter_names=[
+            "multi_arg_storage_ref",
+            "target_storage_ref",
+        ], indent=indent,
+    )
+}
+
+func IMRGetMultiargLen.copy {
+    var self_copy = base.copy()
+    self_copy.multi_arg_storage_ref =
+        self.multi_arg_storage_ref.copy()
+    self_copy.target_storage_ref =
+        self.target_storage_ref.copy()
+    return self_copy
+}
+
+func IMRGetMultiargLen.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+        _passthrough_storage_refs)
+    if _passthrough_storage_refs {
+        obj["multi_arg_storage_ref"] =
+            self.multi_arg_storage_ref
+    } else {
+        obj["multi_arg_storage_ref"] =
+            self.multi_arg_storage_ref.as_str()
+    }
+    if _passthrough_storage_refs {
+        obj["target_storage_ref"] =
+            self.target_storage_ref
+    } else {
+        obj["target_storage_ref"] =
+            self.target_storage_ref.as_str()
+    }
+    return obj
+}
+
 type IMRSetAttrById base IMRNode {
     var target_and_obj_storage_ref
     var attr_id
@@ -633,7 +704,7 @@ func IMRSetAttrById.init(
             "must be of type StorageRef.")
     }
     self.target_and_obj_storage_ref =
-    target_and_obj_storage_ref.copy()
+        target_and_obj_storage_ref.copy()
     self.attr_id = attr_id
     self.value_storage_ref = value_storage_ref.copy()
 }
@@ -2288,6 +2359,7 @@ enum IMRNodeKind {
     IMR_INST_DEREF,
     IMR_INST_SIZEOF,
     IMR_INST_APPLY_OP,
+    IMR_INST_GETMULTIARGLEN,
     IMR_INST_CALL,
     IMR_INST_BREAK,
     IMR_INST_CONTINUE,
@@ -2706,7 +2778,8 @@ func generate_imr_for_expr(
         }
         get_new_tmp_target_if_needed() later:
 
-        if not conversion_not_limited_to_regular_implicit and is_moose64 and
+        if not conversion_not_limited_to_regular_implicit and
+                is_moose64 and
                 not node.damaged {
             var inner_result = m64_autocast.
                 check_if_allowed_implicit_cast_from_to(
@@ -2898,7 +2971,114 @@ func _generate_imr_for_expr_untyped(
             "the compiler makers.")
     }
 
-    if node.kind == ast.N_EXPR_IDREF {
+    if is_moose64 and no and
+            {ast.N_EXPR_BINOP, ast.N_EXPR_IDREF}.has(node.kind) and (
+                m64_builtins.is_ast_node_referring_to_m64_list_arg_len(
+                    project_file, node, is_moose64=is_moose64,
+                )
+            ) {
+        if debug {
+            print(program_name + ": debug: " +
+                "generate_imr_for_expr(): "
+                "Handling special moose64 builtin...")
+        }
+        func find_multi_arg {
+            if func_parent_node == none {
+                return "Unexpected attempt to use multi arg "
+                    "outside of a func."
+            }
+            var arg_type_exprs =
+                func_parent_node.extended_final_arg_type_exprs(
+                    include_outer_extends=no
+                )
+            var candidate_idx = none
+            var i = 1
+            while i <= arg_type_exprs.len {
+                if arg_type_exprs[i] == none or
+                        not arg_type_exprs[i].is_multi_type {
+                    if candidate_idx != none {
+                        # This is invalid, we have two multi args.
+                        return "Unexpected func found that has "
+                            "more than one multi arg, this isn't "
+                            "allowed."
+                    }
+                    candidate_idx = i
+                }
+                i += 1
+            }
+            if candidate_idx != none {
+                return new st_ref.StorageRef(
+                    st_ref.ST_ARG, candidate_idx
+                )
+            }
+            return "Unexpected attempt to use multi arg "
+                "in func that doesn't have one."
+        }
+        if m64_builtins.is_ast_node_referring_to_m64_list_arg_len(
+                project_file, node, is_moose64=is_moose64,
+                ) {
+            var multi_arg_idx = find_multi_arg()
+            if typename(multi_arg_idx) == "str" {
+                if msgs == none {
+                    throw new RuntimeError("Unexpected invalid "
+                        "use of multi arg encountered.")
+                }
+                if not node.damaged {
+                    msgs.add(new msg.FileMsg(
+                        multi_arg_idx,
+                        source_file=project_file,
+                        line=node.line,
+                        col=node.col,
+                    ))
+                }
+                node.damaged = yes
+                return none
+            }
+            var tmp_ref = get_new_temp_storage_ref(
+                node, imr_parents=imr_parents,
+                func_imr_parent=func_imr_parent,
+                file_imr_parent=file_imr_parent,
+                optional_type_info=our_node_typeinfo,
+                project_file=project_file,
+                imr_build_tracker=imr_build_tracker,
+                is_moose64=is_moose64, msgs=msgs,
+            ) later:
+
+            await tmp_ref
+
+            result.instructions.add(new IMRGetMultiargLen(
+                new st_ref.StorageRef(
+                    st_ref.ST_ARG, multi_arg_idx
+                ),
+                tmp_ref,
+            ))
+            result.storage_ref = tmp_ref
+            if debug {
+                print(program_name + ": debug: " +
+                    "generate_imr_for_expr(): "
+                    "Done setting up multi arg get on " +
+                    "arg " + multi_arg_idx.as_str() + ".")
+            }
+            return later result
+        } else {
+            throw new RuntimeError("Unhandled code path.")
+        }
+    } elseif is_moose64 and our_node_typeinfo != none and
+            our_node_typeinfo.kind == typeinfo.TI_FUNCREF and
+            our_node_typeinfo.user_type_ref != none and
+            {
+                st_ref.ST_GLOBAL, st_ref.ST_GLOBALATTR,
+                st_ref.ST_MCREF,
+            }.has(our_node_typeinfo.user_type_ref.kind) {
+        if debug {
+            print(program_name + ": debug: " +
+                "generate_imr_for_expr(): "
+                "Handling func call in moose64...")
+        }
+
+        result.storage_ref = our_node_typeinfo.user_type_ref.copy()
+        return later result
+    } elseif node.kind == ast.N_EXPR_IDREF {
         result.storage_ref = node.ref.copy()
         return later result
     } elseif node.kind == ast.N_EXPR_LIT {
@@ -3484,18 +3664,6 @@ func _generate_imr_for_expr_untyped(
         ) later:
 
         await tmp_ref
-        if is_moose64 and our_node_typeinfo != none and
-                our_node_typeinfo.kind == typeinfo.TI_FUNCREF and
-                our_node_typeinfo.user_type_ref != none and
-                {st_ref.ST_GLOBAL, st_ref.ST_GLOBALATTR}.has(
-                    our_node_typeinfo.user_type_ref.kind) {
-            result.instructions.add(new IMRMove(
-                our_node_typeinfo.user_type_ref,
-                tmp_ref,
-            ))
-            result.storage_ref = tmp_ref
-            return later result
-        }
         var attr_name = node.subexprs[2].label
         assert(attr_name != none)
         var left_hand_result = generate_imr_for_expr(
