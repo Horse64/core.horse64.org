@@ -1967,6 +1967,8 @@ func IMRFuncBlock.update_var_type_exprs(
                         textfmt.as_escaped_code_string(self.label) + " "
                     "tinfo=" + tinfo.as_str(),
                     source_file=project_file,
+                    line=self.line,
+                    col=self.col,
                 ))
             }
         }
@@ -2971,8 +2973,9 @@ func _generate_imr_for_expr_untyped(
             "the compiler makers.")
     }
 
-    if is_moose64 and no and
-            {ast.N_EXPR_BINOP, ast.N_EXPR_IDREF}.has(node.kind) and (
+    if is_moose64 and
+            {ast.N_EXPR_BINOP, ast.N_EXPR_IDREF}.has(node.kind) and
+            our_node_typeinfo != none and (
                 m64_builtins.is_ast_node_referring_to_m64_list_arg_len(
                     project_file, node, is_moose64=is_moose64,
                 )
@@ -2980,7 +2983,10 @@ func _generate_imr_for_expr_untyped(
         if debug {
             print(program_name + ": debug: " +
                 "generate_imr_for_expr(): "
-                "Handling special moose64 builtin...")
+                "Handling special moose64 builtin... " +
+                "node=" + node.as_str() + " "
+                "our_node_typeinfo=" +
+                    our_node_typeinfo.as_str())
         }
         func find_multi_arg {
             if func_parent_node == none {
