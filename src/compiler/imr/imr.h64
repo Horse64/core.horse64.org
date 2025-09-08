@@ -2703,7 +2703,8 @@ func generate_imr_for_expr(
             "and now we're evaluating the "
             "type: result=" + result.as_str())
     }
-    if result == none or result.storage_ref == none {
+    if result == none or (result.storage_ref == none and
+            not return_value_is_ignored) {
         if msgs == none {
             throw new RuntimeError(
                 "Unexpectedly failed to generate IMR "
@@ -2713,7 +2714,9 @@ func generate_imr_for_expr(
                 "Internal error, unexpectedly failed to "
                 "generate IMR for expression node. Please "
                 "report this to the compiler makers. "
-                "node=" + node.as_str().sub(1, 200) + "...",
+                "msgs=" + msgs.as_str() + " "
+                "result=" + result.as_str() + " "
+                "node=" + node.as_str().sub(1, 400) + "...",
                 source_file=project_file,
                 line=node.line,
                 col=node.col,
@@ -3167,6 +3170,127 @@ func _generate_imr_for_expr_untyped(
         get_inner_conversion_if_needed() later:
 
         return later result
+    } elseif node.kind == ast.N_EXPR_TYPECAST {
+        if our_node_typeinfo == none {
+            if msgs == none {
+                throw new RuntimeError(
+                    "Unexpectedly encountered type cast "
+                    "where we can't determine outer type."
+                )
+            } elseif msg.msgs_contain_error(msgs) {
+                msgs.add(new msg.FileMsg(
+                    "Unexpectedly encountered type cast "
+                    "where we can't determine outer type.",
+                    source_file=project_file,
+                    line=node.line,
+                    col=node.col,
+                ))
+            }
+            node.damaged = yes
+            return later none
+        }
+
+        var inner_typeinfo = m64_ast_analyze.
+            get_c_or_m64_type_of_node(
+                project_file, node.subexprs[1],
+                node_parents + [node],
+                store_self_value_ref_for_funcs=yes,
+                msgs=msgs,
+            ) later:
+
+        await inner_typeinfo
+        if inner_typeinfo == none {
+            if msgs == none {
+                throw new RuntimeError(
+                    "Unexpectedly encountered type cast "
+                    "where we can't determine inner type."
+                )
+            } elseif msg.msgs_contain_error(msgs) {
+                msgs.add(new msg.FileMsg(
+                    "Unexpectedly encountered type cast "
+                    "where we can't determine inner type.",
+                    source_file=project_file,
+                    line=node.line,
+                    col=node.col,
+                ))
+            }
+            node.damaged = yes
+            return later none
+        }
+        var outer_result_tmp_ref = try_target_storage_ref
+        func get_new_tmp_target_if_needed {
+            if outer_result_tmp_ref != none {
+                return later
+            }
+            we_own_the_tmp_ref = yes
+            outer_result_tmp_ref = get_new_temp_storage_ref(
+                node, imr_parents=imr_parents,
+                func_imr_parent=func_imr_parent,
+                file_imr_parent=file_imr_parent,
+                optional_type_info=our_node_typeinfo,
+                project_file=project_file,
+                imr_build_tracker=imr_build_tracker,
+                is_moose64=is_moose64, msgs=msgs,
+            ) later:
+
+            await outer_result_tmp_ref
+        }
+        get_new_tmp_target_if_needed() later:
+
+        var need_conversion = yes
+        if our_node_typeinfo.is_equivalent(
+                inner_typeinfo, ignore_self_ref=yes,
+                is_moose64=is_moose64,
+                ) {
+            need_conversion = no
+        }
+
+        var try_target_for_inner_result_tmp = none
+        if not need_conversion {
+            try_target_for_inner_result_tmp =
+                outer_result_tmp_ref
+        }
+        var inner_result = generate_imr_for_expr(
+            node.subexprs[1],
+            node_parents=node_parents + [node],
+            imr_parents=imr_parents,
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            project_file=project_file,
+            imr_build_tracker=imr_build_tracker,
+            try_target_storage_ref=
+                try_target_for_inner_result_tmp,
+            is_moose64=is_moose64,
+            msgs=msgs,
+        ) later:
+
+        await inner_result
+        if inner_result == none or
+                inner_result.storage_ref == none {
+            return later
+        }
+        var result_insts = []
+        if need_conversion {
+            result_insts.add(new IMRConv(
+                inner_result.storage_ref,
+                outer_result_tmp_ref,
+                inner_typeinfo,
+                our_node_typeinfo,
+                in_project_file=project_file,
+                is_moose64=is_moose64,
+            ))
+        } else {
+            if not inner_result.storage_ref.alike(
+                    outer_result_tmp_ref) {
+                result_insts.add(new IMRMove(
+                    inner_result.storage_ref,
+                    outer_result_tmp_ref,
+                ))
+            }
+        }
+        result.instructions = result_insts
+        result.storage_ref = outer_result_tmp_ref
+        return result
     } elseif node.kind == ast.N_EXPR_BINOP and
             node.optoken.str == "(" and
             node.subexprs.len >= 2 {
