@@ -222,6 +222,7 @@ cdef str get_next_token(str s):
 def get_statement_ranges_ex(t,
         range_type="expr"):
     assert(type(t) in {list, tuple})
+    assert(len(t) == 0 or type(t[0]) is str)
     ranges = get_statement_ranges_ex_with_confused_linebreaks(
         t, range_type=range_type
     )
@@ -692,7 +693,8 @@ def get_statement_ranges_ex_with_confused_linebreaks(t,
             if is_elseif:
                 while (i < len(t) and
                         (t[i] != "{" or i == expr_start or
-                        is_h64op_with_righthand(t[i - 1]) or
+                        is_h64op_with_righthand(
+                            prevnonblank(t, i)) or
                         bracket_depth > 0)):
                     if t[i] in {"[", "(", "{"}:
                         bracket_depth += 1
@@ -747,6 +749,7 @@ def get_statement_expr_ranges(t):
         t, range_type="expr")
 
 def get_statement_block_ranges(t):
+    assert(len(t) == 0 or type(t[0]) is str)
     ranges = get_statement_ranges_ex(
         t, range_type="block")
     return ranges
@@ -1413,6 +1416,7 @@ def tree_transform_statements(
             type(statements[0][0]) == str)))
     final_tokens = []
     for statement in statements:
+        assert(len(statement) == 0 or type(statement[0]) == str)
         ranges = get_statement_block_ranges(statement)
         for block_range in reversed(ranges):
             assert(type(block_range) == list and
@@ -1979,6 +1983,7 @@ def stmt_uses_banned_things(
     add_nesting = None
     if startkw in nestingtracked:
         add_nesting = startkw
+    assert(len(st) == 0 or type(st[0]) == str)
     ranges = get_statement_block_ranges(st)
     for block_range in ranges:
         add_nesting = None

@@ -52,6 +52,56 @@ class TestTranslatorSyntaxHelpers(unittest.TestCase):
             "7", ")"]
         self.assertTrue(expr_nonblank_equals(tresult, texpected))
 
+    def test_broken_complex_statement_splits(self):
+        testcode = textwrap.dedent("""
+    if is_moose64 and no {
+        if debug {
+            print(program_name + ": debug: " +
+                "generate_imr_for_expr(): "
+                "Handling special moose64 builtin...")
+        }
+    } elseif is_moose64 and our_node_typeinfo != none and
+            our_node_typeinfo.kind == typeinfo.TI_FUNCREF and
+            our_node_typeinfo.user_type_ref != none and
+            {
+                st_ref.ST_GLOBAL, st_ref.ST_GLOBALATTR,
+                st_ref.ST_MCREF,
+            }.has(our_node_typeinfo.user_type_ref.kind) {
+        if debug {
+            print(program_name + ": debug: " +
+                "generate_imr_for_expr(): "
+                "Handling func call in moose64...")
+        }
+        var tmp_ref = get_new_temp_storage_ref(
+            node, imr_parents=imr_parents,
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            optional_type_info=our_node_typeinfo,
+            project_file=project_file,
+            imr_build_tracker=imr_build_tracker,
+            is_moose64=is_moose64, msgs=msgs,
+        ) later:
+
+        await tmp_ref
+        result.instructions.add(new IMRMove(
+            our_node_typeinfo.user_type_ref.copy(),
+            tmp_ref,
+        ))
+        result.storage_ref = tmp_ref
+        return later result
+    } elseif node.kind == ast.N_EXPR_IDREF {
+        result.storage_ref = node.ref.copy()
+        return later result
+    }
+        """)
+        
+        t = tokenize(testcode)
+        assert(len(t) == 0 or type(t[0]) is str)
+        result = get_statement_block_ranges(t)
+        assert(len(result) == 3)
+        assert(nextnonblank_py(t, result[0][1]) == "elseif")
+        assert(nextnonblank_py(t, result[1][1]) == "elseif")
+
     def test_split_toplevel_statements(self):
         testcode = textwrap.dedent("""\
         mycall(abc, def)
