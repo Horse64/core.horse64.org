@@ -2945,6 +2945,94 @@ func _generate_imr_for_expr_untyped(
             node.as_str().sub(1, 150))
     }
 
+    func find_list_arg(
+            based_on_func_type_info=none,
+            subtract_implicit_self_arg=no,
+            ) {
+        if func_parent_node == none {
+            return "Unexpected attempt to use list arg "
+                "outside of a func."
+        }
+        var arg_type_exprs = none
+        if based_on_func_type_info == none {
+            arg_type_exprs =
+                func_parent_node.extended_final_arg_type_exprs(
+                    include_outer_extends=no
+                )
+        } else {
+            if based_on_func_type_info.func_typeexpr == none {
+                throw new TypeError("Supplied type info "
+                    "doesn't seem to be a func.")
+            }
+            arg_type_exprs = []
+            var source = based_on_func_type_info.
+                func_typeexpr.arg_typeref_exprs
+            var idx = 1
+            while idx <= source.len {
+                if subtract_implicit_self_arg {
+                    idx += 1
+                    continue
+                }
+                if idx == source.len and
+                        based_on_func_type_info.is_failable() {
+                    assert(not source[idx].is_func_ref and
+                        not source[idx].is_user_type() and
+                        source[idx].name ==
+                            "moose64_failed_result_t")
+                    break
+                }
+                arg_type_exprs.add(source[idx])
+                idx += 1
+            }
+        }
+        var candidate_idx = none
+        var idx = 1
+        while idx <= arg_type_exprs.len {
+            if arg_type_exprs[idx] == none or
+                    not arg_type_exprs[idx].is_list_arg {
+                idx += 1
+                continue
+            }
+            if candidate_idx != none {
+                # This is invalid, we have two multi args.
+                return "Unexpected func found that has "
+                    "more than one list arg, this isn't "
+                    "allowed."
+            }
+            candidate_idx = idx
+            idx += 1
+        }
+        if candidate_idx != none and
+                candidate_idx < arg_type_exprs.len {
+            if msgs == none {
+                throw new RuntimeError(
+                    "Unexpectedly encountered a list arg "
+                    "that isn't at the end of the argument list."
+                )
+            } elseif msg.msgs_contain_error(msgs) {
+                msgs.add(new msg.FileMsg(
+                    "Unexpectedly encountered a list arg "
+                    "that isn't at the end of the argument list, "
+                    "where it is required to be.",
+                    source_file=project_file,
+                    line=node.line,
+                    col=node.col,
+                ))
+            }
+            node.damaged = yes
+            # XXX: It's safe to proceed here with generating
+            # the instruction, it just won't lead to a runnable
+            # program later.
+        }
+        if candidate_idx != none {
+            return new st_ref.StorageRef(
+                st_ref.ST_ARG, candidate_idx
+            )
+        }
+        return "Unexpected attempt to use list arg "
+            "in func that doesn't have one."
+    }
+
     var result = new ExprIMRResult()
     update_typing_for_imr_expr(
         result, node,
@@ -2990,40 +3078,6 @@ func _generate_imr_for_expr_untyped(
                 "node=" + node.as_str() + " "
                 "our_node_typeinfo=" +
                     our_node_typeinfo.as_str())
-        }
-        func find_list_arg {
-            if func_parent_node == none {
-                return "Unexpected attempt to use list arg "
-                    "outside of a func."
-            }
-            var arg_type_exprs =
-                func_parent_node.extended_final_arg_type_exprs(
-                    include_outer_extends=no
-                )
-            var candidate_idx = none
-            var idx = 1
-            while idx <= arg_type_exprs.len {
-                if arg_type_exprs[idx] == none or
-                        not arg_type_exprs[idx].is_list_arg {
-                    idx += 1
-                    continue
-                }
-                if candidate_idx != none {
-                    # This is invalid, we have two multi args.
-                    return "Unexpected func found that has "
-                        "more than one list arg, this isn't "
-                        "allowed."
-                }
-                candidate_idx = idx
-                idx += 1
-            }
-            if candidate_idx != none {
-                return new st_ref.StorageRef(
-                    st_ref.ST_ARG, candidate_idx
-                )
-            }
-            return "Unexpected attempt to use list arg "
-                "in func that doesn't have one."
         }
         if m64_builtins.is_ast_node_referring_to_m64_list_arg_len(
                 project_file, node, is_moose64=is_moose64,
@@ -3542,10 +3596,29 @@ func _generate_imr_for_expr_untyped(
 
         var called_func_type_info_if_known =
             left_hand_result.known_type_info
+        var called_func_list_arg_idx = none
+        var implicit_self_arg = no
+        var args_node = node.subexprs[2]
+        var call_args_len = args_node.subexprs.len
+        if is_moose64 and
+                called_func_type_info_if_known != none and
+                called_func_type_info_if_known.is_func_attr() and
+                called_func_type_info_if_known.arg_count() ==
+                    args_node.subexprs.len + 1 {
+            implicit_self_arg = yes
+        }
+        if is_moose64 and
+                called_func_type_info_if_known != none {
+            called_func_list_arg_idx =
+                find_list_arg(
+                    based_on_func_type_info=
+                        called_func_type_info_if_known,
+                    subtract_implicit_self_arg=implicit_self_arg,
+                )
+        }
         var arg_refs = []
         var arg_names_if_any = []
         var arg_types_if_known = []
-        var args_node = node.subexprs[2]
         if args_node.kind != ast.N_EXPR_CALLARGS {
             throw new RuntimeError("Encountered "
                 "broken call where args sub expression "
@@ -3574,13 +3647,6 @@ func _generate_imr_for_expr_untyped(
                 if not is_moose64 or
                         called_func_type_info_if_known == none {
                     return later
-                }
-                var implicit_self_arg = no
-                var call_args_len = args_node.subexprs.len
-                if called_func_type_info_if_known.is_func_attr() and
-                        called_func_type_info_if_known.arg_count() ==
-                            args_node.subexprs.len + 1 {
-                    implicit_self_arg = yes
                 }
                 var intended_arg_no =
                     arg_no + if implicit_self_arg (1) else (0)
