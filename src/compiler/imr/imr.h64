@@ -3147,6 +3147,12 @@ func _generate_imr_for_expr_untyped(
         result.storage_ref = our_node_typeinfo.user_type_ref.copy()
         return later result
     } elseif is_moose64 and node.kind == ast.N_EXPR_CONTAINER {
+        if debug {
+            print(program_name + ": debug: " +
+                "generate_imr_for_expr(): "
+                "Encountered invalid container expression...")
+        }
+
         # XXX: This is never allowed in system level,
         # unless as part of a call where it will be handled
         # one layer above. Therefore, always emit an error
@@ -3155,7 +3161,7 @@ func _generate_imr_for_expr_untyped(
             throw new RuntimeError(
                 "Unexpectedly encountered list container."
             )
-        } elseif msg.msgs_contain_error(msgs) {
+        } else {
             msgs.add(new msg.FileMsg(
                 "Unexpectedly encountered '[' ... ']' in "
                 "a place where there is no list arg allowed.",
