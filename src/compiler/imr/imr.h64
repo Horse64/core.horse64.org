@@ -2799,7 +2799,7 @@ func generate_imr_for_expr(
 
         if not conversion_not_limited_to_regular_implicit and
                 is_moose64 and
-                not node.damaged {
+                not node.has_damage() {
             var inner_result = m64_autocast.
                 check_if_allowed_implicit_cast_from_to(
                     result.need_conversion_from,
@@ -2818,7 +2818,7 @@ func generate_imr_for_expr(
                     throw new RuntimeError("Encountered incompatible "
                         "type use.")
                 }
-                if not node.damaged {
+                if not node.has_damage() {
                     msgs.add(new msg.FileMsg(
                         "Unexpected value of type " +
                         result.need_conversion_from.describe_to_user(
@@ -2863,7 +2863,7 @@ func update_typing_for_imr_expr(
         ) {
     if result == none or
             result.known_type_info != none or
-            node.damaged {
+            node.has_damage() {
         return later result
     }
 
@@ -3102,7 +3102,7 @@ func _generate_imr_for_expr_untyped(
                     throw new RuntimeError("Unexpected invalid "
                         "use of multi arg encountered.")
                 }
-                if not node.damaged {
+                if not node.has_damage() {
                     msgs.add(new msg.FileMsg(
                         list_arg_idx,
                         source_file=project_file,
@@ -3483,7 +3483,7 @@ func _generate_imr_for_expr_untyped(
                     "call return value, "
                     "but called func doesn't return any value.")
             }
-            if not node.damaged {
+            if not node.has_damage() {
                 msgs.add(new msg.FileMsg(
                     "Unexpected attempt to use "
                     "call return value, "
@@ -3656,11 +3656,11 @@ func _generate_imr_for_expr_untyped(
                     subtract_implicit_self_arg=implicit_self_arg,
                 )
             if typename(called_func_list_arg_idx) == "str" {
-                if msgs != none {
+                if msgs == none {
                     throw new RuntimeError(
                         "Found invalid list_arg usage."
                     )
-                } elseif not node.damaged {
+                } elseif not node.has_damage() {
                     msgs.add(new msg.FileMsg(
                         called_func_list_arg_idx,
                         source_file=project_file,
@@ -3689,6 +3689,10 @@ func _generate_imr_for_expr_untyped(
                     orig_arg_exprs[i] == called_func_list_arg_idx {
                 queue += orig_arg_exprs[i].subexprs
             } else {
+                if node.has_damage() {
+                    # XXX: Suppress nested handling errors in this case.
+                    orig_arg_exprs[i].damaged = yes
+                }
                 queue.add(orig_arg_exprs[i])
             }
             i += 1
@@ -4483,7 +4487,7 @@ func generate_imr_for_stmt(
                     throw new RuntimeError("Unexpected return "
                         "of failed state.")
                 }
-                if not node.damaged {
+                if not node.has_damage() {
                     msgs.add(new msg.FileMsg(
                         "Unexpected return failed statement in "
                         "func that isn't failable.",
@@ -4533,7 +4537,7 @@ func generate_imr_for_stmt(
                 throw new RuntimeError("Unexpected return "
                     "with expression.")
             }
-            if not node.damaged {
+            if not node.has_damage() {
                 msgs.add(new msg.FileMsg(
                     "Unexpected return with an expression to "
                     "be returned, this func doesn't return "
@@ -4554,7 +4558,7 @@ func generate_imr_for_stmt(
                 throw new RuntimeError("Unexpected return "
                     "without expression.")
             }
-            if not node.damaged {
+            if not node.has_damage() {
                 msgs.add(new msg.FileMsg(
                     "Unexpected return without an expression to "
                     "be returned, this func expects return "
