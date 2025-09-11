@@ -1113,6 +1113,7 @@ type IMRCall base IMRNode {
     var arg_count = 0
     var pos_arg_count = 0
     var kw_arg_count = 0
+    var list_arg_idx = 0
     var args = []
     var has_later = no
     var has_later_ignore = no
@@ -1123,6 +1124,7 @@ func IMRCall.init(
         called_func_ref=none,
         arg_refs=[],
         arg_names_if_any=[],
+        list_arg_idx=none,
         has_later=no,
         has_later_ignore=no,
         has_later_repeat=no,
@@ -1191,6 +1193,13 @@ func IMRCall.init(
         ))
         i += 1
     }
+    if list_arg_idx != none {
+        if list_arg_idx < 1 or list_arg_idx > self.args.len {
+            throw new ValueError("Given list_arg_idx "
+                "is out of bounds.")
+        }
+    }
+    self.list_arg_idx = list_arg_idx
 }
 
 func IMRCall.as_str(indent=0) {
@@ -1208,6 +1217,9 @@ func IMRCall.as_str(indent=0) {
         t += self.args[i].ref.as_str()
         i += 1
     }
+    if self.list_arg_idx != none {
+        t += " LIST_ARG_IDX=" + self.list_arg_idx.as_str()
+    }
     return self.format_inst(
         "CALL", pos_parameter_names=[
             "called_func_ref",
@@ -1215,6 +1227,7 @@ func IMRCall.as_str(indent=0) {
             "arg_count",
         ], skip_parameter_names=[
             "args",
+            "list_arg_idx",
             "kw_arg_count",
         ], extra_text=t, indent=indent,
     )
@@ -1233,6 +1246,7 @@ func IMRCall.as_json_obj(
         obj["called_func_ref"] =
             self.called_func_ref.as_str()
     }
+    obj["list_arg_idx"] = self.list_arg_idx
     obj["has_later"] = self.has_later
     obj["has_later_ignore"] = self.has_later_ignore
     obj["has_later_repeat"] = self.has_later_repeat
@@ -3641,6 +3655,22 @@ func _generate_imr_for_expr_untyped(
                         called_func_type_info_if_known,
                     subtract_implicit_self_arg=implicit_self_arg,
                 )
+            if typename(called_func_list_arg_idx) == "str" {
+                if msgs != none {
+                    throw new RuntimeError(
+                        "Found invalid list_arg usage."
+                    )
+                } elseif not node.damaged {
+                    msgs.add(new msg.FileMsg(
+                        called_func_list_arg_idx,
+                        source_file=project_file,
+                        line=args_node.line,
+                        col=args_node.col,
+                    ))
+                }
+                node.damaged = yes
+                called_func_list_arg_idx = none
+            }
         }
         var arg_refs = []
         var arg_names_if_any = []
@@ -3655,7 +3685,12 @@ func _generate_imr_for_expr_untyped(
         var queue = []
         var i = 1
         while i <= orig_arg_exprs.len {
-            queue.add(orig_arg_exprs[i])
+            if called_func_list_arg_idx != none and
+                    orig_arg_exprs[i] == called_func_list_arg_idx {
+                queue += orig_arg_exprs[i].subexprs
+            } else {
+                queue.add(orig_arg_exprs[i])
+            }
             i += 1
         }
         var arg_no = 0
@@ -3809,6 +3844,7 @@ func _generate_imr_for_expr_untyped(
                 called_func_ref=left_hand_result.storage_ref,
                 arg_refs=arg_refs,
                 arg_names_if_any=arg_names_if_any,
+                list_arg_idx=called_func_list_arg_idx,
                 has_later=no,
                 has_later_ignore=no,
                 has_later_repeat=no,
@@ -3871,6 +3907,7 @@ func _generate_imr_for_expr_untyped(
             called_func_ref=left_hand_result.storage_ref,
             arg_refs=arg_refs,
             arg_names_if_any=arg_names_if_any,
+            list_arg_idx=called_func_list_arg_idx,
             has_later=no,
             has_later_ignore=no,
             has_later_repeat=no,
