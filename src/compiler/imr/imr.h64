@@ -1194,6 +1194,10 @@ func IMRCall.init(
         i += 1
     }
     if list_arg_idx != none {
+        if typename(list_arg_idx) != "num" {
+            throw new TypeError("Given list_arg_idx "
+                "is not a number.")
+        }
         if list_arg_idx < 1 or list_arg_idx > self.args.len {
             throw new ValueError("Given list_arg_idx "
                 "is out of bounds.")
