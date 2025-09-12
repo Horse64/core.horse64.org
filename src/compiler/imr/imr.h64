@@ -3028,7 +3028,14 @@ func _generate_imr_for_expr_untyped(
             return_none_if_not_found=no,
             project_file=none,
             is_moose64=no,
+            debug=no,
             ) {
+        if debug {
+            print("horsec: debug: find_list_arg(): " +
+                "Called with based_on_func_type_info set to " +
+                based_on_func_type_info.as_str() + ".")
+        }
+
         var result = FindListArgResult()
         if func_parent_node == none {
             if return_none_if_not_found {
@@ -3046,6 +3053,11 @@ func _generate_imr_for_expr_untyped(
                 func_parent_node.extended_final_arg_type_exprs(
                     include_outer_extends=no
                 )
+            if debug {
+                print("horsec: debug: find_list_arg(): " +
+                    "The source arg expr list (branch 1) is: " +
+                    arg_type_exprs.as_str())
+            }
         } else {
             if based_on_func_type_info.func_typeexpr == none {
                 throw new TypeError("Supplied type info "
@@ -3054,33 +3066,16 @@ func _generate_imr_for_expr_untyped(
             arg_type_exprs = []
             var source = based_on_func_type_info.
                 func_typeexpr.arg_typeref_exprs.copy()
-            if based_on_func_type_info.is_failable {
-                var last_arg_is_list_arg = (
-                    source.len >= 1 and
-                    not source[source.len].is_func_ref and
-                    source[source.len].is_list_arg
-                )
-                if last_arg_is_list_arg {
-                    var failable_expr = new TypeRefExpr()
-                    failable_expr.name = "moose64_failed_result_t"
-                    failable_expr.add_ref_modifier()
-                    source = source.sub(1, source.len - 1) +
-                        [failable_expr, source[source.len]]
-                }
+            if debug {
+                print("horsec: debug: find_list_arg(): " +
+                    "The source arg expr list (branch 2) is: " +
+                    source.as_str())
             }
             var idx = 1
             while idx <= source.len {
                 if subtract_implicit_self_arg and idx == 1 {
                     idx += 1
                     continue
-                }
-                if idx == source.len and
-                        based_on_func_type_info.is_failable() {
-                    assert(not source[idx].is_func_ref and
-                        not source[idx].is_user_type() and
-                        source[idx].name ==
-                            "moose64_failed_result_t")
-                    break
                 }
                 arg_type_exprs.add(source[idx])
                 idx += 1
@@ -3110,6 +3105,13 @@ func _generate_imr_for_expr_untyped(
             candidate_idx = idx
             idx += 1
         }
+        if debug {
+            print("horsec: debug: find_list_arg(): " +
+                "We looked for an arg now. candidate_idx=" +
+                    candidate_idx.as_str() + " "
+                "arg_type_exprs.len=" +
+                    arg_type_exprs.len.as_str())
+        }
         if candidate_idx != none and
                 candidate_idx < arg_type_exprs.len {
             if msgs == none {
@@ -3117,7 +3119,7 @@ func _generate_imr_for_expr_untyped(
                     "Unexpectedly encountered a list arg "
                     "that isn't at the end of the argument list."
                 )
-            } elseif msg.msgs_contain_error(msgs) {
+            } elseif not msg.msgs_contain_error(msgs) {
                 msgs.add(new msg.FileMsg(
                     "Unexpectedly encountered a list arg "
                     "that isn't at the end of the argument list, "
@@ -3191,7 +3193,8 @@ func _generate_imr_for_expr_untyped(
             ) {
         print(program_name + ": error: Internal error, "
             "failed to get type for this node: " +
-            node.as_str().sub(1, 200))
+            node.as_str().sub(1, 200) + "... "
+            "msgs=" + msgs.as_str())
         throw new RuntimeError("Internal error, "
             "failed to get type for expr node "
             "unexpectedly. Please report this to "
@@ -3790,6 +3793,7 @@ func _generate_imr_for_expr_untyped(
                     return_none_if_not_found=yes,
                     project_file=project_file,
                     is_moose64=is_moose64,
+                    debug=debug,
                 ) later:
 
             await called_func_list_arg_info
@@ -3912,7 +3916,7 @@ func _generate_imr_for_expr_untyped(
             assert(list_arg_forward_tmp_ref == none)
             assert(called_func_list_arg_info != none)
             assert(called_func_list_arg_info.typeinfo != none)
-            var list_arg_forward_tmp_ref =
+            list_arg_forward_tmp_ref =
                 get_new_temp_storage_ref(
                     node, imr_parents=imr_parents,
                     func_imr_parent=func_imr_parent,
