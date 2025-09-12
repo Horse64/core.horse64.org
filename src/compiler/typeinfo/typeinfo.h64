@@ -946,6 +946,17 @@ func create_typeinfo_from_simple_c_type(
 func TypeInfo.as_str {
     var t = "TypeInfo{"
         "kind=" + TypeInfoKind.num_label(self.kind) + " "
+    if self.kind == TI_LISTARG {
+        t += "sub_type="
+        if self.sub_types.len == 0 {
+            t += "none "
+        } else {
+            t += self.sub_types[1].as_str() + " "
+        }
+    }
+    if self.kind == TI_MULTITYPE {
+        t += "sub_types=" + self.sub_types.as_str() + " "
+    }
     if self.kind == TI_C_TYPE {
         t += "c_type_name=" + if self.c_type_name != none
             (textfmt.as_escaped_code_string(self.c_type_name))
@@ -967,10 +978,11 @@ func TypeInfo.as_str {
         t += "_orig_typeexpr=" +
             self._orig_typeexpr.as_str() + " "
     }
-    if self.kind != TI_C_TYPE {
+    if not {TI_C_TYPE, TI_MULTITYPE, TI_LISTARG}.has(self.kind) {
         t += "user_type_ref=" + self.user_type_ref.as_str() + " "
     }
-    if self.kind != TI_C_TYPE and self.kind != TI_USERTYPE {
+    if not {TI_C_TYPE, TI_MULTITYPE, TI_LISTARG, TI_USERTYPE}.has(
+            self.kind) {
         t += "func_typeexpr=" + self.func_typeexpr.as_str() + " "
             "func_self_ref=" + self.func_self_ref.as_str() + " "
     }

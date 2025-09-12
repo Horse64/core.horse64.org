@@ -315,6 +315,45 @@ func IMRVarInfo.as_json_obj(
     return obj
 }
 
+type IMRStoreListargRef base IMRNode {
+    var target_storage_ref
+}
+
+func IMRStoreListargRef.init(target_storage_ref) {
+    base.init(IMR_INST_STORELISTARGREF)
+    if typename(target_storage_ref) != "obj" or
+            not has_attr(target_storage_ref, "kind") or
+            not has_attr(target_storage_ref, "id") {
+        throw new TypeError("The target_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    self.target_storage_ref = target_storage_ref.copy()
+}
+
+func IMRStoreListargRef.as_str(indent=0) {
+    return self.format_inst(
+        "STORELISTARGREF", pos_parameter_names=[
+            "target_storage_ref",
+        ], indent=indent,
+    )
+}
+
+func IMRStoreListargRef.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+        _passthrough_storage_refs)
+    if _passthrough_storage_refs {
+        obj["target_storage_ref"] =
+            self.target_storage_ref
+    } else {
+        obj["target_storage_ref"] =
+            self.target_storage_ref.as_str()
+    }
+    return obj
+}
+
 type IMRClrZero base IMRNode {
     var target_storage_ref
 }
@@ -325,7 +364,7 @@ func IMRClrZero.init(target_storage_ref) {
             not has_attr(target_storage_ref, "kind") or
             not has_attr(target_storage_ref, "id") {
         throw new TypeError("The target_storage_ref parameter "
-        "must be of type StorageRef.")
+            "must be of type StorageRef.")
     }
     self.target_storage_ref = target_storage_ref.copy()
 }
@@ -2380,6 +2419,7 @@ enum IMRNodeKind {
     IMR_INST_SIZEOF,
     IMR_INST_APPLY_OP,
     IMR_INST_GETLISTARGLEN,
+    IMR_INST_STORELISTARGREF,
     IMR_INST_CALL,
     IMR_INST_BREAK,
     IMR_INST_CONTINUE,
@@ -2921,6 +2961,25 @@ func update_typing_for_imr_expr(
     return later
 }
 
+type FindListArgResult {
+    var had_error = no
+    var error_msg
+
+    var index = none
+    var typeinfo = none
+}
+
+func FindListArgResult.as_str {
+    var t = "FindListArgResult"
+    t += {
+        "index"-> self.index,
+        "typeinfo"-> self.typeinfo,
+        "had_error"-> self.had_error,
+        "error_msg"-> self.error_msg,
+    }.as_str()
+    return t
+}
+
 func _generate_imr_for_expr_untyped(
         node,
         node_parents=[],
@@ -2962,15 +3021,25 @@ func _generate_imr_for_expr_untyped(
             "generate_imr_for_expr(): Called on node: " +
             node.as_str().sub(1, 150))
     }
-
+    
     func find_list_arg(
             based_on_func_type_info=none,
             subtract_implicit_self_arg=no,
+            return_none_if_not_found=no,
+            project_file=none,
+            is_moose64=no,
             ) {
+        var result = FindListArgResult()
         if func_parent_node == none {
-            return "Unexpected attempt to use list arg "
+            if return_none_if_not_found {
+                return none
+            }
+            result.had_error = yes
+            result.error_msg = "Unexpected attempt to use list arg "
                 "outside of a func."
+            return later result
         }
+
         var arg_type_exprs = none
         if based_on_func_type_info == none {
             arg_type_exprs =
@@ -2984,10 +3053,24 @@ func _generate_imr_for_expr_untyped(
             }
             arg_type_exprs = []
             var source = based_on_func_type_info.
-                func_typeexpr.arg_typeref_exprs
+                func_typeexpr.arg_typeref_exprs.copy()
+            if based_on_func_type_info.is_failable {
+                var last_arg_is_list_arg = (
+                    source.len >= 1 and
+                    not source[source.len].is_func_ref and
+                    source[source.len].is_list_arg
+                )
+                if last_arg_is_list_arg {
+                    var failable_expr = new TypeRefExpr()
+                    failable_expr.name = "moose64_failed_result_t"
+                    failable_expr.add_ref_modifier()
+                    source = source.sub(1, source.len - 1) +
+                        [failable_expr, source[source.len]]
+                }
+            }
             var idx = 1
             while idx <= source.len {
-                if subtract_implicit_self_arg {
+                if subtract_implicit_self_arg and idx == 1 {
                     idx += 1
                     continue
                 }
@@ -3003,19 +3086,26 @@ func _generate_imr_for_expr_untyped(
                 idx += 1
             }
         }
+
         var candidate_idx = none
         var idx = 1
         while idx <= arg_type_exprs.len {
             if arg_type_exprs[idx] == none or
-                    not arg_type_exprs[idx].is_list_arg {
+                    (not arg_type_exprs[idx].is_list_arg and
+                     (arg_type_exprs[idx].is_user_type() or
+                      arg_type_exprs[idx].is_multi_type or
+                      arg_type_exprs[idx].is_func_ref or
+                      arg_type_exprs[idx].name != "c_vararg")) {
                 idx += 1
                 continue
             }
             if candidate_idx != none {
                 # This is invalid, we have two multi args.
-                return "Unexpected func found that has "
-                    "more than one list arg, this isn't "
+                result.had_error = yes
+                result.error_msg = "Unexpected func found that "
+                    "has more than one list arg, this isn't "
                     "allowed."
+                return later result
             }
             candidate_idx = idx
             idx += 1
@@ -3038,17 +3128,43 @@ func _generate_imr_for_expr_untyped(
                 ))
             }
             node.damaged = yes
-            # XXX: It's safe to proceed here with generating
+            # XXX: It should be safe to proceed here with generating
             # the instruction, it just won't lead to a runnable
             # program later.
         }
-        if candidate_idx != none {
-            return new st_ref.StorageRef(
-                st_ref.ST_ARG, candidate_idx
-            )
+
+        if candidate_idx == none {
+            if return_none_if_not_found {
+                return later none
+            }
+            result.had_error = yes
+            result.error_msg = "Unexpected attempt to use "
+                "list arg in func that doesn't have one."
+            return result
         }
-        return "Unexpected attempt to use list arg "
-            "in func that doesn't have one."
+
+        var type_expr = arg_type_exprs[candidate_idx]
+        var arg_typeinfo = none
+        func determine_type_info {
+            if type_expr == none {
+                return later
+            }
+            arg_typeinfo = typeinfo.
+                create_typeinfo_from_typeexpr_and_verify(
+                    type_expr,
+                    store_self_value_ref_for_funcs=no,
+                    project_file=project_file,
+                    project=project_file.project,
+                    is_moose64=is_moose64,
+                ) later:
+
+            await arg_typeinfo
+        }
+        determine_type_info() later:
+
+        result.index = candidate_idx
+        result.typeinfo = arg_typeinfo
+        return result
     }
 
     var result = new ExprIMRResult()
@@ -3100,15 +3216,21 @@ func _generate_imr_for_expr_untyped(
         if m64_builtins.is_ast_node_referring_to_m64_list_arg_len(
                 project_file, node, is_moose64=is_moose64,
                 ) {
-            var list_arg_idx = find_list_arg()
-            if typename(list_arg_idx) == "str" {
+            var list_arg_info = find_list_arg(
+                project_file=project_file,
+                is_moose64=is_moose64,
+            ) later:
+
+            await list_arg_info
+            if list_arg_info != none and
+                    list_arg_info.had_error {
                 if msgs == none {
                     throw new RuntimeError("Unexpected invalid "
                         "use of multi arg encountered.")
                 }
                 if not node.has_damage() {
                     msgs.add(new msg.FileMsg(
-                        list_arg_idx,
+                        list_arg_info.error_msg,
                         source_file=project_file,
                         line=node.line,
                         col=node.col,
@@ -3116,6 +3238,10 @@ func _generate_imr_for_expr_untyped(
                 }
                 node.damaged = yes
                 return none
+            }
+            var list_arg_idx = none
+            if list_arg_info != none {
+                list_arg_idx = list_arg_info.index
             }
             var our_type =
                 typeinfo.create_from_simple_m64_type("size")
@@ -3640,7 +3766,7 @@ func _generate_imr_for_expr_untyped(
 
         var called_func_type_info_if_known =
             left_hand_result.known_type_info
-        var called_func_list_arg_idx = none
+        var called_func_list_arg_info = none
         var implicit_self_arg = no
         var args_node = node.subexprs[2]
         var call_args_len = args_node.subexprs.len
@@ -3651,59 +3777,190 @@ func _generate_imr_for_expr_untyped(
                     args_node.subexprs.len + 1 {
             implicit_self_arg = yes
         }
-        if is_moose64 and
-                called_func_type_info_if_known != none {
-            called_func_list_arg_idx =
+        func locate_list_arg_if_any {
+            if not is_moose64 or
+                    called_func_type_info_if_known == none {
+                return later
+            }
+            called_func_list_arg_info =
                 find_list_arg(
                     based_on_func_type_info=
                         called_func_type_info_if_known,
                     subtract_implicit_self_arg=implicit_self_arg,
-                )
-            if typename(called_func_list_arg_idx) == "str" {
+                    return_none_if_not_found=yes,
+                    project_file=project_file,
+                    is_moose64=is_moose64,
+                ) later:
+
+            await called_func_list_arg_info
+            if called_func_list_arg_info != none and
+                    called_func_list_arg_info.had_error {
                 if msgs == none {
                     throw new RuntimeError(
                         "Found invalid list_arg usage."
                     )
                 } elseif not node.has_damage() {
                     msgs.add(new msg.FileMsg(
-                        called_func_list_arg_idx,
+                        called_func_list_arg_info.error_msg,
                         source_file=project_file,
                         line=args_node.line,
                         col=args_node.col,
                     ))
                 }
                 node.damaged = yes
-                called_func_list_arg_idx = none
+                called_func_list_arg_info = none
             }
         }
-        var arg_refs = []
-        var arg_names_if_any = []
-        var arg_types_if_known = []
+        locate_list_arg_if_any() later:
+
         if args_node.kind != ast.N_EXPR_CALLARGS {
             throw new RuntimeError("Encountered "
                 "broken call where args sub expression "
                 "isn't of type N_EXPR_CALLARGS.")
         }
+
+        var arg_refs = []
+        var arg_names_if_any = []
+        var arg_types_if_known = []
+        var list_arg_forward_tmp_ref = none
+        var list_arg_forward_expr = none
         var orig_arg_exprs = args_node.subexprs
         assert(not args_node.has_types)
         var queue = []
+        if debug {
+            print(program_name + ": debug: " +
+                "generate_imr_for_expr(): "
+                "Will now assemble all the args. "
+                "args_node=" + args_node.as_str().sub(1, 200) + "... "
+                "called_func_list_arg_info=" +
+                    called_func_list_arg_info.as_str())
+        }
+
         var i = 1
         while i <= orig_arg_exprs.len {
-            if called_func_list_arg_idx != none and
-                    orig_arg_exprs[i] == called_func_list_arg_idx {
-                queue += orig_arg_exprs[i].subexprs
+            if is_moose64 and
+                    called_func_list_arg_info != none and
+                    i == called_func_list_arg_info.index {
+                if orig_arg_exprs[i].kind == ast.N_EXPR_CONTAINER and
+                        orig_arg_exprs[i].container_kind ==
+                            ast_expr.C_LIST {
+                    var inner_items = orig_arg_exprs[i].subexprs
+                    for item in inner_items {
+                        assert(item.kind != ast.N_EXPR_CALLARGS)
+                    }
+                    queue += inner_items
+                } elseif orig_arg_exprs[i].kind == ast.N_EXPR_BINOP and
+                        orig_arg_exprs[i].optoken.str == "(" and
+                        orig_arg_exprs[i].subexprs.len >= 2 and
+                        m64_builtins.
+                        is_ast_node_referring_to_m64_list_arg_forward(
+                            project_file, orig_arg_exprs[i].subexprs[1],
+                            is_moose64=is_moose64,
+                        ) {
+                    list_arg_forward_expr = orig_arg_exprs[i]
+                    if debug {
+                        print(program_name + ": debug: " +
+                            "generate_imr_for_expr(): "
+                            "Found a list forward. " +
+                            "list_arg_forward_expr=" +
+                                list_arg_forward_expr.as_str())
+                    }
+                    if called_func_list_arg_info == none or
+                            called_func_list_arg_info.typeinfo == none {
+                        if msgs != none and
+                                msg.msgs_contain_error(msgs) {
+                            node.damaged = yes
+                            return later none
+                        }
+                        throw new RuntimeError(
+                            "Internal error, unexpectedly lacking "
+                            "type info for list arg.")
+                    }
+                } else {
+                    if msgs == none {
+                        throw new RuntimeError(
+                            "Unexpected attempt to pass a regular "
+                            "arg to a list arg.")
+                    } elseif not node.has_damage() {
+                        msgs.add(new msg.FileMsg(
+                            "Unexpectedly missing a '[' for passing a "
+                            "list into a list arg. A non-list value "
+                            "cannot be used here.",
+                            source_file=project_file,
+                            line=node.line,
+                            col=node.col,
+                        ))
+                    }
+                    node.damaged = yes
+                    return later none
+                }
             } else {
                 if node.has_damage() {
-                    # XXX: Suppress nested handling errors in this case.
+                    # XXX: Suppress nested handling of errors in
+                    # this case.
                     orig_arg_exprs[i].damaged = yes
                 }
+                assert(orig_arg_exprs[i].kind != ast.N_EXPR_CALLARGS)
                 queue.add(orig_arg_exprs[i])
             }
             i += 1
         }
+        func handle_list_forward_if_any {
+            if list_arg_forward_expr == none {
+                return later
+            }
+            assert(list_arg_forward_tmp_ref == none)
+            assert(called_func_list_arg_info != none)
+            assert(called_func_list_arg_info.typeinfo != none)
+            var list_arg_forward_tmp_ref =
+                get_new_temp_storage_ref(
+                    node, imr_parents=imr_parents,
+                    func_imr_parent=func_imr_parent,
+                    file_imr_parent=file_imr_parent,
+                    optional_type_info=
+                        called_func_list_arg_info.typeinfo,
+                    project_file=project_file,
+                    imr_build_tracker=imr_build_tracker,
+                    is_moose64=is_moose64,
+                    msgs=msgs,
+                ) later:
+
+            await list_arg_forward_tmp_ref
+            result.instructions.add(new IMRStoreListargRef(
+                list_arg_forward_tmp_ref
+            ))
+            queue.add("list forward")
+        }
+        handle_list_forward_if_any() later:
+
+        var called_func_list_arg_idx = none
+        if called_func_list_arg_info != none and
+                called_func_list_arg_info.index != none {
+            called_func_list_arg_idx =
+                called_func_list_arg_info.index
+        }
+        if debug {
+            print(program_name + ": debug: " +
+                "generate_imr_for_expr(): "
+                "We got the following arg queue: " +
+                "queue=" + queue.as_str() + " "
+                "called_func_list_arg_idx=" +
+                    called_func_list_arg_idx.as_str())
+        }
+
         var arg_no = 0
         func process_item(item) {
             arg_no += 1
+            if item == "list forward" {
+                assert(list_arg_forward_tmp_ref != none)
+                arg_refs.add(list_arg_forward_tmp_ref)
+                arg_names_if_any.add(none)
+                arg_types_if_known.add(
+                    called_func_list_arg_info.typeinfo
+                )
+                return later
+            }
+
             var value_expr = item
             var value_name = none
             if value_expr.kind == ast.N_EXPR_CALLKWARG {
@@ -3730,7 +3987,7 @@ func _generate_imr_for_expr_untyped(
                 if debug {
                     print(program_name + ": debug: " +
                         "generate_imr_for_expr(): "
-                        "Requiring type conversion for arg #" +
+                        "Preparing potential type conversion for arg #" +
                         arg_no.as_str() + " to " +
                         arg_intended_type.as_str() + "...")
                 }

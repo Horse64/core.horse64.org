@@ -896,6 +896,11 @@ func TypeRefExpr.as_json_obj {
     return output
 }
 
+func TypeRefExpr.add_ref_modifier {
+    var mod = new ast_typeref.TypeRefMod("ref")
+    self.modifiers.add(mod)
+}
+
 type MultiTypeRefExpr base TypeRefExpr {
     var sub_type_refs = []
 }

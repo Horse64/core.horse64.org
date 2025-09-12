@@ -57,6 +57,7 @@ func FileMsg.as_str {
     var t = "FileMsg(content=" +
         textfmt.as_escaped_code_string(self.content) +
         ",file=" + self.source_file.as_str()
+    t += ",kind=" + MsgKind.num_label(self.kind)
     if self.line != none {
         t += ",line=" + self.line.as_str()
         if self.col != none {
