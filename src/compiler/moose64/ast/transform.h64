@@ -40,6 +40,7 @@ import compiler.ast.transform as ast_transform
 import compiler.compiler_log as clog
 import compiler.builtin_syms as builtin_syms
 import compiler.moose64.ast.analyze as m64_ast_analyze
+import compiler.moose64.builtins as m64_builtins
 import compiler.msg as msg
 import compiler.storage.ref as st_ref
 import compiler.token as token
@@ -970,6 +971,7 @@ func transform_desugar_failed_checks(
 
             # Now add this new variable as a call argument:
             assert(expr.kind == ast.N_EXPR_BINOP)
+            assert(expr.optoken.str == "(")
             assert(expr.subexprs.len == 2)
             assert(expr.subexprs[2].kind == ast.N_EXPR_CALLARGS)
             var additional_arg_node = new ast_expr.IdRefExpr()
@@ -1015,7 +1017,45 @@ func transform_desugar_failed_checks(
             combined_node.col = node.col
             combined_node.subexprs = [as_ref_node,
                 args_node]
-            expr.subexprs[2].subexprs.add(combined_node)
+            var last_arg_is_list_arg = no
+            if expr.subexprs[2].subexprs.len > 0 {
+                if expr.subexprs[2].subexprs[
+                            expr.subexprs[2].subexprs.len
+                        ].kind == ast.N_EXPR_CONTAINER and
+                        expr.subexprs[2].subexprs[
+                            expr.subexprs[2].subexprs.len
+                        ].container_kind == ast_expr.C_LIST {
+                    last_arg_is_list_arg = yes
+                } elseif expr.subexprs[2].subexprs[
+                            expr.subexprs[2].subexprs.len
+                        ].kind == ast.N_EXPR_BINOP and
+                        expr.subexprs[2].subexprs[
+                            expr.subexprs[2].subexprs.len
+                        ].optoken.str == "(" and
+                        expr.subexprs[2].subexprs[
+                            expr.subexprs[2].subexprs.len
+                        ].subexprs.len >= 2 and
+                        m64_builtins.
+                        is_ast_node_referring_to_m64_list_arg_forward(
+                            project_file,
+                            expr.subexprs[2].subexprs[
+                                expr.subexprs[2].subexprs.len
+                            ].subexprs[1],
+                            is_moose64=is_moose64,
+                        ) {
+                    last_arg_is_list_arg = yes
+                }
+            }
+            if last_arg_is_list_arg {
+                expr.subexprs[2].subexprs =
+                    expr.subexprs[2].subexprs.sub(
+                        1, expr.subexprs[2].subexprs.len - 1
+                    ) + [combined_node, expr.subexprs[2].subexprs[
+                        expr.subexprs[2].subexprs.len
+                    ]]
+            } else {
+                expr.subexprs[2].subexprs.add(combined_node)
+            }
         }
 
         return later node

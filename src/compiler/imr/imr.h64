@@ -1145,6 +1145,162 @@ func IMRCallArg.init(ref, name) {
     self.name = name
 }
 
+type IMRCallWListForward base IMRNode {
+    var called_func_ref = none
+    var return_value_ref = none
+
+    var arg_count = 0
+    var pos_arg_count = 0
+    var kw_arg_count = 0
+    var args = []
+    var has_later = no
+    var has_later_ignore = no
+    var has_later_repeat = no
+}
+
+func IMRCallWListForward.init(
+        called_func_ref=none,
+        arg_refs=[],
+        arg_names_if_any=[],
+        has_later=no,
+        has_later_ignore=no,
+        has_later_repeat=no,
+        return_value_ref=none,
+        ) {
+    base.init(IMR_INST_CALLWLISTFORWARD)
+    if arg_refs.len != arg_names_if_any.len {
+        throw new RuntimeError(
+            "The arg_refs list len and "
+            "arg_names_if_any list len must match."
+        )
+    }
+    if typename(called_func_ref) != "obj" or
+            not has_attr(called_func_ref, "kind") or
+            not has_attr(called_func_ref, "id") {
+        throw new TypeError("The called_func_ref parameter "
+            "must be of type StorageRef.")
+    }
+    if return_value_ref != none and (
+            typename(return_value_ref) != "obj" or
+            not has_attr(return_value_ref, "kind") or
+            not has_attr(return_value_ref, "id")) {
+        throw new TypeError("The return_value_ref parameter "
+            "must be either none or of type StorageRef.")
+    }
+    self.has_later = has_later
+    self.has_later_ignore = has_later_ignore
+    self.has_later_repeat = has_later_repeat
+    self.called_func_ref = called_func_ref.copy()
+    if return_value_ref != none {
+        self.return_value_ref = return_value_ref.copy()
+    }
+    var pos_args = []
+    var kw_args = []
+    var i = 1
+    while i <= arg_refs.len {
+        var ref = arg_refs[i]
+        if typename(ref) != "obj" or
+                not has_attr(ref, "kind") or
+                not has_attr(ref, "id") {
+            throw new TypeError("The arg_refs values "
+                "must all be of type StorageRef.")
+        }
+        var name = none
+        if arg_names_if_any[i] != none {
+            name = arg_names_if_any[i] + ""
+            self.kw_arg_count += 1
+            kw_args.add([ref, name])
+        } else {
+            self.pos_arg_count += 1
+            pos_args.add(ref)
+        }
+        self.arg_count += 1
+        i += 1
+    }
+    i = 1
+    while i <= pos_args.len {
+        self.args.add(new IMRCallArg(
+            pos_args[i], none))
+        i += 1
+    }
+    i = 1
+    while i <= kw_args.len {
+        self.args.add(new IMRCallArg(
+            kw_args[i][1], kw_args[i][2]
+        ))
+        i += 1
+    }
+}
+
+func IMRCallWListForward.as_str(indent=0) {
+    var t = ""
+    var i = 1
+    var k = 1
+    while i <= self.arg_count {
+        if self.args[i].name != none {
+            t += " "
+            t += textfmt.as_escaped_code_string(
+                self.args[i].name)
+            k += 1
+        }
+        t += " "
+        t += self.args[i].ref.as_str()
+        i += 1
+    }
+    return self.format_inst(
+        "CALLWLISTFORWARD", pos_parameter_names=[
+            "called_func_ref",
+            "return_value_ref",
+            "arg_count",
+        ], skip_parameter_names=[
+            "args",
+            "kw_arg_count",
+        ], extra_text=t, indent=indent,
+    )
+}
+
+func IMRCallWListForward.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+            _passthrough_storage_refs)
+    if _passthrough_storage_refs {
+        obj["called_func_ref"] =
+            self.called_func_ref
+    } else {
+        obj["called_func_ref"] =
+            self.called_func_ref.as_str()
+    }
+    obj["has_later"] = self.has_later
+    obj["has_later_ignore"] = self.has_later_ignore
+    obj["has_later_repeat"] = self.has_later_repeat
+    obj["arg_count"] = self.arg_count
+    obj["kw_arg_count"] = self.kw_arg_count
+    if _passthrough_storage_refs {
+        obj["return_value_ref"] =
+            self.return_value_ref
+    } else {
+        obj["return_value_ref"] =
+            self.return_value_ref.as_str()
+    }
+
+    obj["args"] = []
+    for arg in self.args {
+        var argobj = {->}
+        if _passthrough_storage_refs {
+            argobj["ref"] = arg.ref
+        } else {
+            argobj["ref"] = arg.ref.as_str()
+        }
+        if arg.name != none {
+            argobj["name"] = arg.name
+        }
+        obj["args"].add(argobj)
+    }
+    return obj
+}
+
 type IMRCall base IMRNode {
     var called_func_ref = none
     var return_value_ref = none
@@ -2421,6 +2577,7 @@ enum IMRNodeKind {
     IMR_INST_GETLISTARGLEN,
     IMR_INST_STORELISTARGREF,
     IMR_INST_CALL,
+    IMR_INST_CALLWLISTFORWARD,
     IMR_INST_BREAK,
     IMR_INST_CONTINUE,
     IMR_INST_RETURN,
@@ -3024,6 +3181,7 @@ func _generate_imr_for_expr_untyped(
     
     func find_list_arg(
             based_on_func_type_info=none,
+            base_node_if_any=none,
             subtract_implicit_self_arg=no,
             return_none_if_not_found=no,
             project_file=none,
@@ -3033,7 +3191,8 @@ func _generate_imr_for_expr_untyped(
         if debug {
             print("horsec: debug: find_list_arg(): " +
                 "Called with based_on_func_type_info set to " +
-                based_on_func_type_info.as_str() + ".")
+                based_on_func_type_info.as_str() + ". " +
+                "base_node_if_any=" + base_node_if_any.as_str())
         }
 
         var result = FindListArgResult()
@@ -3220,6 +3379,7 @@ func _generate_imr_for_expr_untyped(
                 project_file, node, is_moose64=is_moose64,
                 ) {
             var list_arg_info = find_list_arg(
+                base_node_if_any=node,
                 project_file=project_file,
                 is_moose64=is_moose64,
             ) later:
@@ -3789,6 +3949,7 @@ func _generate_imr_for_expr_untyped(
                 find_list_arg(
                     based_on_func_type_info=
                         called_func_type_info_if_known,
+                    base_node_if_any=node,
                     subtract_implicit_self_arg=implicit_self_arg,
                     return_none_if_not_found=yes,
                     project_file=project_file,
