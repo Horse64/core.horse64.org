@@ -38,6 +38,7 @@ import compiler.builtin_syms as builtin_syms
 import compiler.limit as compiler_limit
 import compiler.moose64.autocast as m64_autocast
 import compiler.moose64.ast.analyze as m64_ast_analyze
+import compiler.moose64.builtins as m64_builtins
 import compiler.msg as msg
 import compiler.storage.scope as st_scope
 import compiler.storage.ref as st_ref
@@ -1315,9 +1316,14 @@ func get_called_or_assigned_func_types(
         var arg_typeref_exprs =
              func_typeinfo.func_typeexpr.
                 arg_typeref_exprs.copy()
-        if arg_typeref_exprs.len < 0 or
-                arg_typeref_exprs[arg_typeref_exprs.len].is_func_ref or
-                arg_typeref_exprs[arg_typeref_exprs.len].
+        var last_nonlist_arg_index = arg_typeref_exprs.len
+        if arg_typeref_exprs.len > 0 and
+                arg_typeref_exprs[last_nonlist_arg_index].is_list_arg {
+            last_nonlist_arg_index -= 1
+        }
+        if last_nonlist_arg_index <= 0 or
+                arg_typeref_exprs[last_nonlist_arg_index].is_func_ref or
+                arg_typeref_exprs[last_nonlist_arg_index].
                     name != "moose64_failed_result_t" {
             var last_param_is_func_ref =
                 arg_typeref_exprs[arg_typeref_exprs.len].is_func_ref
@@ -1344,6 +1350,33 @@ func get_called_or_assigned_func_types(
             throw new RuntimeError("Got invalid func "
                 "signature, it's marked failable but has "
                 "no failable parameter at the end.")
+        } elseif last_nonlist_arg_index > 1 and
+                arg_typeref_exprs[last_nonlist_arg_index - 1].is_list_arg {
+            var last_param_is_func_ref =
+                arg_typeref_exprs[arg_typeref_exprs.len].is_func_ref
+            var last_param_name =
+                arg_typeref_exprs[arg_typeref_exprs.len].name
+            print(prog_name + ": error: Internal error, "
+                "got invalid func signature, "
+                "the failable parameter must be placed "
+                "before the list arg. Info: "
+                "arg_typeref_exprs=" +
+                    arg_typeref_exprs.as_str() + " "
+                "expected_args_len=" +
+                    expected_args_len.as_str() + " "
+                "is_func_attr=" +
+                    func_typeinfo.func_typeexpr.
+                        is_func_attr.as_str() + " "
+                "is_failable=" +
+                    func_typeinfo.func_typeexpr.
+                        is_failable.as_str() + " "
+                "last_param_is_func_ref=" +
+                    last_param_is_func_ref.as_str() + " "
+                "last_param_name=" +
+                    last_param_name.as_str())
+            throw new RuntimeError("Got invalid func "
+                "signature, the failable parameter is in "
+                "the wrong position.")
         }
     }
 
@@ -1355,38 +1388,67 @@ func get_called_or_assigned_func_types(
         )
     var user_facing_called_args_len =
         called_args_len
+    var last_nonlist_callarg_index =
+        called_args_exprs.len
     var last_param_m64_typeinfo = none
     func determine_last_param_type_if_needed {
         if called_args_exprs.len <= 0 {
             return later
         }
+        assert(last_nonlist_callarg_index == called_args_exprs.len)
+        if called_args_exprs.len > 0 and
+                called_args_exprs[last_nonlist_callarg_index].
+                    kind == ast.N_EXPR_CONTAINER and
+                called_args_exprs[last_nonlist_callarg_index].
+                    container_kind == ast_expr.C_LIST {
+            last_nonlist_callarg_index -= 1
+        } elseif called_args_exprs.len > 0 and
+                called_args_exprs[last_nonlist_callarg_index].
+                    kind == ast.N_EXPR_BINOP and
+                called_args_exprs[last_nonlist_callarg_index].
+                    optoken.str == "(" and
+                called_args_exprs[last_nonlist_callarg_index].
+                    subexprs.len >= 2 and
+                m64_builtins.
+                    is_ast_node_referring_to_m64_list_arg_forward(
+                        project_file,
+                        called_args_exprs[last_nonlist_callarg_index].
+                            subexprs[1],
+                        is_moose64=is_moose64,
+                    ) {
+            last_nonlist_callarg_index -= 1
+        }
+        if last_nonlist_callarg_index <= 0 {
+            return later
+        }
+
         # If last parameter is a C item, don't try to determine
-        # type (since it's not a failable anyway, and we allow
+        # type (since it's not a failable anyway, and we may allow
         # for the signature for C externals to be unknown):
         if called_args_exprs[
-                    called_args_exprs.len
+                    last_nonlist_callarg_index
                 ].kind == ast.N_EXPR_IDREF and
                 called_args_exprs[
-                    called_args_exprs.len
+                    last_nonlist_callarg_index
                 ].ref != none and
                 called_args_exprs[
-                    called_args_exprs.len
+                    last_nonlist_callarg_index
                 ].ref.kind == st_ref.ST_MCREF {
             return later
         } elseif called_args_exprs[
-                    called_args_exprs.len
+                    last_nonlist_callarg_index
                 ].kind == ast.N_EXPR_BINOP and
                 called_args_exprs[
-                    called_args_exprs.len
+                    last_nonlist_callarg_index
                 ].optoken.str == "." and
                 called_args_exprs[
-                    called_args_exprs.len
+                    last_nonlist_callarg_index
                 ].subexprs[2].kind == ast.N_EXPR_IDREF and
                 called_args_exprs[
-                    called_args_exprs.len
+                    last_nonlist_callarg_index
                 ].subexprs[2].ref != none and
                 called_args_exprs[
-                    called_args_exprs.len
+                    last_nonlist_callarg_index
                 ].subexprs[2].ref.kind == st_ref.ST_MCREF {
             return later
         }
@@ -1394,7 +1456,7 @@ func get_called_or_assigned_func_types(
         last_param_m64_typeinfo =
             m64_ast_analyze.get_c_or_m64_type_of_node(
                 project_file, called_args_exprs[
-                    called_args_exprs.len
+                    last_nonlist_callarg_index
                 ], called_node_parents + [call_args_expr],
                 store_self_value_ref_for_funcs=no,
                 msgs=msgs, debug=no,
@@ -1413,7 +1475,7 @@ func get_called_or_assigned_func_types(
                 "type of this node: "
                 "arg_expr=" +
                 called_args_exprs[
-                    called_args_exprs.len
+                    last_nonlist_callarg_index
                 ].as_str() + " (got msgs=" +
                 msgs.as_str() + ")")
             throw new RuntimeError(
@@ -1449,9 +1511,21 @@ func get_called_or_assigned_func_types(
         func_typeinfo.func_typeexpr.is_failable
     if expected_failable_call {
         assert(expected_actual_arg_typeexprs.len > 0)
+        var expected_last_nonlist_arg_index =
+            expected_actual_arg_typeexprs.len
+        if expected_actual_arg_typeexprs.len > 0 and
+                expected_actual_arg_typeexprs[
+                    expected_last_nonlist_arg_index
+                ].is_list_arg {
+            expected_last_nonlist_arg_index -= 1
+        }
+        last_nonlist_callarg_index = expected_actual_arg_typeexprs.len - 1
         expected_actual_arg_typeexprs =
             expected_actual_arg_typeexprs.sub(
-                1, expected_actual_arg_typeexprs.len - 1)
+                1, expected_last_nonlist_arg_index - 1
+            ) + expected_actual_arg_typeexprs.sub(
+                expected_last_nonlist_arg_index + 1
+            )
     }
     var expected_self_call =
         func_typeinfo.func_typeexpr.is_func_attr
