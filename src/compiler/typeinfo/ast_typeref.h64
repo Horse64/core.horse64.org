@@ -803,7 +803,17 @@ func create_typeref_from_func_node(
         failable_type_expr.modifiers.add(
             new TypeRefMod("ref")
         )
-        type_expr.arg_typeref_exprs.add(failable_type_expr)
+        var insert_at_pos = type_expr.arg_typeref_exprs.len + 1
+        if insert_at_pos > 1 and
+                type_expr.arg_typeref_exprs[
+                    type_expr.arg_typeref_exprs.len
+                ].is_list_arg {
+            insert_at_pos -= 1
+        }
+        assert(insert_at_pos >= 1)
+        type_expr.arg_typeref_exprs.add_at(
+            insert_at_pos, failable_type_expr
+        )
         type_expr.is_failable = yes
     }
     if node.extended_final_has_return_type() {
