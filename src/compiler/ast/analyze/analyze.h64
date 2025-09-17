@@ -1519,13 +1519,26 @@ func get_called_or_assigned_func_types(
                 ].is_list_arg {
             expected_last_nonlist_arg_index -= 1
         }
-        last_nonlist_callarg_index = expected_actual_arg_typeexprs.len - 1
+        if debug {
+            print(dbg_prefix + " "
+                "Expecting a failable call, so let's cut out the "
+                "failable parameter to get actual "
+                "user-facing args. Let's cut this... "
+                "expected_actual_arg_typeexprs=" +
+                    expected_actual_arg_typeexprs.as_str())
+        }
         expected_actual_arg_typeexprs =
             expected_actual_arg_typeexprs.sub(
                 1, expected_last_nonlist_arg_index - 1
             ) + expected_actual_arg_typeexprs.sub(
                 expected_last_nonlist_arg_index + 1
             )
+        if debug {
+            print(dbg_prefix + " "
+                "Cutting done. "
+                "expected_actual_arg_typeexprs=" +
+                expected_actual_arg_typeexprs.as_str())
+        }
     }
     var expected_self_call =
         func_typeinfo.func_typeexpr.is_func_attr
@@ -1550,6 +1563,19 @@ func get_called_or_assigned_func_types(
         called_name = "'" + called_node.subexprs[2].label + "'"
     } elseif called_node.kind == ast.N_EXPR_IDREF {
         called_name = "'" + called_node.label + "'"
+    }
+
+    if debug {
+        print(dbg_prefix + " "
+            "Done assembling initial call info. "
+            "called_args_exprs=" +
+                called_args_exprs.as_str() + " "
+            "last_nonlist_callarg_index=" +
+                last_nonlist_callarg_index.as_str() + " "
+            "expected_actual_arg_typeexprs=" +
+                expected_actual_arg_typeexprs.as_str() + " "
+            "expected_failable_call=" +
+                expected_failable_call.as_str())
     }
 
     func determine_adhoc_self_call {
@@ -1662,7 +1688,7 @@ func get_called_or_assigned_func_types(
         var indexes = []
         var i = 1
         while i <= called_args_exprs.len {
-            if i == called_args_exprs.len and
+            if i == last_nonlist_callarg_index and
                     is_failable_call {
                 i += 1
                 continue
@@ -1670,10 +1696,23 @@ func get_called_or_assigned_func_types(
             indexes.add(i)
             i += 1
         }
+        if debug {
+            print(dbg_prefix + " "
+                "evaluate_param_types_if_needed(): "
+                "Looking at these called_args_exprs indexes to "
+                "evaluate: " + indexes.as_str())
+        }
         func create_arg_list {
             func obtain_arg(arg_idx) {
                 # The argument number the user thinks this is:
                 var user_facing_idx = arg_idx
+                if is_failable_call and
+                        user_facing_idx > last_nonlist_callarg_index {
+                    # (Since we pretend the failable parameter
+                    # isn't there, everything after would be
+                    # moved toward the front.)
+                    user_facing_idx -= 1
+                }
                 if is_called_with_adhoc_self {
                     # (Since called_args_exprs is trimmed to
                     # the non-self args even in the ad-hoc case.)
