@@ -7716,9 +7716,10 @@ func generate_imr_for_project(
             print(program_name + ": debug: "
                 "generate_imr_for_project(): "
                 "Will now do IMR transformation "
-                "to add self parameters to funcs...")
+                "to add self and failable "
+                "parameters to funcs...")
         }
-        result = imr_transform.add_self_parameters_to_funcs(
+        result = imr_transform.add_self_and_failable_parameters_to_funcs(
             project=project,
             imr_build_tracker=imr_build_tracker,
             build_options=build_options,

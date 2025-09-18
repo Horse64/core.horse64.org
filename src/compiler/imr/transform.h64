@@ -337,8 +337,7 @@ func do_per_func_imr_block(
     return later not had_abort
 }
 
-
-func add_self_parameters_to_funcs(
+func add_self_and_failable_parameters_to_funcs(
         project=none,
         imr_build_tracker=none,
         build_options=none,
@@ -371,7 +370,7 @@ func add_self_parameters_to_funcs(
             block.kw_arg_count
         if debug {
             print(program_name + ": debug: " +
-                "add_self_parameters_to_funcs(): " +
+                "add_self_and_failable_parameters_to_funcs(): " +
                 "Looking at function: " +
                 "label=" + block.label.as_str())
         }
@@ -409,7 +408,7 @@ func add_self_parameters_to_funcs(
             }
             if debug {
                 print(program_name + ": debug: " +
-                    "add_self_parameters_to_funcs(): " +
+                    "add_self_and_failable_parameters_to_funcs(): " +
                     "Trying to resolve func storage "
                     "ref to type expr: " +
                     "func_storage_ref=" + func_storage_ref.as_str())
@@ -451,7 +450,7 @@ func add_self_parameters_to_funcs(
             }
             if debug {
                 print(program_name + ": debug: " +
-                    "add_self_parameters_to_funcs(): " +
+                    "add_self_and_failable_parameters_to_funcs(): " +
                     "Try to resolve user type directly. "
                     "Type ref is: user_type_storage_ref=" +
                         user_type_storage_ref.as_str())
@@ -529,6 +528,32 @@ func add_self_parameters_to_funcs(
         block.known_arg_type_storage_refs = [
             user_type_storage_ref
         ] + block.known_arg_type_storage_refs
+
+        if block.func_scope != none and
+                block.func_scope.has_failable {
+            assert(block.kw_arg_count == 0)
+            var failable_insert_index =
+                block.known_arg_type_exprs.len + 1
+            if block.known_arg_type_exprs.len > 0 and
+                    block.known_arg_type_exprs[
+                        block.known_arg_type_exprs.len
+                    ] != none and
+                    block.known_arg_type_exprs[
+                        block.known_arg_type_exprs.len
+                    ].is_list_arg {
+                failable_insert_index =
+                    block.known_arg_type_exprs.len
+            }
+            var failable_expr = new ast_typeref.TypeRefExpr()
+            failable_expr.name = "moose64_failed_result_t"
+            block.known_arg_type_exprs.add_at(
+                failable_insert_index, failable_expr
+            )
+            block.known_arg_type_storage_refs.add_at(
+                failable_insert_index, none
+            )
+            block.pos_arg_count += 1
+        }
 
         func handle_queue_item(item) {
             replace_refs_in_func(
