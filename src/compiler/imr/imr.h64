@@ -3046,6 +3046,7 @@ func generate_imr_for_expr(
             is_moose64=is_moose64,
         )
         result.instructions.add(inst)
+        result.storage_ref = try_target_storage_ref.copy()
     }
     do_conversion_if_needed() later:
 
