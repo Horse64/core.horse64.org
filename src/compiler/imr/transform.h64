@@ -78,8 +78,18 @@ func replace_refs_in_func(
                     item.storage_id = new_ref.id
                 }
             } elseif item.kind == compiler.imr.IMR_INST_GETLISTARGLEN {
-                if item.multi_arg_storage_ref.alike(old_ref) {
-                    item.multi_arg_storage_ref = new_ref.copy()
+                if item.list_arg_storage_ref.alike(old_ref) {
+                    item.list_arg_storage_ref = new_ref.copy()
+                }
+                if item.target_storage_ref.alike(old_ref) {
+                    item.target_storage_ref = new_ref.copy()
+                }
+            } elseif item.kind == compiler.imr.IMR_INST_GETLISTARG {
+                if item.list_arg_storage_ref.alike(old_ref) {
+                    item.list_arg_storage_ref = new_ref.copy()
+                }
+                if item.idx_storage_ref.alike(old_ref) {
+                    item.idx_storage_ref = new_ref.copy()
                 }
                 if item.target_storage_ref.alike(old_ref) {
                     item.target_storage_ref = new_ref.copy()
@@ -187,6 +197,22 @@ func replace_refs_in_func(
                     item.target_storage_ref = new_ref.copy()
                 }
             } elseif item.kind == compiler.imr.IMR_INST_CALL {
+                if item.called_func_ref.alike(old_ref) {
+                    item.called_func_ref = new_ref.copy()
+                }
+                if item.return_value_ref != none and
+                        item.return_value_ref.alike(old_ref) {
+                    item.return_value_ref = new_ref.copy()
+                }
+                for arg in item.args {
+                    if arg.ref.alike(old_ref) {
+                        arg.ref = new_ref.copy()
+                    }
+                }
+            } elseif item.kind == compiler.imr.IMR_INST_CALLWLISTFORWARD {
+                if item.list_arg_ref.alike(old_ref) {
+                    item.list_arg_ref = new_ref.copy()
+                }
                 if item.called_func_ref.alike(old_ref) {
                     item.called_func_ref = new_ref.copy()
                 }
@@ -394,7 +420,110 @@ func add_self_and_failable_parameters_to_funcs(
             "has to be specified.")
     }
 
+    func handle_replacement_queue(pfile, replace_queue) {
+        func handle_queue_item(item) {
+            replace_refs_in_func(
+                item[1], item[2], item[3],
+                project_file=pfile,
+                imr_build_tracker=imr_build_tracker,
+                is_moose64=is_moose64,
+                msgs=msgs,
+                debug=no,
+            ) later:
+        }
+        if replace_queue.len == 0 {
+            return later yes
+        }
+        var item = replace_queue.pop_at(1)
+        var result = handle_queue_item(item)
+        later:
+
+        await result
+        if replace_queue.len == 0 {
+            return later yes
+        }
+        item = replace_queue.pop_at(1)
+        result = handle_queue_item(item)
+        later repeat
+    }
+
     func handle_func_block(pfile, block) {
+        var replace_queue = []
+
+        if debug {
+            print(program_name + ": debug: " +
+                "add_self_and_failable_parameters_to_funcs(): " +
+                "Looking at function for failable parameter: " +
+                "label=" + block.label.as_str())
+        }
+
+        if block.func_scope != none and
+                block.func_scope.has_failable {
+            assert(block.kw_arg_count == 0)
+            var failable_insert_index =
+                block.known_arg_type_exprs.len + 1
+            if block.known_arg_type_exprs.len > 0 and
+                    block.known_arg_type_exprs[
+                        block.known_arg_type_exprs.len
+                    ] != none and
+                    block.known_arg_type_exprs[
+                        block.known_arg_type_exprs.len
+                    ].is_list_arg {
+                failable_insert_index =
+                    block.known_arg_type_exprs.len
+                replace_queue.add([
+                    block,
+                    new st_ref.StorageRef(
+                        st_ref.ST_ARG,
+                        block.known_arg_type_exprs.len,
+                    ),
+                    new st_ref.StorageRef(
+                        st_ref.ST_ARG,
+                        block.known_arg_type_exprs.len + 2,
+                    ),
+                ])
+                replace_queue.add([
+                    block,
+                    new st_ref.StorageRef(
+                        st_ref.ST_ARG,
+                        block.known_arg_type_exprs.len + 1,
+                    ),
+                    new st_ref.StorageRef(
+                        st_ref.ST_ARG,
+                        block.known_arg_type_exprs.len,
+                    ),
+                ])
+                replace_queue.add([
+                    block,
+                    new st_ref.StorageRef(
+                        st_ref.ST_ARG,
+                        block.known_arg_type_exprs.len + 2,
+                    ),
+                    new st_ref.StorageRef(
+                        st_ref.ST_ARG,
+                        block.known_arg_type_exprs.len + 1,
+                    ),
+                ])
+            }
+            var failable_expr = new ast_typeref.TypeRefExpr()
+            failable_expr.name = "moose64_failed_result_t"
+            failable_expr.add_ref_modifier()
+            block.known_arg_type_exprs.add_at(
+                failable_insert_index, failable_expr
+            )
+            block.known_arg_type_storage_refs.add_at(
+                failable_insert_index, none
+            )
+            block.pos_arg_count += 1
+        }
+        var replace_result = handle_replacement_queue(
+            pfile, replace_queue) later:
+
+        await replace_result
+        return later replace_result
+    }
+
+    func handle_func_block_2(pfile, block) {
         if not block.is_func_attr {
             return later yes
         }
@@ -406,9 +535,10 @@ func add_self_and_failable_parameters_to_funcs(
         if debug {
             print(program_name + ": debug: " +
                 "add_self_and_failable_parameters_to_funcs(): " +
-                "Looking at function: " +
+                "Looking at function for self parameter: " +
                 "label=" + block.label.as_str())
         }
+
         var i = 1
         while i <= amount_of_args_used {
             replace_queue.add([
@@ -564,61 +694,29 @@ func add_self_and_failable_parameters_to_funcs(
             user_type_storage_ref
         ] + block.known_arg_type_storage_refs
 
-        if block.func_scope != none and
-                block.func_scope.has_failable {
-            assert(block.kw_arg_count == 0)
-            var failable_insert_index =
-                block.known_arg_type_exprs.len + 1
-            if block.known_arg_type_exprs.len > 0 and
-                    block.known_arg_type_exprs[
-                        block.known_arg_type_exprs.len
-                    ] != none and
-                    block.known_arg_type_exprs[
-                        block.known_arg_type_exprs.len
-                    ].is_list_arg {
-                failable_insert_index =
-                    block.known_arg_type_exprs.len
-            }
-            var failable_expr = new ast_typeref.TypeRefExpr()
-            failable_expr.name = "moose64_failed_result_t"
-            failable_expr.add_ref_modifier()
-            block.known_arg_type_exprs.add_at(
-                failable_insert_index, failable_expr
-            )
-            block.known_arg_type_storage_refs.add_at(
-                failable_insert_index, none
-            )
-            block.pos_arg_count += 1
-        }
+        var replace_result = handle_replacement_queue(
+            pfile, replace_queue) later:
 
-        func handle_queue_item(item) {
-            replace_refs_in_func(
-                item[1], item[2], item[3],
-                project_file=pfile,
-                imr_build_tracker=imr_build_tracker,
-                is_moose64=is_moose64,
-                msgs=msgs,
-                debug=no,
-            ) later:
-        }
-        if replace_queue.len == 0 {
-            return later yes
-        }
-        var item = replace_queue.pop_at(1)
-        var result = handle_queue_item(item)
-        later:
-
-        await result
-        if replace_queue.len == 0 {
-            return later yes
-        }
-        item = replace_queue.pop_at(1)
-        result = handle_queue_item(item)
-        later repeat
+        await replace_result
+        return later replace_result
     }
 
     var result = do_per_func_imr_block(
         handle_func_block,
+        project=project,
+        imr_build_tracker=imr_build_tracker,
+        build_options=build_options,
+        is_moose64=is_moose64,
+        msgs=msgs,
+        debug=no,
+    ) later:
+
+    await result
+    if not result {
+        return later no
+    }
+    result = do_per_func_imr_block(
+        handle_func_block_2,
         project=project,
         imr_build_tracker=imr_build_tracker,
         build_options=build_options,

@@ -656,21 +656,31 @@ func IMRMove.as_json_obj(
     return obj
 }
 
-type IMRGetListArgLen base IMRNode {
-    var multi_arg_storage_ref
+type IMRGetListArg base IMRNode {
+    var list_arg_storage_ref
+    var idx_storage_ref
     var target_storage_ref
 }
 
-func IMRGetListArgLen.init(
-        multi_arg_storage_ref,
+func IMRGetListArg.init(
+        list_arg_storage_ref,
+        idx_storage_ref,
         target_storage_ref,
         ) {
-    base.init(IMR_INST_GETLISTARGLEN)
-    if typename(multi_arg_storage_ref) != "obj" or
-            not has_attr(multi_arg_storage_ref, "kind") or
-            not has_attr(multi_arg_storage_ref, "id") {
+    base.init(IMR_INST_GETLISTARG)
+
+    if typename(list_arg_storage_ref) != "obj" or
+            not has_attr(list_arg_storage_ref, "kind") or
+            not has_attr(list_arg_storage_ref, "id") {
         throw new TypeError(
-            "The multi_arg_storage_ref parameter "
+            "The list_arg_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    if typename(idx_storage_ref) != "obj" or
+            not has_attr(idx_storage_ref, "kind") or
+            not has_attr(idx_storage_ref, "id") {
+        throw new TypeError(
+            "The idx_storage_ref parameter "
             "must be of type StorageRef.")
     }
     if typename(target_storage_ref) != "obj" or
@@ -680,16 +690,99 @@ func IMRGetListArgLen.init(
             "The target_storage_ref parameter "
             "must be of type StorageRef.")
     }
-    self.multi_arg_storage_ref =
-        multi_arg_storage_ref.copy()
+    self.list_arg_storage_ref =
+        list_arg_storage_ref.copy()
+    self.idx_storage_ref =
+        idx_storage_ref.copy()
+    self.target_storage_ref =
+        target_storage_ref.copy()
+}
+
+func IMRGetListArg.as_str(indent=0) {
+    return self.format_inst(
+        "GETMULTIARG", pos_parameter_names=[
+            "list_arg_storage_ref",
+            "idx_storage_ref",
+            "target_storage_ref",
+        ], indent=indent,
+    )
+}
+
+func IMRGetListArg.copy {
+    var self_copy = base.copy()
+    self_copy.list_arg_storage_ref =
+        self.list_arg_storage_ref.copy()
+    self_copy.idx_storage_ref =
+        self.idx_storage_ref.copy()
+    self_copy.target_storage_ref =
+        self.target_storage_ref.copy()
+    return self_copy
+}
+
+func IMRGetListArg.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+        _passthrough_storage_refs)
+    if _passthrough_storage_refs {
+        obj["list_arg_storage_ref"] =
+            self.list_arg_storage_ref
+    } else {
+        obj["list_arg_storage_ref"] =
+            self.list_arg_storage_ref.as_str()
+    }
+    if _passthrough_storage_refs {
+        obj["idx_storage_ref"] =
+            self.idx_storage_ref
+    } else {
+        obj["idx_storage_ref"] =
+            self.idx_storage_ref.as_str()
+    }
+    if _passthrough_storage_refs {
+        obj["target_storage_ref"] =
+            self.target_storage_ref
+    } else {
+        obj["target_storage_ref"] =
+            self.target_storage_ref.as_str()
+    }
+    return obj
+}
+
+type IMRGetListArgLen base IMRNode {
+    var list_arg_storage_ref
+    var target_storage_ref
+}
+
+func IMRGetListArgLen.init(
+        list_arg_storage_ref,
+        target_storage_ref,
+        ) {
+    base.init(IMR_INST_GETLISTARGLEN)
+    if typename(list_arg_storage_ref) != "obj" or
+            not has_attr(list_arg_storage_ref, "kind") or
+            not has_attr(list_arg_storage_ref, "id") {
+        throw new TypeError(
+            "The list_arg_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    if typename(target_storage_ref) != "obj" or
+            not has_attr(target_storage_ref, "kind") or
+            not has_attr(target_storage_ref, "id") {
+        throw new TypeError(
+            "The target_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    self.list_arg_storage_ref =
+        list_arg_storage_ref.copy()
     self.target_storage_ref =
         target_storage_ref.copy()
 }
 
 func IMRGetListArgLen.as_str(indent=0) {
     return self.format_inst(
-        "GETMULTIARGLEN", pos_parameter_names=[
-            "multi_arg_storage_ref",
+        "GETLISTARGLEN", pos_parameter_names=[
+            "list_arg_storage_ref",
             "target_storage_ref",
         ], indent=indent,
     )
@@ -697,8 +790,8 @@ func IMRGetListArgLen.as_str(indent=0) {
 
 func IMRGetListArgLen.copy {
     var self_copy = base.copy()
-    self_copy.multi_arg_storage_ref =
-        self.multi_arg_storage_ref.copy()
+    self_copy.list_arg_storage_ref =
+        self.list_arg_storage_ref.copy()
     self_copy.target_storage_ref =
         self.target_storage_ref.copy()
     return self_copy
@@ -711,11 +804,11 @@ func IMRGetListArgLen.as_json_obj(
         _passthrough_storage_refs=
         _passthrough_storage_refs)
     if _passthrough_storage_refs {
-        obj["multi_arg_storage_ref"] =
-            self.multi_arg_storage_ref
+        obj["list_arg_storage_ref"] =
+            self.list_arg_storage_ref
     } else {
-        obj["multi_arg_storage_ref"] =
-            self.multi_arg_storage_ref.as_str()
+        obj["list_arg_storage_ref"] =
+            self.list_arg_storage_ref.as_str()
     }
     if _passthrough_storage_refs {
         obj["target_storage_ref"] =
@@ -1163,6 +1256,7 @@ func IMRCallArg.init(ref, name) {
 type IMRCallWListForward base IMRNode {
     var called_func_ref = none
     var return_value_ref = none
+    var list_arg_ref
 
     var arg_count = 0
     var pos_arg_count = 0
@@ -1174,6 +1268,7 @@ type IMRCallWListForward base IMRNode {
 }
 
 func IMRCallWListForward.init(
+        list_arg_ref,
         called_func_ref=none,
         arg_refs=[],
         arg_names_if_any=[],
@@ -1189,6 +1284,13 @@ func IMRCallWListForward.init(
             "arg_names_if_any list len must match."
         )
     }
+    if typename(list_arg_ref) != "obj" or
+            not has_attr(list_arg_ref, "kind") or
+            not has_attr(list_arg_ref, "id") {
+        throw new ValueError(
+            "The list arg ref seems to be invalid."
+        )
+    }
     if typename(called_func_ref) != "obj" or
             not has_attr(called_func_ref, "kind") or
             not has_attr(called_func_ref, "id") {
@@ -1202,6 +1304,7 @@ func IMRCallWListForward.init(
         throw new TypeError("The return_value_ref parameter "
             "must be either none or of type StorageRef.")
     }
+    self.list_arg_ref = list_arg_ref.copy()
     self.has_later = has_later
     self.has_later_ignore = has_later_ignore
     self.has_later_repeat = has_later_repeat
@@ -1286,6 +1389,11 @@ func IMRCallWListForward.as_json_obj(
     } else {
         obj["called_func_ref"] =
             self.called_func_ref.as_str()
+    }
+    if _passthrough_storage_refs {
+        obj["list_arg_ref"] = self.list_arg_ref
+    } else {
+        obj["list_arg_ref"] = self.list_arg_ref.as_str()
     }
     obj["has_later"] = self.has_later
     obj["has_later_ignore"] = self.has_later_ignore
@@ -1409,6 +1517,9 @@ func IMRCall.init(
                 "is not a number.")
         }
         if list_arg_idx < 1 or list_arg_idx > self.args.len {
+            print("horsec: error: Got list_arg_idx=" +
+                list_arg_idx.as_str() + " which exceeds " +
+                "self.args.len of " + self.args.len.as_str() + ".")
             throw new ValueError("Given list_arg_idx "
                 "is out of bounds.")
         }
@@ -1718,29 +1829,6 @@ func IMRReturn.as_str(indent=0) {
         "RETURN", pos_parameter_names=[
             "return_value_storage_ref",
         ], indent=indent,
-    )
-}
-
-
-type IMRReturnFail base IMRNode {
-}
-
-func IMRReturnFail.init {
-    base.init(IMR_INST_RETURNFAIL)
-}
-
-func IMRReturnFail.as_json_obj(
-        _passthrough_storage_refs=no,
-        ) {
-    var obj = base.as_json_obj(
-        _passthrough_storage_refs=
-            _passthrough_storage_refs)
-    return obj
-}
-
-func IMRReturnFail.as_str(indent=0) {
-    return self.format_inst(
-        "RETURNFAIL", indent=indent,
     )
 }
 
@@ -2590,13 +2678,13 @@ enum IMRNodeKind {
     IMR_INST_SIZEOF,
     IMR_INST_APPLY_OP,
     IMR_INST_GETLISTARGLEN,
+    IMR_INST_GETLISTARG,
     IMR_INST_STORELISTARGREF,
     IMR_INST_CALL,
     IMR_INST_CALLWLISTFORWARD,
     IMR_INST_BREAK,
     IMR_INST_CONTINUE,
     IMR_INST_RETURN,
-    IMR_INST_RETURNFAIL,
     IMR_INST_AWAIT,
     IMR_INST_CLRZERO,
     IMR_INST_SETLIT,
@@ -3712,7 +3800,10 @@ func _generate_imr_for_expr_untyped(
         if debug {
             print(program_name + ": debug: " +
                 "generate_imr_for_expr(): "
-                "Handling call expression...")
+                "Handling call expression in "
+                "line " + node.line.as_str() + ", "
+                "at column " +
+                node.col.as_str() + "...")
         }
 
         var expect_return_value = not return_value_is_ignored
@@ -3763,6 +3854,7 @@ func _generate_imr_for_expr_untyped(
         var is_as_ref = no
         var is_de_ref = no
         var is_size_of = no
+        var is_list_arg_get = no
         if is_moose64 and
                 m64_builtins.
                     is_ast_node_referring_to_m64_memory_as_ref(
@@ -3784,16 +3876,49 @@ func _generate_imr_for_expr_untyped(
                         is_moose64=is_moose64,
                     ) {
             is_size_of = yes
+        } elseif is_moose64 and
+                m64_builtins.
+                is_ast_node_referring_to_m64_list_arg_get(
+                    project_file, node.subexprs[1],
+                    is_moose64=is_moose64,
+                ) {
+            is_list_arg_get = yes
+        } elseif is_moose64 and
+                m64_builtins.
+                is_ast_node_referring_to_m64_list_arg_forward(
+                    project_file, node.subexprs[1],
+                    is_moose64=is_moose64,
+                ) {
+            if msgs == none {
+                throw new RuntimeError(
+                    "Unexpected attempt to use "
+                    "of list_arg.forward() outside of a call."
+                )
+            }
+            if not node.has_damage() {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected "
+                    "list_arg.forward() outside of a call.",
+                    source_file=project_file,
+                    line=node.line,
+                    col=node.col,
+                ))
+            }
+            node.damaged = yes
+            return later none
         }
         if expect_return_value and
                 left_hand_result.known_type_info != none and
                 left_hand_result.known_type_info.kind ==
                     typeinfo.TI_FUNCREF and
-                not left_hand_result.known_type_info.can_return_value() {
+                not left_hand_result.known_type_info.
+                    can_return_value() {
             if msgs == none {
-                throw new RuntimeError("Unexpected attempt to use "
+                throw new RuntimeError(
+                    "Unexpected attempt to use "
                     "call return value, "
-                    "but called func doesn't return any value.")
+                    "but called func doesn't return any value."
+                )
             }
             if not node.has_damage() {
                 msgs.add(new msg.FileMsg(
@@ -3811,11 +3936,14 @@ func _generate_imr_for_expr_untyped(
                 left_hand_result.known_type_info != none and
                 left_hand_result.known_type_info.kind ==
                     typeinfo.TI_FUNCREF and
-                left_hand_result.known_type_info.can_return_value() {
+                left_hand_result.known_type_info.
+                    can_return_value() {
             if msgs == none {
-                throw new RuntimeError("Unexpected attempt to use "
+                throw new RuntimeError(
+                    "Unexpected attempt to use "
                     "call return value, "
-                    "but called func doesn't return any value.")
+                    "but called func doesn't return any value."
+                )
             }
             msgs.add(new msg.FileMsg(
                 "Return value of call was ignored.",
@@ -3825,18 +3953,43 @@ func _generate_imr_for_expr_untyped(
                 col=node.col,
             ))
         }
-        if is_moose64 and (is_as_ref or is_de_ref or is_size_of) and
+        if is_moose64 and (is_as_ref or is_de_ref or is_size_of or
+                is_list_arg_get) and
                 node.subexprs[2].kind == ast.N_EXPR_CALLARGS and
-                node.subexprs[2].subexprs.len > 0 {
+                node.subexprs[2].subexprs.len >= 0 {
             # If we enter this code block, then it's a moose64 special
             # builtin and not an actual call.
 
+            if node.subexprs[2].subexprs.len == 0 {
+                if msgs == none {
+                    throw new RuntimeError(
+                        "Unexpected missing argument for "
+                        "call, 1 argument expected."
+                    )
+                }
+                msgs.add(new msg.FileMsg(
+                    "Unexpected missing argument for "
+                    "call, 1 argument expected.",
+                    kind=msg.M_WARNING,
+                    source_file=project_file,
+                    line=node.line,
+                    col=node.col,
+                ))
+                node.damaged = yes
+                return later none
+            }
+            var arg_conv_type = none
+            if is_list_arg_get {
+                arg_conv_type = typeinfo.
+                    create_from_simple_m64_type("size")
+            }
             var arg_expr_result = generate_imr_for_expr(
                 node.subexprs[2].subexprs[1],
                 node_parents=node_parents + [node, node.subexprs[2]],
                 imr_parents=imr_parents,
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
+                convert_to_target_type=arg_conv_type,
                 project_file=project_file,
                 imr_build_tracker=imr_build_tracker,
                 is_moose64=is_moose64,
@@ -3868,6 +4021,7 @@ func _generate_imr_for_expr_untyped(
             if target_tmp_typeinfo == none {
                 return later none
             }
+            var our_func_list_arg_info = none
             var our_node_typeinfo =
                 arg_expr_result.known_type_info.copy()
             if is_as_ref {
@@ -3879,11 +4033,48 @@ func _generate_imr_for_expr_untyped(
             } elseif is_size_of {
                 our_node_typeinfo = typeinfo.
                     create_from_simple_m64_type("size")
+            } elseif is_list_arg_get {
+                our_node_typeinfo = none
             } else {
                 throw new RuntimeError("Unimplemented code "
                     "path was reached.")
             }
-            if our_node_typeinfo == none {
+            func handle_list_arg_get_type {
+                if not is_list_arg_get {
+                    return later
+                }
+                our_func_list_arg_info =
+                    find_list_arg(
+                        project_file=project_file,
+                        is_moose64=is_moose64,
+                        debug=debug,
+                    ) later:
+
+                await our_func_list_arg_info
+                if our_func_list_arg_info != none and
+                        our_func_list_arg_info.had_error {
+                    if msgs == none {
+                        throw new RuntimeError(
+                            "Found invalid list_arg usage."
+                        )
+                    } elseif not node.has_damage() {
+                        msgs.add(new msg.FileMsg(
+                            called_func_list_arg_info.error_msg,
+                            source_file=project_file,
+                            line=func_imr_parent.line,
+                            col=func_imr_parent.col,
+                        ))
+                    }
+                    node.damaged = yes
+                    our_func_list_arg_info = none
+                } else {
+                    our_node_typeinfo =
+                        our_func_list_arg_info.typeinfo
+                }
+            }
+            if our_node_typeinfo == none or
+                    (is_list_arg_get and
+                     our_func_list_arg_info == none) {
                 return later none
             }
 
@@ -3925,17 +4116,24 @@ func _generate_imr_for_expr_untyped(
             if is_as_ref {
                 result.instructions.add(new IMRAsref(
                     asref_source_storage_ref=arg_expr_result.storage_ref,
-                    target_storage_ref=tmp_ref,
+                    target_storage_ref=write_op_result_to_tmp_ref,
                 ))
             } elseif is_de_ref {
                 result.instructions.add(new IMRDeref(
                     asref_source_storage_ref=arg_expr_result.storage_ref,
-                    target_storage_ref=tmp_ref,
+                    target_storage_ref=write_op_result_to_tmp_ref,
                 ))
             } elseif is_size_of {
                 result.instructions.add(new IMRSizeof(
                     sizeof_source_storage_ref=arg_expr_result.storage_ref,
-                    target_storage_ref=tmp_ref,
+                    target_storage_ref=write_op_result_to_tmp_ref,
+                ))
+            } elseif is_list_arg_get {
+                result.instructions.add(new IMRGetListArg(
+                    new st_ref.StorageRef(
+                        st_ref.ST_ARG, our_func_list_arg_info.index),
+                    arg_expr_result.storage_ref,
+                    write_op_result_to_tmp_ref,
                 ))
             } else {
                 throw new RuntimeError("Unimplemented code "
@@ -3949,6 +4147,7 @@ func _generate_imr_for_expr_untyped(
         var called_func_type_info_if_known =
             left_hand_result.known_type_info
         var called_func_list_arg_info = none
+        var our_func_list_arg_info = none
         var implicit_self_arg = no
         var args_node = node.subexprs[2]
         var call_args_len = args_node.subexprs.len
@@ -3960,8 +4159,48 @@ func _generate_imr_for_expr_untyped(
             implicit_self_arg = yes
         }
         func locate_list_arg_if_any {
-            if not is_moose64 or
-                    called_func_type_info_if_known == none {
+            if not is_moose64 {
+                return later
+            }
+            if debug {
+                print(program_name + ": debug: " +
+                    "generate_imr_for_expr(): "
+                    "Looking at list arg info...")
+            }
+            func handle_our_own_list_arg {
+                if our_func_list_arg_info != none {
+                    return later
+                }
+                our_func_list_arg_info =
+                    find_list_arg(
+                        return_none_if_not_found=yes,
+                        project_file=project_file,
+                        is_moose64=is_moose64,
+                        debug=debug,
+                    ) later:
+
+                await our_func_list_arg_info
+                if our_func_list_arg_info != none and
+                        our_func_list_arg_info.had_error {
+                    if msgs == none {
+                        throw new RuntimeError(
+                            "Found invalid list_arg usage."
+                        )
+                    } elseif not node.has_damage() {
+                        msgs.add(new msg.FileMsg(
+                            called_func_list_arg_info.error_msg,
+                            source_file=project_file,
+                            line=func_imr_parent.line,
+                            col=func_imr_parent.col,
+                        ))
+                    }
+                    node.damaged = yes
+                    our_func_list_arg_info = none
+                }
+            }
+            handle_our_own_list_arg() later:
+
+            if called_func_list_arg_info != none {
                 return later
             }
             called_func_list_arg_info =
@@ -4015,6 +4254,7 @@ func _generate_imr_for_expr_untyped(
                 "generate_imr_for_expr(): "
                 "Will now assemble all the args. "
                 "args_node=" + args_node.as_str().sub(1, 200) + "... "
+                "orig_arg_exprs=" + orig_arg_exprs.as_str() + " "
                 "called_func_list_arg_info=" +
                     called_func_list_arg_info.as_str())
         }
@@ -4252,8 +4492,11 @@ func _generate_imr_for_expr_untyped(
         if not expect_return_value {
             # We want to call this but ignore the return value.
             result.storage_ref = none
-            if list_arg_forward_expr != none {
+            if list_arg_forward_expr != none and
+                    our_func_list_arg_info != none {
                 result.instructions.add(new IMRCallWListForward(
+                    new st_ref.StorageRef(
+                        st_ref.ST_ARG, our_func_list_arg_info.index),
                     called_func_ref=left_hand_result.storage_ref,
                     arg_refs=arg_refs,
                     arg_names_if_any=arg_names_if_any,
@@ -4327,8 +4570,11 @@ func _generate_imr_for_expr_untyped(
         }
         insert_type_conversion_if_needed() later:
 
-        if list_arg_forward_expr != none {
+        if list_arg_forward_expr != none and
+                our_func_list_arg_info != none {
             result.instructions.add(new IMRCallWListForward(
+                new st_ref.StorageRef(
+                    st_ref.ST_ARG, our_func_list_arg_info.index),
                 called_func_ref=left_hand_result.storage_ref,
                 arg_refs=arg_refs,
                 arg_names_if_any=arg_names_if_any,
@@ -4914,6 +5160,42 @@ func generate_imr_for_stmt(
                 "find the func parent node.")
         }
 
+        func determine_return_value_typeinfo {
+            if not is_moose64 {
+                expected_return_value_tinfo = none
+                return later
+            }
+            var return_type_expr = none
+            if fnode_parent != none and
+                    fnode_parent.extended_final_has_return_type() {
+                return_type_expr = fnode_parent.
+                    extended_final_return_type_expr()
+            }
+            if return_type_expr != none {
+                var result =
+                typeinfo.create_typeinfo_from_typeexpr_and_verify(
+                    return_type_expr,
+                    project=project_file.project,
+                    is_moose64=is_moose64,
+                ) later:
+
+                await result
+                expected_return_value_tinfo = result
+                return later
+            }
+            expected_return_value_tinfo = none
+            return later
+        }
+        determine_return_value_typeinfo() later:
+
+        var failable_arg_idx = none
+        if fnode_parent.extended_final_has_failable() {
+            var _arg_exprs = fnode_parent.extended_final_arg_type_exprs(
+                include_outer_extends=no
+            )
+            failable_arg_idx = _arg_exprs.len + 1
+        }
+
         if node.has_failed {
             if not fnode_parent.extended_final_has_failable() {
                 if msgs == none {
@@ -4932,42 +5214,39 @@ func generate_imr_for_stmt(
                 node.damaged = yes
                 return []
             }
-            var arg_exprs = fnode_parent.extended_final_arg_type_exprs(
-                include_outer_extends=no
-            )
-            var failable_arg_idx = arg_exprs.len + 1
             result_insts.add(new IMRSetLitViaRef(
                 0, new st_ref.StorageRef(st_ref.ST_ARG,
                     failable_arg_idx),
                 literal_kind=ast_expr.LK_NORMAL
             ))
-            result_insts.add(new IMRReturnFail())
+
+            if expected_return_value_tinfo != none or
+                    not is_moose64 {
+                var inner_return_st_ref = get_new_temp_storage_ref(
+                    node, imr_parents=imr_parents,
+                    func_imr_parent=func_imr_parent,
+                    file_imr_parent=file_imr_parent,
+                    optional_type_info=
+                        expected_return_value_tinfo,
+                    project_file=project_file,
+                    imr_build_tracker=imr_build_tracker,
+                    is_moose64=is_moose64, msgs=msgs,
+                ) later:
+
+                await inner_return_st_ref
+                result_insts.add(new IMRClrZero(
+                    inner_return_st_ref,
+                ))
+                result_insts.add(new IMRReturn(
+                    return_value_storage_ref=inner_return_st_ref,
+                ))
+                return result_insts
+            }
+            result_insts.add(new IMRReturn(
+                return_value_storage_ref=none,
+            ))
             return result_insts
         }
-
-        func determine_return_value_typeinfo {
-            var return_type_expr = none
-            if fnode_parent != none and
-                    fnode_parent.extended_final_has_return_type() {
-                return_type_expr = fnode_parent.
-                    extended_final_return_type_expr()
-            }
-            if return_type_expr != none {
-                var result =
-                    typeinfo.create_typeinfo_from_typeexpr_and_verify(
-                        return_type_expr,
-                        project=project_file.project,
-                        is_moose64=is_moose64,
-                    ) later:
-
-                await result
-                expected_return_value_tinfo = result
-                return later
-            }
-            expected_return_value_tinfo = none
-            return later
-        }
-        determine_return_value_typeinfo() later:
 
         if is_moose64 and
                 (expected_return_value_tinfo == none or
@@ -5049,6 +5328,13 @@ func generate_imr_for_stmt(
             result_insts += returned_expr_result.instructions
         }
 
+        if failable_arg_idx != none {
+            result_insts.add(new IMRSetLitViaRef(
+                1, new st_ref.StorageRef(st_ref.ST_ARG,
+                    failable_arg_idx),
+                literal_kind=ast_expr.LK_NORMAL
+            ))
+        }
         result_insts.add(new IMRReturn(
             return_value_storage_ref=return_expr_st_ref,
         ))
@@ -5422,12 +5708,18 @@ func generate_imr_for_stmt(
             result_insts = none
             return later
         }
+        var conditional_type_info = none
+        if is_moose64 {
+            conditional_type_info = typeinfo.
+                create_from_simple_m64_type("bool")
+        }
         var cls_result = generate_imr_for_expr(
             node.subexprs[1],
             node_parents=node_parents + [node],
             imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
+            convert_to_target_type=conditional_type_info,
             project_file=project_file,
             imr_build_tracker=imr_build_tracker,
             is_moose64=is_moose64, msgs=msgs,
@@ -5838,16 +6130,20 @@ func generate_imr_for_stmt(
             if branches_count <= 1 {
                 return later
             }
+            var conditional_type_info = none
+            if is_moose64 {
+                conditional_type_info =
+                    typeinfo.create_from_simple_m64_type(
+                        "bool"
+                    )
+            }
             previous_clauses_unentered_ref =
                 get_new_temp_storage_ref(
                     node, imr_parents=imr_parents,
                     func_imr_parent=func_imr_parent,
                     file_imr_parent=file_imr_parent,
                     project_file=project_file,
-                    optional_type_info=
-                        new typeinfo.create_from_simple_m64_type(
-                            "bool"
-                        ),
+                    optional_type_info=conditional_type_info,
                     imr_build_tracker=imr_build_tracker,
                     is_moose64=is_moose64, msgs=msgs,
                 ) later:
