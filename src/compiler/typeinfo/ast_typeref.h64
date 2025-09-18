@@ -906,8 +906,10 @@ func TypeRefExpr.as_json_obj {
     return output
 }
 
-func TypeRefExpr.add_ref_modifier {
-    var mod = new ast_typeref.TypeRefMod("ref")
+func TypeRefExpr.add_ref_modifier(implicit=no) {
+    var mod = new TypeRefMod(
+        if implicit ("implicit ref") else ("ref")
+    )
     self.modifiers.add(mod)
 }
 

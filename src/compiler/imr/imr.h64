@@ -315,45 +315,6 @@ func IMRVarInfo.as_json_obj(
     return obj
 }
 
-type IMRStoreListargRef base IMRNode {
-    var target_storage_ref
-}
-
-func IMRStoreListargRef.init(target_storage_ref) {
-    base.init(IMR_INST_STORELISTARGREF)
-    if typename(target_storage_ref) != "obj" or
-            not has_attr(target_storage_ref, "kind") or
-            not has_attr(target_storage_ref, "id") {
-        throw new TypeError("The target_storage_ref parameter "
-            "must be of type StorageRef.")
-    }
-    self.target_storage_ref = target_storage_ref.copy()
-}
-
-func IMRStoreListargRef.as_str(indent=0) {
-    return self.format_inst(
-        "STORELISTARGREF", pos_parameter_names=[
-            "target_storage_ref",
-        ], indent=indent,
-    )
-}
-
-func IMRStoreListargRef.as_json_obj(
-        _passthrough_storage_refs=no,
-        ) {
-    var obj = base.as_json_obj(
-        _passthrough_storage_refs=
-        _passthrough_storage_refs)
-    if _passthrough_storage_refs {
-        obj["target_storage_ref"] =
-            self.target_storage_ref
-    } else {
-        obj["target_storage_ref"] =
-            self.target_storage_ref.as_str()
-    }
-    return obj
-}
-
 type IMRClrZero base IMRNode {
     var target_storage_ref
 }
@@ -390,6 +351,60 @@ func IMRClrZero.as_json_obj(
         obj["target_storage_ref"] =
             self.target_storage_ref.as_str()
     }
+    return obj
+}
+
+type IMRSetLitViaRef base IMRNode {
+    var value
+    var target_storage_ref
+    var literal_kind
+}
+
+func IMRSetLitViaRef.init(value, target_storage_ref, literal_kind=none) {
+    base.init(IMR_INST_SETLITVIAREF)
+    if typename(target_storage_ref) != "obj" or
+            not has_attr(target_storage_ref, "kind") or
+            not has_attr(target_storage_ref, "id") {
+        throw new TypeError("The target_storage_ref parameter "
+            "must be of type StorageRef.")
+    }
+    if literal_kind == none {
+        literal_kind = ast_expr.LK_NORMAL
+    }
+    self.value = value
+    self.target_storage_ref = target_storage_ref.copy()
+    self.literal_kind = literal_kind
+}
+
+func IMRSetLitViaRef.as_str(indent=0) {
+    return self.format_inst(
+        "SETLITVIAREF", pos_parameter_names=[
+            "literal_kind",
+            "value",
+            "target_storage_ref",
+        ],
+        no_quotes_for_parameters=["literal_kind"],
+        indent=indent,
+    )
+}
+
+func IMRSetLitViaRef.as_json_obj(
+        _passthrough_storage_refs=no,
+        ) {
+    var obj = base.as_json_obj(
+        _passthrough_storage_refs=
+        _passthrough_storage_refs)
+    obj["value"] = self.value
+    if _passthrough_storage_refs {
+        obj["target_storage_ref"] =
+            self.target_storage_ref
+    } else {
+        obj["target_storage_ref"] =
+            self.target_storage_ref.as_str()
+    }
+    obj["literal_kind"] = ast_expr.LiteralKind.num_label(
+        self.literal_kind
+    )
     return obj
 }
 
@@ -2585,9 +2600,12 @@ enum IMRNodeKind {
     IMR_INST_AWAIT,
     IMR_INST_CLRZERO,
     IMR_INST_SETLIT,
+    IMR_INST_SETLITVIAREF,
     IMR_INST_SETIDX,
+    IMR_INST_SETIDXVIAREF,
     IMR_INST_SETATTRBYNAME,
     IMR_INST_SETATTRBYID,
+    IMR_INST_SETATTRBYIDVIAREF,
     IMR_INST_GETIDX,
     IMR_INST_GETATTRBYNAME,
     IMR_INST_GETATTRBYID,
@@ -3988,7 +4006,6 @@ func _generate_imr_for_expr_untyped(
         var arg_refs = []
         var arg_names_if_any = []
         var arg_types_if_known = []
-        var list_arg_forward_tmp_ref = none
         var list_arg_forward_expr = none
         var orig_arg_exprs = args_node.subexprs
         assert(not args_node.has_types)
@@ -4071,33 +4088,6 @@ func _generate_imr_for_expr_untyped(
             }
             i += 1
         }
-        func handle_list_forward_if_any {
-            if list_arg_forward_expr == none {
-                return later
-            }
-            assert(list_arg_forward_tmp_ref == none)
-            assert(called_func_list_arg_info != none)
-            assert(called_func_list_arg_info.typeinfo != none)
-            list_arg_forward_tmp_ref =
-                get_new_temp_storage_ref(
-                    node, imr_parents=imr_parents,
-                    func_imr_parent=func_imr_parent,
-                    file_imr_parent=file_imr_parent,
-                    optional_type_info=
-                        called_func_list_arg_info.typeinfo,
-                    project_file=project_file,
-                    imr_build_tracker=imr_build_tracker,
-                    is_moose64=is_moose64,
-                    msgs=msgs,
-                ) later:
-
-            await list_arg_forward_tmp_ref
-            result.instructions.add(new IMRStoreListargRef(
-                list_arg_forward_tmp_ref
-            ))
-            queue.add("list forward")
-        }
-        handle_list_forward_if_any() later:
 
         var called_func_list_arg_idx = none
         if called_func_list_arg_info != none and
@@ -4117,15 +4107,6 @@ func _generate_imr_for_expr_untyped(
         var arg_no = 0
         func process_item(item) {
             arg_no += 1
-            if item == "list forward" {
-                assert(list_arg_forward_tmp_ref != none)
-                arg_refs.add(list_arg_forward_tmp_ref)
-                arg_names_if_any.add(none)
-                arg_types_if_known.add(
-                    called_func_list_arg_info.typeinfo
-                )
-                return later
-            }
 
             var value_expr = item
             var value_name = none
@@ -4271,6 +4252,18 @@ func _generate_imr_for_expr_untyped(
         if not expect_return_value {
             # We want to call this but ignore the return value.
             result.storage_ref = none
+            if list_arg_forward_expr != none {
+                result.instructions.add(new IMRCallWListForward(
+                    called_func_ref=left_hand_result.storage_ref,
+                    arg_refs=arg_refs,
+                    arg_names_if_any=arg_names_if_any,
+                    has_later=no,
+                    has_later_ignore=no,
+                    has_later_repeat=no,
+                    return_value_ref=none,
+                ))
+                return later result
+            }
             result.instructions.add(new IMRCall(
                 called_func_ref=left_hand_result.storage_ref,
                 arg_refs=arg_refs,
@@ -4333,6 +4326,19 @@ func _generate_imr_for_expr_untyped(
             return later
         }
         insert_type_conversion_if_needed() later:
+
+        if list_arg_forward_expr != none {
+            result.instructions.add(new IMRCallWListForward(
+                called_func_ref=left_hand_result.storage_ref,
+                arg_refs=arg_refs,
+                arg_names_if_any=arg_names_if_any,
+                has_later=no,
+                has_later_ignore=no,
+                has_later_repeat=no,
+                return_value_ref=write_op_result_to_tmp_ref,
+            ))
+            return later result
+        }
 
         result.instructions.add(new IMRCall(
             called_func_ref=left_hand_result.storage_ref,
@@ -4926,6 +4932,15 @@ func generate_imr_for_stmt(
                 node.damaged = yes
                 return []
             }
+            var arg_exprs = fnode_parent.extended_final_arg_type_exprs(
+                include_outer_extends=no
+            )
+            var failable_arg_idx = arg_exprs.len + 1
+            result_insts.add(new IMRSetLitViaRef(
+                0, new st_ref.StorageRef(st_ref.ST_ARG,
+                    failable_arg_idx),
+                literal_kind=ast_expr.LK_NORMAL
+            ))
             result_insts.add(new IMRReturnFail())
             return result_insts
         }

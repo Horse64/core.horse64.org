@@ -88,7 +88,18 @@ func replace_refs_in_func(
                 if item.target_storage_ref.alike(old_ref) {
                     item.target_storage_ref = new_ref.copy()
                 }
+            } elseif item.kind == compiler.imr.IMR_INST_SETLITVIAREF {
+                if item.target_storage_ref.alike(old_ref) {
+                    item.target_storage_ref = new_ref.copy()
+                }
             } elseif item.kind == compiler.imr.IMR_INST_SETATTRBYID {
+                if item.target_and_obj_storage_ref.alike(old_ref) {
+                    item.target_and_obj_storage_ref = new_ref.copy()
+                }
+                if item.value_storage_ref.alike(old_ref) {
+                    item.value_storage_ref = new_ref.copy()
+                }
+            } elseif item.kind == compiler.imr.IMR_INST_SETATTRBYIDVIAREF {
                 if item.target_and_obj_storage_ref.alike(old_ref) {
                     item.target_and_obj_storage_ref = new_ref.copy()
                 }
@@ -117,6 +128,16 @@ func replace_refs_in_func(
                     item.target_storage_ref = new_ref.copy()
                 }
             } elseif item.kind == compiler.imr.IMR_INST_SETIDX {
+                if item.target_and_container_storage_ref.alike(old_ref) {
+                    item.target_and_container_storage_ref = new_ref.copy()
+                }
+                if item.index_storage_ref.alike(old_ref) {
+                    item.index_storage_ref = new_ref.copy()
+                }
+                if item.value_storage_ref.alike(old_ref) {
+                    item.value_storage_ref = new_ref.copy()
+                }
+            } elseif item.kind == compiler.imr.IMR_INST_SETIDXVIAREF {
                 if item.target_and_container_storage_ref.alike(old_ref) {
                     item.target_and_container_storage_ref = new_ref.copy()
                 }
@@ -166,6 +187,20 @@ func replace_refs_in_func(
                     item.target_storage_ref = new_ref.copy()
                 }
             } elseif item.kind == compiler.imr.IMR_INST_CALL {
+                if item.called_func_ref.alike(old_ref) {
+                    item.called_func_ref = new_ref.copy()
+                }
+                if item.return_value_ref != none and
+                        item.return_value_ref.alike(old_ref) {
+                    item.return_value_ref = new_ref.copy()
+                }
+                for arg in item.args {
+                    if arg.ref.alike(old_ref) {
+                        arg.ref = new_ref.copy()
+                    }
+                }
+            } elseif item.kind ==
+                    compiler.imr.IMR_INST_CALLWLISTFORWARD {
                 if item.called_func_ref.alike(old_ref) {
                     item.called_func_ref = new_ref.copy()
                 }
@@ -546,6 +581,7 @@ func add_self_and_failable_parameters_to_funcs(
             }
             var failable_expr = new ast_typeref.TypeRefExpr()
             failable_expr.name = "moose64_failed_result_t"
+            failable_expr.add_ref_modifier()
             block.known_arg_type_exprs.add_at(
                 failable_insert_index, failable_expr
             )
