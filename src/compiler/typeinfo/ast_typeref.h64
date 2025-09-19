@@ -1034,7 +1034,7 @@ func ListArgTypeRefExpr.as_code(indent=0) {
         return "(damaged type ref expr.)"
     }
     var t = ""
-    t += self.arg_type.as_code(indent=indent)
+    t += "... (" + self.arg_type.as_code(indent=indent) + ")"
     return t
 }
 
