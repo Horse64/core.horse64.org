@@ -700,7 +700,7 @@ func IMRGetListArg.init(
 
 func IMRGetListArg.as_str(indent=0) {
     return self.format_inst(
-        "GETMULTIARG", pos_parameter_names=[
+        "GETLISTARG", pos_parameter_names=[
             "list_arg_storage_ref",
             "idx_storage_ref",
             "target_storage_ref",
@@ -3960,6 +3960,15 @@ func _generate_imr_for_expr_untyped(
             # If we enter this code block, then it's a moose64 special
             # builtin and not an actual call.
 
+            if debug {
+                print(program_name + ": debug: " +
+                    "generate_imr_for_expr(): "
+                    "Processing an MCREF built-in... "
+                    "is_as_ref=" + is_as_ref.as_str() + " "
+                    "is_de_ref=" + is_de_ref.as_str() + " "
+                    "is_size_of=" + is_size_of.as_str() + " "
+                    "is_list_arg_get=" + is_list_arg_get.as_str())
+            }
             if node.subexprs[2].subexprs.len == 0 {
                 if msgs == none {
                     throw new RuntimeError(
@@ -4072,9 +4081,16 @@ func _generate_imr_for_expr_untyped(
                         our_func_list_arg_info.typeinfo
                 }
             }
+            handle_list_arg_get_type() later:
+
             if our_node_typeinfo == none or
                     (is_list_arg_get and
                      our_func_list_arg_info == none) {
+                if debug {
+                    print(program_name + ": debug: " +
+                        "generate_imr_for_expr(): "
+                        "Aborting due to missing type info.")
+                }
                 return later none
             }
 
