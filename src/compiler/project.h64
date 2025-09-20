@@ -219,7 +219,7 @@ func Project.compute_main_module_rel_path {
     var rel_path = "unnamed_code_file.h64"
     if self.is_moose64 or (self.build_options != none and
             self.build_options.is_moose64) {
-        rel_path = "unnamed_code_file.m64"
+        rel_path = "unnamed_code_file.r64"
     }
     var pfile = self.get_entrypoint_project_file()
 
@@ -406,7 +406,7 @@ func check_valid_rel_module_path(modpath, msgs=none,
         packages_dir_was_trimmed=yes,
         is_moose64=no
         ) {
-    var file_ext = if is_moose64 (".m64") else (".h64")
+    var file_ext = if is_moose64 (".r64") else (".h64")
     if modpath.lower().ends(file_ext) {
         modpath = modpath.sub(1, modpath.len - file_ext.len)
     }
@@ -1076,7 +1076,7 @@ func ProjectFile.init(
     self.is_moose64 = is_moose64
     if self.is_moose64 and self.project != none {
         self.project.is_moose64 = yes
-        self.project.file_ext = ".m64"
+        self.project.file_ext = ".r64"
         self.project.build_options.is_moose64 = yes
     }
 }
@@ -1373,7 +1373,7 @@ func ProjectFile.ensure_project(msgs=none) {
         }
         if self.is_moose64 {
             self.project.is_moose64 = yes
-            self.project.file_ext = ".m64"
+            self.project.file_ext = ".r64"
             self.project.build_options.is_moose64 = yes
         }
     }
@@ -1431,7 +1431,7 @@ func ProjectFile.get_relative_imports_to_test(
         import_line=none, import_col=none,
         is_cross_pkg_import=no, forbid_rel_import_root=no
         ) {
-    var file_ext = if self.is_moose64 (".m64") else (".h64")
+    var file_ext = if self.is_moose64 (".r64") else (".h64")
     if external_package_name != none and (
             external_package_name.startswith(".") or
             external_package_name.endswith(".") or
@@ -1651,7 +1651,7 @@ func add_neighbor_modules_to_result(
         is_moose64=no,
         debug=no
         ) {
-    var file_ext = if is_moose64 (".m64") else (".h64")
+    var file_ext = if is_moose64 (".r64") else (".h64")
     assert(result.project_file.modinfo != none)
     var folder_uri = uri.dirname(file_uri)
     if not {"file", "vfs"}.has(uri.get_protocol(file_uri)) {
