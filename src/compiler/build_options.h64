@@ -47,6 +47,7 @@ type BuildOptions {
     var verbose_mode = no
     var build_program_name = "horsec"
     var is_moose64 = no
+    var file_ext
 
     var format_output_for_scripts = no
     var force_as_single_file = no

@@ -617,7 +617,7 @@ func action_compile_do(
                 var furi = pfile.source_uri
                 var rel_path
                 if furi == none {
-                    var ext = if is_moose64 (".r64") else (".h64")
+                    var ext = boptions.file_ext
                     furi = uri.add_part(
                         boptions.output_dir, "(inline)." + ext
                     )
@@ -933,6 +933,7 @@ func apply_compile_cmd_options_to_build_options(
         }
     }
     var file_ext = if is_moose64 (".r64") else (".h64")
+    boptions.file_ext = file_ext
     if result.args.has("source file") and
             result.args["source file"] != none and
             not result.args["source file"].ends(file_ext) {
@@ -1083,7 +1084,7 @@ func actionparser_compile_or_run(
         return later 1
     }
     var is_moose64 = boptions.is_moose64
-    var file_ext = if is_moose64 (".r64") else (".h64")
+    var file_ext = boptions.file_ext
     const possible_stages = if is_moose64 ([
         "tokens", "ast", "global-scope", "checked-ast",
         "transformed-ast", "transformed-code", "imr",
