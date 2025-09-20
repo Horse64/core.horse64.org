@@ -458,7 +458,7 @@ func action_compile_do(
     boptions.is_moose64 = is_moose64
     if not apply_compile_cmd_options_to_build_options(
             result, boptions, cmd_name=cmd_name,
-            is_moose64=is_moose64
+            is_moose64=is_moose64,
             ) {
         return later 1
     }
@@ -932,6 +932,16 @@ func apply_compile_cmd_options_to_build_options(
             return no
         }
     }
+    var file_ext = if is_moose64 (".r64") else (".h64")
+    if result.args.has("source file") and
+            result.args["source file"] != none and
+            not result.args["source file"].ends(file_ext) {
+        print(program_name + ": error: Given source file "
+            "doesn't have expected " + file_ext + " "
+            "file extension.")
+        print("Use " + program_name + " compile --help to show usage.")
+        return no
+    }
     if result.args.has("--code") and
             result.args["--code"] != none and
             result.args.has("source file") and
@@ -1083,16 +1093,6 @@ func actionparser_compile_or_run(
         "transformed-ast", "transformed-code", "imr",
         "bytecode", "binary"
     ])
-
-    if result.args.has("source file") and
-            result.args["source file"] != none and
-            result.args["source file"].ends(file_ext) {
-        print(program_name + ": error: Given source file "
-            "doesn't have expected " + file_ext + " "
-            "file extension.")
-        print("Use " + program_name + " compile --help to show usage.")
-        return later 1
-    }
 
     var opt_is_single_file = boptions.force_as_single_file
     var msgs = []
