@@ -404,7 +404,7 @@ func check_valid_rel_module_path(modpath, msgs=none,
         orig_file_uri=none,
         is_import=yes, import_line=none, import_col=none,
         packages_dir_was_trimmed=yes,
-        is_moose64=no
+        is_moose64=no,
         ) {
     var file_ext = if is_moose64 (".r64") else (".h64")
     if modpath.lower().ends(file_ext) {
