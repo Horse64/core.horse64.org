@@ -81,6 +81,10 @@ When to use Horse64
   and 🚫 limitless offline type checking (since it's
   dynamically typed, so analysis is limited).
 
+  For high performance
+  and low level access, you might want to try [Horse64
+  Root](https://root.horse64.org).
+
 For the [design goals, go here](
 /docs/Language%20Specs/Overview#design-goals).
 
@@ -201,6 +205,9 @@ If you want to learn Horse64 and you can already code,
 
 *(AOT refers to Ahead-of-Time, handled at compile time rather than
 runtime.)*
+
+For high performance and low level access, you might want to try
+[Horse64 Root](https://root.horse64.org).
 
 
 Technical specifications
