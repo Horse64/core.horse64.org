@@ -8111,6 +8111,7 @@ func generate_imr_for_project(
         imrresult.file_id_to_imr_result_map[f_id] =
             imr_build_tracker.file_id_to_imr_result_map[f_id].copy()
     }
+    print("RESULT: " + imrresult.as_str())
     return later no  # FIXME
 }
 

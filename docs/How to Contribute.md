@@ -24,7 +24,8 @@ If you want to contribute code to core tooling, please read:
    contribute a bigger feature, you'll need to test on
    Linux according to the [checklists](#maintainer-checklists).
    It's possible to do basic tests and changes on Windows if it's
-   parts written in Horse64 (rather than Moose64 or C).
+   parts written in Horse64. It might be less practical for
+   Horse64 Root.
 
 2. [Read the licensing carefully](/docs/Resources.md#license)
    and agree to contribute your code under the given terms.

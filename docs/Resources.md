@@ -15,14 +15,14 @@ SDK
 
 If you want to get started, [**go here for
 the SDK** (Software Development Kit) for Horse64 and
-Moose64](https://horse64.org/get).
+Horse64 Root](https://horse64.org/get).
 
 
 Report bugs
 -----------
 
 Before you report a bug, you might want to check the
-[standard library reference documentation](
+[Horse64 standard library reference documentation](
 ./docs/FIXME)
 and the [💬 community chat](https://horse64.org/chat)
 to verify if what you found is truly a bug or rather
@@ -30,16 +30,15 @@ a misunderstanding.
 
 To report bugs, here are the locations for core components:
 
-- [Compiler bug reports (this includes both Horse64's horsec
-  and Moose64's moosec)](
+- [Compiler bug reports (this concerns the 'horsec' compiler)](
   https://codeberg.org/Horse64/core.horse64.org/issues).
 
 - [Standard library bug reports for Horse64 (behavior
   of built-in libraries like opening files, etc.)](
   https://codeberg.org/Horse64/core.horse64.org/issues).
 
-- [Standard library bug reports for Moose64](
-  https://codeberg.org/Moose64/m64.horse64.org/issues
+- [Standard library bug reports for Horse64 Root](
+  https://codeberg.org/Horse64/root.horse64.org/issues
   ).
 
 - ["Horp" package manager bug reports](
@@ -62,16 +61,16 @@ Documentation
 If you're reading this, you found the documentation! If you got
 some offline copy, you can find [the latest online copy of the
 **Horse64** documentation here](https://horse64.org/docs/Welcome).
-There is also [the online copy of the **Moose64**
-documentation](https://m64.horse64.org/docs/Introduction).
+There is also [the online copy of the **Horse64 Root**
+documentation](https://root.horse64.org/docs/Introduction).
 
 If you want to contribute to and change the docs, go look here:
 
 - Find the [🧬 documentation code files for Horse64 here](
-  https://codeberg.org/Horse64/core.horse64.org/src/branch/main/src).
+  https://codeberg.org/Horse64/core.horse64.org/src/branch/main/docs).
 
-- Find the [🧬 documentation code for Moose64 here](
-  https://codeberg.org/Moose64/m64.horse64.org/src/branch/main/src).
+- Find the [🧬 documentation code for Horse64 Root here](
+  https://codeberg.org/Horse64/root.horse64.org/src/branch/main/docs).
 
 
 License
@@ -133,13 +132,13 @@ package which is the same repository that also contains
 - Find the [🧬 standard library code for Horse64 here](
   https://codeberg.org/Horse64/core.horse64.org/src/branch/main/src).
 
-### Moose64 standard library
+### Horse64 Root standard library
 
-For Moose64, the standard library is in the `m64.horse64.org`
+For Horse64 Root, the standard library is in the `root.horse64.org`
 package.
 
-- Find the [🧬 standard library code for Moose64 here](
-  https://codeberg.org/Moose64/m64.horse64.org/src/branch/main/src).
+- Find the [🧬 standard library code for Horse64 Root here](
+  https://codeberg.org/Horse64/root.horse64.org/src/branch/main/src).
 
 
 Horp
@@ -169,24 +168,19 @@ It's written primarily in Horse64.
   along with the other parts of the standard library.
 
 
-Moose64
--------
+Horse64 Root
+------------
 
-Moose64 is a sibling language developed together with Horse64,
+Horse64 Root is a sibling language developed together with Horse64,
 particularly useful for handling C integration and low level code.
 
-- Check out the [Moose64 website](https://m64.horse64.org).
+- Check out the [Horse64 Root website](https://root.horse64.org).
 
-- Here's the [Moose64 standard library](
-  https://codeberg.org/Moose64/m64.horse64.org).
+- Here's the [Horse64 Root standard library](
+  https://codeberg.org/Horse64/root.horse64.org).
 
-
-Moosec
-------
-
-The official compiler for [Moose64](#moose64) code is a binary called
-`moosec`. It's actually just a slightly different build of
-[horsec](#horsec), they share the same code base.
+- The compiler is shared with the regular Horse64, both
+  use [horsec](#horsec).
 
 
 HVM
@@ -194,7 +188,7 @@ HVM
 
 HVM, the "Horse Virtual Machine", provides the
 runtime powering Horse64 programs.
-HVM is primarily written in [Moose64](#moose64) and
+HVM is primarily written in [Horse64 Root](#horse64-root) and
 using some [C](
 https://en.wikipedia.org/wiki/C_(programming_language)
 libarries.
@@ -234,9 +228,10 @@ Creators
 For a full list of who worked on and created Horse64,
 check the **contributors for the central packages:**
 
-- [Core tools and stdlib authors (includes both horsec and
-  moosec)](
+- [Core tools and Horse64 stdlib authors](
   https://codeberg.org/Horse64/core.horse64.org/src/branch/main/AUTHORS.md),
+- [Horse64 Root stdlib authors](
+  https://codeberg.org/Horse64/root.horse64.org/src/branch/main/AUTHORS.md),
 - [Byte code VM authors](
   https://codeberg.org/Horse64/hvm.horse64.org/src/branch/main/AUTHORS.md),
 - [Package manager authors](
@@ -244,8 +239,4 @@ check the **contributors for the central packages:**
 - [Runtime base library (Spew3D) authors](
   https://codeberg.org/Spew3D/Spew3D/src/branch/main/AUTHORS.md).
 
-And for Moose64 specifically:
-
-- [Moose64 stdlib authors](
-  https://codeberg.org/Moose64/m64.horse64.org/src/branch/main/AUTHORS.md).
 
