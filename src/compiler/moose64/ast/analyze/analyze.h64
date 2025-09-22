@@ -1151,7 +1151,7 @@ func _get_c_or_m64_type_of_node_do(
                     node.ref.kind == st_ref.ST_MCREF and
                     (node.ref.id == builtin_syms.get_item_by_name(
                         project_file.project, "size_of",
-                        in_package_name="m64.horse64.org",
+                        in_package_name="root.horse64.org",
                         in_module_name="memory").
                         symbol_storage_ref.id or
                     node.ref.id == builtin_syms.get_item_by_name(

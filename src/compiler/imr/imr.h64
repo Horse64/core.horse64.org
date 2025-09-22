@@ -2830,6 +2830,11 @@ func _is_node_a_compiler_builtin(
             not only_check_for_non_callable_builtins {
         return yes
     }
+    if m64_builtins.is_ast_node_referring_to_m64_builtin_print(
+            pfile, node, is_moose64=is_moose64) and
+            not only_check_for_non_callable_builtins {
+        return yes
+    }
     if m64_builtins.is_ast_node_referring_to_m64_memory_size_of(
             pfile, node, is_moose64=is_moose64) {
         return yes

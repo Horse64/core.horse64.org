@@ -32,25 +32,48 @@ import compiler.moose64.builtins as m64_builtins
 func handle_node_storage_redirects(
         node, project_file=none) {
     const is_moose64 = yes
-    if not m64_builtins.
-            is_ast_node_referring_to_m64_builtin_assert(
-                project_file, node,
-                is_moose64=is_moose64) {
+    var is_builtin_assert = m64_builtins.
+        is_ast_node_referring_to_m64_builtin_assert(
+            project_file, node,
+            is_moose64=is_moose64
+        )
+    var is_builtin_print = m64_builtins.
+        is_ast_node_referring_to_m64_builtin_print(
+            project_file, node,
+            is_moose64=is_moose64
+        )
+    if not is_builtin_assert and not is_builtin_print {
         return
     }
     assert(node.kind == ast.N_EXPR_IDREF or
         (node.kind == ast.N_EXPR_BINOP and
         node.optoken.str == "." and
         node.subexprs.len >= 2))
-    var target_ref = m64_builtins.
-        get_m64_debug_assert_func_storage_ref(
-            "assert", project=project_file.project,
-            is_moose64=is_moose64,
-        )
-    if node.kind == ast.N_EXPR_IDREF {
-        node.ref = target_ref
-    } elseif node.kind == ast.N_EXPR_BINOP {
-        node.subexprs[2].ref = target_ref
+    if is_builtin_assert {
+        var target_ref = m64_builtins.
+            get_m64_debug_assert_func_storage_ref(
+                "assert", project=project_file.project,
+                is_moose64=is_moose64,
+            )
+        assert(target_ref != none)
+        if node.kind == ast.N_EXPR_IDREF {
+            node.ref = target_ref
+        } elseif node.kind == ast.N_EXPR_BINOP {
+            node.subexprs[2].ref = target_ref
+        }
+    } else {
+        assert(is_builtin_print)
+        var target_ref = m64_builtins.
+            get_m64_io_print_func_storage_ref(
+                "print", project=project_file.project,
+                is_moose64=is_moose64,
+            )
+        assert(target_ref != none)
+        if node.kind == ast.N_EXPR_IDREF {
+            node.ref = target_ref
+        } elseif node.kind == ast.N_EXPR_BINOP {
+            node.subexprs[2].ref = target_ref
+        }
     }
 }
 

@@ -65,6 +65,15 @@ func get_m64_c_type_builtin_ref_by_name(
     return none
 }
 
+func is_ast_node_referring_to_m64_builtin_print(
+        project_file, node, is_moose64=no) {
+    return is_ast_node_referring_to_m64_builtin_by_name(
+        project_file, node,
+        "print", in_module_name=none,
+        in_package_name=none,
+        is_moose64=is_moose64)
+}
+
 func is_ast_node_referring_to_m64_builtin_assert(
         project_file, node, is_moose64=no) {
     return is_ast_node_referring_to_m64_builtin_by_name(
@@ -79,7 +88,7 @@ func is_ast_node_referring_to_m64_memory_size_of(
     return is_ast_node_referring_to_m64_builtin_by_name(
         project_file, node,
         "size_of", in_module_name="memory",
-        in_package_name="m64.horse64.org",
+        in_package_name="root.horse64.org",
         is_moose64=is_moose64)
 }
 
@@ -133,7 +142,36 @@ func get_m64_debug_assert_func_storage_ref(
         ]
         if pfile.modinfo == none or
                 pfile.modinfo.module_name != "debug" or
-                pfile.modinfo.package_name != "m64.horse64.org" {
+                pfile.modinfo.package_name != "root.horse64.org" {
+            continue
+        }
+        for st_id in pfile.global_scope.storage_id_to_entry {
+            var entry =
+                pfile.global_scope.storage_id_to_entry[st_id]
+            if entry.kind != ast.N_STMT_FUNC or
+                    entry.label != func_name {
+                continue
+            }
+            return new st_ref.StorageRef(
+                st_ref.ST_GLOBAL, st_id
+            )
+        }
+    }
+    return none
+}
+
+func get_m64_io_print_func_storage_ref(
+        func_name, project=none, is_moose64=no) {
+    if project == none or not is_moose64 {
+        return none
+    }
+    for pfile_uri in project.module_uri_to_file_map {
+        var pfile = project.module_uri_to_file_map[
+            pfile_uri
+        ]
+        if pfile.modinfo == none or
+                pfile.modinfo.module_name != "io" or
+                pfile.modinfo.package_name != "root.horse64.org" {
             continue
         }
         for st_id in pfile.global_scope.storage_id_to_entry {
@@ -179,7 +217,7 @@ func get_m64_debug_assert_func_name_of_ast_node(
         ]
         if pfile.modinfo == none or
                 pfile.modinfo.module_name != "debug" or
-                pfile.modinfo.package_name != "m64.horse64.org" {
+                pfile.modinfo.package_name != "root.horse64.org" {
             continue
         }
         for st_id in pfile.global_scope.storage_id_to_entry {
@@ -188,6 +226,54 @@ func get_m64_debug_assert_func_name_of_ast_node(
             if entry.kind != ast.N_STMT_FUNC or
                     (entry.label != "assert" and
                      not entry.label.startswith("assert_")) {
+                continue
+            }
+            if node.ref.id == st_id {
+                return entry.label
+            }
+        }
+    }
+    return none
+}
+
+
+func get_m64_io_print_func_name_of_ast_node(
+        project_file, node, is_moose64=no) {
+    if not is_moose64 {
+        return none
+    }
+    if (node.kind != ast.N_EXPR_IDREF or
+            not node.label.starts("assert")) and
+            (node.kind != ast.N_EXPR_BINOP or
+            node.optoken.str != "." or
+            node.subexprs.len < 2 or
+            node.subexprs[2].kind != ast.N_EXPR_IDREF or
+            not node.subexprs[2].label.starts("assert")) {
+        return none
+    }
+    if node == ast.N_EXPR_BINOP {
+        node = node.subexprs[2]
+    }
+    if node.ref == none or
+            node.ref.kind != st_ref.ST_GLOBAL {
+        return none
+    }
+
+    for pfile_uri in project_file.project.module_uri_to_file_map {
+        var pfile = project_file.project.module_uri_to_file_map[
+            pfile_uri
+        ]
+        if pfile.modinfo == none or
+                pfile.modinfo.module_name != "io" or
+                pfile.modinfo.package_name != "root.horse64.org" {
+            continue
+        }
+        for st_id in pfile.global_scope.storage_id_to_entry {
+            var entry =
+                pfile.global_scope.storage_id_to_entry[st_id]
+            if entry.kind != ast.N_STMT_FUNC or
+                    (entry.label != "print" and
+                    not entry.label.startswith("print_")) {
                 continue
             }
             if node.ref.id == st_id {
@@ -279,7 +365,7 @@ func register_builtins_with_project(project) {
         new st_ref.StorageRef(st_ref.ST_MCREF, id),
         builtin_syms.BI_FUNC, ["memory"],
         func_signature="(<-any)->size",
-        package_name="m64.horse64.org",
+        package_name="root.horse64.org",
         is_moose64=yes) later:
 
     id = m64_c_importer.get_mcref_id(project)
@@ -298,6 +384,13 @@ func register_builtins_with_project(project) {
 
     id = m64_c_importer.get_mcref_id(project)
     builtin_syms.register_symbol(project, "assert",
+        new st_ref.StorageRef(st_ref.ST_MCREF, id),
+        builtin_syms.BI_FUNC, "$any",
+        func_signature="(<-any ref)->any",
+        is_moose64=yes) later:
+
+    id = m64_c_importer.get_mcref_id(project)
+    builtin_syms.register_symbol(project, "print",
         new st_ref.StorageRef(st_ref.ST_MCREF, id),
         builtin_syms.BI_FUNC, "$any",
         func_signature="(<-any ref)->any",
