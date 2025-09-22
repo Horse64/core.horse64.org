@@ -4629,6 +4629,15 @@ func _generate_imr_for_expr_untyped(
         ) later:
 
         await tmp_ref
+        if node.subexprs[2].kind == ast.N_EXPR_IDREF and
+                node.subexprs[2].ref != none and
+                {st_ref.ST_MCREF, st_ref.ST_GLOBAL,
+                st_ref.ST_SELF, st_ref.ST_LOCAL,
+                st_ref.ST_CCAPTURE,
+                st_ref.ST_ARG}.has(node.subexprs[2].ref.kind) {
+            result.storage_ref = node.subexprs[2].ref
+            return later result
+        }
         var attr_name = node.subexprs[2].label
         assert(attr_name != none)
         var left_hand_result = generate_imr_for_expr(
@@ -4648,6 +4657,18 @@ func _generate_imr_for_expr_untyped(
             return later none
         }
         result.instructions += left_hand_result.instructions
+        if node.subexprs[2].kind == ast.N_EXPR_IDREF and
+                node.subexprs[2].ref != none and
+                node.subexprs[2].ref.kind == st_ref.ST_GLOBALATTR {
+            assert(node.subexprs[2].ref.id.len == 2)
+            result.instructions.add(new IMRGetAttrById(
+                obj_storage_ref=left_hand_result.storage_ref,
+                attr_id=node.subexprs[2].ref.id[1],
+                target_storage_ref=tmp_ref,
+            ))
+            result.storage_ref = tmp_ref
+            return later result
+        }
         result.instructions.add(new IMRGetAttrByName(
             obj_storage_ref=left_hand_result.storage_ref,
             attr_name=attr_name,
@@ -8111,7 +8132,6 @@ func generate_imr_for_project(
         imrresult.file_id_to_imr_result_map[f_id] =
             imr_build_tracker.file_id_to_imr_result_map[f_id].copy()
     }
-    print("RESULT: " + imrresult.as_str())
     return later no  # FIXME
 }
 
