@@ -2889,9 +2889,9 @@ func generate_imr_for_indexing_expr(
             "We got an indexing result. "
             "idx_result=" + idx_result.as_str())
     }
-    var attr_type_name = none
+    var addr_type_name = none
     if is_moose64 {
-        attr_type_name = typeinfo.
+        addr_type_name = typeinfo.
             get_addr_type_name_for_platform(
                 imr_build_tracker.build_options,
                 is_moose64=is_moose64,
@@ -2917,7 +2917,7 @@ func generate_imr_for_indexing_expr(
         }
         if idx_result.known_type_info.is_equivalent(
                 typeinfo.create_from_simple_m64_type(
-                    attr_type_name
+                    addr_type_name
                 ),
                 is_moose64=is_moose64,
                 ) {
@@ -2930,7 +2930,7 @@ func generate_imr_for_indexing_expr(
             project_file=project_file,
             optional_type_info=
                 typeinfo.create_from_simple_m64_type(
-                    attr_type_name
+                    addr_type_name
                 ),
             imr_build_tracker=imr_build_tracker,
             is_moose64=is_moose64, msgs=msgs,
@@ -2948,7 +2948,7 @@ func generate_imr_for_indexing_expr(
                 idx_tmp_ref,
                 idx_result.known_type_info,
                 typeinfo.create_from_simple_m64_type(
-                    attr_type_name
+                    addr_type_name
                 ),
                 in_project_file=project_file,
                 is_moose64=is_moose64,
@@ -2982,7 +2982,7 @@ func generate_imr_for_indexing_expr(
     if is_moose64 {
         final_result.known_type_info =
             typeinfo.create_from_simple_m64_type(
-                attr_type_name
+                addr_type_name
             )
     }
     return final_result
@@ -6765,7 +6765,59 @@ func generate_imr_for_stmt(
 
             var left_hand_node = item[1]
             func try_handle_set_idx {
-                if left_hand_node.kind != ast.N_EXPR_BINOP or
+                var is_attr_set_idx = no
+                var attr_set_idx_tmp = none
+                func identify_and_handle_attr_set_idx {
+                    var idx_id = none
+                    if left_hand_node.kind == ast.N_EXPR_BINOP and
+                            left_hand_node.optoken.str== "." and
+                            left_hand_node.subexprs[2].kind ==
+                                ast.N_EXPR_IDREF and
+                            left_hand_node.subexprs[2].ref != none and
+                            left_hand_node.subexprs[2].ref.kind ==
+                                st_ref.ST_GLOBALATTR {
+                        assert(left_hand_node.subexprs[2].
+                            ref.id.len == 2)
+                        idx_id = left_hand_node.subexprs[2].
+                            ref.id[2]
+                        is_attr_set_idx = yes
+                    } else {
+                        return later
+                    }
+                    var idx_type_name = none
+                    var idx_type_info = none
+                    if is_moose64 {
+                        idx_type_name = typeinfo.
+                            get_addr_type_name_for_platform(
+                                imr_build_tracker.build_options,
+                                is_moose64=is_moose64,
+                            )
+                        idx_type_info =
+                            typeinfo.create_from_simple_m64_type(
+                                idx_type_name
+                            )
+                    }
+                    attr_set_idx_tmp = get_new_temp_storage_ref(
+                        node, imr_parents=imr_parents,
+                        func_imr_parent=func_imr_parent,
+                        file_imr_parent=file_imr_parent,
+                        project_file=project_file,
+                        optional_type_info=idx_type_info,
+                        imr_build_tracker=imr_build_tracker,
+                        is_moose64=is_moose64, msgs=msgs,
+                    ) later:
+
+                    await attr_set_idx_tmp
+                    assert(typename(idx_id) == "num")
+                    result_insts.add(new IMRSetLit(
+                        idx_id, attr_set_idx_tmp,
+                        literal_kind=ast_expr.LK_NORMAL,
+                    ))
+                }
+                identify_and_handle_attr_set_idx() later:
+
+                if not is_attr_set_idx and
+                        left_hand_node.kind != ast.N_EXPR_BINOP or
                         left_hand_node.optoken.str != "[" or
                         left_hand_node.subexprs.len < 2 {
                     return later no
@@ -6783,38 +6835,55 @@ func generate_imr_for_stmt(
                 ) later:
 
                 await container_result
-                var idx_result = generate_imr_for_indexing_expr(
-                    left_hand_node.subexprs[2],
-                    node_parents=node_parents + [
-                        node, left_hand_node],
-                    imr_parents=imr_parents,
-                    func_imr_parent=func_imr_parent,
-                    file_imr_parent=file_imr_parent,
-                    project_file=project_file,
-                    imr_build_tracker=imr_build_tracker,
-                    is_moose64=is_moose64, msgs=msgs,
-                ) later:
-
-                await idx_result
-                if debug {
-                    print(program_name + ": debug: "
-                        "generate_imr_for_expr(): "
-                        "For assign, we got an indexing result. "
-                        "idx_result=" + idx_result.as_str())
-                }
+                var idx_result = none
                 var idx_tmp_ref = none
-                if container_result == none or idx_result == none {
+                if is_attr_set_idx {
+                    idx_tmp_ref = attr_set_idx_tmp
+                }
+                func get_idx_result_from_expr {
+                    if is_attr_set_idx {
+                        return later
+                    }
+                    idx_result = generate_imr_for_indexing_expr(
+                        left_hand_node.subexprs[2],
+                        node_parents=node_parents + [
+                            node, left_hand_node],
+                        imr_parents=imr_parents,
+                        func_imr_parent=func_imr_parent,
+                        file_imr_parent=file_imr_parent,
+                        project_file=project_file,
+                        imr_build_tracker=imr_build_tracker,
+                        is_moose64=is_moose64, msgs=msgs,
+                    ) later:
+
+                    await idx_result
+                    if debug {
+                        print(program_name + ": debug: "
+                            "generate_imr_for_expr(): "
+                            "For assign, we got an indexing result. "
+                            "idx_result=" + idx_result.as_str())
+                    }
+                }
+                get_idx_result_from_expr() later:
+
+                if not is_attr_set_idx and idx_result == none {
                     result_insts = none
                     return later yes
                 }
-                idx_tmp_ref = idx_result.storage_ref
+
+                if container_result == none {
+                    result_insts = none
+                    return later yes
+                }
+                if idx_tmp_ref == none {
+                    idx_tmp_ref = idx_result.storage_ref
+                }
 
                 if node.assign_token.kind == token.T_ASSIGN {
                     result_insts.add(new IMRSetIdx(
                         target_and_container_storage_ref=
                             container_result.storage_ref,
-                        index_storage_ref=
-                            idx_result.storage_ref,
+                        index_storage_ref=idx_tmp_ref,
                         value_storage_ref=
                             converted_right_hand_ref,
                     ))
@@ -6865,8 +6934,7 @@ func generate_imr_for_stmt(
                     result_insts.add(new IMRSetIdx(
                         target_and_container_storage_ref=
                             container_result.storage_ref,
-                        index_storage_ref=
-                            idx_result.storage_ref,
+                        index_storage_ref=idx_tmp_ref,
                         value_storage_ref=op_result_conv_tmp,
                     ))
                     return later yes
@@ -8137,6 +8205,7 @@ func generate_imr_for_project(
         imrresult.file_id_to_imr_result_map[f_id] =
             imr_build_tracker.file_id_to_imr_result_map[f_id].copy()
     }
+    #print("RESULT: " + imrresult.as_str())  # FIXME
     return later no  # FIXME
 }
 
