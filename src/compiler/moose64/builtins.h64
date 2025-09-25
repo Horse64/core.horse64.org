@@ -236,7 +236,6 @@ func get_m64_debug_assert_func_name_of_ast_node(
     return none
 }
 
-
 func get_m64_io_print_func_name_of_ast_node(
         project_file, node, is_moose64=no) {
     if not is_moose64 {

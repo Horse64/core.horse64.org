@@ -1127,8 +1127,25 @@ func TypeInfo.get_after_as_ref_operation {
     return inner_result
 }
 
-func TypeInfo.add_ref_modifier {
-    var mod = new ast_typeref.TypeRefMod("ref")
+func TypeInfo.del_ref_modifier {
+    var idx = self.modifiers.len
+    while idx >= 1 {
+        var mod = self.modifiers[idx]
+        if {"implicit ref", "ref",
+                "c_array", "array"}.has(mod) {
+            self.modifiers = self.modifiers.sub(1, idx - 1) +
+                self.modifiers.sub(idx + 1)
+            return
+        }
+        idx -= 1
+    }
+    throw new ValueError("Didn't find modifier to remove.")
+}
+
+func TypeInfo.add_ref_modifier(implicit=no) {
+    var mod = new TypeRefMod(
+        if implicit ("implicit ref") else ("ref")
+    )
     self.modifiers.add(mod)
     if self._orig_typeexpr != none {
         self._orig_typeexpr = self._orig_typeexpr.copy()

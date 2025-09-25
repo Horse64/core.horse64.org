@@ -5158,6 +5158,825 @@ func generate_imr_for_entrypoint_func(
     return later insts
 }
 
+func generate_imr_for_isolated_assignment(
+        assignment_lefthand_node,
+        assignment_righthand_node,
+        node_parents=[],
+        imr_parents=[],
+        func_imr_parent=none,
+        file_imr_parent=none,
+        project_file=none,
+        imr_build_tracker=none,
+        is_moose64=no, msgs=none,
+        debug=no,
+        ) {
+    var result_insts = []
+    var item = [assignment_lefthand_node,
+        assignment_righthand_node]
+    var left_hand_type_info = none
+    var set_left_hand_via_ref = no
+    func determine_left_hand_type_info_if_needed {
+        if not is_moose64 {
+            return later
+        }
+        if item[1] == ast.N_EXPR_BINOP and
+                item[1].optoken.str == "(" and
+                item[1].subexprs.len >= 2 and
+                item[1].subexprs[2].subexprs.len >= 1 and
+                is_ast_node_referring_to_m64_memory_deref(
+                    project_file, item[1].subexprs[1],
+                    is_moose64=is_moose64
+                ) {
+            set_left_hand_via_ref = yes
+        }
+        left_hand_type_info =
+            m64_ast_analyze.get_c_or_m64_type_of_node(
+                project_file, item[1],
+                node_parents + [node],
+                store_self_value_ref_for_funcs=yes,
+                msgs=msgs,
+            ) later:
+
+        await left_hand_type_info
+        if left_hand_type_info == none {
+            node.damaged = yes
+            if msgs == none {
+                throw new RuntimeError(
+                    "Failed to get type of assigned node."
+                )
+            } elseif not msg.msgs_contain_error(msgs) {
+                msgs.add(new msg.FileMsg(
+                    "Internal error, unexpectedly failed "
+                    "to determine type of assigned node. "
+                    "Please report this to the compiler "
+                    "makers.",
+                    source_file=project_file,
+                    line=node.line,
+                    col=node.col,
+                ))
+            }
+            return later no
+        }
+        if not set_left_hand_via_ref and
+                left_hand_type_info.ref_count(
+                    include_c_arrays=no,
+                    include_arrays=no,
+                    include_implicit_refs=yes,
+                    include_explicit_refs=no,
+                ) >= 1 {
+            set_left_hand_via_ref = yes
+        }
+
+        return later yes
+    }
+    var went_fine =
+        determine_left_hand_type_info_if_needed()
+    later:
+
+    await went_fine
+    if not went_fine {
+        result_insts = none
+        return later none
+    }
+    var right_hand_result = generate_imr_for_expr(
+        item[2],
+        node_parents=node_parents + [node],
+        imr_parents=imr_parents,
+        func_imr_parent=func_imr_parent,
+        file_imr_parent=file_imr_parent,
+        project_file=project_file,
+        imr_build_tracker=imr_build_tracker,
+        is_moose64=is_moose64, msgs=msgs,
+    ) later:
+
+    await right_hand_result
+    if right_hand_result == none or
+            (is_moose64 and
+                right_hand_result.known_type_info == none) {
+        result_insts = none
+        return later
+    }
+    var math_assign_token = none
+    if node.assign_token.kind == token.T_MATHASSIGN {
+        var t_str = node.assign_token.str
+        if not t_str.ends("=") {
+            throw new ValueError("Encountered unsupported "
+                "type of math assign.")
+        }
+        math_assign_token = new token.Token(
+            t_str.sub(1, t_str.len - 1),
+            token.T_MATH,
+            node.assign_token.line,
+            node.assign_token.col,
+        )
+    }
+
+    if debug {
+        print(program_name + ": debug: "
+            "generate_imr_for_expr(): "
+            "Looking at inner assigned item. "
+            "right_hand_result=" +
+                right_hand_result.as_str() + " "
+            "left_hand_type_info=" +
+                left_hand_type_info.as_str() + " "
+            "math_assign_token=" +
+                math_assign_token.as_str())
+    }
+
+    var moose64_cast_info = none
+    func determine_mathassign_cast_info_if_any {
+        if not is_moose64 {
+            return later
+        }
+        if node.assign_token.kind != token.T_MATHASSIGN {
+            return later
+        }
+        moose64_cast_info =
+            m64_autocast.get_math_binop_autocast(
+                left_hand_type_info,
+                right_hand_result.known_type_info,
+                left_side_is_literal_none=no,
+                right_side_is_literal_none=
+                    item[2].kind == ast.N_EXPR_LIT and
+                    item[2].literal_kind ==
+                        ast_expr.LK_NORMAL and
+                    item[2].value == none,
+                is_cmp_op=no,
+                is_moose64=is_moose64,
+            )
+    }
+    determine_mathassign_cast_info_if_any() later:
+
+    if moose64_cast_info != none and
+            moose64_cast_info.incompatible {
+        node.damaged = yes
+        if msgs == none {
+            throw new RuntimeError(
+                "Incompatible type of math assignment."
+            )
+        } elseif not msg.msgs_contain_error(msgs) {
+            msgs.add(new msg.FileMsg(
+                "Unexpected '" + node.optoken.str.as_str() +
+                "' operator applied to incompatible types " +
+                left_hand_type_info.describe_to_user(
+                    project=project_file.project,
+                    add_quotes_where_useful=yes,
+                    is_moose64=is_moose64,
+                ) + " "
+                "and " + right_hand_result.known_type_info.
+                    describe_to_user(
+                        project=project_file.project,
+                        add_quotes_where_useful=yes,
+                        is_moose64=is_moose64,
+                    ) + ".",
+                source_file=project_file,
+                line=node.optoken.line,
+                col=node.optoken.col,
+            ))
+        }
+        return later result_insts
+    }
+
+    var must_convert_value_before_final_assign = no
+    var final_result_convert_from = none
+    var final_result_convert_to = none
+    func check_conversion_of_final_assign {
+        if not is_moose64 {
+            return
+        }
+        if node.assign_token.kind == token.T_MATHASSIGN {
+            assert(moose64_cast_info != none)
+            if moose64_cast_info.result_type.is_equivalent(
+                    left_hand_type_info,
+                    ignore_self_ref=yes,
+                    is_moose64=is_moose64,
+                    ) {
+                return
+            }
+            must_convert_value_before_final_assign = yes
+            final_result_convert_from =
+                moose64_cast_info.result_type
+            final_result_convert_to = left_hand_type_info
+        } else {
+            if left_hand_type_info.is_equivalent(
+                    right_hand_result.known_type_info,
+                    ignore_self_ref=yes,
+                    is_moose64=is_moose64,
+                    ) {
+                return
+            }
+            must_convert_value_before_final_assign = yes
+            final_result_convert_from =
+                right_hand_result.known_type_info
+            final_result_convert_to = left_hand_type_info
+        }
+        if not m64_autocast.
+                check_if_allowed_implicit_cast_from_to(
+                    final_result_convert_from,
+                    final_result_convert_to,
+                    left_side_is_literal_none=no,
+                    right_side_is_literal_none=
+                        item[2].kind == ast.N_EXPR_LIT and
+                        item[2].literal_kind ==
+                            ast_expr.LK_NORMAL and
+                        item[2].value == none,
+                    is_moose64=is_moose64,
+                ) {
+            node.damaged = yes
+            if msgs == none {
+                throw new RuntimeError(
+                    "Incompatible type of assignment."
+                )
+            } elseif not msg.msgs_contain_error(msgs) {
+                msgs.add(new msg.FileMsg(
+                    "Unexpected assignment of value of "
+                    "type " + final_result_convert_from.
+                        describe_to_user(
+                            project=project_file.project,
+                            add_quotes_where_useful=yes,
+                            is_moose64=is_moose64,
+                        ) + ", "
+                    "cannot be converted to type " +
+                    final_result_convert_to.describe_to_user(
+                        project=project_file.project,
+                        add_quotes_where_useful=yes,
+                        is_moose64=is_moose64,
+                    ) + ".",
+                    source_file=project_file,
+                    line=right_hand_result.line,
+                    col=right_hand_result.col,
+                ))
+                result_insts = none
+            }
+        }
+    }
+    check_conversion_of_final_assign()
+
+    if result_insts == none {
+        return later result_insts
+    }
+    result_insts += right_hand_result.instructions
+
+    var op_result_preconv_tmp = none
+    var op_result_conv_tmp = none
+    var convert_opresult_from = none
+    var convert_opresult_to = none
+    var left_operand_conv_tmp = none
+    var left_operand_preconv_tmp = none
+    var convert_lefthand_from = none
+    var convert_lefthand_to = none
+    var right_operand_conv_tmp = none
+    var right_operand_preconv_tmp = none
+    func make_lefthand_tmps {
+        if node.assign_token.kind != token.T_MATHASSIGN {
+            return later
+        }
+
+        left_operand_preconv_tmp = get_new_temp_storage_ref(
+            node, imr_parents=imr_parents,
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            project_file=project_file,
+            optional_type_info=left_hand_type_info,
+            imr_build_tracker=imr_build_tracker,
+            is_moose64=is_moose64, msgs=msgs,
+        ) later:
+
+        await left_operand_preconv_tmp
+        if not is_moose64 or
+                node.assign_token.kind != token.T_MATHASSIGN or
+                left_hand_type_info.is_equivalent(
+                    moose64_cast_info.cast_lefthand_to,
+                    ignore_self_ref=yes,
+                    is_moose64=is_moose64,
+                    ) {
+            left_operand_conv_tmp =
+                left_operand_preconv_tmp
+            return later
+        }
+        convert_lefthand_from = left_hand_type_info
+        convert_lefthand_to = moose64_cast_info.cast_lefthand_to
+        left_operand_conv_tmp = get_new_temp_storage_ref(
+            node, imr_parents=imr_parents,
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            project_file=project_file,
+            optional_type_info=
+                moose64_cast_info.cast_lefthand_to,
+            imr_build_tracker=imr_build_tracker,
+            is_moose64=is_moose64, msgs=msgs,
+        ) later:
+
+        await left_operand_preconv_tmp
+    }
+    make_lefthand_tmps() later:
+
+    func make_opresult_tmp {
+        if node.assign_token.kind != token.T_MATHASSIGN {
+            return later
+        }
+        if not is_moose64 or
+                node.assign_token.kind != token.T_MATHASSIGN or
+                moose64_cast_info.result_type.is_equivalent(
+                    moose64_cast_info.cast_lefthand_to,
+                    ignore_self_ref=yes,
+                    is_moose64=is_moose64,
+                ) {
+            op_result_preconv_tmp =
+                left_operand_conv_tmp
+            return later
+        }
+        op_result_preconv_tmp = get_new_temp_storage_ref(
+            node, imr_parents=imr_parents,
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            project_file=project_file,
+            optional_type_info=
+                moose64_cast_info.result_type,
+            imr_build_tracker=imr_build_tracker,
+            is_moose64=is_moose64, msgs=msgs,
+        ) later:
+
+        await op_result_preconv_tmp
+    }
+    make_opresult_tmp() later:
+
+    func check_opresult_conversion {
+        if is_moose64 and
+                node.assign_token.kind == token.T_MATHASSIGN and
+                not moose64_cast_info.result_type.is_equivalent(
+                    left_hand_type_info,
+                    ignore_self_ref=yes,
+                    is_moose64=is_moose64,
+                ) {
+            convert_opresult_from = moose64_cast_info.result_type
+            convert_opresult_to = left_hand_type_info
+            op_result_conv_tmp = get_new_temp_storage_ref(
+                node, imr_parents=imr_parents,
+                func_imr_parent=func_imr_parent,
+                file_imr_parent=file_imr_parent,
+                project_file=project_file,
+                optional_type_info=
+                    convert_opresult_to,
+                imr_build_tracker=imr_build_tracker,
+                is_moose64=is_moose64, msgs=msgs,
+            ) later:
+
+            await op_result_conv_tmp
+        } else {
+            op_result_conv_tmp = op_result_preconv_tmp
+        }
+    }
+    check_opresult_conversion() later:
+
+    var converted_right_hand_ref =
+        right_hand_result.storage_ref
+    func do_right_hand_convert {
+        if is_moose64 {
+            return later
+        }
+        if not must_convert_value_before_final_assign {
+            return later
+        }
+        var right_hand_required_type =
+            left_hand_type_info
+        if node.assign_token.kind == token.T_MATHASSIGN {
+            right_hand_required_type =
+                moose64_cast_info.cast_righthand_to
+        }
+        if right_hand_required_type.is_equivalent(
+                right_hand_result.known_type_info,
+                ignore_self_ref=yes,
+                is_moose64=is_moose64,
+                ) {
+            return later
+        }
+        converted_right_hand_ref = get_new_temp_storage_ref(
+            node, imr_parents=imr_parents,
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            project_file=project_file,
+            optional_type_info=right_hand_required_type,
+            imr_build_tracker=imr_build_tracker,
+            is_moose64=is_moose64, msgs=msgs,
+        ) later:
+
+        await converted_right_hand_ref
+        result_insts.add(new IMRConv(
+            right_hand_result.storage_ref,
+            converted_right_hand_ref,
+            right_hand_result.known_type_info,
+            right_hand_required_type,
+            in_project_file=project_file,
+            is_moose64=is_moose64,
+        ))
+    }
+    do_right_hand_convert() later:
+
+    var left_hand_node = item[1]
+    func try_handle_set_idx {
+        var is_attr_set_id = no
+        var attr_set_id = none
+        func identify_and_handle_attr_set_id {
+            var idx_id = none
+            if left_hand_node.kind == ast.N_EXPR_BINOP and
+                    left_hand_node.optoken.str== "." and
+                    left_hand_node.subexprs[2].kind ==
+                        ast.N_EXPR_IDREF and
+                    left_hand_node.subexprs[2].ref != none and
+                    left_hand_node.subexprs[2].ref.kind ==
+                        st_ref.ST_GLOBALATTR {
+                assert(left_hand_node.subexprs[2].
+                    ref.id.len == 2)
+                idx_id = left_hand_node.subexprs[2].
+                    ref.id[2]
+                is_attr_set_id = yes
+            } else {
+                return later
+            }
+            attr_set_id = idx_id
+            assert(typename(idx_id) == "num")
+        }
+        identify_and_handle_attr_set_id() later:
+
+        if not is_attr_set_id and
+                left_hand_node.kind != ast.N_EXPR_BINOP or
+                left_hand_node.optoken.str != "[" or
+                left_hand_node.subexprs.len < 2 {
+            return later no
+        }
+        var container_result = generate_imr_for_expr(
+            left_hand_node.subexprs[1],
+            node_parents=node_parents + [
+                node, left_hand_node],
+            imr_parents=imr_parents,
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            project_file=project_file,
+            imr_build_tracker=imr_build_tracker,
+            is_moose64=is_moose64, msgs=msgs,
+        ) later:
+
+        await container_result
+        var idx_result = none
+        var idx_tmp_ref = none
+        func get_idx_result_from_expr {
+            if is_attr_set_id {
+                return later
+            }
+            idx_result = generate_imr_for_indexing_expr(
+                left_hand_node.subexprs[2],
+                node_parents=node_parents + [
+                    node, left_hand_node],
+                imr_parents=imr_parents,
+                func_imr_parent=func_imr_parent,
+                file_imr_parent=file_imr_parent,
+                project_file=project_file,
+                imr_build_tracker=imr_build_tracker,
+                is_moose64=is_moose64, msgs=msgs,
+            ) later:
+
+            await idx_result
+            if debug {
+                print(program_name + ": debug: "
+                    "generate_imr_for_expr(): "
+                    "For assign, we got an indexing result. "
+                    "idx_result=" + idx_result.as_str())
+            }
+        }
+        get_idx_result_from_expr() later:
+
+        if not is_attr_set_id and idx_result == none {
+            result_insts = none
+            return later yes
+        }
+
+        if container_result == none {
+            result_insts = none
+            return later yes
+        }
+        if idx_tmp_ref == none and not is_attr_set_id {
+            idx_tmp_ref = idx_result.storage_ref
+        }
+
+        if node.assign_token.kind == token.T_ASSIGN {
+            if is_attr_set_id and set_left_hand_via_ref {
+                result_insts.add(new IMRSetAttrByIdViaRef(
+                    target_and_obj_storage_ref=
+                        container_result.storage_ref,
+                    attr_id=attr_set_id,
+                    value_storage_ref=
+                        converted_right_hand_ref,
+                ))
+            } elseif is_attr_set_id {
+                result_insts.add(new IMRSetAttrById(
+                    target_and_obj_storage_ref=
+                        container_result.storage_ref,
+                    attr_id=attr_set_id,
+                    value_storage_ref=
+                        converted_right_hand_ref,
+                ))
+            } elseif set_left_hand_via_ref {
+                result_insts.add(new IMRSetIdxViaRef(
+                    target_and_container_storage_ref=
+                        container_result.storage_ref,
+                    index_storage_ref=idx_tmp_ref,
+                    value_storage_ref=
+                        converted_right_hand_ref,
+                ))
+            } else {
+                result_insts.add(new IMRSetIdx(
+                    target_and_container_storage_ref=
+                        container_result.storage_ref,
+                    index_storage_ref=idx_tmp_ref,
+                    value_storage_ref=
+                        converted_right_hand_ref,
+                ))
+            }
+            return later yes
+        } elseif math_assign_token != none {
+            if is_attr_set_id {
+                if set_left_hand_via_ref {
+                    throw new RuntimeError("FIXME")
+                }
+                result_insts.add(new IMRGetAttrById(
+                    obj_storage_ref=
+                        container_result.storage_ref,
+                    attr_id=attr_set_id,
+                    target_storage_ref=
+                        left_operand_preconv_tmp,
+                ))
+            } else {
+                if set_left_hand_via_ref {
+                    throw new RuntimeError("FIXME")
+                }
+                result_insts.add(new IMRGetIdx(
+                    container_storage_ref=
+                        container_result.storage_ref,
+                    index_storage_ref=idx_tmp_ref,
+                    target_storage_ref=
+                        left_operand_preconv_tmp,
+                ))
+            }
+            if convert_lefthand_from != convert_lefthand_to {
+                result_insts.add(new IMRConv(
+                    left_operand_preconv_tmp,
+                    left_operand_conv_tmp,
+                    convert_lefthand_from,
+                    convert_lefthand_to,
+                    in_project_file=project_file,
+                    is_moose64=is_moose64,
+                ))
+            } else {
+                assert(left_operand_preconv_tmp ==
+                    left_operand_conv_tmp)
+            }
+            result_insts.add(new IMRApplyOp(
+                math_assign_token,
+                operand_1_storage_ref=
+                    left_operand_conv_tmp,
+                operand_2_storage_ref=
+                    converted_right_hand_ref,
+                target_storage_ref=op_result_preconv_tmp,
+                is_binary=yes,
+            ))
+            if convert_opresult_from !=
+                    convert_opresult_to {
+                assert(op_result_preconv_tmp != op_result_conv_tmp)
+                result_insts.add(new IMRConv(
+                    op_result_preconv_tmp,
+                    op_result_conv_tmp,
+                    convert_opresult_from,
+                    convert_opresult_to,
+                    in_project_file=project_file,
+                    is_moose64=is_moose64,
+                ))
+            } else {
+                assert(op_result_preconv_tmp == op_result_conv_tmp)
+            }
+            if is_attr_set_id {
+                result_insts.add(new IMRSetIdxViaRef(
+                    target_and_container_storage_ref=
+                        container_result.storage_ref,
+                    index_storage_ref=idx_tmp_ref,
+                    value_storage_ref=op_result_conv_tmp,
+                ))
+            } else {
+                result_insts.add(new IMRSetIdx(
+                    target_and_container_storage_ref=
+                        container_result.storage_ref,
+                    index_storage_ref=idx_tmp_ref,
+                    value_storage_ref=op_result_conv_tmp,
+                ))
+            }
+            return later yes
+        } else {
+            throw new ValueError("Encountered unsupported "
+                "type of assign.")
+        }
+    }
+    func try_handle_set_attr {
+        if left_hand_node.kind != ast.N_EXPR_BINOP or
+                left_hand_node.optoken.str != "." or
+                left_hand_node.subexprs.len < 2 or
+                left_hand_node.subexprs[2].kind !=
+                    ast.N_EXPR_IDREF {
+            return later no
+        }
+        if is_attr_set_id {
+            throw new ValueError("Encountered unsupported "
+                "type of assign.")
+        }
+        var attr_name = left_hand_node.subexprs[2].label
+        var obj_result = generate_imr_for_expr(
+            left_hand_node.subexprs[1],
+            node_parents=node_parents + [
+                node, left_hand_node],
+            imr_parents=imr_parents,
+            func_imr_parent=func_imr_parent,
+            file_imr_parent=file_imr_parent,
+            project_file=project_file,
+            imr_build_tracker=imr_build_tracker,
+            is_moose64=is_moose64, msgs=msgs,
+        ) later:
+
+        await obj_result
+        if obj_result == none {
+            result_insts = none
+            return later yes
+        }
+        if node.assign_token.kind == token.T_ASSIGN {
+            result_insts.add(new IMRSetAttrByName(
+                target_and_obj_storage_ref=
+                    obj_result.storage_ref,
+                attr_name=attr_name,
+                value_storage_ref=
+                    converted_right_hand_ref,
+            ))
+            return later yes
+        } elseif math_assign_token != none {
+            result_insts.add(new IMRGetAttrByName(
+                obj_storage_ref=
+                    obj_result.storage_ref,
+                attr_name=attr_name,
+                target_storage_ref=left_operand_preconv_tmp,
+            ))
+            if convert_lefthand_from != convert_lefthand_to {
+                result_insts.add(new IMRConv(
+                    left_operand_preconv_tmp,
+                    left_operand_conv_tmp,
+                    convert_lefthand_from,
+                    convert_lefthand_to,
+                    in_project_file=project_file,
+                    is_moose64=is_moose64,
+                ))
+            } else {
+                assert(left_operand_preconv_tmp ==
+                    left_operand_conv_tmp)
+            }
+            result_insts.add(new IMRApplyOp(
+                math_assign_token,
+                operand_1_storage_ref=left_operand_conv_tmp,
+                operand_2_storage_ref=
+                    converted_right_hand_ref,
+                target_storage_ref=op_result_preconv_tmp,
+                is_binary=yes,
+            ))
+            if convert_opresult_from !=
+                    convert_opresult_to {
+                assert(op_result_preconv_tmp != op_result_conv_tmp)
+                result_insts.add(new IMRConv(
+                    op_result_preconv_tmp,
+                    op_result_conv_tmp,
+                    convert_opresult_from,
+                    convert_opresult_to,
+                    in_project_file=project_file,
+                    is_moose64=is_moose64,
+                ))
+            } else {
+                assert(op_result_preconv_tmp == op_result_conv_tmp)
+            }
+            result_insts.add(new IMRSetAttrByName(
+                target_and_obj_storage_ref=
+                    obj_result.storage_ref,
+                attr_name=attr_name,
+                value_storage_ref=op_result_conv_tmp,
+            ))
+            return later yes
+        } else {
+            throw new ValueError("Encountered unsupported "
+                "type of assign.")
+        }
+    }
+
+    # Try to handle the special set index case:
+    var success_idx = try_handle_set_idx() later:
+
+    await success_idx
+    if success_idx {
+        return later result_insts
+    }
+    # Try to handle the special set attr case:
+    var success_attr = try_handle_set_attr() later:
+
+    await success_attr
+    if success_attr {
+        return later result_insts
+    }
+
+    # If we arrive here, it must be a regular assign
+    # that isn't a set index or set attr:
+    if left_hand_node.kind != ast.N_EXPR_IDREF or
+            left_hand_node.ref == none {
+        result_insts = none
+        return later result_insts
+    }
+    if result_insts != none and
+            right_hand_result != none {
+        if node.assign_token.kind == token.T_ASSIGN {
+            result_insts.add(new IMRMove(
+                converted_right_hand_ref,
+                left_hand_node.ref,
+            ))
+        } elseif math_assign_token != none {
+            var adjust_op_result_preconv = no
+            var adjust_op_result_conv = no
+            var adjust_left_operand_conv = no
+            if op_result_preconv_tmp == left_operand_conv_tmp {
+                adjust_op_result_preconv = yes
+            }
+            if op_result_conv_tmp == left_operand_conv_tmp {
+                adjust_op_result_conv = yes
+            }
+            if left_operand_preconv_tmp ==
+                    left_operand_conv_tmp {
+                adjust_left_operand_conv = yes
+            }
+            if adjust_op_result_preconv {
+                op_result_preconv_tmp = left_hand_node.ref
+            }
+            if adjust_op_result_conv {
+                op_result_conv_tmp = left_hand_node.ref
+            }
+            if adjust_left_operand_conv {
+                left_operand_conv_tmp = left_hand_node.ref
+            }
+            left_operand_preconv_tmp = left_hand_node.ref
+
+            if convert_lefthand_from != convert_lefthand_to {
+                result_insts.add(new IMRConv(
+                    left_operand_preconv_tmp,
+                    left_operand_conv_tmp,
+                    convert_lefthand_from,
+                    convert_lefthand_to,
+                    in_project_file=project_file,
+                    is_moose64=is_moose64,
+                ))
+            } else {
+                assert(left_operand_preconv_tmp ==
+                    left_operand_conv_tmp)
+            }
+            result_insts.add(new IMRApplyOp(
+                math_assign_token,
+                operand_1_storage_ref=
+                    left_operand_conv_tmp,
+                operand_2_storage_ref=
+                    converted_right_hand_ref,
+                target_storage_ref=
+                    op_result_preconv_tmp,
+                is_binary=yes,
+            ))
+            if convert_opresult_from !=
+                    convert_opresult_to {
+                assert(op_result_preconv_tmp != op_result_conv_tmp)
+                result_insts.add(new IMRConv(
+                    op_result_preconv_tmp,
+                    op_result_conv_tmp,
+                    convert_opresult_from,
+                    convert_opresult_to,
+                    in_project_file=project_file,
+                    is_moose64=is_moose64,
+                ))
+            } else {
+                assert(op_result_preconv_tmp == op_result_conv_tmp)
+            }
+            if not op_result_conv_tmp.alike(
+                    left_hand_node.ref) {
+                result_insts.add(new IMRMove(
+                    op_result_conv_tmp,
+                    left_hand_node.ref,
+                ))
+            }
+        } else {
+            throw new ValueError("Encountered unsupported "
+                "type of assign.")
+        }
+    } else {
+        result_insts = none
+        return later result_insts
+    }
+}
+
 func generate_imr_for_stmt(
         node,
         node_parents=[],
@@ -6384,750 +7203,26 @@ func generate_imr_for_stmt(
             i += 1
         }
         func process_queue_item(item) {
-            var left_hand_type_info = none
-            func determine_left_hand_type_info_if_needed {
-                if not is_moose64 {
-                    return later
-                }
-                left_hand_type_info =
-                    m64_ast_analyze.get_c_or_m64_type_of_node(
-                        project_file, item[1],
-                        node_parents + [node],
-                        store_self_value_ref_for_funcs=yes,
-                        msgs=msgs,
-                    ) later:
-
-                await left_hand_type_info
-                if left_hand_type_info == none {
-                    node.damaged = yes
-                    if msgs == none {
-                        throw new RuntimeError(
-                            "Failed to get type of assigned node."
-                        )
-                    } elseif not msg.msgs_contain_error(msgs) {
-                        msgs.add(new msg.FileMsg(
-                            "Internal error, unexpectedly failed "
-                            "to determine type of assigned node. "
-                            "Please report this to the compiler "
-                            "makers.",
-                            source_file=project_file,
-                            line=node.line,
-                            col=node.col,
-                        ))
-                    }
-                    return later no
-                }
-                return later yes
-            }
-            var went_fine =
-                determine_left_hand_type_info_if_needed()
-            later:
-
-            await went_fine
-            if not went_fine {
-                result_insts = none
-                return later none
-            }
-            var right_hand_result = generate_imr_for_expr(
-                item[2],
-                node_parents=node_parents + [node],
-                imr_parents=imr_parents,
-                func_imr_parent=func_imr_parent,
-                file_imr_parent=file_imr_parent,
-                project_file=project_file,
-                imr_build_tracker=imr_build_tracker,
-                is_moose64=is_moose64, msgs=msgs,
-            ) later:
-
-            await right_hand_result
-            if right_hand_result == none or
-                    (is_moose64 and
-                     right_hand_result.known_type_info == none) {
-                result_insts = none
-                return later
-            }
-            var math_assign_token = none
-            if node.assign_token.kind == token.T_MATHASSIGN {
-                var t_str = node.assign_token.str
-                if not t_str.ends("=") {
-                    throw new ValueError("Encountered unsupported "
-                        "type of math assign.")
-                }
-                math_assign_token = new token.Token(
-                    t_str.sub(1, t_str.len - 1),
-                    token.T_MATH,
-                    node.assign_token.line,
-                    node.assign_token.col,
-                )
-            }
-
-            if debug {
-                print(program_name + ": debug: "
-                    "generate_imr_for_expr(): "
-                    "Looking at inner assigned item. "
-                    "right_hand_result=" +
-                        right_hand_result.as_str() + " "
-                    "left_hand_type_info=" +
-                        left_hand_type_info.as_str() + " "
-                    "math_assign_token=" +
-                        math_assign_token.as_str())
-            }
-
-            var moose64_cast_info = none
-            func determine_mathassign_cast_info_if_any {
-                if not is_moose64 {
-                    return later
-                }
-                if node.assign_token.kind != token.T_MATHASSIGN {
-                    return later
-                }
-                moose64_cast_info =
-                    m64_autocast.get_math_binop_autocast(
-                        left_hand_type_info,
-                        right_hand_result.known_type_info,
-                        left_side_is_literal_none=no,
-                        right_side_is_literal_none=
-                            item[2].kind == ast.N_EXPR_LIT and
-                            item[2].literal_kind ==
-                                ast_expr.LK_NORMAL and
-                            item[2].value == none,
-                        is_cmp_op=no,
-                        is_moose64=is_moose64,
-                    )
-            }
-            determine_mathassign_cast_info_if_any() later:
-
-            if moose64_cast_info != none and
-                    moose64_cast_info.incompatible {
-                node.damaged = yes
-                if msgs == none {
-                    throw new RuntimeError(
-                        "Incompatible type of math assignment."
-                    )
-                } elseif not msg.msgs_contain_error(msgs) {
-                    msgs.add(new msg.FileMsg(
-                        "Unexpected '" + node.optoken.str.as_str() +
-                        "' operator applied to incompatible types " +
-                        left_hand_type_info.describe_to_user(
-                            project=project_file.project,
-                            add_quotes_where_useful=yes,
-                            is_moose64=is_moose64,
-                        ) + " "
-                        "and " + right_hand_result.known_type_info.
-                            describe_to_user(
-                                project=project_file.project,
-                                add_quotes_where_useful=yes,
-                                is_moose64=is_moose64,
-                            ) + ".",
-                        source_file=project_file,
-                        line=node.optoken.line,
-                        col=node.optoken.col,
-                    ))
-                }
-                return later yes
-            }
-
-            var must_convert_value_before_final_assign = no
-            var final_result_convert_from = none
-            var final_result_convert_to = none
-            func check_conversion_of_final_assign {
-                if not is_moose64 {
-                    return
-                }
-                if node.assign_token.kind == token.T_MATHASSIGN {
-                    assert(moose64_cast_info != none)
-                    if moose64_cast_info.result_type.is_equivalent(
-                            left_hand_type_info,
-                            ignore_self_ref=yes,
-                            is_moose64=is_moose64,
-                            ) {
-                        return
-                    }
-                    must_convert_value_before_final_assign = yes
-                    final_result_convert_from =
-                        moose64_cast_info.result_type
-                    final_result_convert_to = left_hand_type_info
-                } else {
-                    if left_hand_type_info.is_equivalent(
-                            right_hand_result.known_type_info,
-                            ignore_self_ref=yes,
-                            is_moose64=is_moose64,
-                            ) {
-                        return
-                    }
-                    must_convert_value_before_final_assign = yes
-                    final_result_convert_from =
-                        right_hand_result.known_type_info
-                    final_result_convert_to = left_hand_type_info
-                }
-                if not m64_autocast.
-                        check_if_allowed_implicit_cast_from_to(
-                            final_result_convert_from,
-                            final_result_convert_to,
-                            left_side_is_literal_none=no,
-                            right_side_is_literal_none=
-                                item[2].kind == ast.N_EXPR_LIT and
-                                item[2].literal_kind ==
-                                    ast_expr.LK_NORMAL and
-                                item[2].value == none,
-                            is_moose64=is_moose64,
-                        ) {
-                    node.damaged = yes
-                    if msgs == none {
-                        throw new RuntimeError(
-                            "Incompatible type of assignment."
-                        )
-                    } elseif not msg.msgs_contain_error(msgs) {
-                        msgs.add(new msg.FileMsg(
-                            "Unexpected assignment of value of "
-                            "type " + final_result_convert_from.
-                                describe_to_user(
-                                    project=project_file.project,
-                                    add_quotes_where_useful=yes,
-                                    is_moose64=is_moose64,
-                                ) + ", "
-                            "cannot be converted to type " +
-                            final_result_convert_to.describe_to_user(
-                                project=project_file.project,
-                                add_quotes_where_useful=yes,
-                                is_moose64=is_moose64,
-                            ) + ".",
-                            source_file=project_file,
-                            line=right_hand_result.line,
-                            col=right_hand_result.col,
-                        ))
-                        result_insts = none
-                    }
-                }
-            }
-            check_conversion_of_final_assign()
-
-            if result_insts == none {
-                return later
-            }
-            result_insts += right_hand_result.instructions
-
-            var op_result_preconv_tmp = none
-            var op_result_conv_tmp = none
-            var convert_opresult_from = none
-            var convert_opresult_to = none
-            var left_operand_conv_tmp = none
-            var left_operand_preconv_tmp = none
-            var convert_lefthand_from = none
-            var convert_lefthand_to = none
-            var right_operand_conv_tmp = none
-            var right_operand_preconv_tmp = none
-            func make_lefthand_tmps {
-                if node.assign_token.kind != token.T_MATHASSIGN {
-                    return later
-                }
-
-                left_operand_preconv_tmp = get_new_temp_storage_ref(
-                    node, imr_parents=imr_parents,
+            var new_result_insts =
+                generate_imr_for_isolated_assignment(
+                    item[1],
+                    item[2],
+                    node_parents=node_parents + [node],
+                    imr_parents=imr_parents,
                     func_imr_parent=func_imr_parent,
                     file_imr_parent=file_imr_parent,
                     project_file=project_file,
-                    optional_type_info=left_hand_type_info,
                     imr_build_tracker=imr_build_tracker,
-                    is_moose64=is_moose64, msgs=msgs,
-                ) later:
-
-                await left_operand_preconv_tmp
-                if not is_moose64 or
-                        node.assign_token.kind != token.T_MATHASSIGN or
-                        left_hand_type_info.is_equivalent(
-                            moose64_cast_info.cast_lefthand_to,
-                            ignore_self_ref=yes,
-                            is_moose64=is_moose64,
-                            ) {
-                    left_operand_conv_tmp =
-                        left_operand_preconv_tmp
-                    return later
-                }
-                convert_lefthand_from = left_hand_type_info
-                convert_lefthand_to = moose64_cast_info.cast_lefthand_to
-                left_operand_conv_tmp = get_new_temp_storage_ref(
-                    node, imr_parents=imr_parents,
-                    func_imr_parent=func_imr_parent,
-                    file_imr_parent=file_imr_parent,
-                    project_file=project_file,
-                    optional_type_info=
-                        moose64_cast_info.cast_lefthand_to,
-                    imr_build_tracker=imr_build_tracker,
-                    is_moose64=is_moose64, msgs=msgs,
-                ) later:
-
-                await left_operand_preconv_tmp
-            }
-            make_lefthand_tmps() later:
-
-            func make_opresult_tmp {
-                if node.assign_token.kind != token.T_MATHASSIGN {
-                    return later
-                }
-                if not is_moose64 or
-                        node.assign_token.kind != token.T_MATHASSIGN or
-                        moose64_cast_info.result_type.is_equivalent(
-                            moose64_cast_info.cast_lefthand_to,
-                            ignore_self_ref=yes,
-                            is_moose64=is_moose64,
-                        ) {
-                    op_result_preconv_tmp =
-                        left_operand_conv_tmp
-                    return later
-                }
-                op_result_preconv_tmp = get_new_temp_storage_ref(
-                    node, imr_parents=imr_parents,
-                    func_imr_parent=func_imr_parent,
-                    file_imr_parent=file_imr_parent,
-                    project_file=project_file,
-                    optional_type_info=
-                        moose64_cast_info.result_type,
-                    imr_build_tracker=imr_build_tracker,
-                    is_moose64=is_moose64, msgs=msgs,
-                ) later:
-
-                await op_result_preconv_tmp
-            }
-            make_opresult_tmp() later:
-
-            func check_opresult_conversion {
-                if is_moose64 and
-                        node.assign_token.kind == token.T_MATHASSIGN and
-                        not moose64_cast_info.result_type.is_equivalent(
-                            left_hand_type_info,
-                            ignore_self_ref=yes,
-                            is_moose64=is_moose64,
-                        ) {
-                    convert_opresult_from = moose64_cast_info.result_type
-                    convert_opresult_to = left_hand_type_info
-                    op_result_conv_tmp = get_new_temp_storage_ref(
-                        node, imr_parents=imr_parents,
-                        func_imr_parent=func_imr_parent,
-                        file_imr_parent=file_imr_parent,
-                        project_file=project_file,
-                        optional_type_info=
-                            convert_opresult_to,
-                        imr_build_tracker=imr_build_tracker,
-                        is_moose64=is_moose64, msgs=msgs,
-                    ) later:
-
-                    await op_result_conv_tmp
-                } else {
-                    op_result_conv_tmp = op_result_preconv_tmp
-                }
-            }
-            check_opresult_conversion() later:
-
-            var converted_right_hand_ref =
-                right_hand_result.storage_ref
-            func do_right_hand_convert {
-                if is_moose64 {
-                    return later
-                }
-                if not must_convert_value_before_final_assign {
-                    return later
-                }
-                var right_hand_required_type =
-                    left_hand_type_info
-                if node.assign_token.kind == token.T_MATHASSIGN {
-                    right_hand_required_type =
-                        moose64_cast_info.cast_righthand_to
-                }
-                if right_hand_required_type.is_equivalent(
-                        right_hand_result.known_type_info,
-                        ignore_self_ref=yes,
-                        is_moose64=is_moose64,
-                        ) {
-                    return later
-                }
-                converted_right_hand_ref = get_new_temp_storage_ref(
-                    node, imr_parents=imr_parents,
-                    func_imr_parent=func_imr_parent,
-                    file_imr_parent=file_imr_parent,
-                    project_file=project_file,
-                    optional_type_info=right_hand_required_type,
-                    imr_build_tracker=imr_build_tracker,
-                    is_moose64=is_moose64, msgs=msgs,
-                ) later:
-
-                await converted_right_hand_ref
-                result_insts.add(new IMRConv(
-                    right_hand_result.storage_ref,
-                    converted_right_hand_ref,
-                    right_hand_result.known_type_info,
-                    right_hand_required_type,
-                    in_project_file=project_file,
                     is_moose64=is_moose64,
-                ))
-            }
-            do_right_hand_convert() later:
-
-            var left_hand_node = item[1]
-            func try_handle_set_idx {
-                var is_attr_set_id = no
-                var attr_set_id = none
-                func identify_and_handle_attr_set_id {
-                    var idx_id = none
-                    if left_hand_node.kind == ast.N_EXPR_BINOP and
-                            left_hand_node.optoken.str== "." and
-                            left_hand_node.subexprs[2].kind ==
-                                ast.N_EXPR_IDREF and
-                            left_hand_node.subexprs[2].ref != none and
-                            left_hand_node.subexprs[2].ref.kind ==
-                                st_ref.ST_GLOBALATTR {
-                        assert(left_hand_node.subexprs[2].
-                            ref.id.len == 2)
-                        idx_id = left_hand_node.subexprs[2].
-                            ref.id[2]
-                        is_attr_set_id = yes
-                    } else {
-                        return later
-                    }
-                    attr_set_id = idx_id
-                    assert(typename(idx_id) == "num")
-                }
-                identify_and_handle_attr_set_id() later:
-
-                if not is_attr_set_id and
-                        left_hand_node.kind != ast.N_EXPR_BINOP or
-                        left_hand_node.optoken.str != "[" or
-                        left_hand_node.subexprs.len < 2 {
-                    return later no
-                }
-                var container_result = generate_imr_for_expr(
-                    left_hand_node.subexprs[1],
-                    node_parents=node_parents + [
-                        node, left_hand_node],
-                    imr_parents=imr_parents,
-                    func_imr_parent=func_imr_parent,
-                    file_imr_parent=file_imr_parent,
-                    project_file=project_file,
-                    imr_build_tracker=imr_build_tracker,
-                    is_moose64=is_moose64, msgs=msgs,
+                    msgs=msgs,
+                    debug=no,
                 ) later:
 
-                await container_result
-                var idx_result = none
-                var idx_tmp_ref = none
-                func get_idx_result_from_expr {
-                    if is_attr_set_id {
-                        return later
-                    }
-                    idx_result = generate_imr_for_indexing_expr(
-                        left_hand_node.subexprs[2],
-                        node_parents=node_parents + [
-                            node, left_hand_node],
-                        imr_parents=imr_parents,
-                        func_imr_parent=func_imr_parent,
-                        file_imr_parent=file_imr_parent,
-                        project_file=project_file,
-                        imr_build_tracker=imr_build_tracker,
-                        is_moose64=is_moose64, msgs=msgs,
-                    ) later:
-
-                    await idx_result
-                    if debug {
-                        print(program_name + ": debug: "
-                            "generate_imr_for_expr(): "
-                            "For assign, we got an indexing result. "
-                            "idx_result=" + idx_result.as_str())
-                    }
-                }
-                get_idx_result_from_expr() later:
-
-                if not is_attr_set_id and idx_result == none {
-                    result_insts = none
-                    return later yes
-                }
-
-                if container_result == none {
-                    result_insts = none
-                    return later yes
-                }
-                if idx_tmp_ref == none and not is_attr_set_id {
-                    idx_tmp_ref = idx_result.storage_ref
-                }
-
-                if node.assign_token.kind == token.T_ASSIGN {
-                    if is_attr_set_id {
-                        result_insts.add(new IMRSetAttrById(
-                            target_and_obj_storage_ref=
-                                container_result.storage_ref,
-                            attr_id=attr_set_id,
-                            value_storage_ref=
-                                converted_right_hand_ref,
-                        ))
-                    } else {
-                        result_insts.add(new IMRSetIdx(
-                            target_and_container_storage_ref=
-                                container_result.storage_ref,
-                            index_storage_ref=idx_tmp_ref,
-                            value_storage_ref=
-                                converted_right_hand_ref,
-                        ))
-                    }
-                    return later yes
-                } elseif math_assign_token != none {
-                    if is_attr_set_id {
-                        result_insts.add(new IMRGetAttrById(
-                            obj_storage_ref=
-                                container_result.storage_ref,
-                            attr_id=attr_set_id,
-                            target_storage_ref=
-                                left_operand_preconv_tmp,
-                        ))
-                    } else {
-                        result_insts.add(new IMRGetIdx(
-                            container_storage_ref=
-                                container_result.storage_ref,
-                            index_storage_ref=idx_tmp_ref,
-                            target_storage_ref=
-                                left_operand_preconv_tmp,
-                        ))
-                    }
-                    if convert_lefthand_from != convert_lefthand_to {
-                        result_insts.add(new IMRConv(
-                            left_operand_preconv_tmp,
-                            left_operand_conv_tmp,
-                            convert_lefthand_from,
-                            convert_lefthand_to,
-                            in_project_file=project_file,
-                            is_moose64=is_moose64,
-                        ))
-                    } else {
-                        assert(left_operand_preconv_tmp ==
-                            left_operand_conv_tmp)
-                    }
-                    result_insts.add(new IMRApplyOp(
-                        math_assign_token,
-                        operand_1_storage_ref=
-                            left_operand_conv_tmp,
-                        operand_2_storage_ref=
-                            converted_right_hand_ref,
-                        target_storage_ref=op_result_preconv_tmp,
-                        is_binary=yes,
-                    ))
-                    if convert_opresult_from !=
-                            convert_opresult_to {
-                        assert(op_result_preconv_tmp != op_result_conv_tmp)
-                        result_insts.add(new IMRConv(
-                            op_result_preconv_tmp,
-                            op_result_conv_tmp,
-                            convert_opresult_from,
-                            convert_opresult_to,
-                            in_project_file=project_file,
-                            is_moose64=is_moose64,
-                        ))
-                    } else {
-                        assert(op_result_preconv_tmp == op_result_conv_tmp)
-                    }
-                    result_insts.add(new IMRSetIdx(
-                        target_and_container_storage_ref=
-                            container_result.storage_ref,
-                        index_storage_ref=idx_tmp_ref,
-                        value_storage_ref=op_result_conv_tmp,
-                    ))
-                    return later yes
-                } else {
-                    throw new ValueError("Encountered unsupported "
-                        "type of assign.")
-                }
-            }
-            func try_handle_set_attr {
-                if left_hand_node.kind != ast.N_EXPR_BINOP or
-                        left_hand_node.optoken.str != "." or
-                        left_hand_node.subexprs.len < 2 or
-                        left_hand_node.subexprs[2].kind !=
-                            ast.N_EXPR_IDREF {
-                    return later no
-                }
-                var attr_name = left_hand_node.subexprs[2].label
-                var obj_result = generate_imr_for_expr(
-                    left_hand_node.subexprs[1],
-                    node_parents=node_parents + [
-                        node, left_hand_node],
-                    imr_parents=imr_parents,
-                    func_imr_parent=func_imr_parent,
-                    file_imr_parent=file_imr_parent,
-                    project_file=project_file,
-                    imr_build_tracker=imr_build_tracker,
-                    is_moose64=is_moose64, msgs=msgs,
-                ) later:
-
-                await obj_result
-                if obj_result == none {
-                    result_insts = none
-                    return later yes
-                }
-                if node.assign_token.kind == token.T_ASSIGN {
-                    result_insts.add(new IMRSetAttrByName(
-                        target_and_obj_storage_ref=
-                            obj_result.storage_ref,
-                        attr_name=attr_name,
-                        value_storage_ref=
-                            converted_right_hand_ref,
-                    ))
-                    return later yes
-                } elseif math_assign_token != none {
-                    result_insts.add(new IMRGetAttrByName(
-                        obj_storage_ref=
-                            obj_result.storage_ref,
-                        attr_name=attr_name,
-                        target_storage_ref=left_operand_preconv_tmp,
-                    ))
-                    if convert_lefthand_from != convert_lefthand_to {
-                        result_insts.add(new IMRConv(
-                            left_operand_preconv_tmp,
-                            left_operand_conv_tmp,
-                            convert_lefthand_from,
-                            convert_lefthand_to,
-                            in_project_file=project_file,
-                            is_moose64=is_moose64,
-                        ))
-                    } else {
-                        assert(left_operand_preconv_tmp ==
-                            left_operand_conv_tmp)
-                    }
-                    result_insts.add(new IMRApplyOp(
-                        math_assign_token,
-                        operand_1_storage_ref=left_operand_conv_tmp,
-                        operand_2_storage_ref=
-                            converted_right_hand_ref,
-                        target_storage_ref=op_result_preconv_tmp,
-                        is_binary=yes,
-                    ))
-                    if convert_opresult_from !=
-                            convert_opresult_to {
-                        assert(op_result_preconv_tmp != op_result_conv_tmp)
-                        result_insts.add(new IMRConv(
-                            op_result_preconv_tmp,
-                            op_result_conv_tmp,
-                            convert_opresult_from,
-                            convert_opresult_to,
-                            in_project_file=project_file,
-                            is_moose64=is_moose64,
-                        ))
-                    } else {
-                        assert(op_result_preconv_tmp == op_result_conv_tmp)
-                    }
-                    result_insts.add(new IMRSetAttrByName(
-                        target_and_obj_storage_ref=
-                            obj_result.storage_ref,
-                        attr_name=attr_name,
-                        value_storage_ref=op_result_conv_tmp,
-                    ))
-                    return later yes
-                } else {
-                    throw new ValueError("Encountered unsupported "
-                        "type of assign.")
-                }
-            }
-
-            # Try to handle the special set index case:
-            var success_idx = try_handle_set_idx() later:
-
-            await success_idx
-            if success_idx {
-                return later
-            }
-            # Try to handle the special set attr case:
-            var success_attr = try_handle_set_attr() later:
-
-            await success_attr
-            if success_attr {
-                return later
-            }
-
-            # If we arrive here, it must be a regular assign
-            # that isn't a set index or set attr:
-            if left_hand_node.kind != ast.N_EXPR_IDREF or
-                    left_hand_node.ref == none {
-                return later
-            }
-            if result_insts != none and
-                    right_hand_result != none {
-                if node.assign_token.kind == token.T_ASSIGN {
-                    result_insts.add(new IMRMove(
-                        converted_right_hand_ref,
-                        left_hand_node.ref,
-                    ))
-                } elseif math_assign_token != none {
-                    var adjust_op_result_preconv = no
-                    var adjust_op_result_conv = no
-                    var adjust_left_operand_conv = no
-                    if op_result_preconv_tmp == left_operand_conv_tmp {
-                        adjust_op_result_preconv = yes
-                    }
-                    if op_result_conv_tmp == left_operand_conv_tmp {
-                        adjust_op_result_conv = yes
-                    }
-                    if left_operand_preconv_tmp ==
-                            left_operand_conv_tmp {
-                        adjust_left_operand_conv = yes
-                    }
-                    if adjust_op_result_preconv {
-                        op_result_preconv_tmp = left_hand_node.ref
-                    }
-                    if adjust_op_result_conv {
-                        op_result_conv_tmp = left_hand_node.ref
-                    }
-                    if adjust_left_operand_conv {
-                        left_operand_conv_tmp = left_hand_node.ref
-                    }
-                    left_operand_preconv_tmp = left_hand_node.ref
-
-                    if convert_lefthand_from != convert_lefthand_to {
-                        result_insts.add(new IMRConv(
-                            left_operand_preconv_tmp,
-                            left_operand_conv_tmp,
-                            convert_lefthand_from,
-                            convert_lefthand_to,
-                            in_project_file=project_file,
-                            is_moose64=is_moose64,
-                        ))
-                    } else {
-                        assert(left_operand_preconv_tmp ==
-                            left_operand_conv_tmp)
-                    }
-                    result_insts.add(new IMRApplyOp(
-                        math_assign_token,
-                        operand_1_storage_ref=
-                            left_operand_conv_tmp,
-                        operand_2_storage_ref=
-                            converted_right_hand_ref,
-                        target_storage_ref=
-                            op_result_preconv_tmp,
-                        is_binary=yes,
-                    ))
-                    if convert_opresult_from !=
-                            convert_opresult_to {
-                        assert(op_result_preconv_tmp != op_result_conv_tmp)
-                        result_insts.add(new IMRConv(
-                            op_result_preconv_tmp,
-                            op_result_conv_tmp,
-                            convert_opresult_from,
-                            convert_opresult_to,
-                            in_project_file=project_file,
-                            is_moose64=is_moose64,
-                        ))
-                    } else {
-                        assert(op_result_preconv_tmp == op_result_conv_tmp)
-                    }
-                    if not op_result_conv_tmp.alike(
-                            left_hand_node.ref) {
-                        result_insts.add(new IMRMove(
-                            op_result_conv_tmp,
-                            left_hand_node.ref,
-                        ))
-                    }
-                } else {
-                    throw new ValueError("Encountered unsupported "
-                        "type of assign.")
-                }
-            } else {
+            await new_result_insts
+            if new_result_insts == none {
                 result_insts = none
-                return later yes
+            } else {
+                result_insts += new_result_insts
             }
         }
         if queue.len == 0 or result_insts == none {
