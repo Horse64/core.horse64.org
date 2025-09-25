@@ -6765,9 +6765,9 @@ func generate_imr_for_stmt(
 
             var left_hand_node = item[1]
             func try_handle_set_idx {
-                var is_attr_set_idx = no
-                var attr_set_idx_tmp = none
-                func identify_and_handle_attr_set_idx {
+                var is_attr_set_id = no
+                var attr_set_id = none
+                func identify_and_handle_attr_set_id {
                     var idx_id = none
                     if left_hand_node.kind == ast.N_EXPR_BINOP and
                             left_hand_node.optoken.str== "." and
@@ -6780,43 +6780,16 @@ func generate_imr_for_stmt(
                             ref.id.len == 2)
                         idx_id = left_hand_node.subexprs[2].
                             ref.id[2]
-                        is_attr_set_idx = yes
+                        is_attr_set_id = yes
                     } else {
                         return later
                     }
-                    var idx_type_name = none
-                    var idx_type_info = none
-                    if is_moose64 {
-                        idx_type_name = typeinfo.
-                            get_addr_type_name_for_platform(
-                                imr_build_tracker.build_options,
-                                is_moose64=is_moose64,
-                            )
-                        idx_type_info =
-                            typeinfo.create_from_simple_m64_type(
-                                idx_type_name
-                            )
-                    }
-                    attr_set_idx_tmp = get_new_temp_storage_ref(
-                        node, imr_parents=imr_parents,
-                        func_imr_parent=func_imr_parent,
-                        file_imr_parent=file_imr_parent,
-                        project_file=project_file,
-                        optional_type_info=idx_type_info,
-                        imr_build_tracker=imr_build_tracker,
-                        is_moose64=is_moose64, msgs=msgs,
-                    ) later:
-
-                    await attr_set_idx_tmp
+                    attr_set_id = idx_id
                     assert(typename(idx_id) == "num")
-                    result_insts.add(new IMRSetLit(
-                        idx_id, attr_set_idx_tmp,
-                        literal_kind=ast_expr.LK_NORMAL,
-                    ))
                 }
-                identify_and_handle_attr_set_idx() later:
+                identify_and_handle_attr_set_id() later:
 
-                if not is_attr_set_idx and
+                if not is_attr_set_id and
                         left_hand_node.kind != ast.N_EXPR_BINOP or
                         left_hand_node.optoken.str != "[" or
                         left_hand_node.subexprs.len < 2 {
@@ -6837,11 +6810,8 @@ func generate_imr_for_stmt(
                 await container_result
                 var idx_result = none
                 var idx_tmp_ref = none
-                if is_attr_set_idx {
-                    idx_tmp_ref = attr_set_idx_tmp
-                }
                 func get_idx_result_from_expr {
-                    if is_attr_set_idx {
+                    if is_attr_set_id {
                         return later
                     }
                     idx_result = generate_imr_for_indexing_expr(
@@ -6866,7 +6836,7 @@ func generate_imr_for_stmt(
                 }
                 get_idx_result_from_expr() later:
 
-                if not is_attr_set_idx and idx_result == none {
+                if not is_attr_set_id and idx_result == none {
                     result_insts = none
                     return later yes
                 }
@@ -6875,26 +6845,47 @@ func generate_imr_for_stmt(
                     result_insts = none
                     return later yes
                 }
-                if idx_tmp_ref == none {
+                if idx_tmp_ref == none and not is_attr_set_id {
                     idx_tmp_ref = idx_result.storage_ref
                 }
 
                 if node.assign_token.kind == token.T_ASSIGN {
-                    result_insts.add(new IMRSetIdx(
-                        target_and_container_storage_ref=
-                            container_result.storage_ref,
-                        index_storage_ref=idx_tmp_ref,
-                        value_storage_ref=
-                            converted_right_hand_ref,
-                    ))
+                    if is_attr_set_id {
+                        result_insts.add(new IMRSetAttrById(
+                            target_and_obj_storage_ref=
+                                container_result.storage_ref,
+                            attr_id=attr_set_id,
+                            value_storage_ref=
+                                converted_right_hand_ref,
+                        ))
+                    } else {
+                        result_insts.add(new IMRSetIdx(
+                            target_and_container_storage_ref=
+                                container_result.storage_ref,
+                            index_storage_ref=idx_tmp_ref,
+                            value_storage_ref=
+                                converted_right_hand_ref,
+                        ))
+                    }
                     return later yes
                 } elseif math_assign_token != none {
-                    result_insts.add(new IMRGetIdx(
-                        container_storage_ref=
-                            container_result.storage_ref,
-                        index_storage_ref=idx_tmp_ref,
-                        target_storage_ref=left_operand_preconv_tmp,
-                    ))
+                    if is_attr_set_id {
+                        result_insts.add(new IMRGetAttrById(
+                            obj_storage_ref=
+                                container_result.storage_ref,
+                            attr_id=attr_set_id,
+                            target_storage_ref=
+                                left_operand_preconv_tmp,
+                        ))
+                    } else {
+                        result_insts.add(new IMRGetIdx(
+                            container_storage_ref=
+                                container_result.storage_ref,
+                            index_storage_ref=idx_tmp_ref,
+                            target_storage_ref=
+                                left_operand_preconv_tmp,
+                        ))
+                    }
                     if convert_lefthand_from != convert_lefthand_to {
                         result_insts.add(new IMRConv(
                             left_operand_preconv_tmp,
