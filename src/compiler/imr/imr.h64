@@ -5161,6 +5161,7 @@ func generate_imr_for_entrypoint_func(
 func generate_imr_for_single_assignment(
         assignment_lefthand_node,
         assignment_righthand_node,
+        assign_token=none,
         node_parents=[],
         imr_parents=[],
         func_imr_parent=none,
@@ -5192,14 +5193,15 @@ func generate_imr_for_single_assignment(
         left_hand_type_info =
             m64_ast_analyze.get_c_or_m64_type_of_node(
                 project_file, item[1],
-                node_parents + [node],
+                node_parents,
                 store_self_value_ref_for_funcs=yes,
                 msgs=msgs,
             ) later:
 
         await left_hand_type_info
         if left_hand_type_info == none {
-            node.damaged = yes
+            item[1].damaged = yes
+            item[2].damaged = yes
             if msgs == none {
                 throw new RuntimeError(
                     "Failed to get type of assigned node."
@@ -5211,8 +5213,8 @@ func generate_imr_for_single_assignment(
                     "Please report this to the compiler "
                     "makers.",
                     source_file=project_file,
-                    line=node.line,
-                    col=node.col,
+                    line=item[1].line,
+                    col=item[1].col,
                 ))
             }
             return later no
@@ -5240,7 +5242,7 @@ func generate_imr_for_single_assignment(
     }
     var right_hand_result = generate_imr_for_expr(
         item[2],
-        node_parents=node_parents + [node],
+        node_parents=node_parents,
         imr_parents=imr_parents,
         func_imr_parent=func_imr_parent,
         file_imr_parent=file_imr_parent,
@@ -5257,8 +5259,8 @@ func generate_imr_for_single_assignment(
         return later
     }
     var math_assign_token = none
-    if node.assign_token.kind == token.T_MATHASSIGN {
-        var t_str = node.assign_token.str
+    if assign_token.str != "=" {
+        var t_str = assign_token.str
         if not t_str.ends("=") {
             throw new ValueError("Encountered unsupported "
                 "type of math assign.")
@@ -5266,8 +5268,8 @@ func generate_imr_for_single_assignment(
         math_assign_token = new token.Token(
             t_str.sub(1, t_str.len - 1),
             token.T_MATH,
-            node.assign_token.line,
-            node.assign_token.col,
+            assign_token.line,
+            assign_token.col,
         )
     }
 
@@ -5288,7 +5290,7 @@ func generate_imr_for_single_assignment(
         if not is_moose64 {
             return later
         }
-        if node.assign_token.kind != token.T_MATHASSIGN {
+        if math_assign_token == none {
             return later
         }
         moose64_cast_info =
@@ -5309,14 +5311,15 @@ func generate_imr_for_single_assignment(
 
     if moose64_cast_info != none and
             moose64_cast_info.incompatible {
-        node.damaged = yes
+        item[1].damaged = yes
+        item[2].damaged = yes
         if msgs == none {
             throw new RuntimeError(
                 "Incompatible type of math assignment."
             )
         } elseif not msg.msgs_contain_error(msgs) {
             msgs.add(new msg.FileMsg(
-                "Unexpected '" + node.optoken.str.as_str() +
+                "Unexpected '" + assign_token.str.as_str() +
                 "' operator applied to incompatible types " +
                 left_hand_type_info.describe_to_user(
                     project=project_file.project,
@@ -5330,8 +5333,8 @@ func generate_imr_for_single_assignment(
                         is_moose64=is_moose64,
                     ) + ".",
                 source_file=project_file,
-                line=node.optoken.line,
-                col=node.optoken.col,
+                line=assign_token.line,
+                col=assign_token.col,
             ))
         }
         return later result_insts
@@ -5344,7 +5347,7 @@ func generate_imr_for_single_assignment(
         if not is_moose64 {
             return
         }
-        if node.assign_token.kind == token.T_MATHASSIGN {
+        if math_assign_token != none {
             assert(moose64_cast_info != none)
             if moose64_cast_info.result_type.is_equivalent(
                     left_hand_type_info,
@@ -5382,7 +5385,8 @@ func generate_imr_for_single_assignment(
                         item[2].value == none,
                     is_moose64=is_moose64,
                 ) {
-            node.damaged = yes
+            item[1].damaged = yes
+            item[2].damaged = yes
             if msgs == none {
                 throw new RuntimeError(
                     "Incompatible type of assignment."
@@ -5428,12 +5432,12 @@ func generate_imr_for_single_assignment(
     var right_operand_conv_tmp = none
     var right_operand_preconv_tmp = none
     func make_lefthand_tmps {
-        if node.assign_token.kind != token.T_MATHASSIGN {
+        if math_assign_token == none {
             return later
         }
 
         left_operand_preconv_tmp = get_new_temp_storage_ref(
-            node, imr_parents=imr_parents,
+            item[1], imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             project_file=project_file,
@@ -5444,7 +5448,7 @@ func generate_imr_for_single_assignment(
 
         await left_operand_preconv_tmp
         if not is_moose64 or
-                node.assign_token.kind != token.T_MATHASSIGN or
+                math_assign_token == none or
                 left_hand_type_info.is_equivalent(
                     moose64_cast_info.cast_lefthand_to,
                     ignore_self_ref=yes,
@@ -5457,7 +5461,7 @@ func generate_imr_for_single_assignment(
         convert_lefthand_from = left_hand_type_info
         convert_lefthand_to = moose64_cast_info.cast_lefthand_to
         left_operand_conv_tmp = get_new_temp_storage_ref(
-            node, imr_parents=imr_parents,
+            item[1], imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             project_file=project_file,
@@ -5472,11 +5476,11 @@ func generate_imr_for_single_assignment(
     make_lefthand_tmps() later:
 
     func make_opresult_tmp {
-        if node.assign_token.kind != token.T_MATHASSIGN {
+        if math_assign_token == none {
             return later
         }
         if not is_moose64 or
-                node.assign_token.kind != token.T_MATHASSIGN or
+                math_assign_token == none or
                 moose64_cast_info.result_type.is_equivalent(
                     moose64_cast_info.cast_lefthand_to,
                     ignore_self_ref=yes,
@@ -5487,7 +5491,7 @@ func generate_imr_for_single_assignment(
             return later
         }
         op_result_preconv_tmp = get_new_temp_storage_ref(
-            node, imr_parents=imr_parents,
+            item[1], imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             project_file=project_file,
@@ -5503,7 +5507,7 @@ func generate_imr_for_single_assignment(
 
     func check_opresult_conversion {
         if is_moose64 and
-                node.assign_token.kind == token.T_MATHASSIGN and
+                math_assign_token != none and
                 not moose64_cast_info.result_type.is_equivalent(
                     left_hand_type_info,
                     ignore_self_ref=yes,
@@ -5512,7 +5516,7 @@ func generate_imr_for_single_assignment(
             convert_opresult_from = moose64_cast_info.result_type
             convert_opresult_to = left_hand_type_info
             op_result_conv_tmp = get_new_temp_storage_ref(
-                node, imr_parents=imr_parents,
+                item[1], imr_parents=imr_parents,
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
                 project_file=project_file,
@@ -5540,7 +5544,7 @@ func generate_imr_for_single_assignment(
         }
         var right_hand_required_type =
             left_hand_type_info
-        if node.assign_token.kind == token.T_MATHASSIGN {
+        if math_assign_token != none {
             right_hand_required_type =
                 moose64_cast_info.cast_righthand_to
         }
@@ -5552,7 +5556,7 @@ func generate_imr_for_single_assignment(
             return later
         }
         converted_right_hand_ref = get_new_temp_storage_ref(
-            node, imr_parents=imr_parents,
+            item[1], imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
             project_file=project_file,
@@ -5608,7 +5612,7 @@ func generate_imr_for_single_assignment(
         var container_result = generate_imr_for_expr(
             left_hand_node.subexprs[1],
             node_parents=node_parents + [
-                node, left_hand_node],
+                left_hand_node],
             imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
@@ -5627,7 +5631,7 @@ func generate_imr_for_single_assignment(
             idx_result = generate_imr_for_indexing_expr(
                 left_hand_node.subexprs[2],
                 node_parents=node_parents + [
-                    node, left_hand_node],
+                    left_hand_node],
                 imr_parents=imr_parents,
                 func_imr_parent=func_imr_parent,
                 file_imr_parent=file_imr_parent,
@@ -5659,7 +5663,7 @@ func generate_imr_for_single_assignment(
             idx_tmp_ref = idx_result.storage_ref
         }
 
-        if node.assign_token.kind == token.T_ASSIGN {
+        if math_assign_token == none {
             if is_attr_set_id and set_left_hand_via_ref {
                 result_insts.add(new IMRSetAttrByIdViaRef(
                     target_and_obj_storage_ref=
@@ -5791,7 +5795,7 @@ func generate_imr_for_single_assignment(
         var obj_result = generate_imr_for_expr(
             left_hand_node.subexprs[1],
             node_parents=node_parents + [
-                node, left_hand_node],
+                left_hand_node],
             imr_parents=imr_parents,
             func_imr_parent=func_imr_parent,
             file_imr_parent=file_imr_parent,
@@ -5805,7 +5809,7 @@ func generate_imr_for_single_assignment(
             result_insts = none
             return later yes
         }
-        if node.assign_token.kind == token.T_ASSIGN {
+        if math_assign_token == none {
             result_insts.add(new IMRSetAttrByName(
                 target_and_obj_storage_ref=
                     obj_result.storage_ref,
@@ -5893,7 +5897,7 @@ func generate_imr_for_single_assignment(
     }
     if result_insts != none and
             right_hand_result != none {
-        if node.assign_token.kind == token.T_ASSIGN {
+        if math_assign_token == none {
             result_insts.add(new IMRMove(
                 converted_right_hand_ref,
                 left_hand_node.ref,
@@ -7207,6 +7211,7 @@ func generate_imr_for_stmt(
                 generate_imr_for_single_assignment(
                     item[1],
                     item[2],
+                    assign_token=node.assign_token,
                     node_parents=node_parents + [node],
                     imr_parents=imr_parents,
                     func_imr_parent=func_imr_parent,
