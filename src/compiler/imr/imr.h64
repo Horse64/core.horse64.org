@@ -5158,7 +5158,7 @@ func generate_imr_for_entrypoint_func(
     return later insts
 }
 
-func generate_imr_for_isolated_assignment(
+func generate_imr_for_single_assignment(
         assignment_lefthand_node,
         assignment_righthand_node,
         node_parents=[],
@@ -7204,7 +7204,7 @@ func generate_imr_for_stmt(
         }
         func process_queue_item(item) {
             var new_result_insts =
-                generate_imr_for_isolated_assignment(
+                generate_imr_for_single_assignment(
                     item[1],
                     item[2],
                     node_parents=node_parents + [node],
