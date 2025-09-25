@@ -187,10 +187,9 @@ found in `src/compiler/operator.h64`:
 var precedence_table = [  # From closest-binding to loosest:
     ["new"],
     ['^'],
-    [["-", token.T_UNARYMATH]],
-    ["~", "&"],
-    ["|"],
-    ["^^"],
+    [["-", token.T_UNARYMATH], "~"],
+    ["&"],
+    ["|", "^^"],
     ["/", "*", "%"],
     ["+", ["-", token.T_MATH]],
     ["<<", ">>"],
