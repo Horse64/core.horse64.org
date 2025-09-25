@@ -457,8 +457,9 @@ func add_self_and_failable_parameters_to_funcs(
                 "label=" + block.label.as_str())
         }
 
-        if block.func_scope != none and
-                block.func_scope.has_failable {
+        if block.known_failable or
+                (block.func_scope != none and
+                 block.func_scope.has_failable) {
             assert(block.kw_arg_count == 0)
             var failable_insert_index =
                 block.known_arg_type_exprs.len + 1

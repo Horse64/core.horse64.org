@@ -2143,6 +2143,7 @@ type IMRFuncBlock base IMRBlock {
     var global_type_id = none
     var type_attr_id = none
     var func_scope = none
+    var known_failable = no
     var label = none
     var type_path = none
     var storage_ref = none
@@ -5787,10 +5788,6 @@ func generate_imr_for_single_assignment(
                     ast.N_EXPR_IDREF {
             return later no
         }
-        if is_attr_set_id {
-            throw new ValueError("Encountered unsupported "
-                "type of assign.")
-        }
         var attr_name = left_hand_node.subexprs[2].label
         var obj_result = generate_imr_for_expr(
             left_hand_node.subexprs[1],
@@ -7370,6 +7367,7 @@ func generate_imr_for_file(
             var known_return_type_storage_ref = none
             var kw_arg_names = []
             var full_arg_names = []
+            var has_failable = fscope.extended_final_has_failable()
 
             kw_arg_count = fscope.extended_final_kw_arg_count(
                 include_outer_extends=no
@@ -7524,6 +7522,7 @@ func generate_imr_for_file(
                 )
                 block.line = node.line
                 block.col = node.col
+                block.known_failable = has_failable
             } else {
                 block = new IMRFuncBlock(
                     fscope, node.label,
@@ -7547,6 +7546,7 @@ func generate_imr_for_file(
                 )
                 block.line = node.line
                 block.col = node.col
+                block.known_failable = has_failable
             }
             result.blocks.add(block)
             _func_stmt_to_imr_func_map[node] = block
