@@ -1,0 +1,40 @@
+# Form for a bug report.
+name: Feature Proposal
+about: Suggest a new feature or functionality to be programmed, or a design bug or design change proposal.
+labels:
+  - proposal
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this feature request!
+        This is the best form for asking for new functionality and
+        enhancements to be added, or for reporting more abstract
+        probems.
+  - type: textarea
+    id: description
+    attributes:
+      label: What to add?
+      description: |
+        What feature or enhancement should be added, how should it work?
+      placeholder: Detailed description...
+    validations:
+      required: true
+  - type: textarea
+    id: testprogram
+    attributes:
+      label: Hypothetical example commands
+      description: |
+        Can you think of made-up terminal commands or code lines
+        that mimick how you envision the
+        feature to be used?
+        **Don't use backticks,** this input field will be automatically
+        formatted as code. *(This field is optional.)*
+      render: shell
+  - type: markdown
+    attributes:
+      value: |
+        By submitting this issue, I confirm **I searched
+        the "Issues" list via "Search" button** for whether someone
+        already reported this.
+

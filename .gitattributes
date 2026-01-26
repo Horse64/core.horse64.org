@@ -1,0 +1,12 @@
+
+# Make sure all the .h64 files are recognized:
+*.h64 linguist-language=Horse64
+*.m64 linguist-language=Horse64 System
+*.pyx linguist-language=Cython
+*.pxd linguist-language=Cython
+*.py linguist-language=Python
+
+# Special non-code files:
+docs/* linguist-documentation
+vendor/* linguist-vendored
+
